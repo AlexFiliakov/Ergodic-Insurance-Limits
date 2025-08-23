@@ -4,7 +4,7 @@
 
 The research reveals that **traditional expected value approaches systematically mislead insurance decisions**. Ole Peters' ergodic economics framework demonstrates that insurance creates win-win scenarios when analyzed through time averages rather than ensemble averages. For multiplicative wealth dynamics (which characterize most businesses), the time-average growth rate with insurance becomes:
 
-$g = \lim_{T\to\infin}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$
+$g = \lim_{T\to\infty}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$
 
 This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For your widget manufacturing model with $10M starting assets and 8% operating margin, **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
 
