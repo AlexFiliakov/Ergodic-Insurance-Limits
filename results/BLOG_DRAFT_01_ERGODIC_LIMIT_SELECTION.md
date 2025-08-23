@@ -233,6 +233,98 @@ The survival-contingent nature of wealth accumulation means that coverage produc
 
 For our model company, reducing ruin probability from 5% to 1% over a 100-year horizon justifies annual premiums up to the point where the present value of survival-contingent cash flows equals the premium stream—often several times the expected annual losses.
 
+## Implications for Risk Management
+
+Meet **Widget Manufacturing Inc.**, our brave volunteer for actuarial experimentation. They make widgets (obviously), have $10M in assets, and are about to embark on time travel across parallel universes.
+
+### Our Model Company Profile
+
+Widget Manufacturing represents the kind of mid-sized manufacturing company that keeps actuaries employed and CFOs awake at night. Here's their financial snapshot:
+
+- **Business**: Manufacturing widgets with predictable demand (widgets are always needed!)
+- **Size**: $10M assets generating $8M revenue (0.8x asset turnover)
+- **Margins**: 8% operating margin (before the inevitable losses)
+- **Growth Strategy**: Reinvest everything and hope for the best
+- **Risk Tolerance**: Conservative management seeking <1% ruin probability
+
+The 1% ruin threshold deserves explanation, as it fundamentally shapes our optimization. Conservative risk management typically targets 1% probability of ruin, but over what time horizon? This makes all the difference:
+
+- **1% over 20 years**: Moderately conservative (annual ruin probability ~0.05%)
+- **1% over 50 years**: Conservative (annual ruin probability ~0.02%)
+- **1% over 100 years**: Very conservative (annual ruin probability ~0.01%)
+- **1% over 200 years**: Ultra-conservative (annual ruin probability ~0.005%)
+
+For our analysis, we'll examine multiple horizons to understand how time changes optimal coverage. A company planning for generational wealth transfer will optimize differently than one focused on the next decade.
+
+### The Experimental Setup
+
+We're going to subject Widget Manufacturing to the kind of comprehensive stress testing that would make bank regulators weep with joy:
+
+- **10,000+ parallel life simulations** (because one life isn't enough data)
+- **1,000-year time horizons** (longer than most civilizations last)
+- **Realistic loss distributions** with familiar actuarial structures
+- **Multiple insurance scenarios** (from "wing it" to "insure everything")
+
+**Loss Modeling Framework**
+
+Our loss generation will follow standard actuarial practices with some ergodic twists:
+
+- **Attritional Losses**: Poisson frequency (λ = 4 claims/year), lognormal severity with mean $15K and CV = 1.5
+- **Large Losses**: Poisson frequency (λ = 0.3 claims/year), lognormal severity with mean $2M and CV = 2.0
+- **Catastrophic Events**: Poisson frequency (λ = 0.05 claims/year), Pareto severity with $5M+ attachment
+
+Frequencies will scale with Revenue to simulate business exposure. This gives us the heavy-tailed, right-skewed distributions that make insurance mathematics interesting and actuarial careers possible.
+
+### Our Delightfully Unrealistic Assumptions
+
+To keep this analysis tractable, we assume:
+
+- **No inflation** (egg prices stay the same forever)
+- **No business cycles** (eternal stable growth)
+- **No strategic pivots** (Widget Manufacturing will make the same widgets forever, which will always be in demand)
+- **Perfect information** (omniscient insurers know loss distributions exactly, but don't know the future outcomes)
+- **No debt** (equity financing only)
+
+*Don't worry—these simplifications actually make our results MORE conservative. Reality would likely favor insurance even more strongly.*
+
+**Why Conservative?** Real-world complications like inflation uncertainty, business cycle volatility, and strategic pivots all increase the value of volatility reduction. Perfect information about loss distributions represents the best-case scenario for self-insurance. Adding realistic uncertainty would only strengthen the case for comprehensive coverage.
+
+### The Central Challenge
+
+**What excess insurance limits should Widget Manufacturing Inc. purchase to optimize their long-run financial performance?**
+
+Traditional actuarial thinking would focus on:
+- Expected annual losses vs. premium costs
+- Loss ratios and actuarial fairness
+- Industry benchmarks and peer comparisons
+
+### The Ergodic Reframing
+
+Our analysis will instead optimize:
+- **Time-average ROE** over 1,000-year simulations
+- **Survival probability** across adverse loss sequences
+- **Geometric growth rates** that account for volatility drag
+- **Path-dependent effects** of loss timing on compound returns
+
+This shift from expected-value optimization to time-average optimization will produce dramatically different results. We'll discover scenarios where paying $500K annual premiums for $150K expected annual losses maximizes long-term wealth creation—results that would horrify traditional cost-benefit analysis but delight ergodic economists.
+
+**Coverage Architecture Preview**
+
+We'll test multiple excess insurance structures:
+- **Primary Layer**: Self-insured retention from $0 to various attachment points ($1M, $2M, $5M, $10M)
+- **First Excess**: Coverage above attachment up to $25M, $50M, or $100M limits
+- **Higher Layers**: Catastrophic coverage for extreme tail events
+
+Premium rates will follow typical market structures: higher rates for primary layers (1.5% of limit), decreasing for excess layers (0.8%, 0.4% for successive layers).
+
+### What We'll Discover
+
+*Spoiler alert for those who can't wait:*
+
+Our Monte Carlo engine will reveal optimal strategies that challenge conventional actuarial wisdom. We'll find attachment points and limits that maximize Widget Manufacturing's time-average growth rate while maintaining their conservative risk tolerance.
+
+The results will demonstrate why ergodic analysis represents the next evolution in actuarial science—moving beyond ensemble averages to optimize for the reality of business time sequences.
+
 ---
 
-*With these principles established, we can now construct our quantitative model to determine optimal excess limits for Widget Manufacturing Inc...*
+*With our experimental framework established, we're ready to construct the mathematical machinery that will transform actuarial thinking about excess insurance optimization...*

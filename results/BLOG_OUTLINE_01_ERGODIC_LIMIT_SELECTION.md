@@ -51,7 +51,7 @@
 
 ## Implications for Risk Management
 
-Meet **Widget Manufacturing Inc.**, our brave volunteer for actuarial experimentation. They make widgets (obviously), have $10M in assets, and are about to experience more stress testing than a Boeing 737 MAX.
+Meet **Widget Manufacturing Inc.**, our brave volunteer for actuarial experimentation. They make widgets (obviously), have $10M in assets, and are about to embark on time travel across parallel universes.
 
 ### Our Model Company Profile
 - **Business**: Manufacturing widgets with predictable demand (widgets are always needed!)
@@ -69,11 +69,11 @@ We're going to subject Widget Manufacturing to:
 
 ### Our Delightfully Unrealistic Assumptions
 To keep this analysis tractable, we assume:
-- **No inflation** (because who needs reality?)
+- **No inflation** (egg prices stay the same forever)
 - **No business cycles** (eternal stable growth)
-- **No strategic pivots** (Widget Manufacturing will make widgets forever)
-- **Perfect information** (we know loss distributions exactly)
-- **No debt** (equity financing only, like a 1950s textbook)
+- **No strategic pivots** (Widget Manufacturing will make the same widgets forever)
+- **Perfect information** (omniscient insurers know loss distributions exactly, but don't know the outcomes)
+- **No debt** (equity financing only)
 
 *Don't worry - these simplifications actually make our results MORE conservative. Reality would likely favor insurance even more strongly.*
 
@@ -114,13 +114,13 @@ Our analysis will instead optimize:
 
 After 1,000 years and 10,000 simulations, what will we recommend for Widget Manufacturing Inc.?
 
-- **Option A**: Minimal coverage ($2M excess attachment, $40K premium)
+- **Option A**: Minimal coverage ($25M excess limit, $240K premium)
   - Saves premium dollars but retains severe loss exposure
   - Expected ROE: 14.6% but ruin probability: 8.2%
 
-- **Option B**: Conservative coverage ($25M excess attachment, $180K premium)
+- **Option B**: Conservative coverage ($200M excess attachment, $380K premium)
   - Expensive premium but comprehensive protection
-  - Expected ROE: 13.4% but ruin probability: 0.3%
+  - Expected ROE: 12.4% but ruin probability: 0.3%
 
 - **Option C**: The ergodic optimum (spoiler: somewhere in between)
   - Balances growth and survival for maximum long-term wealth
