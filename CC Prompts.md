@@ -303,11 +303,55 @@ Ask me clarifying questions then draft the sprint plan for "Sprint 02: Ergodic F
 
 ### Sprint Planning Questions
 
-
+1. Ergodic Theory Implementation Scope:
+ - Should Sprint 02 implement the full mathematical framework for
+ergodic growth rates as described in the README (time-average vs
+ensemble-average comparisons)?
+ - Do you want to implement the multiplicative wealth dynamics
+equation: $g = \lim_{T\to\infty}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$?
+2. Stochastic Elements:
+ - Should we add stochastic growth rates, claim events, and operating
+margin fluctuations in this sprint?
+ - What probability distributions should we use (normal, lognormal,
+gamma, etc.)?
+ - Should randomness be applied at the monthly or annual level?
+3. Ergodic vs Ensemble Analysis:
+ - Should we implement side-by-side comparison of ergodic
+(time-average) vs traditional (ensemble-average) approaches?
+ - Do you want to demonstrate the "insurance puzzle" resolution
+mentioned in the README?
+4. Mathematical Complexity:
+ - Should we implement the advanced ergodic optimization mentioned
+(300-500% premium markups still being beneficial)?
+ - How sophisticated should the mathematical framework be (basic
+time-averaging vs full ergodic theory)?
+5. Insurance Integration:
+ - Should Sprint 02 start integrating basic insurance mechanisms
+(deductibles, limits, premiums)?
+ - Or focus purely on the ergodic mathematical framework first?
+6. Performance Requirements:
+ - With stochastic elements, should we optimize for the 100,000
+simulation requirement from Sprint 01?
+ - Any specific performance targets for ergodic calculations?
+7. Output and Analysis:
+ - Should we create new notebooks demonstrating ergodic advantages?
+ - What specific ergodic metrics should we track (beyond ROE, ROA,
+Risk of Ruin)?
+8. Integration with Sprint 01:
+ - Should the ergodic framework be a separate module or integrated
+into the existing WidgetManufacturer class?
+ - How should it interact with the existing deterministic model?
 
 ### Sprint Planning Responses
 
-
+1. Simulated ergodics should work fine.
+2. Yes, add all stochastic elements in this sprint, including growth rates and claim events. I think operating margin is a function of the underlying balance sheet revenue items, so we may not need stochastic operating margin fluctuations, but rather underlying sales fluctuations. Most other stochastic distributions have been specified in the original project spec `Financial Modeling Framework - Spec.md` which you should draw from. Fill in the details.
+3. Include a side-by-side comparison of ergodic time-averages vs traditional ensemble-average from the simulations. Use this to demonstrate the "insurance puzzle" resolution.
+4. We don't need to implement advanced ergodic optimization. Recommend which parts of ergodic theory should be included in the metrics.
+5. Integrate deductibles, limits, and premiums in this sprint.
+6. Yes, optimize for 100,000 scenarios of 1000-year runs each.
+7. Recommend ergodic metrics to track beyond ROE, ROA, and Risk of Ruin.
+8. I think ergodic framework should be integrated into existing modules. Deterministic behavior should be a toggle together with ergodic behavior.
 
 ## Sprint 03: Loss Modeling
 
@@ -315,11 +359,77 @@ Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Mode
 
 ### Sprint Planning Questions
 
+  1. Loss Distribution Focus
 
+  - Should we implement specific parametric loss distributions (e.g.,
+  Pareto, Weibull, Gamma) or stick with the current lognormal approach?
+  - Do you want support for composite distributions (e.g.,
+  frequency-severity models with different distributions for each)?
+  - Should we include extreme value theory (EVT) for tail modeling?
+
+  2. Claim Types and Structure
+
+  - Beyond regular and catastrophic claims, should we model:
+    - Attritional losses (high frequency, low severity)?
+    - Large losses (medium frequency, medium severity)?
+    - Natural catastrophe vs man-made catastrophe distinctions?
+  - Should claims have correlation structures (e.g., contagion effects)?
+
+  3. Insurance Program Complexity
+
+  - Should we implement multi-layer insurance programs (e.g., primary,
+  excess, umbrella)?
+  - Do you want aggregate deductibles/limits in addition to
+  per-occurrence?
+  - Should we model reinstatements for excess layers?
+  - Include retention/self-insured retentions separate from deductibles?
+
+  4. Temporal Dynamics
+
+  - Should claim frequency/severity change over time (inflation, trends)?
+  - Do you want seasonality in claim patterns?
+  - Should we model claim development (IBNR - Incurred But Not Reported)?
+  - Include reporting delays separate from payment delays?
+
+  5. Risk Measures and Analytics
+
+  - Which risk measures should we prioritize:
+    - VaR (Value at Risk)?
+    - TVaR/CVaR (Tail Value at Risk)?
+    - Probable Maximum Loss (PML)?
+    - Expected Shortfall?
+  - Should we calculate return periods for different loss levels?
+
+  6. Calibration and Validation
+
+  - Should we include parameter estimation from historical data?
+  - Do you want goodness-of-fit tests for distributions?
+  - Should we implement stress testing scenarios?
+  - Include back-testing capabilities?
+
+  7. Performance and Scale
+
+  - What scale of simulations should we optimize for (millions of
+  scenarios)?
+  - Should we implement parallel processing for Monte Carlo?
+  - Do you need real-time loss modeling or is batch processing
+  sufficient?
+  - Should we use vectorized operations throughout for performance?
 
 ### Sprint Planning Responses
 
-
+1. Maybe lognormal for attritional losses and Pareto for large losses. No need for EVT yet or compound distributions, just stick with basic frequency/severity initially.
+2. Keep the claims simple for now with two types and no claim correlations or nuanced tail behavior.
+3. Implement multi-layer insurance programs. Only per-occurrence deductibles for now. You can model reinstatements for excess layers. Keep the simulation simple with only deductibles, no other types of retention.
+4. Assume frequency and severity don't change in the underlying parameters for now. No seasonality to claim patterns. We can model claim development. Assume no reporting delays.
+5. I want all of the following:
+    - VaR (Value at Risk)?
+    - TVaR/CVaR (Tail Value at Risk)?
+    - Probable Maximum Loss (PML)?
+    - Expected Shortfall?
+    - Different return period for different loss levels.
+6. We can just use the parameters recommended in the project sketch `Financial Modeling Framework - Spec.md`. No need for goodness-of-fi testing. We don't need to implement stress testing or back-testing yet.
+7. Optimize for 100000 ensemble runs of 1000-year simulations. You can implement parallel processing for Monte Carlo. Batch processing is sufficient. You can use vectorized operations as appropriate.
 
 ## Sprint 04: Insurance Optimization
 
