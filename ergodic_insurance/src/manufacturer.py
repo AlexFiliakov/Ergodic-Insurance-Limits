@@ -1,17 +1,27 @@
-"""Widget manufacturer financial model implementation."""
+"""Widget manufacturer financial model implementation.
+
+This module implements the core financial model for a widget manufacturing
+company, including balance sheet management, insurance claim processing,
+and stochastic modeling capabilities.
+"""
 
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .config import Config, ManufacturerConfig
+from .config import ManufacturerConfig
+from .stochastic_processes import StochasticProcess
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ClaimLiability:
-    """Represents an outstanding insurance claim liability."""
+    """Represents an outstanding insurance claim liability.
+    
+    This class tracks insurance claims that require multi-year payment
+    schedules and manages the collateral required to support them.
+    """
 
     original_amount: float
     remaining_amount: float
@@ -32,29 +42,51 @@ class ClaimLiability:
     )
 
     def get_payment(self, years_since_incurred: int) -> float:
-        """Calculate payment due for a given year after claim incurred."""
+        """Calculate payment due for a given year after claim incurred.
+        
+        Args:
+            years_since_incurred: Number of years since the claim was first incurred.
+            
+        Returns:
+            Payment amount due for this year as a percentage of original amount.
+        """
         if years_since_incurred < 0 or years_since_incurred >= len(self.payment_schedule):
             return 0.0
         return self.original_amount * self.payment_schedule[years_since_incurred]
 
     def make_payment(self, amount: float) -> float:
-        """Make a payment against the liability. Returns actual payment made."""
+        """Make a payment against the liability.
+        
+        Args:
+            amount: Requested payment amount.
+            
+        Returns:
+            Actual payment made (may be less than requested if insufficient liability remains).
+        """
         payment = min(amount, self.remaining_amount)
         self.remaining_amount -= payment
         return payment
 
 
 class WidgetManufacturer:
-    """Financial model for a widget manufacturing company."""
+    """Financial model for a widget manufacturing company.
+    
+    This class models the complete financial operations of a manufacturing
+    company including revenue generation, claim processing, collateral
+    management, and balance sheet evolution over time.
+    """
 
-    def __init__(self, config: ManufacturerConfig):
+    def __init__(
+        self, config: ManufacturerConfig, stochastic_process: Optional[StochasticProcess] = None
+    ):
         """Initialize manufacturer with configuration parameters.
 
-
         Args:
-            config: Manufacturing configuration parameters
+            config: Manufacturing configuration parameters.
+            stochastic_process: Optional stochastic process for revenue volatility.
         """
         self.config = config
+        self.stochastic_process = stochastic_process
 
         # Balance sheet items
         self.assets = config.initial_assets
@@ -81,29 +113,42 @@ class WidgetManufacturer:
 
     @property
     def net_assets(self) -> float:
-        """Calculate net assets (total assets minus restricted assets)."""
+        """Calculate net assets (total assets minus restricted assets).
+        
+        Returns:
+            Net assets available to the company.
+        """
         return self.assets - self.restricted_assets
 
     @property
     def available_assets(self) -> float:
-        """Calculate available (unrestricted) assets for operations."""
+        """Calculate available (unrestricted) assets for operations.
+        
+        Returns:
+            Assets available for operational use (not restricted as collateral).
+        """
         return self.assets - self.restricted_assets
 
     @property
     def total_claim_liabilities(self) -> float:
-        """Calculate total outstanding claim liabilities."""
+        """Calculate total outstanding claim liabilities.
+        
+        Returns:
+            Sum of all remaining claim liability amounts.
+        """
         return sum(claim.remaining_amount for claim in self.claim_liabilities)
 
-    def calculate_revenue(self, working_capital_pct: float = 0.0) -> float:
+    def calculate_revenue(
+        self, working_capital_pct: float = 0.0, apply_stochastic: bool = False
+    ) -> float:
         """Calculate revenue based on available assets.
 
-
         Args:
-            working_capital_pct: Percentage of revenue tied up in working capital
-
+            working_capital_pct: Percentage of revenue tied up in working capital.
+            apply_stochastic: Whether to apply stochastic shock to revenue.
 
         Returns:
-            Annual revenue
+            Annual revenue.
         """
         # Adjust for working capital if specified
         available_assets = self.assets
@@ -117,19 +162,24 @@ class WidgetManufacturer:
             available_assets = self.assets / denominator
 
         revenue = available_assets * self.asset_turnover_ratio
+
+        # Apply stochastic shock if requested and process is available
+        if apply_stochastic and self.stochastic_process is not None:
+            shock = self.stochastic_process.generate_shock(revenue)
+            revenue *= shock
+            logger.debug(f"Applied stochastic shock: {shock:.4f}")
+
         logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.assets:,.2f}")
         return revenue
 
     def calculate_operating_income(self, revenue: float) -> float:
         """Calculate operating income from revenue.
 
-
         Args:
-            revenue: Annual revenue
-
+            revenue: Annual revenue.
 
         Returns:
-            Operating income before interest and taxes
+            Operating income before interest and taxes.
         """
         operating_income = revenue * self.operating_margin
         logger.debug(
@@ -142,14 +192,12 @@ class WidgetManufacturer:
     ) -> float:
         """Calculate costs for letter of credit collateral.
 
-
         Args:
-            letter_of_credit_rate: Annual rate for letter of credit (default 1.5%)
-            time_period: "annual" or "monthly" for cost calculation
-
+            letter_of_credit_rate: Annual rate for letter of credit (default 1.5%).
+            time_period: "annual" or "monthly" for cost calculation.
 
         Returns:
-            Collateral costs for the period
+            Collateral costs for the period.
         """
         if time_period == "monthly":
             period_rate = letter_of_credit_rate / 12
@@ -169,14 +217,12 @@ class WidgetManufacturer:
     def calculate_net_income(self, operating_income: float, collateral_costs: float) -> float:
         """Calculate net income after collateral costs and taxes.
 
-
         Args:
-            operating_income: Operating income before collateral and taxes
-            collateral_costs: Annual collateral costs
-
+            operating_income: Operating income before collateral and taxes.
+            collateral_costs: Annual collateral costs.
 
         Returns:
-            Net income after taxes
+            Net income after taxes.
         """
         # Deduct collateral costs (like interest expense)
         income_before_tax = operating_income - collateral_costs
@@ -191,10 +237,9 @@ class WidgetManufacturer:
     def update_balance_sheet(self, net_income: float, growth_rate: float = 0.0) -> None:
         """Update balance sheet with retained earnings and growth.
 
-
         Args:
-            net_income: Net income for the period
-            growth_rate: Revenue growth rate to apply
+            net_income: Net income for the period.
+            growth_rate: Revenue growth rate to apply.
         """
         # Calculate retained earnings
         retained_earnings = net_income * self.retention_ratio
@@ -217,15 +262,13 @@ class WidgetManufacturer:
     ) -> tuple[float, float]:
         """Process an insurance claim with deductible and limit, setting up collateral.
 
-
         Args:
-            claim_amount: Total amount of the loss/claim
-            deductible: Amount company must pay before insurance kicks in
-            insurance_limit: Maximum amount insurance will pay
-
+            claim_amount: Total amount of the loss/claim.
+            deductible: Amount company must pay before insurance kicks in.
+            insurance_limit: Maximum amount insurance will pay.
 
         Returns:
-            Tuple of (company_payment, insurance_payment)
+            Tuple of (company_payment, insurance_payment).
         """
         # Calculate insurance coverage
         if claim_amount <= deductible:
@@ -274,9 +317,8 @@ class WidgetManufacturer:
     def pay_claim_liabilities(self) -> float:
         """Pay scheduled claim liabilities for the current year.
 
-
         Returns:
-            Total amount paid toward claims
+            Total amount paid toward claims.
         """
         total_paid = 0.0
 
@@ -317,9 +359,8 @@ class WidgetManufacturer:
     def check_solvency(self) -> bool:
         """Check if the company is solvent (equity > 0).
 
-
         Returns:
-            True if solvent, False if ruined
+            True if solvent, False if ruined.
         """
         if self.equity <= 0:
             self.is_ruined = True
@@ -329,9 +370,8 @@ class WidgetManufacturer:
     def calculate_metrics(self) -> Dict[str, float]:
         """Calculate key financial metrics.
 
-
         Returns:
-            Dictionary of financial metrics
+            Dictionary of financial metrics.
         """
         metrics = {}
 
@@ -386,19 +426,19 @@ class WidgetManufacturer:
         letter_of_credit_rate: float = 0.015,
         growth_rate: float = 0.0,
         time_resolution: str = "annual",
+        apply_stochastic: bool = False,
     ) -> Dict[str, float]:
         """Execute one time step of the financial model.
 
-
         Args:
-            working_capital_pct: Working capital as percentage of sales
-            letter_of_credit_rate: Annual rate for letter of credit
-            growth_rate: Revenue growth rate for the period
-            time_resolution: "annual" or "monthly" for simulation step
-
+            working_capital_pct: Working capital as percentage of sales.
+            letter_of_credit_rate: Annual rate for letter of credit.
+            growth_rate: Revenue growth rate for the period.
+            time_resolution: "annual" or "monthly" for simulation step.
+            apply_stochastic: Whether to apply stochastic shocks.
 
         Returns:
-            Dictionary of metrics for this time step
+            Dictionary of metrics for this time step.
         """
         # Check if already ruined
         if self.is_ruined:
@@ -421,7 +461,7 @@ class WidgetManufacturer:
             self.pay_claim_liabilities()
 
         # Calculate financial performance
-        revenue = self.calculate_revenue(working_capital_pct)
+        revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
         operating_income = self.calculate_operating_income(revenue)
 
         # Calculate collateral costs (monthly if specified)
@@ -442,7 +482,21 @@ class WidgetManufacturer:
 
         # Apply revenue growth by adjusting asset turnover ratio
         if growth_rate != 0 and (time_resolution == "annual" or self.current_month == 11):
-            self.asset_turnover_ratio *= 1 + growth_rate
+            # Apply base growth rate
+            base_growth = 1 + growth_rate
+
+            # Add stochastic component to growth if enabled
+            if apply_stochastic and self.stochastic_process is not None:
+                # Use a separate shock for growth rate
+                growth_shock = self.stochastic_process.generate_shock(1.0)
+                # Combine deterministic and stochastic growth
+                total_growth = base_growth * growth_shock
+                self.asset_turnover_ratio *= total_growth
+                logger.debug(
+                    f"Applied growth: {total_growth:.4f} (base={base_growth:.4f}, shock={growth_shock:.4f})"
+                )
+            else:
+                self.asset_turnover_ratio *= base_growth
 
         # Check solvency
         self.check_solvency()
@@ -465,7 +519,11 @@ class WidgetManufacturer:
         return metrics
 
     def reset(self) -> None:
-        """Reset the manufacturer to initial state."""
+        """Reset the manufacturer to initial state.
+        
+        Restores all financial parameters to their initial values and
+        clears historical data.
+        """
         self.assets = self.config.initial_assets
         self.collateral = 0.0
         self.restricted_assets = 0.0
@@ -476,4 +534,9 @@ class WidgetManufacturer:
         self.current_month = 0
         self.is_ruined = False
         self.metrics_history = []
+
+        # Reset stochastic process if present
+        if self.stochastic_process is not None:
+            self.stochastic_process.reset()
+
         logger.info("Manufacturer reset to initial state")

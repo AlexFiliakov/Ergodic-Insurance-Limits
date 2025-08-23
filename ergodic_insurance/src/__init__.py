@@ -1,4 +1,9 @@
-"""Ergodic Insurance Limits - Core Package."""
+"""Ergodic Insurance Limits - Core Package.
+
+This module provides the main entry point for the Ergodic Insurance Limits
+package, exposing the key classes and functions for insurance simulation
+and analysis.
+"""
 
 from .claim_generator import ClaimEvent, ClaimGenerator
 from .config import Config, ManufacturerConfig
