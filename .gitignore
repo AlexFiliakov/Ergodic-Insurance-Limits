@@ -380,6 +380,7 @@ FodyWeavers.xsd
 .vscode/*
 *.code-workspace
 .VSCodeCounter
+.coverage*
 
 # Local History for Visual Studio Code
 .history/
