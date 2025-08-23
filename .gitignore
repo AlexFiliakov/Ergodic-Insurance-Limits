@@ -400,3 +400,6 @@ nul
 .simone/*.db
 .simone/*.db-shm
 .simone/*.db-wal
+
+# Sphinx
+docs/_build/
