@@ -299,16 +299,26 @@ everything)?
 
 ## Sprint 02: Ergodic Framework
 
+Ask me clarifying questions then draft the sprint plan for "Sprint 02: Ergodic Framework" to be located in the file `\simone\SPRINT_02_ERGODIC_FRAMEWORK.md`.
+
 ### Sprint Planning Questions
 
+
+
 ### Sprint Planning Responses
+
 
 
 ## Sprint 03: Loss Modeling
 
+Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Modeling" to be located in the file `\simone\SPRINT_03_LOSS_MODELING.md`.
+
 ### Sprint Planning Questions
 
+
+
 ### Sprint Planning Responses
+
 
 
 ## Sprint 04: Insurance Optimization
