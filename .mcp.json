@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "simone": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "simone-mcp@latest"
+      ],
+      "env": {
+        "PROJECT_PATH": "C:\\Users\\alexf\\OneDrive\\Documents\\Projects\\Ergodic Insurance Limits"
+      }
+    }
+  }
+}
