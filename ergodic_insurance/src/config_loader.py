@@ -1,4 +1,9 @@
-"""Configuration loader with validation and override support."""
+"""Configuration loader with validation and override support.
+
+This module provides utilities for loading, validating, and managing
+configuration files, with support for caching, overrides, and
+scenario-based configurations.
+"""
 
 import logging
 from pathlib import Path
@@ -10,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigLoader:
-    """Handles loading and managing configuration."""
+    """Handles loading and managing configuration.
+
+    A comprehensive configuration management system that supports
+    YAML file loading, validation, caching, and runtime overrides.
+    """
 
     DEFAULT_CONFIG_DIR = Path(__file__).parent.parent / "data" / "parameters"
     DEFAULT_CONFIG_FILE = "baseline.yaml"
@@ -20,7 +29,7 @@ class ConfigLoader:
 
         Args:
             config_dir: Directory containing configuration files.
-                       Defaults to data/parameters/
+                       Defaults to data/parameters/.
         """
         self.config_dir = config_dir or self.DEFAULT_CONFIG_DIR
         self._cache: Dict[str, Config] = {}
@@ -35,17 +44,17 @@ class ConfigLoader:
 
         Args:
             config_name: Name of config file (without .yaml extension)
-                        or full path to config file
-            overrides: Dictionary of overrides to apply
+                        or full path to config file.
+            overrides: Dictionary of overrides to apply.
             **kwargs: Additional overrides in dot notation
-                     (e.g., manufacturer__operating_margin=0.1)
+                     (e.g., manufacturer__operating_margin=0.1).
 
         Returns:
-            Loaded and validated configuration
+            Loaded and validated configuration.
 
         Raises:
-            FileNotFoundError: If config file doesn't exist
-            ValidationError: If configuration is invalid
+            FileNotFoundError: If config file doesn't exist.
+            ValidationError: If configuration is invalid.
         """
         # Determine config path
         if "/" in config_name or "\\" in config_name:
@@ -85,15 +94,15 @@ class ConfigLoader:
         """Load a predefined scenario configuration.
 
         Args:
-            scenario: Scenario name ("baseline", "conservative", "optimistic")
-            overrides: Dictionary of overrides to apply
-            **kwargs: Additional overrides in dot notation
+            scenario: Scenario name ("baseline", "conservative", "optimistic").
+            overrides: Dictionary of overrides to apply.
+            **kwargs: Additional overrides in dot notation.
 
         Returns:
-            Loaded and validated configuration
+            Loaded and validated configuration.
 
         Raises:
-            ValueError: If scenario is not recognized
+            ValueError: If scenario is not recognized.
         """
         valid_scenarios = ["baseline", "conservative", "optimistic"]
         if scenario not in valid_scenarios:
@@ -109,11 +118,11 @@ class ConfigLoader:
         """Compare two configurations and return differences.
 
         Args:
-            config1: First config (name or Config object)
-            config2: Second config (name or Config object)
+            config1: First config (name or Config object).
+            config2: Second config (name or Config object).
 
         Returns:
-            Dictionary of differences between configurations
+            Dictionary of differences between configurations.
         """
         # Load configs if names provided
         if isinstance(config1, str):
@@ -129,7 +138,13 @@ class ConfigLoader:
         differences = {}
 
         def compare_dicts(d1: dict, d2: dict, path: str = "") -> None:
-            """Recursively compare dictionaries."""
+            """Recursively compare dictionaries.
+
+            Args:
+                d1: First dictionary to compare.
+                d2: Second dictionary to compare.
+                path: Current path in nested structure.
+            """
             all_keys = set(d1.keys()) | set(d2.keys())
             for key in all_keys:
                 current_path = f"{path}.{key}" if path else key
@@ -152,13 +167,13 @@ class ConfigLoader:
         """Validate a configuration.
 
         Args:
-            config: Configuration to validate (name or Config object)
+            config: Configuration to validate (name or Config object).
 
         Returns:
-            True if valid, raises exception otherwise
+            True if valid, raises exception otherwise.
 
         Raises:
-            ValidationError: If configuration is invalid
+            ValidationError: If configuration is invalid.
         """
         if isinstance(config, str):
             config = self.load(config)
@@ -187,13 +202,17 @@ class ConfigLoader:
         """List all available configuration files.
 
         Returns:
-            List of configuration file names (without .yaml extension)
+            List of configuration file names (without .yaml extension).
         """
         yaml_files = self.config_dir.glob("*.yaml")
         return [f.stem for f in yaml_files if not f.stem.startswith("_")]
 
     def clear_cache(self) -> None:
-        """Clear the configuration cache."""
+        """Clear the configuration cache.
+
+        Removes all cached configurations, forcing fresh loads
+        on subsequent requests.
+        """
         self._cache.clear()
         logger.debug("Configuration cache cleared")
 
@@ -207,12 +226,12 @@ def load_config(
     """Quick helper to load a configuration.
 
     Args:
-        config_name: Name of config file or full path
-        overrides: Dictionary of overrides
-        **kwargs: Keyword overrides in dot notation
+        config_name: Name of config file or full path.
+        overrides: Dictionary of overrides.
+        **kwargs: Keyword overrides in dot notation.
 
     Returns:
-        Loaded configuration
+        Loaded configuration.
     """
     loader = ConfigLoader()
     return loader.load(config_name, overrides, **kwargs)

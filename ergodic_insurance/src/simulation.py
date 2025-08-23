@@ -1,4 +1,9 @@
-"""Simulation engine for time evolution of widget manufacturer model."""
+"""Simulation engine for time evolution of widget manufacturer model.
+
+This module provides the main simulation engine that orchestrates the
+time evolution of the widget manufacturer financial model, managing
+claim events, financial calculations, and result collection.
+"""
 
 import logging
 import time
@@ -16,7 +21,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SimulationResults:
-    """Container for simulation trajectory data."""
+    """Container for simulation trajectory data.
+
+    Holds the complete time series of financial metrics and events
+    from a single simulation run, with methods for analysis and export.
+    """
 
     years: np.ndarray
     assets: np.ndarray
@@ -32,7 +41,7 @@ class SimulationResults:
         """Convert simulation results to pandas DataFrame.
 
         Returns:
-            DataFrame with all trajectory data
+            DataFrame with all trajectory data.
         """
         return pd.DataFrame(
             {
@@ -51,7 +60,7 @@ class SimulationResults:
         """Calculate summary statistics for the simulation.
 
         Returns:
-            Dictionary of key statistics
+            Dictionary of key statistics.
         """
         # Filter out NaN values for ROE calculation
         valid_roe = self.roe[~np.isnan(self.roe)]
@@ -72,7 +81,12 @@ class SimulationResults:
 
 
 class Simulation:
-    """Simulation engine for widget manufacturer time evolution."""
+    """Simulation engine for widget manufacturer time evolution.
+
+    The main simulation class that coordinates the time evolution of the
+    widget manufacturer model, processing claims and tracking financial
+    performance over the specified time horizon.
+    """
 
     def __init__(
         self,
@@ -84,10 +98,10 @@ class Simulation:
         """Initialize simulation.
 
         Args:
-            manufacturer: WidgetManufacturer instance to simulate
-            claim_generator: ClaimGenerator for creating insurance claims
-            time_horizon: Number of years to simulate
-            seed: Random seed for reproducibility
+            manufacturer: WidgetManufacturer instance to simulate.
+            claim_generator: ClaimGenerator for creating insurance claims.
+            time_horizon: Number of years to simulate.
+            seed: Random seed for reproducibility.
         """
         self.manufacturer = manufacturer
         self.claim_generator = claim_generator or ClaimGenerator(seed=seed)
@@ -110,11 +124,11 @@ class Simulation:
         """Execute single annual time step.
 
         Args:
-            year: Current simulation year
-            claims: List of claims for this year
+            year: Current simulation year.
+            claims: List of claims for this year.
 
         Returns:
-            Dictionary of metrics for this year
+            Dictionary of metrics for this year.
         """
         # Process claims
         total_claim_amount = sum(claim.amount for claim in claims)
@@ -141,10 +155,10 @@ class Simulation:
         """Run the full simulation.
 
         Args:
-            progress_interval: How often to log progress (in years)
+            progress_interval: How often to log progress (in years).
 
         Returns:
-            SimulationResults object with full trajectory
+            SimulationResults object with full trajectory.
         """
         start_time = time.time()
 
@@ -231,7 +245,7 @@ class Simulation:
         and returns the results as a DataFrame.
 
         Returns:
-            DataFrame with simulation trajectory
+            DataFrame with simulation trajectory.
         """
         results = self.run()
         return results.to_dataframe()
