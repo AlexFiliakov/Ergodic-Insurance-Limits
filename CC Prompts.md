@@ -299,7 +299,7 @@ everything)?
 
 ### Sprint Review Prompt
 
-Corroborate the current state of the project with requirements set out in sprint specs "simone/SPRINT_01_FOUNDATION.md" and "simone/SPRINT_01_ISSUES.md". Let's have a conversation and ideate on tasks that still need to be done. First, generate a report ""simone/SPRINT_REVIEW_01_ITERATION_01.md" with your findings, recommended tasks, and outstanding questions.
+Corroborate the current state of the project with requirements set out in sprint specs "simone/SPRINT_01_FOUNDATION.md" and "simone/SPRINT_01_ISSUES.md". Let's have a conversation and ideate on tasks that still need to be done. First, generate a report "simone/SPRINT_REVIEW_01_ITERATION_01.md" with your findings, recommended tasks, and outstanding questions.
 
 ## Sprint 02: Ergodic Framework
 
