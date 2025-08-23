@@ -1,0 +1,58 @@
+# Pre-commit hooks for code quality
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Black - Python code formatter
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.12
+        args: [--line-length=100]
+        files: ^(ergodic_insurance/|simone/.*\.py$)
+
+  # isort - Python import sorter
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=100]
+        files: ^(ergodic_insurance/|simone/.*\.py$)
+
+  # MyPy - Static type checker
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        args: [--config-file=mypy.ini]
+        files: ^ergodic_insurance/
+        additional_dependencies:
+          - types-PyYAML>=6.0.0
+          - numpy>=2.3.2
+          - pandas-stubs>=2.0.0
+          - pydantic>=2.11.7
+
+  # Trailing whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Pylint - Python linter (optional, can be slow)
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        files: ^ergodic_insurance/
+        args: [--rcfile=ergodic_insurance/pyproject.toml]

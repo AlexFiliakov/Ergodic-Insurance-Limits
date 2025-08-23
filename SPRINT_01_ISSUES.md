@@ -127,7 +127,7 @@ The `process_insurance_claim()` method needs to:
 Implement the `ClaimGenerator` class to generate realistic insurance claims using Poisson frequency and Lognormal severity distributions. This is essential for testing the insurance optimization framework.
 
 ### Context
-- **Sprint**: 01 - Foundation  
+- **Sprint**: 01 - Foundation
 - **Complexity**: 5/10 (new module, straightforward implementation)
 - **Related Files**: Will create new `ergodic_insurance/src/claim_generator.py`
 
@@ -160,10 +160,10 @@ The generator needs to support:
    class ClaimGenerator:
        def __init__(self, frequency, severity_mean, severity_std, seed=None):
            # Initialize parameters and RNG
-       
+
        def generate_claims(self, years):
            # Generate regular claims
-       
+
        def generate_catastrophic_claims(self, years, cat_freq, cat_mean, cat_std):
            # Generate catastrophic claims
    ```
@@ -224,7 +224,7 @@ Configure:
    ```toml
    [tool.coverage.run]
    source = ["ergodic_insurance"]
-   
+
    [tool.coverage.report]
    exclude_lines = [
        "pragma: no cover",
@@ -264,7 +264,7 @@ gh issue create \
   --body-file issue1.md \
   --label "enhancement,sprint-01,priority-high"
 
-# Issue 2: Manufacturer Methods  
+# Issue 2: Manufacturer Methods
 gh issue create \
   --repo AlexFiliakov/Ergodic-Insurance-Limits \
   --title "Implement step() and process_insurance_claim() methods in WidgetManufacturer" \
