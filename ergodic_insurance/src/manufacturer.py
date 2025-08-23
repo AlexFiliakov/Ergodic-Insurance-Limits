@@ -50,6 +50,7 @@ class WidgetManufacturer:
     def __init__(self, config: ManufacturerConfig):
         """Initialize manufacturer with configuration parameters.
 
+
         Args:
             config: Manufacturing configuration parameters
         """
@@ -96,8 +97,10 @@ class WidgetManufacturer:
     def calculate_revenue(self, working_capital_pct: float = 0.0) -> float:
         """Calculate revenue based on available assets.
 
+
         Args:
             working_capital_pct: Percentage of revenue tied up in working capital
+
 
         Returns:
             Annual revenue
@@ -120,8 +123,10 @@ class WidgetManufacturer:
     def calculate_operating_income(self, revenue: float) -> float:
         """Calculate operating income from revenue.
 
+
         Args:
             revenue: Annual revenue
+
 
         Returns:
             Operating income before interest and taxes
@@ -137,9 +142,11 @@ class WidgetManufacturer:
     ) -> float:
         """Calculate costs for letter of credit collateral.
 
+
         Args:
             letter_of_credit_rate: Annual rate for letter of credit (default 1.5%)
             time_period: "annual" or "monthly" for cost calculation
+
 
         Returns:
             Collateral costs for the period
@@ -154,14 +161,19 @@ class WidgetManufacturer:
             logger.debug(
                 f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
             )
+            logger.debug(
+                f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
+            )
         return collateral_costs
 
     def calculate_net_income(self, operating_income: float, collateral_costs: float) -> float:
         """Calculate net income after collateral costs and taxes.
 
+
         Args:
             operating_income: Operating income before collateral and taxes
             collateral_costs: Annual collateral costs
+
 
         Returns:
             Net income after taxes
@@ -178,6 +190,7 @@ class WidgetManufacturer:
 
     def update_balance_sheet(self, net_income: float, growth_rate: float = 0.0) -> None:
         """Update balance sheet with retained earnings and growth.
+
 
         Args:
             net_income: Net income for the period
@@ -204,10 +217,12 @@ class WidgetManufacturer:
     ) -> tuple[float, float]:
         """Process an insurance claim with deductible and limit, setting up collateral.
 
+
         Args:
             claim_amount: Total amount of the loss/claim
             deductible: Amount company must pay before insurance kicks in
             insurance_limit: Maximum amount insurance will pay
+
 
         Returns:
             Tuple of (company_payment, insurance_payment)
@@ -259,6 +274,7 @@ class WidgetManufacturer:
     def pay_claim_liabilities(self) -> float:
         """Pay scheduled claim liabilities for the current year.
 
+
         Returns:
             Total amount paid toward claims
         """
@@ -286,6 +302,10 @@ class WidgetManufacturer:
                         f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
                     )
 
+                    logger.debug(
+                        f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
+                    )
+
         # Remove fully paid claims
         self.claim_liabilities = [c for c in self.claim_liabilities if c.remaining_amount > 0]
 
@@ -297,6 +317,7 @@ class WidgetManufacturer:
     def check_solvency(self) -> bool:
         """Check if the company is solvent (equity > 0).
 
+
         Returns:
             True if solvent, False if ruined
         """
@@ -307,6 +328,7 @@ class WidgetManufacturer:
 
     def calculate_metrics(self) -> Dict[str, float]:
         """Calculate key financial metrics.
+
 
         Returns:
             Dictionary of financial metrics
@@ -323,11 +345,24 @@ class WidgetManufacturer:
         metrics["claim_liabilities"] = self.total_claim_liabilities
         metrics["is_solvent"] = not self.is_ruined
 
+        metrics["assets"] = self.assets
+        metrics["collateral"] = self.collateral
+        metrics["restricted_assets"] = self.restricted_assets
+        metrics["available_assets"] = self.available_assets
+        metrics["equity"] = self.equity
+        metrics["net_assets"] = self.net_assets
+        metrics["claim_liabilities"] = self.total_claim_liabilities
+        metrics["is_solvent"] = not self.is_ruined
+
         # Calculate operating metrics for current state
         revenue = self.calculate_revenue()
         operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs()
         net_income = self.calculate_net_income(operating_income, collateral_costs)
+
+        metrics["revenue"] = revenue
+        metrics["operating_income"] = operating_income
+        metrics["net_income"] = net_income
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income
@@ -354,11 +389,13 @@ class WidgetManufacturer:
     ) -> Dict[str, float]:
         """Execute one time step of the financial model.
 
+
         Args:
             working_capital_pct: Working capital as percentage of sales
             letter_of_credit_rate: Annual rate for letter of credit
             growth_rate: Revenue growth rate for the period
             time_resolution: "annual" or "monthly" for simulation step
+
 
         Returns:
             Dictionary of metrics for this time step

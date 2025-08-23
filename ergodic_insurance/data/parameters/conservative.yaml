@@ -13,16 +13,16 @@ _conservative_anchors:
 manufacturer:
   # Conservative: Same starting position
   initial_assets: 10_000_000
-  
+
   # Lower efficiency in asset utilization
   asset_turnover_ratio: 0.9
-  
+
   # Lower profit margins (more competitive market)
   operating_margin: *low_margin
-  
+
   # Higher tax rate assumption (conservative planning)
   tax_rate: 0.28
-  
+
   # Lower retention (pay dividends for stability)
   retention_ratio: *low_retention
 
@@ -34,10 +34,10 @@ working_capital:
 # Growth Parameters
 growth:
   type: "deterministic"
-  
+
   # Conservative growth assumption
   annual_growth_rate: *low_growth
-  
+
   # Higher volatility preparation (future)
   volatility: 0.15
 
@@ -45,22 +45,22 @@ growth:
 debt:
   # Higher interest rate (conservative estimate)
   interest_rate: 0.02
-  
+
   # Lower leverage tolerance
   max_leverage_ratio: 1.5
-  
+
   # Higher cash buffer requirement
   minimum_cash_balance: *high_min_cash
 
 # Simulation Parameters
 simulation:
   time_resolution: "annual"
-  
+
   # Longer horizon for stress testing
   time_horizon_years: 200
-  
+
   max_horizon_years: 1000
-  
+
   # Fixed seed for reproducibility
   random_seed: 42
 
@@ -68,19 +68,19 @@ simulation:
 output:
   output_directory: "outputs/conservative"
   file_format: "csv"
-  
+
   # More frequent checkpoints for safety
   checkpoint_frequency: 5
-  
+
   detailed_metrics: true
 
 # Logging Configuration
 logging:
   enabled: true
-  
+
   # More detailed logging for conservative runs
   level: "DEBUG"
-  
+
   log_file: "simulation_conservative.log"
   console_output: true
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -353,6 +353,80 @@ into the existing WidgetManufacturer class?
 7. Recommend ergodic metrics to track beyond ROE, ROA, and Risk of Ruin.
 8. I think ergodic framework should be integrated into existing modules. Deterministic behavior should be a toggle together with ergodic behavior.
 
+### Simone Clarifying Sprint Questions
+
+  1. Performance & Infrastructure
+
+  - What hardware are you targeting for the 100,000 scenario simulations?
+   (CPU cores, RAM available)
+  - Do you have preferences for parallelization approach?
+  (multiprocessing, joblib, Ray, Dask?)
+  - Should we implement GPU acceleration for Monte Carlo simulations if
+  available?
+
+  2. Mathematical Implementation
+
+  - For the geometric Brownian motion, should we use standard
+  Euler-Maruyama discretization or a more sophisticated method?
+  - Do you want to implement variance reduction techniques (antithetic
+  variates, control variates)?
+  - Should the correlation structure use Gaussian copulas or a simpler
+  Cholesky decomposition approach?
+
+  3. Data Storage & Output
+
+  - How should we store the 100,000 × 1000-year simulation results?
+  (HDF5, Parquet, compressed NumPy?)
+  - Do you need intermediate results accessible during simulation or just
+   final summaries?
+  - What level of detail should be saved for each simulation path?
+
+  4. Insurance Modeling
+
+  - Should the insurance layers be hard-coded as in the spec, or fully
+  configurable via YAML?
+  - Do you want to model insurance market dynamics (e.g., premium
+  adjustments based on loss experience)?
+  - Should we implement reinsurance or just primary insurance layers?
+
+  5. Development Priorities
+
+  - Which story should be implemented first? (I'd suggest Story 1:
+  Stochastic Model, but want your input)
+  - Do you want TypeScript components updated in parallel with Python, or
+   focus on Python first?
+  - Should we create unit tests as we go or batch them after core
+  implementation?
+
+  6. Visualization & Reporting
+
+  - Do you have specific visualization preferences beyond what's
+  mentioned? (Plotly, Matplotlib, Seaborn?)
+  - Should the notebooks be self-contained or import from the main
+  package?
+  - Do you want real-time progress visualization during long simulations?
+
+  7. Existing Code Integration
+
+  - Should we refactor the existing WidgetManufacturer class or create
+  new stochastic versions?
+  - How much backward compatibility do we need with Sprint 01 code?
+  - Should deterministic mode be the default with stochastic as opt-in?
+
+### Simone Clarifying Sprint Question Responses
+
+1. Specs are very poor: only 8 cores and 12GM RAM on Windows 11. I don't have a preferred parallelization approach. I don't have a GPU, so no acceleration.
+2. Standard Euler-Maruyama discretization is fine for geometric Brownian Motion. Variance reduction techniques sound good to implement, as long as they're not too complicated. If you have to use a copula, use Gumbel or Clayton as appropriate.
+3. Use whatever file is best for numerical compressed storage, perhaps parquet. Intermediate results are important for diagnostics, but really we just need final summaries. Determine the appropriate level of detail to store for each simulation path: annual summaries by default, and additional diagnostics for debugging and validation.
+4. Insurance layer should be configurable via YAML. Don't model insurance market dynamics yet. No reinsurance, assume the insurance is fully retained by the carrier.
+5. Stochastic Model can be implemented first. Focus on Python first. You can batch unit tests after implementation.
+6. I like Matplotlib for visualization. The notebooks can import from the main package. Real-time progress visualization for long simulations is advisable.
+7. We can create a WidgetManufacturerStochastic for additional sophistication. We should build on Sprint 01 code and replace it, then make its prior notebooks compatible with the latest code. Deterministic mode is useful to keep.
+
+### Create Issues
+
+Flesh out each task and make tradeoffs favoring implementation speed and simplicity for a first draft that we can build on in subsequent sprints.
+
 ## Sprint 03: Loss Modeling
 
 Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Modeling" to be located in the file `\simone\SPRINT_03_LOSS_MODELING.md`.
@@ -431,6 +505,16 @@ Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Mode
 6. We can just use the parameters recommended in the project sketch `Financial Modeling Framework - Spec.md`. No need for goodness-of-fi testing. We don't need to implement stress testing or back-testing yet.
 7. Optimize for 100000 ensemble runs of 1000-year simulations. You can implement parallel processing for Monte Carlo. Batch processing is sufficient. You can use vectorized operations as appropriate.
 
+---
+
+The project plan is in `simone/00_PLAN.md` and there are 3 sprints planned: `simone/SPRINT_01_FOUNDATION.md`, `simone/SPRINT_02_ERGODIC_FRAMEWORK.md`, and `simone/SPRINT_0
+
+---
+
+Create a CLAUDE.md file to direct new instances of Claude with the appropriate information for this project. Include the directory structure and any other relevant information.
+
+---
+
 ## Sprint 04: Insurance Optimization
 
 ### Sprint Planning Questions
@@ -464,4 +548,3 @@ Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Mode
 ### Sprint Planning Questions
 
 ### Sprint Planning Responses
-
