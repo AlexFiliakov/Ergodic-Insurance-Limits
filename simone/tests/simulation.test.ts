@@ -29,7 +29,7 @@ describe('Simulation', () => {
   test('should generate results with correct structure', () => {
     const results = simulation.run();
     const firstResult = results[0];
-    
+
     expect(firstResult).toHaveProperty('step');
     expect(firstResult).toHaveProperty('time');
     expect(firstResult).toHaveProperty('value');
@@ -38,7 +38,7 @@ describe('Simulation', () => {
 
   test('should calculate time correctly', () => {
     const results = simulation.run();
-    
+
     for (let i = 0; i < results.length; i++) {
       expect(results[i].time).toBeCloseTo(i * config.timeStep, 10);
     }

@@ -29,7 +29,7 @@ contexts:
       typecheck: "mypy ergodic_insurance"
       coverage: "pytest --cov=ergodic_insurance --cov-report=html"
     methodology: "test-driven"
-    
+
   - name: "simone-ts"
     path: "./simone"
     description: "TypeScript simulation components (secondary)"
@@ -56,11 +56,11 @@ shared:
     node: ">=20.0.0"
   editor: "vscode"
   vcs: "git"
-  
+
 github:
   repository: "AlexFiliakov/Ergodic-Insurance-Limits"
   tool: "cli"
-  
+
 features:
   pr_review_wait:
     enabled: false  # Can be enabled later if needed
@@ -77,11 +77,11 @@ documentation:
   format: "markdown"
   location: "./docs"
   api_docs: "./docs/api"
-  
+
 testing:
   coverage_target: 80  # Minimum test coverage percentage
   parallel: true  # Run tests in parallel when possible
-  
+
 ci_cd:
   enabled: false  # Can be configured later
   platform: "github-actions"

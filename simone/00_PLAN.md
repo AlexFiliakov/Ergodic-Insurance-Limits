@@ -298,7 +298,7 @@ ergodic_insurance/
 - **Frequency**: λ = 0.1-0.5 events/year
 - **Severity**: μ = 14-17, σ = 1.2-2.0 (Lognormal)
 - **Range**: $500K-$50M per event
-- **Payment Pattern**: 
+- **Payment Pattern**:
   - Year 1: 40-60%
   - Years 2-3: 25-35%
   - Years 4-10: Remainder

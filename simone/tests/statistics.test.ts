@@ -1,8 +1,8 @@
-import { 
-  calculateMean, 
-  calculateStandardDeviation, 
+import {
+  calculateMean,
+  calculateStandardDeviation,
   calculatePercentile,
-  calculateEnsembleStatistics 
+  calculateEnsembleStatistics
 } from '../src/utils/statistics';
 import { SimulationResult } from '../src/models/types';
 

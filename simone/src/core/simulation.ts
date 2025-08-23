@@ -11,20 +11,20 @@ export class Simulation {
 
   public run(): SimulationResult[] {
     this.reset();
-    
+
     while (this.currentStep < this.config.steps) {
       const result = this.step();
       this.results.push(result);
       this.currentStep++;
     }
-    
+
     return this.results;
   }
 
   private step(): SimulationResult {
     const time = this.currentStep * this.config.timeStep;
     const value = this.computeValue(time);
-    
+
     return {
       step: this.currentStep,
       time,
