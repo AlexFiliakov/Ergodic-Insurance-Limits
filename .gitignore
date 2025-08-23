@@ -402,4 +402,4 @@ nul
 .simone/*.db-wal
 
 # Sphinx
-docs/_build/
+ergodic_insurance/docs/_build/
