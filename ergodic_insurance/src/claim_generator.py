@@ -46,7 +46,11 @@ class ClaimGenerator:
         Returns:
             List of claim events
         """
-        claims = []
+        claims: List[ClaimEvent] = []
+
+        # Handle edge cases
+        if years <= 0 or self.frequency <= 0:
+            return claims
 
         for year in range(years):
             # Number of claims this year (Poisson distribution)
@@ -101,6 +105,37 @@ class ClaimGenerator:
                 claims.append(ClaimEvent(year=year, amount=amount))
 
         return claims
+
+    def generate_all_claims(
+        self,
+        years: int,
+        include_catastrophic: bool = True,
+        cat_frequency: float = 0.01,
+        cat_severity_mean: float = 50_000_000,
+        cat_severity_std: float = 20_000_000,
+    ) -> Tuple[List[ClaimEvent], List[ClaimEvent]]:
+        """Generate both regular and catastrophic claims.
+
+        Args:
+            years: Number of years to simulate
+            include_catastrophic: Whether to include catastrophic claims
+            cat_frequency: Probability of catastrophic event per year
+            cat_severity_mean: Mean catastrophic claim size
+            cat_severity_std: Std dev of catastrophic claim size
+
+        Returns:
+            Tuple of (regular_claims, catastrophic_claims)
+        """
+        regular_claims = self.generate_claims(years)
+
+        if include_catastrophic:
+            catastrophic_claims = self.generate_catastrophic_claims(
+                years, cat_frequency, cat_severity_mean, cat_severity_std
+            )
+        else:
+            catastrophic_claims = []
+
+        return regular_claims, catastrophic_claims
 
     def reset_seed(self, seed: int):
         """Reset the random seed for reproducibility."""
