@@ -297,6 +297,10 @@ everything)?
 6. For claim scenarios, track annually the top 10 claims to date, top 10 open claims, total open claims, annual paid/incurred claims, and frequency/severity metrics. Create smart reports keeping in mind the volume of simulations, so we probably don't need full actuarial triangles at each year or it will get too unwieldy.
 7. Store simulation results in parquet files. Generate summary reports as appropriate, perhaps in Markdown.
 
+### Sprint Review Prompt
+
+Corroborate the current state of the project with requirements set out in sprint specs "simone/SPRINT_01_FOUNDATION.md" and "simone/SPRINT_01_ISSUES.md". Let's have a conversation and ideate on tasks that still need to be done. First, generate a report ""simone/SPRINT_REVIEW_01_ITERATION_01.md" with your findings, recommended tasks, and outstanding questions.
+
 ## Sprint 02: Ergodic Framework
 
 Ask me clarifying questions then draft the sprint plan for "Sprint 02: Ergodic Framework" to be located in the file `\simone\SPRINT_02_ERGODIC_FRAMEWORK.md`.

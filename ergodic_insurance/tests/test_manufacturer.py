@@ -208,10 +208,12 @@ class TestWidgetManufacturer:
         assert manufacturer.equity == initial_equity - 200_000
 
     def test_process_insurance_claim_with_collateral(self, manufacturer):
-        """Test processing claim always requires collateral."""
-        result = manufacturer.process_insurance_claim(500_000)
+        """Test processing claim with default parameters (no deductible/limit)."""
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(500_000)
 
-        assert result is True
+        # With no deductible and infinite limit, insurance covers everything
+        assert company_payment == 0
+        assert insurance_payment == 500_000
         assert manufacturer.collateral == 500_000  # Full collateral required
         assert manufacturer.restricted_assets == 500_000
         assert len(manufacturer.claim_liabilities) == 1
@@ -219,9 +221,11 @@ class TestWidgetManufacturer:
 
     def test_process_large_insurance_claim(self, manufacturer):
         """Test processing large claim with full collateral."""
-        result = manufacturer.process_insurance_claim(15_000_000)
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(15_000_000)
 
-        assert result is True
+        # With no deductible and infinite limit, insurance covers everything
+        assert company_payment == 0
+        assert insurance_payment == 15_000_000
         assert manufacturer.collateral == 15_000_000  # Full collateral
         assert manufacturer.restricted_assets == 15_000_000
         assert len(manufacturer.claim_liabilities) == 1
@@ -397,11 +401,11 @@ class TestWidgetManufacturer:
         assert manufacturer.check_solvency() is False
         assert manufacturer.is_ruined is True
 
-        # Negative equity
-        manufacturer.equity = -100_000
-        manufacturer.is_ruined = False  # Reset flag
-        assert manufacturer.check_solvency() is False
-        assert manufacturer.is_ruined is True
+        # Negative equity - create new manufacturer to test
+        manufacturer2 = WidgetManufacturer(manufacturer.config)
+        manufacturer2.equity = -100_000
+        assert manufacturer2.check_solvency() is False
+        assert manufacturer2.is_ruined is True
 
     def test_monthly_collateral_costs(self, manufacturer):
         """Test monthly letter of credit cost tracking."""
@@ -428,7 +432,7 @@ class TestWidgetManufacturer:
 
         # Process a large claim that requires collateral
         # All claims now require full collateral
-        manufacturer.process_insurance_claim(15_000_000)
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(15_000_000)
 
         # Year 1: Operations with claim payments and collateral costs
         metrics_1 = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)

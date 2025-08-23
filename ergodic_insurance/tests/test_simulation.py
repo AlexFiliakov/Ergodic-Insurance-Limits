@@ -213,8 +213,8 @@ class TestSimulation:
         assert results.insolvency_year is not None
         assert results.insolvency_year < 100
 
-        # Results should be truncated at insolvency
-        assert len(results.years) == results.insolvency_year + 1
+        # Results should still have full length but with zeros after insolvency
+        assert len(results.years) == 100
         assert results.equity[results.insolvency_year] <= 0
 
     def test_get_trajectory(self, manufacturer, claim_generator):

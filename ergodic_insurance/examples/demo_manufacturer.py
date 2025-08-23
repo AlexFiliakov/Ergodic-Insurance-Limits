@@ -51,7 +51,9 @@ def main():
     print("YEAR 1: Large Insurance Claim Event")
     claim_amount = 5_000_000
     print(f"  Processing claim: ${claim_amount:,.0f}")
-    manufacturer.process_insurance_claim(claim_amount, min_cash=100_000)
+    manufacturer.process_insurance_claim(
+        claim_amount, deductible=100_000, insurance_limit=10_000_000
+    )
     print(f"  Collateral added: ${manufacturer.collateral:,.0f}")
 
     metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
