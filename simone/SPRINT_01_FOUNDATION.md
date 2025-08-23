@@ -36,7 +36,7 @@
 **So that** we can maintain code quality throughout development
 
 #### Tasks:
-- [ ] Create Python package structure (`simone/src/ergodic_insurance/`)
+- [ ] Create Python package structure (`ergodic_insurance/`)
 - [ ] Set up pytest testing framework with coverage reporting
 - [ ] Configure pre-commit hooks for code quality (black, pylint, mypy)
 - [ ] Create requirements.txt with core dependencies
@@ -54,7 +54,7 @@
 **So that** I can easily run different scenarios
 
 #### Tasks:
-- [ ] Create `data/parameters/baseline.yaml` with default parameters
+- [ ] Create `ergodic_insurance/data/parameters/baseline.yaml` with default parameters
 - [ ] Implement configuration loader with validation
 - [ ] Define parameter schema with pydantic models
 - [ ] Create parameter override mechanism
@@ -212,9 +212,9 @@ def service_debt(self):
 **So that** I can explore and validate functionality
 
 #### Tasks:
-- [ ] Create `notebooks/01_basic_manufacturer.ipynb`
-- [ ] Create `notebooks/02_long_term_simulation.ipynb`
-- [ ] Create `notebooks/03_growth_dynamics.ipynb`
+- [ ] Create `ergodic_insurance/notebooks/01_basic_manufacturer.ipynb`
+- [ ] Create `ergodic_insurance/notebooks/02_long_term_simulation.ipynb`
+- [ ] Create `ergodic_insurance/notebooks/03_growth_dynamics.ipynb`
 - [ ] Add visualization of key metrics over time
 - [ ] Document model assumptions and limitations
 - [ ] Create sensitivity analysis examples
