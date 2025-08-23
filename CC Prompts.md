@@ -196,6 +196,69 @@ schedule?
 5. There is no debt, it's strictly collateral for outstanding claims that is supported by letters of credit for the insurer at a cost to the company. The claim liabilities are paid out over time with a configurable payment pattern over 10 years. Assume about 10% is paid in year 1, then 20% in year 2, 20% in year 3, and then decreasing payments of the remainder over the remaining 7 years. The collateral incurs collateral costs that are paid annually.
 6. WidgetManufacturer class should go in `ergodic_insurance/src/models/manufacturer.py`
 
+#### Ask me clarifying questions then implement the story "Story 4: Time Series Evolution" from `\simone\SPRINT_01_FOUNDATION.md`
+
+##### Story Questions
+
+##### Responses
+
+#### Ask me clarifying questions then fix the story "Story 5: Debt Financing for Claims" from `\simone\SPRINT_01_FOUNDATION.md` to only concern the model with the letter of credit underlying the collateral to support large claims for as an annual interest charge.
+
+##### Story Questions
+
+1. Collateral Mechanism: Should Story 5 describe:
+ - Letters of credit posted as collateral to guarantee future claim
+payments?
+ - The collateral amount equals the outstanding claim liability?
+ - Or the collateral is some percentage of the claim liability?
+2. Letter of Credit Costs:
+ - The 1.5% annual rate applies to the total collateral amount?
+ - These costs are treated as an operating expense (like interest)?
+ - Are there any setup/initial fees for establishing the letter of
+credit?
+3. Collateral Release:
+ - As claims are paid down over the 10-year schedule, is the
+collateral reduced proportionally?
+ - Or does the full collateral remain until the claim is fully paid?
+4. Balance Sheet Treatment:
+ - Should the collateral be shown as a restricted asset?
+ - Or just tracked separately as an off-balance-sheet commitment with
+only the annual cost hitting the P&L?
+5. Triggering Conditions:
+ - Letters of credit are required when claims exceed available liquid
+assets?
+ - Is there a minimum cash balance the company must maintain (like the
+$100k mentioned)?
+6. Title/Description: Should Story 5 be renamed to something like:
+ - "Letter of Credit Collateral for Claims"
+ - "Collateral Financing for Insurance Claims"
+ - "Claim Collateral Management"
+ - Or keep the current title but clarify it's about collateral, not
+debt?
+
+##### Responses
+
+1. Letter of credit should be posted as collateral to guarantee future claim payments.
+2. 1.5% annual rate should be paid monthly on total letters of credit securing the outstanding collateral.
+3. Collateral gets reduced as claims are paid, it should basically be equal to the liability (unless we want to model out the net present value of letter of credit interest charges as a liability).
+4. We can track collateral as a restricted asset and then have the interest on letter of credit as a liability.
+5. Letters of credit are required on unpaid (large) claims that take time to pay out. This is demanded by the insurers regardless of assets. We can say there is no minimum assets, but the company becomes insolvent when its equity reaches 0 or becomes negative, at which point it is considered ruined.
+6. You can call Story 5 "Story 5: Claim Collateral Management"
+
+#### Ask me clarifying questions then implement the story "Story 5: Debt Financing for Claims" from `\simone\SPRINT_01_FOUNDATION.md`
+
+##### Story Questions
+
+##### Responses
+
+
+#### Ask me clarifying questions then implement the story "Story 6: Exploration Notebooks" from `\simone\SPRINT_01_FOUNDATION.md`
+
+##### Story Questions
+
+##### Responses
+
+
 ## Sprint 02: Ergodic Framework
 
 ### Sprint Planning Questions

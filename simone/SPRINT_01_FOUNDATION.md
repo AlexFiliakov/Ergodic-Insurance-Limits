@@ -171,40 +171,56 @@ class Simulation:
 - Memory usage remains reasonable for long simulations
 - Results exportable to pandas DataFrame
 
-### Story 5: Debt Financing for Claims
+### Story 5: Claim Collateral Management
 **As a** risk manager  
-**I want** debt financing for unpaid insurance claims  
-**So that** the business can survive large losses
+**I want** letter of credit collateral for unpaid insurance claims  
+**So that** insurers have guaranteed payment security over the claim period
 
 #### Tasks:
-- [ ] Add debt tracking to balance sheet
-- [ ] Implement claim liability mechanism
-- [ ] Model interest on claim-related debt (1.5% as Letter of Credit)
-- [ ] Create debt repayment logic from operating income
-- [ ] Ensure debt doesn't enable asset growth
-- [ ] Write tests for debt scenarios
+- [ ] Track collateral as restricted assets on balance sheet
+- [ ] Implement claim liability tracking with 10-year payment schedule
+- [ ] Model letter of credit costs (1.5% annual rate, paid monthly)
+- [ ] Reduce collateral proportionally as claims are paid
+- [ ] Add insolvency detection when equity becomes negative
+- [ ] Write tests for collateral scenarios
 
-**Debt Mechanism**:
+**Collateral Mechanism**:
 ```python
 def process_insurance_claim(self, claim_amount: float):
-    """Handle large insurance claim requiring debt financing"""
-    if claim_amount > self.assets - self.working_capital:
-        debt_needed = claim_amount - available_cash
-        self.debt += debt_needed
-        self.assets += debt_needed  # Borrowed funds
-    self.assets -= claim_amount  # Pay claim
+    """Handle large insurance claim requiring collateral via letter of credit"""
+    # All large claims require LoC collateral regardless of assets
+    self.collateral += claim_amount  # Post LoC as collateral
+    self.restricted_assets += claim_amount  # Track as restricted
     
-def service_debt(self):
-    """Pay interest and principal from operating income"""
-    interest = self.debt * 0.015  # 1.5% LoC rate
-    # Repayment logic here
+    # Create claim liability with payment schedule
+    claim = ClaimLiability(amount=claim_amount, schedule=10_year_schedule)
+    self.claim_liabilities.append(claim)
+    
+def service_collateral_costs(self):
+    """Pay monthly letter of credit costs"""
+    monthly_rate = 0.015 / 12  # 1.5% annual rate paid monthly
+    monthly_cost = self.collateral * monthly_rate
+    self.operating_expenses += monthly_cost
+    
+def pay_claim_and_reduce_collateral(self, payment: float):
+    """Pay claim and reduce collateral proportionally"""
+    self.claim_liability -= payment
+    self.collateral -= payment  # Reduce LoC by same amount
+    self.restricted_assets -= payment
+    
+def check_solvency(self):
+    """Check if company is solvent"""
+    if self.equity <= 0:
+        self.is_ruined = True
 ```
 
 **Acceptance Criteria**:
-- Debt only used for claims, not growth
-- Interest correctly calculated and paid
-- Debt-to-equity ratio tracked accurately
-- Business can survive claims larger than cash
+- Letters of credit posted equal to claim liabilities
+- LoC costs calculated at 1.5% annually, paid monthly
+- Collateral reduces as claims are paid down
+- Restricted assets properly tracked on balance sheet
+- Company becomes insolvent when equity ≤ 0
+- No borrowing or debt creation for operations
 
 ### Story 6: Exploration Notebooks
 **As a** user  
