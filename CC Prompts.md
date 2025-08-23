@@ -126,21 +126,75 @@ reporting to enforce this threshold?
 
 ##### Story Questions
 
-
+1. Configuration file location: Should the baseline.yaml be in
+ergodic_insurance/data/parameters/ as specified in the sprint doc?
+2. Pydantic version: Should I use Pydantic v2 (which we have installed)
+with its newer syntax for models and validation?
+3. Configuration override mechanism: Do you want:
+ - CLI argument support for overrides?
+ - Environment variable support?
+ - Programmatic override via dict/kwargs?
+ - Or all of the above?
+4. Error handling: For invalid parameters, should the system:
+ - Raise detailed validation errors immediately?
+ - Provide default fallbacks for some parameters?
+ - Log warnings for out-of-range but acceptable values?
+5. Additional parameters: The sprint doc shows basic parameters. Should
+I also include:
+ - Random seed for reproducibility?
+ - Output directory paths?
+ - Logging configuration?
+6. YAML structure: Should I support:
+ - Multiple configuration files (e.g., baseline.yaml,
+scenarios/high_growth.yaml)?
+ - YAML anchors and references for DRY configs?
+ - Comments in YAML explaining each parameter?
 
 ##### Responses
 
-
+1. Yes, the file location should be per the sprint doc.
+2. Yes use Pydantic v2
+3. Support programmatic overrides via dict/kwargs
+4. Raise detailed validation errors immediately for invalid parameters
+5. Include a random seed for reproducibility. Take an output directory path. Also take logging configuration including path and skipping logging.
+6. Provide comments in YAML explaining each parameter. Use anchors and reference for DRY configs. Provide 3 config files (conservative.yaml, baseline.yaml, optimistic.yaml)
 
 #### Ask me clarifying questions then implement the story "Story 3: Core Financial Model" from `\simone\SPRINT_01_FOUNDATION.md`
 
 ##### Story Questions
 
-
+1. Debt Interest Handling: Should interest on debt be calculated and
+paid monthly or annually? The config supports both time resolutions.
+2. Working Capital: Should working capital be deducted from available
+assets for operations, or is it just tracked separately? The sprint doc
+mentions it in the debt financing section.
+3. Balance Sheet Structure: Should we track:
+ - Cash separately from total assets?
+ - Different asset categories (current vs. fixed)?
+ - Or just total assets as a single value?
+4. Growth Mechanism: For the deterministic growth model, should growth
+apply to:
+ - Revenue directly?
+ - Assets (which then drives revenue)?
+ - Both independently?
+5. Debt Repayment: When debt is taken for claims, what's the repayment
+schedule?
+ - Pay off as much as possible from operating income each period?
+ - Fixed amortization schedule?
+ - Interest-only with balloon payment?
+6. File Structure: Should the WidgetManufacturer class go in:
+ - ergodic_insurance/src/manufacturer.py?
+ - ergodic_insurance/src/models/manufacturer.py?
+ - Another location?
 
 ##### Responses
 
-
+1. There is no debt, only letters of credit purchased to support collateral. The collateral is explained later.
+2. Working capital should be deducted from available assets for operations if it makes sense for modeling insurance and risk of ruin, and doesn't complicate the model.
+3. Track assets as a single value, without duration or liquidity or asset type concerns for now.
+4. Revenue should grow and net profit should contribute to the assets, but assets should not grow by themselves. Assume assets support the operations on the backend.
+5. There is no debt, it's strictly collateral for outstanding claims that is supported by letters of credit for the insurer at a cost to the company. The claim liabilities are paid out over time with a configurable payment pattern over 10 years. Assume about 10% is paid in year 1, then 20% in year 2, 20% in year 3, and then decreasing payments of the remainder over the remaining 7 years. The collateral incurs collateral costs that are paid annually.
+6. WidgetManufacturer class should go in `ergodic_insurance/src/models/manufacturer.py`
 
 ## Sprint 02: Ergodic Framework
 
