@@ -1,4 +1,9 @@
-"""Claim generation for insurance simulations."""
+"""Claim generation for insurance simulations.
+
+This module provides classes for generating realistic insurance claims
+with configurable frequency and severity distributions, supporting
+both regular and catastrophic event modeling.
+"""
 
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -8,14 +13,22 @@ import numpy as np
 
 @dataclass
 class ClaimEvent:
-    """Represents a single claim event."""
+    """Represents a single claim event.
+    
+    A simple data structure containing the year and amount of an insurance claim.
+    """
 
     year: int
     amount: float
 
 
 class ClaimGenerator:
-    """Generate insurance claims for simulations."""
+    """Generate insurance claims for simulations.
+    
+    This class generates realistic insurance claims using Poisson processes
+    for frequency and lognormal distributions for severity, with support for
+    both regular attritional losses and catastrophic events.
+    """
 
     def __init__(
         self,
@@ -27,10 +40,10 @@ class ClaimGenerator:
         """Initialize claim generator.
 
         Args:
-            frequency: Expected number of claims per year (Poisson parameter)
-            severity_mean: Mean claim size (lognormal parameter)
-            severity_std: Standard deviation of claim size
-            seed: Random seed for reproducibility
+            frequency: Expected number of claims per year (Poisson parameter).
+            severity_mean: Mean claim size (lognormal parameter).
+            severity_std: Standard deviation of claim size.
+            seed: Random seed for reproducibility.
         """
         self.frequency = frequency
         self.severity_mean = severity_mean
@@ -41,10 +54,10 @@ class ClaimGenerator:
         """Generate claims for a simulation period.
 
         Args:
-            years: Number of years to simulate
+            years: Number of years to simulate.
 
         Returns:
-            List of claim events
+            List of claim events.
         """
         claims: List[ClaimEvent] = []
 
@@ -81,13 +94,13 @@ class ClaimGenerator:
         """Generate catastrophic claims (separate from regular claims).
 
         Args:
-            years: Number of years to simulate
-            cat_frequency: Probability of catastrophic event per year
-            cat_severity_mean: Mean catastrophic claim size
-            cat_severity_std: Std dev of catastrophic claim size
+            years: Number of years to simulate.
+            cat_frequency: Probability of catastrophic event per year.
+            cat_severity_mean: Mean catastrophic claim size.
+            cat_severity_std: Std dev of catastrophic claim size.
 
         Returns:
-            List of catastrophic claim events
+            List of catastrophic claim events.
         """
         claims = []
 
@@ -117,14 +130,14 @@ class ClaimGenerator:
         """Generate both regular and catastrophic claims.
 
         Args:
-            years: Number of years to simulate
-            include_catastrophic: Whether to include catastrophic claims
-            cat_frequency: Probability of catastrophic event per year
-            cat_severity_mean: Mean catastrophic claim size
-            cat_severity_std: Std dev of catastrophic claim size
+            years: Number of years to simulate.
+            include_catastrophic: Whether to include catastrophic claims.
+            cat_frequency: Probability of catastrophic event per year.
+            cat_severity_mean: Mean catastrophic claim size.
+            cat_severity_std: Std dev of catastrophic claim size.
 
         Returns:
-            Tuple of (regular_claims, catastrophic_claims)
+            Tuple of (regular_claims, catastrophic_claims).
         """
         regular_claims = self.generate_claims(years)
 
@@ -137,6 +150,10 @@ class ClaimGenerator:
 
         return regular_claims, catastrophic_claims
 
-    def reset_seed(self, seed: int):
-        """Reset the random seed for reproducibility."""
+    def reset_seed(self, seed: int) -> None:
+        """Reset the random seed for reproducibility.
+        
+        Args:
+            seed: New random seed to use.
+        """
         self.rng = np.random.RandomState(seed)

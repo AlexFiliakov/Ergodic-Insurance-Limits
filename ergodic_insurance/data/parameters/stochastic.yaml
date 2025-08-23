@@ -1,0 +1,77 @@
+# Stochastic Configuration for Ergodic Insurance Model
+# This adds stochastic dynamics to the baseline manufacturer model
+
+# Manufacturer Financial Parameters (same as baseline)
+manufacturer:
+  initial_assets: 10_000_000
+  asset_turnover_ratio: 1.0
+  operating_margin: 0.08
+  tax_rate: 0.25
+  retention_ratio: 1.0
+
+# Working Capital Management
+working_capital:
+  percent_of_sales: 0.20
+
+# Growth Parameters - STOCHASTIC
+growth:
+  # Enable stochastic growth model
+  type: "stochastic"
+
+  # Base annual growth rate (drift in GBM)
+  annual_growth_rate: 0.05
+
+  # Volatility for stochastic model
+  # 0.15 means 15% annual standard deviation
+  volatility: 0.15
+
+# Additional Stochastic Parameters
+stochastic:
+  # Type of stochastic process
+  # Options: "gbm", "lognormal", "mean_reverting"
+  process_type: "lognormal"
+
+  # Sales/revenue volatility (separate from growth volatility)
+  sales_volatility: 0.10
+
+  # Operating margin volatility
+  margin_volatility: 0.05
+
+  # Correlation between sales and margin shocks
+  # 0 = independent, 1 = perfectly correlated
+  sales_margin_correlation: 0.3
+
+  # Time step for stochastic discretization
+  # 1.0 = annual, 0.0833 = monthly
+  time_step: 1.0
+
+# Debt Financing
+debt:
+  interest_rate: 0.015
+  max_leverage_ratio: 2.0
+  minimum_cash_balance: 100_000
+
+# Simulation Parameters
+simulation:
+  time_resolution: "annual"
+  time_horizon_years: 100
+  max_horizon_years: 1000
+
+  # Fixed seed for reproducibility
+  # Change to null for random behavior
+  random_seed: 42
+
+# Output Configuration
+output:
+  output_directory: "outputs/stochastic"
+  file_format: "csv"
+  checkpoint_frequency: 10
+  detailed_metrics: true
+
+# Logging Configuration
+logging:
+  enabled: true
+  level: "INFO"
+  log_file: "stochastic_simulation.log"
+  console_output: true
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
