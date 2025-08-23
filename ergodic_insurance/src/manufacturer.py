@@ -403,7 +403,18 @@ class WidgetManufacturer:
         # Check if already ruined
         if self.is_ruined:
             logger.warning("Company is already insolvent, skipping step")
-            return self.calculate_metrics()
+            metrics = self.calculate_metrics()
+            metrics["year"] = self.current_year
+            metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
+            # Still increment time when insolvent
+            if time_resolution == "monthly":
+                self.current_month += 1
+                if self.current_month >= 12:
+                    self.current_month = 0
+                    self.current_year += 1
+            else:
+                self.current_year += 1
+            return metrics
 
         # Pay scheduled claim liabilities first (annual payments)
         if time_resolution == "annual" or self.current_month == 0:

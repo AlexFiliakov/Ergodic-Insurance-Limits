@@ -168,7 +168,7 @@ class Simulation:
             # Log progress
             if year > 0 and year % progress_interval == 0:
                 elapsed = time.time() - start_time
-                rate = year / elapsed
+                rate = year / elapsed if elapsed > 0 else float("inf")
                 remaining = (self.time_horizon - year) / rate
                 logger.info(
                     f"Year {year}/{self.time_horizon} - {elapsed:.1f}s elapsed, {remaining:.1f}s remaining"
