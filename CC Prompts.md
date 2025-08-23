@@ -589,3 +589,88 @@ Flesh out the following basic outline into a more effective outline and come up 
 ---
 
 Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LIMIT_SELECTION.md`. The target audience are experienced actuaries and finance professionals. Continue the blog draft in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md` by writing the section "Key Principles for Insurance Applications". Ask me clarifying questions, then draft the copy for this blog post.
+
+### Splitting into Multiple Blog Posts
+
+  1. Series Structure: Are you thinking 2-3 parts or would you prefer 4-5
+   shorter, more digestible parts? What's your target reading time per
+  part (e.g., 10-15 minutes each)?
+  2. Audience Journey: Should each part be self-contained enough that
+  someone could start with Part 2, or do you want to build sequentially
+  where each part requires the previous ones?
+  3. Engagement Strategy: What kind of cliffhangers/hooks would work best
+   for your actuarial audience? Should each part end with a teaser of
+  specific results (like "In Part 3, we'll reveal why paying 400% of
+  expected losses can be optimal")?
+  4. Practical vs Theoretical Split: Would you prefer to separate the
+  theoretical foundation (ergodic principles) from the practical
+  application (model results), or mix theory and application in each
+  part?
+  5. Results Preview: Should Part 1 include a brief "spoiler" of the key
+  findings to hook readers, or save all results for later parts?
+  6. Call-to-Action: What do you want readers to do between parts? Sign
+  up for notifications, download supplementary materials, try
+  calculations themselves?
+
+  My initial instinct is a 3-part series:
+  - Part 1: Theory + Problem Setup (What we've written + model company)
+  - Part 2: Methodology + Simulation Results
+  - Part 3: Practical Implementation + Decision Framework
+
+  But I'd like your input on these questions to optimize the split for
+  maximum engagement and comprehension.
+
+### Responses
+
+1. I'm thinking something like this, which generally aligns with your instinct:
+- Part 1: Theory + Problem Setup (What we've written + model company)
+  - What is Ergodic Economics?
+  - Key principles for Insurance Applications
+  - Implications for Risk Management. Here our company may be introduced, Widget Manufacturing Inc. Something like "We will subject this company to thousand-year scenarios for tens of thousands of simulations to stress test these principles..."
+  - Cliffhanger: The Problem Statement (What excess insurance limits should a company purchase to optimize their long-run financial performance? Something like "What limit should Widget Manufacturing Inc. purchase to maximize its expected return and minimize risk of ruin?")
+- Part 2: Methodology + Simulation Results
+- Part 3: Practical Implementation + Decision Framework
+2. Readers should be able to pick up any section and get something out of it, so we may need to briefly restate things, or foreshadow in early posts to allow readers to make relevant conclusions. While the parts will build sequentially, it would be nice to make each one useful standing alone.
+3. I already revealed the cliffhanger for Part 1. For Part 2, our cliffhanger will be the promise to give pointers to make this more applicable to the real world.
+4. We can mix theory and application, although Part 1 will be heavy on theory and Part 2 will be heavy on application, and perhaps Part 3 will be heavy on philosophy.
+5. Leave placeholders to foreshadow key findings in Part 1.
+6. Call-to-action will be provided at the bottom of the blog post. Encourage them to try working the calculations on their own, and I'll provide cross-links to all the blog posts once they're written and published, and there is a call to action to sign up for my newsletter.
+
+### Follow-up Questions
+
+  Part 1 Structure Questions:
+  1. Theory Balance: Should "Key Principles for Insurance Applications"
+  remain as detailed as I wrote it, or should we condense it slightly to
+  make room for the company introduction and problem setup?
+  2. Company Introduction: When we introduce Widget Manufacturing Inc. in
+   "Implications for Risk Management," how much detail should we give
+  about their financials ($10M assets, 0.8x turnover, 8% margins, loss
+  distributions)? Full specifications or just the key highlights?
+  3. Cliffhanger Intensity: Should the Part 1 ending tease specific
+  numbers ("Should they buy $5M excess coverage for $60K, or go higher?")
+   or keep it more conceptual?
+
+  Cross-Part Navigation:
+  4. Brief Restatements: What key concepts should I create "callback
+  boxes" or brief reminders for? (e.g., "As we established in Part 1,
+  time-average growth differs from ensemble-average...")
+
+  5. Foreshadowing: Should Part 1 include any preview of surprising
+  results to hook readers? (e.g., "Our analysis will reveal that optimal
+  premiums can exceed expected losses by 400% while still enhancing
+  growth")
+
+  Outline Update Approach:
+  6. Section Redistribution: Looking at the current outline, should I
+  move "Setup of Our Model Company" and "Overview of Model Financial
+  Dynamics" entirely to Part 2, or keep company intro in Part 1 but move
+  technical details to Part 2?
+
+### Responses
+
+1. You can condense them slightly to give more space to the problem setup.
+2. We don't need to give financial details of the company, only roughly what they will do (manufacture widgets) and highlights of the simplifying assumptions. Make the simplifications humorous and lighthearted.
+3. You can give specific hypothetical numbers that are tied to reality in the teaser ending.
+4. The brief restatements don't need to be in the outline, we'll write them in as they come up during the body writing of subsequent blog posts.
+5. You can provide hooks like "Our analysis will reveal that optimal premiums can exceed expected losses by 400% while still enhancing growth", but it may not be necessary because for Part 1 it's better to end with the question of limits anyway.
+6. Keep the high-level overview of company model and financial dynamics in Part 1 to engage readers and show them what's to come, but develop the technical specifics in Part 2.
