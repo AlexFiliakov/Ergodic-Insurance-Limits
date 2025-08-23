@@ -289,24 +289,74 @@ To keep this analysis tractable, we assume:
 
 **Why Conservative?** Real-world complications like inflation uncertainty, business cycle volatility, and strategic pivots all increase the value of volatility reduction. Perfect information about loss distributions represents the best-case scenario for self-insurance. Adding realistic uncertainty would only strengthen the case for comprehensive coverage.
 
-### The Central Challenge
+## The Question We Seek to Resolve
+
+With Widget Manufacturing Inc. poised for our ergodic experiment, we arrive at the central question that will reshape how actuaries think about excess insurance:
 
 **What excess insurance limits should Widget Manufacturing Inc. purchase to optimize their long-run financial performance?**
 
-Traditional actuarial thinking would focus on:
+### The Traditional Approach vs. The Ergodic Revolution
+
+Traditional actuarial analysis would focus on familiar metrics:
 - Expected annual losses vs. premium costs
 - Loss ratios and actuarial fairness
 - Industry benchmarks and peer comparisons
+- Minimizing total cost of risk (TCOR)
 
-### The Ergodic Reframing
-
-Our analysis will instead optimize:
+But our ergodic framework flips this analysis entirely. Instead of minimizing costs, we'll optimize for:
 - **Time-average ROE** over 1,000-year simulations
 - **Survival probability** across adverse loss sequences
 - **Geometric growth rates** that account for volatility drag
 - **Path-dependent effects** of loss timing on compound returns
 
-This shift from expected-value optimization to time-average optimization will produce dramatically different results. We'll discover scenarios where paying $500K annual premiums for $150K expected annual losses maximizes long-term wealth creation—results that would horrify traditional cost-benefit analysis but delight ergodic economists.
+This fundamental shift from expected-value optimization to time-average optimization will produce results that challenge every assumption about "expensive" insurance.
+
+### The Million-Dollar Question
+
+After subjecting Widget Manufacturing to 10,000 parallel lives across 1,000 years of simulated time, our Monte Carlo engine will force us to choose between three dramatically different strategies:
+
+**Option A: Minimal Coverage**
+- Excess limit: $25M
+- Annual premium: $240K
+- Philosophy: "Keep premiums low, we'll handle the big ones ourselves"
+- Traditional appeal: Lowest immediate cost
+- The catch: What happens when the big one hits early?
+
+**Option B: Conservative Coverage**
+- Excess attachment: $200M
+- Annual premium: $380K
+- Philosophy: "Sleep well at night, comprehensive protection"
+- Traditional concern: Premium seems expensive relative to expected losses
+- The question: Does peace of mind justify the cost?
+
+**Option C: The Ergodic Optimum**
+- Coverage level: *[Spoiler: somewhere surprising]*
+- Premium cost: *[Spoiler: might shock traditional analysts]*
+- Philosophy: Mathematical optimization of time-average growth
+- The promise: Maximum long-term wealth creation
+
+### The Cliffhanger
+
+Which option will emerge as optimal for maximizing Widget Manufacturing's millennium-long journey of wealth accumulation?
+
+Will Option A's cost savings compound into superior returns, or will early catastrophic losses destroy the foundation for future growth? Can Option B's comprehensive protection justify its premium cost through volatility reduction? Or will Option C reveal a sweet spot that traditional analysis would completely miss?
+
+The answer lies hidden in the mathematics of multiplicative wealth processes, where volatility penalties can make "expensive" insurance incredibly valuable, and where sequence effects can turn identical losses into dramatically different outcomes.
+
+**Here's what we know will surprise traditional actuaries:**
+- One scenario will justify paying premiums that exceed expected losses by 400%
+- Another will reveal why attachment points should scale nonlinearly with company size
+- The optimal solution will demonstrate how survival probability trumps loss ratios
+
+### The Stakes
+
+This isn't just an academic exercise. Widget Manufacturing's choice will determine whether they become a generational success story or another cautionary tale of inadequate risk management. With compound growth rates that can turn $10M into $100B over centuries, getting the insurance decision right isn't just important—it's the difference between dynasty and disaster.
+
+The traditional approach treats insurance as a necessary evil, a drag on returns that should be minimized. Our ergodic analysis will reveal insurance as something far more powerful: a growth accelerator that transforms volatile business processes into wealth-generating machines.
+
+**Which strategy will maximize Widget Manufacturing's time-average growth over the next millennium?**
+
+*The answer awaits in Part 2, where 10,000 Monte Carlo simulations spanning around 10 million fiscal years (about the duration of the Paleocene epoch) will stress-test every assumption about optimal excess insurance...*
 
 **Coverage Architecture Preview**
 

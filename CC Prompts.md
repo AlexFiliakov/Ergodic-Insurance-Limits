@@ -739,3 +739,44 @@ Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LI
 3. Don't need to add too many details, just enough to give a flavor that we're modeling this very roughly.
 4. You can foreshadow some distributions for actuaries to refresh their memory. Keep it "medium-level", not too high and not too technical, but balanced.
 5. You can explain why the probability of ruin was chosen, and explain that conservatism or riskiness will be determined by 1% over what time horizon of operations (such as 1% risk of ruin over the next 20-years, the next 50-years, the next 100-years, the next 200-years, and so on).
+
+---
+
+Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LIMIT_SELECTION.md`. The target audience are experienced actuaries and finance professionals. Continue the blog draft in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md` by writing the section "The Question We Seek to Resolve". Ask me clarifying questions, then draft the copy for this blog post. Maintain a light and breezy tone while still being professional for the actuarial audience and rigorously sound analytically. Avoid being shallow, but be conversational.
+
+### Clarifying Questions - The Question We Seek to Resolve
+
+  1. Section positioning: I see that "The Question We Seek to Resolve"
+  appears in the outline around line 80, but the current draft already
+  has related content under "The Central Challenge" (line 292) and "The
+  Ergodic Reframing" (line 301). Should I:
+    - Replace the existing "Central Challenge" section with a more
+  comprehensive "The Question We Seek to Resolve" section?
+    - Or add a new section before the existing content?
+  2. Content focus: Looking at the outline, "The Question We Seek to
+  Resolve" should set up the cliffhanger with the three options (A, B,
+  C). The current draft mentions some numbers but they're different from
+  the outline. Should I use:
+    - The specific numbers from the outline (Option A: $25M excess limit,
+   $240K premium, etc.)
+    - Or create new numbers that are consistent with the Widget
+  Manufacturing setup ($10M assets, $8M revenue, etc.)
+  3. Tone balance: You mentioned "light and breezy but professional" -
+  the current draft has good technical depth with some humor ("widgets
+  are always needed!", "make actuaries weep with joy"). Should I maintain
+   this exact tone level or adjust it?
+  4. Mathematical rigor: The current sections have detailed formulas and
+  calculations. For "The Question We Seek to Resolve," should I focus
+  more on the conceptual setup and save detailed math for Part 2, or
+  include some quantitative preview?
+
+### Clarifying Responses - The Question We Seek to Resolve
+
+1. Rewrite the existing "Central Challenge" so that "The Question We Seek to Resolve" sets up a cliffhanger without repeating the concept.
+2. Use the numbers from the outline.
+3. Maintain the current tone level.
+4. Save the detailed math for Part 2, don't get too technical in the preview.
+
+---
+
+Review the blog post drafted in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md`. The target audience are experienced actuaries and finance professionals. Use LaTeX for formulas. Maintain a light and breezy tone while still being professional for the actuarial audience and rigorously sound analytically. Avoid being shallow, but be conversational to make it engaging enough to read on a weekend. Ask me clarifying questions, then adjust the draft.
