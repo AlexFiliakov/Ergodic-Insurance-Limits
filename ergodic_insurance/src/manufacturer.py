@@ -190,30 +190,57 @@ class WidgetManufacturer:
         if dividends > 0:
             logger.debug(f"Dividends paid: ${dividends:,.2f}")
     
-    def process_insurance_claim(self, claim_amount: float) -> bool:
-        """Process an insurance claim, setting up collateral via letter of credit.
+    def process_insurance_claim(self, claim_amount: float, 
+                              deductible: float = 0.0,
+                              insurance_limit: float = float('inf')) -> tuple[float, float]:
+        """Process an insurance claim with deductible and limit, setting up collateral.
         
         Args:
-            claim_amount: Amount of the insurance claim
+            claim_amount: Total amount of the loss/claim
+            deductible: Amount company must pay before insurance kicks in
+            insurance_limit: Maximum amount insurance will pay
             
         Returns:
-            True if claim was successfully processed
+            Tuple of (company_payment, insurance_payment)
         """
-        # All large claims require letter of credit collateral
-        self.collateral += claim_amount
-        self.restricted_assets += claim_amount
+        # Calculate insurance coverage
+        if claim_amount <= deductible:
+            # Below deductible, company pays all
+            company_payment = claim_amount
+            insurance_payment = 0
+        else:
+            # Above deductible
+            company_payment = deductible
+            insurance_payment = min(claim_amount - deductible, insurance_limit)
+            # Company also pays any amount above the limit
+            if claim_amount > deductible + insurance_limit:
+                company_payment += claim_amount - deductible - insurance_limit
         
-        # Create claim liability with payment schedule
-        claim = ClaimLiability(
-            original_amount=claim_amount,
-            remaining_amount=claim_amount,
-            year_incurred=self.current_year
-        )
-        self.claim_liabilities.append(claim)
+        # Company must immediately pay its portion
+        if company_payment > 0:
+            self.assets -= min(company_payment, self.assets)  # Pay what we can
+            logger.info(f"Company paid ${company_payment:,.2f} (deductible/excess)")
         
-        logger.info(f"Processed claim for ${claim_amount:,.2f} in year {self.current_year}")
-        logger.info(f"Posted ${claim_amount:,.2f} letter of credit as collateral")
-        return True
+        # Insurance payment requires collateral and creates liability
+        if insurance_payment > 0:
+            # Post letter of credit as collateral for insurance payment
+            self.collateral += insurance_payment
+            self.restricted_assets += insurance_payment
+            
+            # Create claim liability with payment schedule for insurance portion
+            claim = ClaimLiability(
+                original_amount=insurance_payment,
+                remaining_amount=insurance_payment,
+                year_incurred=self.current_year
+            )
+            self.claim_liabilities.append(claim)
+            
+            logger.info(f"Insurance covering ${insurance_payment:,.2f}")
+            logger.info(f"Posted ${insurance_payment:,.2f} letter of credit as collateral")
+        
+        logger.info(f"Total claim: ${claim_amount:,.2f} (Company: ${company_payment:,.2f}, Insurance: ${insurance_payment:,.2f})")
+        
+        return company_payment, insurance_payment
     
     def pay_claim_liabilities(self) -> float:
         """Pay scheduled claim liabilities for the current year.
