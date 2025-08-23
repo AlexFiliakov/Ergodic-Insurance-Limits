@@ -779,4 +779,60 @@ Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LI
 
 ---
 
-Review the blog post drafted in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md`. The target audience are experienced actuaries and finance professionals. Use LaTeX for formulas. Maintain a light and breezy tone while still being professional for the actuarial audience and rigorously sound analytically. Avoid being shallow, but be conversational to make it engaging enough to read on a weekend. Ask me clarifying questions, then adjust the draft.
+Review the blog post drafted in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md`. The target audience are experienced actuaries and finance professionals. Use LaTeX for formulas. Maintain a light and breezy tone while still being professional for the actuarial audience and rigorously sound analytically. Avoid being shallow, but be conversational to make it engaging enough for an actuary to read on a weekend. Ask me clarifying questions, then adjust the draft.
+
+### Rewrite Clarifying Questions
+
+  1. Strengthen the Opening Hook
+
+  The roulette analogy is good but consider leading with a more
+  industry-specific paradox that actuaries face daily.
+
+  2. Enhance Mathematical Precision
+
+  - Line 37: The variance reduction formula needs context about
+  log-normal assumptions
+  - Line 106: Define the limit more precisely (almost sure convergence vs
+   convergence in probability)
+  - Line 176: The geometric mean approximation could use error bounds
+
+  3. Add Industry Credibility
+
+  - Reference specific actuarial papers or journals
+  - Connect to existing frameworks (Kelly Criterion is mentioned but
+  could be expanded)
+  - Cite historical examples of companies that failed due to inadequate
+  coverage
+
+  4. Clarify Technical Points
+
+  - Line 225: The CV = 2.5 assumption needs justification
+  - Line 271: Explain why Pareto is chosen for catastrophic events
+  - Line 364: Market structure pricing needs sourcing or explanation
+
+  5. Tone Refinements
+
+  - Some phrases like "weep with joy" (line 263) might be too casual
+  - Balance weekend readability with professional gravitas
+  - Consider adding more actuarial insider references
+
+  Would you like me to:
+  1. Rewrite specific sections with these adjustments?
+  2. Add more mathematical appendices?
+  3. Develop the Widget Manufacturing narrative with more realistic
+  parameters?
+  4. Create transition text for Part 2?
+
+### Rewrite Clarifying Responses
+
+1. You can strengthen the opening hook by making it more actuarial and more uniquely creative.
+2. You can enhance line 37 variance reduction formula context. I don't think we need to define the limit more precisely, leave it as-is. You can provide error bounds for the geometric mean approximation.
+3. Identify references to Ergodic Economics blog posts and papers, and any other relevant actuarial literature that we can draw from. You can connect the existing frameworks with a compare/contrast overview of each versus Ergodicitiy. I don't think we need to cite historical examples of lack of coverage here.
+4. I don't think we need to justify coefficient selections yet, such as the CV = 2.5 assumption, as it's going to be covered in the next blog part. You can briefly explain why Pareto is a reasonable model of catastrophic events. You can say the market structure pricing is chosen arbitrarily and will be refined from loss simulations in the stochastic model.
+5. Rework the phrase "weep with joy" to be a bit more professional there, more dry humor. In general lean towards dry humor. Balance weekend readability with professional gravitas.
+6. Rewrite all sections with more appropriate adjustments.
+7. If there is any long math development that's required and not provided in another paper or external blog post, put it into an appendix.
+8. You can refine the Widget Manufacturing narrative with more realistic parameters.
+9. Create transition text for Part 2.
+
+---
