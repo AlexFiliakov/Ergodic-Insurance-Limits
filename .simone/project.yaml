@@ -1,0 +1,87 @@
+# Simone Project Configuration
+# Auto-generated on 2025-08-23
+
+project:
+  name: "Ergodic Insurance Limits"
+  description: "Framework for optimizing insurance limits using ergodic (time-average) theory to demonstrate how insurance transforms from cost center to growth enabler"
+  type: "single"  # Single unified codebase with Python focus
+  riskLevel: 5  # Balanced approach - confirm major changes
+
+contexts:
+  - name: "main"
+    path: "."
+    description: "Main Python implementation of ergodic insurance optimization framework"
+    stack:
+      language: "python"
+      framework: "scientific-python"  # NumPy, SciPy, Pandas, Matplotlib
+      database: "none"  # No database, file-based data storage
+    tooling:
+      test: "pytest"
+      lint: "pylint"
+      format: "black"
+      typecheck: "mypy"
+      build: "python setup.py build"
+      install: "pip install -e ."
+    commands:
+      test: "pytest"
+      lint: "pylint ergodic_insurance"
+      format: "black ergodic_insurance"
+      typecheck: "mypy ergodic_insurance"
+      coverage: "pytest --cov=ergodic_insurance --cov-report=html"
+    methodology: "test-driven"
+    
+  - name: "simone-ts"
+    path: "./simone"
+    description: "TypeScript simulation components (secondary)"
+    stack:
+      language: "typescript"
+      framework: "node"
+      database: "none"
+    tooling:
+      test: "jest"
+      lint: "eslint"
+      format: "prettier"
+      build: "tsc"
+    commands:
+      test: "npm test"
+      lint: "npm run lint"
+      format: "npm run format"
+      build: "npm run build"
+      dev: "npm run dev"
+    methodology: "modular"
+
+shared:
+  dependencies:
+    python: ">=3.12"
+    node: ">=20.0.0"
+  editor: "vscode"
+  vcs: "git"
+  
+github:
+  repository: "AlexFiliakov/Ergodic-Insurance-Limits"
+  tool: "cli"
+  
+features:
+  pr_review_wait:
+    enabled: false  # Can be enabled later if needed
+    initial_wait: 30
+    poll_interval: 30
+    timeout: 600
+    auto_merge: false
+
+versioning:
+  strategy: "semver"
+  current: "0.1.0"
+
+documentation:
+  format: "markdown"
+  location: "./docs"
+  api_docs: "./docs/api"
+  
+testing:
+  coverage_target: 80  # Minimum test coverage percentage
+  parallel: true  # Run tests in parallel when possible
+  
+ci_cd:
+  enabled: false  # Can be configured later
+  platform: "github-actions"
