@@ -7,6 +7,7 @@ and analysis.
 
 from .claim_generator import ClaimEvent, ClaimGenerator
 from .config import Config, ManufacturerConfig
+from .ergodic_analyzer import ErgodicAnalyzer
 from .manufacturer import WidgetManufacturer
 from .simulation import Simulation, SimulationResults
 
@@ -17,6 +18,7 @@ __all__ = [
     "ClaimGenerator",
     "Config",
     "ManufacturerConfig",
+    "ErgodicAnalyzer",
     "WidgetManufacturer",
     "Simulation",
     "SimulationResults",
