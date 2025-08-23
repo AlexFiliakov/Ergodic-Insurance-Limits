@@ -2,8 +2,8 @@
 
 ## Sprint Overview
 
-**Duration**: 2 weeks  
-**Goal**: Transform the deterministic financial model into a stochastic ergodic framework with insurance mechanisms  
+**Duration**: 2 weeks
+**Goal**: Transform the deterministic financial model into a stochastic ergodic framework with insurance mechanisms
 **Key Outcome**: Demonstrate ergodic advantages over traditional ensemble approaches through 100,000 scenario Monte Carlo simulations
 
 ## Sprint Objectives
@@ -38,8 +38,8 @@
 ## User Stories & Tasks
 
 ### Story 1: Stochastic Revenue & Growth Model
-**As a** risk analyst  
-**I want** realistic stochastic variations in sales and growth  
+**As a** risk analyst
+**I want** realistic stochastic variations in sales and growth
 **So that** I can model real-world business volatility
 
 #### Tasks:
@@ -55,17 +55,17 @@
 stochastic:
   enabled: true
   random_seed: 42
-  
+
 sales_volatility:
   distribution: "lognormal"
   mu: 14.0        # log-scale mean
   sigma: 1.2      # log-scale std dev
-  
+
 growth_dynamics:
   type: "geometric_brownian_motion"
   drift: 0.05     # base 5% annual growth
   volatility: 0.15 # 15% annual volatility
-  
+
 correlation_matrix:
   sales_growth: 0.3  # correlation between sales shocks and growth
 ```
@@ -77,8 +77,8 @@ correlation_matrix:
 - Standard deviation of outcomes matches configured parameters
 
 ### Story 2: Claim Event Generation
-**As an** actuary  
-**I want** realistic claim frequency and severity modeling  
+**As an** actuary
+**I want** realistic claim frequency and severity modeling
 **So that** I can test insurance strategies against plausible loss scenarios
 
 #### Tasks:
@@ -95,13 +95,13 @@ class ClaimGenerator:
     def __init__(self, config: ClaimConfig):
         self.attritional_freq = PoissonProcess(lambda_=5.5)  # 3-8 events/year
         self.large_claim_freq = PoissonProcess(lambda_=0.3)   # 0.1-0.5 events/year
-        
+
     def generate_attritional_claims(self, year: int) -> List[Claim]:
         """Generate immediate-payment attritional losses ($3K-$100K)"""
-        
+
     def generate_large_claims(self, year: int) -> List[Claim]:
         """Generate long-tail large losses ($500K-$50M)"""
-        
+
     def get_annual_payments(self, year: int) -> Dict[str, float]:
         """Return paid/incurred/outstanding by claim type"""
 ```
@@ -115,7 +115,7 @@ claims:
       mu: 9.0        # ~$8K mean severity
       sigma: 0.8     # moderate variability
     payment_pattern: "immediate"
-    
+
   large_claims:
     frequency_lambda: 0.3
     severity_lognormal:
@@ -126,7 +126,7 @@ claims:
       year_2: 0.25   # 25% in second year
       year_3: 0.15   # 15% in third year
       years_4_10: [0.02, 0.015, 0.015, 0.01, 0.01, 0.005, 0.005] # remainder spread
-      
+
 correlation:
   freq_severity_rho: 0.25  # moderate positive correlation
 ```
@@ -139,8 +139,8 @@ correlation:
 - Annual claim summaries match actuarial triangle expectations
 
 ### Story 3: Insurance Mechanism Implementation
-**As a** CFO  
-**I want** configurable insurance layers with realistic pricing  
+**As a** CFO
+**I want** configurable insurance layers with realistic pricing
 **So that** I can test optimal risk transfer strategies
 
 #### Tasks:
@@ -158,18 +158,18 @@ class InsuranceLayer:
         self.attachment = attachment     # layer starts at this amount
         self.limit = limit              # layer covers up to this amount
         self.premium_rate = premium_rate # annual premium as % of limit
-        
+
 class InsurancePolicy:
     def __init__(self, layers: List[InsuranceLayer], deductible: float):
         self.layers = sorted(layers, key=lambda x: x.attachment)
         self.deductible = deductible
-        
+
     def calculate_premium(self) -> float:
         """Calculate total annual premium across all layers"""
-        
+
     def process_claim(self, claim_amount: float) -> Dict[str, float]:
         """Return recovery by layer and net retention"""
-        
+
     def get_effective_coverage(self) -> float:
         """Return total coverage limit across all layers"""
 ```
@@ -187,7 +187,7 @@ insurance:
         expected_loss_ratio: 0.70
       - attachment: 5_000_000
         limit: 20_000_000
-        premium_rate: 0.005    # 0.5% of limit  
+        premium_rate: 0.005    # 0.5% of limit
         expected_loss_ratio: 0.45
       - attachment: 25_000_000
         limit: 75_000_000
@@ -203,8 +203,8 @@ insurance:
 - Multiple simultaneous claims handled correctly
 
 ### Story 4: Ergodic Framework Core
-**As a** researcher  
-**I want** time-average vs ensemble-average comparison capabilities  
+**As a** researcher
+**I want** time-average vs ensemble-average comparison capabilities
 **So that** I can demonstrate ergodic advantages of insurance
 
 #### Tasks:
@@ -220,20 +220,20 @@ insurance:
 class ErgodicAnalyzer:
     def __init__(self, simulation_results: List[SimulationPath]):
         self.paths = simulation_results
-        
+
     def calculate_time_average_growth(self, path: SimulationPath) -> float:
         """Calculate g = (1/T) * ln(x(T)/x(0)) for single path"""
-        
+
     def calculate_ensemble_average_growth(self) -> float:
         """Calculate E[ln(x(T)/x(0))] across all paths"""
-        
+
     def compare_ergodic_vs_ensemble(self) -> ErgodicComparison:
         """Generate comprehensive comparison metrics"""
-        
+
     def test_convergence(self) -> ConvergenceMetrics:
         """Monitor convergence using Gelman-Rubin R-hat statistics"""
-        
-    def demonstrate_insurance_advantage(self, 
+
+    def demonstrate_insurance_advantage(self,
                                       with_insurance: List[SimulationPath],
                                       without_insurance: List[SimulationPath]) -> InsuranceAnalysis:
         """Show ergodic benefits of insurance vs traditional analysis"""
@@ -256,8 +256,8 @@ class ErgodicAnalyzer:
 - Comparison framework clearly shows insurance benefits
 
 ### Story 5: High-Performance Monte Carlo Engine
-**As a** computational analyst  
-**I want** efficient simulation of 100,000 scenarios  
+**As a** computational analyst
+**I want** efficient simulation of 100,000 scenarios
 **So that** I can achieve statistical convergence for ergodic analysis
 
 #### Tasks:
@@ -275,16 +275,16 @@ class MonteCarloEngine:
         self.n_scenarios = n_scenarios
         self.n_processes = config.parallel_processes
         self.checkpoint_frequency = config.checkpoint_every_n
-        
+
     def run_parallel_simulation(self) -> SimulationResults:
         """Execute scenarios in parallel with memory management"""
-        
+
     def adaptive_sampling(self, preliminary_results: List[Path]) -> int:
         """Determine optimal number of scenarios for convergence"""
-        
+
     def checkpoint_results(self, batch_results: List[Path], batch_id: int):
         """Save intermediate results to prevent data loss"""
-        
+
     def monitor_convergence(self, running_results: List[Path]) -> bool:
         """Check if statistical convergence achieved"""
 ```
@@ -304,8 +304,8 @@ class MonteCarloEngine:
 - Convergence monitoring correctly identifies statistical stability
 
 ### Story 6: Comparative Analysis & Insurance Puzzle Resolution
-**As a** business strategist  
-**I want** clear demonstration of ergodic insurance advantages  
+**As a** business strategist
+**I want** clear demonstration of ergodic insurance advantages
 **So that** I can justify insurance spending beyond expected loss ratios
 
 #### Tasks:
@@ -319,24 +319,24 @@ class MonteCarloEngine:
 **Insurance Puzzle Analysis**:
 ```python
 class InsurancePuzzleAnalyzer:
-    def demonstrate_win_win_scenarios(self, 
+    def demonstrate_win_win_scenarios(self,
                                     uninsured_paths: List[Path],
                                     insured_paths: List[Path]) -> PuzzleAnalysis:
         """Show how both insurer and insured benefit from ergodic perspective"""
-        
+
     def calculate_maximum_justifiable_premium(self, base_paths: List[Path]) -> float:
         """Find highest premium that still improves ergodic growth"""
-        
+
     def compare_ruin_probabilities(self, scenarios: Dict[str, List[Path]]) -> RuinAnalysis:
         """Compare survival rates across insurance strategies"""
-        
+
     def analyze_growth_stability(self, scenarios: Dict[str, List[Path]]) -> StabilityMetrics:
         """Measure variance reduction benefits of insurance"""
 ```
 
 **Key Comparisons**:
 - **Expected value analysis**: Traditional insurance cost-benefit
-- **Ergodic analysis**: Time-average growth rate improvements  
+- **Ergodic analysis**: Time-average growth rate improvements
 - **Survival analysis**: Ruin probability comparisons across strategies
 - **Variance analysis**: Growth stability improvements with insurance
 - **Optimal premium analysis**: Maximum economically justified insurance spending
@@ -349,13 +349,13 @@ class InsurancePuzzleAnalyzer:
 - Results reproducible across multiple simulation runs
 
 ### Story 7: Advanced Exploration Notebooks
-**As a** researcher  
-**I want** comprehensive notebooks demonstrating ergodic framework  
+**As a** researcher
+**I want** comprehensive notebooks demonstrating ergodic framework
 **So that** I can explore insurance optimization strategies
 
 #### Tasks:
 - [ ] Create `04_ergodic_vs_ensemble_analysis.ipynb`
-- [ ] Create `05_insurance_optimization.ipynb`  
+- [ ] Create `05_insurance_optimization.ipynb`
 - [ ] Create `06_stochastic_sensitivity_analysis.ipynb`
 - [ ] Add professional visualizations using WSJ style guidelines
 - [ ] Document ergodic theory concepts with mathematical explanations
@@ -368,7 +368,7 @@ class InsurancePuzzleAnalyzer:
 
 **Advanced Visualizations**:
 - Time-series plots of wealth evolution with confidence bands
-- Histogram comparisons of ensemble vs time-average growth rates  
+- Histogram comparisons of ensemble vs time-average growth rates
 - Heat maps of optimal insurance parameters across risk scenarios
 - Tornado diagrams for parameter sensitivity analysis
 - Survival function plots comparing insured vs uninsured scenarios
@@ -419,7 +419,7 @@ class InsurancePuzzleAnalyzer:
 - Ergodic calculation mathematical correctness
 - Monte Carlo convergence monitoring
 
-### Integration Tests  
+### Integration Tests
 - Full simulation pipeline with insurance integration
 - Performance benchmarks for 100,000 scenario runs
 - Statistical validation of ergodic vs ensemble differences
@@ -488,7 +488,7 @@ class InsurancePuzzleAnalyzer:
 
 **Sprint 3: Loss Modeling** will enhance the stochastic framework with:
 - Advanced claim modeling (IBNR, development patterns, catastrophic events)
-- Supply chain and business interruption loss modeling  
+- Supply chain and business interruption loss modeling
 - Economic cycle integration for parameter adjustment
 - Regulatory capital requirement modeling
 - Enhanced correlation structures between risk types
@@ -497,14 +497,14 @@ class InsurancePuzzleAnalyzer:
 
 ### Core Ergodic Metrics
 1. **Geometric Mean Growth Rate**: Direct implementation of ergodic growth formula
-2. **Kelly Leverage Ratio**: Optimal insurance spending as fraction of assets  
+2. **Kelly Leverage Ratio**: Optimal insurance spending as fraction of assets
 3. **Survival-Adjusted Returns**: Growth rates conditional on survival to time horizon
 4. **Ergodic Premium**: Maximum insurance cost justified by time-average improvement
 5. **Growth Variance Reduction**: Stability improvement from insurance
 6. **Time-to-Ruin Distribution**: Statistical analysis of failure timing
 7. **Wealth Trajectory Percentiles**: Distribution of outcomes across scenarios
 
-### Advanced Ergodic Analytics  
+### Advanced Ergodic Analytics
 8. **Multiplicative Risk Capacity**: Maximum loss size before ergodic breakdown
 9. **Temporal Dependency Metrics**: How current wealth affects future growth rates
 10. **Regime Detection**: Identification of different growth/loss environments
@@ -516,7 +516,7 @@ These metrics provide comprehensive insight into the ergodic advantages of insur
 ## Notes
 
 - Prioritize mathematical rigor in ergodic framework implementation
-- Ensure statistical significance in all comparative analyses  
+- Ensure statistical significance in all comparative analyses
 - Focus on business-actionable insights for insurance optimization
 - Maintain computational efficiency for large-scale simulations
 - Document all assumptions clearly for future model enhancements

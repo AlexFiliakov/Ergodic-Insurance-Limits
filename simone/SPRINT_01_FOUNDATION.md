@@ -2,8 +2,8 @@
 
 ## Sprint Overview
 
-**Duration**: 2 weeks  
-**Goal**: Build core financial modeling infrastructure for widget manufacturer with long-term simulation capabilities  
+**Duration**: 2 weeks
+**Goal**: Build core financial modeling infrastructure for widget manufacturer with long-term simulation capabilities
 **Key Outcome**: Deterministic financial model capable of simulating up to 1000 years with monthly/annual resolution
 
 ## Sprint Objectives
@@ -31,8 +31,8 @@
 ## User Stories & Tasks
 
 ### Story 1: Project Infrastructure
-**As a** developer  
-**I want** a well-structured Python project with testing framework  
+**As a** developer
+**I want** a well-structured Python project with testing framework
 **So that** we can maintain code quality throughout development
 
 #### Tasks:
@@ -49,8 +49,8 @@
 - Code formatting automated via pre-commit
 
 ### Story 2: Configuration Management
-**As a** user  
-**I want** to configure financial parameters via YAML  
+**As a** user
+**I want** to configure financial parameters via YAML
 **So that** I can easily run different scenarios
 
 #### Tasks:
@@ -68,14 +68,14 @@ manufacturer:
   operating_margin: 0.08        # 8% operating profit margin
   tax_rate: 0.25               # 25% corporate tax rate
   retention_ratio: 1.0         # 100% earnings retention (no dividends)
-  
+
 working_capital:
   percent_of_sales: 0.20       # 20% of sales tied up in working capital
-  
+
 growth:
   type: "deterministic"        # vs "stochastic" in future
   annual_growth_rate: 0.05     # 5% baseline growth
-  
+
 simulation:
   time_resolution: "annual"    # or "monthly"
   time_horizon_years: 100      # Default horizon
@@ -88,8 +88,8 @@ simulation:
 - Parameter override works programmatically
 
 ### Story 3: Core Financial Model
-**As an** actuary  
-**I want** a widget manufacturer financial model  
+**As an** actuary
+**I want** a widget manufacturer financial model
 **So that** I can simulate business performance over time
 
 #### Tasks:
@@ -108,19 +108,19 @@ class WidgetManufacturer:
         self.assets = config.initial_assets
         self.debt = 0  # Only for claims
         self.equity = self.assets
-        
+
     def calculate_revenue(self) -> float:
         """Revenue = Assets × Asset Turnover Ratio"""
-        
+
     def calculate_operating_income(self) -> float:
         """Operating Income = Revenue × Operating Margin"""
-        
+
     def calculate_net_income(self) -> float:
         """Net Income = (Operating Income - Interest) × (1 - Tax Rate)"""
-        
+
     def update_balance_sheet(self, net_income: float):
         """Assets grow by retained earnings"""
-        
+
     def calculate_metrics(self) -> Dict[str, float]:
         """ROE, ROA, Debt-to-Equity, etc."""
 ```
@@ -132,8 +132,8 @@ class WidgetManufacturer:
 - 95% test coverage for financial calculations
 
 ### Story 4: Time Series Evolution
-**As a** researcher  
-**I want** to simulate manufacturer finances over long time periods  
+**As a** researcher
+**I want** to simulate manufacturer finances over long time periods
 **So that** I can study ergodic properties
 
 #### Tasks:
@@ -151,16 +151,16 @@ class Simulation:
     def __init__(self, manufacturer: WidgetManufacturer, config: SimulationConfig):
         self.time_resolution = config.time_resolution
         self.horizon_years = config.time_horizon_years
-        
+
     def run(self) -> SimulationResults:
         """Execute simulation for specified horizon"""
-        
+
     def step_annual(self) -> None:
         """Single annual time step"""
-        
+
     def step_monthly(self) -> None:
         """Single monthly time step"""
-        
+
     def get_trajectory(self) -> pd.DataFrame:
         """Return time series of key metrics"""
 ```
@@ -172,8 +172,8 @@ class Simulation:
 - Results exportable to pandas DataFrame
 
 ### Story 5: Claim Collateral Management
-**As a** risk manager  
-**I want** letter of credit collateral for unpaid insurance claims  
+**As a** risk manager
+**I want** letter of credit collateral for unpaid insurance claims
 **So that** insurers have guaranteed payment security over the claim period
 
 #### Tasks:
@@ -191,23 +191,23 @@ def process_insurance_claim(self, claim_amount: float):
     # All large claims require LoC collateral regardless of assets
     self.collateral += claim_amount  # Post LoC as collateral
     self.restricted_assets += claim_amount  # Track as restricted
-    
+
     # Create claim liability with payment schedule
     claim = ClaimLiability(amount=claim_amount, schedule=10_year_schedule)
     self.claim_liabilities.append(claim)
-    
+
 def service_collateral_costs(self):
     """Pay monthly letter of credit costs"""
     monthly_rate = 0.015 / 12  # 1.5% annual rate paid monthly
     monthly_cost = self.collateral * monthly_rate
     self.operating_expenses += monthly_cost
-    
+
 def pay_claim_and_reduce_collateral(self, payment: float):
     """Pay claim and reduce collateral proportionally"""
     self.claim_liability -= payment
     self.collateral -= payment  # Reduce LoC by same amount
     self.restricted_assets -= payment
-    
+
 def check_solvency(self):
     """Check if company is solvent"""
     if self.equity <= 0:
@@ -223,8 +223,8 @@ def check_solvency(self):
 - No borrowing or debt creation for operations
 
 ### Story 6: Exploration Notebooks
-**As a** user  
-**I want** Jupyter notebooks demonstrating the model  
+**As a** user
+**I want** Jupyter notebooks demonstrating the model
 **So that** I can explore and validate functionality
 
 #### Tasks:

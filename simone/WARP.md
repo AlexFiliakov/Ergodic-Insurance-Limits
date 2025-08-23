@@ -81,7 +81,7 @@ The codebase follows a modular TypeScript architecture with clear separation of 
 
 This framework is specifically designed for:
 - **Ergodic insurance optimization** using time-average growth rates
-- **Monte Carlo simulations** with 100K-1M iterations for robust convergence  
+- **Monte Carlo simulations** with 100K-1M iterations for robust convergence
 - **Widget manufacturing scenarios** with 8% operating margins and specific loss models
 - **Risk-return optimization** balancing ROE targets with ruin probability constraints
 
@@ -91,7 +91,7 @@ The theoretical foundation comes from Ole Peters' ergodic economics, focusing on
 
 ### File Structure Patterns
 - **Core logic** in `src/core/` for main simulation engines
-- **Type definitions** in `src/models/` for shared interfaces  
+- **Type definitions** in `src/models/` for shared interfaces
 - **Utilities** in `src/utils/` for mathematical and statistical functions
 - **Tests** mirror the `src/` structure in `tests/`
 

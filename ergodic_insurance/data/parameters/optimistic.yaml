@@ -13,16 +13,16 @@ _optimistic_anchors:
 manufacturer:
   # Optimistic: Same starting position
   initial_assets: 10_000_000
-  
+
   # Higher efficiency (excellent operations)
   asset_turnover_ratio: 1.2
-  
+
   # Higher profit margins (premium product/efficiency)
   operating_margin: *high_margin
-  
+
   # Lower tax rate (tax optimization strategies)
   tax_rate: 0.21
-  
+
   # Full retention for maximum growth
   retention_ratio: *full_retention
 
@@ -34,10 +34,10 @@ working_capital:
 # Growth Parameters
 growth:
   type: "deterministic"
-  
+
   # Optimistic growth assumption
   annual_growth_rate: *high_growth
-  
+
   # Lower volatility expected (stable growth)
   volatility: 0.08
 
@@ -45,22 +45,22 @@ growth:
 debt:
   # Lower interest rate (excellent credit)
   interest_rate: 0.0125
-  
+
   # Higher leverage tolerance
   max_leverage_ratio: 2.5
-  
+
   # Lower cash buffer (aggressive capital deployment)
   minimum_cash_balance: *low_min_cash
 
 # Simulation Parameters
 simulation:
   time_resolution: "annual"
-  
+
   # Shorter initial horizon (fast growth focus)
   time_horizon_years: 50
-  
+
   max_horizon_years: 1000
-  
+
   # Fixed seed for reproducibility
   random_seed: 42
 
@@ -68,20 +68,20 @@ simulation:
 output:
   output_directory: "outputs/optimistic"
   file_format: "csv"
-  
+
   # Less frequent checkpoints (stable growth)
   checkpoint_frequency: 20
-  
+
   # Less detail needed for optimistic scenario
   detailed_metrics: false
 
 # Logging Configuration
 logging:
   enabled: true
-  
+
   # Less verbose logging for clean runs
   level: "WARNING"
-  
+
   log_file: "simulation_optimistic.log"
   console_output: false
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -15,7 +15,7 @@ contexts:
   - name: "main"  # Context identifier
     path: "./"     # Relative path from project root
     description: "<FILL:what-this-context-contains>"
-    
+
     # Technology stack for this context
     stack:
       language: "<FILL:primary-language>"
@@ -30,7 +30,7 @@ contexts:
       styling:
         system: "<FILL:styling-system-or-none>"
         enabled: false
-    
+
     # Available commands for this context
     tooling:
       lint:
@@ -52,7 +52,7 @@ contexts:
       commit:
         enabled: true
         command: "git commit"
-    
+
     # Development methodology
     methodology:
       development: "none"  # Options: tdd, bdd, none

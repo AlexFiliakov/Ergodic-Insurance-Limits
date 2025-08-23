@@ -6,6 +6,7 @@ from pathlib import Path
 from setuptools import find_packages, setup
 
 # Read the version from _version.py
+__version__ = ""
 exec(open(os.path.join("ergodic_insurance", "_version.py")).read())
 
 # Read the README file

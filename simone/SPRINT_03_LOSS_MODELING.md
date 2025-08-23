@@ -2,8 +2,8 @@
 
 ## Sprint Overview
 
-**Duration**: 2 weeks  
-**Goal**: Build comprehensive loss modeling framework with multi-layer insurance programs  
+**Duration**: 2 weeks
+**Goal**: Build comprehensive loss modeling framework with multi-layer insurance programs
 **Key Outcome**: Stochastic loss generator with configurable insurance structures and risk metrics
 
 ## Sprint Objectives
@@ -37,8 +37,8 @@
 ## User Stories & Tasks
 
 ### Story 1: Enhanced Loss Distributions
-**As an** actuary  
-**I want** parametric loss distributions for different claim types  
+**As an** actuary
+**I want** parametric loss distributions for different claim types
 **So that** I can model realistic manufacturing loss patterns
 
 #### Tasks:
@@ -54,7 +54,7 @@
 class LossDistribution:
     def generate_severity(self, n_samples: int) -> np.ndarray:
         """Generate loss severities"""
-    
+
     def expected_value(self) -> float:
         """Analytical expected value if available"""
 
@@ -62,8 +62,8 @@ class AttritionalLossGenerator:
     # Frequency: λ = 3-8 events/year (Poisson)
     # Severity: μ = 8-10, σ = 0.6-1.0 (Lognormal)
     # Range: $3K-$100K per event
-    
-class LargeLossGenerator:  
+
+class LargeLossGenerator:
     # Frequency: λ = 0.1-0.5 events/year
     # Severity: Pareto with α = 2.5, xm = $500K
     # Range: $500K-$50M per event
@@ -75,8 +75,8 @@ class LargeLossGenerator:
 - Can generate 1M samples efficiently
 
 ### Story 2: Multi-Layer Insurance Programs
-**As a** risk manager  
-**I want** multi-layer insurance structures  
+**As a** risk manager
+**I want** multi-layer insurance structures
 **So that** I can optimize risk transfer across different loss levels
 
 #### Tasks:
@@ -90,12 +90,12 @@ class LargeLossGenerator:
 **Layer Structure**:
 ```python
 class InsuranceLayer:
-    def __init__(self, 
+    def __init__(self,
                  attachment: float,  # Where layer starts
                  limit: float,       # Layer capacity
                  premium_rate: float, # % of limit
                  reinstatements: int = 0):
-        
+
     def apply_loss(self, loss: float) -> tuple[float, float]:
         """Returns (retained, covered)"""
 
@@ -103,7 +103,7 @@ class InsuranceProgram:
     layers = [
         # Primary: $0-$5M, premium 1% of limit
         InsuranceLayer(0, 5_000_000, 0.01),
-        # First excess: $5M-$25M, premium 0.5% of limit  
+        # First excess: $5M-$25M, premium 0.5% of limit
         InsuranceLayer(5_000_000, 20_000_000, 0.005, reinstatements=1),
         # Second excess: $25M-$50M, premium 0.2% of limit
         InsuranceLayer(25_000_000, 25_000_000, 0.002, reinstatements=2)
@@ -117,8 +117,8 @@ class InsuranceProgram:
 - Handles exhausted layers properly
 
 ### Story 3: Claim Development Patterns
-**As a** financial analyst  
-**I want** realistic claim payment patterns  
+**As a** financial analyst
+**I want** realistic claim payment patterns
 **So that** I can model cash flow impacts accurately
 
 #### Tasks:
@@ -133,7 +133,7 @@ class InsuranceProgram:
 ```python
 class ClaimDevelopment:
     IMMEDIATE = [1.0]  # Paid immediately
-    
+
     LONG_TAIL_10YR = [
         0.10,  # Year 1: 10%
         0.20,  # Year 2: 20%
@@ -146,8 +146,8 @@ class ClaimDevelopment:
         0.03,  # Year 9: 3%
         0.02,  # Year 10: 2%
     ]
-    
-    def apply_development(self, claims: List[Claim], 
+
+    def apply_development(self, claims: List[Claim],
                          current_year: int) -> float:
         """Calculate payments due in current year"""
 ```
@@ -159,8 +159,8 @@ class ClaimDevelopment:
 - Integrates with manufacturer cash flows
 
 ### Story 4: Risk Metrics Suite
-**As a** risk analyst  
-**I want** comprehensive risk metrics  
+**As a** risk analyst
+**I want** comprehensive risk metrics
 **So that** I can quantify tail risk and optimize retention
 
 #### Tasks:
@@ -177,21 +177,21 @@ class ClaimDevelopment:
 class RiskMetrics:
     def __init__(self, losses: np.ndarray):
         self.losses = np.sort(losses)
-        
+
     def var(self, confidence: float = 0.99) -> float:
         """Value at Risk at confidence level"""
         return np.percentile(self.losses, confidence * 100)
-    
+
     def tvar(self, confidence: float = 0.99) -> float:
         """Tail Value at Risk (expected loss beyond VaR)"""
         var_threshold = self.var(confidence)
         return self.losses[self.losses >= var_threshold].mean()
-    
+
     def pml(self, return_period: int) -> float:
         """Probable Maximum Loss for return period"""
         confidence = 1 - 1/return_period
         return self.var(confidence)
-    
+
     def return_periods(self, thresholds: List[float]) -> Dict[float, float]:
         """Calculate return periods for loss thresholds"""
 ```
@@ -203,8 +203,8 @@ class RiskMetrics:
 - Clear documentation of assumptions
 
 ### Story 5: Monte Carlo Simulation Engine
-**As a** researcher  
-**I want** efficient Monte Carlo simulation  
+**As a** researcher
+**I want** efficient Monte Carlo simulation
 **So that** I can run millions of scenarios for convergence
 
 #### Tasks:
@@ -218,18 +218,18 @@ class RiskMetrics:
 **Simulation Framework**:
 ```python
 class LossSimulation:
-    def __init__(self, 
+    def __init__(self,
                  loss_generators: List[LossGenerator],
                  insurance_program: InsuranceProgram,
                  n_simulations: int = 100_000,
                  n_years: int = 10):
-        
+
     def run(self, parallel: bool = True) -> SimulationResults:
         """Execute Monte Carlo simulation"""
-        
+
     def check_convergence(self, metric: str = 'mean') -> float:
         """Calculate Gelman-Rubin R-hat statistic"""
-        
+
     def calculate_metrics(self) -> Dict[str, float]:
         """Calculate all risk metrics from results"""
 ```
@@ -241,8 +241,8 @@ class LossSimulation:
 - Memory usage < 2GB for 1M scenarios
 
 ### Story 6: Loss Analysis Notebooks
-**As a** user  
-**I want** interactive notebooks for loss analysis  
+**As a** user
+**I want** interactive notebooks for loss analysis
 **So that** I can explore insurance optimization strategies
 
 #### Tasks:

@@ -17,3 +17,99 @@ This framework resolves the fundamental insurance puzzle: while insurance appear
 The framework fundamentally reframes insurance from cost center to growth enabler. By optimizing time-average growth rates rather than expected values, widget manufacturers can achieve **30-50% better long-term performance** while maintaining acceptable ruin probabilities. The key insight: **maximizing ergodic growth rates naturally balances profitability with survival**, eliminating the need for arbitrary risk preferences or utility functions.
 
 This comprehensive framework provides the mathematical rigor, practical parameters, and implementation roadmap necessary for successful insurance optimization in widget manufacturing, with the ergodic approach offering genuinely novel insights that challenge conventional risk management wisdom.
+
+## Installation
+
+### Prerequisites
+- Python 3.12 or higher
+- Git
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
+cd Ergodic-Insurance-Limits
+```
+
+2. Install dependencies using uv (recommended) or pip:
+```bash
+# Using uv
+uv sync
+
+# Or using pip
+pip install -e .
+```
+
+3. Install pre-commit hooks for code quality:
+```bash
+pre-commit install
+```
+
+## Development
+
+### Code Quality Tools
+
+This project uses several tools to maintain code quality:
+
+- **Black**: Code formatting (line length: 100)
+- **isort**: Import sorting
+- **mypy**: Static type checking
+- **pylint**: Code linting
+- **pytest-cov**: Test coverage reporting (minimum: 80%)
+
+### Running Tests
+
+```bash
+# Run all tests with coverage
+pytest
+
+# Run specific test file
+pytest ergodic_insurance/tests/test_manufacturer.py
+
+# Run with coverage report
+pytest --cov=ergodic_insurance --cov-report=html
+```
+
+### Pre-commit Hooks
+
+Pre-commit hooks run automatically on commit. To run manually:
+
+```bash
+# Run on all files
+pre-commit run --all-files
+
+# Run specific hook
+pre-commit run black --all-files
+```
+
+### Type Checking
+
+```bash
+# Run mypy
+mypy ergodic_insurance
+
+# Run with specific file
+mypy ergodic_insurance/src/manufacturer.py
+```
+
+### Code Formatting
+
+```bash
+# Format with black
+black ergodic_insurance
+
+# Sort imports with isort
+isort ergodic_insurance
+```
+
+## Project Structure
+
+```
+ergodic_insurance/
+├── src/              # Core source code
+├── tests/            # Test suite
+├── notebooks/        # Jupyter notebooks
+├── data/            # Configuration parameters
+└── examples/        # Example scripts
+```

@@ -1,7 +1,7 @@
 # Project Constitution
 
 ## Project Info
-**Name**: Ergodic Insurance Limits  
+**Name**: Ergodic Insurance Limits
 **Purpose**: Optimize insurance limits using ergodic theory to transform insurance from cost center to growth enabler
 
 ## Tech Stack
@@ -17,7 +17,7 @@
   /tests/              # Test suite
   /notebooks/          # Jupyter exploration notebooks
   /data/               # Parameters and synthetic data
-/simone/               # TypeScript simulation components  
+/simone/               # TypeScript simulation components
   /src/                # TypeScript modules
   /tests/              # Jest tests
 /reports/              # Generated reports and figures
