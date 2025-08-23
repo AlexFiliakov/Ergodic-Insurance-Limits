@@ -218,12 +218,15 @@ class WidgetManufacturer:
         
         # Company must immediately pay its portion
         if company_payment > 0:
-            self.assets -= min(company_payment, self.assets)  # Pay what we can
-            logger.info(f"Company paid ${company_payment:,.2f} (deductible/excess)")
+            actual_payment = min(company_payment, self.assets)  # Pay what we can
+            self.assets -= actual_payment
+            self.equity -= actual_payment  # Reduce equity by the same amount
+            logger.info(f"Company paid ${actual_payment:,.2f} (deductible/excess)")
         
         # Insurance payment requires collateral and creates liability
         if insurance_payment > 0:
             # Post letter of credit as collateral for insurance payment
+            # This restricts assets but doesn't change total assets or equity
             self.collateral += insurance_payment
             self.restricted_assets += insurance_payment
             
@@ -262,6 +265,7 @@ class WidgetManufacturer:
                 if actual_payment > 0:
                     claim.make_payment(actual_payment)
                     self.assets -= actual_payment
+                    self.equity -= actual_payment  # Reduce equity when paying claims
                     total_paid += actual_payment
                     
                     # Reduce collateral and restricted assets by payment amount
