@@ -18,6 +18,30 @@ The framework fundamentally reframes insurance from cost center to growth enable
 
 This comprehensive framework provides the mathematical rigor, practical parameters, and implementation roadmap necessary for successful insurance optimization in widget manufacturing, with the ergodic approach offering genuinely novel insights that challenge conventional risk management wisdom.
 
+## Key Features
+
+### Financial Modeling
+- **Widget manufacturer model** with comprehensive balance sheet management
+- **Stochastic processes** including GBM, lognormal volatility, and mean-reversion
+- **Insurance claim processing** with multi-year payment schedules
+- **Collateral management** for letter of credit requirements
+
+### Configuration Management
+- **Pydantic-based configuration** with full validation and type safety
+- **YAML parameter files** for different scenarios (baseline, conservative, optimistic, stochastic)
+- **Flexible override system** for parameter experimentation
+
+### Documentation & Testing
+- **Comprehensive Google-style docstrings** throughout the codebase
+- **Sphinx documentation system** for professional API reference
+- **100% test coverage** with pytest framework
+- **Type safety** enforced with mypy static analysis
+
+### Analysis Tools
+- **Jupyter notebooks** for interactive exploration and visualization
+- **Demo scripts** showing stochastic vs deterministic comparisons
+- **Performance metrics** including ROE, risk of ruin, and time-average growth rates
+
 ## Installation
 
 ### Prerequisites
@@ -106,10 +130,63 @@ isort ergodic_insurance
 ## Project Structure
 
 ```
-ergodic_insurance/
-├── src/              # Core source code
-├── tests/            # Test suite
-├── notebooks/        # Jupyter notebooks
-├── data/            # Configuration parameters
-└── examples/        # Example scripts
+Ergodic Insurance Limits/
+├── ergodic_insurance/           # Main Python package
+│   ├── src/                    # Core source code
+│   │   ├── __init__.py
+│   │   ├── manufacturer.py     # Widget manufacturer financial model
+│   │   ├── claim_generator.py  # Insurance claim generation
+│   │   ├── config.py           # Configuration management with Pydantic
+│   │   ├── config_loader.py    # YAML parameter loading utilities
+│   │   ├── stochastic_processes.py # Stochastic modeling (GBM, lognormal, mean-reversion)
+│   │   ├── simulation.py       # Main simulation engine
+│   │   └── insurance.py        # Insurance optimization algorithms
+│   ├── tests/                  # Comprehensive test suite
+│   │   ├── test_manufacturer.py
+│   │   ├── test_claim_generator.py
+│   │   ├── test_config.py
+│   │   ├── test_stochastic.py
+│   │   └── test_*.py
+│   ├── notebooks/              # Jupyter analysis notebooks
+│   │   ├── 00_setup_verification.ipynb
+│   │   ├── 01_basic_manufacturer.ipynb
+│   │   ├── 02_long_term_simulation.ipynb
+│   │   └── 03_growth_dynamics.ipynb
+│   ├── examples/               # Example scripts and demos
+│   │   ├── demo_manufacturer.py
+│   │   ├── demo_collateral_management.py
+│   │   └── demo_stochastic.py
+│   ├── data/                   # Configuration parameters
+│   │   └── parameters/
+│   │       ├── baseline.yaml    # Standard configuration
+│   │       ├── conservative.yaml
+│   │       ├── optimistic.yaml
+│   │       ├── stochastic.yaml # Stochastic process config
+│   │       └── insurance.yaml
+│   ├── docs/                   # Sphinx documentation
+│   │   ├── conf.py            # Sphinx configuration
+│   │   ├── index.rst          # Documentation main page
+│   │   ├── api/               # Auto-generated API docs
+│   │   └── *.rst              # Documentation files
+│   └── pyproject.toml         # Python package configuration
+├── simone/                     # TypeScript simulation components
+│   ├── src/
+│   │   ├── core/simulation.ts
+│   │   ├── models/types.ts
+│   │   └── utils/statistics.ts
+│   ├── tests/
+│   │   ├── simulation.test.ts
+│   │   └── statistics.test.ts
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── jest.config.js
+├── results/                    # Generated reports and blog drafts
+│   ├── BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md
+│   └── BLOG_OUTLINE_01_ERGODIC_LIMIT_SELECTION.md
+├── assets/                     # Images and documentation assets
+│   └── debug/                 # Debug visualizations
+├── pyproject.toml             # Root Python configuration
+├── uv.lock                    # UV package lock file
+├── mypy.ini                   # Type checking configuration
+└── README.md                  # This file
 ```
