@@ -561,3 +561,28 @@ Create a CLAUDE.md file to direct new instances of Claude with the appropriate i
 ### Sprint Planning Questions
 
 ### Sprint Planning Responses
+
+## First Blog Post
+
+I would like to write a blog post aimed at experienced actuaries justifying excess insurance limits using Ergodic Economics. Please draft a compelling outline of a blog post in Markdown in the file "results/BLOG_01_ERGODIC_LIMIT_SELECTION.md" along the following lines:
+
+Blog Post Title: "Selecting Excess Limits: An Ergodic Approach"
+
+Flesh out the following basic outline into a more effective outline and come up with sub-bullets for each to detail a blogging plan:
+- Executive Summary
+- Basic Conclusions of Ergodic Economics
+- The Question We Seek to Resolve: What Excess insurance limits should a company purchase to optimize their long-run financial performance?
+- Setup of Our Model Company
+- Overview of Our Model Financial Dynamics
+  - Modeling Balance Sheet and Revenue
+  - Modeling Losses and Claims
+    - Frequency is a function of revenue
+  - No Inflation, No Market Dynamics, No Dynamic Strategy and Other Simplifications
+- Performance Metrics
+  - ROE
+  - Risk of Ruin
+- Simulation Approach
+  - Ensemble of 100,000 independent scenarios
+  - Each scenario is 1000 years of consistent business strategy
+- Findings
+- Conclusion
