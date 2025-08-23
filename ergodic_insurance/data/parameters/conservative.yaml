@@ -1,0 +1,86 @@
+# Conservative Configuration for Ergodic Insurance Model
+# Risk-averse parameters with lower growth and higher safety margins
+
+# Define common conservative values as anchors
+_conservative_anchors:
+  low_growth: &low_growth 0.03           # 3% annual growth
+  low_margin: &low_margin 0.06           # 6% operating margin
+  high_working_capital: &high_wc 0.25    # 25% of sales in WC
+  low_retention: &low_retention 0.8      # 80% retention (20% dividends)
+  high_min_cash: &high_min_cash 500_000  # $500k minimum cash
+
+# Manufacturer Financial Parameters
+manufacturer:
+  # Conservative: Same starting position
+  initial_assets: 10_000_000
+  
+  # Lower efficiency in asset utilization
+  asset_turnover_ratio: 0.9
+  
+  # Lower profit margins (more competitive market)
+  operating_margin: *low_margin
+  
+  # Higher tax rate assumption (conservative planning)
+  tax_rate: 0.28
+  
+  # Lower retention (pay dividends for stability)
+  retention_ratio: *low_retention
+
+# Working Capital Management
+working_capital:
+  # Higher working capital needs (conservative operations)
+  percent_of_sales: *high_wc
+
+# Growth Parameters
+growth:
+  type: "deterministic"
+  
+  # Conservative growth assumption
+  annual_growth_rate: *low_growth
+  
+  # Higher volatility preparation (future)
+  volatility: 0.15
+
+# Debt Financing (more restrictive)
+debt:
+  # Higher interest rate (conservative estimate)
+  interest_rate: 0.02
+  
+  # Lower leverage tolerance
+  max_leverage_ratio: 1.5
+  
+  # Higher cash buffer requirement
+  minimum_cash_balance: *high_min_cash
+
+# Simulation Parameters
+simulation:
+  time_resolution: "annual"
+  
+  # Longer horizon for stress testing
+  time_horizon_years: 200
+  
+  max_horizon_years: 1000
+  
+  # Fixed seed for reproducibility
+  random_seed: 42
+
+# Output Configuration
+output:
+  output_directory: "outputs/conservative"
+  file_format: "csv"
+  
+  # More frequent checkpoints for safety
+  checkpoint_frequency: 5
+  
+  detailed_metrics: true
+
+# Logging Configuration
+logging:
+  enabled: true
+  
+  # More detailed logging for conservative runs
+  level: "DEBUG"
+  
+  log_file: "simulation_conservative.log"
+  console_output: true
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
