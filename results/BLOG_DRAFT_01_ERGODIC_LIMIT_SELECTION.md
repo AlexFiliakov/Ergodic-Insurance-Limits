@@ -1,4 +1,4 @@
-# Selecting Excess Insurance Limits: An Ergodic Approach
+# From Cost Center to Growth Engine: Insurance When N=1
 
 *A quantitative framework for optimal insurance limit selection using time-average growth theory*
 

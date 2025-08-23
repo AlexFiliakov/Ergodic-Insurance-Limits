@@ -468,6 +468,16 @@ Update README.md and CLAUDE.md with the latest directory structures.
 4. You can track the time-average growth rate and any other sensible ergodic metrics.
 5. Use InsurancePolicy class for Monte Carlo.
 
+---
+
+prepare to work on issue #9 "Basic Ergodic Analysis Framework". First ask me clarifying questions then proceed to resolve the issue.
+
+---
+
+prepare to work on issue #10 "Integration Testing and Demo Notebook". First ask me clarifying questions then proceed to resolve the issue.
+
+---
+
 ## Sprint 03: Loss Modeling
 
 Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Modeling" to be located in the file `\simone\SPRINT_03_LOSS_MODELING.md`.
