@@ -1,0 +1,10 @@
+include README.md
+include requirements.txt
+include pytest.ini
+include pyproject.toml
+include .pylintrc
+recursive-include data *.yaml *.yml *.json
+recursive-include tests *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .git*
