@@ -1,0 +1,34 @@
+# Default Insurance Policy Configuration
+# Multi-layer structure with deductible and three coverage layers
+
+# Deductible: Amount paid by company before insurance coverage begins
+deductible: 500_000  # $500K deductible
+
+# Insurance Layers
+# Each layer has:
+# - attachment_point: Where coverage starts (after deductible)
+# - limit: Maximum coverage from this layer
+# - rate: Annual premium as percentage of limit
+layers:
+  # Primary Layer
+  - attachment_point: 500_000  # Starts at $500K (after deductible)
+    limit: 4_500_000  # Covers up to $4.5M
+    rate: 0.015  # 1.5% premium rate
+
+  # First Excess Layer
+  - attachment_point: 5_000_000  # Starts at $5M
+    limit: 20_000_000  # Covers up to $20M
+    rate: 0.008  # 0.8% premium rate
+
+  # Second Excess Layer
+  - attachment_point: 25_000_000  # Starts at $25M
+    limit: 25_000_000  # Covers up to $25M
+    rate: 0.004  # 0.4% premium rate
+
+# Total Structure Summary:
+# - $0 - $500K: Company deductible
+# - $500K - $5M: Primary layer (1.5% rate)
+# - $5M - $25M: First excess layer (0.8% rate)
+# - $25M - $50M: Second excess layer (0.4% rate)
+# Total coverage: $50M
+# Expected annual premium: ~$367,500
