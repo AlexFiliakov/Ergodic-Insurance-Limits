@@ -585,3 +585,7 @@ Flesh out the following basic outline into a more effective outline and come up 
   - Each scenario is 1000 years of consistent business strategy
 - Findings
 - Conclusion
+
+---
+
+Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LIMIT_SELECTION.md`. The target audience are experienced actuaries and finance professionals. Continue the blog draft in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md` by writing the section "Key Principles for Insurance Applications". Ask me clarifying questions, then draft the copy for this blog post.
