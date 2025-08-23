@@ -3,18 +3,24 @@
 This module provides the main simulation engine that orchestrates the
 time evolution of the widget manufacturer financial model, managing
 claim events, financial calculations, and result collection.
+
+Includes both single-path simulation and Monte Carlo capabilities.
 """
 
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
 from .claim_generator import ClaimEvent, ClaimGenerator
+from .config import Config
+from .insurance import InsurancePolicy
 from .manufacturer import WidgetManufacturer
+from .monte_carlo import MonteCarloEngine
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +80,9 @@ class SimulationResults:
             "total_claims": np.sum(self.claim_amounts),
             "claim_frequency": np.mean(self.claim_counts),
             "survived": self.insolvency_year is None,
-            "insolvency_year": float(self.insolvency_year)
-            if self.insolvency_year is not None
-            else 0.0,
+            "insolvency_year": (
+                float(self.insolvency_year) if self.insolvency_year is not None else 0.0
+            ),
         }
 
 
@@ -86,12 +92,15 @@ class Simulation:
     The main simulation class that coordinates the time evolution of the
     widget manufacturer model, processing claims and tracking financial
     performance over the specified time horizon.
+
+    Supports both single-path and Monte Carlo simulations.
     """
 
     def __init__(
         self,
         manufacturer: WidgetManufacturer,
         claim_generator: Optional[ClaimGenerator] = None,
+        insurance_policy: Optional[InsurancePolicy] = None,
         time_horizon: int = 100,
         seed: Optional[int] = None,
     ):
@@ -100,11 +109,13 @@ class Simulation:
         Args:
             manufacturer: WidgetManufacturer instance to simulate.
             claim_generator: ClaimGenerator for creating insurance claims.
+            insurance_policy: Insurance policy for claim processing.
             time_horizon: Number of years to simulate.
             seed: Random seed for reproducibility.
         """
         self.manufacturer = manufacturer
         self.claim_generator = claim_generator or ClaimGenerator(seed=seed)
+        self.insurance_policy = insurance_policy
         self.time_horizon = time_horizon
         self.seed = seed
 
@@ -132,13 +143,28 @@ class Simulation:
         """
         # Process claims
         total_claim_amount = sum(claim.amount for claim in claims)
+        total_company_payment = 0.0
+        total_insurance_recovery = 0.0
 
-        # Apply insurance (simplified - actual implementation would use process_insurance_claim)
-        for claim in claims:
-            # Assuming deductible of 1M and limit of 10M for now
-            self.manufacturer.process_insurance_claim(
-                claim_amount=claim.amount, deductible=1_000_000, insurance_limit=10_000_000
-            )
+        # Apply insurance
+        if self.insurance_policy:
+            for claim in claims:
+                company_payment, insurance_recovery = self.insurance_policy.process_claim(
+                    claim.amount
+                )
+                self.manufacturer.assets -= company_payment
+                total_company_payment += company_payment
+                total_insurance_recovery += insurance_recovery
+
+            # Pay annual premium
+            annual_premium = self.insurance_policy.calculate_premium()
+            self.manufacturer.assets -= annual_premium
+        else:
+            # Legacy behavior - process claims without policy
+            for claim in claims:
+                self.manufacturer.process_insurance_claim(
+                    claim_amount=claim.amount, deductible=1_000_000, insurance_limit=10_000_000
+                )
 
         # Step manufacturer forward
         metrics = self.manufacturer.step(
@@ -148,6 +174,8 @@ class Simulation:
         # Add claim information to metrics
         metrics["claim_count"] = len(claims)
         metrics["claim_amount"] = total_claim_amount
+        metrics["company_payment"] = total_company_payment
+        metrics["insurance_recovery"] = total_insurance_recovery
 
         return metrics
 
@@ -227,12 +255,12 @@ class Simulation:
             roe=self.roe[: year + 1] if self.insolvency_year else self.roe,
             revenue=self.revenue[: year + 1] if self.insolvency_year else self.revenue,
             net_income=self.net_income[: year + 1] if self.insolvency_year else self.net_income,
-            claim_counts=self.claim_counts[: year + 1]
-            if self.insolvency_year
-            else self.claim_counts,
-            claim_amounts=self.claim_amounts[: year + 1]
-            if self.insolvency_year
-            else self.claim_amounts,
+            claim_counts=(
+                self.claim_counts[: year + 1] if self.insolvency_year else self.claim_counts
+            ),
+            claim_amounts=(
+                self.claim_amounts[: year + 1] if self.insolvency_year else self.claim_amounts
+            ),
             insolvency_year=self.insolvency_year,
         )
 
@@ -249,3 +277,139 @@ class Simulation:
         """
         results = self.run()
         return results.to_dataframe()
+
+    @classmethod
+    def run_monte_carlo(
+        cls,
+        config: Config,
+        insurance_policy: InsurancePolicy,
+        n_scenarios: int = 10000,
+        batch_size: int = 1000,
+        n_jobs: int = 7,
+        checkpoint_dir: Optional[Path] = None,
+        checkpoint_frequency: int = 5000,
+        seed: Optional[int] = None,
+        resume: bool = True,
+    ) -> Dict[str, Any]:
+        """Run Monte Carlo simulation using the MonteCarloEngine.
+
+        This is a convenience class method for running large-scale Monte Carlo
+        simulations with the optimized engine.
+
+        Args:
+            config: Configuration object.
+            insurance_policy: Insurance policy to simulate.
+            n_scenarios: Number of scenarios to run.
+            batch_size: Scenarios per batch.
+            n_jobs: Number of parallel jobs.
+            checkpoint_dir: Directory for checkpoints.
+            checkpoint_frequency: Save checkpoint every N scenarios.
+            seed: Random seed.
+            resume: Whether to resume from checkpoint.
+
+        Returns:
+            Dictionary of Monte Carlo results and statistics.
+        """
+        engine = MonteCarloEngine(
+            config=config,
+            insurance_policy=insurance_policy,
+            n_scenarios=n_scenarios,
+            batch_size=batch_size,
+            n_jobs=n_jobs,
+            checkpoint_dir=checkpoint_dir,
+            checkpoint_frequency=checkpoint_frequency,
+            seed=seed,
+        )
+
+        results = engine.run(resume=resume)
+
+        # Add ergodic analysis
+        stats = results["statistics"]
+
+        # Calculate ergodic premium justification
+        if "geometric_return" in stats:
+            geo_stats = stats["geometric_return"]
+            premium_cost = insurance_policy.calculate_premium()
+            initial_assets = config.manufacturer.initial_assets
+
+            # Premium as percentage of assets
+            premium_rate = premium_cost / initial_assets
+
+            # Compare geometric returns with and without insurance
+            # This is simplified - actual comparison would require running without insurance
+            results["ergodic_analysis"] = {
+                "premium_rate": premium_rate,
+                "geometric_mean_return": geo_stats["geometric_mean"],
+                "survival_rate": geo_stats["survival_rate"],
+                "volatility_reduction": geo_stats["std"],
+            }
+
+        return results
+
+    @classmethod
+    def compare_insurance_strategies(
+        cls,
+        config: Config,
+        insurance_policies: Dict[str, InsurancePolicy],
+        n_scenarios: int = 1000,
+        n_jobs: int = 7,
+        seed: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Compare multiple insurance strategies via Monte Carlo.
+
+        Args:
+            config: Configuration object.
+            insurance_policies: Dictionary of policy name to InsurancePolicy.
+            n_scenarios: Scenarios per policy.
+            n_jobs: Number of parallel jobs.
+            seed: Random seed.
+
+        Returns:
+            DataFrame comparing results across strategies.
+        """
+        results = []
+
+        for policy_name, policy in insurance_policies.items():
+            logger.info(f"Running Monte Carlo for policy: {policy_name}")
+
+            # Run Monte Carlo
+            mc_results = cls.run_monte_carlo(
+                config=config,
+                insurance_policy=policy,
+                n_scenarios=n_scenarios,
+                n_jobs=n_jobs,
+                seed=seed,
+                checkpoint_frequency=n_scenarios + 1,  # Don't checkpoint for comparisons
+                resume=False,
+            )
+
+            # Extract key metrics
+            stats = mc_results["statistics"]
+
+            result_row = {
+                "policy": policy_name,
+                "annual_premium": policy.calculate_premium(),
+                "total_coverage": policy.get_total_coverage(),
+                "survival_rate": stats["final_equity"]["survival_rate"],
+                "mean_final_equity": stats["final_equity"]["mean"],
+                "std_final_equity": stats["final_equity"]["std"],
+                "geometric_return": stats["geometric_return"]["geometric_mean"],
+                "arithmetic_return": stats["arithmetic_return"]["mean"],
+                "p95_final_equity": stats["final_equity"]["p95"],
+                "p99_final_equity": stats["final_equity"]["p99"],
+            }
+
+            results.append(result_row)
+
+        comparison_df = pd.DataFrame(results)
+
+        # Add relative metrics
+        if len(comparison_df) > 0:
+            comparison_df["premium_to_coverage"] = (
+                comparison_df["annual_premium"] / comparison_df["total_coverage"]
+            )
+            comparison_df["sharpe_ratio"] = (
+                comparison_df["arithmetic_return"] / comparison_df["std_final_equity"]
+            )
+
+        return comparison_df

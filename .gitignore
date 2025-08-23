@@ -404,3 +404,8 @@ nul
 
 # Sphinx
 ergodic_insurance/docs/_build/
+
+# Monte Carlo checkpoints
+ergodic_insurance/checkpoints/
+*.parquet
+*.checkpoint
