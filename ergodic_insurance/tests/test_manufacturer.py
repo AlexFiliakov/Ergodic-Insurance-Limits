@@ -1,4 +1,9 @@
-"""Unit tests for the WidgetManufacturer class."""
+"""Unit tests for the WidgetManufacturer class.
+
+This module contains comprehensive tests for the WidgetManufacturer financial
+model including balance sheet operations, insurance claim processing,
+and financial metrics calculations.
+"""
 
 import math
 from typing import Dict
@@ -10,10 +15,18 @@ from ergodic_insurance.src.manufacturer import ClaimLiability, WidgetManufacture
 
 
 class TestClaimLiability:
-    """Test suite for ClaimLiability class."""
+    """Test suite for ClaimLiability class.
+
+    Tests for the ClaimLiability dataclass including payment
+    schedules and liability management functionality.
+    """
 
     def test_init(self):
-        """Test claim liability initialization."""
+        """Test claim liability initialization.
+
+        Verifies that ClaimLiability objects are properly initialized
+        with correct payment schedules and amounts.
+        """
         claim = ClaimLiability(original_amount=1000000, remaining_amount=1000000, year_incurred=0)
         assert claim.original_amount == 1000000
         assert claim.remaining_amount == 1000000
@@ -22,7 +35,11 @@ class TestClaimLiability:
         assert sum(claim.payment_schedule) == pytest.approx(1.0)
 
     def test_get_payment(self):
-        """Test payment schedule calculation."""
+        """Test payment schedule calculation.
+
+        Tests the get_payment method for calculating scheduled
+        payments based on years since claim incurred.
+        """
         claim = ClaimLiability(original_amount=1000000, remaining_amount=1000000, year_incurred=0)
 
         # Test payment schedule
@@ -37,7 +54,11 @@ class TestClaimLiability:
         assert claim.get_payment(100) == 0
 
     def test_make_payment(self):
-        """Test making payments against liability."""
+        """Test making payments against liability.
+
+        Tests payment processing including partial payments,
+        overpayments, and zero remaining balance scenarios.
+        """
         claim = ClaimLiability(original_amount=1000000, remaining_amount=1000000, year_incurred=0)
 
         # Make partial payment
@@ -57,11 +78,19 @@ class TestClaimLiability:
 
 
 class TestWidgetManufacturer:
-    """Test suite for WidgetManufacturer class."""
+    """Test suite for WidgetManufacturer class.
+
+    Comprehensive tests for the widget manufacturer financial model
+    including initialization, financial calculations, and simulation steps.
+    """
 
     @pytest.fixture
     def config(self) -> ManufacturerConfig:
-        """Create a test configuration."""
+        """Create a test configuration.
+
+        Returns:
+            ManufacturerConfig with standard test parameters.
+        """
         return ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
@@ -72,11 +101,25 @@ class TestWidgetManufacturer:
 
     @pytest.fixture
     def manufacturer(self, config) -> WidgetManufacturer:
-        """Create a test manufacturer."""
+        """Create a test manufacturer.
+
+        Args:
+            config: Manufacturer configuration fixture.
+
+        Returns:
+            WidgetManufacturer instance for testing.
+        """
         return WidgetManufacturer(config)
 
     def test_initialization(self, manufacturer):
-        """Test manufacturer initialization."""
+        """Test manufacturer initialization.
+
+        Args:
+            manufacturer: WidgetManufacturer fixture.
+
+        Verifies that the manufacturer is properly initialized
+        with all expected default values.
+        """
         assert manufacturer.assets == 10_000_000
         assert manufacturer.collateral == 0
         assert manufacturer.restricted_assets == 0
@@ -92,7 +135,14 @@ class TestWidgetManufacturer:
         assert len(manufacturer.metrics_history) == 0
 
     def test_properties(self, manufacturer):
-        """Test computed properties."""
+        """Test computed properties.
+
+        Args:
+            manufacturer: WidgetManufacturer fixture.
+
+        Tests calculated property methods including net assets,
+        available assets, and total claim liabilities.
+        """
         assert manufacturer.net_assets == 10_000_000
         assert manufacturer.available_assets == 10_000_000
         assert manufacturer.total_claim_liabilities == 0
@@ -366,7 +416,14 @@ class TestWidgetManufacturer:
         assert manufacturer.asset_turnover_ratio == pytest.approx(expected_turnover)
 
     def test_reset(self, manufacturer):
-        """Test resetting manufacturer to initial state."""
+        """Test resetting manufacturer to initial state.
+
+        Args:
+            manufacturer: WidgetManufacturer fixture.
+
+        Verifies that the reset method properly restores all
+        manufacturer attributes to their initial values.
+        """
         # Make changes
         manufacturer.assets = 20_000_000
         manufacturer.collateral = 5_000_000
@@ -401,11 +458,19 @@ class TestWidgetManufacturer:
         assert manufacturer.check_solvency() is False
         assert manufacturer.is_ruined is True
 
-        # Negative equity - create new manufacturer to test
-        manufacturer2 = WidgetManufacturer(manufacturer.config)
-        manufacturer2.equity = -100_000
-        assert manufacturer2.check_solvency() is False
-        assert manufacturer2.is_ruined is True
+    def test_check_solvency_negative_equity(self, config):
+        """Test solvency checking with negative equity.
+
+        Args:
+            config: Manufacturer configuration fixture.
+
+        Tests solvency checking behavior with negative equity values.
+        """
+        # Create new manufacturer to test negative equity scenario
+        manufacturer = WidgetManufacturer(config)
+        manufacturer.equity = -100_000
+        assert manufacturer.check_solvency() is False
+        assert manufacturer.is_ruined is True
 
     def test_monthly_collateral_costs(self, manufacturer):
         """Test monthly letter of credit cost tracking."""
@@ -424,7 +489,14 @@ class TestWidgetManufacturer:
         assert annual_cost == pytest.approx(1_200_000 * 0.015)
 
     def test_full_financial_cycle(self, manufacturer):
-        """Test a complete financial cycle with all components."""
+        """Test a complete financial cycle with all components.
+
+        Args:
+            manufacturer: WidgetManufacturer fixture.
+
+        Integration test that exercises multiple years of operations
+        including claim processing, collateral management, and payments.
+        """
         # Year 0: Normal operations
         metrics_0 = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
         assert metrics_0["net_income"] > 0

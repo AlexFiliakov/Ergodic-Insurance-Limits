@@ -1,4 +1,8 @@
-"""Tests for configuration management system."""
+"""Tests for configuration management system.
+
+This module contains comprehensive tests for the Pydantic-based configuration
+system, including validation, loading, overrides, and scenario management.
+"""
 
 from pathlib import Path
 
@@ -20,10 +24,18 @@ from config_loader import ConfigLoader, load_config
 
 
 class TestManufacturerConfig:
-    """Test manufacturer configuration validation."""
+    """Test manufacturer configuration validation.
+
+    Tests for the ManufacturerConfig Pydantic model including field
+    validation, constraint checking, and warning generation.
+    """
 
     def test_valid_manufacturer_config(self):
-        """Test creating valid manufacturer config."""
+        """Test creating valid manufacturer config.
+
+        Verifies that a properly configured ManufacturerConfig object
+        can be created with valid parameters.
+        """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
@@ -35,7 +47,11 @@ class TestManufacturerConfig:
         assert config.operating_margin == 0.08
 
     def test_invalid_initial_assets(self):
-        """Test that negative initial assets are rejected."""
+        """Test that negative initial assets are rejected.
+
+        Ensures that Pydantic validation rejects negative initial
+        asset values with appropriate error messages.
+        """
         with pytest.raises(ValidationError) as exc_info:
             ManufacturerConfig(
                 initial_assets=-1000,
@@ -47,7 +63,11 @@ class TestManufacturerConfig:
         assert "greater than 0" in str(exc_info.value)
 
     def test_invalid_tax_rate(self):
-        """Test that invalid tax rates are rejected."""
+        """Test that invalid tax rates are rejected.
+
+        Verifies that tax rates outside the valid range [0, 1]
+        are properly rejected by validation.
+        """
         with pytest.raises(ValidationError):
             ManufacturerConfig(
                 initial_assets=10_000_000,
@@ -58,7 +78,14 @@ class TestManufacturerConfig:
             )
 
     def test_high_margin_warning(self, capsys):
-        """Test warning for unusually high operating margin."""
+        """Test warning for unusually high operating margin.
+
+        Args:
+            capsys: Pytest fixture for capturing stdout/stderr.
+
+        Tests that the custom validator issues warnings for
+        unrealistically high operating margins.
+        """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
@@ -72,22 +99,38 @@ class TestManufacturerConfig:
 
 
 class TestWorkingCapitalConfig:
-    """Test working capital configuration."""
+    """Test working capital configuration.
+
+    Tests for working capital percentage validation and
+    constraint enforcement.
+    """
 
     def test_valid_working_capital(self):
-        """Test valid working capital configuration."""
+        """Test valid working capital configuration.
+
+        Verifies that valid working capital percentages are
+        accepted without error.
+        """
         config = WorkingCapitalConfig(percent_of_sales=0.2)
         assert config.percent_of_sales == 0.2
 
     def test_excessive_working_capital(self):
-        """Test that excessive working capital is rejected."""
+        """Test that excessive working capital is rejected.
+
+        Ensures that working capital percentages above 50% of sales
+        are rejected as unrealistic.
+        """
         with pytest.raises(ValidationError) as exc_info:
             WorkingCapitalConfig(percent_of_sales=0.6)  # 60% is too high
         assert "unrealistically high" in str(exc_info.value)
 
 
 class TestGrowthConfig:
-    """Test growth configuration."""
+    """Test growth configuration.
+
+    Tests for growth model validation including deterministic
+    and stochastic growth parameter constraints.
+    """
 
     def test_deterministic_growth(self):
         """Test deterministic growth configuration."""
@@ -144,7 +187,12 @@ class TestCompleteConfig:
 
     @pytest.fixture
     def sample_config_dict(self):
-        """Create a sample configuration dictionary."""
+        """Create a sample configuration dictionary.
+
+        Returns:
+            Dictionary containing valid configuration parameters
+            for testing purposes.
+        """
         return {
             "manufacturer": {
                 "initial_assets": 10_000_000,
@@ -186,14 +234,29 @@ class TestCompleteConfig:
         }
 
     def test_complete_config_from_dict(self, sample_config_dict):
-        """Test creating complete config from dictionary."""
+        """Test creating complete config from dictionary.
+
+        Args:
+            sample_config_dict: Sample configuration dictionary fixture.
+
+        Verifies that a complete Config object can be instantiated
+        from a dictionary with all required sections.
+        """
         config = Config(**sample_config_dict)
         assert config.manufacturer.initial_assets == 10_000_000
         assert config.simulation.time_horizon_years == 100
         assert config.output.file_format == "csv"
 
     def test_config_from_yaml(self, tmp_path, sample_config_dict):
-        """Test loading config from YAML file."""
+        """Test loading config from YAML file.
+
+        Args:
+            tmp_path: Pytest temporary path fixture.
+            sample_config_dict: Sample configuration dictionary fixture.
+
+        Tests the Config.from_yaml class method for loading
+        configuration from YAML files.
+        """
         # Create temporary YAML file
         yaml_file = tmp_path / "test_config.yaml"
         with open(yaml_file, "w") as f:
@@ -237,11 +300,22 @@ class TestCompleteConfig:
 
 
 class TestConfigLoader:
-    """Test configuration loader functionality."""
+    """Test configuration loader functionality.
+
+    Tests for the ConfigLoader class including caching, overrides,
+    scenario loading, and configuration comparison features.
+    """
 
     @pytest.fixture
     def config_loader(self, project_root):
-        """Create config loader with test directory."""
+        """Create config loader with test directory.
+
+        Args:
+            project_root: Project root directory fixture.
+
+        Returns:
+            ConfigLoader instance configured for testing.
+        """
         return ConfigLoader(project_root / "data" / "parameters")
 
     def test_load_baseline(self, config_loader):
@@ -385,7 +459,11 @@ class TestConfigValidation:
 
 
 class TestQuickLoad:
-    """Test quick load convenience function."""
+    """Test quick load convenience function.
+
+    Tests for the convenience load_config function that provides
+    a simplified interface to the configuration system.
+    """
 
     def test_load_config_function(self, project_root):
         """Test the quick load_config function."""

@@ -39,8 +39,23 @@ disable = [
     "C0116",  # missing-function-docstring
     "R0903",  # too-few-public-methods
     "R0913",  # too-many-arguments
+    "R0917",  # too-many-positional-arguments
     "W0212",  # protected-access
     "C0103",  # invalid-name (for single letter variables in math contexts)
+    "C0301",  # line-too-long (handled by black formatter)
+    "C0415",  # import-outside-toplevel (common pattern for optional imports)
+    "W1203",  # logging-fstring-interpolation (f-strings in logging are fine)
+    "W0611",  # unused-import (sometimes needed for type checking)
+    "W0612",  # unused-variable (common in test fixtures)
+    "W0613",  # unused-argument (common in interface implementations)
+    "R0902",  # too-many-instance-attributes (financial models need many attributes)
+    "R0904",  # too-many-public-methods (test classes often have many methods)
+    "W0621",  # redefined-outer-name (common in pytest fixtures)
+    "C1803",  # use-implicit-booleaness-not-comparison (explicit comparison is clearer)
+    "E1101",  # no-member (false positives with numpy)
+    "W1514",  # unspecified-encoding (not critical for config files)
+    "W0122",  # exec-used (needed in setup.py)
+    "R1732",  # consider-using-with (not always applicable)
 ]
 
 [tool.pylint.format]

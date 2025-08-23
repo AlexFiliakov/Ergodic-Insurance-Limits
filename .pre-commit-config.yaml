@@ -51,8 +51,8 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: pylint
+        entry: python -m pylint
         language: system
         types: [python]
-        files: ^ergodic_insurance/
+        files: ^ergodic_insurance/(src|tests)/
         args: [--rcfile=ergodic_insurance/pyproject.toml]
