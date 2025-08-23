@@ -68,7 +68,7 @@ Key Methods
 -----------
 
 .. automethod:: Config.from_yaml
-.. automethod:: Config.from_dict  
+.. automethod:: Config.from_dict
 .. automethod:: Config.override
 .. automethod:: Config.to_yaml
 .. automethod:: Config.setup_logging

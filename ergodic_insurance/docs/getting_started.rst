@@ -36,10 +36,10 @@ Here's a simple example to get you started:
 
     from ergodic_insurance import WidgetManufacturer, ClaimGenerator, Simulation
     from ergodic_insurance.config_loader import load_config
-    
+
     # Load baseline configuration
     config = load_config("baseline")
-    
+
     # Create manufacturer and claim generator
     manufacturer = WidgetManufacturer(config.manufacturer)
     claim_generator = ClaimGenerator(
@@ -48,16 +48,16 @@ Here's a simple example to get you started:
         large_loss_frequency=0.3,
         large_loss_severity_params=(5000000, 1.2)
     )
-    
+
     # Run simulation
     sim = Simulation(
         manufacturer=manufacturer,
         claim_generator=claim_generator,
         time_horizon=100
     )
-    
+
     results = sim.run()
-    
+
     # Analyze results
     summary = results.summary_statistics()
     print(f"Final ROE: {summary['final_roe']:.2%}")
@@ -71,10 +71,10 @@ The system uses YAML configuration files for parameter management:
 **Baseline Configuration** (``data/parameters/baseline.yaml``)
     Standard parameters representing a typical widget manufacturer
 
-**Conservative Configuration** (``data/parameters/conservative.yaml``)  
+**Conservative Configuration** (``data/parameters/conservative.yaml``)
     Lower growth, higher margins, more conservative assumptions
 
-**Optimistic Configuration** (``data/parameters/optimistic.yaml``): 
+**Optimistic Configuration** (``data/parameters/optimistic.yaml``):
     Higher growth, aggressive assumptions for best-case scenarios
 
 You can override any parameter programmatically:
@@ -83,7 +83,7 @@ You can override any parameter programmatically:
 
     # Override specific parameters
     config = load_config(
-        "baseline", 
+        "baseline",
         manufacturer__operating_margin=0.12,
         simulation__time_horizon_years=200
     )
@@ -95,10 +95,10 @@ Execute the test suite to ensure everything is working correctly::
 
     # Run all tests
     pytest
-    
+
     # Run with coverage
     pytest --cov=ergodic_insurance --cov-report=html
-    
+
     # Run specific test file
     pytest tests/test_manufacturer.py
 
@@ -127,6 +127,6 @@ Next Steps
 ----------
 
 * Read the :doc:`theory` section to understand the ergodic framework
-* Explore the :doc:`examples` for more complex usage patterns  
+* Explore the :doc:`examples` for more complex usage patterns
 * Check the :doc:`api/modules` for detailed API documentation
 * Run the Jupyter notebooks in ``notebooks/`` for interactive exploration

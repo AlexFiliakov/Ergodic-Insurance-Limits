@@ -29,6 +29,6 @@ html-fast:
 livehtml:
 	sphinx-autobuild "$(SOURCEDIR)" "$(BUILDDIR)/html" $(SPHINXOPTS) $(O)
 
-# Generate API documentation  
+# Generate API documentation
 apidoc:
 	sphinx-apidoc -o api ../src --separate --module-first --force

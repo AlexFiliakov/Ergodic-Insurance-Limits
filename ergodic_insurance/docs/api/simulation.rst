@@ -1,7 +1,7 @@
 Simulation Module
 =================
 
-The simulation module provides the main simulation engine that orchestrates 
+The simulation module provides the main simulation engine that orchestrates
 the time evolution of the widget manufacturer financial model.
 
 .. automodule:: simulation
@@ -9,7 +9,7 @@ the time evolution of the widget manufacturer financial model.
    :undoc-members:
    :show-inheritance:
 
-Classes  
+Classes
 -------
 
 .. autoclass:: Simulation
@@ -44,6 +44,6 @@ Performance Features
 The simulation engine is optimized for:
 
 * **Long-term horizons**: 1000+ year simulations in under 1 minute
-* **Large-scale analysis**: 100K Monte Carlo iterations in under 10 minutes  
+* **Large-scale analysis**: 100K Monte Carlo iterations in under 10 minutes
 * **Memory efficiency**: Handles massive datasets with optimized storage
 * **Progress tracking**: Real-time progress reporting for long simulations

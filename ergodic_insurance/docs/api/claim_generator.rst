@@ -1,4 +1,4 @@
-Claim Generator Module  
+Claim Generator Module
 ======================
 
 The claim_generator module handles insurance claim generation with realistic
@@ -19,7 +19,7 @@ Classes
 
 .. autoclass:: ClaimEvent
    :members:
-   :undoc-members:  
+   :undoc-members:
    :show-inheritance:
 
 Key Methods

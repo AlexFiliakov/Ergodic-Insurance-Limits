@@ -156,7 +156,7 @@ Links between different parts of the documentation and external libraries like N
 When adding new modules or functions:
 
 1. Use Google-style docstrings
-2. Update the relevant API documentation file in `api/`  
+2. Update the relevant API documentation file in `api/`
 3. Add examples to `examples.rst` if applicable
 4. Rebuild documentation to verify formatting
 

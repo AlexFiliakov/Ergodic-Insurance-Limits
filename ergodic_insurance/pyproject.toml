@@ -130,8 +130,8 @@ directory = "htmlcov"
 source_dir = "docs"
 build_dir = "docs/_build"
 
-# Add sphinx-autobuild to docs extra dependencies  
+# Add sphinx-autobuild to docs extra dependencies
 docs-extra = [
     "sphinx-autobuild>=2024.10.3",
-    "sphinx-design>=0.6.1", 
+    "sphinx-design>=0.6.1",
 ]

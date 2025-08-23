@@ -48,11 +48,11 @@ Basic Usage
 .. code-block:: python
 
     from ergodic_insurance.config_loader import load_config
-    
+
     # Load baseline configuration
     config = load_config("baseline")
-    
-    # Load with overrides  
+
+    # Load with overrides
     config = load_config(
         "baseline",
         manufacturer__operating_margin=0.12,
@@ -65,15 +65,15 @@ Advanced Usage
 .. code-block:: python
 
     from ergodic_insurance.config_loader import ConfigLoader
-    
+
     loader = ConfigLoader()
-    
+
     # Compare scenarios
     differences = loader.compare_configs("baseline", "conservative")
-    
+
     # List available configurations
     available = loader.list_available_configs()
     print(f"Available configs: {available}")
-    
+
     # Load specific scenario
     config = loader.load_scenario("optimistic")

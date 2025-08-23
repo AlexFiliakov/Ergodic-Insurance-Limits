@@ -33,7 +33,7 @@ Financial Operations
 .. automethod:: WidgetManufacturer.calculate_operating_income
 .. automethod:: WidgetManufacturer.calculate_net_income
 
-Asset Management  
+Asset Management
 ~~~~~~~~~~~~~~~~
 
 .. automethod:: WidgetManufacturer.get_total_assets

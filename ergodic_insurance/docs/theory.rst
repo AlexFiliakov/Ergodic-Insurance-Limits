@@ -1,7 +1,7 @@
 Ergodic Theory and Insurance Optimization
 =========================================
 
-This section explains the theoretical foundation behind the ergodic approach to 
+This section explains the theoretical foundation behind the ergodic approach to
 insurance optimization and why it differs from traditional ensemble-based methods.
 
 The Ergodic Framework
@@ -10,9 +10,9 @@ The Ergodic Framework
 Ensemble vs Time Averages
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Traditional insurance optimization focuses on **ensemble averages** - the expected 
-value across many parallel scenarios at a single point in time. However, for 
-businesses experiencing multiplicative growth processes, what matters is the 
+Traditional insurance optimization focuses on **ensemble averages** - the expected
+value across many parallel scenarios at a single point in time. However, for
+businesses experiencing multiplicative growth processes, what matters is the
 **time average** - the growth rate experienced by a single entity over time.
 
 For multiplicative processes, these two averages can diverge dramatically:
@@ -53,11 +53,11 @@ Insurance as Growth Enabler
 Risk-Return Trade-off
 ~~~~~~~~~~~~~~~~~~~~~
 
-In the ergodic framework, insurance doesn't just reduce risk - it can actually 
-**increase** the time-averaged growth rate by reducing the probability of 
+In the ergodic framework, insurance doesn't just reduce risk - it can actually
+**increase** the time-averaged growth rate by reducing the probability of
 multiplicative losses.
 
-Consider a manufacturer facing potential losses :math:`L` with probability :math:`p`. 
+Consider a manufacturer facing potential losses :math:`L` with probability :math:`p`.
 Without insurance, the growth factor in a loss year is:
 
 .. math::
@@ -81,7 +81,7 @@ Without insurance:
 .. math::
    g_{\\text{uninsured}} = (1-p) \\ln(1) + p \\ln(1 - L/W)
 
-Insurance is beneficial when :math:`g_{\\text{insured}} > g_{\\text{uninsured}}`, which can occur 
+Insurance is beneficial when :math:`g_{\\text{insured}} > g_{\\text{uninsured}}`, which can occur
 even when :math:`P > pL` (premium exceeds expected loss).
 
 The Kelly Criterion Extension
@@ -91,13 +91,13 @@ Mathematical Framework
 ~~~~~~~~~~~~~~~~~~~~~~
 
 The Kelly criterion for optimal bet sizing extends naturally to insurance optimization.
-For a wealth process :math:`W_t` facing multiplicative risks, the optimal insurance 
+For a wealth process :math:`W_t` facing multiplicative risks, the optimal insurance
 coverage maximizes:
 
 .. math::
    E[\\ln(W_{t+1}/W_t)]
 
-This leads to insurance demand that can be much higher than traditional expected 
+This leads to insurance demand that can be much higher than traditional expected
 utility approaches would suggest.
 
 Practical Implementation
@@ -106,7 +106,7 @@ Practical Implementation
 The framework implements this optimization by:
 
 1. **Simulating** long-term wealth trajectories with and without insurance
-2. **Computing** time-averaged growth rates for different insurance levels  
+2. **Computing** time-averaged growth rates for different insurance levels
 3. **Optimizing** insurance coverage to maximize time-averaged growth
 4. **Validating** that ruin probability remains acceptably low
 
@@ -119,7 +119,7 @@ Counter-Intuitive Results
 The ergodic approach reveals several counter-intuitive results:
 
 * **High Premiums Can Enhance Growth**: Premiums 2-5x expected losses may be optimal
-* **Insurance Demand Increases with Wealth**: Richer companies benefit more from insurance  
+* **Insurance Demand Increases with Wealth**: Richer companies benefit more from insurance
 * **Correlation Matters More Than Previously Thought**: Small correlations have large ergodic effects
 * **Time Horizon is Critical**: Longer planning horizons favor more insurance
 
@@ -133,7 +133,7 @@ This framework has immediate applications for:
     * Understanding why customers might pay "excessive" premiums
     * Developing new products that enhance customer growth
 
-**Corporate Risk Managers**  
+**Corporate Risk Managers**
     * Determining optimal insurance coverage levels
     * Justifying seemingly expensive insurance purchases
     * Integrating insurance with growth strategy
@@ -171,7 +171,7 @@ subject to:
 
 where ruin occurs when :math:`W_t \\leq 0` for any :math:`t`.
 
-Simulation Methodology  
+Simulation Methodology
 ~~~~~~~~~~~~~~~~~~~~~
 
 The framework uses Monte Carlo simulation with:
@@ -181,8 +181,8 @@ The framework uses Monte Carlo simulation with:
 * **Realistic loss modeling** with proper frequency/severity distributions
 * **Dynamic rebalancing** to reflect real business operations
 
-This combination provides a comprehensive framework for understanding how insurance 
-can transform from a necessary cost into a strategic growth enabler when viewed 
+This combination provides a comprehensive framework for understanding how insurance
+can transform from a necessary cost into a strategic growth enabler when viewed
 through the lens of ergodic theory.
 
 Further Reading
@@ -192,5 +192,5 @@ Further Reading
 * Peters, O., & Gell-Mann, M. (2016). "Evaluating gambles using dynamics." Chaos.
 * Filiakov, A. (2024). "Ergodic Insurance Optimization for Manufacturing Companies." [Working Paper]
 
-For mathematical proofs and additional technical details, see the technical appendix 
+For mathematical proofs and additional technical details, see the technical appendix
 in the project documentation.
