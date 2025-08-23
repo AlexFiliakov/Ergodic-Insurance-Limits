@@ -17,8 +17,8 @@
 ## Technical Decisions
 
 ### Loss Distribution Strategy
-- **Attritional**: Lognormal severity with Poisson frequency
-- **Large losses**: Pareto severity with Poisson frequency
+- **Attritional**: Lognormal severity with Poisson frequency that depends on Revenue
+- **Large losses**: Pareto severity with Poisson frequency that depends on Revenue
 - **Rationale**: Industry-standard distributions for manufacturing risks
 - **Implementation**: Separate generators with configurable parameters
 
@@ -45,7 +45,7 @@
 - [ ] Create `LossDistribution` base class with common interface
 - [ ] Implement `LognormalLoss` for attritional claims
 - [ ] Implement `ParetoLoss` for large claims
-- [ ] Add frequency distributions (Poisson, Negative Binomial)
+- [ ] Add frequency distributions (Poisson, Negative Binomial) that depend on Revenue
 - [ ] Create composite loss generator combining distributions
 - [ ] Write unit tests for distribution parameters
 
