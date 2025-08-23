@@ -245,19 +245,57 @@ debt?
 5. Letters of credit are required on unpaid (large) claims that take time to pay out. This is demanded by the insurers regardless of assets. We can say there is no minimum assets, but the company becomes insolvent when its equity reaches 0 or becomes negative, at which point it is considered ruined.
 6. You can call Story 5 "Story 5: Claim Collateral Management"
 
-#### Ask me clarifying questions then implement the story "Story 5: Debt Financing for Claims" from `\simone\SPRINT_01_FOUNDATION.md`
-
-##### Story Questions
-
-##### Responses
-
-
 #### Ask me clarifying questions then implement the story "Story 6: Exploration Notebooks" from `\simone\SPRINT_01_FOUNDATION.md`
 
 ##### Story Questions
 
+1. Visualization Preferences:
+ - Should I use matplotlib/seaborn for static plots?
+ - Or would you prefer interactive plots with plotly?
+ - Any specific color schemes or styling preferences?
+2. Notebook Structure:
+ - Should each notebook be self-contained (import and initialize
+everything)?
+ - Or can they assume the user has run previous notebooks?
+ - Should I include markdown cells explaining the financial concepts?
+3. Long-term Simulation (Notebook 02):
+ - For the 1000-year simulation, should I demonstrate:
+     - Effects of different claim frequencies/sizes?
+   - Comparison of different growth rates?
+   - Impact of varying LoC rates?
+ - Should I include memory/performance metrics?
+4. Growth Dynamics (Notebook 03):
+ - Should this focus on:
+     - Revenue growth vs. asset growth relationships?
+   - Impact of retention ratio on long-term wealth?
+   - Effects of operating margins on sustainability?
+   - Interaction between growth and claim events?
+5. Sensitivity Analysis:
+ - Which parameters are most important to analyze?
+     - Operating margin sensitivity?
+   - LoC rate sensitivity?
+   - Claim size/frequency sensitivity?
+   - Growth rate sensitivity?
+ - Should I include tornado diagrams or similar visualizations?
+6. Claim Scenarios:
+ - Should the notebooks demonstrate:
+     - Single large claim events?
+   - Multiple smaller claims?
+   - Periodic claim patterns?
+   - Random claim generation for future sprints?
+7. Output/Export:
+ - Should notebooks save results to CSV/Parquet files?
+ - Should they generate any summary reports?
+
 ##### Responses
 
+1. Prefer matplotlib for simplicity. Use a Wall Street Journal professional style.
+2. The notebooks can assume an order of execution. Include markdown cells explaining financial concepts.
+3. Long-Term Simulation: Run 1000-year simulations 100000 times and track the overall performance of assumptions viz a viz the company's chance of ruin at 10-year, 20-year, 50-year, 100-year, 500-year, and 1000-year time horizons (ie, the number of simulated paths that resulted in ruin on or before each of those years), as well as the annual ROE distribution (ie, 100000 distributions of annualized ROEs over the 1000-year paths). I'm mainly interested in the effect of insurance limits and deductibles on risk of ruin and ROE. Include memory and performance metrics.
+4. Growth Dynamics: You can perform a similar study as Long-Term Simulation but focusing on Return on Assets, asset fluctuations, and operating margin fluctuations.
+5. I'm most interested in sensitivity to deductibles and insurance limits. Also claim frequency/severity sensitivity.
+6. For claim scenarios, track annually the top 10 claims to date, top 10 open claims, total open claims, annual paid/incurred claims, and frequency/severity metrics. Create smart reports keeping in mind the volume of simulations, so we probably don't need full actuarial triangles at each year or it will get too unwieldy.
+7. Store simulation results in parquet files. Generate summary reports as appropriate, perhaps in Markdown.
 
 ## Sprint 02: Ergodic Framework
 
