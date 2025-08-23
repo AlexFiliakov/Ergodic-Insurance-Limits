@@ -1,7 +1,7 @@
 """Configuration management using Pydantic v2 models."""
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -211,7 +211,7 @@ class Config(BaseModel):
             New Config object with overrides applied
         """
         # Convert dot notation to nested dict
-        override_dict = {}
+        override_dict: Dict[str, Any] = {}
         for key, value in kwargs.items():
             parts = key.split("__")
             current = override_dict
