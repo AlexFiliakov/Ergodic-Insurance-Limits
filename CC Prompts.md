@@ -431,6 +431,15 @@ into the existing WidgetManufacturer class?
 
 Flesh out each task and make tradeoffs favoring implementation speed and simplicity for a first draft that we can build on in subsequent sprints.
 
+### Documentation
+
+Update all docstrings in modules, submodules, classes, methods, and functions. Adhere to the Google docstring style.
+
+Set up Sphinx document auto-generation and update sphinx documentation templates for the latest code structure.
+
+Update README.md and CLAUDE.md with the latest directory structures.
+
+
 ## Sprint 03: Loss Modeling
 
 Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Modeling" to be located in the file `\simone\SPRINT_03_LOSS_MODELING.md`.
