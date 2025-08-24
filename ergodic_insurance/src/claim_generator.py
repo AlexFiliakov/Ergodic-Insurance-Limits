@@ -3,12 +3,25 @@
 This module provides classes for generating realistic insurance claims
 with configurable frequency and severity distributions, supporting
 both regular and catastrophic event modeling.
+
+The module now integrates with the enhanced loss_distributions module
+for more sophisticated risk modeling with revenue-dependent frequencies
+and parametric severity distributions.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
+
+# Import enhanced distributions if available (backward compatibility)
+try:
+    from ergodic_insurance.src.loss_distributions import LossEvent as EnhancedLossEvent
+    from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+
+    ENHANCED_DISTRIBUTIONS_AVAILABLE = True
+except ImportError:
+    ENHANCED_DISTRIBUTIONS_AVAILABLE = False
 
 
 @dataclass
@@ -167,3 +180,72 @@ class ClaimGenerator:
             seed: New random seed to use.
         """
         self.rng = np.random.RandomState(seed)
+
+    def generate_enhanced_claims(
+        self, years: int, revenue: Optional[float] = None, use_enhanced_distributions: bool = True
+    ) -> Tuple[List[ClaimEvent], dict]:
+        """Generate claims using enhanced loss distributions if available.
+
+        This method provides integration with the advanced loss_distributions module
+        for more sophisticated risk modeling including revenue-dependent frequencies
+        and multiple loss types (attritional, large, catastrophic).
+
+        Args:
+            years: Number of years to simulate.
+            revenue: Current revenue level for frequency scaling.
+                     If None, uses $10M baseline.
+            use_enhanced_distributions: Whether to use enhanced distributions
+                                      if available.
+
+        Returns:
+            Tuple of (claim_events, statistics_dict).
+            Falls back to standard generation if enhanced not available.
+        """
+        if not ENHANCED_DISTRIBUTIONS_AVAILABLE or not use_enhanced_distributions:
+            # Fall back to standard generation
+            regular, catastrophic = self.generate_all_claims(years)
+            all_claims = regular + catastrophic
+
+            stats = {
+                "total_losses": len(all_claims),
+                "regular_count": len(regular),
+                "catastrophic_count": len(catastrophic),
+                "total_amount": sum(c.amount for c in all_claims),
+                "method": "standard",
+            }
+            return all_claims, stats
+
+        # Use enhanced distributions
+        if revenue is None:
+            revenue = 10_000_000  # Default $10M
+
+        # Create manufacturing loss generator with appropriate parameters
+        gen_params = {
+            "attritional_params": {
+                "base_frequency": self.frequency * 10,  # Scale to attritional
+                "severity_mean": self.severity_mean / 100,  # Smaller losses
+                "severity_cv": 1.5,
+            },
+            "large_params": {
+                "base_frequency": self.frequency,
+                "severity_mean": self.severity_mean,
+                "severity_cv": 2.0,
+            },
+            "seed": int(self.rng.get_state()[1][0]) if hasattr(self.rng, "get_state") else None,  # type: ignore
+        }
+
+        generator = ManufacturingLossGenerator(**gen_params)
+        enhanced_losses, stats = generator.generate_losses(
+            duration=years, revenue=revenue, include_catastrophic=True
+        )
+
+        # Convert enhanced losses to ClaimEvents
+        claims = []
+        for loss in enhanced_losses:
+            # Convert continuous time to discrete year
+            year = int(loss.time)
+            if year < years:  # Ensure within simulation period
+                claims.append(ClaimEvent(year=year, amount=loss.amount))
+
+        stats["method"] = "enhanced"
+        return claims, stats
