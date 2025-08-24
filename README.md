@@ -1,5 +1,7 @@
 # Ergodic Insurance Limits
 
+![Ergodic Distinction Between Averages](assets/ergodic_distinction.png)
+
 This is a brief research model of a widget manufacturing company to determine what limit of insurance they need to optimize long-term profitability.
 
 ## Introduction - Why Do Companies Buy Insurance?
