@@ -18,7 +18,8 @@
 
 ### Loss Distribution Strategy
 - **Attritional**: Lognormal severity with Poisson frequency that depends on Revenue
-- **Large losses**: Pareto severity with Poisson frequency that depends on Revenue
+- **Large losses**: Lognormal severity with Poisson frequency that depends on Revenue
+- **Catastrophic Events**: Pareto severity with poisson frequency that depends on Revenue
 - **Rationale**: Industry-standard distributions for manufacturing risks
 - **Implementation**: Separate generators with configurable parameters
 
