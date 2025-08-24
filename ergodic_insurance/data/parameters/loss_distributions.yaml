@@ -1,0 +1,130 @@
+# Loss Distribution Parameters for Manufacturing Risk Modeling
+# Enhanced configuration with revenue-dependent frequency scaling
+
+# Reference values for scaling
+reference:
+  revenue: 10_000_000  # $10M baseline revenue
+  assets: 10_000_000   # $10M baseline assets
+
+# Attritional Losses (High Frequency, Low Severity)
+# Examples: Worker injuries, quality defects, minor equipment issues
+attritional:
+  frequency:
+    base: 5.0                    # Expected events per year at reference revenue
+    min: 3.0                     # Minimum realistic frequency
+    max: 8.0                     # Maximum realistic frequency
+    revenue_scaling_exponent: 0.5  # Square root scaling with revenue
+
+  severity:
+    distribution: "lognormal"
+    mean: 25_000                # Mean loss amount ($25K)
+    cv: 1.5                      # Coefficient of variation
+    # Alternative parameterization
+    mu_range: [8.0, 10.0]        # Log-space mean range
+    sigma_range: [0.6, 1.0]      # Log-space std range
+
+  validation:
+    typical_range: [3_000, 100_000]  # Typical loss range
+    p95_threshold: 150_000           # 95th percentile threshold
+
+# Large Losses (Medium Frequency, Medium Severity)
+# Examples: Product recalls, major equipment failures, litigation
+large:
+  frequency:
+    base: 0.3                    # Expected events per year at reference revenue
+    min: 0.1                     # Minimum realistic frequency
+    max: 0.5                     # Maximum realistic frequency
+    revenue_scaling_exponent: 0.7  # Sub-linear scaling with revenue
+
+  severity:
+    distribution: "lognormal"
+    mean: 2_000_000              # Mean loss amount ($2M)
+    cv: 2.0                      # Higher variability than attritional
+    # Alternative parameterization
+    mu_range: [13.0, 15.0]       # Log-space mean range
+    sigma_range: [1.5, 2.0]      # Log-space std range
+
+  validation:
+    typical_range: [500_000, 50_000_000]  # Typical loss range
+    p95_threshold: 10_000_000              # 95th percentile threshold
+
+# Catastrophic Events (Low Frequency, High Severity)
+# Examples: Major facility damage, environmental disasters, systemic failures
+catastrophic:
+  frequency:
+    base: 0.03                   # Expected events per year (1-in-33 years)
+    min: 0.01                    # 1-in-100 year events
+    max: 0.05                    # 1-in-20 year events
+    revenue_scaling_exponent: 0.0  # No revenue scaling for catastrophes
+
+  severity:
+    distribution: "pareto"
+    alpha: 2.5                   # Shape parameter (tail heaviness)
+    xm: 1_000_000               # Minimum loss ($1M)
+    # Alternative parameters for sensitivity
+    alpha_range: [2.0, 3.0]      # Range for sensitivity analysis
+    xm_range: [500_000, 5_000_000]  # Range for minimum loss
+
+  validation:
+    minimum_loss: 1_000_000      # All losses above this threshold
+    expected_conditional_mean: 3_000_000  # E[X | X > xm]
+
+# Composite Generator Defaults
+composite:
+  # Default combination for manufacturing risks
+  include_attritional: true
+  include_large: true
+  include_catastrophic: true
+
+  # Correlation settings (future enhancement)
+  correlation:
+    attritional_large: 0.15      # Slight positive correlation
+    large_catastrophic: 0.25     # Moderate correlation
+    enabled: false               # Not yet implemented
+
+# Statistical Validation Thresholds
+validation:
+  ks_test:
+    significance_level: 0.05     # For Kolmogorov-Smirnov test
+    min_samples: 100             # Minimum samples for testing
+
+  anderson_darling:
+    significance_level: 0.05     # For Anderson-Darling test
+
+  performance:
+    max_time_1m_samples: 1.0     # Max seconds for 1M samples
+    max_time_1000_years: 5.0     # Max seconds for 1000-year simulation
+
+# Industry Benchmarks (for comparison)
+benchmarks:
+  manufacturing:
+    total_loss_ratio: 0.10       # Total losses as % of revenue
+    attritional_ratio: 0.02      # Attritional as % of revenue
+    large_ratio: 0.06            # Large losses as % of revenue
+    catastrophic_ratio: 0.02     # Catastrophic as % of revenue
+
+  insurance_market:
+    primary_layer_attachment: 0
+    primary_layer_limit: 5_000_000
+    excess_layer_attachment: 5_000_000
+    excess_layer_limit: 20_000_000
+
+# Scenario Parameters (for stress testing)
+scenarios:
+  baseline:
+    attritional_frequency_multiplier: 1.0
+    large_frequency_multiplier: 1.0
+    catastrophic_frequency_multiplier: 1.0
+    severity_multiplier: 1.0
+
+  stressed:
+    attritional_frequency_multiplier: 1.5
+    large_frequency_multiplier: 2.0
+    catastrophic_frequency_multiplier: 1.5
+    severity_multiplier: 1.25
+
+  benign:
+    attritional_frequency_multiplier: 0.7
+    large_frequency_multiplier: 0.5
+    catastrophic_frequency_multiplier: 0.5
+    severity_multiplier: 0.8
