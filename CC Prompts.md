@@ -596,10 +596,52 @@ work on issue #21 "Implement Claim Development Patterns for Cash Flow Modeling".
 
 ## Sprint 04: Insurance Optimization
 
+Ask me clarifying questions then draft the sprint plan for "Sprint 04: Insurance Optimization" to be located in the file `\simone\SPRINT_04_INSURANCE_OPTIMIZATION.md` based on the project roadmap outlined in `\simone\00_PLAN.md` for the corresponding "Phase 4: Insurance Optimization".
+
 ### Sprint Planning Questions
+
+  1. Current Implementation Status: I can see that many modules are
+  already implemented (including insurance.py and insurance_program.py).
+  Should Sprint 04 focus on:
+    - Enhancing the existing insurance modules?
+    - Building optimization algorithms on top of existing infrastructure?
+    - Or completing missing functionality in the current modules?
+  2. Optimization Scope: Phase 4 mentions several optimization areas:
+    - Multi-layer insurance structure optimization
+    - Premium pricing model refinement
+    - Attachment point and layer width optimization
+    - Should all of these be included, or should we prioritize specific
+  aspects?
+  3. Integration Dependencies: Should Sprint 04 assume that:
+    - The loss modeling from Sprint 03 is fully complete?
+    - The ergodic framework from Sprint 02 is integrated and working?
+    - Or should the sprint include integration work for these
+  dependencies?
+  4. Performance Requirements: The plan mentions different premium rates
+  by layer (Primary: 0.5-1.5%, First excess: 0.3-0.8%, etc.). Should
+  Sprint 04:
+    - Implement these as fixed rates?
+    - Build dynamic pricing models that calculate these rates?
+    - Focus on optimization algorithms that can find optimal rates?
+  5. Deliverable Format: Would you prefer the sprint to focus more on:
+    - Algorithm implementation and optimization engine?
+    - User-facing tools and interfaces?
+    - Research notebooks demonstrating optimization results?
+    - All of the above in a balanced approach?
 
 ### Sprint Planning Responses
 
+1. Focus on enhancing existing modules and completing missing functionality in the current modules. Do not optimize yet.
+2. I think the optimization in this phase is around procedures to optimize corporate benefits of insurance, not necessarily to optimize the technical implementation of the insurance. So all the things you mentioned make sense, but in the context of business outcome optimization:
+   - Multi-layer insurance structure optimization
+   - Premium pricing model refinement
+   - Attachment point and layer width optimization
+3. You can make sure loss modeling and ergodic frameworks integrate well together.
+4. Implement premium rates as fixed alternative scenarios, something like "inexpensive", "baseline", "expensive".
+5. I'd like to prioritize the following:
+   - Algorithmic optimization of insurance purchasing decisions given the scenario inputs
+   - Focus on structuring optimal insurance layers for the company
+   - Research notebooks analyzing the results
 
 ## Sprint 05: Constrained Optimization
 
