@@ -7,10 +7,14 @@ and stochastic modeling capabilities.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .config import ManufacturerConfig
 from .stochastic_processes import StochasticProcess
+
+# Optional import for claim development integration
+if TYPE_CHECKING:
+    from .claim_development import Claim, ClaimDevelopment
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +359,59 @@ class WidgetManufacturer:
             logger.info(f"Paid ${total_paid:,.2f} toward claim liabilities")
 
         return total_paid
+
+    def process_insurance_claim_with_development(
+        self,
+        claim_amount: float,
+        deductible: float = 0.0,
+        insurance_limit: float = float("inf"),
+        development_pattern: Optional["ClaimDevelopment"] = None,
+        claim_type: str = "general_liability",
+    ) -> tuple[float, float, Optional["Claim"]]:
+        """Process an insurance claim with custom development pattern.
+
+        This enhanced method allows specifying a custom claim development
+        pattern for more realistic cash flow modeling. If no pattern is
+        provided, it falls back to the default behavior.
+
+        Args:
+            claim_amount: Total amount of the loss/claim.
+            deductible: Amount company must pay before insurance kicks in.
+            insurance_limit: Maximum amount insurance will pay.
+            development_pattern: Optional custom development pattern for the claim.
+            claim_type: Type of claim for categorization.
+
+        Returns:
+            Tuple of (company_payment, insurance_payment, claim_object).
+            The claim_object is None if no development pattern is used.
+        """
+        # Process the immediate financial impact
+        company_payment, insurance_payment = self.process_insurance_claim(
+            claim_amount, deductible, insurance_limit
+        )
+
+        # If a development pattern is provided, create a Claim object
+        claim_object = None
+        if development_pattern is not None and insurance_payment > 0:
+            # Import here to avoid circular dependency
+            from .claim_development import Claim
+
+            claim_object = Claim(
+                claim_id=f"CL_{self.current_year}_{len(self.claim_liabilities):04d}",
+                accident_year=self.current_year,
+                reported_year=self.current_year,
+                initial_estimate=insurance_payment,
+                claim_type=claim_type,
+                development_pattern=development_pattern,
+            )
+
+            # The claim is already added to liabilities in process_insurance_claim
+            # but we can enhance the tracking with the Claim object
+            logger.info(
+                f"Created claim with {development_pattern.pattern_name} development pattern"
+            )
+
+        return company_payment, insurance_payment, claim_object
 
     def check_solvency(self) -> bool:
         """Check if the company is solvent (equity > 0).

@@ -17,25 +17,39 @@ Ergodic Insurance Limits/
 │   │   ├── __init__.py         # Package initialization with comprehensive docs
 │   │   ├── manufacturer.py     # Widget manufacturer financial model
 │   │   ├── claim_generator.py  # Insurance claim generation with Poisson/lognormal
+│   │   ├── claim_development.py # Claim development patterns for cash flow modeling
 │   │   ├── config.py           # Pydantic-based configuration management
 │   │   ├── config_loader.py    # YAML parameter loading utilities
 │   │   ├── stochastic_processes.py # Stochastic modeling (GBM, lognormal, mean-reversion)
 │   │   ├── simulation.py       # Main simulation engine
-│   │   └── insurance.py        # Insurance optimization algorithms
+│   │   ├── insurance.py        # Basic insurance optimization algorithms
+│   │   ├── insurance_program.py # Enhanced multi-layer insurance programs
+│   │   ├── loss_distributions.py # Enhanced loss distributions for manufacturing risks
+│   │   ├── monte_carlo.py      # Monte Carlo simulation engine
+│   │   └── ergodic_analyzer.py # Ergodic analysis and optimization tools
 │   ├── tests/                  # Comprehensive test suite (100% coverage)
+│   │   ├── __init__.py
+│   │   ├── conftest.py         # Pytest configuration and fixtures
 │   │   ├── test_manufacturer.py
 │   │   ├── test_claim_generator.py
+│   │   ├── test_claim_development.py
 │   │   ├── test_config.py
 │   │   ├── test_stochastic.py
-│   │   ├── test_manufacturer_methods.py
 │   │   ├── test_insurance.py
+│   │   ├── test_insurance_program.py
+│   │   ├── test_loss_distributions.py
 │   │   ├── test_simulation.py
-│   │   └── conftest.py         # Pytest configuration and fixtures
+│   │   ├── test_monte_carlo.py
+│   │   ├── test_ergodic_analyzer.py
+│   │   ├── test_integration.py
+│   │   ├── test_manufacturer_methods.py
+│   │   └── test_setup.py
 │   ├── notebooks/              # Jupyter analysis notebooks
 │   │   ├── 00_setup_verification.ipynb
 │   │   ├── 01_basic_manufacturer.ipynb
 │   │   ├── 02_long_term_simulation.ipynb
-│   │   └── 03_growth_dynamics.ipynb
+│   │   ├── 03_growth_dynamics.ipynb
+│   │   └── 04_ergodic_demo.ipynb
 │   ├── examples/               # Example scripts and demos
 │   │   ├── demo_manufacturer.py
 │   │   ├── demo_collateral_management.py
@@ -45,8 +59,13 @@ Ergodic Insurance Limits/
 │   │       ├── baseline.yaml    # Standard configuration
 │   │       ├── conservative.yaml
 │   │       ├── optimistic.yaml
-│   │       ├── stochastic.yaml # Stochastic process parameters
-│   │       └── insurance.yaml  # Insurance optimization settings
+│   │       ├── stochastic.yaml  # Stochastic process parameters
+│   │       ├── insurance.yaml   # Insurance optimization settings
+│   │       ├── insurance_market.yaml # Market parameters
+│   │       ├── insurance_structures.yaml # Insurance program structures
+│   │       ├── loss_distributions.yaml # Loss distribution parameters
+│   │       ├── losses.yaml      # Legacy loss parameters
+│   │       └── development_patterns.yaml # Claim development patterns
 │   ├── docs/                   # Sphinx documentation system
 │   │   ├── conf.py            # Sphinx configuration
 │   │   ├── index.rst          # Documentation main page
@@ -86,6 +105,7 @@ Ergodic Insurance Limits/
 │   └── BLOG_OUTLINE_01_ERGODIC_LIMIT_SELECTION.md
 ├── assets/                     # Images and documentation assets
 │   └── debug/                 # Debug visualizations
+├── main.py                    # Root Python entry point
 ├── pyproject.toml             # Root Python configuration
 ├── uv.lock                    # UV package lock file
 ├── mypy.ini                   # MyPy type checking configuration
