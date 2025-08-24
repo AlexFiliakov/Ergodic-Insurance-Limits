@@ -22,6 +22,15 @@ class InsuranceLayer:
     limit: float  # Maximum coverage from this layer
     rate: float  # Premium rate as percentage of limit
 
+    def __post_init__(self):
+        """Validate insurance layer parameters."""
+        if self.attachment_point < 0:
+            raise ValueError(f"Attachment point must be non-negative, got {self.attachment_point}")
+        if self.limit <= 0:
+            raise ValueError(f"Limit must be positive, got {self.limit}")
+        if self.rate < 0:
+            raise ValueError(f"Premium rate must be non-negative, got {self.rate}")
+
     def calculate_recovery(self, loss_amount: float) -> float:
         """Calculate recovery from this layer for a given loss.
 

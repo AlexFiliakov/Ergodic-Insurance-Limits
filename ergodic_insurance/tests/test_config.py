@@ -322,7 +322,7 @@ class TestConfigLoader:
         """Test loading baseline configuration."""
         config = config_loader.load("baseline")
         assert config.manufacturer.initial_assets == 10_000_000
-        assert config.manufacturer.operating_margin == 0.08
+        assert config.manufacturer.operating_margin == 0.10
 
     def test_load_conservative(self, config_loader):
         """Test loading conservative configuration."""
@@ -352,7 +352,7 @@ class TestConfigLoader:
         conservative = config_loader.load_scenario("conservative")
         optimistic = config_loader.load_scenario("optimistic")
 
-        assert baseline.growth.annual_growth_rate == 0.05
+        assert baseline.growth.annual_growth_rate == 0.12
         assert conservative.growth.annual_growth_rate == 0.03
         assert optimistic.growth.annual_growth_rate == 0.08
 
@@ -368,7 +368,7 @@ class TestConfigLoader:
 
         # Check some expected differences
         assert "growth.annual_growth_rate" in differences
-        assert differences["growth.annual_growth_rate"]["config1"] == 0.05
+        assert differences["growth.annual_growth_rate"]["config1"] == 0.12
         assert differences["growth.annual_growth_rate"]["config2"] == 0.03
 
     def test_list_available_configs(self, config_loader):

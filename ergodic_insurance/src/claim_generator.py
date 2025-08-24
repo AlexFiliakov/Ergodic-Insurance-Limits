@@ -14,7 +14,7 @@ import numpy as np
 @dataclass
 class ClaimEvent:
     """Represents a single claim event.
-    
+
     A simple data structure containing the year and amount of an insurance claim.
     """
 
@@ -24,7 +24,7 @@ class ClaimEvent:
 
 class ClaimGenerator:
     """Generate insurance claims for simulations.
-    
+
     This class generates realistic insurance claims using Poisson processes
     for frequency and lognormal distributions for severity, with support for
     both regular attritional losses and catastrophic events.
@@ -44,7 +44,17 @@ class ClaimGenerator:
             severity_mean: Mean claim size (lognormal parameter).
             severity_std: Standard deviation of claim size.
             seed: Random seed for reproducibility.
+
+        Raises:
+            ValueError: If frequency is negative or severity parameters are invalid.
         """
+        if frequency < 0:
+            raise ValueError(f"Frequency must be non-negative, got {frequency}")
+        if severity_mean <= 0:
+            raise ValueError(f"Severity mean must be positive, got {severity_mean}")
+        if severity_std < 0:
+            raise ValueError(f"Severity std must be non-negative, got {severity_std}")
+
         self.frequency = frequency
         self.severity_mean = severity_mean
         self.severity_std = severity_std
@@ -152,7 +162,7 @@ class ClaimGenerator:
 
     def reset_seed(self, seed: int) -> None:
         """Reset the random seed for reproducibility.
-        
+
         Args:
             seed: New random seed to use.
         """

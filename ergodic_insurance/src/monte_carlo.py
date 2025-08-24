@@ -19,7 +19,7 @@ import pyarrow.parquet as pq
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from .claim_generator import ClaimGenerator
+from .claim_generator import ClaimEvent, ClaimGenerator
 from .config import Config
 from .insurance import InsurancePolicy
 from .manufacturer import WidgetManufacturer
@@ -84,7 +84,7 @@ class StreamingStatistics:
         """Calculate standard deviation."""
         if self.count < 2:
             return 0.0
-        return np.sqrt(self.m2 / (self.count - 1))
+        return float(np.sqrt(self.m2 / (self.count - 1)))
 
     @property
     def variance(self) -> float:
@@ -98,7 +98,7 @@ class StreamingStatistics:
         """Calculate geometric mean (time-average growth rate)."""
         if self.survival_count == 0:
             return 0.0
-        return np.exp(self.log_sum / self.survival_count)
+        return float(np.exp(self.log_sum / self.survival_count))
 
     @property
     def survival_rate(self) -> float:
@@ -118,7 +118,7 @@ class StreamingStatistics:
         """
         if len(self.reservoir) == 0:
             return 0.0
-        return np.percentile(self.reservoir, q)
+        return float(np.percentile(self.reservoir, q))
 
     def to_dict(self) -> Dict[str, float]:
         """Convert statistics to dictionary."""
@@ -206,6 +206,85 @@ class MonteCarloCheckpoint:
         )
 
 
+def _generate_scenario_claims(
+    time_horizon: int, seed: Optional[int] = None
+) -> Dict[int, List[ClaimEvent]]:
+    """Generate claims for a scenario."""
+    claim_generator = ClaimGenerator(
+        frequency=0.1,
+        severity_mean=5_000_000,
+        severity_std=2_000_000,
+        seed=seed,
+    )
+
+    regular_claims, cat_claims = claim_generator.generate_all_claims(
+        years=time_horizon,
+        include_catastrophic=True,
+        cat_frequency=0.01,
+        cat_severity_mean=50_000_000,
+        cat_severity_std=20_000_000,
+    )
+
+    # Group claims by year
+    claims_by_year: Dict[int, List[ClaimEvent]] = {}
+    for claim in regular_claims + cat_claims:
+        if claim.year not in claims_by_year:
+            claims_by_year[claim.year] = []
+        claims_by_year[claim.year].append(claim)
+
+    return claims_by_year
+
+
+def _calculate_returns(annual_returns: List[float]) -> Tuple[float, float]:
+    """Calculate geometric and arithmetic returns."""
+    if annual_returns:
+        geometric = float(np.exp(np.mean(np.log(annual_returns))) - 1)
+        arithmetic = float(np.mean(annual_returns) - 1)
+        return geometric, arithmetic
+    return 0.0, 0.0
+
+
+def _run_simulation_year(
+    manufacturer: WidgetManufacturer,
+    year_claims: List[ClaimEvent],
+    insurance_policy: InsurancePolicy,
+    config: Config,
+) -> Tuple[float, float, float]:
+    """Run a single year of simulation.
+
+    Returns:
+        Tuple of (total_claims, premium, year_return)
+    """
+    total_claims = 0.0
+
+    # Process claims through insurance
+    for claim in year_claims:
+        company_payment, _ = insurance_policy.process_claim(claim.amount)
+        manufacturer.assets -= company_payment
+        total_claims += claim.amount
+
+    # Pay insurance premium
+    premium = insurance_policy.calculate_premium()
+    manufacturer.assets -= premium
+
+    # Calculate year's return before stepping
+    initial_equity = manufacturer.equity
+
+    # Step manufacturer forward
+    manufacturer.step(
+        working_capital_pct=config.working_capital.percent_of_sales,
+        letter_of_credit_rate=config.debt.interest_rate,
+        growth_rate=config.growth.annual_growth_rate,
+    )
+
+    # Calculate return
+    year_return = 0.0
+    if initial_equity > 0:
+        year_return = (manufacturer.equity - initial_equity) / initial_equity
+
+    return total_claims, premium, year_return
+
+
 def run_single_scenario(
     scenario_id: int,
     config: Config,
@@ -232,101 +311,53 @@ def run_single_scenario(
     # Initialize manufacturer
     manufacturer = WidgetManufacturer(config.manufacturer)
 
-    # Initialize claim generator
-    claim_generator = ClaimGenerator(
-        frequency=0.1,
-        severity_mean=5_000_000,
-        severity_std=2_000_000,
-        seed=seed + scenario_id if seed else None,
-    )
-
     # Generate claims for entire horizon
-    regular_claims, cat_claims = claim_generator.generate_all_claims(
-        years=time_horizon,
-        include_catastrophic=True,
-        cat_frequency=0.01,
-        cat_severity_mean=50_000_000,
-        cat_severity_std=20_000_000,
-    )
-    all_claims = regular_claims + cat_claims
+    claims_by_year = _generate_scenario_claims(time_horizon, seed + scenario_id if seed else None)
 
-    # Group claims by year
-    claims_by_year = {}
-    for claim in all_claims:
-        if claim.year not in claims_by_year:
-            claims_by_year[claim.year] = []
-        claims_by_year[claim.year].append(claim)
-
-    # Track metrics
-    final_assets = config.manufacturer.initial_assets
-    final_equity = config.manufacturer.initial_assets
-    total_claims = 0.0
-    total_premiums = 0.0
-    survived = True
-    insolvency_year = None
-
-    # Annual returns for ergodic calculations
-    annual_returns = []
+    # Initialize tracking variables
+    simulation_metrics: Dict[str, Any] = {
+        "total_claims": 0.0,
+        "total_premiums": 0.0,
+        "annual_returns": [],
+        "survived": True,
+        "insolvency_year": None,
+    }
 
     # Run simulation
     for year in range(time_horizon):
-        # Get claims for this year
         year_claims = claims_by_year.get(year, [])
 
-        # Process claims through insurance
-        for claim in year_claims:
-            company_payment, insurance_recovery = insurance_policy.process_claim(claim.amount)
-            manufacturer.assets -= company_payment
-            total_claims += claim.amount
-
-        # Pay insurance premium
-        premium = insurance_policy.calculate_premium()
-        manufacturer.assets -= premium
-        total_premiums += premium
-
-        # Calculate year's return before stepping
-        initial_equity = manufacturer.equity
-
-        # Step manufacturer forward
-        metrics = manufacturer.step(
-            working_capital_pct=config.working_capital.percent_of_sales,
-            letter_of_credit_rate=config.debt.interest_rate,
-            growth_rate=config.growth.annual_growth_rate,
+        claims, premium, year_return = _run_simulation_year(
+            manufacturer, year_claims, insurance_policy, config
         )
 
-        # Calculate return
-        if initial_equity > 0:
-            year_return = (manufacturer.equity - initial_equity) / initial_equity
-            annual_returns.append(1 + year_return)
+        simulation_metrics["total_claims"] += claims
+        simulation_metrics["total_premiums"] += premium
+        if year_return != 0.0:
+            simulation_metrics["annual_returns"].append(1 + year_return)
 
         # Check for insolvency
         if manufacturer.equity <= 0:
-            survived = False
-            insolvency_year = year
+            simulation_metrics["survived"] = False
+            simulation_metrics["insolvency_year"] = year
             break
 
-        final_assets = manufacturer.assets
-        final_equity = manufacturer.equity
-
     # Calculate ergodic metrics
-    if len(annual_returns) > 0:
-        geometric_return = np.exp(np.mean(np.log(annual_returns))) - 1
-        arithmetic_return = np.mean(annual_returns) - 1
-    else:
-        geometric_return = 0.0
-        arithmetic_return = 0.0
+    geometric_return, arithmetic_return = _calculate_returns(simulation_metrics["annual_returns"])
 
     return {
         "scenario_id": scenario_id,
-        "survived": survived,
-        "insolvency_year": insolvency_year,
-        "final_assets": final_assets,
-        "final_equity": final_equity,
-        "total_claims": total_claims,
-        "total_premiums": total_premiums,
+        "survived": simulation_metrics["survived"],
+        "insolvency_year": simulation_metrics["insolvency_year"],
+        "final_assets": manufacturer.assets,
+        "final_equity": manufacturer.equity,
+        "total_claims": simulation_metrics["total_claims"],
+        "total_premiums": simulation_metrics["total_premiums"],
         "geometric_return": geometric_return,
         "arithmetic_return": arithmetic_return,
-        "years_survived": insolvency_year if insolvency_year else time_horizon,
+        "years_survived": simulation_metrics["insolvency_year"]
+        if simulation_metrics["insolvency_year"]
+        else time_horizon,
     }
 
 
@@ -384,7 +415,7 @@ class MonteCarloEngine:
         }
 
         self.completed_scenarios = 0
-        self.results_buffer = []
+        self.results_buffer: List[Dict[str, Any]] = []
 
     def run_batch(self, start_idx: int, end_idx: int) -> List[Dict[str, Any]]:
         """Run a batch of scenarios in parallel.
@@ -407,7 +438,7 @@ class MonteCarloEngine:
             for i in range(start_idx, end_idx)
         )
 
-        return results
+        return list(results)
 
     def update_statistics(self, results: List[Dict[str, Any]]) -> None:
         """Update streaming statistics with batch results.
@@ -551,7 +582,7 @@ class MonteCarloEngine:
 
         # Add all statistics
         for metric_name, stats in self.statistics.items():
-            results["statistics"][metric_name] = stats.to_dict()
+            results["statistics"][metric_name] = stats.to_dict()  # type: ignore[index]
 
         # Log summary
         logger.info(f"Completed {self.n_scenarios} scenarios in {elapsed_time:.2f} seconds")

@@ -5,7 +5,6 @@ from typing import Dict
 
 import numpy as np
 import pytest
-
 from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
 
 
@@ -229,13 +228,24 @@ class TestClaimGenerator:
 
     def test_negative_parameters(self):
         """Test handling of invalid parameters."""
-        # ClaimGenerator accepts negative frequency (doesn't validate on init)
-        # But generation with negative years should handle gracefully
+        # Test that negative frequency raises ValueError
+        with pytest.raises(ValueError, match="Frequency must be non-negative"):
+            ClaimGenerator(frequency=-1.0)
+
+        # Test that negative severity_mean raises ValueError
+        with pytest.raises(ValueError, match="Severity mean must be positive"):
+            ClaimGenerator(severity_mean=-1000)
+
+        # Test that negative severity_std raises ValueError
+        with pytest.raises(ValueError, match="Severity std must be non-negative"):
+            ClaimGenerator(severity_std=-100)
+
+        # Test that generation with negative years should handle gracefully
         gen = ClaimGenerator(frequency=1.0)
         claims = gen.generate_claims(-5)
         assert claims == []
 
-        # Zero and negative frequencies should produce no claims
-        gen_neg = ClaimGenerator(frequency=-1.0)
-        claims = gen_neg.generate_claims(10)
+        # Zero frequency should produce no claims
+        gen_zero = ClaimGenerator(frequency=0.0)
+        claims = gen_zero.generate_claims(10)
         assert claims == []

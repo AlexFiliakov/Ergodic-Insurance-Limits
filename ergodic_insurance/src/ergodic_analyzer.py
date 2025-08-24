@@ -48,17 +48,14 @@ class ErgodicAnalyzer:
         Returns:
             Time-average growth rate.
         """
-        # Handle empty array
+        # Handle edge cases and invalid trajectories
         if len(values) == 0:
             return -np.inf
-
-        # Handle single value
-        if len(values) == 1:
-            return 0.0
-
-        # Check if trajectory ends at zero or negative (indicating failure)
         if values[-1] <= 0:
             return -np.inf
+
+        if len(values) == 1:
+            return 0.0
 
         # Filter out zero or negative values for calculating growth
         valid_mask = values > 0
@@ -68,28 +65,118 @@ class ErgodicAnalyzer:
         # Get first valid positive value
         first_idx = np.argmax(valid_mask)
         initial_value = values[first_idx]
-
-        # Use the actual final value (last element)
         final_value = values[-1]
-
-        # If final value is zero or negative, trajectory failed
-        if final_value <= 0:
-            return -np.inf
 
         # Calculate time period
         if time_horizon is None:
             time_horizon = int(len(values) - 1 - first_idx)
 
-        if time_horizon <= 0:
-            return 0.0
-
         # Calculate growth rate
         if final_value > 0 and initial_value > 0 and time_horizon > 0:
-            growth_rate = float((1.0 / time_horizon) * np.log(final_value / initial_value))
-        else:
-            growth_rate = -np.inf
+            return float((1.0 / time_horizon) * np.log(final_value / initial_value))
 
-        return growth_rate
+        return 0.0 if time_horizon <= 0 else -np.inf
+
+    def _extract_trajectory_values(
+        self, trajectories: List[np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Extract initial, final values and lengths from trajectories."""
+        values_data = [(traj[-1], traj[0], len(traj)) for traj in trajectories if len(traj) > 0]
+        if not values_data:
+            return np.array([]), np.array([]), np.array([])
+
+        finals, initials, lengths = zip(*values_data)
+        return np.array(finals), np.array(initials), np.array(lengths)
+
+    def _calculate_growth_rates(
+        self, finals: np.ndarray, initials: np.ndarray, lengths: np.ndarray
+    ) -> np.ndarray:
+        """Calculate growth rates from trajectory values."""
+        rates = [np.log(f / i) / (t - 1) for f, i, t in zip(finals, initials, lengths) if t > 1]
+        return np.array(rates) if rates else np.array([])
+
+    def _process_variable_length_trajectories(
+        self, trajectories: List[np.ndarray], metric: str
+    ) -> Dict[str, float]:
+        """Process trajectories with variable lengths."""
+        n_paths = len(trajectories)
+        results = {}
+
+        if metric in ["final_value", "growth_rate"]:
+            # Get final and initial values from each trajectory
+            final_values, initial_values, time_lengths = self._extract_trajectory_values(
+                trajectories
+            )
+
+            # Filter valid paths (positive initial and final values)
+            if len(final_values) > 0:
+                valid_mask = (initial_values > 0) & (final_values > 0)
+                valid_finals = final_values[valid_mask]
+                valid_initials = initial_values[valid_mask]
+                valid_lengths = time_lengths[valid_mask]
+            else:
+                valid_finals = valid_initials = valid_lengths = np.array([])
+
+            if metric == "final_value":
+                results["mean"] = np.mean(valid_finals) if len(valid_finals) > 0 else 0.0
+                results["std"] = np.std(valid_finals) if len(valid_finals) > 0 else 0.0
+                results["median"] = np.median(valid_finals) if len(valid_finals) > 0 else 0.0
+            else:  # growth_rate
+                growth_rates = self._calculate_growth_rates(
+                    valid_finals, valid_initials, valid_lengths
+                )
+                results["mean"] = np.mean(growth_rates) if len(growth_rates) > 0 else 0.0
+                results["std"] = np.std(growth_rates) if len(growth_rates) > 0 else 0.0
+                results["median"] = np.median(growth_rates) if len(growth_rates) > 0 else 0.0
+        else:  # full trajectory - not well-defined for different lengths
+            results["mean_trajectory"] = None
+            results["std_trajectory"] = None
+
+        # Add survival statistics
+        survived = sum(1 for traj in trajectories if len(traj) > 0 and traj[-1] > 0)
+        results["survival_rate"] = survived / n_paths if n_paths > 0 else 0.0
+        results["n_survived"] = survived
+        results["n_total"] = n_paths
+
+        return results
+
+    def _process_fixed_length_trajectories(
+        self, trajectories: np.ndarray, metric: str
+    ) -> Dict[str, float]:
+        """Process trajectories with fixed lengths."""
+        n_paths, n_time = trajectories.shape
+        results = {}
+
+        if metric in ["final_value", "growth_rate"]:
+            # Get final values (trajectories is now a numpy array)
+            final_values = trajectories[:, -1]
+            initial_values = trajectories[:, 0]
+
+            # Filter valid paths (positive initial and final values)
+            valid_mask = (initial_values > 0) & (final_values > 0)
+            valid_finals = final_values[valid_mask]
+            valid_initials = initial_values[valid_mask]
+
+            if metric == "final_value":
+                results["mean"] = np.mean(valid_finals) if len(valid_finals) > 0 else 0.0
+                results["std"] = np.std(valid_finals) if len(valid_finals) > 0 else 0.0
+                results["median"] = np.median(valid_finals) if len(valid_finals) > 0 else 0.0
+            else:  # growth_rate
+                growth_rates = np.log(valid_finals / valid_initials) / (n_time - 1)
+                results["mean"] = np.mean(growth_rates) if len(growth_rates) > 0 else 0.0
+                results["std"] = np.std(growth_rates) if len(growth_rates) > 0 else 0.0
+                results["median"] = np.median(growth_rates) if len(growth_rates) > 0 else 0.0
+        else:  # full trajectory
+            results["mean_trajectory"] = np.mean(trajectories, axis=0)
+            results["std_trajectory"] = np.std(trajectories, axis=0)
+
+        # Add survival statistics
+        survived = np.sum(trajectories[:, -1] > 0)
+        results["survival_rate"] = survived / n_paths
+        results["n_survived"] = survived
+        results["n_total"] = n_paths
+
+        return results
 
     def calculate_ensemble_average(
         self, trajectories: Union[List[np.ndarray], np.ndarray], metric: str = "final_value"
@@ -106,45 +193,17 @@ class ErgodicAnalyzer:
         Returns:
             Dictionary with ensemble statistics.
         """
+        # Handle list of arrays with potentially different lengths
         if isinstance(trajectories, list):
-            trajectories = np.array(trajectories)
-
-        n_paths, n_time = trajectories.shape
-
-        results = {}
-
-        if metric in ["final_value", "growth_rate"]:
-            # Get final values
-            final_values = trajectories[:, -1]
-            initial_values = trajectories[:, 0]
-
-            # Filter valid paths (positive initial and final values)
-            valid_mask = (initial_values > 0) & (final_values > 0)
-            valid_finals = final_values[valid_mask]
-            valid_initials = initial_values[valid_mask]
-
-            if metric == "final_value":
-                results["mean"] = np.mean(valid_finals) if len(valid_finals) > 0 else 0.0
-                results["std"] = np.std(valid_finals) if len(valid_finals) > 0 else 0.0
-                results["median"] = np.median(valid_finals) if len(valid_finals) > 0 else 0.0
-
-            else:  # growth_rate
-                growth_rates = np.log(valid_finals / valid_initials) / (n_time - 1)
-                results["mean"] = np.mean(growth_rates) if len(growth_rates) > 0 else 0.0
-                results["std"] = np.std(growth_rates) if len(growth_rates) > 0 else 0.0
-                results["median"] = np.median(growth_rates) if len(growth_rates) > 0 else 0.0
-
-        else:  # full trajectory
-            results["mean_trajectory"] = np.mean(trajectories, axis=0)
-            results["std_trajectory"] = np.std(trajectories, axis=0)
-
-        # Add survival statistics
-        survived = np.sum(trajectories[:, -1] > 0)
-        results["survival_rate"] = survived / n_paths
-        results["n_survived"] = survived
-        results["n_total"] = n_paths
-
-        return results
+            # Check if all arrays have the same length
+            lengths = [len(traj) for traj in trajectories if len(traj) > 0]
+            if len(set(lengths)) == 1 and lengths:
+                # All same length, can convert to 2D array
+                trajectories_array = np.array(trajectories)
+                return self._process_fixed_length_trajectories(trajectories_array, metric)
+            # Different lengths, work with list
+            return self._process_variable_length_trajectories(trajectories, metric)
+        return self._process_fixed_length_trajectories(trajectories, metric)
 
     def check_convergence(self, values: np.ndarray, window_size: int = 100) -> Tuple[bool, float]:
         """Check if ensemble statistics have converged using standard error.
@@ -188,11 +247,16 @@ class ErgodicAnalyzer:
         """
         # Extract trajectories
         if isinstance(insured_results, list) and isinstance(insured_results[0], SimulationResults):
-            insured_trajectories = np.array([getattr(r, metric) for r in insured_results])
-            uninsured_trajectories = np.array([getattr(r, metric) for r in uninsured_results])
+            # Handle variable-length trajectories (e.g., due to insolvency)
+            insured_trajectories = [getattr(r, metric) for r in insured_results]
+            uninsured_trajectories = [getattr(r, metric) for r in uninsured_results]
+
+            # Convert to list of arrays rather than 2D array to handle different lengths
+            insured_trajectories = [np.asarray(traj) for traj in insured_trajectories]
+            uninsured_trajectories = [np.asarray(traj) for traj in uninsured_trajectories]
         else:
-            insured_trajectories = np.asarray(insured_results)
-            uninsured_trajectories = np.asarray(uninsured_results)
+            insured_trajectories = [np.asarray(traj) for traj in insured_results]
+            uninsured_trajectories = [np.asarray(traj) for traj in uninsured_results]
 
         # Calculate time-average growth for each path
         insured_time_avg = [
@@ -245,9 +309,11 @@ class ErgodicAnalyzer:
                 "n_survived": uninsured_ensemble["n_survived"],
             },
             "ergodic_advantage": {
-                "time_average_gain": (
-                    (np.mean(insured_time_avg_valid) if insured_time_avg_valid else -np.inf)
-                    - (np.mean(uninsured_time_avg_valid) if uninsured_time_avg_valid else -np.inf)
+                "time_average_gain": float(
+                    float(np.mean(insured_time_avg_valid) if insured_time_avg_valid else -np.inf)
+                    - float(
+                        np.mean(uninsured_time_avg_valid) if uninsured_time_avg_valid else -np.inf
+                    )
                 ),
                 "ensemble_average_gain": insured_ensemble["mean"] - uninsured_ensemble["mean"],
                 "survival_gain": insured_ensemble["survival_rate"]
@@ -260,13 +326,13 @@ class ErgodicAnalyzer:
             t_stat, p_value = self.significance_test(
                 insured_time_avg_valid, uninsured_time_avg_valid
             )
-            results["ergodic_advantage"]["t_statistic"] = t_stat
-            results["ergodic_advantage"]["p_value"] = p_value
-            results["ergodic_advantage"]["significant"] = p_value < 0.05
+            results["ergodic_advantage"]["t_statistic"] = t_stat  # type: ignore[index]
+            results["ergodic_advantage"]["p_value"] = p_value  # type: ignore[index]
+            results["ergodic_advantage"]["significant"] = p_value < 0.05  # type: ignore[index]
         else:
-            results["ergodic_advantage"]["t_statistic"] = np.nan
-            results["ergodic_advantage"]["p_value"] = np.nan
-            results["ergodic_advantage"]["significant"] = False
+            results["ergodic_advantage"]["t_statistic"] = np.nan  # type: ignore[index]
+            results["ergodic_advantage"]["p_value"] = np.nan  # type: ignore[index]
+            results["ergodic_advantage"]["significant"] = False  # type: ignore[index]
 
         return results
 
