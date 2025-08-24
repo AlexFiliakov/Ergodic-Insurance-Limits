@@ -643,6 +643,10 @@ Ask me clarifying questions then draft the sprint plan for "Sprint 04: Insurance
    - Focus on structuring optimal insurance layers for the company
    - Research notebooks analyzing the results
 
+### Creating Issues
+
+create issues from the sprint 04 spec outlined in `SPRINT_04_INSURANCE_OPTIMIZATION.md`. Fill in any implementation details to make implementation simple, balancing implementation simplicity with algorithmic validity.
+
 ## Sprint 05: Constrained Optimization
 
 ### Sprint Planning Questions
