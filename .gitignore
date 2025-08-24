@@ -411,3 +411,4 @@ ergodic_insurance/checkpoints/
 *.parquet
 *.checkpoint
 /.venv
+assets/repo_banner.png

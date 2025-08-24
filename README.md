@@ -1,5 +1,7 @@
 # Ergodic Insurance Limits
 
+![Repo Banner](assets/repo_banner_small.png)
+
 This is a brief research model of a widget manufacturing company to determine what limit of insurance they need to optimize long-term profitability.
 
 ## Introduction - Why Do Companies Buy Insurance?
@@ -10,9 +12,11 @@ The research reveals that **traditional expected value approaches systematically
 
 $g = \lim_{T\to\infty}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$
 
-This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For your widget manufacturing model with $10M starting assets and 8% operating margin, **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
+This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For our widget manufacturing model with $10M starting assets, the hypothesis is that **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
 
 ### Value Proposition
+
+![Ergodic Distinction Between Averages](assets/ergodic_distinction.png)
 
 The framework fundamentally reframes insurance from cost center to growth enabler. By optimizing time-average growth rates rather than expected values, widget manufacturers can achieve **30-50% better long-term performance** while maintaining acceptable ruin probabilities. The key insight: **maximizing ergodic growth rates naturally balances profitability with survival**, eliminating the need for arbitrary risk preferences or utility functions.
 
