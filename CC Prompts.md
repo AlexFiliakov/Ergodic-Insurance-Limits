@@ -593,6 +593,8 @@ Create a CLAUDE.md file to direct new instances of Claude with the appropriate i
 
 work on issue #21 "Implement Claim Development Patterns for Cash Flow Modeling". Ask me clarifying questions, then proceed to resolve the issue.
 
+work on issue #32 "Integration Enhancement - Loss Modeling and Ergodic Framework". Ask me clarifying questions, then proceed to resolve the issue.
+
 ---
 
 ### Questions RE Issues #23 and #24:

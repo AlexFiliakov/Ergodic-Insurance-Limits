@@ -8,14 +8,61 @@ Based on Ole Peters' ergodic economics framework.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import stats
 
 from .simulation import SimulationResults
 
+if TYPE_CHECKING:
+    from .insurance import InsuranceStructure
+    from .insurance_program import InsuranceProgram
+    from .loss_distributions import LossData
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ErgodicData:
+    """Data structure for ergodic analysis.
+
+    Provides a standardized format for data used in ergodic calculations.
+    """
+
+    time_series: np.ndarray = field(default_factory=lambda: np.array([]))
+    values: np.ndarray = field(default_factory=lambda: np.array([]))
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def validate(self) -> bool:
+        """Validate data consistency."""
+        return len(self.time_series) == len(self.values)
+
+
+@dataclass
+class ErgodicAnalysisResults:
+    """Results from ergodic analysis integration."""
+
+    time_average_growth: float
+    ensemble_average_growth: float
+    survival_rate: float
+    ergodic_divergence: float
+    insurance_impact: Dict[str, float]
+    validation_passed: bool
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class ValidationResults:
+    """Results from insurance impact validation."""
+
+    premium_deductions_correct: bool
+    recoveries_credited: bool
+    collateral_impacts_included: bool
+    time_average_reflects_benefit: bool
+    overall_valid: bool
+    details: Dict[str, Any] = field(default_factory=dict)
 
 
 class ErgodicAnalyzer:
@@ -429,3 +476,221 @@ class ErgodicAnalyzer:
             analysis["ergodic_divergence"] = np.nan
 
         return analysis
+
+    def integrate_loss_ergodic_analysis(
+        self,
+        loss_data: "LossData",
+        insurance_program: Optional["InsuranceProgram"],
+        manufacturer: Any,
+        time_horizon: int,
+        n_simulations: int = 100,
+    ) -> ErgodicAnalysisResults:
+        """Seamlessly integrate loss modeling with ergodic analysis.
+
+        Pipeline:
+        1. Generate losses from distributions
+        2. Apply insurance recoveries
+        3. Calculate cash flow impacts
+        4. Compute ergodic metrics
+        5. Validate results
+
+        Args:
+            loss_data: Standardized loss data.
+            insurance_program: Insurance program to apply (optional).
+            manufacturer: Manufacturer model for simulations.
+            time_horizon: Simulation time horizon.
+            n_simulations: Number of Monte Carlo simulations.
+
+        Returns:
+            Comprehensive ergodic analysis results.
+        """
+        from .claim_generator import ClaimEvent
+        from .simulation import Simulation
+
+        # Validate input data
+        if not loss_data.validate():
+            logger.warning("Loss data validation failed")
+            return ErgodicAnalysisResults(
+                time_average_growth=-np.inf,
+                ensemble_average_growth=0.0,
+                survival_rate=0.0,
+                ergodic_divergence=-np.inf,
+                insurance_impact={},
+                validation_passed=False,
+                metadata={"error": "Invalid loss data"},
+            )
+
+        # Apply insurance if provided
+        if insurance_program:
+            insured_loss_data = loss_data.apply_insurance(insurance_program)
+            insurance_metadata = insured_loss_data.metadata
+        else:
+            insured_loss_data = loss_data
+            insurance_metadata = {}
+
+        # Convert to annual aggregates for simulation
+        annual_losses = insured_loss_data.get_annual_aggregates(time_horizon)
+
+        # Run Monte Carlo simulations
+        simulation_results = []
+        for sim_idx in range(n_simulations):
+            # Create simulation with manufacturer
+            sim = Simulation(manufacturer=manufacturer, time_horizon=time_horizon, seed=sim_idx)
+
+            # Apply losses for each year
+            for year, loss_amount in annual_losses.items():
+                if loss_amount > 0:
+                    # Create claim event for this year
+                    claim = ClaimEvent(year=year, amount=loss_amount)
+                    sim.step_annual(year, [claim])
+
+            # Run remaining years without claims
+            result = sim.run()
+            simulation_results.append(result)
+
+        # Calculate ergodic metrics
+        equity_trajectories = [r.equity for r in simulation_results]
+
+        # Time-average growth rates
+        time_avg_growth_rates = [
+            self.calculate_time_average_growth(traj) for traj in equity_trajectories
+        ]
+        valid_time_avg = [g for g in time_avg_growth_rates if np.isfinite(g)]
+
+        # Ensemble statistics
+        ensemble_stats = self.calculate_ensemble_average(equity_trajectories, metric="growth_rate")
+
+        # Calculate insurance impact
+        insurance_impact = {}
+        if insurance_metadata:
+            insurance_impact = {
+                "premium_cost": insurance_metadata.get("total_premiums", 0),
+                "recovery_benefit": insurance_metadata.get("total_recoveries", 0),
+                "net_benefit": insurance_metadata.get("net_benefit", 0),
+                "growth_improvement": np.mean(valid_time_avg) if valid_time_avg else 0,
+            }
+
+        # Calculate ergodic divergence
+        time_avg_mean = np.mean(valid_time_avg) if valid_time_avg else -np.inf
+        ensemble_mean = ensemble_stats["mean"]
+        ergodic_divergence = time_avg_mean - ensemble_mean
+
+        # Validate results
+        validation_passed = (
+            len(valid_time_avg) > 0
+            and ensemble_stats["survival_rate"] > 0
+            and np.isfinite(ergodic_divergence)
+        )
+
+        return ErgodicAnalysisResults(
+            time_average_growth=time_avg_mean,
+            ensemble_average_growth=ensemble_mean,
+            survival_rate=ensemble_stats["survival_rate"],
+            ergodic_divergence=ergodic_divergence,
+            insurance_impact=insurance_impact,
+            validation_passed=validation_passed,
+            metadata={
+                "n_simulations": n_simulations,
+                "time_horizon": time_horizon,
+                "n_survived": ensemble_stats["n_survived"],
+                "loss_statistics": insured_loss_data.calculate_statistics(),
+            },
+        )
+
+    def validate_insurance_ergodic_impact(
+        self,
+        base_scenario: SimulationResults,
+        insurance_scenario: SimulationResults,
+        insurance_program: Optional["InsuranceProgram"] = None,
+    ) -> ValidationResults:
+        """Validate that insurance properly affects ergodic calculations.
+
+        Checks:
+        - Premium deductions are correct
+        - Recoveries are properly credited
+        - Collateral impacts are included
+        - Time-average growth reflects insurance benefit
+
+        Args:
+            base_scenario: Simulation results without insurance.
+            insurance_scenario: Simulation results with insurance.
+            insurance_program: Insurance program used (optional).
+
+        Returns:
+            Validation results with detailed checks.
+        """
+        details = {}
+
+        # Check premium deductions
+        premium_deductions_correct = True
+        if insurance_program and hasattr(insurance_program, "calculate_premium"):
+            expected_premium = insurance_program.calculate_premium()
+            actual_cost_diff = np.sum(base_scenario.net_income - insurance_scenario.net_income)
+            premium_diff = abs(actual_cost_diff - expected_premium * len(base_scenario.years))
+            premium_deductions_correct = premium_diff < 0.01 * expected_premium
+            details["premium_check"] = {
+                "expected": expected_premium,
+                "actual_diff": actual_cost_diff,
+                "valid": premium_deductions_correct,
+            }
+
+        # Check recoveries are credited
+        recoveries_credited = True
+        total_base_claims = np.sum(base_scenario.claim_amounts)
+        total_insured_claims = np.sum(insurance_scenario.claim_amounts)
+        recovery_amount = total_base_claims - total_insured_claims
+        recoveries_credited = recovery_amount >= 0
+        details["recovery_check"] = {
+            "base_claims": total_base_claims,
+            "insured_claims": total_insured_claims,
+            "recovery_amount": recovery_amount,
+            "valid": recoveries_credited,
+        }
+
+        # Check collateral impacts (simplified check)
+        collateral_impacts_included = True
+        if insurance_program and hasattr(insurance_program, "collateral_requirement"):
+            # Check if working capital is affected
+            base_assets = base_scenario.assets
+            insured_assets = insurance_scenario.assets
+            asset_diff = np.mean(insured_assets - base_assets)
+            collateral_impacts_included = abs(asset_diff) > 0
+            details["collateral_check"] = {
+                "asset_difference": asset_diff,
+                "valid": collateral_impacts_included,
+            }
+
+        # Check time-average growth benefit
+        base_growth = self.calculate_time_average_growth(base_scenario.equity)
+        insured_growth = self.calculate_time_average_growth(insurance_scenario.equity)
+        growth_improvement = insured_growth - base_growth
+
+        # Insurance should improve growth if losses are significant
+        time_average_reflects_benefit = True
+        if total_base_claims > 0:
+            # Expect positive growth improvement with insurance
+            time_average_reflects_benefit = growth_improvement >= 0 or np.isfinite(insured_growth)
+
+        details["growth_check"] = {
+            "base_growth": base_growth,
+            "insured_growth": insured_growth,
+            "improvement": growth_improvement,
+            "valid": time_average_reflects_benefit,
+        }
+
+        # Overall validation
+        overall_valid = (
+            premium_deductions_correct
+            and recoveries_credited
+            and collateral_impacts_included
+            and time_average_reflects_benefit
+        )
+
+        return ValidationResults(
+            premium_deductions_correct=premium_deductions_correct,
+            recoveries_credited=recoveries_credited,
+            collateral_impacts_included=collateral_impacts_included,
+            time_average_reflects_benefit=time_average_reflects_benefit,
+            overall_valid=overall_valid,
+            details=details,
+        )

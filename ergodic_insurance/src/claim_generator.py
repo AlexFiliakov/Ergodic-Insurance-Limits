@@ -10,18 +10,20 @@ and parametric severity distributions.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 # Import enhanced distributions if available (backward compatibility)
 try:
+    from ergodic_insurance.src.loss_distributions import LossData
     from ergodic_insurance.src.loss_distributions import LossEvent as EnhancedLossEvent
     from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
 
     ENHANCED_DISTRIBUTIONS_AVAILABLE = True
 except ImportError:
     ENHANCED_DISTRIBUTIONS_AVAILABLE = False
+    LossData = None  # type: ignore
 
 
 @dataclass
@@ -249,3 +251,71 @@ class ClaimGenerator:
 
         stats["method"] = "enhanced"
         return claims, stats
+
+    def to_loss_data(self, claims: List[ClaimEvent]) -> "LossData":
+        """Convert ClaimEvents to standardized LossData format.
+
+        Args:
+            claims: List of ClaimEvent objects.
+
+        Returns:
+            LossData instance with claim information.
+        """
+        if not ENHANCED_DISTRIBUTIONS_AVAILABLE or LossData is None:
+            raise ImportError("LossData not available. Install enhanced distributions.")
+
+        if not claims:
+            return LossData()
+
+        # Extract data from claims
+        timestamps = np.array([float(c.year) for c in claims])
+        amounts = np.array([c.amount for c in claims])
+
+        # Sort by time
+        sort_idx = np.argsort(timestamps)
+
+        return LossData(
+            timestamps=timestamps[sort_idx],
+            loss_amounts=amounts[sort_idx],
+            loss_types=["claim"] * len(claims),
+            claim_ids=[f"claim_{i}" for i in range(len(claims))],
+            metadata={
+                "source": "claim_generator",
+                "generator_type": self.__class__.__name__,
+                "frequency": self.frequency,
+                "severity_mean": self.severity_mean,
+                "severity_std": self.severity_std,
+            },
+        )
+
+    @staticmethod
+    def from_loss_data(loss_data: "LossData") -> List[ClaimEvent]:
+        """Convert LossData to ClaimEvent list.
+
+        Args:
+            loss_data: Standardized loss data.
+
+        Returns:
+            List of ClaimEvent objects.
+        """
+        claims = []
+        for time, amount in zip(loss_data.timestamps, loss_data.loss_amounts):
+            year = int(time)
+            claims.append(ClaimEvent(year=year, amount=amount))
+        return claims
+
+    def generate_loss_data(self, years: int, include_catastrophic: bool = True) -> "LossData":
+        """Generate claims and return as standardized LossData.
+
+        Args:
+            years: Number of years to simulate.
+            include_catastrophic: Whether to include catastrophic events.
+
+        Returns:
+            LossData instance with generated claims.
+        """
+        regular, catastrophic = self.generate_all_claims(
+            years, include_catastrophic=include_catastrophic
+        )
+        all_claims = regular + catastrophic
+        return self.to_loss_data(all_claims)
