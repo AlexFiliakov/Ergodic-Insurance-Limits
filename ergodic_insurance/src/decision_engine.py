@@ -225,8 +225,8 @@ class InsuranceDecisionEngine:
                 if method != OptimizationMethod.DIFFERENTIAL_EVOLUTION
                 else OptimizationMethod.WEIGHTED_SUM
             )
-            result = self.optimize_insurance_decision(constraints, fallback_method, weights)
-            decision = self._create_decision_from_result(result, fallback_method)
+            # Recursive call returns InsuranceDecision, not OptimizeResult
+            decision = self.optimize_insurance_decision(constraints, fallback_method, weights)
 
         # Cache result
         self._decision_cache[cache_key] = decision
@@ -449,6 +449,27 @@ class InsuranceDecisionEngine:
 
         return base_growth + growth_benefit
 
+    def _calculate_cvar(self, losses: np.ndarray, percentile: float) -> float:
+        """Calculate Conditional Value at Risk (CVaR).
+
+        Args:
+            losses: Array of loss values
+            percentile: Percentile threshold (e.g., 95)
+
+        Returns:
+            CVaR value or 0 if no losses exceed threshold
+        """
+        if len(losses) == 0:
+            return 0.0
+
+        threshold = np.percentile(losses, percentile)
+        tail_losses = losses[losses > threshold]
+
+        if len(tail_losses) == 0:
+            return float(threshold)  # If no losses exceed threshold, return the threshold itself
+
+        return float(np.mean(tail_losses))
+
     def _estimate_bankruptcy_probability(self, x: np.ndarray) -> float:
         """Estimate bankruptcy probability for given structure."""
         retained_limit = x[0]
@@ -458,12 +479,12 @@ class InsuranceDecisionEngine:
         total_coverage = retained_limit + sum(l for l in layer_limits if l > 1000)
 
         # Simple estimation based on coverage adequacy
-        # Estimate max loss using expected annual loss if available
-        if hasattr(self.loss_distribution, "expected_annual_loss"):
-            expected_max_loss = self.loss_distribution.expected_annual_loss * 10
+        # Estimate max loss using expected value if available
+        if hasattr(self.loss_distribution, "expected_value"):
+            expected_max_loss = self.loss_distribution.expected_value() * 10
         else:
             expected_max_loss = total_coverage  # Conservative fallback
-            
+
         coverage_ratio = total_coverage / expected_max_loss if expected_max_loss > 0 else 1.0
 
         # Map coverage ratio to bankruptcy probability
@@ -471,12 +492,11 @@ class InsuranceDecisionEngine:
             return 0.001  # Very low if fully covered
         if coverage_ratio >= 0.8:
             return 0.005
-        elif coverage_ratio >= 0.6:
+        if coverage_ratio >= 0.6:
             return 0.01
-        elif coverage_ratio >= 0.4:
+        if coverage_ratio >= 0.4:
             return 0.02
-        else:
-            return 0.05
+        return 0.05
 
     def _create_decision_from_result(
         self, result: OptimizeResult, method: OptimizationMethod
@@ -596,11 +616,8 @@ class InsuranceDecisionEngine:
                 else 0
             ),
             coverage_adequacy=(
-                min(
-                    decision.total_coverage / (self.loss_distribution.expected_annual_loss * 10),
-                    1.0
-                )
-                if decision.total_coverage > 0 and hasattr(self.loss_distribution, "expected_annual_loss")
+                min(decision.total_coverage / (self.loss_distribution.expected_value() * 10), 1.0)
+                if decision.total_coverage > 0 and hasattr(self.loss_distribution, "expected_value")
                 else 0.0
             ),
             capital_efficiency=(
@@ -608,15 +625,16 @@ class InsuranceDecisionEngine:
                 - np.mean(without_insurance_results["value"])
             )
             / max(decision.total_premium, 1),
-            value_at_risk_95=np.percentile(with_insurance_results["losses"], 95),
-            conditional_value_at_risk=np.mean(
-                with_insurance_results["losses"][
-                    with_insurance_results["losses"]
-                    > np.percentile(with_insurance_results["losses"], 95)
-                ]
-            )
-            if len(with_insurance_results["losses"]) > 0
-            else 0,
+            value_at_risk_95=(
+                np.percentile(with_insurance_results["losses"], 95)
+                if len(with_insurance_results["losses"]) > 0
+                else 0.0
+            ),
+            conditional_value_at_risk=(
+                self._calculate_cvar(with_insurance_results["losses"], 95)
+                if len(with_insurance_results["losses"]) > 0
+                else 0.0
+            ),
         )
 
         # Calculate overall score
@@ -652,11 +670,10 @@ class InsuranceDecisionEngine:
                 revenue = assets * self.manufacturer.asset_turnover_ratio
 
                 # Generate losses
-                if hasattr(self.loss_distribution, "expected_annual_loss"):
+                if hasattr(self.loss_distribution, "expected_value"):
                     # Simple lognormal approximation for losses
                     annual_losses = np.random.lognormal(
-                        np.log(max(self.loss_distribution.expected_annual_loss, 1)),
-                        0.5
+                        np.log(max(self.loss_distribution.expected_value(), 1)), 0.5
                     )
                 else:
                     annual_losses = 0.0
@@ -773,10 +790,16 @@ class InsuranceDecisionEngine:
         flattened_sensitivities = {}
         for param, results in parameter_sensitivities.items():
             # Calculate average impact across variations
-            avg_growth_change = np.mean([abs(results[v]["growth_change"]) for v in ["decrease", "increase"]])
-            avg_risk_change = np.mean([abs(results[v]["risk_change"]) for v in ["decrease", "increase"]])
-            avg_roe_change = np.mean([abs(results[v]["roe_change"]) for v in ["decrease", "increase"]])
-            
+            avg_growth_change = np.mean(
+                [abs(results[v]["growth_change"]) for v in ["decrease", "increase"]]
+            )
+            avg_risk_change = np.mean(
+                [abs(results[v]["risk_change"]) for v in ["decrease", "increase"]]
+            )
+            avg_roe_change = np.mean(
+                [abs(results[v]["roe_change"]) for v in ["decrease", "increase"]]
+            )
+
             flattened_sensitivities[param] = {
                 "growth_sensitivity": avg_growth_change,
                 "risk_sensitivity": avg_risk_change,
@@ -787,9 +810,9 @@ class InsuranceDecisionEngine:
         impacts = []
         for param, metrics in flattened_sensitivities.items():
             total_impact = (
-                metrics["growth_sensitivity"] + 
-                metrics["risk_sensitivity"] * 10 + 
-                metrics["roe_sensitivity"]
+                metrics["growth_sensitivity"]
+                + metrics["risk_sensitivity"] * 10
+                + metrics["roe_sensitivity"]
             )
             impacts.append((param, total_impact))
 
