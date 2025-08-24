@@ -19,6 +19,7 @@ import pandas as pd
 from .claim_generator import ClaimEvent, ClaimGenerator
 from .config import Config
 from .insurance import InsurancePolicy
+from .insurance_program import InsuranceProgram
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine
 
@@ -310,21 +311,58 @@ class Simulation:
         Returns:
             Dictionary of Monte Carlo results and statistics.
         """
-        engine = MonteCarloEngine(
-            config=config,
-            insurance_policy=insurance_policy,
-            n_scenarios=n_scenarios,
-            batch_size=batch_size,
-            n_jobs=n_jobs,
-            checkpoint_dir=checkpoint_dir,
-            checkpoint_frequency=checkpoint_frequency,
+        # Create loss generator
+        from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+
+        loss_generator = ManufacturingLossGenerator(seed=seed)
+
+        # Create insurance program
+        # Always create a new program since InsurancePolicy and InsuranceProgram
+        # have incompatible signatures
+        insurance_program = InsuranceProgram(layers=[])
+        if insurance_policy:
+            # Add layer based on simple policy
+            from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+
+            layer = EnhancedInsuranceLayer(
+                attachment_point=0,
+                limit=insurance_policy.limit
+                if hasattr(insurance_policy, "limit")
+                else float("inf"),
+                premium_rate=0.01,
+            )
+            insurance_program.layers.append(layer)
+
+        # Create manufacturer
+        manufacturer = WidgetManufacturer(config=config.manufacturer)
+
+        # Create simulation config
+        from ergodic_insurance.src.monte_carlo import SimulationConfig
+
+        sim_config = SimulationConfig(
+            n_simulations=n_scenarios,
+            n_years=getattr(config.simulation, "years", 10),
+            parallel=n_jobs > 1 if n_jobs else True,
+            n_workers=n_jobs,
+            chunk_size=batch_size,
+            checkpoint_interval=checkpoint_frequency,
             seed=seed,
         )
 
-        results = engine.run(resume=resume)
+        engine = MonteCarloEngine(
+            loss_generator=loss_generator,
+            insurance_program=insurance_program,
+            manufacturer=manufacturer,
+            config=sim_config,
+        )
+
+        results = engine.run()
 
         # Add ergodic analysis
-        stats = results["statistics"]
+        if hasattr(results, "statistics"):
+            stats = results.statistics
+        else:
+            stats = {}
 
         # Calculate ergodic premium justification
         if "geometric_return" in stats:
@@ -337,14 +375,15 @@ class Simulation:
 
             # Compare geometric returns with and without insurance
             # This is simplified - actual comparison would require running without insurance
-            results["ergodic_analysis"] = {
+            ergodic_analysis = {
                 "premium_rate": premium_rate,
                 "geometric_mean_return": geo_stats["geometric_mean"],
                 "survival_rate": geo_stats["survival_rate"],
                 "volatility_reduction": geo_stats["std"],
             }
+            return {"results": results, "ergodic_analysis": ergodic_analysis}
 
-        return results
+        return {"results": results}
 
     @classmethod
     def compare_insurance_strategies(

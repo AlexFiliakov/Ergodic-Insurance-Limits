@@ -228,3 +228,37 @@ reinstatement_structures:
     first_reinstatement: 0.5
     second_reinstatement: 1.0
     subsequent: 1.5
+
+# Optimization Parameters
+optimization:
+  constraints:
+    max_total_premium: null  # Maximum total premium budget (null = auto-calculate)
+    min_total_coverage: 50_000_000  # Minimum required coverage
+    max_layers: 5  # Maximum number of layers
+    min_layers: 3  # Minimum number of layers
+    max_attachment_gap: 0.0  # Maximum gap between layers (0 = no gaps allowed)
+    min_roe_improvement: 0.15  # Target 15% ROE improvement
+    max_iterations: 1000  # Maximum optimization iterations
+    convergence_tolerance: 0.000001  # Convergence tolerance
+
+  algorithm_settings:
+    primary_method: "scipy_optimize"  # Primary optimization method
+    fallback_method: "genetic_algorithm"  # Fallback if primary fails
+    monte_carlo_samples: 10000  # Samples for validation
+    
+  percentile_defaults:
+    3_layers: [50, 90, 99]  # Working, excess, catastrophic
+    4_layers: [40, 80, 95, 99.5]  # More granular structure
+    5_layers: [30, 60, 85, 95, 99.5]  # Fine-grained layers
+    
+  capacity_defaults:
+    low_attachment: 5_000_000  # < $1M attachment
+    medium_attachment: 25_000_000  # $1M - $10M attachment
+    high_attachment: 50_000_000  # $10M - $50M attachment
+    catastrophic_attachment: 100_000_000  # > $50M attachment
+    
+  rate_structure:
+    primary_rate: 0.015  # < $1M attachment
+    excess_rate: 0.010  # $1M - $5M attachment
+    high_excess_rate: 0.006  # $5M - $25M attachment
+    catastrophic_rate: 0.003  # > $25M attachment
