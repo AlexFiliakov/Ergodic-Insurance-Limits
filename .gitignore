@@ -410,3 +410,4 @@ ergodic_insurance/docs/_build/
 ergodic_insurance/checkpoints/
 *.parquet
 *.checkpoint
+/.venv
