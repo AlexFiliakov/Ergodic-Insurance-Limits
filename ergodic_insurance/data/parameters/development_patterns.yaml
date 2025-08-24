@@ -1,0 +1,102 @@
+# Claim Development Patterns Configuration
+# Standard patterns for manufacturing industry claims
+
+development_patterns:
+  # Property/Equipment Damage - Immediate payment
+  immediate:
+    description: "Property and equipment damage claims - paid immediately"
+    factors: [1.0]
+    tail_factor: 0.0
+    typical_claims:
+      - "Property damage"
+      - "Equipment breakdown"
+      - "Fire damage"
+      - "Natural disaster damage"
+
+  # Workers Compensation - 5 year medium tail
+  medium_tail_5yr:
+    description: "Workers compensation claims - 5 year development"
+    factors: [0.40, 0.25, 0.15, 0.10, 0.10]
+    tail_factor: 0.0
+    typical_claims:
+      - "Workers compensation"
+      - "Employee injury"
+      - "Occupational illness"
+
+  # General Liability - 10 year long tail
+  long_tail_10yr:
+    description: "General liability claims - 10 year development"
+    factors: [0.10, 0.20, 0.20, 0.15, 0.10, 0.08, 0.07, 0.05, 0.03, 0.02]
+    tail_factor: 0.0
+    typical_claims:
+      - "General liability"
+      - "Premises liability"
+      - "Operations liability"
+      - "Contractual liability"
+
+  # Product Liability - 15 year very long tail
+  very_long_tail_15yr:
+    description: "Product liability claims - 15 year development"
+    factors: [0.05, 0.10, 0.15, 0.15, 0.12, 0.10, 0.08, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02, 0.01, 0.01]
+    tail_factor: 0.0
+    typical_claims:
+      - "Product liability"
+      - "Product defect"
+      - "Product recall"
+      - "Mass tort"
+
+  # Custom patterns for specific scenarios
+  cyber_liability_7yr:
+    description: "Cyber liability claims - 7 year development"
+    factors: [0.30, 0.25, 0.15, 0.12, 0.08, 0.06, 0.04]
+    tail_factor: 0.0
+    typical_claims:
+      - "Data breach"
+      - "Cyber attack"
+      - "Business interruption from cyber"
+
+  directors_officers_8yr:
+    description: "D&O liability claims - 8 year development"
+    factors: [0.05, 0.15, 0.25, 0.20, 0.15, 0.10, 0.07, 0.03]
+    tail_factor: 0.0
+    typical_claims:
+      - "Directors & Officers liability"
+      - "Employment practices liability"
+      - "Fiduciary liability"
+
+  environmental_20yr:
+    description: "Environmental liability claims - 20 year development with tail"
+    factors: [0.02, 0.03, 0.05, 0.07, 0.08, 0.08, 0.08, 0.07, 0.07, 0.06,
+              0.06, 0.05, 0.05, 0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01]
+    tail_factor: 0.03  # Additional 3% for years beyond 20
+    typical_claims:
+      - "Environmental cleanup"
+      - "Pollution liability"
+      - "Asbestos claims"
+      - "Chemical exposure"
+
+# Reporting lag assumptions (in months)
+reporting_lags:
+  immediate: 1
+  medium_tail_5yr: 3
+  long_tail_10yr: 6
+  very_long_tail_15yr: 12
+  cyber_liability_7yr: 2
+  directors_officers_8yr: 9
+  environmental_20yr: 24
+
+# Discount rates for present value calculations
+discount_rates:
+  base_rate: 0.03
+  risk_adjusted_rate: 0.05
+  regulatory_rate: 0.025
+
+# IBNR factors by development pattern
+ibnr_factors:
+  immediate: 1.02  # 2% IBNR for property claims
+  medium_tail_5yr: 1.10  # 10% IBNR for workers comp
+  long_tail_10yr: 1.20  # 20% IBNR for general liability
+  very_long_tail_15yr: 1.35  # 35% IBNR for product liability
+  cyber_liability_7yr: 1.15
+  directors_officers_8yr: 1.25
+  environmental_20yr: 1.50  # 50% IBNR for environmental

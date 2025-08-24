@@ -14,7 +14,14 @@ Core Modules
    config
    config_loader
    claim_generator
+   claim_development
+   stochastic_processes
    simulation
+   insurance
+   insurance_program
+   loss_distributions
+   monte_carlo
+   ergodic_analyzer
 
 Complete Package
 ----------------

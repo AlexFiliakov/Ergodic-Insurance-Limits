@@ -433,11 +433,7 @@ Flesh out each task and make tradeoffs favoring implementation speed and simplic
 
 ### Documentation
 
-Update all docstrings in modules, submodules, classes, methods, and functions. Adhere to the Google docstring style.
-
-Set up Sphinx document auto-generation and update sphinx documentation templates for the latest code structure.
-
-Update README.md and CLAUDE.md with the latest directory structures.
+Update all docstrings in modules, submodules, classes, methods, and functions. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the latest code structure and regenerate the docs.
 
 ### Monte Carlo Issue Questions
 
@@ -565,6 +561,8 @@ The project plan is in `simone/00_PLAN.md` and there are 3 sprints planned: `sim
 Create a CLAUDE.md file to direct new instances of Claude with the appropriate information for this project. Include the directory structure and any other relevant information.
 
 ---
+
+work on issue #21 "Implement Claim Development Patterns for Cash Flow Modeling". Ask me clarifying questions, then proceed to resolve the issue.
 
 ## Sprint 04: Insurance Optimization
 
