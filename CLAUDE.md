@@ -26,7 +26,10 @@ Ergodic Insurance Limits/
 │   │   ├── insurance_program.py # Enhanced multi-layer insurance programs
 │   │   ├── loss_distributions.py # Enhanced loss distributions for manufacturing risks
 │   │   ├── monte_carlo.py      # Monte Carlo simulation engine
-│   │   └── ergodic_analyzer.py # Ergodic analysis and optimization tools
+│   │   ├── ergodic_analyzer.py # Ergodic analysis and optimization tools
+│   │   ├── risk_metrics.py     # Risk metrics and analytics
+│   │   ├── convergence.py      # Convergence analysis tools
+│   │   └── visualization.py    # Visualization utilities
 │   ├── tests/                  # Comprehensive test suite (100% coverage)
 │   │   ├── __init__.py
 │   │   ├── conftest.py         # Pytest configuration and fixtures
@@ -41,7 +44,9 @@ Ergodic Insurance Limits/
 │   │   ├── test_simulation.py
 │   │   ├── test_monte_carlo.py
 │   │   ├── test_ergodic_analyzer.py
+│   │   ├── test_risk_metrics.py
 │   │   ├── test_integration.py
+│   │   ├── test_performance.py
 │   │   ├── test_manufacturer_methods.py
 │   │   └── test_setup.py
 │   ├── notebooks/              # Jupyter analysis notebooks
@@ -49,10 +54,15 @@ Ergodic Insurance Limits/
 │   │   ├── 01_basic_manufacturer.ipynb
 │   │   ├── 02_long_term_simulation.ipynb
 │   │   ├── 03_growth_dynamics.ipynb
-│   │   └── 04_ergodic_demo.ipynb
+│   │   ├── 04_ergodic_demo.ipynb
+│   │   ├── 05_risk_metrics.ipynb
+│   │   ├── 06_loss_distributions.ipynb
+│   │   ├── 07_insurance_layers.ipynb
+│   │   └── 08_monte_carlo_analysis.ipynb
 │   ├── examples/               # Example scripts and demos
 │   │   ├── demo_manufacturer.py
 │   │   ├── demo_collateral_management.py
+│   │   ├── demo_claim_development.py
 │   │   └── demo_stochastic.py  # Stochastic vs deterministic comparison
 │   ├── data/                   # Configuration parameters
 │   │   └── parameters/
@@ -71,17 +81,29 @@ Ergodic Insurance Limits/
 │   │   ├── index.rst          # Documentation main page
 │   │   ├── api/               # Auto-generated API documentation
 │   │   │   ├── modules.rst
+│   │   │   ├── src.rst
 │   │   │   ├── manufacturer.rst
 │   │   │   ├── config.rst
-│   │   │   └── *.rst
+│   │   │   ├── claim_generator.rst
+│   │   │   ├── claim_development.rst
+│   │   │   ├── config_loader.rst
+│   │   │   ├── stochastic_processes.rst
+│   │   │   ├── simulation.rst
+│   │   │   ├── insurance.rst
+│   │   │   ├── insurance_program.rst
+│   │   │   ├── loss_distributions.rst
+│   │   │   ├── monte_carlo.rst
+│   │   │   └── ergodic_analyzer.rst
 │   │   ├── getting_started.rst
 │   │   ├── theory.rst
 │   │   ├── examples.rst
 │   │   └── overview.rst
+│   ├── checkpoints/            # Simulation checkpoints for long-running analyses
 │   ├── htmlcov/                # Test coverage reports
 │   ├── pyproject.toml          # Python package configuration
 │   ├── pytest.ini             # Pytest configuration
 │   ├── requirements.txt        # Python dependencies
+│   ├── setup.py               # Package setup script
 │   └── uv.lock                # UV dependency lock file
 ├── simone/                     # TypeScript simulation components & sprint docs
 │   ├── src/                    # TypeScript source
@@ -96,7 +118,6 @@ Ergodic Insurance Limits/
 │   ├── SPRINT_01_FOUNDATION.md # Core financial model sprint
 │   ├── SPRINT_02_ERGODIC_FRAMEWORK.md # Ergodic theory implementation
 │   ├── SPRINT_03_LOSS_MODELING.md # Insurance loss modeling
-│   ├── SPRINT_*_*.md          # Additional sprint documentation
 │   ├── package.json           # Node dependencies
 │   ├── tsconfig.json          # TypeScript config
 │   └── jest.config.js         # Jest test config

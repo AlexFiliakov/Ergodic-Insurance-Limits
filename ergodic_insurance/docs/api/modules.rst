@@ -22,6 +22,9 @@ Core Modules
    loss_distributions
    monte_carlo
    ergodic_analyzer
+   risk_metrics
+   convergence
+   visualization
 
 Complete Package
 ----------------

@@ -100,6 +100,30 @@ src.stochastic\_processes module
    :show-inheritance:
    :undoc-members:
 
+src.risk\_metrics module
+------------------------
+
+.. automodule:: src.risk_metrics
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+src.convergence module
+----------------------
+
+.. automodule:: src.convergence
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+src.visualization module
+------------------------
+
+.. automodule:: src.visualization
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 Module contents
 ---------------
 
