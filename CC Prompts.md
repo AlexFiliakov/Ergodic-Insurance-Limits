@@ -846,3 +846,7 @@ Review the blog post drafted in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SE
 9. Create transition text for Part 2.
 
 ---
+
+Update the corporate assumptions used in the simulation configurations to be similar to the assumptions outlined in `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md`. Make the simulations and the article consistent and reflect reasonable business assumptions.
+
+---

@@ -1,0 +1,51 @@
+# Loss Distribution Configuration for Widget Manufacturing Inc.
+# Aligned with risk landscape from blog draft
+
+# Attritional Losses (High Frequency, Low Severity)
+attritional:
+  # Frequency: Poisson process
+  frequency: 5.0  # λ = 5 claims per year
+
+  # Severity: Log-normal distribution
+  severity:
+    mean: 25_000  # Mean loss amount $25K
+    cv: 1.5       # Coefficient of variation = 1.5
+
+  # Examples: Worker injuries, quality defects, minor property damage
+
+# Large Losses (Medium Frequency, Medium Severity)
+large:
+  # Frequency: Poisson process
+  frequency: 0.5  # λ = 0.5 claims per year (1 every 2 years)
+
+  # Severity: Log-normal distribution
+  severity:
+    mean: 1_500_000  # Mean loss amount $1.5M
+    cv: 2.0          # Coefficient of variation = 2.0
+
+  # Examples: Product recalls, major equipment failures, litigation
+
+# Catastrophic Events (Low Frequency, High Severity)
+catastrophic:
+  # Frequency: Poisson process
+  frequency: 0.02  # λ = 0.02 claims per year (1-in-50 year events)
+
+  # Severity: Pareto distribution for heavy tail
+  severity:
+    type: "pareto"
+    alpha: 1.5      # Shape parameter (heavy tail)
+    minimum: 5_000_000  # Minimum loss $5M
+
+  # Examples: Environmental disasters, systemic product liability, cyber events
+
+# Aggregate Statistics (for reference)
+aggregate:
+  # Expected annual loss calculation:
+  # Attritional: 5 × $25K = $125K
+  # Large: 0.5 × $1.5M = $750K
+  # Catastrophic: 0.02 × E[Pareto] ≈ 0.02 × $15M = $300K
+  # Total Expected Annual Loss ≈ $1.175M (11.75% of initial assets)
+  expected_annual_loss: 1_175_000
+
+  # As percentage of assets
+  loss_ratio: 0.1175
