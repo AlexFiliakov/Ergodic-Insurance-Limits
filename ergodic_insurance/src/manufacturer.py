@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ClaimLiability:
     """Represents an outstanding insurance claim liability.
-    
+
     This class tracks insurance claims that require multi-year payment
     schedules and manages the collateral required to support them.
     """
@@ -43,10 +43,10 @@ class ClaimLiability:
 
     def get_payment(self, years_since_incurred: int) -> float:
         """Calculate payment due for a given year after claim incurred.
-        
+
         Args:
             years_since_incurred: Number of years since the claim was first incurred.
-            
+
         Returns:
             Payment amount due for this year as a percentage of original amount.
         """
@@ -56,10 +56,10 @@ class ClaimLiability:
 
     def make_payment(self, amount: float) -> float:
         """Make a payment against the liability.
-        
+
         Args:
             amount: Requested payment amount.
-            
+
         Returns:
             Actual payment made (may be less than requested if insufficient liability remains).
         """
@@ -70,7 +70,7 @@ class ClaimLiability:
 
 class WidgetManufacturer:
     """Financial model for a widget manufacturing company.
-    
+
     This class models the complete financial operations of a manufacturing
     company including revenue generation, claim processing, collateral
     management, and balance sheet evolution over time.
@@ -114,7 +114,7 @@ class WidgetManufacturer:
     @property
     def net_assets(self) -> float:
         """Calculate net assets (total assets minus restricted assets).
-        
+
         Returns:
             Net assets available to the company.
         """
@@ -123,7 +123,7 @@ class WidgetManufacturer:
     @property
     def available_assets(self) -> float:
         """Calculate available (unrestricted) assets for operations.
-        
+
         Returns:
             Assets available for operational use (not restricted as collateral).
         """
@@ -132,7 +132,7 @@ class WidgetManufacturer:
     @property
     def total_claim_liabilities(self) -> float:
         """Calculate total outstanding claim liabilities.
-        
+
         Returns:
             Sum of all remaining claim liability amounts.
         """
@@ -420,6 +420,64 @@ class WidgetManufacturer:
 
         return metrics
 
+    def _handle_insolvent_step(self, time_resolution: str) -> Dict[str, float]:
+        """Handle a simulation step when the company is already insolvent.
+
+        Args:
+            time_resolution: "annual" or "monthly" for simulation step.
+
+        Returns:
+            Dictionary of metrics for this time step.
+        """
+        logger.warning("Company is already insolvent, skipping step")
+        metrics = self.calculate_metrics()
+        metrics["year"] = self.current_year
+        metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
+        self._increment_time(time_resolution)
+        return metrics
+
+    def _increment_time(self, time_resolution: str) -> None:
+        """Increment the current time based on resolution.
+
+        Args:
+            time_resolution: "annual" or "monthly" for simulation step.
+        """
+        if time_resolution == "monthly":
+            self.current_month += 1
+            if self.current_month >= 12:
+                self.current_month = 0
+                self.current_year += 1
+        else:
+            self.current_year += 1
+
+    def _apply_growth(
+        self, growth_rate: float, time_resolution: str, apply_stochastic: bool
+    ) -> None:
+        """Apply revenue growth by adjusting asset turnover ratio.
+
+        Args:
+            growth_rate: Revenue growth rate for the period.
+            time_resolution: "annual" or "monthly" for simulation step.
+            apply_stochastic: Whether to apply stochastic shocks.
+        """
+        if growth_rate == 0 or not (time_resolution == "annual" or self.current_month == 11):
+            return
+
+        base_growth = 1 + growth_rate
+
+        # Add stochastic component to growth if enabled
+        if apply_stochastic and self.stochastic_process is not None:
+            # Use a separate shock for growth rate
+            growth_shock = self.stochastic_process.generate_shock(1.0)
+            # Combine deterministic and stochastic growth
+            total_growth = base_growth * growth_shock
+            self.asset_turnover_ratio *= total_growth
+            logger.debug(
+                f"Applied growth: {total_growth:.4f} (base={base_growth:.4f}, shock={growth_shock:.4f})"
+            )
+        else:
+            self.asset_turnover_ratio *= base_growth
+
     def step(
         self,
         working_capital_pct: float = 0.2,
@@ -442,19 +500,7 @@ class WidgetManufacturer:
         """
         # Check if already ruined
         if self.is_ruined:
-            logger.warning("Company is already insolvent, skipping step")
-            metrics = self.calculate_metrics()
-            metrics["year"] = self.current_year
-            metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
-            # Still increment time when insolvent
-            if time_resolution == "monthly":
-                self.current_month += 1
-                if self.current_month >= 12:
-                    self.current_month = 0
-                    self.current_year += 1
-            else:
-                self.current_year += 1
-            return metrics
+            return self._handle_insolvent_step(time_resolution)
 
         # Pay scheduled claim liabilities first (annual payments)
         if time_resolution == "annual" or self.current_month == 0:
@@ -481,22 +527,7 @@ class WidgetManufacturer:
         self.update_balance_sheet(net_income, growth_rate)
 
         # Apply revenue growth by adjusting asset turnover ratio
-        if growth_rate != 0 and (time_resolution == "annual" or self.current_month == 11):
-            # Apply base growth rate
-            base_growth = 1 + growth_rate
-
-            # Add stochastic component to growth if enabled
-            if apply_stochastic and self.stochastic_process is not None:
-                # Use a separate shock for growth rate
-                growth_shock = self.stochastic_process.generate_shock(1.0)
-                # Combine deterministic and stochastic growth
-                total_growth = base_growth * growth_shock
-                self.asset_turnover_ratio *= total_growth
-                logger.debug(
-                    f"Applied growth: {total_growth:.4f} (base={base_growth:.4f}, shock={growth_shock:.4f})"
-                )
-            else:
-                self.asset_turnover_ratio *= base_growth
+        self._apply_growth(growth_rate, time_resolution, apply_stochastic)
 
         # Check solvency
         self.check_solvency()
@@ -508,19 +539,13 @@ class WidgetManufacturer:
         self.metrics_history.append(metrics)
 
         # Increment time
-        if time_resolution == "monthly":
-            self.current_month += 1
-            if self.current_month >= 12:
-                self.current_month = 0
-                self.current_year += 1
-        else:
-            self.current_year += 1
+        self._increment_time(time_resolution)
 
         return metrics
 
     def reset(self) -> None:
         """Reset the manufacturer to initial state.
-        
+
         Restores all financial parameters to their initial values and
         clears historical data.
         """
@@ -540,3 +565,27 @@ class WidgetManufacturer:
             self.stochastic_process.reset()
 
         logger.info("Manufacturer reset to initial state")
+
+    def copy(self) -> "WidgetManufacturer":
+        """Create a deep copy of the manufacturer.
+
+        Returns:
+            A new WidgetManufacturer instance with the same configuration
+            but reset to initial state. This is useful for running parallel
+            simulations from the same starting point.
+        """
+        import copy
+
+        # Create a new instance with the same config
+        new_manufacturer = WidgetManufacturer(
+            config=self.config,
+            stochastic_process=copy.deepcopy(self.stochastic_process)
+            if self.stochastic_process
+            else None,
+        )
+
+        # The new manufacturer starts fresh at initial state
+        # No need to copy current state since we want independent simulations
+
+        logger.debug("Created copy of manufacturer")
+        return new_manufacturer
