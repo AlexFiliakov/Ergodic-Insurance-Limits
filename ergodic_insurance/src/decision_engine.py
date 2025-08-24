@@ -11,15 +11,14 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy import optimize
-from scipy.optimize import OptimizeResult, differential_evolution, minimize
-
 from ergodic_insurance.src.config_loader import ConfigLoader
 from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
 from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer as Layer
 from ergodic_insurance.src.insurance_program import InsuranceProgram
 from ergodic_insurance.src.loss_distributions import LossDistribution
 from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from scipy import optimize
+from scipy.optimize import OptimizeResult, differential_evolution, minimize
 
 logger = logging.getLogger(__name__)
 
