@@ -19,6 +19,7 @@ from plotly.subplots import make_subplots
 
 # WSJ Color Palette
 WSJ_COLORS = {
+    "light_blue": "#ADD8E6",  # Light Blue for additional styling
     "blue": "#0080C7",  # Primary blue
     "dark_blue": "#003F5C",  # Dark blue
     "red": "#D32F2F",  # Red for negative/warning
@@ -79,24 +80,32 @@ def set_wsj_style():
     )
 
 
-def format_currency(value: float, decimals: int = 0) -> str:
-    """Format value as currency with appropriate suffix.
+def format_currency(value: float, decimals: int = 0, abbreviate: bool = False) -> str:
+    """Format value as currency.
 
     Args:
         value: Numeric value to format
         decimals: Number of decimal places
+        abbreviate: If True, use K/M/B notation for large numbers
 
     Returns:
-        Formatted string (e.g., "$1.5M", "$750K")
+        Formatted string (e.g., "$1,000" or "$1K" if abbreviate=True)
     """
-    if abs(value) >= 1e9:
-        return f"${value/1e9:.{decimals}f}B"
-    elif abs(value) >= 1e6:
-        return f"${value/1e6:.{decimals}f}M"
-    elif abs(value) >= 1e3:
-        return f"${value/1e3:.{decimals}f}K"
+    if abbreviate:
+        if abs(value) >= 1e9:
+            return f"${value/1e9:.{decimals}f}B"
+        elif abs(value) >= 1e6:
+            return f"${value/1e6:.{decimals}f}M"
+        elif abs(value) >= 1e3:
+            return f"${value/1e3:.{decimals}f}K"
+        else:
+            return f"${value:.{decimals}f}"
     else:
-        return f"${value:.{decimals}f}"
+        # Handle negative values
+        if value < 0:
+            return f"-${abs(value):,.{decimals}f}"
+        else:
+            return f"${value:,.{decimals}f}"
 
 
 def format_percentage(value: float, decimals: int = 1) -> str:
@@ -118,12 +127,66 @@ class WSJFormatter:
     @staticmethod
     def currency_formatter(x, pos):
         """Format axis values as currency."""
-        return format_currency(x, decimals=0)
+        return format_currency(x, decimals=0, abbreviate=True)
+    
+    @staticmethod
+    def currency(x: float, decimals: int = 1) -> str:
+        """Format value as currency (shortened method name)."""
+        sign = "-" if x < 0 else ""
+        x = abs(x)
+        
+        if x >= 1e12:
+            if x == int(x/1e12) * 1e12:  # Whole trillions
+                return f"{sign}${int(x/1e12)}T"
+            else:
+                return f"{sign}${x/1e12:.{decimals}f}T"
+        elif x >= 1e9:
+            if x == int(x/1e9) * 1e9:  # Whole billions
+                return f"{sign}${int(x/1e9)}B"
+            else:
+                return f"{sign}${x/1e9:.{decimals}f}B"
+        elif x >= 1e6:
+            if x == int(x/1e6) * 1e6:  # Whole millions
+                return f"{sign}${int(x/1e6)}M"
+            else:
+                return f"{sign}${x/1e6:.{decimals}f}M"
+        elif x >= 1e3:
+            if x == int(x/1e3) * 1e3:  # Whole thousands
+                return f"{sign}${int(x/1e3)}K"
+            else:
+                return f"{sign}${x/1e3:.{decimals}f}K"
+        else:
+            if x < 1 and x > 0:
+                return f"{sign}${x:.2f}"
+            else:
+                return f"{sign}${int(x)}" if x == int(x) else f"{sign}${x:.{decimals}f}"
 
     @staticmethod
     def percentage_formatter(x, pos):
         """Format axis values as percentage."""
         return format_percentage(x, decimals=0)
+    
+    @staticmethod
+    def percentage(x: float, decimals: int = 1) -> str:
+        """Format value as percentage (shortened method name)."""
+        return f"{x*100:.{decimals}f}%"
+    
+    @staticmethod
+    def number(x: float, decimals: int = 2) -> str:
+        """Format large numbers with appropriate suffix."""
+        if abs(x) >= 1e12:
+            if abs(x) >= 1e15:
+                # Very large numbers - show in trillions with multiplier
+                return f"{int(x/1e12)}T"
+            return f"{x/1e12:.{decimals}f}T"
+        elif abs(x) >= 1e9:
+            return f"{x/1e9:.{decimals}f}B"
+        elif abs(x) >= 1e6:
+            return f"{x/1e6:.{decimals}f}M"
+        elif abs(x) >= 1e3:
+            return f"{x/1e3:.{decimals}f}K"
+        else:
+            return f"{int(x)}" if x == int(x) else f"{x:.{decimals}f}"
 
     @staticmethod
     def millions_formatter(x, pos):
@@ -132,7 +195,7 @@ class WSJFormatter:
 
 
 def plot_loss_distribution(
-    losses: np.ndarray,
+    losses: Union[np.ndarray, pd.DataFrame],
     title: str = "Loss Distribution",
     bins: int = 50,
     show_metrics: bool = True,
@@ -142,7 +205,7 @@ def plot_loss_distribution(
     """Create WSJ-style loss distribution plot.
 
     Args:
-        losses: Array of loss values
+        losses: Array of loss values or DataFrame with 'amount' column
         title: Plot title
         bins: Number of histogram bins
         show_metrics: Whether to show VaR/TVaR lines
@@ -153,6 +216,25 @@ def plot_loss_distribution(
         Matplotlib figure
     """
     set_wsj_style()
+    
+    # Handle DataFrame input
+    if isinstance(losses, pd.DataFrame):
+        if 'amount' in losses.columns:
+            losses = losses['amount'].values
+        else:
+            # Use the first numeric column
+            numeric_cols = losses.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                losses = losses[numeric_cols[0]].values
+            else:
+                raise ValueError("DataFrame must have at least one numeric column")
+    
+    # Convert to numpy array if needed
+    losses = np.asarray(losses)
+    
+    # Check for empty data
+    if len(losses) == 0:
+        raise ValueError("Losses array cannot be empty")
 
     if var_levels is None:
         var_levels = [0.95, 0.99]
@@ -218,8 +300,8 @@ def plot_loss_distribution(
 
 
 def plot_return_period_curve(
-    return_periods: np.ndarray,
-    losses: np.ndarray,
+    losses: Union[np.ndarray, pd.DataFrame],
+    return_periods: Optional[np.ndarray] = None,
     scenarios: Optional[Dict[str, np.ndarray]] = None,
     title: str = "Return Period Curves",
     figsize: Tuple[int, int] = (10, 6),
@@ -227,8 +309,8 @@ def plot_return_period_curve(
     """Create WSJ-style return period curve.
 
     Args:
-        return_periods: Array of return periods (years)
-        losses: Corresponding loss amounts
+        losses: Loss amounts (array or DataFrame)
+        return_periods: Array of return periods (years), optional
         scenarios: Optional dict of scenario names to loss arrays
         title: Plot title
         figsize: Figure size
@@ -237,6 +319,35 @@ def plot_return_period_curve(
         Matplotlib figure
     """
     set_wsj_style()
+    
+    # Handle DataFrame input
+    if isinstance(losses, pd.DataFrame):
+        if 'amount' in losses.columns:
+            losses = losses['amount'].values
+        else:
+            # Use the first numeric column
+            numeric_cols = losses.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                losses = losses[numeric_cols[0]].values
+            else:
+                raise ValueError("DataFrame must have at least one numeric column")
+    
+    # Convert to numpy array if needed
+    losses = np.asarray(losses)
+    
+    # Calculate return periods if not provided
+    if return_periods is None:
+        # Sort losses in descending order
+        sorted_losses = np.sort(losses)[::-1]
+        n = len(sorted_losses)
+        # Calculate empirical return periods
+        return_periods = n / np.arange(1, n + 1)
+        losses = sorted_losses
+    else:
+        # Ensure losses are sorted by return period
+        sort_idx = np.argsort(return_periods)
+        return_periods = return_periods[sort_idx]
+        losses = losses[sort_idx]
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -293,16 +404,17 @@ def plot_return_period_curve(
 
 
 def plot_insurance_layers(
-    layers: List[Dict[str, float]],
-    total_limit: float,
+    layers: Union[List[Dict[str, float]], pd.DataFrame],
+    total_limit: Optional[float] = None,
     title: str = "Insurance Program Structure",
     figsize: Tuple[int, int] = (10, 6),
+    losses: Optional[Union[np.ndarray, pd.DataFrame]] = None,
 ) -> Figure:
     """Create WSJ-style insurance layer visualization.
 
     Args:
-        layers: List of layer dictionaries with 'attachment', 'limit', 'premium'
-        total_limit: Total program limit
+        layers: List of layer dictionaries or DataFrame with 'attachment', 'limit' columns
+        total_limit: Total program limit (calculated from layers if not provided)
         title: Plot title
         figsize: Figure size
 
@@ -310,6 +422,23 @@ def plot_insurance_layers(
         Matplotlib figure
     """
     set_wsj_style()
+    
+    # Handle DataFrame input
+    if isinstance(layers, pd.DataFrame):
+        # Convert DataFrame to list of dicts
+        layer_list = []
+        for _, row in layers.iterrows():
+            layer_dict = {
+                'attachment': row.get('attachment', 0),
+                'limit': row.get('limit', 0),
+                'premium': row.get('premium_rate', row.get('premium', 0))
+            }
+            layer_list.append(layer_dict)
+        layers = layer_list
+    
+    # Calculate total limit if not provided
+    if total_limit is None:
+        total_limit = max(layer['attachment'] + layer['limit'] for layer in layers)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
 
@@ -404,17 +533,34 @@ def plot_insurance_layers(
 
 
 def create_interactive_dashboard(
-    results: Dict[str, Any], title: str = "Monte Carlo Simulation Dashboard"
+    results: Union[Dict[str, Any], pd.DataFrame], 
+    title: str = "Monte Carlo Simulation Dashboard",
+    height: int = 600,
+    show_distributions: bool = False,
 ) -> go.Figure:
     """Create interactive Plotly dashboard with WSJ styling.
 
     Args:
-        results: Dictionary with simulation results
+        results: Dictionary with simulation results or DataFrame
         title: Dashboard title
+        height: Dashboard height in pixels
+        show_distributions: Whether to show distribution plots
 
     Returns:
         Plotly figure
     """
+    # Handle DataFrame input
+    if isinstance(results, pd.DataFrame):
+        # Convert DataFrame to dictionary format expected by dashboard
+        results_dict = {
+            'data': results,
+            'summary': {
+                'mean_assets': results.get('assets', pd.Series()).mean() if 'assets' in results.columns else 0,
+                'mean_losses': results.get('losses', pd.Series()).mean() if 'losses' in results.columns else 0,
+                'years': results['year'].nunique() if 'year' in results.columns else 1,
+            }
+        }
+        results = results_dict
     # Create subplots
     fig = make_subplots(
         rows=2,
@@ -531,7 +677,7 @@ def create_interactive_dashboard(
         fig.update_yaxes(title_text="Amount ($M)", row=2, col=2)
 
     # Update layout
-    fig.update_layout(title_text=title, showlegend=False, height=800, **layout_theme)
+    fig.update_layout(title_text=title, showlegend=False, height=height, **layout_theme)
 
     # Update all axes
     fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor=WSJ_COLORS["light_gray"])
@@ -544,6 +690,8 @@ def plot_convergence_diagnostics(
     convergence_stats: Dict[str, Any],
     title: str = "Convergence Diagnostics",
     figsize: Tuple[int, int] = (12, 8),
+    r_hat_threshold: float = 1.1,
+    show_threshold: bool = False,
 ) -> Figure:
     """Create comprehensive convergence diagnostics plot.
 

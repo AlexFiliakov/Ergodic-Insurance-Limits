@@ -14,11 +14,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from ergodic_insurance.src.convergence import ConvergenceDiagnostics, ConvergenceStats
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.risk_metrics import RiskMetrics
+from .convergence import ConvergenceDiagnostics, ConvergenceStats
+from .insurance_program import InsuranceProgram
+from .loss_distributions import ManufacturingLossGenerator
+from .manufacturer import WidgetManufacturer
+from .risk_metrics import RiskMetrics
 from tqdm import tqdm
 
 
@@ -90,6 +90,7 @@ class SimulationResults:
             f"Years: {self.config.n_years}\n"
             f"Execution Time: {self.execution_time:.2f}s\n"
             f"Ruin Probability: {self.ruin_probability:.2%}\n"
+            f"Mean Final Assets: ${np.mean(self.final_assets):,.0f}\n"
             f"Mean Growth Rate: {np.mean(self.growth_rates):.4f}\n"
             f"VaR(99%): ${self.metrics.get('var_99', 0):,.0f}\n"
             f"TVaR(99%): ${self.metrics.get('tvar_99', 0):,.0f}\n"
