@@ -4,7 +4,7 @@
 
 ## The Actuarial Paradox
 
-Picture this: You're presenting to the board. The CFO has just asked why the company should pay $2.4M in annual premiums for excess coverage when expected losses above attachment are only $600K. You pull up your Monte Carlo simulations, point to the 99.5% VaR, discuss tail dependencies, and watch as eyes glaze over. The CFO persists: "But we're paying four times the expected value. How is that rational?"
+Picture this: You're presenting to the board. The CFO has just asked why the company should pay \$2.4M in annual premiums for excess coverage when expected losses above attachment are only \$600K. You pull up your Monte Carlo simulations, point to the 99.5% VaR, discuss tail dependencies, and watch as eyes glaze over. The CFO persists: "But we're paying four times the expected value. How is that rational?"
 
 Here's the uncomfortable truth every actuary knows but rarely articulates: **We've been answering the wrong question.**
 
@@ -28,9 +28,9 @@ Consider the canonical example that Peters (2019) uses to illustrate the ergodic
 
 The ensemble average favors Option A with its 10% expected return. But trace what actually happens to your wealth over time:
 
-Starting with $100, after 10 coin flips with expected 5 wins and 5 losses:
-- **Option A**: $100 × (1.6)^5 × (0.6)^5 = $100 × 0.995 ≈ $99.50
-- **Option B**: $100 × (1.08)^{10} ≈ $215.89
+Starting with \$100, after 10 coin flips with expected 5 wins and 5 losses:
+- **Option A**: \$100 × (1.6)^5 × (0.6)^5 = \$100 × 0.995 ≈ \$99.50
+- **Option B**: \$100 × (1.08)^{10} ≈ \$215.89
 
 Option A, despite its higher ensemble average, produces wealth decay. The time-average growth rate is actually -0.05% per period. Why? Because in multiplicative systems, losses hurt more than equivalent gains help; a principle every actuary knows intuitively but traditional expected value analysis obscures.
 
@@ -129,13 +129,13 @@ Insurance is optimal when $g_{\text{with insurance}} > g_{\text{no insurance}}$,
 
 Traditional actuarial models treat losses as independent draws from a distribution. But in multiplicative wealth processes, the sequence fundamentally alters outcomes.
 
-Consider two loss sequences with identical aggregate losses of $20M:
+Consider two loss sequences with identical aggregate losses of \$20M:
 - **Sequence A**: \$15M loss in year 1, \$5M loss in year 10
 - **Sequence B**: \$5M loss in year 1, \$15M loss in year 10
 
 For a company starting with $10M assets and 15% annual growth:
 
-**Sequence A**: Company fails immediately (cannot survive $15M loss)
+**Sequence A**: Company fails immediately (cannot survive \$15M loss)
 **Sequence B**: Company survives, growing to ~\$11M by year 10 before the large loss
 
 Same aggregate losses. Completely different outcomes. This path dependency means attachment points must consider not just loss distributions but timing relative to company growth trajectories.
@@ -179,8 +179,8 @@ Our protagonist, **Widget Manufacturing Inc.**, represents the quintessential mi
 
 Widget Manufacturing has carved out a profitable niche in the perpetually stable widget industry. Their financial profile:
 
-- **Assets**: $10M in manufacturing equipment, inventory, and working capital
-- **Revenue**: $12M annually (1.2x asset turnover, healthy for manufacturing)
+- **Assets**: \$10M in manufacturing equipment, inventory, and working capital
+- **Revenue**: \$12M annually (1.2x asset turnover, healthy for manufacturing)
 - **Operating Margin**: 10% EBIT margin (before losses)
 - **Growth Strategy**: Reinvest profits to compound at 12% annually
 - **Balance Sheet**: Conservative 30% equity ratio, no debt
@@ -194,17 +194,17 @@ Widget Manufacturing faces a realistic loss distribution that will resonate with
 
 **Attritional Losses** (High Frequency, Low Severity):
 - Frequency: Poisson with λ = 5 claims/year
-- Severity: Log-normal, mean $25K, CV = 1.5
+- Severity: Log-normal, mean \$25K, CV = 1.5
 - Examples: Worker injuries, quality defects, minor property damage
 
 **Large Losses** (Medium Frequency, Medium Severity):
 - Frequency: Poisson with λ = 0.5 claims/year
-- Severity: Log-normal, mean $1.5M, CV = 2.0
+- Severity: Log-normal, mean \$1.5M, CV = 2.0
 - Examples: Product recalls, major equipment failures, litigation
 
 **Catastrophic Events** (Low Frequency, High Severity):
 - Frequency: Poisson with λ = 0.02 claims/year (1-in-50 year events)
-- Severity: Pareto distribution with α = 1.5, minimum $5M
+- Severity: Pareto distribution with α = 1.5, minimum \$5M
 - Examples: Environmental disasters, systemic product liability, cyber events
 
 Why Pareto for catastrophic losses? The distribution's heavy tail captures the empirical reality that extreme losses follow power laws: the largest loss is often orders of magnitude above the second-largest. This "winner-take-all" dynamic in catastrophes makes traditional mean-variance analysis particularly misleading.
@@ -213,10 +213,10 @@ Why Pareto for catastrophic losses? The distribution's heavy tail captures the e
 
 The insurance market offers Widget Manufacturing a typical commercial program structure:
 
-- **Primary Layer**: $0 - $5M (Working layer with frequent claims)
-- **First Excess**: $5M - $25M (Middle market layer)
-- **Second Excess**: $25M - $100M (High excess layer)
-- **Third Excess**: $100M - $250M (Catastrophic layer)
+- **Primary Layer**: \$0 - \$5M (Working layer with frequent claims)
+- **First Excess**: \$5M - \$25M (Middle market layer)
+- **Second Excess**: \$25M - \$100M (High excess layer)
+- **Third Excess**: \$100M - \$250M (Catastrophic layer)
 
 Premium pricing follows market conventions, chosen somewhat arbitrarily here but will be refined through stochastic modeling in Part 2:
 - Primary: 2.0% rate on line
@@ -244,11 +244,11 @@ This scale ensures statistical significance while capturing tail effects that sh
 
 We'll evaluate multiple insurance strategies across three dimensions:
 
-**Attachment Points**: $1M, $2M, $5M, $10M, $25M
+**Attachment Points**: \$1M, \$2M, \$5M, \$10M, \$25M
 - Lower attachments = higher premium, lower volatility
 - Higher attachments = lower premium, higher tail risk
 
-**Policy Limits**: $10M, $25M, $50M, $100M, $250M, Unlimited
+**Policy Limits**: \$10M, \$25M, \$50M, \$100M, \$250M, Unlimited
 - Higher limits protect against catastrophic scenarios
 - Cost-benefit varies dramatically with company size
 
@@ -276,7 +276,7 @@ The distinction matters. A strategy with terrible loss ratios might produce supe
 As we prepare to unleash our Monte Carlo engine on Widget Manufacturing's ten thousand parallel lives, several questions demand answers:
 
 **Question 1: The Attachment Point Paradox**
-Will lower attachment points (e.g., $1M) with their higher premiums actually produce better long-term growth than higher attachments ($10M+) despite the cost drag? Traditional analysis says no. Ergodic theory suggests otherwise.
+Will lower attachment points (e.g., \$1M) with their higher premiums actually produce better long-term growth than higher attachments (\$10M+) despite the cost drag? Traditional analysis says no. Ergodic theory suggests otherwise.
 
 **Question 2: The Unlimited Limit Dilemma**
 At what point does additional coverage become truly wasteful? Is there a natural limit beyond which premiums destroy more value than volatility reduction creates? WARNING: this may require surface plots.
