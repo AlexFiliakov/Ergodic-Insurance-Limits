@@ -564,6 +564,36 @@ Create a CLAUDE.md file to direct new instances of Claude with the appropriate i
 
 work on issue #21 "Implement Claim Development Patterns for Cash Flow Modeling". Ask me clarifying questions, then proceed to resolve the issue.
 
+---
+
+### Questions RE Issues #23 and #24:
+
+  1. Implementation Order: Should I implement the Monte Carlo engine
+  (#23) first since the notebooks (#24) depend on it? Or would you prefer
+   to work on both simultaneously?
+  2. Existing Notebook: There's already a 05_risk_metrics.ipynb from the
+  previous PR. For issue #24, should I:
+    - Rename the existing one to 06_risk_metrics.ipynb as specified?
+    - Keep it as is and create new notebooks with different numbering?
+    - Integrate the existing notebook content into the new structure?
+  3. Performance vs Completeness: For the Monte Carlo engine, should I
+  prioritize:
+    - Getting a basic working version first, then optimize?
+    - Building with performance optimizations from the start?
+  4. Parallel Processing: The Monte Carlo engine specs mention optional
+  GPU acceleration. Should I:
+    - Focus only on CPU multiprocessing for now?
+    - Include GPU support if CUDA is available?
+  5. Notebook Interactivity: For the interactive notebooks, do you want:
+    - Basic ipywidgets for parameter exploration?
+    - More advanced dashboards with Plotly Dash or Voila?
+
+1. Implement the Monte Carlo engine before building jupyter notebooks.
+2. Keep the current notebooks as-is and create subsequent notebooks 06, 07, and so on, as needed.
+3. Build Monte Carlo with performance optimizations from the start.
+4. Focus on CPU multiprocessing for now.
+5. Basic ipywidgets for parameter explorations, as well as more advanced Plotly Dash elements. Continue to adhere to Wall Street Journal style.
+
 ## Sprint 04: Insurance Optimization
 
 ### Sprint Planning Questions
