@@ -213,9 +213,6 @@ class WidgetManufacturer:
             logger.debug(
                 f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
             )
-            logger.debug(
-                f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
-            )
         return collateral_costs
 
     def calculate_net_income(self, operating_income: float, collateral_costs: float) -> float:
@@ -348,10 +345,6 @@ class WidgetManufacturer:
                         f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
                     )
 
-                    logger.debug(
-                        f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
-                    )
-
         # Remove fully paid claims
         self.claim_liabilities = [c for c in self.claim_liabilities if c.remaining_amount > 0]
 
@@ -442,24 +435,11 @@ class WidgetManufacturer:
         metrics["claim_liabilities"] = self.total_claim_liabilities
         metrics["is_solvent"] = not self.is_ruined
 
-        metrics["assets"] = self.assets
-        metrics["collateral"] = self.collateral
-        metrics["restricted_assets"] = self.restricted_assets
-        metrics["available_assets"] = self.available_assets
-        metrics["equity"] = self.equity
-        metrics["net_assets"] = self.net_assets
-        metrics["claim_liabilities"] = self.total_claim_liabilities
-        metrics["is_solvent"] = not self.is_ruined
-
         # Calculate operating metrics for current state
         revenue = self.calculate_revenue()
         operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs()
         net_income = self.calculate_net_income(operating_income, collateral_costs)
-
-        metrics["revenue"] = revenue
-        metrics["operating_income"] = operating_income
-        metrics["net_income"] = net_income
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income

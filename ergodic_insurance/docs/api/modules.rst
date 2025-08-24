@@ -24,6 +24,7 @@ Core Modules
    ergodic_analyzer
    risk_metrics
    convergence
+   decision_engine
    visualization
 
 Complete Package
