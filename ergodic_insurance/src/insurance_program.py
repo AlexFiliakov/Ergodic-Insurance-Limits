@@ -283,7 +283,7 @@ class InsuranceProgram:
             }
 
         self.total_claims += 1
-        result = {
+        result: Dict[str, Any] = {
             "total_claim": claim_amount,
             "deductible_paid": min(claim_amount, self.deductible),
             "insurance_recovery": 0.0,
@@ -341,9 +341,9 @@ class InsuranceProgram:
         """
         if claim_times is None:
             # Assume uniform distribution through year
-            claim_times = np.linspace(0, 1, len(claims)) if claims else []
+            claim_times = list(np.linspace(0, 1, len(claims))) if claims else []
 
-        results = {
+        results: Dict[str, Any] = {
             "total_claims": len(claims),
             "total_losses": sum(claims),
             "total_deductible": 0.0,
@@ -394,7 +394,7 @@ class InsuranceProgram:
             state.reset()
         self.total_claims = 0
 
-    def get_program_summary(self) -> Dict[str, any]:
+    def get_program_summary(self) -> Dict[str, Any]:
         """Get current program state summary.
 
         Returns:

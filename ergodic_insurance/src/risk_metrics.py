@@ -6,7 +6,7 @@ decisions.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,7 +23,7 @@ class RiskMetricsResult:
     value: float
     confidence_level: Optional[float] = None
     confidence_interval: Optional[Tuple[float, float]] = None
-    metadata: Optional[Dict[str, any]] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class RiskMetrics:
@@ -493,7 +493,7 @@ class RiskMetrics:
         self,
         bins: int = 50,
         show_metrics: bool = True,
-        confidence_levels: List[float] = None,
+        confidence_levels: Optional[List[float]] = None,
         figsize: Tuple[int, int] = (12, 8),
     ) -> plt.Figure:
         """Plot loss distribution with risk metrics overlay.
@@ -610,7 +610,7 @@ class RiskMetrics:
 
 def compare_risk_metrics(
     scenarios: Dict[str, np.ndarray],
-    confidence_levels: List[float] = None,
+    confidence_levels: Optional[List[float]] = None,
 ) -> pd.DataFrame:
     """Compare risk metrics across multiple scenarios.
 

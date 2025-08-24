@@ -474,6 +474,35 @@ prepare to work on issue #10 "Integration Testing and Demo Notebook". First ask 
 
 ---
 
+### Monte Carlo Issue Questions
+
+  1. Dependencies: The requirements don't currently include joblib, tqdm,
+   or pyarrow (for Parquet support). Should I add these as new
+  dependencies?
+  2. Existing simulation.py: There's already a simulation.py file with a
+  basic simulation engine. Should I:
+    - Rename the existing one to something else (e.g.,
+  single_simulation.py)
+    - Integrate the Monte Carlo engine into the existing file
+    - Create a new file with a different name for the Monte Carlo
+  orchestrator?
+  3. Output location: Where should the Parquet checkpoint files be saved?
+   Should I use the existing outputs directory or create a new structure?
+  4. Statistics to track: Besides mean, std, and percentiles, are there
+  specific ergodic metrics (like time-average growth rate) that should be
+   calculated during streaming?
+  5. Insurance configuration: Should the Monte Carlo engine use the new
+  InsurancePolicy class from the previous issue, or keep it simple for
+  now?
+
+### Monte Carlo Issue Responses
+
+1. Add new dependencies as needed.
+2. Try to extend the current simulation.py file if possible, otherwise integrate Monte Carlo engine into the existing file and update legacy tests accordingly.
+3. You can create a new directory for Parquet checkpoint files and probably exclude it from Git tracking.
+4. You can track the time-average growth rate and any other sensible ergodic metrics.
+5. Use InsurancePolicy class for Monte Carlo.
+
 ## Sprint 03: Loss Modeling
 
 Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Modeling" to be located in the file `\simone\SPRINT_03_LOSS_MODELING.md`.
@@ -564,12 +593,88 @@ Create a CLAUDE.md file to direct new instances of Claude with the appropriate i
 
 work on issue #21 "Implement Claim Development Patterns for Cash Flow Modeling". Ask me clarifying questions, then proceed to resolve the issue.
 
+---
+
+### Questions RE Issues #23 and #24:
+
+  1. Implementation Order: Should I implement the Monte Carlo engine
+  (#23) first since the notebooks (#24) depend on it? Or would you prefer
+   to work on both simultaneously?
+  2. Existing Notebook: There's already a 05_risk_metrics.ipynb from the
+  previous PR. For issue #24, should I:
+    - Rename the existing one to 06_risk_metrics.ipynb as specified?
+    - Keep it as is and create new notebooks with different numbering?
+    - Integrate the existing notebook content into the new structure?
+  3. Performance vs Completeness: For the Monte Carlo engine, should I
+  prioritize:
+    - Getting a basic working version first, then optimize?
+    - Building with performance optimizations from the start?
+  4. Parallel Processing: The Monte Carlo engine specs mention optional
+  GPU acceleration. Should I:
+    - Focus only on CPU multiprocessing for now?
+    - Include GPU support if CUDA is available?
+  5. Notebook Interactivity: For the interactive notebooks, do you want:
+    - Basic ipywidgets for parameter exploration?
+    - More advanced dashboards with Plotly Dash or Voila?
+
+1. Implement the Monte Carlo engine before building jupyter notebooks.
+2. Keep the current notebooks as-is and create subsequent notebooks 06, 07, and so on, as needed.
+3. Build Monte Carlo with performance optimizations from the start.
+4. Focus on CPU multiprocessing for now.
+5. Basic ipywidgets for parameter explorations, as well as more advanced Plotly Dash elements. Continue to adhere to Wall Street Journal style.
+
 ## Sprint 04: Insurance Optimization
+
+Ask me clarifying questions then draft the sprint plan for "Sprint 04: Insurance Optimization" to be located in the file `\simone\SPRINT_04_INSURANCE_OPTIMIZATION.md` based on the project roadmap outlined in `\simone\00_PLAN.md` for the corresponding "Phase 4: Insurance Optimization".
 
 ### Sprint Planning Questions
 
+  1. Current Implementation Status: I can see that many modules are
+  already implemented (including insurance.py and insurance_program.py).
+  Should Sprint 04 focus on:
+    - Enhancing the existing insurance modules?
+    - Building optimization algorithms on top of existing infrastructure?
+    - Or completing missing functionality in the current modules?
+  2. Optimization Scope: Phase 4 mentions several optimization areas:
+    - Multi-layer insurance structure optimization
+    - Premium pricing model refinement
+    - Attachment point and layer width optimization
+    - Should all of these be included, or should we prioritize specific
+  aspects?
+  3. Integration Dependencies: Should Sprint 04 assume that:
+    - The loss modeling from Sprint 03 is fully complete?
+    - The ergodic framework from Sprint 02 is integrated and working?
+    - Or should the sprint include integration work for these
+  dependencies?
+  4. Performance Requirements: The plan mentions different premium rates
+  by layer (Primary: 0.5-1.5%, First excess: 0.3-0.8%, etc.). Should
+  Sprint 04:
+    - Implement these as fixed rates?
+    - Build dynamic pricing models that calculate these rates?
+    - Focus on optimization algorithms that can find optimal rates?
+  5. Deliverable Format: Would you prefer the sprint to focus more on:
+    - Algorithm implementation and optimization engine?
+    - User-facing tools and interfaces?
+    - Research notebooks demonstrating optimization results?
+    - All of the above in a balanced approach?
+
 ### Sprint Planning Responses
 
+1. Focus on enhancing existing modules and completing missing functionality in the current modules. Do not optimize yet.
+2. I think the optimization in this phase is around procedures to optimize corporate benefits of insurance, not necessarily to optimize the technical implementation of the insurance. So all the things you mentioned make sense, but in the context of business outcome optimization:
+   - Multi-layer insurance structure optimization
+   - Premium pricing model refinement
+   - Attachment point and layer width optimization
+3. You can make sure loss modeling and ergodic frameworks integrate well together.
+4. Implement premium rates as fixed alternative scenarios, something like "inexpensive", "baseline", "expensive".
+5. I'd like to prioritize the following:
+   - Algorithmic optimization of insurance purchasing decisions given the scenario inputs
+   - Focus on structuring optimal insurance layers for the company
+   - Research notebooks analyzing the results
+
+### Creating Issues
+
+create issues from the sprint 04 spec outlined in `SPRINT_04_INSURANCE_OPTIMIZATION.md`. Fill in any implementation details to make implementation simple, balancing implementation simplicity with algorithmic validity.
 
 ## Sprint 05: Constrained Optimization
 
