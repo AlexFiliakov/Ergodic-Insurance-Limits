@@ -1,496 +1,375 @@
-"""Unit tests for Monte Carlo simulation engine.
+"""Tests for Monte Carlo simulation engine."""
 
-This module contains comprehensive tests for the memory-efficient
-Monte Carlo engine including batch processing, parallelization,
-checkpointing, and streaming statistics.
-"""
-
-import os
+import shutil
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import numpy as np
-import pandas as pd
 import pytest
-from ergodic_insurance.src.config import Config, ManufacturerConfig
-from ergodic_insurance.src.config_loader import load_config
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
-from ergodic_insurance.src.monte_carlo import (
-    MonteCarloCheckpoint,
-    MonteCarloEngine,
-    StreamingStatistics,
-    run_single_scenario,
-)
-from ergodic_insurance.src.simulation import Simulation
+from ergodic_insurance.src.config import ManufacturerConfig
+from ergodic_insurance.src.convergence import ConvergenceStats
+from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
 
 
-class TestStreamingStatistics:
-    """Test suite for streaming statistics calculator."""
+class TestSimulationConfig:
+    """Test SimulationConfig dataclass."""
 
-    def test_initialization(self):
-        """Test StreamingStatistics initialization."""
-        stats = StreamingStatistics()
-        assert stats.count == 0
-        assert stats.mean == 0.0
-        assert stats.m2 == 0.0
-        assert stats.min_val == float("inf")
-        assert stats.max_val == float("-inf")
-        assert stats.survival_count == 0
+    def test_default_config(self):
+        """Test default configuration values."""
+        config = SimulationConfig()
+        assert config.n_simulations == 100_000
+        assert config.n_years == 10
+        assert config.n_chains == 4
+        assert config.parallel is True
+        assert config.use_float32 is True
+        assert config.cache_results is True
+        assert config.progress_bar is True
 
-    def test_single_update(self):
-        """Test updating with single value."""
-        stats = StreamingStatistics()
-        stats.update(10.0, survived=True)
-
-        assert stats.count == 1
-        assert stats.mean == 10.0
-        assert stats.min_val == 10.0
-        assert stats.max_val == 10.0
-        assert stats.survival_count == 1
-
-    def test_multiple_updates(self):
-        """Test updating with multiple values."""
-        stats = StreamingStatistics()
-        values = [10.0, 20.0, 30.0, 40.0, 50.0]
-
-        for val in values:
-            stats.update(val, survived=True)
-
-        assert stats.count == 5
-        assert stats.mean == 30.0
-        assert stats.min_val == 10.0
-        assert stats.max_val == 50.0
-        assert stats.survival_count == 5
-        assert stats.std == pytest.approx(15.811, rel=1e-3)
-
-    def test_geometric_mean(self):
-        """Test geometric mean calculation."""
-        stats = StreamingStatistics()
-        values = [1.1, 1.2, 1.15, 1.05]  # Growth rates
-
-        for val in values:
-            stats.update(val, survived=True)
-
-        expected_geo_mean = np.exp(np.mean(np.log(values)))
-        assert stats.geometric_mean == pytest.approx(expected_geo_mean)
-
-    def test_survival_rate(self):
-        """Test survival rate calculation."""
-        stats = StreamingStatistics()
-
-        # 3 survived, 2 failed
-        stats.update(100, survived=True)
-        stats.update(150, survived=True)
-        stats.update(0, survived=False)
-        stats.update(200, survived=True)
-        stats.update(0, survived=False)
-
-        assert stats.survival_rate == 0.6
-
-    def test_percentiles(self):
-        """Test percentile calculation from reservoir."""
-        stats = StreamingStatistics()
-        np.random.seed(42)
-
-        # Add 100 values
-        values = np.random.normal(100, 20, 100)
-        for val in values:
-            stats.update(val, survived=True)
-
-        # Check percentiles are reasonable
-        assert 80 < stats.percentile(25) < 95
-        assert 95 < stats.percentile(50) < 105
-        assert 105 < stats.percentile(75) < 120
-
-    def test_to_dict(self):
-        """Test conversion to dictionary."""
-        stats = StreamingStatistics()
-        stats.update(10.0, survived=True)
-        stats.update(20.0, survived=True)
-
-        result = stats.to_dict()
-        assert "count" in result
-        assert "mean" in result
-        assert "std" in result
-        assert "geometric_mean" in result
-        assert "survival_rate" in result
-        assert result["count"] == 2
-        assert result["mean"] == 15.0
+    def test_custom_config(self):
+        """Test custom configuration."""
+        config = SimulationConfig(n_simulations=50_000, n_years=5, parallel=False, seed=42)
+        assert config.n_simulations == 50_000
+        assert config.n_years == 5
+        assert config.parallel is False
+        assert config.seed == 42
 
 
-class TestMonteCarloCheckpoint:
-    """Test suite for checkpoint functionality."""
+class TestSimulationResults:
+    """Test SimulationResults dataclass."""
 
-    def test_checkpoint_save_load(self, tmp_path):
-        """Test saving and loading checkpoints."""
-        # Create checkpoint
-        stats = {"metric1": StreamingStatistics(), "metric2": StreamingStatistics()}
-        stats["metric1"].update(10.0)
-        stats["metric2"].update(20.0)
-
-        checkpoint = MonteCarloCheckpoint(
-            scenario_start=0, scenario_end=100, statistics=stats, timestamp=12345.0
+    def test_results_summary(self):
+        """Test results summary generation."""
+        config = SimulationConfig(n_simulations=1000, n_years=5)
+        results = SimulationResults(
+            final_assets=np.array([100_000, 150_000, 80_000]),
+            annual_losses=np.zeros((3, 5)),
+            insurance_recoveries=np.zeros((3, 5)),
+            retained_losses=np.zeros((3, 5)),
+            growth_rates=np.array([0.05, 0.08, -0.02]),
+            ruin_probability=0.1,
+            metrics={"var_99": 1_000_000, "tvar_99": 1_500_000},
+            convergence={"growth_rate": ConvergenceStats(1.02, 1000, 0.01, True, 1000, 0.1)},
+            execution_time=10.5,
+            config=config,
         )
 
-        # Save checkpoint
-        checkpoint_path = tmp_path / "test_checkpoint.parquet"
-        checkpoint.save(checkpoint_path)
-
-        assert checkpoint_path.exists()
-
-        # Load checkpoint
-        loaded = MonteCarloCheckpoint.load(checkpoint_path)
-
-        assert loaded.scenario_start == 0
-        assert loaded.scenario_end == 100
-        assert loaded.timestamp == 12345.0
-        assert "metric1" in loaded.statistics
-        assert "metric2" in loaded.statistics
-
-
-class TestRunSingleScenario:
-    """Test suite for single scenario execution."""
-
-    @pytest.fixture
-    def test_config(self):
-        """Create test configuration."""
-        return Config(
-            manufacturer=ManufacturerConfig(
-                initial_assets=10_000_000,
-                asset_turnover_ratio=1.0,
-                operating_margin=0.08,
-                tax_rate=0.25,
-                retention_ratio=1.0,
-            ),
-            **{
-                "working_capital": {"percent_of_sales": 0.2},
-                "growth": {"type": "deterministic", "annual_growth_rate": 0.05, "volatility": 0.0},
-                "debt": {
-                    "interest_rate": 0.015,
-                    "max_leverage_ratio": 2.0,
-                    "minimum_cash_balance": 100_000,
-                },
-                "simulation": {
-                    "time_resolution": "annual",
-                    "time_horizon_years": 10,
-                    "max_horizon_years": 1000,
-                    "random_seed": 42,
-                },
-                "output": {
-                    "output_directory": "outputs",
-                    "file_format": "csv",
-                    "checkpoint_frequency": 10,
-                    "detailed_metrics": True,
-                },
-                "logging": {
-                    "enabled": False,
-                    "level": "INFO",
-                    "log_file": None,
-                    "console_output": False,
-                    "format": "%(message)s",
-                },
-            },
-        )
-
-    @pytest.fixture
-    def test_policy(self):
-        """Create test insurance policy."""
-        layers = [
-            InsuranceLayer(attachment_point=500_000, limit=4_500_000, rate=0.015),
-            InsuranceLayer(attachment_point=5_000_000, limit=20_000_000, rate=0.008),
-        ]
-        return InsurancePolicy(layers=layers, deductible=500_000)
-
-    def test_run_single_scenario_basic(self, test_config, test_policy):
-        """Test running a single scenario."""
-        result = run_single_scenario(
-            scenario_id=0,
-            config=test_config,
-            insurance_policy=test_policy,
-            time_horizon=10,
-            seed=42,
-        )
-
-        assert "scenario_id" in result
-        assert "survived" in result
-        assert "final_equity" in result
-        assert "geometric_return" in result
-        assert result["scenario_id"] == 0
-
-    def test_run_single_scenario_with_seed(self, test_config, test_policy):
-        """Test scenario reproducibility with seed."""
-        result1 = run_single_scenario(
-            scenario_id=0,
-            config=test_config,
-            insurance_policy=test_policy,
-            time_horizon=10,
-            seed=42,
-        )
-
-        result2 = run_single_scenario(
-            scenario_id=0,
-            config=test_config,
-            insurance_policy=test_policy,
-            time_horizon=10,
-            seed=42,
-        )
-
-        # Results should be identical with same seed
-        assert result1["final_equity"] == result2["final_equity"]
-        assert result1["geometric_return"] == result2["geometric_return"]
+        summary = results.summary()
+        assert "Simulations: 1,000" in summary
+        assert "Years: 5" in summary
+        assert "Execution Time: 10.50s" in summary
+        assert "Ruin Probability: 10.00%" in summary
+        assert "Mean Growth Rate: 0.0367" in summary
+        assert "VaR(99%): $1,000,000" in summary
+        assert "TVaR(99%): $1,500,000" in summary
+        assert "Convergence R-hat: 1.020" in summary
 
 
 class TestMonteCarloEngine:
-    """Test suite for Monte Carlo engine."""
+    """Test Monte Carlo simulation engine."""
 
     @pytest.fixture
-    def test_config(self):
-        """Create test configuration."""
-        return load_config("baseline")
+    def setup_engine(self):
+        """Set up test engine with mocked components."""
+        # Create mock loss generator
+        loss_generator = Mock(spec=ManufacturingLossGenerator)
+        loss_generator.generate_losses.return_value = ([], {"total_amount": 100_000})
 
-    @pytest.fixture
-    def test_policy(self):
-        """Create test insurance policy."""
-        layers = [InsuranceLayer(attachment_point=500_000, limit=4_500_000, rate=0.015)]
-        return InsurancePolicy(layers=layers, deductible=500_000)
+        # Create insurance program
+        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=0.02)
+        insurance_program = InsuranceProgram(layers=[layer])
 
-    def test_engine_initialization(self, test_config, test_policy, tmp_path):
-        """Test Monte Carlo engine initialization."""
-        engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=100,
-            batch_size=10,
-            n_jobs=2,
-            checkpoint_dir=tmp_path,
+        # Create manufacturer
+        manufacturer_config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.8,
+        )
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        # Create config with small values for testing
+        config = SimulationConfig(
+            n_simulations=100,
+            n_years=2,
+            parallel=False,
+            cache_results=False,
+            progress_bar=False,
             seed=42,
         )
 
-        assert engine.n_scenarios == 100
-        assert engine.batch_size == 10
-        assert engine.n_jobs == 2
-        assert engine.checkpoint_dir == tmp_path
-
-    def test_run_batch(self, test_config, test_policy, tmp_path):
-        """Test running a batch of scenarios."""
+        # Create engine
         engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            batch_size=5,
-            n_jobs=2,
-            checkpoint_dir=tmp_path,
-            seed=42,
+            loss_generator=loss_generator,
+            insurance_program=insurance_program,
+            manufacturer=manufacturer,
+            config=config,
         )
 
-        results = engine.run_batch(0, 5)
+        return engine, loss_generator, insurance_program, manufacturer
 
-        assert len(results) == 5
-        assert all("scenario_id" in r for r in results)
-        assert all("survived" in r for r in results)
+    def test_engine_initialization(self, setup_engine):
+        """Test engine initialization."""
+        engine, _, _, _ = setup_engine
 
-    def test_update_statistics(self, test_config, test_policy, tmp_path):
-        """Test updating streaming statistics."""
-        engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            batch_size=5,
-            n_jobs=2,
-            checkpoint_dir=tmp_path,
-        )
+        assert engine.config.n_simulations == 100
+        assert engine.config.n_years == 2
+        assert engine.convergence_diagnostics is not None
 
-        # Create mock results
-        results = [
-            {
-                "survived": True,
-                "final_equity": 15_000_000,
-                "final_assets": 15_000_000,
-                "geometric_return": 0.05,
-                "arithmetic_return": 0.06,
-                "years_survived": 10,
-            },
-            {
-                "survived": False,
-                "final_equity": 0,
-                "final_assets": 0,
-                "geometric_return": -0.1,
-                "arithmetic_return": -0.08,
-                "years_survived": 5,
-            },
-        ]
+    def test_sequential_run(self, setup_engine):
+        """Test sequential simulation run."""
+        engine, loss_generator, _, _ = setup_engine
 
-        engine.update_statistics(results)
+        # Mock loss events
+        from ergodic_insurance.src.loss_distributions import LossEvent
 
-        assert engine.statistics["final_equity"].count == 2
-        assert engine.statistics["final_equity"].survival_count == 1
-
-    def test_checkpoint_save_load(self, test_config, test_policy, tmp_path):
-        """Test checkpoint saving and loading."""
-        engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            checkpoint_dir=tmp_path,
-        )
-
-        # Update some statistics
-        results = [
-            {
-                "survived": True,
-                "final_equity": 15_000_000,
-                "final_assets": 15_000_000,
-                "geometric_return": 0.05,
-                "arithmetic_return": 0.06,
-                "years_survived": 10,
-            }
-        ]
-        engine.update_statistics(results)
-
-        # Save checkpoint
-        checkpoint_path = engine.save_checkpoint(5)
-        assert checkpoint_path.exists()
-
-        # Create new engine and load checkpoint
-        new_engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            checkpoint_dir=tmp_path,
-        )
-
-        loaded_scenarios = new_engine.load_checkpoint(checkpoint_path)
-        assert loaded_scenarios == 5
-        assert new_engine.statistics["final_equity"].count == 1
-
-    def test_find_latest_checkpoint(self, test_config, test_policy, tmp_path):
-        """Test finding the latest checkpoint."""
-        engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            checkpoint_dir=tmp_path,
-        )
-
-        # Save multiple checkpoints
-        engine.save_checkpoint(100)
-        engine.save_checkpoint(200)
-        engine.save_checkpoint(150)
-
-        latest = engine.find_latest_checkpoint()
-        assert latest is not None
-        assert "checkpoint_000200" in str(latest)
-
-    @pytest.mark.slow
-    def test_run_small_simulation(self, test_config, test_policy, tmp_path):
-        """Test running a small Monte Carlo simulation."""
-        engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=20,
-            batch_size=5,
-            n_jobs=2,
-            checkpoint_dir=tmp_path,
-            checkpoint_frequency=10,
-            seed=42,
-        )
-
-        results = engine.run(resume=False)
-
-        assert results["n_scenarios"] == 20
-        assert "statistics" in results
-        assert "final_equity" in results["statistics"]
-        assert results["statistics"]["final_equity"]["count"] == 20
-
-    def test_results_dataframe(self, test_config, test_policy, tmp_path):
-        """Test loading results as DataFrame."""
-        engine = MonteCarloEngine(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            batch_size=10,
-            n_jobs=2,
-            checkpoint_dir=tmp_path,
-            checkpoint_frequency=10,
-            seed=42,
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
         )
 
         # Run simulation
-        engine.run(resume=False)
+        results = engine.run()
 
-        # Get results DataFrame
-        df = engine.get_results_dataframe()
-        assert isinstance(df, pd.DataFrame)
-        assert len(df) == 10
-        assert "scenario_id" in df.columns
-        assert "survived" in df.columns
+        assert results is not None
+        assert len(results.final_assets) == 100
+        assert results.annual_losses.shape == (100, 2)
+        assert results.insurance_recoveries.shape == (100, 2)
+        assert results.retained_losses.shape == (100, 2)
+        assert 0 <= results.ruin_probability <= 1
+        assert results.execution_time > 0
 
+    def test_parallel_run(self, setup_engine):
+        """Test parallel simulation run."""
+        engine, loss_generator, _, _ = setup_engine
 
-class TestSimulationIntegration:
-    """Test Monte Carlo integration with Simulation class."""
+        # Configure for parallel execution
+        engine.config.n_simulations = 10_000
+        engine.config.parallel = True
+        engine.config.n_workers = 2
+        engine.config.chunk_size = 5_000
 
-    @pytest.fixture
-    def test_config(self):
-        """Create test configuration."""
-        return load_config("baseline")
+        # Mock loss events
+        from ergodic_insurance.src.loss_distributions import LossEvent
 
-    @pytest.fixture
-    def test_policy(self):
-        """Create test insurance policy."""
-        return InsurancePolicy.from_yaml(
-            str(Path(__file__).parent.parent / "data" / "parameters" / "insurance.yaml")
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
         )
 
-    @pytest.mark.slow
-    def test_run_monte_carlo_class_method(self, test_config, test_policy, tmp_path):
-        """Test running Monte Carlo via Simulation class method."""
-        results = Simulation.run_monte_carlo(
-            config=test_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            batch_size=5,
-            n_jobs=2,
-            checkpoint_dir=tmp_path,
-            seed=42,
-            resume=False,
+        # Mock parallel execution to avoid multiprocessing in tests
+        with patch.object(engine, "_run_parallel", return_value=engine._run_sequential()):
+            results = engine.run()
+
+        assert results is not None
+        assert len(results.final_assets) == 10_000
+
+    def test_growth_rate_calculation(self, setup_engine):
+        """Test growth rate calculation."""
+        engine, _, _, _ = setup_engine
+
+        # Test with positive final assets
+        final_assets = np.array([15_000_000, 8_000_000, 12_000_000])
+        engine.config.n_years = 5
+        growth_rates = engine._calculate_growth_rates(final_assets)
+
+        assert len(growth_rates) == 3
+        assert growth_rates[0] > 0  # Growth
+        assert growth_rates[1] < 0  # Decline
+
+        # Test with zero/negative final assets
+        final_assets = np.array([0, -1_000_000, 15_000_000])
+        growth_rates = engine._calculate_growth_rates(final_assets)
+
+        assert growth_rates[0] == 0  # Zero for ruin
+        assert growth_rates[1] == 0  # Zero for negative
+        assert growth_rates[2] > 0  # Positive for growth
+
+    def test_metrics_calculation(self, setup_engine):
+        """Test risk metrics calculation."""
+        engine, _, _, _ = setup_engine
+
+        # Create mock results
+        results = SimulationResults(
+            final_assets=np.random.normal(10_000_000, 2_000_000, 1000),
+            annual_losses=np.random.exponential(100_000, (1000, 5)),
+            insurance_recoveries=np.random.exponential(50_000, (1000, 5)),
+            retained_losses=np.random.exponential(50_000, (1000, 5)),
+            growth_rates=np.random.normal(0.05, 0.02, 1000),
+            ruin_probability=0.05,
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=engine.config,
         )
 
-        assert "statistics" in results
-        assert "ergodic_analysis" in results
-        assert results["n_scenarios"] == 10
+        # Calculate metrics
+        metrics = engine._calculate_metrics(results)
 
-    @pytest.mark.slow
-    def test_compare_insurance_strategies(self, test_config, tmp_path):
-        """Test comparing multiple insurance strategies."""
-        # Create different policies
-        policies = {
-            "Low Coverage": InsurancePolicy(
-                layers=[InsuranceLayer(attachment_point=1_000_000, limit=4_000_000, rate=0.01)],
-                deductible=1_000_000,
-            ),
-            "Medium Coverage": InsurancePolicy(
-                layers=[InsuranceLayer(attachment_point=500_000, limit=9_500_000, rate=0.015)],
-                deductible=500_000,
-            ),
-            "High Coverage": InsurancePolicy(
-                layers=[
-                    InsuranceLayer(attachment_point=250_000, limit=4_750_000, rate=0.02),
-                    InsuranceLayer(attachment_point=5_000_000, limit=20_000_000, rate=0.01),
-                ],
-                deductible=250_000,
-            ),
-        }
+        assert "mean_loss" in metrics
+        assert "var_99" in metrics
+        assert "tvar_99" in metrics
+        assert "mean_growth_rate" in metrics
+        assert "sharpe_ratio" in metrics
+        assert metrics["var_99"] > metrics["var_95"]
+        assert metrics["tvar_99"] > metrics["var_99"]
 
-        comparison = Simulation.compare_insurance_strategies(
-            config=test_config,
-            insurance_policies=policies,
-            n_scenarios=10,
-            n_jobs=2,
-            seed=42,
+    def test_convergence_check(self, setup_engine):
+        """Test convergence checking."""
+        engine, _, _, _ = setup_engine
+
+        # Create results with enough data for convergence check
+        n_sims = 1000
+        results = SimulationResults(
+            final_assets=np.random.normal(10_000_000, 2_000_000, n_sims),
+            annual_losses=np.random.exponential(100_000, (n_sims, 5)),
+            insurance_recoveries=np.random.exponential(50_000, (n_sims, 5)),
+            retained_losses=np.random.exponential(50_000, (n_sims, 5)),
+            growth_rates=np.random.normal(0.05, 0.02, n_sims),
+            ruin_probability=0.05,
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=engine.config,
         )
 
-        assert isinstance(comparison, pd.DataFrame)
-        assert len(comparison) == 3
-        assert "survival_rate" in comparison.columns
-        assert "geometric_return" in comparison.columns
-        assert "annual_premium" in comparison.columns
+        # Check convergence
+        convergence = engine._check_convergence(results)
+
+        if convergence:  # May be empty if not enough chains
+            assert "growth_rate" in convergence
+            assert isinstance(convergence["growth_rate"], ConvergenceStats)
+            assert convergence["growth_rate"].r_hat >= 0
+
+    def test_caching(self, setup_engine):
+        """Test result caching."""
+        engine, loss_generator, _, _ = setup_engine
+
+        # Create temporary cache directory
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine.cache_dir = Path(tmpdir) / "cache"
+            engine.cache_dir.mkdir(parents=True)
+            engine.config.cache_results = True
+
+            # Mock loss events
+            from ergodic_insurance.src.loss_distributions import LossEvent
+
+            loss_generator.generate_losses.return_value = (
+                [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+                {"total_amount": 50_000},
+            )
+
+            # First run - should cache
+            results1 = engine.run()
+
+            # Second run - should load from cache
+            with patch.object(engine, "_run_sequential") as mock_run:
+                results2 = engine.run()
+                mock_run.assert_not_called()  # Should not run simulation
+
+            # Results should be identical
+            assert np.array_equal(results1.final_assets, results2.final_assets)
+
+    def test_convergence_monitoring(self, setup_engine):
+        """Test convergence monitoring."""
+        engine, loss_generator, _, _ = setup_engine
+
+        # Mock loss events
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
+        )
+
+        # Run with convergence monitoring
+        engine.config.n_simulations = 100
+        results = engine.run_with_convergence_monitoring(
+            target_r_hat=1.1, check_interval=50, max_iterations=200
+        )
+
+        assert results is not None
+        assert len(results.final_assets) >= 50  # At least one batch
+
+    def test_single_simulation(self, setup_engine):
+        """Test single simulation path."""
+        engine, loss_generator, _, manufacturer = setup_engine
+
+        # Mock loss events
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
+        )
+
+        # Run single simulation
+        sim_results = engine._run_single_simulation(0)
+
+        assert "final_assets" in sim_results
+        assert "annual_losses" in sim_results
+        assert "insurance_recoveries" in sim_results
+        assert "retained_losses" in sim_results
+        assert len(sim_results["annual_losses"]) == engine.config.n_years
+
+    def test_chunk_processing(self, setup_engine):
+        """Test chunk processing for parallel execution."""
+        engine, loss_generator, _, _ = setup_engine
+
+        # Mock loss events
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
+        )
+
+        # Process a chunk
+        chunk = (0, 10, 42)  # start, end, seed
+        chunk_results = engine._run_chunk(chunk)
+
+        assert "final_assets" in chunk_results
+        assert len(chunk_results["final_assets"]) == 10
+        assert chunk_results["annual_losses"].shape == (10, engine.config.n_years)
+
+    def test_combine_results(self, setup_engine):
+        """Test combining multiple simulation results."""
+        engine, _, _, _ = setup_engine
+
+        # Create multiple result sets
+        results1 = SimulationResults(
+            final_assets=np.array([100_000, 150_000]),
+            annual_losses=np.ones((2, 5)),
+            insurance_recoveries=np.ones((2, 5)),
+            retained_losses=np.ones((2, 5)),
+            growth_rates=np.array([0.05, 0.08]),
+            ruin_probability=0.0,
+            metrics={},
+            convergence={},
+            execution_time=1.0,
+            config=engine.config,
+        )
+
+        results2 = SimulationResults(
+            final_assets=np.array([80_000, 120_000]),
+            annual_losses=np.ones((2, 5)),
+            insurance_recoveries=np.ones((2, 5)),
+            retained_losses=np.ones((2, 5)),
+            growth_rates=np.array([-0.02, 0.04]),
+            ruin_probability=0.25,
+            metrics={},
+            convergence={},
+            execution_time=1.0,
+            config=engine.config,
+        )
+
+        # Combine results
+        combined = engine._combine_multiple_results([results1, results2])
+
+        assert len(combined.final_assets) == 4
+        assert combined.annual_losses.shape == (4, 5)
+        assert combined.execution_time == 2.0

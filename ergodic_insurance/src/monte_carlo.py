@@ -1,613 +1,655 @@
-"""Memory-efficient Monte Carlo simulation engine.
+"""High-performance Monte Carlo simulation engine for insurance optimization.
 
-This module provides a batch-processing Monte Carlo engine optimized for
-limited memory environments, with support for parallel processing,
-checkpointing, and streaming statistics calculation.
+This module provides a vectorized, parallel Monte Carlo engine capable of running
+millions of scenarios with convergence monitoring and efficient memory management.
 """
 
-import logging
 import os
+import pickle
 import time
+import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
-from joblib import Parallel, delayed
+from ergodic_insurance.src.convergence import ConvergenceDiagnostics, ConvergenceStats
+from ergodic_insurance.src.insurance_program import InsuranceProgram
+from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.src.risk_metrics import RiskMetrics
 from tqdm import tqdm
 
-from .claim_generator import ClaimEvent, ClaimGenerator
-from .config import Config
-from .insurance import InsurancePolicy
-from .manufacturer import WidgetManufacturer
 
-logger = logging.getLogger(__name__)
+@dataclass
+class SimulationConfig:
+    """Configuration for Monte Carlo simulation.
+
+    Attributes:
+        n_simulations: Number of simulation paths
+        n_years: Number of years per simulation
+        n_chains: Number of parallel chains for convergence
+        parallel: Whether to use multiprocessing
+        n_workers: Number of parallel workers (None for auto)
+        chunk_size: Size of chunks for parallel processing
+        use_float32: Use float32 for memory efficiency
+        cache_results: Cache intermediate results
+        checkpoint_interval: Save checkpoint every N simulations
+        progress_bar: Show progress bar
+        seed: Random seed for reproducibility
+    """
+
+    n_simulations: int = 100_000
+    n_years: int = 10
+    n_chains: int = 4
+    parallel: bool = True
+    n_workers: Optional[int] = None
+    chunk_size: int = 10_000
+    use_float32: bool = True
+    cache_results: bool = True
+    checkpoint_interval: Optional[int] = None
+    progress_bar: bool = True
+    seed: Optional[int] = None
 
 
 @dataclass
-class StreamingStatistics:
-    """Accumulator for streaming statistics calculation.
+class SimulationResults:
+    """Results from Monte Carlo simulation.
 
-    Maintains running statistics without storing all data points,
-    using Welford's online algorithm for numerical stability.
+    Attributes:
+        final_assets: Final asset values for each simulation
+        annual_losses: Annual loss amounts
+        insurance_recoveries: Insurance recovery amounts
+        retained_losses: Retained loss amounts
+        growth_rates: Realized growth rates
+        ruin_probability: Probability of ruin
+        metrics: Risk metrics calculated from results
+        convergence: Convergence statistics
+        execution_time: Total execution time in seconds
+        config: Simulation configuration used
     """
 
-    count: int = 0
-    mean: float = 0.0
-    m2: float = 0.0  # Sum of squared differences from mean
-    min_val: float = float("inf")
-    max_val: float = float("-inf")
+    final_assets: np.ndarray
+    annual_losses: np.ndarray
+    insurance_recoveries: np.ndarray
+    retained_losses: np.ndarray
+    growth_rates: np.ndarray
+    ruin_probability: float
+    metrics: Dict[str, float]
+    convergence: Dict[str, ConvergenceStats]
+    execution_time: float
+    config: SimulationConfig
 
-    # Ergodic metrics
-    log_sum: float = 0.0  # Sum of log returns for geometric mean
-    survival_count: int = 0  # Number of survived scenarios
-
-    # Percentile tracking (using reservoir sampling for memory efficiency)
-    reservoir_size: int = 10000
-    reservoir: np.ndarray = field(default_factory=lambda: np.array([]))
-
-    def update(self, value: float, survived: bool = True) -> None:
-        """Update statistics with a new value.
-
-        Args:
-            value: New value to incorporate.
-            survived: Whether the scenario survived to completion.
-        """
-        self.count += 1
-        delta = value - self.mean
-        self.mean += delta / self.count
-        delta2 = value - self.mean
-        self.m2 += delta * delta2
-
-        self.min_val = min(self.min_val, value)
-        self.max_val = max(self.max_val, value)
-
-        if survived:
-            self.survival_count += 1
-            if value > 0:
-                self.log_sum += np.log(value)
-
-        # Reservoir sampling for percentiles
-        if len(self.reservoir) < self.reservoir_size:
-            self.reservoir = np.append(self.reservoir, value)
-        else:
-            # Random replacement
-            idx = np.random.randint(0, self.count)
-            if idx < self.reservoir_size:
-                self.reservoir[idx] = value
-
-    @property
-    def std(self) -> float:
-        """Calculate standard deviation."""
-        if self.count < 2:
-            return 0.0
-        return float(np.sqrt(self.m2 / (self.count - 1)))
-
-    @property
-    def variance(self) -> float:
-        """Calculate variance."""
-        if self.count < 2:
-            return 0.0
-        return self.m2 / (self.count - 1)
-
-    @property
-    def geometric_mean(self) -> float:
-        """Calculate geometric mean (time-average growth rate)."""
-        if self.survival_count == 0:
-            return 0.0
-        return float(np.exp(self.log_sum / self.survival_count))
-
-    @property
-    def survival_rate(self) -> float:
-        """Calculate survival rate."""
-        if self.count == 0:
-            return 0.0
-        return self.survival_count / self.count
-
-    def percentile(self, q: float) -> float:
-        """Calculate percentile from reservoir.
-
-        Args:
-            q: Percentile to calculate (0-100).
-
-        Returns:
-            Estimated percentile value.
-        """
-        if len(self.reservoir) == 0:
-            return 0.0
-        return float(np.percentile(self.reservoir, q))
-
-    def to_dict(self) -> Dict[str, float]:
-        """Convert statistics to dictionary."""
-        return {
-            "count": self.count,
-            "mean": self.mean,
-            "std": self.std,
-            "min": self.min_val,
-            "max": self.max_val,
-            "p25": self.percentile(25),
-            "p50": self.percentile(50),
-            "p75": self.percentile(75),
-            "p95": self.percentile(95),
-            "p99": self.percentile(99),
-            "geometric_mean": self.geometric_mean,
-            "survival_rate": self.survival_rate,
-        }
-
-
-@dataclass
-class MonteCarloCheckpoint:
-    """Checkpoint data for resuming simulations."""
-
-    scenario_start: int
-    scenario_end: int
-    statistics: Dict[str, StreamingStatistics]
-    timestamp: float
-
-    def save(self, path: Path) -> None:
-        """Save checkpoint to Parquet file.
-
-        Args:
-            path: Path to save checkpoint.
-        """
-        # Convert statistics to serializable format
-        data = {
-            "scenario_start": [self.scenario_start],
-            "scenario_end": [self.scenario_end],
-            "timestamp": [self.timestamp],
-        }
-
-        # Add statistics
-        for metric_name, stats in self.statistics.items():
-            for stat_name, value in stats.to_dict().items():
-                data[f"{metric_name}_{stat_name}"] = [value]
-
-        df = pd.DataFrame(data)
-        df.to_parquet(path, compression="snappy")
-
-    @classmethod
-    def load(cls, path: Path) -> "MonteCarloCheckpoint":
-        """Load checkpoint from Parquet file.
-
-        Args:
-            path: Path to checkpoint file.
-
-        Returns:
-            Loaded checkpoint.
-        """
-        df = pd.read_parquet(path)
-        row = df.iloc[0]
-
-        # Reconstruct statistics
-        statistics = {}
-        metric_names = set()
-        for col in df.columns:
-            if "_" in col and col not in ["scenario_start", "scenario_end", "timestamp"]:
-                metric_name = col.rsplit("_", 1)[0]
-                metric_names.add(metric_name)
-
-        for metric_name in metric_names:
-            stats = StreamingStatistics()
-            stats.count = int(row.get(f"{metric_name}_count", 0))
-            stats.mean = row.get(f"{metric_name}_mean", 0.0)
-            stats.min_val = row.get(f"{metric_name}_min", float("inf"))
-            stats.max_val = row.get(f"{metric_name}_max", float("-inf"))
-            stats.survival_count = int(stats.count * row.get(f"{metric_name}_survival_rate", 0))
-            statistics[metric_name] = stats
-
-        return cls(
-            scenario_start=int(row["scenario_start"]),
-            scenario_end=int(row["scenario_end"]),
-            statistics=statistics,
-            timestamp=row["timestamp"],
+    def summary(self) -> str:
+        """Generate summary of simulation results."""
+        return (
+            f"Simulation Results Summary\n"
+            f"{'='*50}\n"
+            f"Simulations: {self.config.n_simulations:,}\n"
+            f"Years: {self.config.n_years}\n"
+            f"Execution Time: {self.execution_time:.2f}s\n"
+            f"Ruin Probability: {self.ruin_probability:.2%}\n"
+            f"Mean Growth Rate: {np.mean(self.growth_rates):.4f}\n"
+            f"VaR(99%): ${self.metrics.get('var_99', 0):,.0f}\n"
+            f"TVaR(99%): ${self.metrics.get('tvar_99', 0):,.0f}\n"
+            f"Convergence R-hat: {self.convergence.get('growth_rate', ConvergenceStats(0,0,0,False,0,0)).r_hat:.3f}\n"
         )
-
-
-def _generate_scenario_claims(
-    time_horizon: int, seed: Optional[int] = None
-) -> Dict[int, List[ClaimEvent]]:
-    """Generate claims for a scenario."""
-    claim_generator = ClaimGenerator(
-        frequency=0.1,
-        severity_mean=5_000_000,
-        severity_std=2_000_000,
-        seed=seed,
-    )
-
-    regular_claims, cat_claims = claim_generator.generate_all_claims(
-        years=time_horizon,
-        include_catastrophic=True,
-        cat_frequency=0.01,
-        cat_severity_mean=50_000_000,
-        cat_severity_std=20_000_000,
-    )
-
-    # Group claims by year
-    claims_by_year: Dict[int, List[ClaimEvent]] = {}
-    for claim in regular_claims + cat_claims:
-        if claim.year not in claims_by_year:
-            claims_by_year[claim.year] = []
-        claims_by_year[claim.year].append(claim)
-
-    return claims_by_year
-
-
-def _calculate_returns(annual_returns: List[float]) -> Tuple[float, float]:
-    """Calculate geometric and arithmetic returns."""
-    if annual_returns:
-        geometric = float(np.exp(np.mean(np.log(annual_returns))) - 1)
-        arithmetic = float(np.mean(annual_returns) - 1)
-        return geometric, arithmetic
-    return 0.0, 0.0
-
-
-def _run_simulation_year(
-    manufacturer: WidgetManufacturer,
-    year_claims: List[ClaimEvent],
-    insurance_policy: InsurancePolicy,
-    config: Config,
-) -> Tuple[float, float, float]:
-    """Run a single year of simulation.
-
-    Returns:
-        Tuple of (total_claims, premium, year_return)
-    """
-    total_claims = 0.0
-
-    # Process claims through insurance
-    for claim in year_claims:
-        company_payment, _ = insurance_policy.process_claim(claim.amount)
-        manufacturer.assets -= company_payment
-        total_claims += claim.amount
-
-    # Pay insurance premium
-    premium = insurance_policy.calculate_premium()
-    manufacturer.assets -= premium
-
-    # Calculate year's return before stepping
-    initial_equity = manufacturer.equity
-
-    # Step manufacturer forward
-    manufacturer.step(
-        working_capital_pct=config.working_capital.percent_of_sales,
-        letter_of_credit_rate=config.debt.interest_rate,
-        growth_rate=config.growth.annual_growth_rate,
-    )
-
-    # Calculate return
-    year_return = 0.0
-    if initial_equity > 0:
-        year_return = (manufacturer.equity - initial_equity) / initial_equity
-
-    return total_claims, premium, year_return
-
-
-def run_single_scenario(
-    scenario_id: int,
-    config: Config,
-    insurance_policy: InsurancePolicy,
-    time_horizon: int,
-    seed: Optional[int] = None,
-) -> Dict[str, Any]:
-    """Run a single Monte Carlo scenario.
-
-    Args:
-        scenario_id: Unique scenario identifier.
-        config: Configuration object.
-        insurance_policy: Insurance policy to use.
-        time_horizon: Number of years to simulate.
-        seed: Random seed for this scenario.
-
-    Returns:
-        Dictionary of scenario results.
-    """
-    # Set random seed for reproducibility
-    if seed is not None:
-        np.random.seed(seed + scenario_id)
-
-    # Initialize manufacturer
-    manufacturer = WidgetManufacturer(config.manufacturer)
-
-    # Generate claims for entire horizon
-    claims_by_year = _generate_scenario_claims(time_horizon, seed + scenario_id if seed else None)
-
-    # Initialize tracking variables
-    simulation_metrics: Dict[str, Any] = {
-        "total_claims": 0.0,
-        "total_premiums": 0.0,
-        "annual_returns": [],
-        "survived": True,
-        "insolvency_year": None,
-    }
-
-    # Run simulation
-    for year in range(time_horizon):
-        year_claims = claims_by_year.get(year, [])
-
-        claims, premium, year_return = _run_simulation_year(
-            manufacturer, year_claims, insurance_policy, config
-        )
-
-        simulation_metrics["total_claims"] += claims
-        simulation_metrics["total_premiums"] += premium
-        if year_return != 0.0:
-            simulation_metrics["annual_returns"].append(1 + year_return)
-
-        # Check for insolvency
-        if manufacturer.equity <= 0:
-            simulation_metrics["survived"] = False
-            simulation_metrics["insolvency_year"] = year
-            break
-
-    # Calculate ergodic metrics
-    geometric_return, arithmetic_return = _calculate_returns(simulation_metrics["annual_returns"])
-
-    return {
-        "scenario_id": scenario_id,
-        "survived": simulation_metrics["survived"],
-        "insolvency_year": simulation_metrics["insolvency_year"],
-        "final_assets": manufacturer.assets,
-        "final_equity": manufacturer.equity,
-        "total_claims": simulation_metrics["total_claims"],
-        "total_premiums": simulation_metrics["total_premiums"],
-        "geometric_return": geometric_return,
-        "arithmetic_return": arithmetic_return,
-        "years_survived": simulation_metrics["insolvency_year"]
-        if simulation_metrics["insolvency_year"]
-        else time_horizon,
-    }
 
 
 class MonteCarloEngine:
-    """Memory-efficient Monte Carlo simulation engine.
+    """High-performance Monte Carlo simulation engine.
 
-    Implements batch processing with parallel execution, checkpointing,
-    and streaming statistics for memory-constrained environments.
+    Supports vectorized operations, parallel processing, and convergence monitoring.
     """
 
     def __init__(
         self,
-        config: Config,
-        insurance_policy: InsurancePolicy,
-        n_scenarios: int = 10000,
-        batch_size: int = 1000,
-        n_jobs: int = 7,
-        checkpoint_dir: Optional[Path] = None,
-        checkpoint_frequency: int = 5000,
-        seed: Optional[int] = None,
+        loss_generator: ManufacturingLossGenerator,
+        insurance_program: InsuranceProgram,
+        manufacturer: WidgetManufacturer,
+        config: Optional[SimulationConfig] = None,
     ):
         """Initialize Monte Carlo engine.
 
         Args:
-            config: Configuration object.
-            insurance_policy: Insurance policy to simulate.
-            n_scenarios: Total number of scenarios to run.
-            batch_size: Number of scenarios per batch.
-            n_jobs: Number of parallel jobs.
-            checkpoint_dir: Directory for checkpoints.
-            checkpoint_frequency: Save checkpoint every N scenarios.
-            seed: Random seed for reproducibility.
+            loss_generator: Generator for loss events
+            insurance_program: Insurance program structure
+            manufacturer: Manufacturing company model
+            config: Simulation configuration
         """
-        self.config = config
-        self.insurance_policy = insurance_policy
-        self.n_scenarios = n_scenarios
-        self.batch_size = batch_size
-        self.n_jobs = n_jobs
-        self.checkpoint_frequency = checkpoint_frequency
-        self.seed = seed
+        self.loss_generator = loss_generator
+        self.insurance_program = insurance_program
+        self.manufacturer = manufacturer
+        self.config = config or SimulationConfig()
 
-        # Setup checkpoint directory
-        if checkpoint_dir is None:
-            checkpoint_dir = Path("ergodic_insurance/checkpoints")
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        # Set up convergence diagnostics
+        self.convergence_diagnostics = ConvergenceDiagnostics()
 
-        # Initialize streaming statistics
-        self.statistics = {
-            "final_equity": StreamingStatistics(),
-            "final_assets": StreamingStatistics(),
-            "geometric_return": StreamingStatistics(),
-            "arithmetic_return": StreamingStatistics(),
-            "years_survived": StreamingStatistics(),
-        }
+        # Cache directory for checkpoints
+        self.cache_dir = Path("cache/monte_carlo")
+        if self.config.cache_results:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        self.completed_scenarios = 0
-        self.results_buffer: List[Dict[str, Any]] = []
+        # Set random seed
+        if self.config.seed is not None:
+            np.random.seed(self.config.seed)
 
-    def run_batch(self, start_idx: int, end_idx: int) -> List[Dict[str, Any]]:
-        """Run a batch of scenarios in parallel.
+        # Determine number of workers
+        if self.config.n_workers is None and self.config.parallel:
+            self.config.n_workers = min(os.cpu_count() or 4, 8)
 
-        Args:
-            start_idx: Starting scenario index.
-            end_idx: Ending scenario index (exclusive).
+    def run(self) -> SimulationResults:
+        """Execute Monte Carlo simulation.
 
         Returns:
-            List of scenario results.
-        """
-        results = Parallel(n_jobs=self.n_jobs)(
-            delayed(run_single_scenario)(
-                scenario_id=i,
-                config=self.config,
-                insurance_policy=self.insurance_policy,
-                time_horizon=self.config.simulation.time_horizon_years,
-                seed=self.seed,
-            )
-            for i in range(start_idx, end_idx)
-        )
-
-        return list(results)
-
-    def update_statistics(self, results: List[Dict[str, Any]]) -> None:
-        """Update streaming statistics with batch results.
-
-        Args:
-            results: List of scenario results.
-        """
-        for result in results:
-            survived = result["survived"]
-
-            self.statistics["final_equity"].update(result["final_equity"], survived)
-            self.statistics["final_assets"].update(result["final_assets"], survived)
-            self.statistics["geometric_return"].update(result["geometric_return"], survived)
-            self.statistics["arithmetic_return"].update(result["arithmetic_return"], survived)
-            self.statistics["years_survived"].update(result["years_survived"], True)
-
-    def save_checkpoint(self, scenario_end: int) -> Path:
-        """Save current state as checkpoint.
-
-        Args:
-            scenario_end: Last completed scenario index.
-
-        Returns:
-            Path to saved checkpoint.
-        """
-        checkpoint = MonteCarloCheckpoint(
-            scenario_start=0,
-            scenario_end=scenario_end,
-            statistics=self.statistics,
-            timestamp=time.time(),
-        )
-
-        checkpoint_path = self.checkpoint_dir / f"checkpoint_{scenario_end:06d}.parquet"
-        checkpoint.save(checkpoint_path)
-
-        logger.info(f"Saved checkpoint at scenario {scenario_end}: {checkpoint_path}")
-        return checkpoint_path
-
-    def load_checkpoint(self, checkpoint_path: Path) -> int:
-        """Load checkpoint and resume from saved state.
-
-        Args:
-            checkpoint_path: Path to checkpoint file.
-
-        Returns:
-            Number of completed scenarios.
-        """
-        checkpoint = MonteCarloCheckpoint.load(checkpoint_path)
-        self.statistics = checkpoint.statistics
-        self.completed_scenarios = checkpoint.scenario_end
-
-        logger.info(f"Loaded checkpoint from scenario {checkpoint.scenario_end}")
-        return checkpoint.scenario_end
-
-    def find_latest_checkpoint(self) -> Optional[Path]:
-        """Find the most recent checkpoint file.
-
-        Returns:
-            Path to latest checkpoint or None.
-        """
-        checkpoints = list(self.checkpoint_dir.glob("checkpoint_*.parquet"))
-        if not checkpoints:
-            return None
-
-        # Sort by scenario number in filename
-        checkpoints.sort(key=lambda p: int(p.stem.split("_")[1]))
-        return checkpoints[-1]
-
-    def run(self, resume: bool = True) -> Dict[str, Any]:
-        """Run Monte Carlo simulation.
-
-        Args:
-            resume: Whether to resume from checkpoint if available.
-
-        Returns:
-            Dictionary of simulation results and statistics.
+            SimulationResults object with all outputs
         """
         start_time = time.time()
 
-        # Check for existing checkpoint
-        start_scenario = 0
-        if resume:
-            latest_checkpoint = self.find_latest_checkpoint()
-            if latest_checkpoint:
-                start_scenario = self.load_checkpoint(latest_checkpoint)
-                logger.info(f"Resuming from scenario {start_scenario}")
+        # Check for cached results
+        cache_key = self._get_cache_key()
+        if self.config.cache_results:
+            cached = self._load_cache(cache_key)
+            if cached is not None:
+                print("Loaded cached results")
+                return cached
 
-        # Calculate batches
-        n_remaining = self.n_scenarios - start_scenario
-        n_batches = (n_remaining + self.batch_size - 1) // self.batch_size
+        # Run simulation
+        if self.config.parallel and self.config.n_simulations >= 10000:
+            results = self._run_parallel()
+        else:
+            results = self._run_sequential()
 
-        # Progress bar
-        pbar = tqdm(
-            total=n_remaining,
-            initial=0,
-            desc="Monte Carlo Simulation",
-            unit="scenarios",
-        )
+        # Calculate metrics
+        results.metrics = self._calculate_metrics(results)
 
-        # Run batches
-        for batch_idx in range(n_batches):
-            batch_start = start_scenario + batch_idx * self.batch_size
-            batch_end = min(batch_start + self.batch_size, self.n_scenarios)
+        # Check convergence
+        results.convergence = self._check_convergence(results)
 
-            # Run batch
-            batch_results = self.run_batch(batch_start, batch_end)
+        # Set execution time
+        results.execution_time = time.time() - start_time
 
-            # Update statistics
-            self.update_statistics(batch_results)
-
-            # Store results in buffer
-            self.results_buffer.extend(batch_results)
-
-            # Update progress
-            pbar.update(batch_end - batch_start)
-            self.completed_scenarios = batch_end
-
-            # Save checkpoint if needed
-            if batch_end % self.checkpoint_frequency == 0 or batch_end == self.n_scenarios:
-                self.save_checkpoint(batch_end)
-
-                # Save results buffer to Parquet
-                if self.results_buffer:
-                    results_df = pd.DataFrame(self.results_buffer)
-                    results_path = self.checkpoint_dir / f"results_{batch_end:06d}.parquet"
-                    results_df.to_parquet(results_path, compression="snappy")
-                    logger.info(f"Saved {len(self.results_buffer)} results to {results_path}")
-                    self.results_buffer = []  # Clear buffer
-
-        pbar.close()
-
-        # Calculate final statistics
-        elapsed_time = time.time() - start_time
-
-        results = {
-            "n_scenarios": self.n_scenarios,
-            "elapsed_time": elapsed_time,
-            "scenarios_per_second": self.n_scenarios / elapsed_time,
-            "statistics": {},
-        }
-
-        # Add all statistics
-        for metric_name, stats in self.statistics.items():
-            results["statistics"][metric_name] = stats.to_dict()  # type: ignore[index]
-
-        # Log summary
-        logger.info(f"Completed {self.n_scenarios} scenarios in {elapsed_time:.2f} seconds")
-        logger.info(f"Survival rate: {self.statistics['final_equity'].survival_rate:.2%}")
-        logger.info(
-            f"Mean geometric return: {self.statistics['geometric_return'].geometric_mean:.4f}"
-        )
+        # Cache results
+        if self.config.cache_results:
+            self._save_cache(cache_key, results)
 
         return results
 
-    def get_results_dataframe(self) -> pd.DataFrame:
-        """Load all results from Parquet files into DataFrame.
+    def _run_sequential(self) -> SimulationResults:
+        """Run simulation sequentially."""
+        n_sims = self.config.n_simulations
+        n_years = self.config.n_years
+        dtype = np.float32 if self.config.use_float32 else np.float64
+
+        # Pre-allocate arrays
+        final_assets = np.zeros(n_sims, dtype=dtype)
+        annual_losses = np.zeros((n_sims, n_years), dtype=dtype)
+        insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
+        retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
+
+        # Progress bar
+        iterator = range(n_sims)
+        if self.config.progress_bar:
+            iterator = tqdm(iterator, desc="Running simulations")
+
+        # Run simulations
+        for i in iterator:
+            sim_results = self._run_single_simulation(i)
+            final_assets[i] = sim_results["final_assets"]
+            annual_losses[i] = sim_results["annual_losses"]
+            insurance_recoveries[i] = sim_results["insurance_recoveries"]
+            retained_losses[i] = sim_results["retained_losses"]
+
+            # Checkpoint if needed
+            if (
+                self.config.checkpoint_interval
+                and i > 0
+                and i % self.config.checkpoint_interval == 0
+            ):
+                self._save_checkpoint(
+                    i,
+                    final_assets[: i + 1],
+                    annual_losses[: i + 1],
+                    insurance_recoveries[: i + 1],
+                    retained_losses[: i + 1],
+                )
+
+        # Calculate growth rates
+        growth_rates = self._calculate_growth_rates(final_assets)
+
+        # Calculate ruin probability
+        ruin_probability = np.mean(final_assets <= 0)
+
+        return SimulationResults(
+            final_assets=final_assets,
+            annual_losses=annual_losses,
+            insurance_recoveries=insurance_recoveries,
+            retained_losses=retained_losses,
+            growth_rates=growth_rates,
+            ruin_probability=ruin_probability,
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=self.config,
+        )
+
+    def _run_parallel(self) -> SimulationResults:
+        """Run simulation in parallel using multiprocessing."""
+        n_sims = self.config.n_simulations
+        n_workers = self.config.n_workers
+        chunk_size = self.config.chunk_size
+
+        # Create chunks
+        chunks = []
+        for i in range(0, n_sims, chunk_size):
+            chunk_end = min(i + chunk_size, n_sims)
+            chunk_seed = None if self.config.seed is None else self.config.seed + i
+            chunks.append((i, chunk_end, chunk_seed))
+
+        # Run chunks in parallel
+        all_results = []
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            # Submit all tasks
+            futures = {executor.submit(self._run_chunk, chunk): chunk for chunk in chunks}
+
+            # Process completed tasks
+            if self.config.progress_bar:
+                pbar = tqdm(total=len(chunks), desc="Processing chunks")
+
+            for future in as_completed(futures):
+                chunk_results = future.result()
+                all_results.append(chunk_results)
+
+                if self.config.progress_bar:
+                    pbar.update(1)
+
+            if self.config.progress_bar:
+                pbar.close()
+
+        # Combine results
+        return self._combine_chunk_results(all_results)
+
+    def _run_chunk(self, chunk: Tuple[int, int, Optional[int]]) -> Dict[str, np.ndarray]:
+        """Run a chunk of simulations.
+
+        Args:
+            chunk: Tuple of (start_idx, end_idx, seed)
 
         Returns:
-            Combined DataFrame of all results.
+            Dictionary with simulation results for the chunk
         """
-        result_files = sorted(self.checkpoint_dir.glob("results_*.parquet"))
+        start_idx, end_idx, seed = chunk
+        n_sims = end_idx - start_idx
+        n_years = self.config.n_years
+        dtype = np.float32 if self.config.use_float32 else np.float64
 
-        if not result_files:
-            logger.warning("No result files found")
-            return pd.DataFrame()
+        # Set seed for this chunk
+        if seed is not None:
+            np.random.seed(seed)
 
-        dfs = []
-        for file_path in result_files:
-            df = pd.read_parquet(file_path)
-            dfs.append(df)
+        # Pre-allocate arrays
+        final_assets = np.zeros(n_sims, dtype=dtype)
+        annual_losses = np.zeros((n_sims, n_years), dtype=dtype)
+        insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
+        retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
 
-        return pd.concat(dfs, ignore_index=True)
+        # Run simulations in chunk
+        for i in range(n_sims):
+            sim_results = self._run_single_simulation(start_idx + i)
+            final_assets[i] = sim_results["final_assets"]
+            annual_losses[i] = sim_results["annual_losses"]
+            insurance_recoveries[i] = sim_results["insurance_recoveries"]
+            retained_losses[i] = sim_results["retained_losses"]
+
+        return {
+            "final_assets": final_assets,
+            "annual_losses": annual_losses,
+            "insurance_recoveries": insurance_recoveries,
+            "retained_losses": retained_losses,
+        }
+
+    def _run_single_simulation(self, sim_id: int) -> Dict[str, Any]:
+        """Run a single simulation path.
+
+        Args:
+            sim_id: Simulation identifier
+
+        Returns:
+            Dictionary with simulation results
+        """
+        n_years = self.config.n_years
+        dtype = np.float32 if self.config.use_float32 else np.float64
+
+        # Create a copy of manufacturer for this simulation
+        manufacturer = self.manufacturer.copy()
+
+        # Arrays to store results
+        annual_losses = np.zeros(n_years, dtype=dtype)
+        insurance_recoveries = np.zeros(n_years, dtype=dtype)
+        retained_losses = np.zeros(n_years, dtype=dtype)
+
+        # Run simulation for each year
+        for year in range(n_years):
+            # Generate losses
+            revenue = manufacturer.calculate_revenue()
+            events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
+
+            # Calculate total loss
+            total_loss = sum(event.amount for event in events)
+            annual_losses[year] = total_loss
+
+            # Apply insurance
+            claim_result = self.insurance_program.process_claim(total_loss)
+            recovery = claim_result.get("total_recovery", 0)
+            insurance_recoveries[year] = recovery
+
+            # Calculate retained loss
+            retained = total_loss - recovery
+            retained_losses[year] = retained
+
+            # Process insurance claims
+            for event in events:
+                manufacturer.process_insurance_claim(event.amount)
+
+            # Update manufacturer state with annual step
+            metrics = manufacturer.step(
+                working_capital_pct=0.2,
+                growth_rate=0.0,  # No growth rate for now
+            )
+
+            # Check for ruin
+            if manufacturer.assets <= 0:
+                break
+
+        return {
+            "final_assets": manufacturer.assets,
+            "annual_losses": annual_losses,
+            "insurance_recoveries": insurance_recoveries,
+            "retained_losses": retained_losses,
+        }
+
+    def _combine_chunk_results(
+        self, chunk_results: List[Dict[str, np.ndarray]]
+    ) -> SimulationResults:
+        """Combine results from parallel chunks.
+
+        Args:
+            chunk_results: List of chunk result dictionaries
+
+        Returns:
+            Combined SimulationResults
+        """
+        # Concatenate arrays
+        final_assets = np.concatenate([r["final_assets"] for r in chunk_results])
+        annual_losses = np.vstack([r["annual_losses"] for r in chunk_results])
+        insurance_recoveries = np.vstack([r["insurance_recoveries"] for r in chunk_results])
+        retained_losses = np.vstack([r["retained_losses"] for r in chunk_results])
+
+        # Calculate derived metrics
+        growth_rates = self._calculate_growth_rates(final_assets)
+        ruin_probability = np.mean(final_assets <= 0)
+
+        return SimulationResults(
+            final_assets=final_assets,
+            annual_losses=annual_losses,
+            insurance_recoveries=insurance_recoveries,
+            retained_losses=retained_losses,
+            growth_rates=growth_rates,
+            ruin_probability=ruin_probability,
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=self.config,
+        )
+
+    def _calculate_growth_rates(self, final_assets: np.ndarray) -> np.ndarray:
+        """Calculate annualized growth rates.
+
+        Args:
+            final_assets: Final asset values
+
+        Returns:
+            Array of growth rates
+        """
+        initial_assets = self.manufacturer.assets
+        n_years = self.config.n_years
+
+        # Avoid division by zero and log of negative numbers
+        valid_mask = (final_assets > 0) & (initial_assets > 0)
+        growth_rates = np.zeros_like(final_assets)
+
+        if np.any(valid_mask):
+            growth_rates[valid_mask] = np.log(final_assets[valid_mask] / initial_assets) / n_years
+
+        return growth_rates
+
+    def _calculate_metrics(self, results: SimulationResults) -> Dict[str, float]:
+        """Calculate risk metrics from simulation results.
+
+        Args:
+            results: Simulation results
+
+        Returns:
+            Dictionary of risk metrics
+        """
+        # Total losses across all years
+        total_losses = np.sum(results.annual_losses, axis=1)
+
+        # Initialize risk metrics calculator
+        risk_metrics = RiskMetrics(total_losses)
+
+        metrics = {
+            "mean_loss": np.mean(total_losses),
+            "median_loss": np.median(total_losses),
+            "std_loss": np.std(total_losses),
+            "var_95": risk_metrics.var(0.95),
+            "var_99": risk_metrics.var(0.99),
+            "var_995": risk_metrics.var(0.995),
+            "tvar_95": risk_metrics.tvar(0.95),
+            "tvar_99": risk_metrics.tvar(0.99),
+            "tvar_995": risk_metrics.tvar(0.995),
+            "expected_shortfall_99": risk_metrics.expected_shortfall(risk_metrics.var(0.99)),
+            "max_loss": np.max(total_losses),
+            "mean_recovery": np.mean(np.sum(results.insurance_recoveries, axis=1)),
+            "mean_retained": np.mean(np.sum(results.retained_losses, axis=1)),
+            "mean_growth_rate": np.mean(results.growth_rates),
+            "std_growth_rate": np.std(results.growth_rates),
+            "sharpe_ratio": np.mean(results.growth_rates) / np.std(results.growth_rates)
+            if np.std(results.growth_rates) > 0
+            else 0,
+        }
+
+        return metrics
+
+    def _check_convergence(self, results: SimulationResults) -> Dict[str, ConvergenceStats]:
+        """Check convergence of simulation results.
+
+        Args:
+            results: Simulation results
+
+        Returns:
+            Dictionary of convergence statistics
+        """
+        # Reshape data into chains
+        n_chains = min(self.config.n_chains, results.final_assets.shape[0] // 100)
+
+        if n_chains < 2:
+            # Not enough data for multi-chain convergence
+            return {}
+
+        # Split data into chains
+        chain_size = len(results.final_assets) // n_chains
+        chains_growth = np.array(
+            [results.growth_rates[i * chain_size : (i + 1) * chain_size] for i in range(n_chains)]
+        )
+
+        chains_losses = np.array(
+            [
+                np.sum(results.annual_losses[i * chain_size : (i + 1) * chain_size], axis=1)
+                for i in range(n_chains)
+            ]
+        )
+
+        # Stack chains for multiple metrics
+        chains = np.stack([chains_growth, chains_losses], axis=2)
+
+        # Check convergence
+        convergence_stats = self.convergence_diagnostics.check_convergence(
+            chains, metric_names=["growth_rate", "total_losses"]
+        )
+
+        return convergence_stats
+
+    def _get_cache_key(self) -> str:
+        """Generate cache key for current configuration.
+
+        Returns:
+            Cache key string
+        """
+        key_parts = [
+            f"n_sims_{self.config.n_simulations}",
+            f"n_years_{self.config.n_years}",
+            f"seed_{self.config.seed}",
+            f"ins_{hash(str(self.insurance_program))}",
+            f"mfg_{hash(str(self.manufacturer))}",
+        ]
+        return "_".join(key_parts)
+
+    def _save_cache(self, cache_key: str, results: SimulationResults) -> None:
+        """Save results to cache.
+
+        Args:
+            cache_key: Cache key
+            results: Results to cache
+        """
+        cache_file = self.cache_dir / f"{cache_key}.pkl"
+        try:
+            with open(cache_file, "wb") as f:
+                pickle.dump(results, f)
+        except Exception as e:
+            warnings.warn(f"Failed to save cache: {e}")
+
+    def _load_cache(self, cache_key: str) -> Optional[SimulationResults]:
+        """Load results from cache.
+
+        Args:
+            cache_key: Cache key
+
+        Returns:
+            Cached results or None
+        """
+        cache_file = self.cache_dir / f"{cache_key}.pkl"
+        if cache_file.exists():
+            try:
+                with open(cache_file, "rb") as f:
+                    return pickle.load(f)
+            except Exception as e:
+                warnings.warn(f"Failed to load cache: {e}")
+        return None
+
+    def _save_checkpoint(self, iteration: int, *arrays) -> None:
+        """Save checkpoint during simulation.
+
+        Args:
+            iteration: Current iteration number
+            arrays: Arrays to save
+        """
+        checkpoint_file = self.cache_dir / f"checkpoint_{iteration}.npz"
+        try:
+            np.savez_compressed(checkpoint_file, iteration=iteration, *arrays)
+        except Exception as e:
+            warnings.warn(f"Failed to save checkpoint: {e}")
+
+    def run_with_convergence_monitoring(
+        self,
+        target_r_hat: float = 1.05,
+        check_interval: int = 10000,
+        max_iterations: Optional[int] = None,
+    ) -> SimulationResults:
+        """Run simulation with automatic convergence monitoring.
+
+        Args:
+            target_r_hat: Target R-hat for convergence
+            check_interval: Check convergence every N simulations
+            max_iterations: Maximum iterations (None for no limit)
+
+        Returns:
+            Converged simulation results
+        """
+        if max_iterations is None:
+            max_iterations = self.config.n_simulations * 10
+
+        # Start with smaller batch
+        original_n_sims = self.config.n_simulations
+        self.config.n_simulations = check_interval
+
+        all_results = []
+        total_iterations = 0
+        converged = False
+
+        while not converged and total_iterations < max_iterations:
+            # Run batch
+            batch_results = self.run()
+            all_results.append(batch_results)
+            total_iterations += check_interval
+
+            # Combine all results so far
+            if len(all_results) > 1:
+                combined = self._combine_multiple_results(all_results)
+            else:
+                combined = batch_results
+
+            # Check convergence
+            convergence = self._check_convergence(combined)
+
+            if convergence:
+                max_r_hat = max(stat.r_hat for stat in convergence.values())
+                converged = max_r_hat < target_r_hat
+
+                if self.config.progress_bar:
+                    print(f"Iteration {total_iterations}: R-hat = {max_r_hat:.3f}")
+
+            # Update seed for next batch
+            if self.config.seed is not None:
+                self.config.seed += check_interval
+
+        # Restore original config
+        self.config.n_simulations = original_n_sims
+
+        return combined
+
+    def _combine_multiple_results(self, results_list: List[SimulationResults]) -> SimulationResults:
+        """Combine multiple simulation results.
+
+        Args:
+            results_list: List of SimulationResults to combine
+
+        Returns:
+            Combined SimulationResults
+        """
+        # Concatenate arrays
+        final_assets = np.concatenate([r.final_assets for r in results_list])
+        annual_losses = np.vstack([r.annual_losses for r in results_list])
+        insurance_recoveries = np.vstack([r.insurance_recoveries for r in results_list])
+        retained_losses = np.vstack([r.retained_losses for r in results_list])
+        growth_rates = np.concatenate([r.growth_rates for r in results_list])
+
+        # Recalculate metrics
+        combined = SimulationResults(
+            final_assets=final_assets,
+            annual_losses=annual_losses,
+            insurance_recoveries=insurance_recoveries,
+            retained_losses=retained_losses,
+            growth_rates=growth_rates,
+            ruin_probability=np.mean(final_assets <= 0),
+            metrics={},
+            convergence={},
+            execution_time=sum(r.execution_time for r in results_list),
+            config=self.config,
+        )
+
+        combined.metrics = self._calculate_metrics(combined)
+        combined.convergence = self._check_convergence(combined)
+
+        return combined
