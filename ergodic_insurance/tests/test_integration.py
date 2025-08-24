@@ -22,13 +22,16 @@ class TestIntegration:
     """Integration tests for the complete simulation pipeline."""
 
     def create_manufacturer(self, initial_assets: float, **kwargs) -> WidgetManufacturer:
-        """Helper to create a manufacturer with the given parameters."""
+        """Helper to create a manufacturer with the given parameters.
+
+        Default values aligned with Widget Manufacturing Inc. from blog draft.
+        """
         config = ManufacturerConfig(
             initial_assets=initial_assets,
-            asset_turnover_ratio=kwargs.get("asset_turnover", 1.0),
-            operating_margin=kwargs.get("operating_margin", 0.08),
-            tax_rate=kwargs.get("tax_rate", 0.25),
-            retention_ratio=kwargs.get("retention_ratio", 0.7),
+            asset_turnover_ratio=kwargs.get("asset_turnover", 1.2),  # $12M revenue on $10M assets
+            operating_margin=kwargs.get("operating_margin", 0.10),  # 10% EBIT margin
+            tax_rate=kwargs.get("tax_rate", 0.25),  # 25% corporate tax
+            retention_ratio=kwargs.get("retention_ratio", 0.70),  # 70% retention for growth
         )
         return WidgetManufacturer(config)
 
@@ -59,20 +62,18 @@ class TestIntegration:
         """Test that the full simulation pipeline executes without errors."""
         start_time = time.time()
 
-        # Create manufacturer
+        # Create manufacturer with blog draft parameters
         manufacturer = self.create_manufacturer(
             initial_assets=base_config["initial_assets"],
-            asset_turnover=1.0,
-            operating_margin=0.08,
-            tax_rate=0.25,
         )
 
-        # Create claim generator
+        # Create claim generator aligned with blog draft losses
+        # Total expected annual loss ≈ $1.175M
         claim_gen = ClaimGenerator(
             seed=base_config["random_seed"],
-            frequency=5.0,
-            severity_mean=100_000,
-            severity_std=50_000,
+            frequency=5.52,  # Total frequency (5 + 0.5 + 0.02)
+            severity_mean=213_000,  # Weighted average to achieve $1.175M expected
+            severity_std=500_000,  # High variability to capture loss range
         )
 
         # Run single simulation
@@ -181,18 +182,17 @@ class TestIntegration:
 
     def test_ergodic_advantage_demonstration(self, base_config: dict):
         """Test that ergodic advantage can be demonstrated with proper parameters."""
-        # Use parameters that should show clear ergodic advantage
+        # Use blog draft parameters for consistency
         manufacturer = self.create_manufacturer(
             initial_assets=base_config["initial_assets"],
-            asset_turnover=1.2,
-            operating_margin=0.1,
         )
 
+        # Blog draft loss parameters
         claim_gen = ClaimGenerator(
             seed=base_config["random_seed"],
-            frequency=3.0,
-            severity_mean=500_000,
-            severity_std=200_000,
+            frequency=5.52,  # Total from blog: 5 + 0.5 + 0.02
+            severity_mean=213_000,  # Calibrated for $1.175M expected annual loss
+            severity_std=800_000,  # Higher std to capture catastrophic tail
         )
 
         # Optimal insurance for ergodic growth

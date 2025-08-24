@@ -1,0 +1,60 @@
+# Insurance Market Structure for Widget Manufacturing Inc.
+# Aligned with commercial program structure from blog draft
+
+# Insurance Layer Structure
+layers:
+  # Primary Layer (Working layer with frequent claims)
+  primary:
+    attachment_point: 0
+    limit: 5_000_000
+    rate_on_line: 0.02  # 2.0% rate on line
+    description: "Working layer covering most attritional and some large losses"
+
+  # First Excess Layer (Middle market layer)
+  first_excess:
+    attachment_point: 5_000_000
+    limit: 20_000_000  # $5M to $25M coverage
+    rate_on_line: 0.01  # 1.0% rate on line
+    description: "Middle market layer for large losses"
+
+  # Second Excess Layer (High excess layer)
+  second_excess:
+    attachment_point: 25_000_000
+    limit: 75_000_000  # $25M to $100M coverage
+    rate_on_line: 0.005  # 0.5% rate on line
+    description: "High excess layer for severe events"
+
+  # Third Excess Layer (Catastrophic layer)
+  third_excess:
+    attachment_point: 100_000_000
+    limit: 150_000_000  # $100M to $250M coverage
+    rate_on_line: 0.003  # 0.3% rate on line
+    description: "Catastrophic layer for extreme tail events"
+
+# Deductible Options (Self-Insured Retention)
+deductibles:
+  - 1_000_000   # $1M deductible
+  - 2_000_000   # $2M deductible
+  - 5_000_000   # $5M deductible
+  - 10_000_000  # $10M deductible
+  - 25_000_000  # $25M deductible
+
+# Premium Calculation Notes
+premium_notes: |
+  Premium = Σ (Layer Limit × Rate on Line) for selected layers
+
+  Example for full coverage with $1M deductible:
+  - Primary (above $1M): $4M × 2.0% = $80K
+  - First Excess: $20M × 1.0% = $200K
+  - Second Excess: $75M × 0.5% = $375K
+  - Third Excess: $150M × 0.3% = $450K
+  - Total Annual Premium: $1,105K
+
+  Decreasing rates reflect lower expected frequency at higher layers,
+  though ergodic value of high-layer coverage exceeds loss-cost analysis.
+
+# Market Conditions
+market_conditions:
+  hard_market_adjustment: 1.0  # Multiplier for hard/soft market (1.0 = neutral)
+  minimum_premium: 50_000       # Minimum annual premium for any program
+  maximum_layers: 4             # Maximum number of layers available
