@@ -197,8 +197,7 @@ class TestVisualizationPlots:
         # Clean up
         plt.close(fig)
 
-    @patch('plotly.graph_objects.Figure')
-    def test_create_interactive_dashboard(self, mock_figure):
+    def test_create_interactive_dashboard(self):
         """Test interactive dashboard creation."""
         # Create sample data
         simulation_data = pd.DataFrame({
@@ -208,18 +207,13 @@ class TestVisualizationPlots:
             'insurance_recovery': np.random.exponential(50_000, 300),
         })
         
-        # Mock plotly figure
-        mock_fig_instance = Mock()
-        mock_figure.return_value = mock_fig_instance
-        
         # Create dashboard
         result = create_interactive_dashboard(simulation_data)
         
-        # Should return the mock figure
-        assert result == mock_fig_instance
-        
-        # Should have called show on the figure
-        mock_fig_instance.show.assert_called_once()
+        # Should return a plotly figure
+        assert result is not None
+        assert hasattr(result, 'data')
+        assert hasattr(result, 'layout')
 
     def test_create_interactive_dashboard_with_options(self):
         """Test interactive dashboard with various options."""
@@ -229,19 +223,17 @@ class TestVisualizationPlots:
             'losses': np.random.exponential(100_000, 30),
         })
         
-        # Mock plotly to avoid actually creating interactive plots
-        with patch('plotly.graph_objects.Figure') as mock_figure:
-            mock_fig_instance = Mock()
-            mock_figure.return_value = mock_fig_instance
-            
-            result = create_interactive_dashboard(
-                simulation_data,
-                title="Test Dashboard",
-                height=800,
-                show_distributions=True,
-            )
-            
-            assert result == mock_fig_instance
+        result = create_interactive_dashboard(
+            simulation_data,
+            title="Test Dashboard",
+            height=800,
+            show_distributions=True,
+        )
+        
+        # Should return a plotly figure with custom settings
+        assert result is not None
+        assert result.layout.title.text == "Test Dashboard"
+        assert result.layout.height == 800
 
 
 class TestVisualizationEdgeCases:

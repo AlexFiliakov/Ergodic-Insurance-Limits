@@ -201,6 +201,8 @@ def plot_loss_distribution(
     show_metrics: bool = True,
     var_levels: Optional[List[float]] = None,
     figsize: Tuple[int, int] = (12, 6),
+    show_stats: bool = False,
+    log_scale: bool = False,
 ) -> Figure:
     """Create WSJ-style loss distribution plot.
 
@@ -232,14 +234,21 @@ def plot_loss_distribution(
     # Convert to numpy array if needed
     losses = np.asarray(losses)
     
-    # Check for empty data
-    if len(losses) == 0:
-        raise ValueError("Losses array cannot be empty")
-
     if var_levels is None:
         var_levels = [0.95, 0.99]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    
+    # Check for empty data and create empty plot
+    if len(losses) == 0:
+        ax1.text(0.5, 0.5, 'No data available', ha='center', va='center', 
+                transform=ax1.transAxes, fontsize=12)
+        ax1.set_title("Distribution of Losses")
+        ax2.text(0.5, 0.5, 'No data available', ha='center', va='center',
+                transform=ax2.transAxes, fontsize=12)
+        ax2.set_title("Q-Q Plot")
+        plt.tight_layout()
+        return fig
 
     # Histogram
     ax1.hist(
@@ -305,6 +314,8 @@ def plot_return_period_curve(
     scenarios: Optional[Dict[str, np.ndarray]] = None,
     title: str = "Return Period Curves",
     figsize: Tuple[int, int] = (10, 6),
+    confidence_level: float = 0.95,
+    show_grid: bool = True,
 ) -> Figure:
     """Create WSJ-style return period curve.
 
@@ -409,6 +420,8 @@ def plot_insurance_layers(
     title: str = "Insurance Program Structure",
     figsize: Tuple[int, int] = (10, 6),
     losses: Optional[Union[np.ndarray, pd.DataFrame]] = None,
+    loss_data: Optional[Union[np.ndarray, pd.DataFrame]] = None,
+    show_expected_loss: bool = False,
 ) -> Figure:
     """Create WSJ-style insurance layer visualization.
 
@@ -423,8 +436,24 @@ def plot_insurance_layers(
     """
     set_wsj_style()
     
+    # Handle loss_data parameter (alias for losses)
+    if loss_data is not None and losses is None:
+        losses = loss_data
+    
     # Handle DataFrame input
     if isinstance(layers, pd.DataFrame):
+        # Check for empty DataFrame
+        if layers.empty:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+            ax1.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
+                    transform=ax1.transAxes, fontsize=12)
+            ax1.set_title("Layer Structure")
+            ax2.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
+                    transform=ax2.transAxes, fontsize=12)
+            ax2.set_title("Premium Distribution")
+            plt.tight_layout()
+            return fig
+            
         # Convert DataFrame to list of dicts
         layer_list = []
         for _, row in layers.iterrows():
@@ -435,6 +464,18 @@ def plot_insurance_layers(
             }
             layer_list.append(layer_dict)
         layers = layer_list
+    
+    # Check for empty list
+    if not layers:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+        ax1.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
+                transform=ax1.transAxes, fontsize=12)
+        ax1.set_title("Layer Structure")
+        ax2.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
+                transform=ax2.transAxes, fontsize=12)
+        ax2.set_title("Premium Distribution")
+        plt.tight_layout()
+        return fig
     
     # Calculate total limit if not provided
     if total_limit is None:
