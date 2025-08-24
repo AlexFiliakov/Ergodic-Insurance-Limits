@@ -84,7 +84,7 @@ class TestMonteCarloExtended:
         
         # Test summary
         summary = results.summary()
-        assert "Simulations: 4" in summary
+        assert "Simulations: 100" in summary  # Uses config.n_simulations
         assert "Ruin Probability: 50.00%" in summary
         assert "Mean Final Assets:" in summary
         assert "Execution Time: 1.50s" in summary
@@ -185,9 +185,9 @@ class TestMonteCarloExtended:
             assert checkpoint_file.exists()
             
             # Load and verify
-            data = np.load(checkpoint_file)
-            assert data['iteration'] == 10
-            assert np.array_equal(data['arr_0'], test_array)
+            with np.load(checkpoint_file) as data:
+                assert data['iteration'] == 10
+                assert np.array_equal(data['arr_0'], test_array)
 
     def test_checkpoint_save_failure(self, setup_simple_engine):
         """Test checkpoint save failure handling."""
