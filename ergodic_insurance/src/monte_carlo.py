@@ -14,12 +14,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from tqdm import tqdm
+
 from .convergence import ConvergenceDiagnostics, ConvergenceStats
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .risk_metrics import RiskMetrics
-from tqdm import tqdm
 
 
 @dataclass

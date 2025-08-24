@@ -474,6 +474,35 @@ prepare to work on issue #10 "Integration Testing and Demo Notebook". First ask 
 
 ---
 
+### Monte Carlo Issue Questions
+
+  1. Dependencies: The requirements don't currently include joblib, tqdm,
+   or pyarrow (for Parquet support). Should I add these as new
+  dependencies?
+  2. Existing simulation.py: There's already a simulation.py file with a
+  basic simulation engine. Should I:
+    - Rename the existing one to something else (e.g.,
+  single_simulation.py)
+    - Integrate the Monte Carlo engine into the existing file
+    - Create a new file with a different name for the Monte Carlo
+  orchestrator?
+  3. Output location: Where should the Parquet checkpoint files be saved?
+   Should I use the existing outputs directory or create a new structure?
+  4. Statistics to track: Besides mean, std, and percentiles, are there
+  specific ergodic metrics (like time-average growth rate) that should be
+   calculated during streaming?
+  5. Insurance configuration: Should the Monte Carlo engine use the new
+  InsurancePolicy class from the previous issue, or keep it simple for
+  now?
+
+### Monte Carlo Issue Responses
+
+1. Add new dependencies as needed.
+2. Try to extend the current simulation.py file if possible, otherwise integrate Monte Carlo engine into the existing file and update legacy tests accordingly.
+3. You can create a new directory for Parquet checkpoint files and probably exclude it from Git tracking.
+4. You can track the time-average growth rate and any other sensible ergodic metrics.
+5. Use InsurancePolicy class for Monte Carlo.
+
 ## Sprint 03: Loss Modeling
 
 Ask me clarifying questions then draft the sprint plan for "Sprint 03: Loss Modeling" to be located in the file `\simone\SPRINT_03_LOSS_MODELING.md`.
