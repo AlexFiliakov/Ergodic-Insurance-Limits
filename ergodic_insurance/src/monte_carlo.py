@@ -417,7 +417,7 @@ class MonteCarloEngine:
 
         # Avoid division by zero and log of negative numbers
         valid_mask = (final_assets > 0) & (initial_assets > 0)
-        growth_rates = np.zeros_like(final_assets)
+        growth_rates = np.zeros_like(final_assets, dtype=np.float64)
 
         if np.any(valid_mask):
             growth_rates[valid_mask] = np.log(final_assets[valid_mask] / initial_assets) / n_years
