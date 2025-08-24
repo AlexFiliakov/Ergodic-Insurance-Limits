@@ -1,0 +1,230 @@
+# Multi-Layer Insurance Program Structures
+# Standard configurations for manufacturing risk transfer
+
+# Standard Manufacturing Program
+standard_manufacturing:
+  program_name: "Standard Manufacturing Insurance Program"
+  deductible: 250_000  # Self-insured retention
+
+  layers:
+    # Primary Layer - High frequency claims
+    - attachment_point: 250_000
+      limit: 4_750_000  # Covers $250K to $5M
+      premium_rate: 0.015  # 1.5% rate on line
+      reinstatements: 0  # No reinstatements for primary
+      description: "Primary working layer for attritional losses"
+
+    # First Excess Layer - Medium frequency
+    - attachment_point: 5_000_000
+      limit: 20_000_000  # Covers $5M to $25M
+      premium_rate: 0.008  # 0.8% rate on line
+      reinstatements: 1
+      reinstatement_premium: 1.0  # 100% of original premium
+      reinstatement_type: "full"
+      description: "First excess for large losses"
+
+    # Second Excess Layer - Low frequency
+    - attachment_point: 25_000_000
+      limit: 25_000_000  # Covers $25M to $50M
+      premium_rate: 0.004  # 0.4% rate on line
+      reinstatements: 2
+      reinstatement_premium: 1.0
+      reinstatement_type: "pro_rata"
+      description: "Second excess for severe events"
+
+    # Third Excess Layer - Catastrophic
+    - attachment_point: 50_000_000
+      limit: 50_000_000  # Covers $50M to $100M
+      premium_rate: 0.002  # 0.2% rate on line
+      reinstatements: 999  # Effectively unlimited
+      reinstatement_premium: 1.0
+      reinstatement_type: "pro_rata"
+      description: "Catastrophic layer with unlimited reinstatements"
+
+# Conservative Program - Higher attachment, lower limits
+conservative_manufacturing:
+  program_name: "Conservative Manufacturing Program"
+  deductible: 1_000_000  # Higher retention
+
+  layers:
+    - attachment_point: 1_000_000
+      limit: 4_000_000  # Covers $1M to $5M
+      premium_rate: 0.012
+      reinstatements: 0
+
+    - attachment_point: 5_000_000
+      limit: 15_000_000  # Covers $5M to $20M
+      premium_rate: 0.007
+      reinstatements: 1
+      reinstatement_premium: 0.75  # 75% reinstatement premium
+      reinstatement_type: "pro_rata"
+
+    - attachment_point: 20_000_000
+      limit: 30_000_000  # Covers $20M to $50M
+      premium_rate: 0.003
+      reinstatements: 1
+      reinstatement_premium: 0.5
+      reinstatement_type: "pro_rata"
+
+# Aggressive Program - Lower attachment, higher limits
+aggressive_manufacturing:
+  program_name: "Aggressive Manufacturing Program"
+  deductible: 100_000  # Low retention
+
+  layers:
+    - attachment_point: 100_000
+      limit: 4_900_000  # Covers $100K to $5M
+      premium_rate: 0.018  # Higher rate for lower attachment
+      reinstatements: 1
+      reinstatement_premium: 0.5
+      reinstatement_type: "pro_rata"
+
+    - attachment_point: 5_000_000
+      limit: 25_000_000  # Covers $5M to $30M
+      premium_rate: 0.009
+      reinstatements: 2
+      reinstatement_premium: 1.0
+      reinstatement_type: "full"
+
+    - attachment_point: 30_000_000
+      limit: 70_000_000  # Covers $30M to $100M
+      premium_rate: 0.005
+      reinstatements: 999  # Unlimited
+      reinstatement_premium: 1.0
+      reinstatement_type: "pro_rata"
+
+    - attachment_point: 100_000_000
+      limit: 150_000_000  # Covers $100M to $250M
+      premium_rate: 0.003
+      reinstatements: 999
+      reinstatement_premium: 1.0
+      reinstatement_type: "pro_rata"
+
+# Small Company Program
+small_company:
+  program_name: "Small Company Insurance Program"
+  deductible: 50_000
+
+  layers:
+    - attachment_point: 50_000
+      limit: 950_000  # Covers $50K to $1M
+      premium_rate: 0.025  # Higher rate for small company
+      reinstatements: 0
+
+    - attachment_point: 1_000_000
+      limit: 4_000_000  # Covers $1M to $5M
+      premium_rate: 0.012
+      reinstatements: 1
+      reinstatement_premium: 1.0
+      reinstatement_type: "full"
+
+    - attachment_point: 5_000_000
+      limit: 10_000_000  # Covers $5M to $15M
+      premium_rate: 0.006
+      reinstatements: 1
+      reinstatement_premium: 0.5
+      reinstatement_type: "pro_rata"
+
+# Captive-Backed Program (with aggregate limits)
+captive_program:
+  program_name: "Captive-Backed Insurance Program"
+  deductible: 500_000  # Moderate retention
+
+  layers:
+    # Captive layer with aggregate
+    - attachment_point: 500_000
+      limit: 2_500_000  # Covers $500K to $3M
+      premium_rate: 0.01  # Lower rate (captive)
+      reinstatements: 3
+      reinstatement_premium: 0.25  # Low reinstatement cost
+      reinstatement_type: "pro_rata"
+      aggregate_limit: 10_000_000  # Annual aggregate cap
+
+    # Commercial layers above captive
+    - attachment_point: 3_000_000
+      limit: 7_000_000  # Covers $3M to $10M
+      premium_rate: 0.01
+      reinstatements: 1
+      reinstatement_premium: 1.0
+      reinstatement_type: "full"
+
+    - attachment_point: 10_000_000
+      limit: 40_000_000  # Covers $10M to $50M
+      premium_rate: 0.005
+      reinstatements: 2
+      reinstatement_premium: 1.0
+      reinstatement_type: "pro_rata"
+
+# Program Selection Guidelines
+selection_guidelines:
+  standard:
+    description: "Balanced coverage for typical manufacturing operations"
+    recommended_for:
+      - revenue: [10_000_000, 50_000_000]
+      - asset_value: [10_000_000, 100_000_000]
+      - risk_tolerance: "moderate"
+
+  conservative:
+    description: "Higher retentions with focused excess coverage"
+    recommended_for:
+      - revenue: [20_000_000, 100_000_000]
+      - asset_value: [50_000_000, 500_000_000]
+      - risk_tolerance: "low"
+      - strong_balance_sheet: true
+
+  aggressive:
+    description: "Maximum coverage with low retentions"
+    recommended_for:
+      - revenue: [5_000_000, 30_000_000]
+      - asset_value: [5_000_000, 50_000_000]
+      - risk_tolerance: "high"
+      - growth_focused: true
+
+  small_company:
+    description: "Tailored for smaller manufacturing operations"
+    recommended_for:
+      - revenue: [1_000_000, 10_000_000]
+      - asset_value: [1_000_000, 10_000_000]
+      - employee_count: [10, 100]
+
+  captive:
+    description: "Hybrid structure with captive participation"
+    recommended_for:
+      - revenue: [50_000_000, 500_000_000]
+      - has_captive: true
+      - sophisticated_risk_management: true
+
+# Market Pricing Factors
+market_factors:
+  hard_market_multiplier: 1.25  # Premium increase in hard market
+  soft_market_multiplier: 0.85  # Premium decrease in soft market
+
+  industry_factors:
+    manufacturing_general: 1.0
+    chemical_manufacturing: 1.5
+    food_manufacturing: 0.9
+    electronics_manufacturing: 1.1
+    heavy_machinery: 1.3
+
+  loss_history_factors:
+    clean_5_years: 0.8
+    average_losses: 1.0
+    above_average: 1.3
+    recent_large_loss: 1.5
+
+# Reinstatement Premium Structures
+reinstatement_structures:
+  standard:
+    first_reinstatement: 1.0  # 100% of original premium
+    second_reinstatement: 1.0
+    subsequent: 1.0
+
+  declining:
+    first_reinstatement: 1.0
+    second_reinstatement: 0.75
+    subsequent: 0.5
+
+  increasing:
+    first_reinstatement: 0.5
+    second_reinstatement: 1.0
+    subsequent: 1.5
