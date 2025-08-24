@@ -3,7 +3,6 @@
 import numpy as np
 import pytest
 from ergodic_insurance.src.convergence import ConvergenceDiagnostics, ConvergenceStats
-from scipy import stats
 
 
 class TestConvergenceExtended:
@@ -213,7 +212,7 @@ class TestConvergenceExtended:
         assert "mcse" in results
 
         # Stationary chain should pass
-        assert results["stationary"] is True
+        assert results["stationary"]
 
     def test_heidelberger_welch_non_stationary(self, diagnostics):
         """Test Heidelberger-Welch with non-stationary chain."""
@@ -223,7 +222,7 @@ class TestConvergenceExtended:
         results = diagnostics.heidelberger_welch_test(chain)
 
         # Should detect non-stationarity
-        assert results["stationary"] is False
+        assert not results["stationary"]
         assert results["stationarity_ratio"] > 0.1
 
     def test_heidelberger_welch_with_zero_mean(self, diagnostics):
@@ -235,7 +234,7 @@ class TestConvergenceExtended:
 
         # Should handle zero mean - relative_halfwidth will be very large but may not be exactly inf
         assert results["relative_halfwidth"] > 1000  # Very large value
-        assert results["halfwidth_passed"] is False
+        assert not results["halfwidth_passed"]
 
     def test_heidelberger_welch_with_zero_variance(self, diagnostics):
         """Test Heidelberger-Welch with constant chain."""
