@@ -10,9 +10,12 @@ InsuranceProgram classes.
 
 import warnings
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import yaml
+
+if TYPE_CHECKING:
+    from ergodic_insurance.src.insurance_program import InsuranceProgram
 
 
 @dataclass

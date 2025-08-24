@@ -101,7 +101,7 @@ class ConvergenceDiagnostics:
         # Calculate R-hat
         r_hat = np.sqrt(var_est / within_var) if within_var > 0 else np.inf
 
-        return r_hat
+        return float(r_hat)
 
     def calculate_ess(self, chain: np.ndarray, max_lag: Optional[int] = None) -> float:
         """Calculate effective sample size using autocorrelation.
@@ -137,7 +137,7 @@ class ConvergenceDiagnostics:
         # Calculate ESS
         ess = n / max(sum_autocorr, 1)
 
-        return min(ess, n)  # ESS cannot exceed actual sample size
+        return float(min(ess, n))  # ESS cannot exceed actual sample size
 
     def calculate_mcse(self, chain: np.ndarray, ess: Optional[float] = None) -> float:
         """Calculate Monte Carlo standard error.
@@ -156,7 +156,7 @@ class ConvergenceDiagnostics:
         std_dev = np.std(chain, ddof=1)
         mcse = std_dev / np.sqrt(ess)
 
-        return mcse
+        return float(mcse)
 
     def check_convergence(
         self, chains: Union[np.ndarray, List[np.ndarray]], metric_names: Optional[List[str]] = None
