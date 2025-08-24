@@ -13,6 +13,7 @@ The research reveals that **traditional expected value approaches systematically
 $g = \lim_{T\to\infty}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$
 
 This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For our widget manufacturing model with $10M starting assets, the hypothesis is that **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
+This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For our widget manufacturing model with $10M starting assets, the hypothesis is that **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
 
 ### Value Proposition
 
@@ -26,7 +27,7 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 
 ### Financial Modeling
 - **Widget manufacturer model** with comprehensive balance sheet management
-- **Stochastic processes** including GBM, lognormal volatility, and mean-reversion
+- **Stochastic processes** including geometric Brownian motion, lognormal volatility, and mean-reversion
 - **Insurance claim processing** with multi-year payment schedules
 - **Collateral management** for letter of credit requirements
 
@@ -38,7 +39,7 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 ### Documentation & Testing
 - **Comprehensive Google-style docstrings** throughout the codebase
 - **Sphinx documentation system** for professional API reference
-- **100% test coverage** with pytest framework
+- **90% test coverage** with pytest framework
 - **Type safety** enforced with mypy static analysis
 
 ### Analysis Tools

@@ -220,21 +220,21 @@ class ClaimGenerator:
             revenue = 10_000_000  # Default $10M
 
         # Create manufacturing loss generator with appropriate parameters
-        gen_params = {
-            "attritional_params": {
+        seed = int(self.rng.get_state()[1][0]) if hasattr(self.rng, "get_state") else None  # type: ignore
+
+        generator = ManufacturingLossGenerator(
+            attritional_params={
                 "base_frequency": self.frequency * 10,  # Scale to attritional
                 "severity_mean": self.severity_mean / 100,  # Smaller losses
                 "severity_cv": 1.5,
             },
-            "large_params": {
+            large_params={
                 "base_frequency": self.frequency,
                 "severity_mean": self.severity_mean,
                 "severity_cv": 2.0,
             },
-            "seed": int(self.rng.get_state()[1][0]) if hasattr(self.rng, "get_state") else None,  # type: ignore
-        }
-
-        generator = ManufacturingLossGenerator(**gen_params)
+            seed=seed,
+        )
         enhanced_losses, stats = generator.generate_losses(
             duration=years, revenue=revenue, include_catastrophic=True
         )

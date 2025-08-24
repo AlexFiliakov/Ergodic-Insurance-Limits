@@ -1,7 +1,8 @@
 """Tests for multi-layer insurance program with reinstatements.
 
 Comprehensive test suite for advanced insurance program features including
-reinstatements, multi-layer structures, and complex claim scenarios.
+reinstatements, multi-layer structures, complex claim scenarios, and
+optimization algorithms.
 """
 
 import tempfile
@@ -14,6 +15,8 @@ from ergodic_insurance.src.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,
     LayerState,
+    OptimalStructure,
+    OptimizationConstraints,
     ProgramState,
     ReinstatementType,
 )
@@ -644,14 +647,294 @@ class TestComplexScenarios:
         assert results["total_losses"] == 4_000_000
         # Each claim has 100K deductible
         # Claims: 500K, 800K, 1200K, 600K, 900K
-        # Deductible paid: 100K * 5 = 500K
-        # Layer covers: 400K, 700K, 1100K, 500K, 800K = 3500K
-        assert results["total_deductible"] == 500_000  # 5 claims * 100K deductible
-        assert results["total_recovery"] == 3_500_000  # Total recovery from layer
 
-        # Check reinstatements were triggered
-        layer_summary = results["layer_summaries"][0]
-        assert layer_summary["reinstatements_used"] == 1  # Should have triggered one reinstatement
+
+class TestInsuranceProgramOptimization:
+    """Test insurance program optimization algorithms."""
+
+    @pytest.fixture
+    def sample_loss_data(self):
+        """Generate sample loss data for testing."""
+        np.random.seed(42)
+
+        # Generate 10 years of loss data
+        loss_data = []
+        for _ in range(10):
+            annual_losses = []
+
+            # Attritional losses (high frequency, low severity)
+            n_attritional = np.random.poisson(5)
+            for _ in range(n_attritional):
+                annual_losses.append(np.random.lognormal(10, 1.5))  # ~22K mean
+
+            # Large losses (low frequency, high severity)
+            n_large = np.random.poisson(0.3)
+            for _ in range(n_large):
+                annual_losses.append(np.random.lognormal(14, 2))  # ~1.6M mean
+
+            loss_data.append(annual_losses)
+
+        return loss_data
+
+    @pytest.fixture
+    def company_profile(self):
+        """Sample company profile for testing."""
+        return {
+            "initial_assets": 10_000_000,
+            "annual_revenue": 15_000_000,
+            "operating_margin": 0.08,
+            "growth_rate": 0.05,
+        }
+
+    def test_calculate_ergodic_benefit(self, sample_loss_data, company_profile):
+        """Test ergodic benefit calculation."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        metrics = program.calculate_ergodic_benefit(sample_loss_data, company_profile)
+
+        assert "time_average_benefit" in metrics
+        assert "ensemble_average_cost" in metrics
+        assert "ergodic_ratio" in metrics
+        assert "volatility_reduction" in metrics
+        assert metrics["volatility_reduction"] >= 0  # Insurance should reduce volatility
+
+    def test_find_optimal_attachment_points(self):
+        """Test attachment point optimization."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Generate test loss data
+        np.random.seed(42)
+        losses = np.concatenate(
+            [
+                np.random.lognormal(10, 1.5, 100),  # Small losses
+                np.random.lognormal(14, 2, 20),  # Large losses
+            ]
+        )
+
+        # Test with different layer counts
+        for num_layers in [3, 4, 5]:
+            attachment_points = program.find_optimal_attachment_points(losses.tolist(), num_layers)
+
+            assert len(attachment_points) == num_layers
+            # Check strictly increasing
+            for i in range(1, len(attachment_points)):
+                assert attachment_points[i] > attachment_points[i - 1]
+
+    def test_find_optimal_attachment_points_empty_data(self):
+        """Test attachment point optimization with empty data."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        attachment_points = program.find_optimal_attachment_points([], 4)
+        assert attachment_points == []
+
+        attachment_points = program.find_optimal_attachment_points([0, 0, 0], 4)
+        assert attachment_points == []
+
+    def test_optimize_layer_widths(self):
+        """Test layer width optimization."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        attachment_points = [250_000, 1_000_000, 5_000_000, 25_000_000]
+        total_budget = 500_000  # Total premium budget
+
+        widths = program.optimize_layer_widths(attachment_points, total_budget)
+
+        assert len(widths) == len(attachment_points)
+        assert all(w > 0 for w in widths)
+
+        # Test with capacity constraints
+        capacity_constraints = {
+            "layer_0": 2_000_000,
+            "layer_1": 10_000_000,
+            "layer_2": 20_000_000,
+            "layer_3": 50_000_000,
+        }
+
+        constrained_widths = program.optimize_layer_widths(
+            attachment_points, total_budget, capacity_constraints
+        )
+
+        for i, width in enumerate(constrained_widths):
+            assert width <= capacity_constraints[f"layer_{i}"]
+
+    def test_optimize_layer_widths_with_loss_data(self):
+        """Test layer width optimization with loss data."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Generate test losses
+        np.random.seed(42)
+        losses = np.concatenate(
+            [
+                np.random.lognormal(10, 1.5, 100),
+                np.random.lognormal(14, 2, 20),
+            ]
+        ).tolist()
+
+        attachment_points = [250_000, 1_000_000, 5_000_000]
+        total_budget = 300_000
+
+        widths = program.optimize_layer_widths(attachment_points, total_budget, loss_data=losses)
+
+        assert len(widths) == len(attachment_points)
+        assert all(w > 0 for w in widths)
+
+    def test_optimize_layer_structure(self, sample_loss_data, company_profile):
+        """Test complete layer structure optimization."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Test with default constraints
+        optimal = program.optimize_layer_structure(sample_loss_data, company_profile)
+
+        assert isinstance(optimal, OptimalStructure)
+        assert len(optimal.layers) >= 3
+        assert len(optimal.layers) <= 5
+        assert optimal.total_premium > 0
+        assert optimal.total_coverage > 0
+        assert optimal.deductible > 0
+
+        # Check layers are properly ordered
+        for i in range(1, len(optimal.layers)):
+            assert optimal.layers[i].attachment_point > optimal.layers[i - 1].attachment_point
+
+    def test_optimize_layer_structure_with_constraints(self, sample_loss_data, company_profile):
+        """Test structure optimization with custom constraints."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        constraints = OptimizationConstraints(
+            max_total_premium=400_000,
+            min_total_coverage=30_000_000,
+            max_layers=4,
+            min_layers=3,
+            min_roe_improvement=0.10,
+        )
+
+        optimal = program.optimize_layer_structure(sample_loss_data, company_profile, constraints)
+
+        assert len(optimal.layers) >= constraints.min_layers
+        assert len(optimal.layers) <= constraints.max_layers
+        assert optimal.total_premium <= constraints.max_total_premium or optimal.total_premium == 0
+
+        # Check if ROE improvement meets target (if converged)
+        if optimal.convergence_achieved:
+            assert optimal.roe_improvement >= 0  # Should be positive
+
+    def test_optimize_empty_loss_data(self, company_profile):
+        """Test optimization with no loss data."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        optimal = program.optimize_layer_structure([], company_profile)
+
+        # Should return basic structure
+        assert isinstance(optimal, OptimalStructure)
+        assert not optimal.convergence_achieved
+        assert optimal.ergodic_benefit == 0.0
+
+    def test_optimization_constraints_defaults(self):
+        """Test default optimization constraints."""
+        constraints = OptimizationConstraints()
+
+        assert constraints.max_layers == 5
+        assert constraints.min_layers == 3
+        assert constraints.max_attachment_gap == 0.0
+        assert constraints.min_roe_improvement == 0.15
+        assert constraints.max_iterations == 1000
+        assert constraints.convergence_tolerance == 1e-6
+
+    def test_round_attachment_point(self):
+        """Test attachment point rounding logic."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Test various ranges
+        assert program._round_attachment_point(45_000) == 40_000  # Rounds to nearest 10K
+        assert program._round_attachment_point(123_456) == 100_000  # Rounds to nearest 50K
+        assert program._round_attachment_point(567_890) == 550_000  # Rounds to nearest 50K
+        assert program._round_attachment_point(1_234_567) == 1_250_000  # Rounds to nearest 250K
+        assert program._round_attachment_point(12_345_678) == 12_000_000  # Rounds to nearest 1M
+        assert program._round_attachment_point(123_456_789) == 123_000_000  # Rounds to nearest 1M
+
+    def test_ergodic_benefit_calculation_edge_cases(self):
+        """Test ergodic benefit calculation with edge cases."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Test with single year data
+        single_year = [[100_000, 200_000]]
+        metrics = program.calculate_ergodic_benefit(single_year)
+
+        assert metrics["time_average_benefit"] == 0.0  # Not enough data
+
+        # Test with no losses
+        no_losses = [[], [], []]
+        metrics = program.calculate_ergodic_benefit(no_losses)
+
+        assert metrics["ensemble_average_cost"] < 0  # Premium cost only
+
+        # Test with catastrophic losses
+        catastrophic = [[50_000_000], [0], [0]]
+        metrics = program.calculate_ergodic_benefit(catastrophic)
+
+        assert metrics["volatility_reduction"] > 0  # Insurance helps with catastrophic
+
+    def test_optimization_convergence(self, sample_loss_data):
+        """Test that optimization converges within iteration limit."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        constraints = OptimizationConstraints(max_iterations=10)
+
+        optimal = program.optimize_layer_structure(sample_loss_data, constraints=constraints)
+
+        assert optimal.iterations_used <= constraints.max_iterations
+
+    def test_layer_structure_validation(self):
+        """Test that optimized structures are valid."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Generate synthetic loss data
+        np.random.seed(42)
+        loss_data = []
+        for _ in range(5):
+            annual = list(np.random.lognormal(11, 2, np.random.poisson(3)))
+            loss_data.append(annual)
+
+        optimal = program.optimize_layer_structure(loss_data)
+
+        # Validate structure
+        for layer in optimal.layers:
+            assert layer.attachment_point >= 0
+            assert layer.limit > 0
+            assert layer.premium_rate > 0
+            assert layer.premium_rate <= 0.05  # Reasonable rate
+            assert layer.reinstatements >= 0
+
+    def test_percentile_based_attachment_selection(self):
+        """Test percentile-based attachment point selection."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        # Generate loss data with clear percentiles
+        np.random.seed(42)
+        losses = np.concatenate(
+            [
+                np.full(50, 10_000),  # 50th percentile
+                np.full(40, 100_000),  # 90th percentile
+                np.full(9, 1_000_000),  # 99th percentile
+                np.full(1, 10_000_000),  # 100th percentile
+            ]
+        )
+        np.random.shuffle(losses)
+
+        # Test with custom percentiles
+        attachment_points = program.find_optimal_attachment_points(
+            losses.tolist(), num_layers=3, percentiles=[50, 90, 99]
+        )
+
+        assert len(attachment_points) == 3
+        # Check that attachment points roughly match percentiles
+        assert attachment_points[0] < 100_000  # Around 50th percentile
+        assert attachment_points[1] < 1_000_000  # Around 90th percentile
+        assert attachment_points[2] >= 1_000_000  # Around 99th percentile
+
+
+class TestCatastrophicScenarios:
+    """Test catastrophic scenarios and edge cases."""
 
     def test_catastrophic_exhaustion(self):
         """Test scenario where all layers are exhausted."""

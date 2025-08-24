@@ -67,13 +67,17 @@ class RiskMetrics:
         # Pre-calculate sorted losses for percentile-based metrics
         if weights is None:
             self._sorted_losses = np.sort(self.losses)
+            self._sorted_weights = None
         else:
             # Weighted sorting
             sort_idx = np.argsort(self.losses)
             self._sorted_losses = self.losses[sort_idx]
-            self._sorted_weights = self.weights[sort_idx]
-            self._cumulative_weights = np.cumsum(self._sorted_weights)
-            self._cumulative_weights /= self._cumulative_weights[-1]
+            if self.weights is not None:
+                self._sorted_weights = self.weights[sort_idx]
+                self._cumulative_weights = np.cumsum(self._sorted_weights)
+                self._cumulative_weights /= self._cumulative_weights[-1]
+            else:
+                self._sorted_weights = None
 
     def var(
         self,
@@ -124,13 +128,13 @@ class RiskMetrics:
     def _empirical_var(self, confidence: float) -> float:
         """Calculate empirical VaR using percentiles."""
         if self.weights is None:
-            return np.percentile(self.losses, confidence * 100)
+            return float(np.percentile(self.losses, confidence * 100))
         else:
             # Weighted percentile
             idx = np.searchsorted(self._cumulative_weights, confidence)
             if idx >= len(self._sorted_losses):
-                idx = len(self._sorted_losses) - 1
-            return self._sorted_losses[idx]
+                idx = len(self._sorted_losses) - 1  # type: ignore
+            return float(self._sorted_losses[idx])
 
     def _parametric_var(self, confidence: float) -> float:
         """Calculate parametric VaR assuming normal distribution."""
@@ -141,7 +145,7 @@ class RiskMetrics:
             variance = np.average((self.losses - mean) ** 2, weights=self.weights)
             std = np.sqrt(variance)
 
-        return mean + std * stats.norm.ppf(confidence)
+        return float(mean + std * stats.norm.ppf(confidence))
 
     def _bootstrap_var_ci(self, confidence: float, n_bootstrap: int) -> Tuple[float, float]:
         """Calculate bootstrap confidence interval for VaR."""
@@ -165,10 +169,11 @@ class RiskMetrics:
                 cum_weights /= cum_weights[-1]
                 idx_var = np.searchsorted(cum_weights, confidence)
                 if idx_var >= len(sorted_sample):
-                    idx_var = len(sorted_sample) - 1
+                    idx_var = len(sorted_sample) - 1  # type: ignore
                 var_bootstrap.append(sorted_sample[idx_var])
 
-        return np.percentile(var_bootstrap, [2.5, 97.5])
+        result = np.percentile(var_bootstrap, [2.5, 97.5])
+        return (float(result[0]), float(result[1]))
 
     def tvar(
         self,
@@ -188,20 +193,24 @@ class RiskMetrics:
             TVaR value.
         """
         if var_value is None:
-            var_value = self.var(confidence)
+            var_result = self.var(confidence)
+            if isinstance(var_result, RiskMetricsResult):
+                var_value = var_result.value
+            else:
+                var_value = var_result
 
         if self.weights is None:
             tail_losses = self.losses[self.losses >= var_value]
             if len(tail_losses) == 0:
-                return var_value
-            return np.mean(tail_losses)
+                return float(var_value) if var_value is not None else 0.0
+            return float(np.mean(tail_losses))
         else:
             mask = self.losses >= var_value
             if not np.any(mask):
-                return var_value
+                return float(var_value) if var_value is not None else 0.0
             tail_losses = self.losses[mask]
             tail_weights = self.weights[mask]
-            return np.average(tail_losses, weights=tail_weights)
+            return float(np.average(tail_losses, weights=tail_weights))
 
     def expected_shortfall(
         self,
@@ -221,14 +230,14 @@ class RiskMetrics:
             tail_losses = self.losses[self.losses >= threshold]
             if len(tail_losses) == 0:
                 return 0.0
-            return np.mean(tail_losses)
+            return float(np.mean(tail_losses))
         else:
             mask = self.losses >= threshold
             if not np.any(mask):
                 return 0.0
             tail_losses = self.losses[mask]
             tail_weights = self.weights[mask]
-            return np.average(tail_losses, weights=tail_weights)
+            return float(np.average(tail_losses, weights=tail_weights))
 
     def pml(self, return_period: int) -> float:
         """Calculate Probable Maximum Loss (PML) for a given return period.
@@ -250,7 +259,11 @@ class RiskMetrics:
 
         # PML corresponds to the (1 - 1/return_period) percentile
         confidence = 1 - 1 / return_period
-        return self.var(confidence)
+        var_result = self.var(confidence)
+        if isinstance(var_result, RiskMetricsResult):
+            return var_result.value
+        else:
+            return var_result
 
     def conditional_tail_expectation(
         self,
@@ -291,7 +304,7 @@ class RiskMetrics:
         # Calculate drawdown
         drawdown = running_max - cumsum
 
-        return np.max(drawdown)
+        return float(np.max(drawdown))
 
     def economic_capital(
         self,
@@ -316,7 +329,11 @@ class RiskMetrics:
             expected_loss = np.average(self.losses, weights=self.weights)
 
         # Economic capital = VaR - Expected Loss
-        return max(0, var_value - expected_loss)
+        if isinstance(var_value, RiskMetricsResult):
+            var_val = var_value.value
+        else:
+            var_val = var_value
+        return max(0, var_val - expected_loss)
 
     def return_period_curve(
         self,
@@ -363,7 +380,7 @@ class RiskMetrics:
         k = len(tail_losses)
         hill_estimate = k / np.sum(np.log(tail_losses / threshold))
 
-        return hill_estimate
+        return float(hill_estimate)
 
     def risk_adjusted_metrics(
         self,
@@ -450,7 +467,7 @@ class RiskMetrics:
             tvar_shifted, tvar_original + shift, rtol=0.01
         )
 
-        return results
+        return {k: bool(v) for k, v in results.items()}
 
     def summary_statistics(self) -> Dict[str, float]:
         """Calculate comprehensive summary statistics.
@@ -588,7 +605,12 @@ class RiskMetrics:
             pml_val = self.pml(period)
             metrics_text += f"  {period}-year: ${pml_val:,.0f}\n"
 
-        es_99 = self.expected_shortfall(self.var(0.99))
+        var_99 = self.var(0.99)
+        if isinstance(var_99, RiskMetricsResult):
+            var_99_val = var_99.value
+        else:
+            var_99_val = var_99
+        es_99 = self.expected_shortfall(var_99_val)
         metrics_text += f"\nExpected Shortfall (99%): ${es_99:,.0f}\n"
 
         ec = self.economic_capital(0.999)
