@@ -2,10 +2,15 @@
 
 This module provides classes for modeling multi-layer insurance policies
 with configurable attachment points, limits, and premium rates.
+
+Note: For advanced features like reinstatements and complex multi-layer programs,
+see the insurance_program module which provides EnhancedInsuranceLayer and
+InsuranceProgram classes.
 """
 
+import warnings
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import yaml
 
@@ -160,3 +165,38 @@ class InsurancePolicy:
             max_coverage = max(max_coverage, layer_top)
 
         return max_coverage - self.deductible
+
+    def to_enhanced_program(self) -> Optional["InsuranceProgram"]:
+        """Convert to enhanced InsuranceProgram for advanced features.
+
+        Returns:
+            InsuranceProgram instance with same configuration.
+        """
+        try:
+            from ergodic_insurance.src.insurance_program import (
+                EnhancedInsuranceLayer,
+                InsuranceProgram,
+            )
+
+            enhanced_layers = [
+                EnhancedInsuranceLayer(
+                    attachment_point=layer.attachment_point,
+                    limit=layer.limit,
+                    premium_rate=layer.rate,
+                    reinstatements=0,  # Default no reinstatements
+                )
+                for layer in self.layers
+            ]
+
+            return InsuranceProgram(
+                layers=enhanced_layers,
+                deductible=self.deductible,
+                name="Converted Insurance Policy",
+            )
+        except ImportError:
+            warnings.warn(
+                "Enhanced insurance_program module not available. "
+                "Install with advanced features for reinstatement support.",
+                UserWarning,
+            )
+            return None
