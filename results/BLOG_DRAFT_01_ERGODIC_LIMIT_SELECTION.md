@@ -40,7 +40,7 @@ For a multiplicative wealth process where $W_{t+1} = W_t \cdot X_t$ with random 
 
 $$\text{Ensemble Average Growth} = \mathbb{E}[X_t] - 1$$
 
-$$\text{Time Average Growth} = \exp(\mathbb{E}[\ln X_t]) - 1$$
+$$\text{Time Average Growth} = e^{\mathbb{E}[\ln X_t]} - 1$$
 
 These two quantities diverge whenever $X_t$ has non-zero variance. The relationship, exact for log-normal distributions and approximate for others, is:
 
