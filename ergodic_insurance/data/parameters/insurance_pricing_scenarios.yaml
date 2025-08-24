@@ -1,0 +1,162 @@
+# Premium Pricing Scenario Framework
+# Models different market conditions (soft/normal/hard) with configurable pricing parameters
+# Enables sensitivity analysis of insurance decisions across various market environments
+
+scenarios:
+  # Soft Market - Buyer's market with excess capacity
+  inexpensive:
+    name: "Soft Market"
+    description: "Buyer's market with excess capacity and high competition"
+    market_condition: "soft"
+
+    # Layer-specific premium rates (as percentage of limit)
+    primary_layer_rate: 0.005  # 0.5% of limit
+    first_excess_rate: 0.003   # 0.3% of limit
+    higher_excess_rate: 0.001  # 0.1% of limit
+
+    # Market characteristics
+    capacity_factor: 1.5       # 150% of normal capacity available
+    competition_level: "high"   # Many insurers competing for business
+
+    # Additional pricing factors
+    retention_discount: 0.1     # 10% discount for higher retentions
+    volume_discount: 0.05       # 5% discount for large programs
+    loss_ratio_target: 0.65     # Insurers targeting 65% loss ratio
+    expense_ratio: 0.30         # 30% expense ratio
+
+    # Risk appetite indicators
+    new_business_appetite: "aggressive"
+    renewal_retention_focus: "low"
+    coverage_enhancement_willingness: "high"
+
+  # Normal Market - Balanced conditions
+  baseline:
+    name: "Normal Market"
+    description: "Balanced market conditions with moderate competition"
+    market_condition: "normal"
+
+    # Layer-specific premium rates
+    primary_layer_rate: 0.010  # 1.0% of limit
+    first_excess_rate: 0.005   # 0.5% of limit
+    higher_excess_rate: 0.002  # 0.2% of limit
+
+    # Market characteristics
+    capacity_factor: 1.0       # Normal capacity levels
+    competition_level: "moderate"
+
+    # Additional pricing factors
+    retention_discount: 0.05    # 5% discount for higher retentions
+    volume_discount: 0.025      # 2.5% discount for large programs
+    loss_ratio_target: 0.60     # Insurers targeting 60% loss ratio
+    expense_ratio: 0.28         # 28% expense ratio
+
+    # Risk appetite indicators
+    new_business_appetite: "selective"
+    renewal_retention_focus: "balanced"
+    coverage_enhancement_willingness: "moderate"
+
+  # Hard Market - Seller's market after major losses
+  expensive:
+    name: "Hard Market"
+    description: "Seller's market after major losses with limited capacity"
+    market_condition: "hard"
+
+    # Layer-specific premium rates
+    primary_layer_rate: 0.015  # 1.5% of limit
+    first_excess_rate: 0.008   # 0.8% of limit
+    higher_excess_rate: 0.004  # 0.4% of limit
+
+    # Market characteristics
+    capacity_factor: 0.7       # Only 70% of normal capacity available
+    competition_level: "low"    # Few insurers willing to write business
+
+    # Additional pricing factors
+    retention_discount: 0.0     # No discount for higher retentions
+    volume_discount: 0.0        # No volume discounts available
+    loss_ratio_target: 0.50     # Insurers targeting 50% loss ratio
+    expense_ratio: 0.25         # 25% expense ratio (efficiency focus)
+
+    # Risk appetite indicators
+    new_business_appetite: "restrictive"
+    renewal_retention_focus: "high"
+    coverage_enhancement_willingness: "low"
+
+# Market Cycle Modeling
+market_cycles:
+  # Average cycle duration
+  average_duration_years: 8
+  soft_market_duration: 3.5      # Years
+  normal_market_duration: 3.0     # Years
+  hard_market_duration: 1.5       # Years
+
+  # Transition probabilities (annual)
+  transition_probabilities:
+    # From soft market
+    soft_to_soft: 0.6           # Stay in soft market
+    soft_to_normal: 0.35        # Transition to normal
+    soft_to_hard: 0.05          # Jump to hard (rare, major event)
+
+    # From normal market
+    normal_to_soft: 0.15        # Soften
+    normal_to_normal: 0.65      # Stay normal
+    normal_to_hard: 0.20        # Harden (losses accumulate)
+
+    # From hard market
+    hard_to_soft: 0.0           # Never direct to soft
+    hard_to_normal: 0.45        # Normalize
+    hard_to_hard: 0.55          # Stay hard
+
+  # Triggering events for transitions
+  transition_triggers:
+    to_hard_market:
+      - "Major catastrophic loss event (>$50B industry loss)"
+      - "Multiple mid-size events in single year"
+      - "Regulatory changes restricting capacity"
+      - "Major reinsurer exits or failures"
+
+    to_soft_market:
+      - "Extended period without major losses (>2 years)"
+      - "New capital entering market"
+      - "Alternative risk transfer growth"
+      - "Technology reducing loss frequency"
+
+    to_normal_market:
+      - "Capacity stabilization after hard market"
+      - "Moderate loss experience"
+      - "Balanced supply and demand"
+
+# Scenario Impact on Insurance Decisions
+decision_impacts:
+  soft_market:
+    optimal_retention: "lower"     # Buy more coverage when cheap
+    coverage_limits: "higher"       # Maximize limits while affordable
+    program_structure: "broader"    # Add more layers
+    negotiation_leverage: "buyer"  # Buyers have advantage
+
+  normal_market:
+    optimal_retention: "moderate"  # Balance risk and cost
+    coverage_limits: "adequate"    # Standard industry benchmarks
+    program_structure: "standard"   # Typical layer structure
+    negotiation_leverage: "balanced"
+
+  hard_market:
+    optimal_retention: "higher"    # Self-insure more
+    coverage_limits: "reduced"     # Buy only essential coverage
+    program_structure: "simplified" # Fewer, larger layers
+    negotiation_leverage: "insurer" # Insurers dictate terms
+
+# Validation Rules
+validation:
+  # Premium rate relationships (must be maintained)
+  rate_ordering: "primary > first_excess > higher_excess"
+
+  # Capacity constraints
+  min_capacity_factor: 0.5
+  max_capacity_factor: 2.0
+
+  # Transition probability constraints
+  transition_sum: 1.0  # Each row must sum to 1.0
+
+  # Cycle duration constraints
+  min_cycle_years: 5
+  max_cycle_years: 12

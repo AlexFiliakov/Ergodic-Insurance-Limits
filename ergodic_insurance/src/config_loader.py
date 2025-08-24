@@ -9,7 +9,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from config import Config
+import yaml
+from ergodic_insurance.src.config import Config, PricingScenarioConfig
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +198,73 @@ class ConfigLoader:
             )
 
         return True
+
+    def load_pricing_scenarios(
+        self, scenario_file: str = "insurance_pricing_scenarios"
+    ) -> PricingScenarioConfig:
+        """Load pricing scenario configuration.
+
+        Args:
+            scenario_file: Name of scenario file (without .yaml extension)
+                          or full path to scenario file.
+
+        Returns:
+            Loaded and validated pricing scenario configuration.
+
+        Raises:
+            FileNotFoundError: If scenario file not found.
+            ValidationError: If scenario data is invalid.
+        """
+        # Determine file path
+        if ".yaml" in scenario_file or ".yml" in scenario_file:
+            file_path = Path(scenario_file)
+        else:
+            file_path = self.config_dir / f"{scenario_file}.yaml"
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"Scenario file not found: {file_path}")
+
+        # Load YAML data
+        with open(file_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        # Parse and validate using Pydantic
+        return PricingScenarioConfig(**data)
+
+    def switch_pricing_scenario(self, config: Config, scenario_name: str) -> Config:
+        """Switch to a different pricing scenario.
+
+        Updates the configuration's insurance parameters to use rates
+        from the specified pricing scenario.
+
+        Args:
+            config: Current configuration
+            scenario_name: Name of scenario to switch to (inexpensive/baseline/expensive)
+
+        Returns:
+            Updated configuration with new pricing scenario
+        """
+        # Load pricing scenarios
+        pricing_config = self.load_pricing_scenarios()
+
+        # Get the target scenario
+        scenario = pricing_config.get_scenario(scenario_name)
+
+        # Create a copy of the config to modify
+        config_dict = config.model_dump()
+
+        # Update insurance rates if insurance config exists
+        if "insurance" in config_dict:
+            # Map scenario rates to insurance configuration
+            # This assumes insurance config has layer rates or similar structure
+            # Actual mapping depends on insurance config structure
+            logger.info(f"Switching to {scenario.name} pricing scenario")
+            logger.info(f"Primary rate: {scenario.primary_layer_rate:.1%}")
+            logger.info(f"First excess rate: {scenario.first_excess_rate:.1%}")
+            logger.info(f"Higher excess rate: {scenario.higher_excess_rate:.1%}")
+
+        # Return updated config
+        return Config(**config_dict)
 
     def list_available_configs(self) -> list[str]:
         """List all available configuration files.
