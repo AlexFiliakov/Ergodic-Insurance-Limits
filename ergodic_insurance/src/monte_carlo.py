@@ -451,7 +451,7 @@ class MonteCarloEngine:
             "tvar_95": risk_metrics.tvar(0.95),
             "tvar_99": risk_metrics.tvar(0.99),
             "tvar_995": risk_metrics.tvar(0.995),
-            "expected_shortfall_99": risk_metrics.expected_shortfall(risk_metrics.var(0.99)),
+            "expected_shortfall_99": risk_metrics.expected_shortfall(0.99),
             "max_loss": np.max(total_losses),
             "mean_recovery": np.mean(np.sum(results.insurance_recoveries, axis=1)),
             "mean_retained": np.mean(np.sum(results.retained_losses, axis=1)),
@@ -545,7 +545,8 @@ class MonteCarloEngine:
         if cache_file.exists():
             try:
                 with open(cache_file, "rb") as f:
-                    return pickle.load(f)
+                    loaded_data = pickle.load(f)
+                    return loaded_data  # type: ignore
             except Exception as e:
                 warnings.warn(f"Failed to load cache: {e}")
         return None

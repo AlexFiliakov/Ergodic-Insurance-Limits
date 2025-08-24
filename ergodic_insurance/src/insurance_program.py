@@ -687,9 +687,9 @@ class InsuranceProgram:
             severity_weights = [1.0 / (i + 1) for i in range(num_layers)]
 
         # Normalize weights
-        total_weight = sum(severity_weights)
+        total_weight = sum(severity_weights)  # type: ignore
         if total_weight > 0:
-            severity_weights = [w / total_weight for w in severity_weights]
+            severity_weights = [w / total_weight for w in severity_weights]  # type: ignore
         else:
             severity_weights = [1.0 / num_layers] * num_layers
 
@@ -707,7 +707,7 @@ class InsuranceProgram:
                 rate = 0.003
 
             # Calculate width from budget allocation
-            allocated_budget = total_budget * weight
+            allocated_budget = total_budget * weight  # type: ignore
             width = allocated_budget / rate
 
             # Apply capacity constraint
@@ -767,7 +767,7 @@ class InsuranceProgram:
             else:
                 # Estimate based on loss history
                 annual_expected_loss = np.mean([sum(annual) for annual in loss_data])
-                budget = annual_expected_loss * 0.15  # 15% loading factor
+                budget = float(annual_expected_loss) * 0.15  # 15% loading factor
 
             # Optimize layer widths
             layer_widths = self.optimize_layer_widths(
