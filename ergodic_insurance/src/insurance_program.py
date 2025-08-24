@@ -5,12 +5,20 @@ multi-layer structures, reinstatements, attachment points, and accurate
 loss allocation for manufacturing risk transfer optimization.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
+from scipy import optimize
+from scipy.optimize import OptimizeResult
+
+if TYPE_CHECKING:
+    from .loss_distributions import LossEvent
+    from .manufacturer import WidgetManufacturer
 
 
 class ReinstatementType(Enum):
@@ -20,6 +28,35 @@ class ReinstatementType(Enum):
     PRO_RATA = "pro_rata"  # Premium based on time remaining
     FULL = "full"  # Full premium regardless of timing
     FREE = "free"  # No additional premium
+
+
+@dataclass
+class OptimizationConstraints:
+    """Constraints for insurance program optimization."""
+
+    max_total_premium: Optional[float] = None  # Budget constraint
+    min_total_coverage: Optional[float] = None  # Minimum coverage requirement
+    max_layers: int = 5  # Maximum number of layers
+    min_layers: int = 3  # Minimum number of layers
+    max_attachment_gap: float = 0.0  # Maximum gap between layers (0 = no gaps)
+    min_roe_improvement: float = 0.15  # Minimum ROE improvement target
+    max_iterations: int = 1000  # Maximum optimization iterations
+    convergence_tolerance: float = 1e-6  # Convergence tolerance
+
+
+@dataclass
+class OptimalStructure:
+    """Result of insurance structure optimization."""
+
+    layers: List[EnhancedInsuranceLayer]
+    deductible: float
+    total_premium: float
+    total_coverage: float
+    ergodic_benefit: float
+    roe_improvement: float
+    optimization_metrics: Dict[str, Any]
+    convergence_achieved: bool
+    iterations_used: int
 
 
 @dataclass
@@ -434,6 +471,396 @@ class InsuranceProgram:
 
         return max_coverage
 
+    def calculate_ergodic_benefit(
+        self,
+        loss_history: List[List[float]],
+        manufacturer_profile: Optional[Dict[str, Any]] = None,
+        time_horizon: int = 100,
+    ) -> Dict[str, float]:
+        """Calculate ergodic benefit of insurance structure.
+
+        Quantifies time-average growth improvement from insurance coverage
+        versus ensemble-average cost.
+
+        Args:
+            loss_history: Historical loss data (list of annual loss lists).
+            manufacturer_profile: Company profile with assets, revenue, etc.
+            time_horizon: Time horizon for ergodic calculation.
+
+        Returns:
+            Dictionary with ergodic metrics.
+        """
+        if not loss_history:
+            return {
+                "time_average_benefit": 0.0,
+                "ensemble_average_cost": 0.0,
+                "ergodic_ratio": 0.0,
+                "volatility_reduction": 0.0,
+            }
+
+        # Default manufacturer profile
+        if manufacturer_profile is None:
+            manufacturer_profile = {
+                "initial_assets": 10_000_000,
+                "annual_revenue": 15_000_000,
+                "operating_margin": 0.08,
+                "growth_rate": 0.05,
+            }
+
+        # Calculate metrics with and without insurance
+        metrics_with_insurance = []
+        metrics_without_insurance = []
+        annual_premium = self.calculate_annual_premium()
+
+        for annual_losses in loss_history:
+            # Without insurance: company bears all losses
+            total_loss_without = sum(annual_losses)
+            net_impact_without = -total_loss_without
+
+            # With insurance: apply structure
+            result = self.process_annual_claims(annual_losses)
+            total_loss_with = result["total_deductible"]
+            total_premium_paid = result["total_premium_paid"]
+            net_impact_with = -total_loss_with - total_premium_paid
+
+            metrics_without_insurance.append(net_impact_without)
+            metrics_with_insurance.append(net_impact_with)
+
+            # Reset for next year
+            self.reset_annual()
+
+        # Calculate ergodic metrics
+        metrics_without = np.array(metrics_without_insurance)
+        metrics_with = np.array(metrics_with_insurance)
+
+        # Time-average growth rates
+        initial_assets = manufacturer_profile["initial_assets"]
+        assets_without = initial_assets + np.cumsum(metrics_without)
+        assets_with = initial_assets + np.cumsum(metrics_with)
+
+        # Ensure positive values for log calculation
+        assets_without = np.maximum(assets_without, 1.0)
+        assets_with = np.maximum(assets_with, 1.0)
+
+        # Calculate time-average growth
+        if len(assets_without) > 1:
+            time_avg_without = np.log(assets_without[-1] / initial_assets) / len(assets_without)
+            time_avg_with = np.log(assets_with[-1] / initial_assets) / len(assets_with)
+        else:
+            time_avg_without = 0.0
+            time_avg_with = 0.0
+
+        # Ensemble averages
+        ensemble_avg_without = np.mean(metrics_without)
+        ensemble_avg_with = np.mean(metrics_with)
+
+        # Volatility metrics
+        volatility_without = np.std(metrics_without)
+        volatility_with = np.std(metrics_with)
+        volatility_reduction = (
+            (volatility_without - volatility_with) / volatility_without
+            if volatility_without > 0
+            else 0.0
+        )
+
+        return {
+            "time_average_benefit": time_avg_with - time_avg_without,
+            "ensemble_average_cost": ensemble_avg_with - ensemble_avg_without,
+            "ergodic_ratio": (
+                time_avg_with / time_avg_without if time_avg_without != 0 else float("inf")
+            ),
+            "volatility_reduction": volatility_reduction,
+            "time_avg_growth_with": time_avg_with,
+            "time_avg_growth_without": time_avg_without,
+            "ensemble_avg_with": ensemble_avg_with,
+            "ensemble_avg_without": ensemble_avg_without,
+        }
+
+    def find_optimal_attachment_points(
+        self, loss_data: List[float], num_layers: int = 4, percentiles: Optional[List[float]] = None
+    ) -> List[float]:
+        """Find optimal attachment points based on loss frequency/severity.
+
+        Uses data-driven approach to minimize gaps while optimizing cost.
+
+        Args:
+            loss_data: Historical loss amounts.
+            num_layers: Number of layers to optimize.
+            percentiles: Optional percentiles for attachment points.
+
+        Returns:
+            List of optimal attachment points.
+        """
+        if not loss_data or num_layers <= 0:
+            return []
+
+        loss_array = np.array(loss_data)
+        loss_array = loss_array[loss_array > 0]  # Filter positive losses
+
+        if len(loss_array) == 0:
+            return []
+
+        # Default percentiles based on typical layer structure
+        if percentiles is None:
+            if num_layers == 3:
+                percentiles = [50, 90, 99]  # Working, excess, cat
+            elif num_layers == 4:
+                percentiles = [40, 80, 95, 99.5]
+            elif num_layers == 5:
+                percentiles = [30, 60, 85, 95, 99.5]
+            else:
+                # Even distribution
+                percentiles = np.linspace(100 / (num_layers + 1), 99, num_layers).tolist()
+
+        # Calculate attachment points from percentiles
+        attachment_points = []
+        for p in percentiles:
+            attachment = float(np.percentile(loss_array, p))
+            attachment_points.append(attachment)
+
+        # Round to reasonable values
+        attachment_points = [self._round_attachment_point(ap) for ap in attachment_points]
+
+        # Ensure strictly increasing
+        for i in range(1, len(attachment_points)):
+            if attachment_points[i] <= attachment_points[i - 1]:
+                attachment_points[i] = attachment_points[i - 1] * 1.5
+
+        return attachment_points
+
+    def _round_attachment_point(self, value: float) -> float:
+        """Round attachment point to reasonable market value."""
+        if value < 100_000:
+            return float(round(value / 10_000) * 10_000)
+        elif value < 1_000_000:
+            return float(round(value / 50_000) * 50_000)
+        elif value < 10_000_000:
+            return float(round(value / 250_000) * 250_000)
+        else:
+            return float(round(value / 1_000_000) * 1_000_000)
+
+    def optimize_layer_widths(
+        self,
+        attachment_points: List[float],
+        total_budget: float,
+        capacity_constraints: Optional[Dict[str, float]] = None,
+        loss_data: Optional[List[float]] = None,
+    ) -> List[float]:
+        """Optimize layer widths given attachment points and constraints.
+
+        Args:
+            attachment_points: Fixed attachment points for layers.
+            total_budget: Total premium budget.
+            capacity_constraints: Optional max capacity per layer.
+            loss_data: Optional loss data for severity analysis.
+
+        Returns:
+            List of optimal layer widths.
+        """
+        if not attachment_points:
+            return []
+
+        num_layers = len(attachment_points)
+
+        # Default capacity constraints
+        if capacity_constraints is None:
+            capacity_constraints = {}
+            for i, ap in enumerate(attachment_points):
+                if ap < 1_000_000:
+                    capacity_constraints[f"layer_{i}"] = 5_000_000
+                elif ap < 10_000_000:
+                    capacity_constraints[f"layer_{i}"] = 25_000_000
+                elif ap < 50_000_000:
+                    capacity_constraints[f"layer_{i}"] = 50_000_000
+                else:
+                    capacity_constraints[f"layer_{i}"] = 100_000_000
+
+        # Analyze loss severity at each attachment point
+        if loss_data:
+            severity_weights = []
+            for ap in attachment_points:
+                excess_losses = [max(0, loss - ap) for loss in loss_data if loss > ap]
+                avg_excess = np.mean(excess_losses) if excess_losses else ap
+                severity_weights.append(avg_excess)
+        else:
+            # Default weights based on attachment points
+            severity_weights = [1.0 / (i + 1) for i in range(num_layers)]
+
+        # Normalize weights
+        total_weight = sum(severity_weights)
+        if total_weight > 0:
+            severity_weights = [w / total_weight for w in severity_weights]
+        else:
+            severity_weights = [1.0 / num_layers] * num_layers
+
+        # Calculate layer widths based on budget and weights
+        layer_widths = []
+        for i, (ap, weight) in enumerate(zip(attachment_points, severity_weights)):
+            # Estimate premium rate (decreasing with attachment)
+            if ap < 1_000_000:
+                rate = 0.015
+            elif ap < 5_000_000:
+                rate = 0.010
+            elif ap < 25_000_000:
+                rate = 0.006
+            else:
+                rate = 0.003
+
+            # Calculate width from budget allocation
+            allocated_budget = total_budget * weight
+            width = allocated_budget / rate
+
+            # Apply capacity constraint
+            max_capacity = capacity_constraints.get(f"layer_{i}", float("inf"))
+            width = min(width, max_capacity)
+
+            # Ensure minimum width
+            min_width = ap * 0.5 if i == 0 else attachment_points[i - 1] * 0.3
+            width = max(width, min_width)
+
+            layer_widths.append(self._round_attachment_point(width))
+
+        return layer_widths
+
+    def optimize_layer_structure(
+        self,
+        loss_data: List[List[float]],
+        company_profile: Optional[Dict[str, Any]] = None,
+        constraints: Optional[OptimizationConstraints] = None,
+    ) -> OptimalStructure:
+        """Optimize complete insurance layer structure.
+
+        Main optimization method that orchestrates layer count, attachment points,
+        and widths to maximize ergodic benefit.
+
+        Args:
+            loss_data: Historical loss data (list of annual loss lists).
+            company_profile: Company financial profile.
+            constraints: Optimization constraints.
+
+        Returns:
+            Optimal insurance structure.
+        """
+        if constraints is None:
+            constraints = OptimizationConstraints()
+
+        # Flatten loss data for analysis
+        all_losses = [loss for annual_losses in loss_data for loss in annual_losses]
+
+        # Determine optimal number of layers
+        best_structure = None
+        best_ergodic_benefit = -float("inf")
+
+        for num_layers in range(constraints.min_layers, constraints.max_layers + 1):
+            # Find attachment points
+            attachment_points = self.find_optimal_attachment_points(all_losses, num_layers)
+
+            if not attachment_points:
+                continue
+
+            # Set deductible as percentage of first attachment
+            deductible = attachment_points[0] * 0.5
+
+            # Estimate total budget if not provided
+            if constraints.max_total_premium:
+                budget = constraints.max_total_premium
+            else:
+                # Estimate based on loss history
+                annual_expected_loss = np.mean([sum(annual) for annual in loss_data])
+                budget = annual_expected_loss * 0.15  # 15% loading factor
+
+            # Optimize layer widths
+            layer_widths = self.optimize_layer_widths(
+                attachment_points, budget, loss_data=all_losses
+            )
+
+            # Create layers
+            layers = []
+            for i, (ap, width) in enumerate(zip(attachment_points, layer_widths)):
+                # Determine premium rate based on attachment
+                if ap < 1_000_000:
+                    rate = 0.015
+                elif ap < 5_000_000:
+                    rate = 0.010
+                elif ap < 25_000_000:
+                    rate = 0.006
+                else:
+                    rate = 0.003
+
+                # Determine reinstatements
+                if i == 0:
+                    reinstatements = 0  # Primary layer
+                elif i == len(attachment_points) - 1:
+                    reinstatements = 999  # Top layer - unlimited
+                else:
+                    reinstatements = 2 - i // 2  # Decreasing with height
+
+                layer = EnhancedInsuranceLayer(
+                    attachment_point=ap,
+                    limit=width,
+                    premium_rate=rate,
+                    reinstatements=max(0, reinstatements),
+                    reinstatement_premium=1.0,
+                    reinstatement_type=ReinstatementType.PRO_RATA,
+                )
+                layers.append(layer)
+
+            # Create temporary program to test
+            test_program = InsuranceProgram(layers=layers, deductible=deductible)
+
+            # Calculate ergodic benefit
+            ergodic_metrics = test_program.calculate_ergodic_benefit(loss_data, company_profile)
+
+            # Check if this is better
+            if ergodic_metrics["time_average_benefit"] > best_ergodic_benefit:
+                best_ergodic_benefit = ergodic_metrics["time_average_benefit"]
+
+                # Calculate ROE improvement (simplified)
+                if company_profile and "initial_assets" in company_profile:
+                    initial_roe = 0.08  # Baseline assumption
+                    improved_roe = initial_roe + ergodic_metrics["time_average_benefit"]
+                    roe_improvement = improved_roe / initial_roe - 1.0
+                else:
+                    roe_improvement = ergodic_metrics["time_average_benefit"] / 0.08
+
+                best_structure = OptimalStructure(
+                    layers=layers,
+                    deductible=deductible,
+                    total_premium=test_program.calculate_annual_premium(),
+                    total_coverage=test_program.get_total_coverage(),
+                    ergodic_benefit=best_ergodic_benefit,
+                    roe_improvement=roe_improvement,
+                    optimization_metrics=ergodic_metrics,
+                    convergence_achieved=True,
+                    iterations_used=num_layers - constraints.min_layers + 1,
+                )
+
+        # If no structure found, return a basic one
+        if best_structure is None:
+            basic_layers = [
+                EnhancedInsuranceLayer(
+                    attachment_point=250_000,
+                    limit=4_750_000,
+                    premium_rate=0.015,
+                    reinstatements=0,
+                )
+            ]
+            basic_program = InsuranceProgram(layers=basic_layers, deductible=250_000)
+
+            best_structure = OptimalStructure(
+                layers=basic_layers,
+                deductible=250_000,
+                total_premium=basic_program.calculate_annual_premium(),
+                total_coverage=5_000_000,
+                ergodic_benefit=0.0,
+                roe_improvement=0.0,
+                optimization_metrics={},
+                convergence_achieved=False,
+                iterations_used=0,
+            )
+
+        return best_structure
+
     @classmethod
     def from_yaml(cls, config_path: str) -> "InsuranceProgram":
         """Load insurance program from YAML configuration.
@@ -583,10 +1010,14 @@ class ProgramState:
             "total_recoveries": sum(self.total_recoveries),
             "total_premiums": sum(self.total_premiums),
             "net_benefit": sum(self.total_recoveries) - sum(self.total_premiums),
-            "recovery_ratio": sum(self.total_recoveries) / sum(self.total_claims)
-            if sum(self.total_claims) > 0
-            else 0,
-            "loss_ratio": sum(self.total_recoveries) / sum(self.total_premiums)
-            if sum(self.total_premiums) > 0
-            else 0,
+            "recovery_ratio": (
+                sum(self.total_recoveries) / sum(self.total_claims)
+                if sum(self.total_claims) > 0
+                else 0
+            ),
+            "loss_ratio": (
+                sum(self.total_recoveries) / sum(self.total_premiums)
+                if sum(self.total_premiums) > 0
+                else 0
+            ),
         }
