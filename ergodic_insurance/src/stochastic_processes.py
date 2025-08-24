@@ -1,4 +1,10 @@
-"""Stochastic processes for financial modeling."""
+"""Stochastic processes for financial modeling.
+
+This module provides various stochastic process implementations for modeling
+financial volatility, including Geometric Brownian Motion, lognormal volatility,
+and mean-reverting processes. These are used to add realistic randomness to
+revenue and growth modeling in the manufacturing simulation.
+"""
 
 import logging
 from abc import ABC, abstractmethod
@@ -11,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 class StochasticConfig(BaseModel):
-    """Configuration for stochastic processes."""
+    """Configuration for stochastic processes.
+
+    Defines parameters common to all stochastic process implementations,
+    including volatility, drift, random seed, and time step parameters.
+    """
 
     volatility: float = Field(ge=0, le=2, description="Annual volatility (standard deviation)")
     drift: float = Field(ge=-1, le=1, description="Annual drift rate")
@@ -22,7 +32,12 @@ class StochasticConfig(BaseModel):
 
 
 class StochasticProcess(ABC):
-    """Abstract base class for stochastic processes."""
+    """Abstract base class for stochastic processes.
+
+    Provides common interface and functionality for all stochastic process
+    implementations used in financial modeling. All concrete implementations
+    must provide a generate_shock method.
+    """
 
     def __init__(self, config: StochasticConfig):
         """Initialize the stochastic process.
@@ -59,7 +74,12 @@ class StochasticProcess(ABC):
 
 
 class GeometricBrownianMotion(StochasticProcess):
-    """Geometric Brownian Motion process using Euler-Maruyama discretization."""
+    """Geometric Brownian Motion process using Euler-Maruyama discretization.
+
+    Implements GBM with exact lognormal solution for high numerical accuracy.
+    Commonly used for modeling asset prices and growth rates with constant
+    relative volatility.
+    """
 
     def generate_shock(self, current_value: float) -> float:
         """Generate a multiplicative shock using GBM.
@@ -94,7 +114,12 @@ class GeometricBrownianMotion(StochasticProcess):
 
 
 class LognormalVolatility(StochasticProcess):
-    """Simple lognormal volatility generator for revenue/sales."""
+    """Simple lognormal volatility generator for revenue/sales.
+
+    Provides simpler alternative to full GBM by applying lognormal shocks
+    centered around 1.0. Suitable for modeling revenue variations without
+    drift components.
+    """
 
     def generate_shock(self, current_value: float) -> float:
         """Generate a lognormal multiplicative shock.
@@ -124,7 +149,12 @@ class LognormalVolatility(StochasticProcess):
 
 
 class MeanRevertingProcess(StochasticProcess):
-    """Ornstein-Uhlenbeck mean-reverting process for bounded variables."""
+    """Ornstein-Uhlenbeck mean-reverting process for bounded variables.
+
+    Implements mean-reverting dynamics suitable for modeling variables that
+    tend to revert to long-term average levels, such as operating margins
+    or capacity utilization rates.
+    """
 
     def __init__(
         self, config: StochasticConfig, mean_level: float = 1.0, reversion_speed: float = 0.5

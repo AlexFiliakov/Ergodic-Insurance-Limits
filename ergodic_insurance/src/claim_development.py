@@ -38,7 +38,11 @@ class ClaimDevelopment:
     tail_factor: float = 0.0  # For claims beyond pattern period
 
     def __post_init__(self):
-        """Validate development pattern."""
+        """Validate development pattern.
+
+        Raises:
+            ValueError: If development factors are invalid or don't sum to 1.0.
+        """
         if not self.development_factors:
             raise ValueError("Development factors cannot be empty")
 
@@ -54,7 +58,11 @@ class ClaimDevelopment:
 
     @classmethod
     def create_immediate(cls) -> "ClaimDevelopment":
-        """Create immediate payment pattern (property damage)."""
+        """Create immediate payment pattern (property damage).
+
+        Returns:
+            ClaimDevelopment with immediate payment pattern.
+        """
         return cls(
             pattern_name="IMMEDIATE",
             development_factors=[1.0],
@@ -63,7 +71,11 @@ class ClaimDevelopment:
 
     @classmethod
     def create_medium_tail_5yr(cls) -> "ClaimDevelopment":
-        """Create 5-year workers compensation pattern."""
+        """Create 5-year workers compensation pattern.
+
+        Returns:
+            ClaimDevelopment with 5-year workers compensation pattern.
+        """
         return cls(
             pattern_name="MEDIUM_TAIL_5YR",
             development_factors=[0.40, 0.25, 0.15, 0.10, 0.10],
@@ -72,7 +84,11 @@ class ClaimDevelopment:
 
     @classmethod
     def create_long_tail_10yr(cls) -> "ClaimDevelopment":
-        """Create 10-year general liability pattern."""
+        """Create 10-year general liability pattern.
+
+        Returns:
+            ClaimDevelopment with 10-year general liability pattern.
+        """
         return cls(
             pattern_name="LONG_TAIL_10YR",
             development_factors=[
@@ -92,7 +108,11 @@ class ClaimDevelopment:
 
     @classmethod
     def create_very_long_tail_15yr(cls) -> "ClaimDevelopment":
-        """Create 15-year product liability pattern."""
+        """Create 15-year product liability pattern.
+
+        Returns:
+            ClaimDevelopment with 15-year product liability pattern.
+        """
         return cls(
             pattern_name="VERY_LONG_TAIL_15YR",
             development_factors=[
@@ -175,7 +195,10 @@ class Claim:
     payments_made: Dict[int, float] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Set default development pattern if not provided."""
+        """Set default development pattern if not provided.
+
+        Uses general liability pattern as default if no pattern is specified.
+        """
         if self.development_pattern is None:
             # Default to general liability pattern
             self.development_pattern = ClaimDevelopment.create_long_tail_10yr()
@@ -193,11 +216,19 @@ class Claim:
             self.payments_made[year] = amount
 
     def get_total_paid(self) -> float:
-        """Get total amount paid to date."""
+        """Get total amount paid to date.
+
+        Returns:
+            Sum of all payments made on this claim.
+        """
         return sum(self.payments_made.values())
 
     def get_outstanding_reserve(self) -> float:
-        """Calculate outstanding reserve requirement."""
+        """Calculate outstanding reserve requirement.
+
+        Returns:
+            Outstanding reserve amount (initial estimate minus payments made).
+        """
         return max(0, self.initial_estimate - self.get_total_paid())
 
 
@@ -245,15 +276,27 @@ class ClaimCohort:
         return total_payment
 
     def get_total_incurred(self) -> float:
-        """Get total incurred amount for the cohort."""
+        """Get total incurred amount for the cohort.
+
+        Returns:
+            Sum of initial estimates for all claims in the cohort.
+        """
         return sum(claim.initial_estimate for claim in self.claims)
 
     def get_total_paid(self) -> float:
-        """Get total amount paid for the cohort."""
+        """Get total amount paid for the cohort.
+
+        Returns:
+            Sum of all payments made for claims in the cohort.
+        """
         return sum(claim.get_total_paid() for claim in self.claims)
 
     def get_outstanding_reserve(self) -> float:
-        """Get total outstanding reserve for the cohort."""
+        """Get total outstanding reserve for the cohort.
+
+        Returns:
+            Sum of outstanding reserves for all claims in the cohort.
+        """
         return sum(claim.get_outstanding_reserve() for claim in self.claims)
 
 

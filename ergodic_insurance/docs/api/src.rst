@@ -116,6 +116,14 @@ src.convergence module
    :show-inheritance:
    :undoc-members:
 
+src.decision\_engine module
+---------------------------
+
+.. automodule:: src.decision_engine
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 src.visualization module
 ------------------------
 

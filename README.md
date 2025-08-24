@@ -163,6 +163,7 @@ Ergodic Insurance Limits/
 │   │   ├── ergodic_analyzer.py # Ergodic analysis and optimization tools
 │   │   ├── risk_metrics.py     # Risk metrics and analytics
 │   │   ├── convergence.py      # Convergence analysis tools
+│   │   ├── decision_engine.py  # Insurance decision making engine
 │   │   └── visualization.py    # Visualization utilities
 │   ├── tests/                  # Comprehensive test suite (100% coverage)
 │   │   ├── __init__.py
@@ -177,11 +178,16 @@ Ergodic Insurance Limits/
 │   │   ├── test_loss_distributions.py
 │   │   ├── test_simulation.py
 │   │   ├── test_monte_carlo.py
+│   │   ├── test_monte_carlo_extended.py
 │   │   ├── test_ergodic_analyzer.py
 │   │   ├── test_risk_metrics.py
 │   │   ├── test_integration.py
 │   │   ├── test_performance.py
 │   │   ├── test_manufacturer_methods.py
+│   │   ├── test_convergence_extended.py
+│   │   ├── test_decision_engine.py
+│   │   ├── test_pricing_scenarios.py
+│   │   ├── test_visualization_simple.py
 │   │   └── test_setup.py
 │   ├── notebooks/              # Jupyter analysis notebooks
 │   │   ├── 00_setup_verification.ipynb
@@ -206,6 +212,7 @@ Ergodic Insurance Limits/
 │   │       ├── stochastic.yaml  # Stochastic process parameters
 │   │       ├── insurance.yaml   # Insurance optimization settings
 │   │       ├── insurance_market.yaml # Market parameters
+│   │       ├── insurance_pricing_scenarios.yaml # Pricing scenarios configuration
 │   │       ├── insurance_structures.yaml # Insurance program structures
 │   │       ├── loss_distributions.yaml # Loss distribution parameters
 │   │       ├── losses.yaml      # Legacy loss parameters
@@ -218,16 +225,20 @@ Ergodic Insurance Limits/
 │   │   │   ├── src.rst
 │   │   │   ├── manufacturer.rst
 │   │   │   ├── config.rst
+│   │   │   ├── config_loader.rst
 │   │   │   ├── claim_generator.rst
 │   │   │   ├── claim_development.rst
-│   │   │   ├── config_loader.rst
 │   │   │   ├── stochastic_processes.rst
 │   │   │   ├── simulation.rst
 │   │   │   ├── insurance.rst
 │   │   │   ├── insurance_program.rst
 │   │   │   ├── loss_distributions.rst
 │   │   │   ├── monte_carlo.rst
-│   │   │   └── ergodic_analyzer.rst
+│   │   │   ├── ergodic_analyzer.rst
+│   │   │   ├── risk_metrics.rst
+│   │   │   ├── convergence.rst
+│   │   │   ├── decision_engine.rst
+│   │   │   └── visualization.rst
 │   │   ├── getting_started.rst
 │   │   ├── theory.rst
 │   │   ├── examples.rst
