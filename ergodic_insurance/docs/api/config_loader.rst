@@ -4,40 +4,23 @@ Configuration Loader Module
 The config_loader module provides utilities for loading, validating, and managing
 configuration files with support for caching, overrides, and scenario-based configurations.
 
-.. automodule:: config_loader
+.. automodule:: ergodic_insurance.src.config_loader
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 Classes
 -------
 
-.. autoclass:: ConfigLoader
+.. autoclass:: ergodic_insurance.src.config_loader.ConfigLoader
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-Key Methods
------------
-
-Loading and Caching
-~~~~~~~~~~~~~~~~~~~
-
-.. automethod:: ConfigLoader.load
-.. automethod:: ConfigLoader.load_scenario
-.. automethod:: ConfigLoader.clear_cache
-
-Scenario Management
-~~~~~~~~~~~~~~~~~~~
-
-.. automethod:: ConfigLoader.compare_configs
-.. automethod:: ConfigLoader.list_available_configs
-.. automethod:: ConfigLoader.validate_config
-
-Convenience Functions
-~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: load_config
+.. Key Methods section removed to avoid duplication with automodule
+.. Methods are already included via automodule directive above
 
 Usage Examples
 --------------
@@ -47,7 +30,7 @@ Basic Usage
 
 .. code-block:: python
 
-    from ergodic_insurance.config_loader import load_config
+    from ergodic_insurance.src.config_loader import load_config
 
     # Load baseline configuration
     config = load_config("baseline")
@@ -64,7 +47,7 @@ Advanced Usage
 
 .. code-block:: python
 
-    from ergodic_insurance.config_loader import ConfigLoader
+    from ergodic_insurance.src.config_loader import ConfigLoader
 
     loader = ConfigLoader()
 

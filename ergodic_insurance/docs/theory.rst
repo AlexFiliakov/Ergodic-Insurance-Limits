@@ -172,7 +172,7 @@ subject to:
 where ruin occurs when :math:`W_t \\leq 0` for any :math:`t`.
 
 Simulation Methodology
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 The framework uses Monte Carlo simulation with:
 

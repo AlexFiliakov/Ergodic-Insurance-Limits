@@ -627,6 +627,7 @@ class BusinessOutcomeOptimizer:
         def composite_objective(x):
             coverage_limit, deductible, premium_rate = x
             total_score = 0.0
+            total_score = 0.0
 
             for obj in objectives:
                 value = self._evaluate_objective(
@@ -1124,6 +1125,7 @@ class BusinessOutcomeOptimizer:
         # Insurance structure recommendations
         annual_premium = coverage_limit * premium_rate
         revenue = self.manufacturer.calculate_revenue()
+        premium_to_revenue = annual_premium / revenue if revenue > 0 else 0
         premium_to_revenue = annual_premium / revenue if revenue > 0 else 0
 
         if premium_to_revenue > 0.04:

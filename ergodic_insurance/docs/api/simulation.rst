@@ -4,39 +4,29 @@ Simulation Module
 The simulation module provides the main simulation engine that orchestrates
 the time evolution of the widget manufacturer financial model.
 
-.. automodule:: simulation
+.. automodule:: ergodic_insurance.src.simulation
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 Classes
 -------
 
-.. autoclass:: Simulation
+.. autoclass:: ergodic_insurance.src.simulation.Simulation
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-.. autoclass:: SimulationResults
+.. autoclass:: ergodic_insurance.src.simulation.SimulationResults
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-Key Methods
------------
-
-Simulation Execution
-~~~~~~~~~~~~~~~~~~~~
-
-.. automethod:: Simulation.run
-.. automethod:: Simulation.run_to_dataframe
-.. automethod:: Simulation.step
-
-Results Analysis
-~~~~~~~~~~~~~~~~
-
-.. automethod:: SimulationResults.to_dataframe
-.. automethod:: SimulationResults.summary_statistics
+.. Key Methods section removed to avoid duplication with automodule
+.. Methods are already included via automodule directive above
 
 Performance Features
 ~~~~~~~~~~~~~~~~~~~~
