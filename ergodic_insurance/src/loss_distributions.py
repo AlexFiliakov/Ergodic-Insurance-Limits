@@ -13,6 +13,7 @@ import numpy as np
 from scipy import stats
 
 if TYPE_CHECKING:
+    from .ergodic_analyzer import ErgodicData
     from .insurance_program import InsuranceProgram
 
 

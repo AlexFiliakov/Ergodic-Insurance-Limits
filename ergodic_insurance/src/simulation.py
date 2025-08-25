@@ -414,7 +414,7 @@ class Simulation:
             Dictionary of Monte Carlo results and statistics.
         """
         # Create loss generator
-        from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+        from .loss_distributions import ManufacturingLossGenerator
 
         loss_generator = ManufacturingLossGenerator(seed=seed)
 
@@ -424,7 +424,7 @@ class Simulation:
         insurance_program = InsuranceProgram(layers=[])
         if insurance_policy:
             # Add layer based on simple policy
-            from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+            from .insurance_program import EnhancedInsuranceLayer
 
             layer = EnhancedInsuranceLayer(
                 attachment_point=0,
@@ -439,7 +439,7 @@ class Simulation:
         manufacturer = WidgetManufacturer(config=config.manufacturer)
 
         # Create simulation config
-        from ergodic_insurance.src.monte_carlo import SimulationConfig
+        from .monte_carlo import SimulationConfig
 
         sim_config = SimulationConfig(
             n_simulations=n_scenarios,

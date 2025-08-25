@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import yaml
 
 if TYPE_CHECKING:
-    from ergodic_insurance.src.insurance_program import InsuranceProgram
+    from .insurance_program import InsuranceProgram
 
 
 @dataclass
@@ -176,10 +176,7 @@ class InsurancePolicy:
             InsuranceProgram instance with same configuration.
         """
         try:
-            from ergodic_insurance.src.insurance_program import (
-                EnhancedInsuranceLayer,
-                InsuranceProgram,
-            )
+            from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 
             enhanced_layers = [
                 EnhancedInsuranceLayer(

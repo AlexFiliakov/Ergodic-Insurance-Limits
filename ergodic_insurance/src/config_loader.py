@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import yaml
-from ergodic_insurance.src.config import Config, PricingScenarioConfig
+
+from .config import Config, PricingScenarioConfig
 
 logger = logging.getLogger(__name__)
 

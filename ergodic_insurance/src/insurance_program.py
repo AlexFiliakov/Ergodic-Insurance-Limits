@@ -676,20 +676,20 @@ class InsuranceProgram:
                     capacity_constraints[f"layer_{i}"] = 100_000_000
 
         # Analyze loss severity at each attachment point
+        severity_weights: List[float] = []
         if loss_data:
-            severity_weights = []
             for ap in attachment_points:
                 excess_losses = [max(0, loss - ap) for loss in loss_data if loss > ap]
-                avg_excess = np.mean(excess_losses) if excess_losses else ap
+                avg_excess = float(np.mean(excess_losses)) if excess_losses else float(ap)
                 severity_weights.append(avg_excess)
         else:
             # Default weights based on attachment points
             severity_weights = [1.0 / (i + 1) for i in range(num_layers)]
 
         # Normalize weights
-        total_weight = sum(severity_weights)  # type: ignore
+        total_weight = sum(severity_weights)
         if total_weight > 0:
-            severity_weights = [w / total_weight for w in severity_weights]  # type: ignore
+            severity_weights = [w / total_weight for w in severity_weights]
         else:
             severity_weights = [1.0 / num_layers] * num_layers
 
@@ -707,18 +707,18 @@ class InsuranceProgram:
                 rate = 0.003
 
             # Calculate width from budget allocation
-            allocated_budget = total_budget * weight  # type: ignore
+            allocated_budget = total_budget * weight
             width = allocated_budget / rate
 
             # Apply capacity constraint
             max_capacity = capacity_constraints.get(f"layer_{i}", float("inf"))
-            width = min(width, max_capacity)
+            width = min(float(width), float(max_capacity))
 
             # Ensure minimum width
             min_width = ap * 0.5 if i == 0 else attachment_points[i - 1] * 0.3
-            width = max(width, min_width)
+            width = max(float(width), float(min_width))
 
-            layer_widths.append(self._round_attachment_point(width))
+            layer_widths.append(self._round_attachment_point(float(width)))
 
         return layer_widths
 

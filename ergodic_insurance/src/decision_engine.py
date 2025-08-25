@@ -11,14 +11,15 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from ergodic_insurance.src.config_loader import ConfigLoader
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer as Layer
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.loss_distributions import LossDistribution
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
 from scipy import optimize
 from scipy.optimize import OptimizeResult, differential_evolution, minimize
+
+from .config_loader import ConfigLoader
+from .ergodic_analyzer import ErgodicAnalyzer
+from .insurance_program import EnhancedInsuranceLayer as Layer
+from .insurance_program import InsuranceProgram
+from .loss_distributions import LossDistribution
+from .manufacturer import WidgetManufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -800,22 +801,22 @@ class InsuranceDecisionEngine:
             )
 
             flattened_sensitivities[param] = {
-                "growth_sensitivity": avg_growth_change,
-                "risk_sensitivity": avg_risk_change,
-                "roe_sensitivity": avg_roe_change,
+                "growth_sensitivity": float(avg_growth_change),
+                "risk_sensitivity": float(avg_risk_change),
+                "roe_sensitivity": float(avg_roe_change),
             }
 
         # Identify key drivers (parameters with highest impact)
         impacts = []
         for param, metrics in flattened_sensitivities.items():
-            total_impact = (
+            total_impact = float(
                 metrics["growth_sensitivity"]
                 + metrics["risk_sensitivity"] * 10
                 + metrics["roe_sensitivity"]
             )
             impacts.append((param, total_impact))
 
-        key_drivers = [p for p, _ in sorted(impacts, key=lambda x: x[1], reverse=True)][:3]
+        key_drivers = [p for p, _ in sorted(impacts, key=lambda x: float(x[1]), reverse=True)][:3]
 
         # Determine robust ranges
         robust_range = {}
