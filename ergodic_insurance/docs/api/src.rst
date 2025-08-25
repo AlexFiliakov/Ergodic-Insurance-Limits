@@ -44,16 +44,16 @@ ergodic_insurance.src.ergodic\_analyzer module
    :show-inheritance:
    :undoc-members:
 
-ergodic_insurance.ergodic_insurance.src.insurance module
+ergodic_insurance.src.insurance module
 ---------------------------------------
 
-.. automodule:: ergodic_insurance.ergodic_insurance.src.insurance
+.. automodule:: ergodic_insurance.src.insurance
    :members:
    :show-inheritance:
    :undoc-members:
 
 ergodic_insurance.src.insurance\_program module
------------------------------
+-------------------------------------------------
 
 .. automodule:: ergodic_insurance.src.insurance_program
    :members:
@@ -61,7 +61,7 @@ ergodic_insurance.src.insurance\_program module
    :undoc-members:
 
 ergodic_insurance.src.loss\_distributions module
-------------------------------
+-------------------------------------------------
 
 .. automodule:: ergodic_insurance.src.loss_distributions
    :members:
@@ -69,7 +69,7 @@ ergodic_insurance.src.loss\_distributions module
    :undoc-members:
 
 ergodic_insurance.src.manufacturer module
------------------------
+------------------------------------------
 
 .. automodule:: ergodic_insurance.src.manufacturer
    :members:
@@ -77,7 +77,7 @@ ergodic_insurance.src.manufacturer module
    :undoc-members:
 
 ergodic_insurance.src.monte\_carlo module
------------------------
+------------------------------------------
 
 .. automodule:: ergodic_insurance.src.monte_carlo
    :members:
@@ -85,7 +85,7 @@ ergodic_insurance.src.monte\_carlo module
    :undoc-members:
 
 ergodic_insurance.src.simulation module
----------------------
+----------------------------------------
 
 .. automodule:: ergodic_insurance.src.simulation
    :members:
@@ -93,7 +93,7 @@ ergodic_insurance.src.simulation module
    :undoc-members:
 
 ergodic_insurance.src.stochastic\_processes module
---------------------------------
+---------------------------------------------------
 
 .. automodule:: ergodic_insurance.src.stochastic_processes
    :members:
@@ -101,7 +101,7 @@ ergodic_insurance.src.stochastic\_processes module
    :undoc-members:
 
 ergodic_insurance.src.risk\_metrics module
-------------------------
+-------------------------------------------
 
 .. automodule:: ergodic_insurance.src.risk_metrics
    :members:
@@ -109,7 +109,7 @@ ergodic_insurance.src.risk\_metrics module
    :undoc-members:
 
 ergodic_insurance.src.convergence module
-----------------------
+-----------------------------------------
 
 .. automodule:: ergodic_insurance.src.convergence
    :members:
@@ -117,7 +117,7 @@ ergodic_insurance.src.convergence module
    :undoc-members:
 
 ergodic_insurance.src.decision\_engine module
----------------------------
+----------------------------------------------
 
 .. automodule:: ergodic_insurance.src.decision_engine
    :members:
@@ -125,7 +125,7 @@ ergodic_insurance.src.decision\_engine module
    :undoc-members:
 
 ergodic_insurance.src.visualization module
-------------------------
+-------------------------------------------
 
 .. automodule:: ergodic_insurance.src.visualization
    :members:

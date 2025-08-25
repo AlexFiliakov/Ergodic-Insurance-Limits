@@ -8,6 +8,7 @@ This includes revenue generation, cost management, working capital, and debt fin
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 Classes
 -------
@@ -16,11 +17,13 @@ Classes
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 .. autoclass:: ergodic_insurance.src.manufacturer.ClaimLiability
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
 .. Key Methods section removed to avoid duplication with automodule
 .. Methods are already included via automodule directive above

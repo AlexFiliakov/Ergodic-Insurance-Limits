@@ -5,3 +5,4 @@ ergodic\_analyzer module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:

@@ -7,6 +7,7 @@ frequency and severity modeling for both attritional and large losses.
 .. automodule:: claim_generator
    :members:
    :undoc-members:
+   :no-index:
    :show-inheritance:
 
 Classes
@@ -15,11 +16,13 @@ Classes
 .. autoclass:: ClaimGenerator
    :members:
    :undoc-members:
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: ClaimEvent
    :members:
    :undoc-members:
+   :no-index:
    :show-inheritance:
 
 Key Methods
