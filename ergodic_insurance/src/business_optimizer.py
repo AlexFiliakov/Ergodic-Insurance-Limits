@@ -248,7 +248,7 @@ class BusinessOutcomeOptimizer:
             _, _, premium_rate = x
             coverage_limit = x[0]
             annual_premium = coverage_limit * premium_rate
-            max_premium = self.manufacturer.revenue * constraints.max_premium_budget
+            max_premium = self.manufacturer.calculate_revenue() * constraints.max_premium_budget
             return max_premium - annual_premium
 
         constraint_list.append({"type": "ineq", "fun": premium_constraint})
@@ -751,7 +751,7 @@ class BusinessOutcomeOptimizer:
         risk_reduction = min(coverage_ratio * 0.015, 0.015)  # Max 1.5% reduction
 
         # Premium cost increases risk slightly
-        premium_burden = (coverage_limit * premium_rate) / self.manufacturer.revenue
+        premium_burden = (coverage_limit * premium_rate) / self.manufacturer.calculate_revenue()
         risk_increase = premium_burden * 0.5
 
         # Time horizon effect
@@ -777,7 +777,7 @@ class BusinessOutcomeOptimizer:
         growth_boost = coverage_ratio * 0.03  # Up to 3% boost
 
         # Premium cost reduces growth
-        premium_drag = (coverage_limit * premium_rate) / self.manufacturer.revenue * 0.5
+        premium_drag = (coverage_limit * premium_rate) / self.manufacturer.calculate_revenue() * 0.5
 
         # Calculate adjusted growth
         adjusted_growth = base_growth + growth_boost - premium_drag
@@ -908,7 +908,7 @@ class BusinessOutcomeOptimizer:
 
         def premium_constraint(x):
             annual_premium = x[0] * x[2]
-            max_premium = self.manufacturer.revenue * constraints.max_premium_budget
+            max_premium = self.manufacturer.calculate_revenue() * constraints.max_premium_budget
             return max_premium - annual_premium
 
         constraint_list.append({"type": "ineq", "fun": premium_constraint})
@@ -955,7 +955,7 @@ class BusinessOutcomeOptimizer:
 
         # Premium budget constraint
         annual_premium = coverage_limit * premium_rate
-        max_premium = self.manufacturer.revenue * constraints.max_premium_budget
+        max_premium = self.manufacturer.calculate_revenue() * constraints.max_premium_budget
         satisfaction["premium_budget"] = annual_premium <= max_premium
 
         # Coverage ratio constraint
@@ -963,7 +963,8 @@ class BusinessOutcomeOptimizer:
         satisfaction["min_coverage"] = coverage_ratio >= constraints.min_coverage_ratio
 
         # Leverage constraint (simplified)
-        leverage = self.manufacturer.liabilities / (self.manufacturer.equity + 1e-6)
+        liabilities = self.manufacturer.assets - self.manufacturer.equity
+        leverage = liabilities / (self.manufacturer.equity + 1e-6)
         satisfaction["max_leverage"] = leverage <= constraints.max_leverage_ratio
 
         return satisfaction
@@ -1081,7 +1082,7 @@ class BusinessOutcomeOptimizer:
         if coverage_limit < self.manufacturer.assets * 0.5:
             recommendations.append("Coverage may be insufficient for tail risks")
 
-        if premium_rate * coverage_limit > self.manufacturer.revenue * 0.03:
+        if premium_rate * coverage_limit > self.manufacturer.calculate_revenue() * 0.03:
             recommendations.append("Insurance costs exceeding 3% of revenue - review cost-benefit")
 
         return recommendations
@@ -1120,8 +1121,9 @@ class BusinessOutcomeOptimizer:
 
         # Insurance structure recommendations
         annual_premium = coverage_limit * premium_rate
+        revenue = self.manufacturer.calculate_revenue()
         premium_to_revenue = (
-            annual_premium / self.manufacturer.revenue if self.manufacturer.revenue > 0 else 0
+            annual_premium / revenue if revenue > 0 else 0
         )
 
         if premium_to_revenue > 0.04:
