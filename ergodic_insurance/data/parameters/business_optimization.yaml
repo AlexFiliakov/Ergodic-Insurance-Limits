@@ -1,0 +1,190 @@
+# Business Optimization Configuration
+# Author: Alex Filiakov
+# Date: 2025-01-25
+
+# Business objectives configuration
+objectives:
+  roe_maximization:
+    name: "ROE"
+    weight: 0.35
+    target_value: 0.18  # 18% target ROE
+    optimization_direction: "maximize"
+    constraint_type: ">="
+    constraint_value: 0.12  # Minimum 12% ROE
+
+  risk_minimization:
+    name: "bankruptcy_risk"
+    weight: 0.30
+    target_value: 0.005  # 0.5% target risk
+    optimization_direction: "minimize"
+    constraint_type: "<="
+    constraint_value: 0.02  # Maximum 2% risk
+
+  growth_optimization:
+    name: "growth_rate"
+    weight: 0.20
+    target_value: 0.12  # 12% target growth
+    optimization_direction: "maximize"
+    constraint_type: ">="
+    constraint_value: 0.08  # Minimum 8% growth
+
+  capital_efficiency:
+    name: "capital_efficiency"
+    weight: 0.15
+    target_value: 1.25  # 1.25x efficiency target
+    optimization_direction: "maximize"
+
+# Business constraints
+constraints:
+  # Risk constraints
+  max_risk_tolerance: 0.015  # 1.5% bankruptcy risk
+  max_var_95: 0.10  # 10% of assets at 95% VaR
+  max_expected_shortfall: 0.15  # 15% of assets ES
+
+  # Return constraints
+  min_roe_threshold: 0.10  # 10% minimum ROE
+  min_roa_threshold: 0.06  # 6% minimum ROA
+  min_operating_margin: 0.08  # 8% minimum margin
+
+  # Capital structure constraints
+  max_leverage_ratio: 2.5  # 2.5:1 debt-to-equity
+  min_liquidity_ratio: 1.3  # 1.3x current ratio
+  min_quick_ratio: 1.0  # 1.0x quick ratio
+  min_debt_service_coverage: 1.5  # 1.5x DSCR
+
+  # Insurance constraints
+  max_premium_budget: 0.025  # 2.5% of revenue
+  min_coverage_ratio: 0.60  # 60% of assets minimum
+  max_deductible_ratio: 0.02  # 2% of assets maximum
+
+  # Regulatory requirements
+  regulatory_requirements:
+    capital_adequacy: 0.08  # 8% capital adequacy ratio
+    liquidity_coverage: 1.0  # 100% LCR
+    net_stable_funding: 1.0  # 100% NSFR
+
+# Time horizons for analysis
+time_horizons:
+  short_term: 1  # 1 year
+  medium_term: 3  # 3 years
+  long_term: 10  # 10 years
+  strategic: 30  # 30 years (ergodic)
+
+# Optimization methods
+optimization:
+  method: "weighted_sum"  # weighted_sum, epsilon_constraint, pareto
+  algorithm: "SLSQP"  # SLSQP, differential_evolution, trust-constr
+  max_iterations: 200
+  tolerance: 1.0e-6
+  n_simulations: 1000  # Monte Carlo simulations
+  random_seed: 42
+
+# Scenario definitions for stress testing
+scenarios:
+  baseline:
+    name: "Baseline Scenario"
+    growth_adjustment: 1.0
+    risk_adjustment: 1.0
+    market_conditions: "normal"
+
+  recession:
+    name: "Recession Scenario"
+    growth_adjustment: 0.5
+    risk_adjustment: 2.0
+    market_conditions: "stressed"
+
+  boom:
+    name: "Economic Boom"
+    growth_adjustment: 1.5
+    risk_adjustment: 0.8
+    market_conditions: "favorable"
+
+  crisis:
+    name: "Financial Crisis"
+    growth_adjustment: 0.2
+    risk_adjustment: 3.0
+    market_conditions: "crisis"
+
+# Capital allocation categories
+capital_allocation:
+  categories:
+    insurance_premium:
+      min_allocation: 0.01  # 1% minimum
+      max_allocation: 0.05  # 5% maximum
+      expected_return: 0.08  # 8% return from risk reduction
+      risk_factor: 0.05  # 5% risk
+
+    working_capital:
+      min_allocation: 0.15  # 15% minimum
+      max_allocation: 0.30  # 30% maximum
+      expected_return: 0.12  # 12% return
+      risk_factor: 0.15  # 15% risk
+
+    growth_investment:
+      min_allocation: 0.20  # 20% minimum
+      max_allocation: 0.60  # 60% maximum
+      expected_return: 0.20  # 20% return
+      risk_factor: 0.30  # 30% risk
+
+    cash_reserve:
+      min_allocation: 0.05  # 5% minimum
+      max_allocation: 0.15  # 15% maximum
+      expected_return: 0.02  # 2% return
+      risk_factor: 0.01  # 1% risk
+
+# Business metrics thresholds
+metrics_thresholds:
+  excellent:
+    roe: 0.20  # 20%+ ROE
+    bankruptcy_risk: 0.001  # <0.1% risk
+    growth_rate: 0.15  # 15%+ growth
+    capital_efficiency: 1.3  # 1.3x+ efficiency
+
+  good:
+    roe: 0.15  # 15%+ ROE
+    bankruptcy_risk: 0.005  # <0.5% risk
+    growth_rate: 0.10  # 10%+ growth
+    capital_efficiency: 1.2  # 1.2x+ efficiency
+
+  acceptable:
+    roe: 0.10  # 10%+ ROE
+    bankruptcy_risk: 0.01  # <1% risk
+    growth_rate: 0.05  # 5%+ growth
+    capital_efficiency: 1.1  # 1.1x+ efficiency
+
+  poor:
+    roe: 0.05  # <5% ROE
+    bankruptcy_risk: 0.02  # >2% risk
+    growth_rate: 0.00  # <0% growth
+    capital_efficiency: 0.9  # <0.9x efficiency
+
+# Sensitivity analysis parameters
+sensitivity:
+  parameter_delta: 0.01  # 1% change for sensitivity
+  parameters_to_test:
+    - coverage_limit
+    - deductible
+    - premium_rate
+    - leverage_ratio
+    - growth_rate
+  confidence_level: 0.95  # 95% confidence
+
+# Recommendation generation rules
+recommendations:
+  roe_thresholds:
+    excellent: "Leverage success for strategic expansion"
+    good: "Maintain current strategy with minor optimizations"
+    acceptable: "Review capital structure and operational efficiency"
+    poor: "Urgent restructuring needed to improve returns"
+
+  risk_thresholds:
+    low: "Conservative profile allows for growth initiatives"
+    moderate: "Well-balanced risk profile"
+    high: "Increase insurance coverage and reduce leverage"
+    critical: "Immediate risk mitigation required"
+
+  premium_thresholds:
+    low: "Verify adequate protection levels"
+    optimal: "Insurance costs well-managed"
+    high: "Explore alternative risk financing"
+    excessive: "Restructure insurance program urgently"

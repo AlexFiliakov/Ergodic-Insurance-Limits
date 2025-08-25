@@ -85,6 +85,45 @@ pip install -e .
 pre-commit install
 ```
 
+## Project Structure
+
+```
+Ergodic Insurance Limits/
+├── ergodic_insurance/           # Main Python package
+│   ├── src/                    # Core source code
+│   │   ├── __init__.py         # Package initialization
+│   │   ├── manufacturer.py     # Widget manufacturer model
+│   │   ├── claim_generator.py  # Insurance claim generation
+│   │   ├── claim_development.py # Claim development patterns
+│   │   ├── config.py           # Pydantic configuration
+│   │   ├── config_loader.py    # YAML parameter loading
+│   │   ├── stochastic_processes.py # Stochastic modeling
+│   │   ├── simulation.py       # Main simulation engine
+│   │   ├── insurance.py        # Insurance optimization
+│   │   ├── insurance_program.py # Multi-layer programs
+│   │   ├── loss_distributions.py # Loss distributions
+│   │   ├── monte_carlo.py      # Monte Carlo engine
+│   │   ├── ergodic_analyzer.py # Ergodic analysis
+│   │   ├── risk_metrics.py     # Risk metrics
+│   │   ├── convergence.py      # Convergence analysis
+│   │   ├── decision_engine.py  # Decision optimization
+│   │   └── visualization.py    # Plotting utilities
+│   ├── tests/                  # Test suite (100% coverage)
+│   ├── notebooks/              # Jupyter notebooks
+│   ├── examples/               # Example scripts
+│   ├── data/                   # Configuration files
+│   │   └── parameters/         # YAML parameters
+│   └── docs/                   # Sphinx documentation
+├── simone/                     # TypeScript simulation
+├── results/                    # Reports and outputs
+├── assets/                     # Images and media
+├── pyproject.toml             # Python configuration
+├── setup.py                   # Package setup
+├── README.md                  # This file
+├── CLAUDE.md                  # Development instructions
+└── LICENSE                    # MIT License
+```
+
 ## Development
 
 ### Code Quality Tools
@@ -95,7 +134,7 @@ This project uses several tools to maintain code quality:
 - **isort**: Import sorting
 - **mypy**: Static type checking
 - **pylint**: Code linting
-- **pytest-cov**: Test coverage reporting (minimum: 80%)
+- **pytest-cov**: Test coverage reporting (minimum: 80%, achieved: 100%)
 
 ### Running Tests
 

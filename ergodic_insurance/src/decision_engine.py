@@ -265,6 +265,14 @@ class InsuranceDecisionEngine:
 
         # Define objective function
         def objective(x):
+            """Objective function for optimization.
+
+            Args:
+                x: Decision variables [retained_limit, layer1_limit, ...]
+
+            Returns:
+                Objective value (negative for maximization)
+            """
             return self._calculate_objective(x, weights)
 
         # Define constraints
@@ -272,6 +280,14 @@ class InsuranceDecisionEngine:
 
         # Premium budget constraint
         def premium_constraint(x):
+            """Constraint function for premium budget.
+
+            Args:
+                x: Decision variables [retained_limit, layer1_limit, ...]
+
+            Returns:
+                Constraint value (positive when satisfied)
+            """
             premium = self._calculate_premium(x)
             return constraints.max_premium_budget - premium
 
@@ -279,10 +295,26 @@ class InsuranceDecisionEngine:
 
         # Coverage limit constraints
         def coverage_min_constraint(x):
+            """Constraint function for minimum coverage.
+
+            Args:
+                x: Decision variables [retained_limit, layer1_limit, ...]
+
+            Returns:
+                Constraint value (positive when satisfied)
+            """
             total_coverage = sum(x)
             return total_coverage - constraints.min_coverage_limit
 
         def coverage_max_constraint(x):
+            """Constraint function for maximum coverage.
+
+            Args:
+                x: Decision variables [retained_limit, layer1_limit, ...]
+
+            Returns:
+                Constraint value (positive when satisfied)
+            """
             total_coverage = sum(x)
             return constraints.max_coverage_limit - total_coverage
 
@@ -295,6 +327,14 @@ class InsuranceDecisionEngine:
 
         # Bankruptcy probability constraint
         def bankruptcy_constraint(x):
+            """Constraint function for bankruptcy probability.
+
+            Args:
+                x: Decision variables [retained_limit, layer1_limit, ...]
+
+            Returns:
+                Constraint value (positive when satisfied)
+            """
             prob = self._estimate_bankruptcy_probability(x)
             return constraints.max_bankruptcy_probability - prob
 
@@ -328,6 +368,14 @@ class InsuranceDecisionEngine:
 
         # Define objective with penalty for constraint violations
         def objective_with_penalty(x):
+            """Objective function with penalty for constraint violations.
+
+            Args:
+                x: Decision variables [retained_limit, layer1_limit, ...]
+
+            Returns:
+                Penalized objective value
+            """
             obj = self._calculate_objective(x, weights)
 
             # Add penalties for constraint violations

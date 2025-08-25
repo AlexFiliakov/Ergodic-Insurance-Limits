@@ -853,6 +853,14 @@ def perform_statistical_tests(
         if "alpha" in params and "xm" in params:
             # Define Pareto CDF properly for vectorized inputs
             def pareto_cdf(x):
+                """Calculate Pareto cumulative distribution function.
+
+                Args:
+                    x: Value(s) at which to evaluate the CDF
+
+                Returns:
+                    CDF value(s) at x
+                """
                 x = np.atleast_1d(x)
                 result = np.zeros_like(x)
                 mask = x >= params["xm"]
