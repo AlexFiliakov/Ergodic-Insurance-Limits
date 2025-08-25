@@ -28,6 +28,7 @@ WSJ_COLORS = {
     "light_gray": "#E0E0E0",  # Light gray for grid
     "black": "#000000",  # Black for text
     "orange": "#FF9800",  # Orange for highlights
+    "yellow": "#FFD700",  # Yellow for highlights
     "purple": "#7B1FA2",  # Purple for special
     "teal": "#00796B",  # Teal for alternative
 }

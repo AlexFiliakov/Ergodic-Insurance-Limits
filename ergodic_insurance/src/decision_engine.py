@@ -533,25 +533,84 @@ class InsuranceDecisionEngine:
         return float(np.mean(tail_losses))
 
     def _estimate_bankruptcy_probability(self, x: np.ndarray) -> float:
-        """Estimate bankruptcy probability for given structure."""
+        """Estimate bankruptcy probability using Monte Carlo simulation.
+
+        This method now uses the enhanced Monte Carlo engine for accurate
+        ruin probability estimation instead of the simplified heuristic.
+        """
         retained_limit = x[0]
         layer_limits = x[1:]
 
-        # Total coverage
+        # Create insurance program from optimization variables
+        layers = []
+        current_attachment = retained_limit
+
+        for limit in layer_limits:
+            if limit > 1000:  # Minimum meaningful layer
+                # Determine rate based on attachment
+                if current_attachment < 5_000_000:
+                    rate = self.current_scenario.primary_layer_rate
+                elif current_attachment < 25_000_000:
+                    rate = self.current_scenario.first_excess_rate
+                else:
+                    rate = self.current_scenario.higher_excess_rate
+
+                from .insurance_program import EnhancedInsuranceLayer
+
+                layer = EnhancedInsuranceLayer(
+                    attachment_point=current_attachment,
+                    limit=limit,
+                    premium_rate=rate,
+                )
+                layers.append(layer)
+                current_attachment += limit
+
+        # Create insurance program
+        from .insurance_program import InsuranceProgram
+
+        insurance_program = InsuranceProgram(layers=layers)
+
+        # Use Monte Carlo if available, otherwise fall back to simple estimation
+        if hasattr(self, "_monte_carlo_engine"):
+            # Configure ruin probability estimation
+            from .monte_carlo import RuinProbabilityConfig
+
+            config = RuinProbabilityConfig(
+                time_horizons=[5],  # Use 5-year horizon for optimization
+                n_simulations=1000,  # Fewer simulations for optimization speed
+                early_stopping=True,
+                parallel=False,  # Sequential for optimization
+                seed=42,
+            )
+
+            # Create Monte Carlo engine with current insurance structure
+            from .monte_carlo import MonteCarloEngine
+
+            mc_engine = MonteCarloEngine(
+                loss_generator=self.loss_distribution,  # type: ignore
+                insurance_program=insurance_program,
+                manufacturer=self.manufacturer,
+            )
+
+            # Estimate ruin probability
+            try:
+                results = mc_engine.estimate_ruin_probability(config)
+                return float(results.ruin_probabilities[0])  # 5-year probability
+            except Exception as e:
+                logger.warning(f"Monte Carlo estimation failed: {e}, using fallback")
+
+        # Fallback to simple estimation
         total_coverage = retained_limit + sum(l for l in layer_limits if l > 1000)
 
-        # Simple estimation based on coverage adequacy
-        # Estimate max loss using expected value if available
         if hasattr(self.loss_distribution, "expected_value"):
             expected_max_loss = self.loss_distribution.expected_value() * 10
         else:
-            expected_max_loss = total_coverage  # Conservative fallback
+            expected_max_loss = total_coverage
 
         coverage_ratio = total_coverage / expected_max_loss if expected_max_loss > 0 else 1.0
 
-        # Map coverage ratio to bankruptcy probability
         if coverage_ratio >= 1.0:
-            return 0.001  # Very low if fully covered
+            return 0.001
         if coverage_ratio >= 0.8:
             return 0.005
         if coverage_ratio >= 0.6:
@@ -744,9 +803,10 @@ class InsuranceDecisionEngine:
             roe_volatility=roe_volatility,
             roe_sharpe_ratio=roe_sharpe,
             roe_downside_deviation=roe_downside_dev,
-            roe_1yr_rolling=roe_1yr,
-            roe_3yr_rolling=roe_3yr,
-            roe_5yr_rolling=roe_5yr,
+            roe_1yr_rolling=float(roe_1yr),
+            roe_3yr_rolling=float(roe_3yr),
+            roe_5yr_rolling=float(roe_5yr),
+
             # ROE component breakdown
             operating_roe=base_operating_roe,
             insurance_impact_roe=insurance_cost_impact,
@@ -841,11 +901,11 @@ class InsuranceDecisionEngine:
                 assets = equity / 0.3
 
             # Store results
-            results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0
-            results["bankruptcies"][i] = 1 if bankrupt else 0
-            results["roe"][i] = np.mean(annual_returns) if annual_returns else 0
-            results["value"][i] = equity
-            results["losses"][i] = annual_losses if "annual_losses" in locals() else 0
+            results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
+            results["bankruptcies"][i] = 1 if bankrupt else 0  # type: ignore
+            results["roe"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
+            results["value"][i] = equity  # type: ignore
+            results["losses"][i] = annual_losses if "annual_losses" in locals() else 0  # type: ignore
 
             # Store series for enhanced analysis
             all_roe_series.extend(sim_roe_series)
@@ -857,7 +917,7 @@ class InsuranceDecisionEngine:
             np.array(all_equity_series) if all_equity_series else np.array([])
         )
 
-        return results
+        return results  # type: ignore
 
     def run_sensitivity_analysis(
         self,

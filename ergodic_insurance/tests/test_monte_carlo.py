@@ -12,7 +12,13 @@ from ergodic_insurance.src.convergence import ConvergenceStats
 from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.src.monte_carlo import (
+    MonteCarloEngine,
+    RuinProbabilityConfig,
+    RuinProbabilityResults,
+    SimulationConfig,
+    SimulationResults,
+)
 
 
 class TestSimulationConfig:
@@ -373,3 +379,262 @@ class TestMonteCarloEngine:
         assert len(combined.final_assets) == 4
         assert combined.annual_losses.shape == (4, 5)
         assert combined.execution_time == 2.0
+
+
+class TestRuinProbabilityEstimation:
+    """Test ruin probability estimation functionality."""
+
+    def test_ruin_probability_config_defaults(self):
+        """Test default configuration for ruin probability."""
+        config = RuinProbabilityConfig()
+        assert config.time_horizons == [1, 3, 5, 10]
+        assert config.n_simulations == 10_000
+        assert config.min_assets_threshold == 0.0
+        assert config.min_equity_threshold == 0.0
+        assert config.consecutive_negative_periods == 2
+        assert config.early_stopping is True
+        assert config.parallel is True
+
+    def test_ruin_probability_config_custom(self):
+        """Test custom configuration for ruin probability."""
+        config = RuinProbabilityConfig(
+            time_horizons=[1, 5],
+            n_simulations=5000,
+            min_assets_threshold=100_000,
+            early_stopping=False,
+            seed=42,
+        )
+        assert config.time_horizons == [1, 5]
+        assert config.n_simulations == 5000
+        assert config.min_assets_threshold == 100_000
+        assert config.early_stopping is False
+        assert config.seed == 42
+
+    @pytest.fixture
+    def setup_ruin_engine(self):
+        """Set up test engine for ruin probability testing."""
+        # Create mock loss generator
+        loss_generator = Mock(spec=ManufacturingLossGenerator)
+
+        # Create insurance program
+        layer = EnhancedInsuranceLayer(
+            attachment_point=0,
+            limit=5_000_000,
+            premium_rate=0.02,
+        )
+        insurance_program = InsuranceProgram(layers=[layer])
+
+        # Create manufacturer
+        manufacturer_config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.8,
+        )
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        # Create config
+        config = SimulationConfig(
+            n_simulations=100,
+            n_years=10,
+            parallel=False,
+            cache_results=False,
+            progress_bar=False,
+            seed=42,
+        )
+
+        # Create engine
+        engine = MonteCarloEngine(
+            loss_generator=loss_generator,
+            insurance_program=insurance_program,
+            manufacturer=manufacturer,
+            config=config,
+        )
+
+        return engine, loss_generator
+
+    def test_single_ruin_simulation(self, setup_ruin_engine):
+        """Test single ruin probability simulation."""
+        engine, loss_generator = setup_ruin_engine
+
+        # Mock loss events - create severe losses to trigger bankruptcy
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=15_000_000, loss_type="catastrophic")],
+            {"total_amount": 15_000_000},
+        )
+
+        config = RuinProbabilityConfig(
+            time_horizons=[5],
+            min_assets_threshold=1_000_000,
+            min_equity_threshold=0,
+        )
+
+        result = engine._run_single_ruin_simulation(0, 5, config)
+
+        assert "bankruptcy_year" in result
+        assert "causes" in result
+        assert result["bankruptcy_year"] <= 5  # Should go bankrupt with large loss
+
+    def test_bootstrap_confidence_intervals(self, setup_ruin_engine):
+        """Test bootstrap confidence interval calculation."""
+        engine, _ = setup_ruin_engine
+
+        # Create sample bankruptcy data
+        np.random.seed(42)
+        bankruptcy_years = np.random.choice([1, 2, 3, 11, 11, 11], size=1000)
+
+        ci = engine._calculate_bootstrap_ci(
+            bankruptcy_years,
+            time_horizons=[1, 3, 5],
+            n_bootstrap=100,
+            confidence_level=0.95,
+        )
+
+        assert ci.shape == (3, 2)
+        assert np.all(ci[:, 0] <= ci[:, 1])  # Lower bound <= upper bound
+        assert np.all(ci >= 0) and np.all(ci <= 1)  # Probabilities in [0, 1]
+
+    def test_ruin_convergence_check(self, setup_ruin_engine):
+        """Test convergence checking for ruin probability."""
+        engine, _ = setup_ruin_engine
+
+        # Create converged data (low variance between chains)
+        np.random.seed(42)
+        converged_data = np.random.choice(
+            [11, 11, 11, 11, 1], size=400, p=[0.8, 0.05, 0.05, 0.05, 0.05]
+        )
+        assert engine._check_ruin_convergence(converged_data) == True
+
+        # Create non-converged data (high variance between chains)
+        chain1 = np.ones(100) * 11  # No bankruptcies
+        chain2 = np.ones(100) * 1  # All bankruptcies
+        chain3 = np.ones(100) * 11  # No bankruptcies
+        chain4 = np.ones(100) * 1  # All bankruptcies
+        non_converged_data = np.concatenate([chain1, chain2, chain3, chain4])
+        assert engine._check_ruin_convergence(non_converged_data) == False
+
+    def test_estimate_ruin_probability_integration(self, setup_ruin_engine):
+        """Test full ruin probability estimation integration."""
+        engine, loss_generator = setup_ruin_engine
+
+        # Mock moderate losses
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=500_000, loss_type="operational")],
+            {"total_amount": 500_000},
+        )
+
+        config = RuinProbabilityConfig(
+            time_horizons=[1, 3, 5],
+            n_simulations=100,
+            early_stopping=True,
+            parallel=False,
+            seed=42,
+        )
+
+        results = engine.estimate_ruin_probability(config)
+
+        # Check structure
+        assert isinstance(results, RuinProbabilityResults)
+        assert len(results.time_horizons) == 3
+        assert len(results.ruin_probabilities) == 3
+        assert results.confidence_intervals.shape == (3, 2)
+        assert results.n_simulations == 100
+
+        # Check values are reasonable
+        assert np.all(results.ruin_probabilities >= 0)
+        assert np.all(results.ruin_probabilities <= 1)
+        assert np.all(np.diff(results.ruin_probabilities) >= 0)  # Monotonic increase
+
+        # Check bankruptcy causes
+        assert "asset_threshold" in results.bankruptcy_causes
+        assert "equity_threshold" in results.bankruptcy_causes
+        assert "consecutive_negative" in results.bankruptcy_causes
+        assert "debt_service" in results.bankruptcy_causes
+
+    def test_early_stopping_optimization(self, setup_ruin_engine):
+        """Test early stopping optimization for bankrupt paths."""
+        engine, loss_generator = setup_ruin_engine
+
+        # Mock catastrophic loss in first year
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        call_count = 0
+
+        def generate_losses_mock(duration, revenue):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First year: catastrophic loss
+                return (
+                    [LossEvent(time=0.5, amount=20_000_000, loss_type="catastrophic")],
+                    {"total_amount": 20_000_000},
+                )
+            else:
+                # Subsequent years: normal losses (shouldn't be called with early stopping)
+                return (
+                    [LossEvent(time=0.5, amount=100_000, loss_type="operational")],
+                    {"total_amount": 100_000},
+                )
+
+        loss_generator.generate_losses.side_effect = generate_losses_mock
+
+        config = RuinProbabilityConfig(
+            time_horizons=[10],
+            n_simulations=1,
+            min_assets_threshold=1_000_000,
+            early_stopping=True,
+            seed=42,
+        )
+
+        result = engine._run_single_ruin_simulation(0, 10, config)
+
+        # With early stopping, should stop shortly after bankruptcy
+        assert result["bankruptcy_year"] <= 3  # May take a couple years to fully bankrupt
+        # Should stop early, not run all 10 years
+        assert call_count < 10
+
+    def test_parallel_ruin_estimation(self, setup_ruin_engine):
+        """Test parallel processing for ruin probability."""
+        engine, loss_generator = setup_ruin_engine
+
+        # Mock losses
+        from ergodic_insurance.src.loss_distributions import LossEvent
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=100_000, loss_type="operational")],
+            {"total_amount": 100_000},
+        )
+
+        config = RuinProbabilityConfig(
+            time_horizons=[3],
+            n_simulations=50,
+            parallel=False,  # Keep sequential for test stability
+            seed=42,
+        )
+
+        # Test chunk processing
+        chunk = (0, 10, 3, config, 42)
+        chunk_results = engine._run_ruin_chunk(chunk)
+
+        assert "bankruptcy_years" in chunk_results
+        assert "bankruptcy_causes" in chunk_results
+        assert len(chunk_results["bankruptcy_years"]) == 10
+
+        # Test combining results
+        chunk_results2 = {
+            "bankruptcy_years": np.array([4, 4, 4, 4, 4]),
+            "bankruptcy_causes": {
+                "asset_threshold": np.zeros((5, 3), dtype=bool),
+                "equity_threshold": np.zeros((5, 3), dtype=bool),
+                "consecutive_negative": np.zeros((5, 3), dtype=bool),
+                "debt_service": np.zeros((5, 3), dtype=bool),
+            },
+        }
+
+        combined = engine._combine_ruin_results([chunk_results, chunk_results2])
+        assert len(combined["bankruptcy_years"]) == 15
