@@ -83,6 +83,20 @@ class DecisionMetrics:
     conditional_value_at_risk: float  # Expected loss beyond VaR
     decision_score: float = 0.0  # Overall decision quality score
 
+    # Enhanced ROE metrics
+    time_weighted_roe: float = 0.0  # Time-weighted average ROE
+    roe_volatility: float = 0.0  # ROE standard deviation
+    roe_sharpe_ratio: float = 0.0  # ROE risk-adjusted performance
+    roe_downside_deviation: float = 0.0  # Downside risk measure
+    roe_1yr_rolling: float = 0.0  # 1-year rolling average ROE
+    roe_3yr_rolling: float = 0.0  # 3-year rolling average ROE
+    roe_5yr_rolling: float = 0.0  # 5-year rolling average ROE
+
+    # ROE component breakdown
+    operating_roe: float = 0.0  # ROE from operations
+    insurance_impact_roe: float = 0.0  # ROE impact from insurance
+    tax_effect_roe: float = 0.0  # Tax impact on ROE
+
     def calculate_score(self, weights: Optional[Dict[str, float]] = None) -> float:
         """Calculate weighted decision score.
 
@@ -650,6 +664,48 @@ class InsuranceDecisionEngine:
             no_insurance_decision, n_simulations, time_horizon
         )
 
+        # Import ROEAnalyzer for enhanced metrics
+        from .risk_metrics import ROEAnalyzer
+
+        # Calculate enhanced ROE metrics if we have detailed ROE data
+        roe_data = with_insurance_results.get("roe_series", None)
+        equity_data = with_insurance_results.get("equity_series", None)
+
+        if roe_data is not None and len(roe_data) > 0:
+            roe_analyzer = ROEAnalyzer(roe_data, equity_data)
+
+            # Get all enhanced metrics
+            volatility_metrics = roe_analyzer.volatility_metrics()
+            performance_ratios = roe_analyzer.performance_ratios()
+            rolling_stats_1yr = roe_analyzer.rolling_statistics(1) if len(roe_data) >= 1 else {}
+            rolling_stats_3yr = roe_analyzer.rolling_statistics(3) if len(roe_data) >= 3 else {}
+            rolling_stats_5yr = roe_analyzer.rolling_statistics(5) if len(roe_data) >= 5 else {}
+
+            # Calculate component breakdown (simplified version)
+            base_operating_roe = 0.08 / 0.3  # Assuming 8% margin and 30% equity ratio
+            insurance_cost_impact = -decision.total_premium / (self.manufacturer.assets * 0.3)
+
+            time_weighted_roe = roe_analyzer.time_weighted_average()
+            roe_volatility = volatility_metrics.get("standard_deviation", 0.0)
+            roe_sharpe = performance_ratios.get("sharpe_ratio", 0.0)
+            roe_downside_dev = volatility_metrics.get("downside_deviation", 0.0)
+            roe_1yr = np.nanmean(rolling_stats_1yr.get("mean", [0.0]))
+            roe_3yr = np.nanmean(rolling_stats_3yr.get("mean", [0.0]))
+            roe_5yr = np.nanmean(rolling_stats_5yr.get("mean", [0.0]))
+        else:
+            # Fallback to simple calculations
+            time_weighted_roe = np.mean(with_insurance_results["roe"])
+            roe_volatility = np.std(with_insurance_results["roe"])
+            roe_sharpe = (np.mean(with_insurance_results["roe"]) - 0.02) / max(
+                roe_volatility, 0.001
+            )
+            roe_downside_dev = roe_volatility * 0.7  # Rough approximation
+            roe_1yr = np.mean(with_insurance_results["roe"])
+            roe_3yr = np.mean(with_insurance_results["roe"])
+            roe_5yr = np.mean(with_insurance_results["roe"])
+            base_operating_roe = 0.08 / 0.3
+            insurance_cost_impact = -decision.total_premium / (self.manufacturer.assets * 0.3)
+
         # Calculate metrics
         metrics = DecisionMetrics(
             ergodic_growth_rate=np.mean(with_insurance_results["growth_rates"]),
@@ -683,6 +739,18 @@ class InsuranceDecisionEngine:
                 if len(with_insurance_results["losses"]) > 0
                 else 0.0
             ),
+            # Enhanced ROE metrics
+            time_weighted_roe=time_weighted_roe,
+            roe_volatility=roe_volatility,
+            roe_sharpe_ratio=roe_sharpe,
+            roe_downside_deviation=roe_downside_dev,
+            roe_1yr_rolling=roe_1yr,
+            roe_3yr_rolling=roe_3yr,
+            roe_5yr_rolling=roe_5yr,
+            # ROE component breakdown
+            operating_roe=base_operating_roe,
+            insurance_impact_roe=insurance_cost_impact,
+            tax_effect_roe=-0.25 * np.mean(with_insurance_results["roe"]),  # 25% tax rate impact
         )
 
         # Calculate overall score
@@ -703,7 +771,13 @@ class InsuranceDecisionEngine:
             "roe": np.zeros(n_simulations),
             "value": np.zeros(n_simulations),
             "losses": np.zeros(n_simulations),
+            "roe_series": [],  # Store full ROE time series
+            "equity_series": [],  # Store equity time series
         }
+
+        # Collect all ROE and equity series for enhanced analysis
+        all_roe_series = []
+        all_equity_series = []
 
         for i in range(n_simulations):
             # Initialize company state
@@ -712,6 +786,8 @@ class InsuranceDecisionEngine:
 
             bankrupt = False
             annual_returns = []
+            sim_roe_series = []
+            sim_equity_series = []
 
             for _ in range(time_horizon):
                 # Generate revenue
@@ -744,9 +820,17 @@ class InsuranceDecisionEngine:
                 net_losses = retained_losses + max(annual_losses - decision.total_coverage, 0)
                 net_income = operating_income - net_losses - decision.total_premium
 
+                # Calculate ROE before updating equity
+                if equity > 0:
+                    roe = net_income / equity
+                    annual_returns.append(roe)
+                    sim_roe_series.append(roe)
+                    sim_equity_series.append(equity)
+                else:
+                    annual_returns.append(net_income / max(equity, 1))
+
                 # Update equity
                 equity += net_income
-                annual_returns.append(net_income / max(equity, 1))
 
                 # Check bankruptcy
                 if equity <= 0:
@@ -762,6 +846,16 @@ class InsuranceDecisionEngine:
             results["roe"][i] = np.mean(annual_returns) if annual_returns else 0
             results["value"][i] = equity
             results["losses"][i] = annual_losses if "annual_losses" in locals() else 0
+
+            # Store series for enhanced analysis
+            all_roe_series.extend(sim_roe_series)
+            all_equity_series.extend(sim_equity_series)
+
+        # Convert to numpy arrays for analysis
+        results["roe_series"] = np.array(all_roe_series) if all_roe_series else np.array([])
+        results["equity_series"] = (
+            np.array(all_equity_series) if all_equity_series else np.array([])
+        )
 
         return results
 

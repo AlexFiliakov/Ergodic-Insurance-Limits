@@ -441,6 +441,187 @@ class TestPerformance:
         assert elapsed < 5.0, f"Performance test failed: {elapsed:.2f}s > 5s"
 
 
+class TestROEAnalyzer:
+    """Test ROEAnalyzer class for comprehensive ROE analysis."""
+
+    def test_initialization(self):
+        """Test ROEAnalyzer initialization."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        roe_series = np.array([0.10, 0.12, 0.08, 0.15, 0.11])
+        equity_series = np.array([100, 110, 120, 130, 140])
+
+        analyzer = ROEAnalyzer(roe_series, equity_series)
+
+        assert len(analyzer.roe_series) == 5
+        assert len(analyzer.valid_roe) == 5
+        assert analyzer.equity_series is not None
+
+    def test_time_weighted_average(self):
+        """Test time-weighted average ROE calculation."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        # Test with constant ROE
+        roe_series = np.array([0.10, 0.10, 0.10, 0.10])
+        analyzer = ROEAnalyzer(roe_series)
+
+        time_weighted = analyzer.time_weighted_average()
+        assert time_weighted == pytest.approx(0.10, rel=0.01)
+
+        # Test with variable ROE
+        roe_series = np.array([0.05, 0.15, 0.10, -0.05, 0.20])
+        analyzer = ROEAnalyzer(roe_series)
+
+        time_weighted = analyzer.time_weighted_average()
+        # Should handle negative values appropriately
+        assert isinstance(time_weighted, float)
+
+    def test_equity_weighted_average(self):
+        """Test equity-weighted average ROE calculation."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        roe_series = np.array([0.10, 0.15, 0.08])
+        equity_series = np.array([100, 200, 300])  # More weight to later periods
+
+        analyzer = ROEAnalyzer(roe_series, equity_series)
+
+        equity_weighted = analyzer.equity_weighted_average()
+        # Should be closer to 0.08 due to high equity weight in last period
+        assert equity_weighted < np.mean(roe_series)
+        assert equity_weighted > 0.08
+
+    def test_rolling_statistics(self):
+        """Test rolling window statistics."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        roe_series = np.array([0.08, 0.10, 0.12, 0.09, 0.11, 0.10])
+        analyzer = ROEAnalyzer(roe_series)
+
+        # Test 3-period rolling stats
+        rolling_stats = analyzer.rolling_statistics(3)
+
+        assert "mean" in rolling_stats
+        assert "std" in rolling_stats
+        assert "sharpe" in rolling_stats
+
+        # Check that first two values are NaN
+        assert np.isnan(rolling_stats["mean"][0])
+        assert np.isnan(rolling_stats["mean"][1])
+
+        # Third value should be mean of first 3
+        assert rolling_stats["mean"][2] == pytest.approx(0.10, rel=0.01)
+
+    def test_volatility_metrics(self):
+        """Test volatility metrics calculation."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        roe_series = np.array([0.05, 0.15, 0.10, 0.20, -0.05])
+        analyzer = ROEAnalyzer(roe_series)
+
+        volatility = analyzer.volatility_metrics()
+
+        assert "standard_deviation" in volatility
+        assert "downside_deviation" in volatility
+        assert "upside_deviation" in volatility
+        assert "semi_variance" in volatility
+        assert "coefficient_variation" in volatility
+
+        # All volatility measures should be non-negative
+        assert volatility["standard_deviation"] > 0
+        assert volatility["downside_deviation"] >= 0
+        assert volatility["upside_deviation"] >= 0
+        assert volatility["semi_variance"] >= 0
+
+    def test_performance_ratios(self):
+        """Test performance ratio calculations."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        roe_series = np.array([0.08, 0.12, 0.10, 0.15, 0.09])
+        analyzer = ROEAnalyzer(roe_series)
+
+        ratios = analyzer.performance_ratios(risk_free_rate=0.02)
+
+        assert "sharpe_ratio" in ratios
+        assert "sortino_ratio" in ratios
+        assert "calmar_ratio" in ratios
+        assert "information_ratio" in ratios
+        assert "omega_ratio" in ratios
+
+        # Sharpe ratio should be positive for positive excess returns
+        mean_roe = np.mean(roe_series)
+        if mean_roe > 0.02:
+            assert ratios["sharpe_ratio"] > 0
+
+    def test_distribution_analysis(self):
+        """Test distribution analysis."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        np.random.seed(42)
+        roe_series = np.random.normal(0.10, 0.05, 100)
+        analyzer = ROEAnalyzer(roe_series)
+
+        distribution = analyzer.distribution_analysis()
+
+        assert "mean" in distribution
+        assert "median" in distribution
+        assert "skewness" in distribution
+        assert "kurtosis" in distribution
+        assert "percentile_5" in distribution
+        assert "percentile_95" in distribution
+
+        # Check reasonable values
+        assert distribution["mean"] == pytest.approx(np.mean(roe_series), rel=0.01)
+        assert distribution["percentile_5"] < distribution["median"]
+        assert distribution["median"] < distribution["percentile_95"]
+
+    def test_stability_analysis(self):
+        """Test stability analysis across periods."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        # Create a series with increasing stability
+        roe_series = np.concatenate(
+            [
+                np.random.normal(0.10, 0.10, 20),  # High volatility
+                np.random.normal(0.10, 0.01, 20),  # Low volatility
+            ]
+        )
+
+        analyzer = ROEAnalyzer(roe_series)
+        stability = analyzer.stability_analysis(periods=[5, 10])
+
+        assert "5yr" in stability
+        assert "10yr" in stability
+
+        # Check that metrics exist
+        assert "mean_stability" in stability["5yr"]
+        assert "volatility_stability" in stability["5yr"]
+        assert "consistency" in stability["5yr"]
+
+    def test_edge_cases_roe_analyzer(self):
+        """Test edge cases for ROEAnalyzer."""
+        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+
+        # Test with all NaN values
+        roe_series = np.array([np.nan, np.nan, np.nan])
+        analyzer = ROEAnalyzer(roe_series)
+
+        assert analyzer.time_weighted_average() == 0.0
+        assert len(analyzer.volatility_metrics()) > 0
+
+        # Test with single value
+        roe_series = np.array([0.10])
+        analyzer = ROEAnalyzer(roe_series)
+
+        assert analyzer.time_weighted_average() == pytest.approx(0.10, rel=0.01)
+
+        # Test with mixed NaN values
+        roe_series = np.array([0.10, np.nan, 0.15, np.nan, 0.08])
+        analyzer = ROEAnalyzer(roe_series)
+
+        assert len(analyzer.valid_roe) == 3
+        assert analyzer.time_weighted_average() > 0
+
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
