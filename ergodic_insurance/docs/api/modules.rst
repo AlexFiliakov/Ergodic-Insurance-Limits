@@ -25,6 +25,9 @@ Core Modules
    risk_metrics
    convergence
    decision_engine
+   business_optimizer
+   optimization
+   pareto_frontier
    visualization
 
 Complete Package
