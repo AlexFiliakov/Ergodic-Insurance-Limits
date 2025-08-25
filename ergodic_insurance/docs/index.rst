@@ -64,12 +64,7 @@ Quick Links
    theory
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: API Reference:
 
    api/modules
-   api/manufacturer
-   api/config
-   api/claim_generator
-   api/simulation
-   api/config_loader

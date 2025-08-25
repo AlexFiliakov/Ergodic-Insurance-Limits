@@ -6,7 +6,9 @@
 import os
 import sys
 
-# Add the source directory to the path
+# Add the parent directory to the path to import ergodic_insurance package
+sys.path.insert(0, os.path.abspath("../.."))
+# Also add the src directory for direct imports
 sys.path.insert(0, os.path.abspath("../src"))
 
 # -- Project information -----------------------------------------------------
