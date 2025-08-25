@@ -517,7 +517,9 @@ class BusinessOutcomeOptimizer:
         return allocation
 
     def analyze_time_horizon_impact(
-        self, strategies: List[Dict[str, float]], time_horizons: List[int] = None
+        self,
+        strategies: List[Dict[str, float]],
+        time_horizons: Optional[List[int]] = None,
     ) -> pd.DataFrame:
         """Analyze strategy performance across different time horizons.
 
@@ -554,7 +556,7 @@ class BusinessOutcomeOptimizer:
                 )
 
                 # Calculate ergodic vs ensemble difference if analyzer available
-                ergodic_diff = 0
+                ergodic_diff = 0.0
                 if self.ergodic_analyzer and horizon >= 10:
                     ergodic_growth = self._calculate_ergodic_growth(
                         coverage_limit, deductible, premium_rate, horizon
@@ -623,7 +625,7 @@ class BusinessOutcomeOptimizer:
         # Build composite objective function
         def composite_objective(x):
             coverage_limit, deductible, premium_rate = x
-            total_score = 0
+            total_score = 0.0
 
             for obj in objectives:
                 value = self._evaluate_objective(
@@ -737,7 +739,7 @@ class BusinessOutcomeOptimizer:
             adjusted_roe *= np.random.normal(1.0, 0.1)
             roe_values.append(adjusted_roe)
 
-        return np.mean(roe_values)
+        return float(np.mean(roe_values))
 
     def _estimate_bankruptcy_risk(
         self, coverage_limit: float, deductible: float, premium_rate: float, time_horizon: int
@@ -758,7 +760,7 @@ class BusinessOutcomeOptimizer:
         time_factor = 1 - np.exp(-time_horizon / 20)  # Risk increases with time
 
         bankruptcy_risk = (base_risk - risk_reduction + risk_increase) * time_factor
-        return max(0, min(1, bankruptcy_risk))
+        return float(max(0, min(1, bankruptcy_risk)))
 
     def _estimate_growth_rate(
         self,
@@ -1122,9 +1124,7 @@ class BusinessOutcomeOptimizer:
         # Insurance structure recommendations
         annual_premium = coverage_limit * premium_rate
         revenue = self.manufacturer.calculate_revenue()
-        premium_to_revenue = (
-            annual_premium / revenue if revenue > 0 else 0
-        )
+        premium_to_revenue = annual_premium / revenue if revenue > 0 else 0
 
         if premium_to_revenue > 0.04:
             recommendations.append("Premium costs high - explore alternative risk financing")

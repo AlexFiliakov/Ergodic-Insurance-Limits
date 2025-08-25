@@ -5,3 +5,4 @@ loss\_distributions module
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:

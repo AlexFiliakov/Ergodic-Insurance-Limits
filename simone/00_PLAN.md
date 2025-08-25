@@ -70,7 +70,11 @@ ergodic_insurance/
 │   ├── reporting/       # Visualization & reports
 │   │   ├── __init__.py
 │   │   ├── visualizations.py    # Chart generation
-│   │   ├── report_builder.py    # Automated reports
+│   │   ├── executive_reports.py # Executive-level visualizations
+│   │   ├── technical_reports.py # Technical appendix visualizations
+│   │   ├── report_builder.py    # Automated report compilation
+│   │   ├── cache_manager.py     # Result caching system
+│   │   ├── style_manager.py     # Consistent styling utilities
 │   │   └── latex_export.py      # Publication-ready output
 │   │
 │   └── utils/           # Helper functions
@@ -236,26 +240,161 @@ ergodic_insurance/
 - Convergence diagnostic dashboard
 
 ### Phase 7: Reporting & Visualization (Week 7-8)
-**Objective**: Generate compelling static reports for blog posts
+**Objective**: Generate compelling static reports for blog posts with dual-track approach (executive & technical)
 
 #### Tasks
-- [ ] Create key visualizations:
-  - Ergodic vs ensemble growth comparisons
-  - Insurance layer efficiency curves
-  - ROE optimization frontiers
-  - Ruin probability heat maps
-  - Time-average growth distributions
-  - Wealth trajectory percentiles
-- [ ] Build LaTeX-quality figure export
-- [ ] Create automated report generation pipeline
-- [ ] Implement scenario comparison tools
-- [ ] Add executive summary generation
-- [ ] Create blog-ready visualizations with annotations
+##### Core Infrastructure
+- [ ] Build visualization factory with consistent styling
+  - Corporate color palette (blues/grays for main, red for warnings)
+  - Consistent fonts (Helvetica/Arial for clean look)
+  - Standard figure sizes (blog: 8×6", appendix: 10×8")
+  - DPI settings (150 for web, 300 for print)
+- [ ] Implement caching system for expensive computations
+  - Pre-compute 10,000 paths × 1,000 years for each company size
+  - Store results in HDF5/Parquet for fast loading
+  - Cache generated PNGs with parameter hash keys
+- [ ] Create dual-track report templates
+  - Executive summary template (high-level insights)
+  - Technical appendix template (detailed analytics)
+
+##### Executive-Level Visualizations (Blog Main Content)
+- [ ] **Figure 1**: ROE-Ruin Efficient Frontier
+  - 2D plot with ROE on X-axis, Ruin Probability on Y-axis
+  - Show Pareto frontier with "sweet spots" highlighted
+  - Separate curves for $1M, $10M, $100M companies
+  - Annotations for key decision points
+- [ ] **Figure 2**: Simulation Architecture Flow
+  - Simplified flowchart for non-technical readers
+  - Show data flow from parameters to insights
+  - Use icons and minimal text
+- [ ] **Figure 3**: Sample Path Visualization
+  - Dual panel: 10-year view (left), 100-year view (right)
+  - 5 representative trajectories showing divergence
+  - Highlight survivor vs failed paths
+- [ ] **Figure 4**: Optimal Coverage Heatmap
+  - 3-panel plot (one per company size)
+  - Retention on X-axis, Limit on Y-axis
+  - Color intensity shows time-average growth rate
+  - Contour lines for key thresholds
+- [ ] **Figure 5**: ROE-Ruin Trade-off Curves
+  - Clean 2D plot with three curves (by company size)
+  - Shaded "optimal zones" for each
+  - Callout boxes with key metrics
+- [ ] **Figure 6**: The Ruin Cliff Visualization
+  - Dramatic 3D-style plot showing sudden failure threshold
+  - Retention vs 10-year ruin probability
+  - Red zone for "cliff edge" with warning styling
+  - Inset showing zoom on critical region
+- [ ] **Figure 7**: Tornado Chart - Sensitivity Analysis
+  - Horizontal bar chart showing parameter impact
+  - Sort by influence magnitude
+  - Color code: green (robust), yellow (moderate), red (sensitive)
+- [ ] **Figure 8**: Robustness Heatmap
+  - Loss frequency variation on X-axis (70%-130% of baseline)
+  - Loss severity variation on Y-axis (70%-130% of baseline)
+  - Color shows optimal coverage stability
+- [ ] **Figure 9**: Premium Multiplier Analysis
+  - Line plot: Company size on X-axis
+  - Optimal premium as multiple of expected loss on Y-axis
+  - Shaded bands for confidence intervals
+  - Annotations for 2×, 3×, 5× multiplier levels
+- [ ] **Figure 10**: Break-even Timeline
+  - Cumulative benefit vs cumulative excess premium over time
+  - Show median with 25th/75th percentile bands
+  - Vertical lines marking break-even points
+  - Separate panels for each company size
+
+##### Technical Appendix Visualizations
+- [ ] **Figure A1**: Convergence Diagnostics
+  - Multi-panel plot showing R-hat statistics
+  - Trace plots for key parameters
+  - Effective sample size analysis
+- [ ] **Figure B1**: Loss Distribution Validation
+  - 4-panel Q-Q plots (attritional & large losses)
+  - Empirical vs theoretical CDFs
+  - K-S test statistics in corners
+- [ ] **Figure B2**: Correlation Structure
+  - Correlation matrix heatmap
+  - Copula density plots
+  - Scatter plots with fitted copulas
+- [ ] **Figure C1**: Ergodic vs Ensemble Divergence
+  - Log-scale time on X-axis (1 to 1000 years)
+  - Growth rate on Y-axis
+  - Show divergence between time and ensemble averages
+  - Mathematical formula annotations
+- [ ] **Figure C2**: Path-Dependent Wealth Evolution
+  - 100 individual trajectories in light gray
+  - Percentile bands (5th, 25th, 50th, 75th, 95th) in color
+  - Highlight paths that hit ruin
+  - Inset showing survivor bias effect
+- [ ] **Figure C3**: Convergence Analysis
+  - Subplots for different metrics (ROE, ruin probability)
+  - Number of MC iterations on X-axis
+  - Metric stability on Y-axis
+  - Horizontal lines for convergence thresholds
+- [ ] **Figure C4**: Premium Loading Decomposition
+  - Stacked bar chart showing premium components
+  - Expected loss (base), volatility load, tail load, expense, profit
+  - Separate bars for each company size and layer
+- [ ] **Figure C5**: Capital Efficiency Frontier
+  - 3D surface plot with interactive view angles
+  - ROE, Ruin Probability, Insurance Spend as axes
+  - Separate surfaces for each company size
+  - Optimal path highlighted on surface
+
+##### Report Generation Tools
+- [ ] Build report compiler
+  - YAML configuration for report parameters
+  - Automatic figure generation from cached data
+  - LaTeX integration for equations and tables
+  - Markdown to PDF conversion for final output
+- [ ] Create scenario comparison framework
+  - Side-by-side visualization comparator
+  - Diff highlighting for parameter changes
+  - Summary statistics table generator
+- [ ] Implement annotation system
+  - Automatic callout box placement
+  - Key insight extraction and highlighting
+  - Executive summary bullet point generator
+
+##### Table Generation
+- [ ] **Table 1**: Optimal Insurance Limits by Company Size
+  - Columns: Company Size, Optimal Retention, Primary Limit, Excess Limits, Total Premium
+  - Include both dollar amounts and as % of assets
+- [ ] **Table 2**: Quick Reference Guide
+  - Decision matrix format
+  - Rows: Company characteristics
+  - Columns: Recommended insurance structure
+- [ ] **Table A1**: Complete Parameter Grid
+  - All simulation parameters with ranges
+  - Baseline, conservative, aggressive scenarios
+- [ ] **Table A2**: Loss Distribution Parameters
+  - Frequency (Poisson λ) and Severity (μ, σ) by loss type
+  - Correlation coefficients
+  - Development patterns
+- [ ] **Table A3**: Insurance Pricing Grid
+  - Premium rates by layer and attachment point
+  - Loading factors and expense ratios
+- [ ] **Table B1**: Statistical Validation
+  - Goodness-of-fit metrics
+  - Convergence statistics
+  - Out-of-sample performance
+- [ ] **Table C1**: Comprehensive Results
+  - Full optimization output
+  - All parameter combinations tested
+  - Ranking by various metrics
+- [ ] **Table C2**: Walk-Forward Validation
+  - Rolling window analysis results
+  - Strategy stability metrics
+  - Performance degradation analysis
 
 #### Deliverables
-- Complete visualization library
-- Automated report generator
-- Example reports for different scenarios
+- Complete visualization library with 25+ publication-ready figures
+- Automated report generator with caching system
+- Executive summary dashboard (5-page PDF)
+- Technical appendix document (20-page PDF)
+- Interactive comparison tools for scenarios
+- Complete figure/table archive in PNG/PDF formats
 
 ### Phase 8: Validation & Documentation (Week 8-9)
 **Objective**: Ensure robustness and usability
@@ -276,6 +415,62 @@ ergodic_insurance/
 - Comprehensive documentation
 - Tutorial notebooks
 - Performance benchmarks
+
+## Visualization Implementation Notes
+
+### Key Visualization Specifications
+
+#### The Ruin Cliff (Figure 6)
+```python
+# Implementation approach
+# 1. Run simulations with retention levels from $10K to $10M (log scale)
+# 2. Calculate 10-year ruin probability for each retention
+# 3. Identify "cliff edge" where derivative is steepest
+# 4. Use matplotlib's contourf with custom colormap (blue→yellow→red)
+# 5. Add dramatic shading and 3D effect with mplot3d
+# 6. Annotate with warning callouts at critical thresholds
+```
+
+#### Premium Multiplier Analysis (Figure 9)
+```python
+# Implementation approach
+# 1. For each company size, calculate expected annual loss
+# 2. Run optimization to find optimal coverage
+# 3. Calculate optimal_premium / expected_loss ratio
+# 4. Plot as continuous function with scipy.interpolate for smoothness
+# 5. Add horizontal reference lines at 1×, 2×, 3×, 5× levels
+# 6. Use shaded regions to show confidence intervals from MC simulation
+```
+
+#### Break-even Timeline (Figure 10)
+```python
+# Implementation approach
+# 1. Track cumulative growth with and without optimal insurance
+# 2. Calculate cumulative excess premium paid (above expected loss)
+# 3. Find intersection point where benefit > excess cost
+# 4. Use percentile bands from MC simulation (np.percentile)
+# 5. Create subplot grid for different company sizes
+# 6. Add vertical lines and annotations for break-even points
+```
+
+### Caching Strategy
+```python
+# Cache structure
+cache/
+├── raw_simulations/
+│   ├── company_1M_10000paths_1000years.h5
+│   ├── company_10M_10000paths_1000years.h5
+│   └── company_100M_10000paths_1000years.h5
+├── processed_results/
+│   ├── efficient_frontier_{hash}.pkl
+│   ├── optimal_strategies_{hash}.pkl
+│   └── sensitivity_analysis_{hash}.pkl
+└── figures/
+    ├── executive/
+    │   └── fig_{number}_{title}_{hash}.png
+    └── technical/
+        └── fig_{letter}{number}_{title}_{hash}.png
+```
 
 ## Key Parameters & Configurations
 
@@ -334,7 +529,15 @@ ergodic_insurance/
 - Demonstrate 30-50% improvement in long-term performance
 - Show insurance premiums 200-500% above expected losses remain optimal
 - Achieve ROE of 15-20% with <1% ruin probability
-- Generate at least 5 compelling visualizations for blog posts
+- Generate 25+ compelling visualizations (10 executive, 15+ technical)
+
+### Reporting Metrics
+- Executive summary fits in 5 pages with high impact
+- Technical appendix provides complete reproducibility
+- Blog post visualizations optimized for Medium platform (8×6", 150 DPI)
+- All figures include proper labels, legends, and annotations
+- Color scheme accessible for colorblind readers
+- Tables formatted for both screen and print readability
 
 ### Research Validation
 - Reproduce theoretical ergodic advantages

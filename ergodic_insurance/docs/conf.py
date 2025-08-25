@@ -6,7 +6,9 @@
 import os
 import sys
 
-# Add the source directory to the path
+# Add the parent directory to the path to import ergodic_insurance package
+sys.path.insert(0, os.path.abspath("../.."))
+# Also add the src directory for direct imports
 sys.path.insert(0, os.path.abspath("../src"))
 
 # -- Project information -----------------------------------------------------
@@ -52,7 +54,6 @@ html_static_path = ["_static"]
 autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
-    "special-members": "__init__",
     "undoc-members": True,
     "exclude-members": "__weakref__",
 }
@@ -78,6 +79,10 @@ napoleon_use_rtype = True
 typehints_fully_qualified = False
 always_document_param_types = True
 typehints_document_rtype = True
+autodoc_type_aliases = {
+    'InsuranceProgram': 'ergodic_insurance.src.insurance_program.InsuranceProgram',
+    'ErgodicData': 'ergodic_insurance.src.ergodic_analyzer.ErgodicData',
+}
 
 # -- Options for intersphinx extension ---------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html#configuration
@@ -95,3 +100,20 @@ intersphinx_mapping = {
 # https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#configuration
 
 todo_include_todos = True
+
+# -- GitHub Pages Configuration ----------------------------------------------
+
+# For standard GitHub Pages (update with your username and repo name)
+# html_baseurl = 'https://alexfiliakov.github.io/Ergodic-Insurance-Limits/'
+
+# Function to create .nojekyll file for GitHub Pages
+def create_nojekyll(app, exception):
+    """Create .nojekyll file for GitHub Pages compatibility."""
+    if app.builder.format == 'html' and not exception:
+        nojekyll_path = os.path.join(app.builder.outdir, '.nojekyll')
+        with open(nojekyll_path, 'wt') as f:
+            f.write('')  # Create empty file
+
+def setup(app):
+    """Setup Sphinx application with custom configurations."""
+    app.connect('build-finished', create_nojekyll)

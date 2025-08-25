@@ -1,141 +1,124 @@
-src package
-===========
+ergodic_insurance.src package
+==============================
 
 Submodules
 ----------
 
-src.claim\_development module
------------------------------
+ergodic_insurance.src.claim\_development module
+------------------------------------------------
 
-.. automodule:: src.claim_development
-   :members:
+.. automodule:: ergodic_insurance.src.claim_development
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.claim\_generator module
----------------------------
+ergodic_insurance.src.claim\_generator module
+----------------------------------------------
 
-.. automodule:: src.claim_generator
-   :members:
+.. automodule:: ergodic_insurance.src.claim_generator
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.config module
------------------
+ergodic_insurance.src.config module
+------------------------------------
 
-.. automodule:: src.config
-   :members:
+.. automodule:: ergodic_insurance.src.config
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.config\_loader module
--------------------------
+ergodic_insurance.src.config\_loader module
+--------------------------------------------
 
-.. automodule:: src.config_loader
-   :members:
+.. automodule:: ergodic_insurance.src.config_loader
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.ergodic\_analyzer module
-----------------------------
+ergodic_insurance.src.ergodic\_analyzer module
+-----------------------------------------------
 
-.. automodule:: src.ergodic_analyzer
-   :members:
+.. automodule:: ergodic_insurance.src.ergodic_analyzer
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.insurance module
---------------------
+ergodic_insurance.src.insurance module
+---------------------------------------
 
-.. automodule:: src.insurance
-   :members:
+.. automodule:: ergodic_insurance.src.insurance
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.insurance\_program module
------------------------------
+ergodic_insurance.src.insurance\_program module
+-------------------------------------------------
 
-.. automodule:: src.insurance_program
-   :members:
+.. automodule:: ergodic_insurance.src.insurance_program
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.loss\_distributions module
-------------------------------
+ergodic_insurance.src.loss\_distributions module
+-------------------------------------------------
 
-.. automodule:: src.loss_distributions
-   :members:
+.. automodule:: ergodic_insurance.src.loss_distributions
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.manufacturer module
------------------------
+ergodic_insurance.src.manufacturer module
+------------------------------------------
 
-.. automodule:: src.manufacturer
-   :members:
+.. automodule:: ergodic_insurance.src.manufacturer
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.monte\_carlo module
------------------------
+ergodic_insurance.src.monte\_carlo module
+------------------------------------------
 
-.. automodule:: src.monte_carlo
-   :members:
+.. automodule:: ergodic_insurance.src.monte_carlo
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.simulation module
----------------------
+ergodic_insurance.src.simulation module
+----------------------------------------
 
-.. automodule:: src.simulation
-   :members:
+.. automodule:: ergodic_insurance.src.simulation
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.stochastic\_processes module
---------------------------------
+ergodic_insurance.src.stochastic\_processes module
+---------------------------------------------------
 
-.. automodule:: src.stochastic_processes
-   :members:
+.. automodule:: ergodic_insurance.src.stochastic_processes
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.risk\_metrics module
-------------------------
+ergodic_insurance.src.risk\_metrics module
+-------------------------------------------
 
-.. automodule:: src.risk_metrics
-   :members:
+.. automodule:: ergodic_insurance.src.risk_metrics
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.convergence module
-----------------------
+ergodic_insurance.src.convergence module
+-----------------------------------------
 
-.. automodule:: src.convergence
-   :members:
+.. automodule:: ergodic_insurance.src.convergence
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.decision\_engine module
----------------------------
+ergodic_insurance.src.decision\_engine module
+----------------------------------------------
 
-.. automodule:: src.decision_engine
-   :members:
+.. automodule:: ergodic_insurance.src.decision_engine
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
-src.visualization module
-------------------------
+ergodic_insurance.src.visualization module
+-------------------------------------------
 
-.. automodule:: src.visualization
-   :members:
+.. automodule:: ergodic_insurance.src.visualization
+   :no-members:
    :show-inheritance:
-   :undoc-members:
 
 Module contents
 ---------------
 
-.. automodule:: src
-   :members:
+.. automodule:: ergodic_insurance.src
+   :no-members:
    :show-inheritance:
-   :undoc-members:
