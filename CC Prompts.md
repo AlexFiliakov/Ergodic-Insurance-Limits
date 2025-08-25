@@ -959,3 +959,57 @@ Review the blog post drafted in the file `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SE
 Update the corporate assumptions used in the simulation configurations to be similar to the assumptions outlined in `results/BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md`. Make the simulations and the article consistent and reflect reasonable business assumptions.
 
 ---
+
+Please analyze my codebase and create two types of mermaid diagrams:
+
+1. **High-Level Context Diagram**: Show the overall system architecture, including:
+   - Main modules/packages and their relationships
+   - External dependencies and integrations
+   - Data flow between major components
+   - Use a C4-style context diagram or flowchart format
+
+2. **Detailed Class Interaction Diagrams**: For each major module, create:
+   - Class relationships (inheritance, composition, dependencies)
+   - Key method interactions and data flow
+   - Interface implementations
+   - Use class diagrams or sequence diagrams as appropriate
+   - Create bird's-eye view and detailed views of complex classes
+
+For each diagram:
+- Include clear titles and descriptions
+- Use meaningful node labels
+- Add comments explaining complex relationships
+- Ensure diagrams are readable when rendered
+
+Please save the diagrams as separate .md files with embedded mermaid code blocks.
+
+## Recommended File Organization ##
+Here's where I'd suggest saving the mermaid diagrams:
+
+```
+ergodic_insurance/docs/
+├── architecture/
+│   ├── README.md                 # Overview and index
+│   ├── context_diagram.md        # High-level system context
+│   ├── module_overview.md        # Module relationships
+│   └── class_diagrams/
+│       ├── core_classes.md
+│       ├── data_models.md
+│       └── service_layer.md
+└── diagrams/                     # Alternative location
+README.md                         # Link to architecture docs
+```
+
+## Specific Mermaid Diagram Types ##
+### For Context Diagrams:
+`flowchart TD` - Top-down system flow
+`graph LR` - Left-right component relationships
+`C4Context` - If using C4 model notation
+
+### For Class Interactions:
+`classDiagram` - Static class relationships
+`sequenceDiagram` - Method call sequences
+`flowchart` - Process flows within modules
+
+## Additional Instructions ##
+- Document configuration flows and dependency injection patterns
