@@ -412,3 +412,4 @@ ergodic_insurance/checkpoints/
 *.checkpoint
 /.venv
 assets/repo_banner.png
+ergodic_insurance/notebooks/cache
