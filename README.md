@@ -4,6 +4,8 @@
 
 This is a brief research model of a widget manufacturing company to determine what limit of insurance they need to optimize long-term profitability.
 
+[![Documentation Status](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/actions/workflows/docs.yml/badge.svg)](https://alexfiliakov.github.io/Ergodic-Insurance-Limits/)
+
 ## Introduction - Why Do Companies Buy Insurance?
 
 ### Ergodic theory transforms insurance optimization fundamentally

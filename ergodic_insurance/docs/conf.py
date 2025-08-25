@@ -6,6 +6,8 @@
 import os
 import sys
 
+html_baseurl = "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/"
+
 # Add the source directory to the path
 sys.path.insert(0, os.path.abspath("../src"))
 

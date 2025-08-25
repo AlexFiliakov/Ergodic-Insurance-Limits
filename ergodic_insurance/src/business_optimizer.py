@@ -7,6 +7,7 @@ These algorithms maximize long-term company value through optimal insurance deci
 Author: Alex Filiakov
 Date: 2025-01-25
 """
+# pylint: disable=too-many-lines
 
 import logging
 import warnings
@@ -324,6 +325,7 @@ class BusinessOutcomeOptimizer:
     def minimize_bankruptcy_risk(
         self, growth_targets: Dict[str, float], budget_constraint: float, time_horizon: int = 10
     ) -> OptimalStrategy:
+        # pylint: disable=too-many-locals
         """Minimize bankruptcy risk while achieving growth targets.
 
         Objective: min(P(bankruptcy))
@@ -517,7 +519,7 @@ class BusinessOutcomeOptimizer:
         return allocation
 
     def analyze_time_horizon_impact(
-        self, strategies: List[Dict[str, float]], time_horizons: List[int] = None
+        self, strategies: List[Dict[str, float]], time_horizons: Optional[List[int]] = None
     ) -> pd.DataFrame:
         """Analyze strategy performance across different time horizons.
 
@@ -554,7 +556,7 @@ class BusinessOutcomeOptimizer:
                 )
 
                 # Calculate ergodic vs ensemble difference if analyzer available
-                ergodic_diff = 0
+                ergodic_diff: float = 0.0
                 if self.ergodic_analyzer and horizon >= 10:
                     ergodic_growth = self._calculate_ergodic_growth(
                         coverage_limit, deductible, premium_rate, horizon
@@ -594,6 +596,7 @@ class BusinessOutcomeOptimizer:
         time_horizon: int = 10,
         method: str = "weighted_sum",
     ) -> BusinessOptimizationResult:
+        # pylint: disable=too-many-locals
         """Multi-objective optimization of business outcomes.
 
         Args:
@@ -623,7 +626,7 @@ class BusinessOutcomeOptimizer:
         # Build composite objective function
         def composite_objective(x):
             coverage_limit, deductible, premium_rate = x
-            total_score = 0
+            total_score = 0.0
 
             for obj in objectives:
                 value = self._evaluate_objective(
@@ -636,7 +639,7 @@ class BusinessOutcomeOptimizer:
                 else:
                     score = -value  # Lower is better (negate for minimization)
 
-                total_score += obj.weight * score
+                total_score = total_score + obj.weight * score
 
             return -total_score  # Negative for scipy minimization
 
@@ -737,7 +740,7 @@ class BusinessOutcomeOptimizer:
             adjusted_roe *= np.random.normal(1.0, 0.1)
             roe_values.append(adjusted_roe)
 
-        return np.mean(roe_values)
+        return float(np.mean(roe_values))
 
     def _estimate_bankruptcy_risk(
         self, coverage_limit: float, deductible: float, premium_rate: float, time_horizon: int
@@ -758,7 +761,7 @@ class BusinessOutcomeOptimizer:
         time_factor = 1 - np.exp(-time_horizon / 20)  # Risk increases with time
 
         bankruptcy_risk = (base_risk - risk_reduction + risk_increase) * time_factor
-        return max(0, min(1, bankruptcy_risk))
+        return float(max(0, min(1, bankruptcy_risk)))
 
     def _estimate_growth_rate(
         self,
@@ -852,12 +855,11 @@ class BusinessOutcomeOptimizer:
         """Categorize time horizon."""
         if years <= 1:
             return "Short-term"
-        elif years <= 3:
+        if years <= 3:
             return "Medium-term"
-        elif years <= 10:
+        if years <= 10:
             return "Long-term"
-        else:
-            return "Strategic"
+        return "Strategic"
 
     def _evaluate_objective(
         self,
@@ -870,19 +872,19 @@ class BusinessOutcomeOptimizer:
         """Evaluate a specific objective."""
         if objective_name.lower() == "roe":
             return self._simulate_roe(coverage_limit, deductible, premium_rate, time_horizon)
-        elif objective_name.lower() == "bankruptcy_risk":
+        if objective_name.lower() == "bankruptcy_risk":
             return self._estimate_bankruptcy_risk(
                 coverage_limit, deductible, premium_rate, time_horizon
             )
-        elif objective_name.lower() == "growth_rate":
+        if objective_name.lower() == "growth_rate":
             return self._estimate_growth_rate(
                 coverage_limit, deductible, premium_rate, time_horizon
             )
-        elif objective_name.lower() == "capital_efficiency":
+        if objective_name.lower() == "capital_efficiency":
             return self._calculate_capital_efficiency(coverage_limit, deductible, premium_rate)
-        else:
-            self.logger.warning(f"Unknown objective: {objective_name}")
-            return 0
+
+        self.logger.warning(f"Unknown objective: {objective_name}")
+        return 0
 
     def _build_constraint_list(
         self,
@@ -921,10 +923,10 @@ class BusinessOutcomeOptimizer:
                     value = self._evaluate_objective(obj.name, x[0], x[1], x[2], time_horizon)
                     if obj.constraint_type == ">=":
                         return value - obj.constraint_value
-                    elif obj.constraint_type == "<=":
+                    if obj.constraint_type == "<=":
                         return obj.constraint_value - value
-                    else:  # '=='
-                        return abs(value - obj.constraint_value) - 0.001
+                    # '=='
+                    return abs(value - obj.constraint_value) - 0.001
 
                 constraint_list.append(
                     {"type": "ineq" if obj.constraint_type != "==" else "eq", "fun": obj_constraint}
@@ -1122,9 +1124,7 @@ class BusinessOutcomeOptimizer:
         # Insurance structure recommendations
         annual_premium = coverage_limit * premium_rate
         revenue = self.manufacturer.calculate_revenue()
-        premium_to_revenue = (
-            annual_premium / revenue if revenue > 0 else 0
-        )
+        premium_to_revenue = annual_premium / revenue if revenue > 0 else 0
 
         if premium_to_revenue > 0.04:
             recommendations.append("Premium costs high - explore alternative risk financing")
