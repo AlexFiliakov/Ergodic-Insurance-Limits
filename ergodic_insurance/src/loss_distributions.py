@@ -283,13 +283,15 @@ class LossData:
         total_premiums = 0.0
 
         for i, amount in enumerate(self.loss_amounts):
-            recovery = program.calculate_recovery(amount)
+            # Process claim through insurance program
+            result = program.process_claim(amount)
+            recovery = result["insurance_recovery"]
             recovered_amounts[i] = amount - recovery
             total_recoveries += recovery
 
         # Calculate total premiums
-        if hasattr(program, "calculate_premium"):
-            total_premiums = program.calculate_premium()
+        if hasattr(program, "calculate_annual_premium"):
+            total_premiums = program.calculate_annual_premium()
 
         # Update metadata
         recovery_metadata.update(

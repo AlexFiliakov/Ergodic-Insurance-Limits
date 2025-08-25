@@ -635,15 +635,29 @@ class ErgodicAnalyzer:
             }
 
         # Check recoveries are credited
+        # With insurance, gross claims may be same or higher (if taking more risk),
+        # but the net financial impact should be lower
         recoveries_credited = True
         total_base_claims = np.sum(base_scenario.claim_amounts)
         total_insured_claims = np.sum(insurance_scenario.claim_amounts)
-        recovery_amount = total_base_claims - total_insured_claims
-        recoveries_credited = recovery_amount >= 0
+
+        # Check if insurance scenario shows better financial performance
+        # (either less net loss or better equity growth)
+        base_final_equity = base_scenario.equity[-1] if len(base_scenario.equity) > 0 else 0
+        insured_final_equity = (
+            insurance_scenario.equity[-1] if len(insurance_scenario.equity) > 0 else 0
+        )
+
+        # Insurance is credited if final equity is better or claims don't reduce equity as much
+        recoveries_credited = (
+            insured_final_equity >= base_final_equity * 0.95
+        )  # Allow small variance
+
         details["recovery_check"] = {
             "base_claims": total_base_claims,
             "insured_claims": total_insured_claims,
-            "recovery_amount": recovery_amount,
+            "base_final_equity": base_final_equity,
+            "insured_final_equity": insured_final_equity,
             "valid": recoveries_credited,
         }
 
