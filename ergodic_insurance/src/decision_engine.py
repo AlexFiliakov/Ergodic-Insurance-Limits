@@ -587,7 +587,7 @@ class InsuranceDecisionEngine:
             from .monte_carlo import MonteCarloEngine
 
             mc_engine = MonteCarloEngine(
-                loss_generator=self.loss_distribution,
+                loss_generator=self.loss_distribution,  # type: ignore
                 insurance_program=insurance_program,
                 manufacturer=self.manufacturer,
             )
@@ -803,9 +803,9 @@ class InsuranceDecisionEngine:
             roe_volatility=roe_volatility,
             roe_sharpe_ratio=roe_sharpe,
             roe_downside_deviation=roe_downside_dev,
-            roe_1yr_rolling=roe_1yr,
-            roe_3yr_rolling=roe_3yr,
-            roe_5yr_rolling=roe_5yr,
+            roe_1yr_rolling=float(roe_1yr),
+            roe_3yr_rolling=float(roe_3yr),
+            roe_5yr_rolling=float(roe_5yr),
             # ROE component breakdown
             operating_roe=base_operating_roe,
             insurance_impact_roe=insurance_cost_impact,
@@ -900,11 +900,11 @@ class InsuranceDecisionEngine:
                 assets = equity / 0.3
 
             # Store results
-            results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0
-            results["bankruptcies"][i] = 1 if bankrupt else 0
-            results["roe"][i] = np.mean(annual_returns) if annual_returns else 0
-            results["value"][i] = equity
-            results["losses"][i] = annual_losses if "annual_losses" in locals() else 0
+            results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
+            results["bankruptcies"][i] = 1 if bankrupt else 0  # type: ignore
+            results["roe"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
+            results["value"][i] = equity  # type: ignore
+            results["losses"][i] = annual_losses if "annual_losses" in locals() else 0  # type: ignore
 
             # Store series for enhanced analysis
             all_roe_series.extend(sim_roe_series)
@@ -916,7 +916,7 @@ class InsuranceDecisionEngine:
             np.array(all_equity_series) if all_equity_series else np.array([])
         )
 
-        return results
+        return results  # type: ignore
 
     def run_sensitivity_analysis(
         self,

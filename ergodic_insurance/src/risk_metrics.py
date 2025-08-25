@@ -292,14 +292,22 @@ class RiskMetrics:
         Returns:
             Maximum drawdown value.
         """
-        if self.weights is not None:
-            # For weighted data, use weighted cumulative sum
-            cumsum = np.cumsum(self.losses * self.weights)
-        else:
-            cumsum = np.cumsum(self.losses)
+        # Calculate cumulative sum with overflow protection
+        with np.errstate(over="ignore"):
+            if self.weights is not None:
+                # For weighted data, use weighted cumulative sum
+                cumsum = np.cumsum(self.losses * self.weights)
+            else:
+                cumsum = np.cumsum(self.losses)
 
-        # Calculate running maximum
-        running_max = np.maximum.accumulate(cumsum)
+        # Handle any overflow by replacing inf values
+        if not np.all(np.isfinite(cumsum)):
+            max_val = np.finfo(np.float64).max / 100  # Leave some headroom
+            cumsum = np.where(np.isfinite(cumsum), cumsum, max_val)
+
+        # Calculate running maximum with overflow protection
+        with np.errstate(over="ignore"):
+            running_max = np.maximum.accumulate(cumsum)
 
         # Calculate drawdown
         drawdown = running_max - cumsum
@@ -884,10 +892,35 @@ class ROEAnalyzer:
         if len(self.valid_roe) < 2:
             return 0.0
 
-        # Calculate cumulative returns
-        cumulative = np.cumprod(1 + self.valid_roe)
+        # Calculate cumulative returns with overflow protection
+        # Use log-space calculation to avoid overflow
+        try:
+            # Clip extreme values to prevent overflow
+            clipped_roe = np.clip(self.valid_roe, -0.99, 10.0)
+
+            # Calculate cumulative returns
+            with np.errstate(over="raise"):
+                cumulative = np.cumprod(1 + clipped_roe)
+        except (FloatingPointError, OverflowError):
+            # Fallback to log-space calculation
+            log_returns = np.log1p(np.clip(self.valid_roe, -0.99, 10.0))
+            with np.errstate(over="ignore"):
+                cumulative = np.exp(np.cumsum(log_returns))
+            # Handle overflow in exp
+            if not np.all(np.isfinite(cumulative)):
+                cumulative = np.where(np.isfinite(cumulative), cumulative, 1e10)
+
+        # Handle any remaining inf/nan values
+        if not np.all(np.isfinite(cumulative)):
+            # Replace inf/nan with large but finite values
+            cumulative = np.where(np.isfinite(cumulative), cumulative, 1e10)
+
         running_max = np.maximum.accumulate(cumulative)
-        drawdown = (cumulative - running_max) / running_max
+
+        # Avoid division by zero or near-zero
+        with np.errstate(divide="ignore", invalid="ignore"):
+            drawdown = (cumulative - running_max) / np.maximum(running_max, 1e-10)
+            drawdown = np.where(np.isfinite(drawdown), drawdown, 0.0)
 
         return float(np.min(drawdown))
 
