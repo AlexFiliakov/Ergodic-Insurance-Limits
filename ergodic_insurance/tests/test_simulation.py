@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
-
 from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.src.config import Config, ManufacturerConfig
 from ergodic_insurance.src.manufacturer import WidgetManufacturer
@@ -93,6 +92,154 @@ class TestSimulationResults:
         assert stats["claim_frequency"] == 0.75
         assert stats["survived"] is True
         # When survived is True, insolvency_year should be None
+
+        # Test enhanced ROE metrics
+        assert "time_weighted_roe" in stats
+        assert "roe_sharpe" in stats
+        assert "roe_downside_deviation" in stats
+        assert "roe_coefficient_variation" in stats
+        assert "roe_1yr_avg" in stats
+        assert "roe_3yr_avg" in stats
+        assert "roe_5yr_avg" in stats
+
+    def test_time_weighted_roe(self):
+        """Test time-weighted ROE calculation."""
+        results = SimulationResults(
+            years=np.array([0, 1, 2, 3, 4]),
+            assets=np.array([100, 110, 121, 133, 146]),
+            equity=np.array([50, 55, 60, 65, 70]),
+            roe=np.array([0.10, 0.10, 0.10, 0.10, 0.10]),  # Constant 10% ROE
+            revenue=np.array([100, 105, 110, 115, 120]),
+            net_income=np.array([5, 5.5, 6, 6.5, 7]),
+            claim_counts=np.array([0, 0, 0, 0, 0]),
+            claim_amounts=np.array([0, 0, 0, 0, 0]),
+        )
+
+        time_weighted = results.calculate_time_weighted_roe()
+        # For constant ROE, time-weighted should equal arithmetic mean
+        assert time_weighted == pytest.approx(0.10, rel=0.01)
+
+        # Test with variable ROE
+        results.roe = np.array([0.05, 0.15, 0.10, 0.20, 0.00])
+        time_weighted = results.calculate_time_weighted_roe()
+        # Geometric mean should be less than arithmetic mean for variable returns
+        assert time_weighted < np.mean(results.roe)
+
+    def test_rolling_roe_calculations(self):
+        """Test rolling window ROE calculations."""
+        results = SimulationResults(
+            years=np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+            assets=np.ones(10) * 100,
+            equity=np.ones(10) * 50,
+            roe=np.array([0.08, 0.10, 0.12, 0.09, 0.11, 0.10, 0.13, 0.08, 0.09, 0.10]),
+            revenue=np.ones(10) * 100,
+            net_income=np.ones(10) * 5,
+            claim_counts=np.zeros(10),
+            claim_amounts=np.zeros(10),
+        )
+
+        # Test 1-year rolling (should equal original)
+        rolling_1yr = results.calculate_rolling_roe(1)
+        np.testing.assert_array_equal(rolling_1yr, results.roe)
+
+        # Test 3-year rolling
+        rolling_3yr = results.calculate_rolling_roe(3)
+        assert np.isnan(rolling_3yr[0])  # First two should be NaN
+        assert np.isnan(rolling_3yr[1])
+        assert rolling_3yr[2] == pytest.approx(0.10, rel=0.01)  # Mean of [0.08, 0.10, 0.12]
+
+        # Test 5-year rolling
+        rolling_5yr = results.calculate_rolling_roe(5)
+        assert np.all(np.isnan(rolling_5yr[:4]))  # First 4 should be NaN
+        assert rolling_5yr[4] == pytest.approx(0.10, rel=0.01)  # Mean of first 5 values
+
+        # Test error for window too large
+        with pytest.raises(ValueError):
+            results.calculate_rolling_roe(20)
+
+    def test_roe_components(self):
+        """Test ROE component breakdown calculation."""
+        results = SimulationResults(
+            years=np.array([0, 1, 2]),
+            assets=np.array([100, 110, 120]),
+            equity=np.array([50, 55, 60]),
+            roe=np.array([0.10, 0.12, 0.08]),
+            revenue=np.array([100, 110, 120]),
+            net_income=np.array([5, 6.6, 4.8]),
+            claim_counts=np.array([0, 1, 2]),
+            claim_amounts=np.array([0, 1000, 2000]),
+        )
+
+        components = results.calculate_roe_components()
+
+        assert "operating_roe" in components
+        assert "insurance_impact" in components
+        assert "tax_effect" in components
+        assert "total_roe" in components
+
+        # Check that components are arrays of correct length
+        assert len(components["operating_roe"]) == 3
+        assert len(components["insurance_impact"]) == 3
+
+        # Operating ROE should be positive
+        assert np.all(components["operating_roe"][~np.isnan(components["operating_roe"])] >= 0)
+
+        # Insurance impact should be negative when there are claims
+        assert components["insurance_impact"][1] < 0  # Year 1 has claims
+        assert components["insurance_impact"][2] < 0  # Year 2 has claims
+
+    def test_roe_volatility_metrics(self):
+        """Test ROE volatility calculations."""
+        results = SimulationResults(
+            years=np.array([0, 1, 2, 3, 4]),
+            assets=np.ones(5) * 100,
+            equity=np.ones(5) * 50,
+            roe=np.array([0.05, 0.15, 0.10, 0.20, -0.05]),  # Variable ROE with negative
+            revenue=np.ones(5) * 100,
+            net_income=np.array([2.5, 7.5, 5, 10, -2.5]),
+            claim_counts=np.zeros(5),
+            claim_amounts=np.zeros(5),
+        )
+
+        volatility = results.calculate_roe_volatility()
+
+        assert "roe_std" in volatility
+        assert "roe_downside_deviation" in volatility
+        assert "roe_sharpe" in volatility
+        assert "roe_coefficient_variation" in volatility
+
+        # Standard deviation should be positive
+        assert volatility["roe_std"] > 0
+
+        # Downside deviation should be positive when there's variability below mean
+        assert volatility["roe_downside_deviation"] > 0
+
+        # Sharpe ratio calculation (mean - risk_free) / std
+        mean_roe = np.mean(results.roe)
+        expected_sharpe = (mean_roe - 0.02) / volatility["roe_std"]
+        assert volatility["roe_sharpe"] == pytest.approx(expected_sharpe, rel=0.01)
+
+    def test_edge_cases(self):
+        """Test edge cases for ROE calculations."""
+        # Test with all NaN ROE values
+        results = SimulationResults(
+            years=np.array([0, 1, 2]),
+            assets=np.array([100, 110, 120]),
+            equity=np.array([50, 55, 60]),
+            roe=np.array([np.nan, np.nan, np.nan]),
+            revenue=np.array([100, 105, 110]),
+            net_income=np.array([5, 6, 7]),
+            claim_counts=np.array([0, 0, 0]),
+            claim_amounts=np.array([0, 0, 0]),
+        )
+
+        assert results.calculate_time_weighted_roe() == 0.0
+        volatility = results.calculate_roe_volatility()
+        assert volatility["roe_std"] == 0.0
+
+        # Test with single valid ROE value
+        results.roe = np.array([0.10, np.nan, np.nan])
+        assert results.calculate_time_weighted_roe() == pytest.approx(0.10, rel=0.01)
 
 
 class TestSimulation:

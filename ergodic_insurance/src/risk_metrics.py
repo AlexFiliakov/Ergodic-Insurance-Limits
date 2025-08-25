@@ -668,3 +668,288 @@ def compare_risk_metrics(
         results.append(row)
 
     return pd.DataFrame(results)
+
+
+class ROEAnalyzer:
+    """Comprehensive ROE analysis framework.
+
+    This class provides specialized metrics and analysis tools for
+    Return on Equity (ROE) calculations, including time-weighted averages,
+    component breakdowns, and volatility analysis.
+    """
+
+    def __init__(self, roe_series: np.ndarray, equity_series: Optional[np.ndarray] = None):
+        """Initialize ROE analyzer.
+
+        Args:
+            roe_series: Array of ROE values over time.
+            equity_series: Optional array of equity values for weighted calculations.
+        """
+        self.roe_series = np.asarray(roe_series)
+        self.equity_series = np.asarray(equity_series) if equity_series is not None else None
+
+        # Filter out NaN values for clean analysis
+        self.valid_mask = ~np.isnan(self.roe_series)
+        self.valid_roe = self.roe_series[self.valid_mask]
+
+    def time_weighted_average(self) -> float:
+        """Calculate time-weighted average ROE using geometric mean.
+
+        Time-weighted average gives equal weight to each period regardless
+        of the equity level, providing a measure of consistent performance.
+
+        Returns:
+            Time-weighted average ROE.
+        """
+        if len(self.valid_roe) == 0:
+            return 0.0
+
+        # Convert to growth factors and compute geometric mean
+        growth_factors = 1 + self.valid_roe
+
+        # Handle negative growth factors by using arithmetic mean as fallback
+        if np.any(growth_factors <= 0):
+            return float(np.mean(self.valid_roe))
+
+        return float(np.exp(np.mean(np.log(growth_factors))) - 1)
+
+    def equity_weighted_average(self) -> float:
+        """Calculate equity-weighted average ROE.
+
+        Equity-weighted average gives more weight to periods with higher
+        equity levels, reflecting the actual dollar impact.
+
+        Returns:
+            Equity-weighted average ROE.
+        """
+        if self.equity_series is None or len(self.valid_roe) == 0:
+            return self.time_weighted_average()
+
+        valid_equity = self.equity_series[self.valid_mask]
+
+        if np.sum(valid_equity) == 0:
+            return 0.0
+
+        weights = valid_equity / np.sum(valid_equity)
+        return float(np.sum(self.valid_roe * weights))
+
+    def rolling_statistics(self, window: int) -> Dict[str, np.ndarray]:
+        """Calculate rolling window statistics for ROE.
+
+        Args:
+            window: Window size in periods.
+
+        Returns:
+            Dictionary with rolling mean, std, min, max arrays.
+        """
+        n = len(self.roe_series)
+
+        if window > n:
+            raise ValueError(f"Window {window} larger than series length {n}")
+
+        rolling_stats = {
+            "mean": np.full(n, np.nan),
+            "std": np.full(n, np.nan),
+            "min": np.full(n, np.nan),
+            "max": np.full(n, np.nan),
+            "sharpe": np.full(n, np.nan),
+        }
+
+        risk_free_rate = 0.02  # 2% risk-free rate
+
+        for i in range(window - 1, n):
+            window_data = self.roe_series[i - window + 1 : i + 1]
+            valid_data = window_data[~np.isnan(window_data)]
+
+            if len(valid_data) > 0:
+                rolling_stats["mean"][i] = np.mean(valid_data)
+                rolling_stats["std"][i] = np.std(valid_data) if len(valid_data) > 1 else 0.0
+                rolling_stats["min"][i] = np.min(valid_data)
+                rolling_stats["max"][i] = np.max(valid_data)
+
+                # Rolling Sharpe ratio
+                if rolling_stats["std"][i] > 0:
+                    rolling_stats["sharpe"][i] = (
+                        rolling_stats["mean"][i] - risk_free_rate
+                    ) / rolling_stats["std"][i]
+
+        return rolling_stats
+
+    def volatility_metrics(self) -> Dict[str, float]:
+        """Calculate comprehensive volatility metrics for ROE.
+
+        Returns:
+            Dictionary with volatility measures.
+        """
+        if len(self.valid_roe) < 2:
+            return {
+                "standard_deviation": 0.0,
+                "downside_deviation": 0.0,
+                "upside_deviation": 0.0,
+                "semi_variance": 0.0,
+                "coefficient_variation": 0.0,
+                "tracking_error": 0.0,
+            }
+
+        mean_roe = np.mean(self.valid_roe)
+        std_roe = np.std(self.valid_roe)
+
+        # Downside deviation (below mean)
+        below_mean = self.valid_roe[self.valid_roe < mean_roe]
+        downside_dev = np.std(below_mean) if len(below_mean) > 0 else 0.0
+
+        # Upside deviation (above mean)
+        above_mean = self.valid_roe[self.valid_roe > mean_roe]
+        upside_dev = np.std(above_mean) if len(above_mean) > 0 else 0.0
+
+        # Semi-variance (below target, using 0 as target)
+        below_zero = self.valid_roe[self.valid_roe < 0]
+        semi_var = np.var(below_zero) if len(below_zero) > 0 else 0.0
+
+        # Coefficient of variation
+        cv = std_roe / abs(mean_roe) if mean_roe != 0 else float("inf")
+
+        # Tracking error (vs benchmark, using mean as benchmark)
+        tracking_error = np.std(self.valid_roe - mean_roe)
+
+        return {
+            "standard_deviation": std_roe,
+            "downside_deviation": downside_dev,
+            "upside_deviation": upside_dev,
+            "semi_variance": semi_var,
+            "coefficient_variation": cv,
+            "tracking_error": tracking_error,
+        }
+
+    def performance_ratios(self, risk_free_rate: float = 0.02) -> Dict[str, float]:
+        """Calculate performance ratios for ROE.
+
+        Args:
+            risk_free_rate: Risk-free rate for Sharpe/Sortino calculations.
+
+        Returns:
+            Dictionary with performance ratios.
+        """
+        if len(self.valid_roe) < 2:
+            return {
+                "sharpe_ratio": 0.0,
+                "sortino_ratio": 0.0,
+                "calmar_ratio": 0.0,
+                "information_ratio": 0.0,
+                "omega_ratio": 0.0,
+            }
+
+        mean_roe = np.mean(self.valid_roe)
+        std_roe = np.std(self.valid_roe)
+
+        # Sharpe ratio
+        sharpe = (mean_roe - risk_free_rate) / std_roe if std_roe > 0 else 0.0
+
+        # Sortino ratio (using downside deviation)
+        below_target = self.valid_roe[self.valid_roe < risk_free_rate] - risk_free_rate
+        downside_dev = np.sqrt(np.mean(below_target**2)) if len(below_target) > 0 else 0.0
+        sortino = (mean_roe - risk_free_rate) / downside_dev if downside_dev > 0 else 0.0
+
+        # Calmar ratio (return over max drawdown)
+        max_dd = self._calculate_max_drawdown()
+        calmar = mean_roe / abs(max_dd) if max_dd != 0 else 0.0
+
+        # Information ratio (vs benchmark, using median as benchmark)
+        benchmark = np.median(self.valid_roe)
+        active_return = mean_roe - benchmark
+        tracking_error = np.std(self.valid_roe - benchmark)
+        info_ratio = active_return / tracking_error if tracking_error > 0 else 0.0
+
+        # Omega ratio (probability-weighted gains vs losses)
+        threshold = risk_free_rate
+        gains = self.valid_roe[self.valid_roe > threshold] - threshold
+        losses = threshold - self.valid_roe[self.valid_roe <= threshold]
+
+        omega = np.sum(gains) / np.sum(losses) if np.sum(losses) > 0 else float("inf")
+
+        return {
+            "sharpe_ratio": sharpe,
+            "sortino_ratio": sortino,
+            "calmar_ratio": calmar,
+            "information_ratio": info_ratio,
+            "omega_ratio": omega,
+        }
+
+    def _calculate_max_drawdown(self) -> float:
+        """Calculate maximum drawdown for ROE series.
+
+        Returns:
+            Maximum drawdown value.
+        """
+        if len(self.valid_roe) < 2:
+            return 0.0
+
+        # Calculate cumulative returns
+        cumulative = np.cumprod(1 + self.valid_roe)
+        running_max = np.maximum.accumulate(cumulative)
+        drawdown = (cumulative - running_max) / running_max
+
+        return float(np.min(drawdown))
+
+    def distribution_analysis(self) -> Dict[str, float]:
+        """Analyze the distribution of ROE values.
+
+        Returns:
+            Dictionary with distribution statistics.
+        """
+        if len(self.valid_roe) == 0:
+            return {
+                "mean": 0.0,
+                "median": 0.0,
+                "skewness": 0.0,
+                "kurtosis": 0.0,
+                "percentile_5": 0.0,
+                "percentile_25": 0.0,
+                "percentile_75": 0.0,
+                "percentile_95": 0.0,
+            }
+
+        from scipy import stats as scipy_stats
+
+        return {
+            "mean": np.mean(self.valid_roe),
+            "median": np.median(self.valid_roe),
+            "skewness": scipy_stats.skew(self.valid_roe) if len(self.valid_roe) > 2 else 0.0,
+            "kurtosis": scipy_stats.kurtosis(self.valid_roe) if len(self.valid_roe) > 3 else 0.0,
+            "percentile_5": np.percentile(self.valid_roe, 5),
+            "percentile_25": np.percentile(self.valid_roe, 25),
+            "percentile_75": np.percentile(self.valid_roe, 75),
+            "percentile_95": np.percentile(self.valid_roe, 95),
+        }
+
+    def stability_analysis(self, periods: Optional[List[int]] = None) -> Dict[str, Any]:
+        """Analyze ROE stability across different time periods.
+
+        Args:
+            periods: List of period lengths to analyze (default: [1, 3, 5, 10]).
+
+        Returns:
+            Dictionary with stability metrics for each period.
+        """
+        if periods is None:
+            periods = [1, 3, 5, 10]
+
+        stability_metrics = {}
+
+        for period in periods:
+            if period > len(self.roe_series):
+                continue
+
+            rolling_stats = self.rolling_statistics(period)
+
+            stability_metrics[f"{period}yr"] = {
+                "mean_stability": 1
+                - np.nanstd(rolling_stats["mean"]) / (np.nanmean(rolling_stats["mean"]) + 1e-10),
+                "volatility_stability": 1
+                - np.nanstd(rolling_stats["std"]) / (np.nanmean(rolling_stats["std"]) + 1e-10),
+                "range": np.nanmax(rolling_stats["max"]) - np.nanmin(rolling_stats["min"]),
+                "consistency": np.sum(rolling_stats["mean"] > 0)
+                / np.sum(~np.isnan(rolling_stats["mean"])),
+            }
+
+        return stability_metrics

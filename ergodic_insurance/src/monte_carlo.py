@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from scipy import stats
 from tqdm import tqdm
 
 from .convergence import ConvergenceDiagnostics, ConvergenceStats
@@ -21,6 +22,64 @@ from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .risk_metrics import RiskMetrics
+
+
+@dataclass
+class RuinProbabilityConfig:
+    """Configuration for ruin probability estimation.
+
+    Attributes:
+        time_horizons: List of time horizons in years (e.g., [1, 3, 5, 10])
+        n_simulations: Number of Monte Carlo simulations
+        min_assets_threshold: Minimum asset threshold for bankruptcy
+        min_equity_threshold: Minimum equity threshold for bankruptcy
+        consecutive_negative_periods: Number of consecutive periods for negative equity bankruptcy
+        debt_service_coverage_ratio: Minimum debt service coverage ratio
+        bootstrap_confidence_level: Confidence level for bootstrap intervals
+        n_bootstrap: Number of bootstrap samples
+        early_stopping: Enable early stopping for bankrupt paths
+        parallel: Use parallel processing
+        n_workers: Number of parallel workers
+        seed: Random seed for reproducibility
+    """
+
+    time_horizons: List[int] = field(default_factory=lambda: [1, 3, 5, 10])
+    n_simulations: int = 10_000
+    min_assets_threshold: float = 0.0
+    min_equity_threshold: float = 0.0
+    consecutive_negative_periods: int = 2
+    debt_service_coverage_ratio: float = 1.0
+    bootstrap_confidence_level: float = 0.95
+    n_bootstrap: int = 1000
+    early_stopping: bool = True
+    parallel: bool = True
+    n_workers: Optional[int] = None
+    seed: Optional[int] = None
+
+
+@dataclass
+class RuinProbabilityResults:
+    """Results from ruin probability estimation.
+
+    Attributes:
+        time_horizons: Time horizons analyzed
+        ruin_probabilities: Ruin probability for each time horizon
+        confidence_intervals: Bootstrap confidence intervals
+        bankruptcy_causes: Distribution of bankruptcy causes
+        survival_curves: Survival probability curves
+        execution_time: Total execution time
+        n_simulations: Number of simulations run
+        convergence_achieved: Whether convergence was achieved
+    """
+
+    time_horizons: np.ndarray
+    ruin_probabilities: np.ndarray
+    confidence_intervals: np.ndarray  # Shape: (n_horizons, 2)
+    bankruptcy_causes: Dict[str, np.ndarray]
+    survival_curves: np.ndarray
+    execution_time: float
+    n_simulations: int
+    convergence_achieved: bool
 
 
 @dataclass
@@ -657,3 +716,376 @@ class MonteCarloEngine:
         combined.convergence = self._check_convergence(combined)
 
         return combined
+
+    def estimate_ruin_probability(
+        self,
+        config: Optional[RuinProbabilityConfig] = None,
+    ) -> RuinProbabilityResults:
+        """Estimate ruin probability over multiple time horizons.
+
+        Implements robust Monte Carlo estimation with:
+        - Multiple bankruptcy conditions
+        - Path-dependent detection
+        - Early stopping optimization
+        - Bootstrap confidence intervals
+
+        Args:
+            config: Configuration for ruin probability estimation
+
+        Returns:
+            RuinProbabilityResults with comprehensive bankruptcy analysis
+        """
+        config = config or RuinProbabilityConfig()
+        start_time = time.time()
+
+        # Set random seed
+        if config.seed is not None:
+            np.random.seed(config.seed)
+
+        # Determine number of workers
+        if config.n_workers is None and config.parallel:
+            config.n_workers = min(os.cpu_count() or 4, 8)
+
+        # Run simulations
+        if config.parallel and config.n_simulations >= 1000:
+            simulation_results = self._run_ruin_simulations_parallel(config)
+        else:
+            simulation_results = self._run_ruin_simulations_sequential(config)
+
+        # Calculate ruin probabilities for each time horizon
+        ruin_probs = np.zeros(len(config.time_horizons))
+        survival_curves = []
+        bankruptcy_causes = {
+            "asset_threshold": np.zeros(len(config.time_horizons)),
+            "equity_threshold": np.zeros(len(config.time_horizons)),
+            "consecutive_negative": np.zeros(len(config.time_horizons)),
+            "debt_service": np.zeros(len(config.time_horizons)),
+        }
+
+        for i, horizon in enumerate(config.time_horizons):
+            # Extract data for this horizon
+            horizon_data = simulation_results["bankruptcy_years"] <= horizon
+            ruin_probs[i] = np.mean(horizon_data)
+
+            # Track bankruptcy causes
+            for cause in bankruptcy_causes:
+                cause_mask = simulation_results["bankruptcy_causes"][cause][:, horizon - 1]
+                bankruptcy_causes[cause][i] = np.mean(cause_mask[horizon_data])
+
+            # Calculate survival curve
+            bankruptcy_at_year = np.zeros(horizon)
+            for y in range(1, horizon + 1):
+                bankruptcy_at_year[y - 1] = np.sum(simulation_results["bankruptcy_years"] == y)
+            survival_curve = 1.0 - np.cumsum(bankruptcy_at_year) / config.n_simulations
+            survival_curves.append(survival_curve)
+
+        # Calculate bootstrap confidence intervals
+        confidence_intervals = self._calculate_bootstrap_ci(
+            simulation_results["bankruptcy_years"],
+            config.time_horizons,
+            config.n_bootstrap,
+            config.bootstrap_confidence_level,
+        )
+
+        # Check convergence
+        convergence_achieved = self._check_ruin_convergence(simulation_results["bankruptcy_years"])
+
+        # Convert survival curves to padded array
+        max_len = max(len(curve) for curve in survival_curves) if survival_curves else 0
+        padded_curves = np.zeros((len(survival_curves), max_len))
+        for i, curve in enumerate(survival_curves):
+            padded_curves[i, : len(curve)] = curve
+
+        return RuinProbabilityResults(
+            time_horizons=np.array(config.time_horizons),
+            ruin_probabilities=ruin_probs,
+            confidence_intervals=confidence_intervals,
+            bankruptcy_causes=bankruptcy_causes,
+            survival_curves=padded_curves,
+            execution_time=time.time() - start_time,
+            n_simulations=config.n_simulations,
+            convergence_achieved=convergence_achieved,
+        )
+
+    def _run_ruin_simulations_sequential(
+        self, config: RuinProbabilityConfig
+    ) -> Dict[str, np.ndarray]:
+        """Run ruin probability simulations sequentially."""
+        max_horizon = max(config.time_horizons)
+        n_sims = config.n_simulations
+
+        # Pre-allocate arrays
+        bankruptcy_years = np.full(n_sims, max_horizon + 1, dtype=np.int32)
+        bankruptcy_causes = {
+            "asset_threshold": np.zeros((n_sims, max_horizon), dtype=bool),
+            "equity_threshold": np.zeros((n_sims, max_horizon), dtype=bool),
+            "consecutive_negative": np.zeros((n_sims, max_horizon), dtype=bool),
+            "debt_service": np.zeros((n_sims, max_horizon), dtype=bool),
+        }
+
+        # Progress bar
+        iterator = range(n_sims)
+        if self.config.progress_bar:
+            iterator = tqdm(iterator, desc="Ruin probability simulations")
+
+        for sim_id in iterator:
+            result = self._run_single_ruin_simulation(sim_id, max_horizon, config)
+            bankruptcy_years[sim_id] = result["bankruptcy_year"]
+            for cause in bankruptcy_causes:
+                bankruptcy_causes[cause][sim_id] = result["causes"][cause]
+
+        return {
+            "bankruptcy_years": bankruptcy_years,
+            "bankruptcy_causes": bankruptcy_causes,  # type: ignore
+        }
+
+    def _run_ruin_simulations_parallel(
+        self, config: RuinProbabilityConfig
+    ) -> Dict[str, np.ndarray]:
+        """Run ruin probability simulations in parallel."""
+        max_horizon = max(config.time_horizons)
+        n_sims = config.n_simulations
+        n_workers = config.n_workers or 4
+        chunk_size = max(100, n_sims // (n_workers * 10))
+
+        # Create chunks
+        chunks = []
+        for i in range(0, n_sims, chunk_size):
+            chunk_end = min(i + chunk_size, n_sims)
+            chunk_seed = None if config.seed is None else config.seed + i
+            chunks.append((i, chunk_end, max_horizon, config, chunk_seed))
+
+        # Run chunks in parallel
+        all_results = []
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = {executor.submit(self._run_ruin_chunk, chunk): chunk for chunk in chunks}
+
+            if self.config.progress_bar:
+                pbar = tqdm(total=len(chunks), desc="Processing ruin chunks")
+
+            for future in as_completed(futures):
+                chunk_results = future.result()
+                all_results.append(chunk_results)
+
+                if self.config.progress_bar:
+                    pbar.update(1)
+
+            if self.config.progress_bar:
+                pbar.close()
+
+        # Combine results
+        return self._combine_ruin_results(all_results)
+
+    def _run_ruin_chunk(
+        self,
+        chunk: Tuple[int, int, int, RuinProbabilityConfig, Optional[int]],
+    ) -> Dict[str, np.ndarray]:
+        """Run a chunk of ruin simulations."""
+        start_idx, end_idx, max_horizon, config, seed = chunk
+        n_sims = end_idx - start_idx
+
+        # Set seed for this chunk
+        if seed is not None:
+            np.random.seed(seed)
+
+        # Pre-allocate arrays
+        bankruptcy_years = np.full(n_sims, max_horizon + 1, dtype=np.int32)
+        bankruptcy_causes = {
+            "asset_threshold": np.zeros((n_sims, max_horizon), dtype=bool),
+            "equity_threshold": np.zeros((n_sims, max_horizon), dtype=bool),
+            "consecutive_negative": np.zeros((n_sims, max_horizon), dtype=bool),
+            "debt_service": np.zeros((n_sims, max_horizon), dtype=bool),
+        }
+
+        for i in range(n_sims):
+            result = self._run_single_ruin_simulation(start_idx + i, max_horizon, config)
+            bankruptcy_years[i] = result["bankruptcy_year"]
+            for cause in bankruptcy_causes:
+                bankruptcy_causes[cause][i] = result["causes"][cause]
+
+        return {
+            "bankruptcy_years": bankruptcy_years,
+            "bankruptcy_causes": bankruptcy_causes,  # type: ignore
+        }
+
+    def _run_single_ruin_simulation(
+        self,
+        sim_id: int,
+        max_horizon: int,
+        config: RuinProbabilityConfig,
+    ) -> Dict[str, Any]:
+        """Run a single ruin probability simulation.
+
+        Tracks multiple bankruptcy conditions with early stopping.
+        """
+        # Create a copy of manufacturer
+        manufacturer = self.manufacturer.copy()
+
+        # Track bankruptcy conditions
+        bankruptcy_year = max_horizon + 1
+        causes = {
+            "asset_threshold": np.zeros(max_horizon, dtype=bool),
+            "equity_threshold": np.zeros(max_horizon, dtype=bool),
+            "consecutive_negative": np.zeros(max_horizon, dtype=bool),
+            "debt_service": np.zeros(max_horizon, dtype=bool),
+        }
+
+        consecutive_negative_count = 0
+        is_bankrupt = False
+
+        for year in range(max_horizon):
+            # Generate losses
+            revenue = manufacturer.calculate_revenue()
+            events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
+
+            # Calculate total loss
+            total_loss = sum(event.amount for event in events)
+
+            # Apply insurance
+            claim_result = self.insurance_program.process_claim(total_loss)
+            recovery = claim_result.get("total_recovery", 0)
+
+            # Process insurance claims
+            for event in events:
+                manufacturer.process_insurance_claim(event.amount)
+
+            # Update manufacturer state
+            metrics = manufacturer.step(
+                working_capital_pct=0.2,
+                growth_rate=0.0,
+            )
+
+            # Check bankruptcy conditions
+            current_assets = manufacturer.assets
+            current_equity = metrics.get("equity", 0)
+
+            # 1. Asset threshold
+            if current_assets <= config.min_assets_threshold:
+                causes["asset_threshold"][year] = True
+                is_bankrupt = True
+
+            # 2. Equity threshold
+            if current_equity <= config.min_equity_threshold:
+                causes["equity_threshold"][year] = True
+                is_bankrupt = True
+
+            # 3. Consecutive negative equity
+            if current_equity < 0:
+                consecutive_negative_count += 1
+                if consecutive_negative_count >= config.consecutive_negative_periods:
+                    causes["consecutive_negative"][year] = True
+                    is_bankrupt = True
+            else:
+                consecutive_negative_count = 0
+
+            # 4. Debt service coverage (simplified)
+            # Skip debt service check if no debt attribute
+            if hasattr(manufacturer, "debt") and manufacturer.debt > 0:
+                debt_service = manufacturer.debt * 0.08  # Assume 8% debt service
+                operating_income = metrics.get("operating_income", 0)
+                if operating_income > 0 and debt_service > 0:
+                    coverage_ratio = operating_income / debt_service
+                    if coverage_ratio < config.debt_service_coverage_ratio:
+                        causes["debt_service"][year] = True
+                        is_bankrupt = True
+
+            # Early stopping if bankrupt
+            if is_bankrupt and config.early_stopping:
+                bankruptcy_year = year + 1
+                break
+
+        if is_bankrupt and bankruptcy_year > max_horizon:
+            bankruptcy_year = max_horizon
+
+        return {
+            "bankruptcy_year": bankruptcy_year,
+            "causes": causes,
+        }
+
+    def _combine_ruin_results(
+        self, chunk_results: List[Dict[str, np.ndarray]]
+    ) -> Dict[str, np.ndarray]:
+        """Combine ruin simulation results from parallel chunks."""
+        bankruptcy_years = np.concatenate([r["bankruptcy_years"] for r in chunk_results])
+
+        bankruptcy_causes = {}
+        for cause in chunk_results[0]["bankruptcy_causes"]:
+            bankruptcy_causes[cause] = np.vstack(
+                [r["bankruptcy_causes"][cause] for r in chunk_results]
+            )
+
+        return {
+            "bankruptcy_years": bankruptcy_years,
+            "bankruptcy_causes": bankruptcy_causes,  # type: ignore
+        }
+
+    def _calculate_bootstrap_ci(
+        self,
+        bankruptcy_years: np.ndarray,
+        time_horizons: List[int],
+        n_bootstrap: int,
+        confidence_level: float,
+    ) -> np.ndarray:
+        """Calculate bootstrap confidence intervals for ruin probabilities."""
+        n_horizons = len(time_horizons)
+        confidence_intervals = np.zeros((n_horizons, 2))
+
+        for i, horizon in enumerate(time_horizons):
+            # Bootstrap samples
+            bootstrap_probs = []
+            for _ in range(n_bootstrap):
+                # Resample with replacement
+                sample_idx = np.random.choice(
+                    len(bankruptcy_years), len(bankruptcy_years), replace=True
+                )
+                sample_bankruptcies = bankruptcy_years[sample_idx]
+                prob = np.mean(sample_bankruptcies <= horizon)
+                bootstrap_probs.append(prob)
+
+            # Calculate confidence interval
+            alpha = 1 - confidence_level
+            lower = np.percentile(bootstrap_probs, 100 * alpha / 2)
+            upper = np.percentile(bootstrap_probs, 100 * (1 - alpha / 2))
+            confidence_intervals[i] = [lower, upper]
+
+        return confidence_intervals
+
+    def _check_ruin_convergence(self, bankruptcy_years: np.ndarray) -> bool:
+        """Check if ruin probability estimates have converged."""
+        # Split into multiple chains
+        n_chains = 4
+        if len(bankruptcy_years) < n_chains * 100:
+            return False
+
+        chain_size = len(bankruptcy_years) // n_chains
+        chains = []
+        for i in range(n_chains):
+            chain_data = bankruptcy_years[i * chain_size : (i + 1) * chain_size]
+            # Convert to binary (bankrupt within 10 years)
+            chain_binary = (chain_data <= 10).astype(float)
+            chains.append(chain_binary)
+
+        chains = np.array(chains)  # type: ignore
+
+        # Calculate R-hat statistic
+        chain_means = np.mean(chains, axis=1)
+        chain_vars = np.var(chains, axis=1, ddof=1)
+
+        # Between-chain variance
+        B = np.var(chain_means, ddof=1) * chain_size
+        # Within-chain variance
+        W = np.mean(chain_vars)
+
+        # If W is zero (no within-chain variance), check if means differ
+        if W < 1e-10:
+            # If all chains have the same mean, converged
+            if np.allclose(chain_means, chain_means[0]):
+                return True
+            else:
+                # Chains have different means but no variance, not converged
+                return False
+
+        var_plus = ((chain_size - 1) * W + B) / chain_size
+        r_hat = np.sqrt(var_plus / W)
+
+        return bool(r_hat < 1.05)  # Converged if R-hat < 1.05
