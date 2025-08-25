@@ -221,7 +221,8 @@ class MonteCarloEngine:
         growth_rates = self._calculate_growth_rates(final_assets)
 
         # Calculate ruin probability
-        ruin_probability = np.mean(final_assets <= 0)
+        ruin_mask = np.array(final_assets) <= 0
+        ruin_probability = float(np.mean(ruin_mask))
 
         return SimulationResults(
             final_assets=final_assets,

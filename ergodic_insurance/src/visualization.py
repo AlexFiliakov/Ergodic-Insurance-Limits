@@ -128,30 +128,30 @@ class WSJFormatter:
     def currency_formatter(x, pos):
         """Format axis values as currency."""
         return format_currency(x, decimals=0, abbreviate=True)
-    
+
     @staticmethod
     def currency(x: float, decimals: int = 1) -> str:
         """Format value as currency (shortened method name)."""
         sign = "-" if x < 0 else ""
         x = abs(x)
-        
+
         if x >= 1e12:
-            if x == int(x/1e12) * 1e12:  # Whole trillions
+            if x == int(x / 1e12) * 1e12:  # Whole trillions
                 return f"{sign}${int(x/1e12)}T"
             else:
                 return f"{sign}${x/1e12:.{decimals}f}T"
         elif x >= 1e9:
-            if x == int(x/1e9) * 1e9:  # Whole billions
+            if x == int(x / 1e9) * 1e9:  # Whole billions
                 return f"{sign}${int(x/1e9)}B"
             else:
                 return f"{sign}${x/1e9:.{decimals}f}B"
         elif x >= 1e6:
-            if x == int(x/1e6) * 1e6:  # Whole millions
+            if x == int(x / 1e6) * 1e6:  # Whole millions
                 return f"{sign}${int(x/1e6)}M"
             else:
                 return f"{sign}${x/1e6:.{decimals}f}M"
         elif x >= 1e3:
-            if x == int(x/1e3) * 1e3:  # Whole thousands
+            if x == int(x / 1e3) * 1e3:  # Whole thousands
                 return f"{sign}${int(x/1e3)}K"
             else:
                 return f"{sign}${x/1e3:.{decimals}f}K"
@@ -165,12 +165,12 @@ class WSJFormatter:
     def percentage_formatter(x, pos):
         """Format axis values as percentage."""
         return format_percentage(x, decimals=0)
-    
+
     @staticmethod
     def percentage(x: float, decimals: int = 1) -> str:
         """Format value as percentage (shortened method name)."""
         return f"{x*100:.{decimals}f}%"
-    
+
     @staticmethod
     def number(x: float, decimals: int = 2) -> str:
         """Format large numbers with appropriate suffix."""
@@ -218,34 +218,50 @@ def plot_loss_distribution(
         Matplotlib figure
     """
     set_wsj_style()
-    
+
     # Handle DataFrame input
     if isinstance(losses, pd.DataFrame):
-        if 'amount' in losses.columns:
-            losses = losses['amount'].values
+        if "amount" in losses.columns:
+            losses_array: np.ndarray = np.asarray(losses["amount"].values)
         else:
             # Use the first numeric column
             numeric_cols = losses.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 0:
-                losses = losses[numeric_cols[0]].values
+                losses_array = np.asarray(losses[numeric_cols[0]].values)
             else:
                 raise ValueError("DataFrame must have at least one numeric column")
-    
-    # Convert to numpy array if needed
-    losses = np.asarray(losses)
-    
+    else:
+        # Convert to numpy array if needed
+        losses_array = np.asarray(losses)
+
+    losses = losses_array
+
     if var_levels is None:
         var_levels = [0.95, 0.99]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-    
+
     # Check for empty data and create empty plot
     if len(losses) == 0:
-        ax1.text(0.5, 0.5, 'No data available', ha='center', va='center', 
-                transform=ax1.transAxes, fontsize=12)
+        ax1.text(
+            0.5,
+            0.5,
+            "No data available",
+            ha="center",
+            va="center",
+            transform=ax1.transAxes,
+            fontsize=12,
+        )
         ax1.set_title("Distribution of Losses")
-        ax2.text(0.5, 0.5, 'No data available', ha='center', va='center',
-                transform=ax2.transAxes, fontsize=12)
+        ax2.text(
+            0.5,
+            0.5,
+            "No data available",
+            ha="center",
+            va="center",
+            transform=ax2.transAxes,
+            fontsize=12,
+        )
         ax2.set_title("Q-Q Plot")
         plt.tight_layout()
         return fig
@@ -262,19 +278,20 @@ def plot_loss_distribution(
 
     # Add VaR lines if requested
     if show_metrics:
-        from ergodic_insurance.src.risk_metrics import RiskMetrics
+        from .risk_metrics import RiskMetrics
 
         metrics = RiskMetrics(losses)
 
         colors = [WSJ_COLORS["red"], WSJ_COLORS["orange"]]
         for i, level in enumerate(var_levels):
             var = metrics.var(level)
+            var_value = var if isinstance(var, float) else var.value
             ax1.axvline(
-                var,
+                var_value,
                 color=colors[i % len(colors)],
                 linestyle="--",
                 linewidth=1.5,
-                label=f"VaR({level:.0%}): {format_currency(var)}",
+                label=f"VaR({level:.0%}): {format_currency(var_value)}",
             )
         ax1.legend(loc="upper right")
 
@@ -330,22 +347,24 @@ def plot_return_period_curve(
         Matplotlib figure
     """
     set_wsj_style()
-    
+
     # Handle DataFrame input
     if isinstance(losses, pd.DataFrame):
-        if 'amount' in losses.columns:
-            losses = losses['amount'].values
+        if "amount" in losses.columns:
+            losses_array: np.ndarray = np.asarray(losses["amount"].values)
         else:
             # Use the first numeric column
             numeric_cols = losses.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 0:
-                losses = losses[numeric_cols[0]].values
+                losses_array = np.asarray(losses[numeric_cols[0]].values)
             else:
                 raise ValueError("DataFrame must have at least one numeric column")
-    
-    # Convert to numpy array if needed
-    losses = np.asarray(losses)
-    
+    else:
+        # Convert to numpy array if needed
+        losses_array = np.asarray(losses)
+
+    losses = losses_array
+
     # Calculate return periods if not provided
     if return_periods is None:
         # Sort losses in descending order
@@ -435,51 +454,79 @@ def plot_insurance_layers(
         Matplotlib figure
     """
     set_wsj_style()
-    
+
     # Handle loss_data parameter (alias for losses)
     if loss_data is not None and losses is None:
         losses = loss_data
-    
+
     # Handle DataFrame input
     if isinstance(layers, pd.DataFrame):
         # Check for empty DataFrame
         if layers.empty:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-            ax1.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
-                    transform=ax1.transAxes, fontsize=12)
+            ax1.text(
+                0.5,
+                0.5,
+                "No layers defined",
+                ha="center",
+                va="center",
+                transform=ax1.transAxes,
+                fontsize=12,
+            )
             ax1.set_title("Layer Structure")
-            ax2.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
-                    transform=ax2.transAxes, fontsize=12)
+            ax2.text(
+                0.5,
+                0.5,
+                "No layers defined",
+                ha="center",
+                va="center",
+                transform=ax2.transAxes,
+                fontsize=12,
+            )
             ax2.set_title("Premium Distribution")
             plt.tight_layout()
             return fig
-            
+
         # Convert DataFrame to list of dicts
         layer_list = []
         for _, row in layers.iterrows():
             layer_dict = {
-                'attachment': row.get('attachment', 0),
-                'limit': row.get('limit', 0),
-                'premium': row.get('premium_rate', row.get('premium', 0))
+                "attachment": row.get("attachment", 0),
+                "limit": row.get("limit", 0),
+                "premium": row.get("premium_rate", row.get("premium", 0)),
             }
             layer_list.append(layer_dict)
         layers = layer_list
-    
+
     # Check for empty list
     if not layers:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-        ax1.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
-                transform=ax1.transAxes, fontsize=12)
+        ax1.text(
+            0.5,
+            0.5,
+            "No layers defined",
+            ha="center",
+            va="center",
+            transform=ax1.transAxes,
+            fontsize=12,
+        )
         ax1.set_title("Layer Structure")
-        ax2.text(0.5, 0.5, 'No layers defined', ha='center', va='center',
-                transform=ax2.transAxes, fontsize=12)
+        ax2.text(
+            0.5,
+            0.5,
+            "No layers defined",
+            ha="center",
+            va="center",
+            transform=ax2.transAxes,
+            fontsize=12,
+        )
         ax2.set_title("Premium Distribution")
         plt.tight_layout()
         return fig
-    
+
     # Calculate total limit if not provided
     if total_limit is None:
-        total_limit = max(layer['attachment'] + layer['limit'] for layer in layers)
+        total_limit = max(layer["attachment"] + layer["limit"] for layer in layers)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
 
@@ -574,7 +621,7 @@ def plot_insurance_layers(
 
 
 def create_interactive_dashboard(
-    results: Union[Dict[str, Any], pd.DataFrame], 
+    results: Union[Dict[str, Any], pd.DataFrame],
     title: str = "Monte Carlo Simulation Dashboard",
     height: int = 600,
     show_distributions: bool = False,
@@ -594,12 +641,16 @@ def create_interactive_dashboard(
     if isinstance(results, pd.DataFrame):
         # Convert DataFrame to dictionary format expected by dashboard
         results_dict = {
-            'data': results,
-            'summary': {
-                'mean_assets': results.get('assets', pd.Series()).mean() if 'assets' in results.columns else 0,
-                'mean_losses': results.get('losses', pd.Series()).mean() if 'losses' in results.columns else 0,
-                'years': results['year'].nunique() if 'year' in results.columns else 1,
-            }
+            "data": results,
+            "summary": {
+                "mean_assets": results.get("assets", pd.Series()).mean()
+                if "assets" in results.columns
+                else 0,
+                "mean_losses": results.get("losses", pd.Series()).mean()
+                if "losses" in results.columns
+                else 0,
+                "years": results["year"].nunique() if "year" in results.columns else 1,
+            },
         }
         results = results_dict
     # Create subplots
@@ -645,7 +696,8 @@ def create_interactive_dashboard(
 
     # Loss exceedance curve
     if "losses" in results:
-        sorted_losses = np.sort(results["losses"])[::-1]
+        losses_data = np.asarray(results["losses"])
+        sorted_losses = np.sort(losses_data)[::-1]
         exceedance_prob = np.arange(1, len(sorted_losses) + 1) / len(sorted_losses)
 
         fig.add_trace(
@@ -663,7 +715,7 @@ def create_interactive_dashboard(
         fig.update_yaxes(title_text="Exceedance Probability", type="log", row=1, col=2)
 
     # Convergence diagnostics
-    if "convergence" in results:
+    if "convergence" in results and isinstance(results["convergence"], dict):
         iterations = results["convergence"].get("iterations", [])
         r_hat = results["convergence"].get("r_hat", [])
 
@@ -694,7 +746,7 @@ def create_interactive_dashboard(
         fig.update_yaxes(title_text="R-hat Statistic", row=2, col=1)
 
     # Risk metrics bar chart
-    if "metrics" in results:
+    if "metrics" in results and isinstance(results["metrics"], dict):
         metric_names = ["VaR(95%)", "VaR(99%)", "TVaR(99%)", "Expected Shortfall"]
         metric_values = [
             results["metrics"].get("var_95", 0) / 1e6,

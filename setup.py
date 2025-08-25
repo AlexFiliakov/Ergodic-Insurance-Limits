@@ -6,6 +6,7 @@ from pathlib import Path
 from setuptools import find_packages, setup
 
 # Read the version from _version.py
+__version__ = ""
 exec(open(os.path.join("ergodic_insurance", "_version.py")).read())
 
 # Read the README file
@@ -21,8 +22,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/ergodic-insurance-limits",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=find_packages(where="ergodic_insurance/src"),
+    package_dir={"": "ergodic_insurance/src"},
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",

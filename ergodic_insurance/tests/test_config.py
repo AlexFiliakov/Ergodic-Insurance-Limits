@@ -8,9 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from pydantic import ValidationError
-
-from config import (
+from ergodic_insurance.src.config import (
     Config,
     DebtConfig,
     GrowthConfig,
@@ -20,7 +18,8 @@ from config import (
     SimulationConfig,
     WorkingCapitalConfig,
 )
-from config_loader import ConfigLoader, load_config
+from ergodic_insurance.src.config_loader import ConfigLoader, load_config
+from pydantic import ValidationError
 
 
 class TestManufacturerConfig:

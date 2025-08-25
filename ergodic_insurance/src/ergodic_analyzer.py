@@ -17,7 +17,6 @@ from scipy import stats
 from .simulation import SimulationResults
 
 if TYPE_CHECKING:
-    from .insurance import InsuranceStructure
     from .insurance_program import InsuranceProgram
     from .loss_distributions import LossData
 
@@ -571,8 +570,8 @@ class ErgodicAnalyzer:
             }
 
         # Calculate ergodic divergence
-        time_avg_mean = np.mean(valid_time_avg) if valid_time_avg else -np.inf
-        ensemble_mean = ensemble_stats["mean"]
+        time_avg_mean = float(np.mean(valid_time_avg)) if valid_time_avg else -np.inf
+        ensemble_mean = float(ensemble_stats["mean"])
         ergodic_divergence = time_avg_mean - ensemble_mean
 
         # Validate results

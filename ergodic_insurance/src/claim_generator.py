@@ -16,9 +16,9 @@ import numpy as np
 
 # Import enhanced distributions if available (backward compatibility)
 try:
-    from ergodic_insurance.src.loss_distributions import LossData
-    from ergodic_insurance.src.loss_distributions import LossEvent as EnhancedLossEvent
-    from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+    from .loss_distributions import LossData
+    from .loss_distributions import LossEvent as EnhancedLossEvent
+    from .loss_distributions import ManufacturingLossGenerator
 
     ENHANCED_DISTRIBUTIONS_AVAILABLE = True
 except ImportError:
