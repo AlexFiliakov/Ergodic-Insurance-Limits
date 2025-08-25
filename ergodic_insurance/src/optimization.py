@@ -195,11 +195,14 @@ class TrustRegionOptimizer:
             # Convert constraints to scipy format
             scipy_constraints = self._convert_constraints()
 
+            # Set Jacobian to finite differences if not provided
+            jac = self.gradient_fn if self.gradient_fn is not None else "2-point"
+
             result = minimize(
                 self.objective_fn,
                 x0,
                 method="trust-constr",
-                jac=self.gradient_fn,
+                jac=jac,
                 hess=self.hessian_fn,
                 constraints=scipy_constraints,
                 bounds=self.bounds,
@@ -242,15 +245,18 @@ class TrustRegionOptimizer:
         scipy_constraints = []
 
         for constr in self.constraints:
+            # Set Jacobian to finite differences if not provided
+            jac = constr.get("jac", "2-point")
+            
             if constr["type"] == "ineq":
                 # Inequality constraint: g(x) >= 0
                 scipy_constraints.append(
-                    NonlinearConstraint(constr["fun"], 0, np.inf, jac=constr.get("jac"))
+                    NonlinearConstraint(constr["fun"], 0, np.inf, jac=jac)
                 )
             elif constr["type"] == "eq":
                 # Equality constraint: h(x) = 0
                 scipy_constraints.append(
-                    NonlinearConstraint(constr["fun"], 0, 0, jac=constr.get("jac"))
+                    NonlinearConstraint(constr["fun"], 0, 0, jac=jac)
                 )
 
         return scipy_constraints
@@ -673,12 +679,21 @@ class MultiStartOptimizer:
                         self.bounds,
                     )
                     result = optimizer.optimize(start_point)
+                elif self.base_optimizer == "enhanced-slsqp":
+                    optimizer = EnhancedSLSQPOptimizer(
+                        self.objective_fn,
+                        gradient_fn=None,  # Let it compute numerically
+                        constraints=self.constraints,
+                        bounds=self.bounds,
+                    )
+                    result = optimizer.optimize(start_point)
                 else:
-                    # Default to scipy minimize
+                    # Default to scipy minimize - map enhanced-slsqp to SLSQP
+                    method = "SLSQP" if self.base_optimizer == "enhanced-slsqp" else self.base_optimizer
                     result = minimize(
                         self.objective_fn,
                         start_point,
-                        method=self.base_optimizer,
+                        method=method,
                         bounds=self.bounds,
                         constraints=self.constraints,
                         options={"maxiter": 1000},
