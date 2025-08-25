@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import optimize
-from scipy.optimize import OptimizeResult, differential_evolution, minimize
+from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
 
 from .config_loader import ConfigLoader
 from .ergodic_analyzer import ErgodicAnalyzer
@@ -20,6 +20,14 @@ from .insurance_program import EnhancedInsuranceLayer as Layer
 from .insurance_program import InsuranceProgram
 from .loss_distributions import LossDistribution
 from .manufacturer import WidgetManufacturer
+from .optimization import (
+    AugmentedLagrangianOptimizer,
+    EnhancedSLSQPOptimizer,
+    MultiStartOptimizer,
+    PenaltyMethodOptimizer,
+    TrustRegionOptimizer,
+    create_optimizer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +36,13 @@ class OptimizationMethod(Enum):
     """Available optimization methods."""
 
     SLSQP = "SLSQP"  # Sequential Least Squares Programming
+    ENHANCED_SLSQP = "enhanced_slsqp"  # Enhanced SLSQP with adaptive features
     DIFFERENTIAL_EVOLUTION = "differential_evolution"  # Global optimization
     WEIGHTED_SUM = "weighted_sum"  # Multi-objective via weighted sum
+    TRUST_REGION = "trust_region"  # Trust-region constrained optimization
+    PENALTY_METHOD = "penalty_method"  # Penalty method with adaptive penalties
+    AUGMENTED_LAGRANGIAN = "augmented_lagrangian"  # Augmented Lagrangian method
+    MULTI_START = "multi_start"  # Multi-start global optimization
 
 
 @dataclass
@@ -45,6 +58,10 @@ class OptimizationConstraints:
     max_layers: int = field(default=5)
     min_layers: int = field(default=1)
     required_roi_improvement: float = field(default=0.0)  # Minimum ROI improvement
+    max_debt_to_equity: float = field(default=2.0)  # Maximum debt-to-equity ratio
+    max_insurance_cost_ratio: float = field(default=0.03)  # Max insurance cost as % of revenue
+    min_coverage_requirement: float = field(default=0.0)  # Minimum required coverage
+    max_retention_limit: float = field(default=float("inf"))  # Maximum retention allowed
 
 
 @dataclass
@@ -222,8 +239,18 @@ class InsuranceDecisionEngine:
         # Run optimization based on method
         if method == OptimizationMethod.SLSQP:
             result = self._optimize_slsqp(constraints, weights)
+        elif method == OptimizationMethod.ENHANCED_SLSQP:
+            result = self._optimize_enhanced_slsqp(constraints, weights)
         elif method == OptimizationMethod.DIFFERENTIAL_EVOLUTION:
             result = self._optimize_differential_evolution(constraints, weights)
+        elif method == OptimizationMethod.TRUST_REGION:
+            result = self._optimize_trust_region(constraints, weights)
+        elif method == OptimizationMethod.PENALTY_METHOD:
+            result = self._optimize_penalty_method(constraints, weights)
+        elif method == OptimizationMethod.AUGMENTED_LAGRANGIAN:
+            result = self._optimize_augmented_lagrangian(constraints, weights)
+        elif method == OptimizationMethod.MULTI_START:
+            result = self._optimize_multi_start(constraints, weights)
         else:  # WEIGHTED_SUM
             result = self._optimize_weighted_sum(constraints, weights)
 
@@ -433,6 +460,268 @@ class InsuranceDecisionEngine:
         """Optimize using weighted sum approach for multi-objective."""
         # Similar to SLSQP but with explicit multi-objective handling
         return self._optimize_slsqp(constraints, weights)
+
+    def _optimize_enhanced_slsqp(
+        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+    ) -> OptimizeResult:
+        """Optimize using enhanced SLSQP with adaptive features."""
+        n_vars = 1 + constraints.max_layers
+
+        # Initial guess
+        x0 = np.zeros(n_vars)
+        x0[0] = constraints.min_retained_limit
+        if constraints.max_layers > 0:
+            layer_size = (
+                constraints.max_coverage_limit - constraints.min_retained_limit
+            ) / constraints.max_layers
+            for i in range(1, min(3, n_vars)):
+                x0[i] = layer_size
+
+        # Create bounds
+        bounds = Bounds(
+            lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
+            ub=[constraints.max_retained_limit]
+            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+        )
+
+        # Create constraints list
+        constraint_list = self._create_constraint_list(constraints)
+
+        # Create enhanced SLSQP optimizer
+        optimizer = EnhancedSLSQPOptimizer(
+            lambda x: self._calculate_objective(x, weights),
+            constraints=constraint_list,
+            bounds=bounds,
+        )
+
+        # Run optimization
+        result = optimizer.optimize(x0, adaptive_step=True, max_iter=1000)
+
+        return result
+
+    def _optimize_trust_region(
+        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+    ) -> OptimizeResult:
+        """Optimize using trust-region method."""
+        n_vars = 1 + constraints.max_layers
+
+        # Initial guess
+        x0 = np.zeros(n_vars)
+        x0[0] = constraints.min_retained_limit
+        if constraints.max_layers > 0:
+            layer_size = (
+                constraints.max_coverage_limit - constraints.min_retained_limit
+            ) / constraints.max_layers
+            for i in range(1, min(3, n_vars)):
+                x0[i] = layer_size
+
+        # Create bounds
+        bounds = Bounds(
+            lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
+            ub=[constraints.max_retained_limit]
+            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+        )
+
+        # Create constraints list
+        constraint_list = self._create_constraint_list(constraints)
+
+        # Create trust-region optimizer
+        optimizer = TrustRegionOptimizer(
+            lambda x: self._calculate_objective(x, weights),
+            constraints=constraint_list,
+            bounds=bounds,
+        )
+
+        # Run optimization
+        result = optimizer.optimize(x0, initial_radius=1.0, max_radius=10.0)
+
+        return result
+
+    def _optimize_penalty_method(
+        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+    ) -> OptimizeResult:
+        """Optimize using penalty method with adaptive penalties."""
+        n_vars = 1 + constraints.max_layers
+
+        # Initial guess
+        x0 = np.zeros(n_vars)
+        x0[0] = constraints.min_retained_limit
+        if constraints.max_layers > 0:
+            layer_size = (
+                constraints.max_coverage_limit - constraints.min_retained_limit
+            ) / constraints.max_layers
+            for i in range(1, min(3, n_vars)):
+                x0[i] = layer_size
+
+        # Create bounds
+        bounds = Bounds(
+            lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
+            ub=[constraints.max_retained_limit]
+            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+        )
+
+        # Create constraints list
+        constraint_list = self._create_constraint_list(constraints)
+
+        # Create penalty method optimizer
+        optimizer = PenaltyMethodOptimizer(
+            lambda x: self._calculate_objective(x, weights), constraint_list, bounds
+        )
+
+        # Run optimization
+        result = optimizer.optimize(x0, max_outer_iter=50, max_inner_iter=100)
+
+        return result
+
+    def _optimize_augmented_lagrangian(
+        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+    ) -> OptimizeResult:
+        """Optimize using augmented Lagrangian method."""
+        n_vars = 1 + constraints.max_layers
+
+        # Initial guess
+        x0 = np.zeros(n_vars)
+        x0[0] = constraints.min_retained_limit
+        if constraints.max_layers > 0:
+            layer_size = (
+                constraints.max_coverage_limit - constraints.min_retained_limit
+            ) / constraints.max_layers
+            for i in range(1, min(3, n_vars)):
+                x0[i] = layer_size
+
+        # Create bounds
+        bounds = Bounds(
+            lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
+            ub=[constraints.max_retained_limit]
+            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+        )
+
+        # Create constraints list
+        constraint_list = self._create_constraint_list(constraints)
+
+        # Create augmented Lagrangian optimizer
+        optimizer = AugmentedLagrangianOptimizer(
+            lambda x: self._calculate_objective(x, weights), constraint_list, bounds
+        )
+
+        # Run optimization
+        result = optimizer.optimize(x0, max_outer_iter=50, max_inner_iter=100)
+
+        return result
+
+    def _optimize_multi_start(
+        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+    ) -> OptimizeResult:
+        """Optimize using multi-start approach for global optimization."""
+        n_vars = 1 + constraints.max_layers
+
+        # Initial guess
+        x0 = np.zeros(n_vars)
+        x0[0] = constraints.min_retained_limit
+        if constraints.max_layers > 0:
+            layer_size = (
+                constraints.max_coverage_limit - constraints.min_retained_limit
+            ) / constraints.max_layers
+            for i in range(1, min(3, n_vars)):
+                x0[i] = layer_size
+
+        # Create bounds
+        bounds = Bounds(
+            lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
+            ub=[constraints.max_retained_limit]
+            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+        )
+
+        # Create constraints list
+        constraint_list = self._create_constraint_list(constraints)
+
+        # Create multi-start optimizer using enhanced SLSQP as base
+        optimizer = MultiStartOptimizer(
+            lambda x: self._calculate_objective(x, weights),
+            bounds,
+            constraint_list,
+            base_optimizer="enhanced-slsqp",
+        )
+
+        # Run optimization with multiple starts
+        result = optimizer.optimize(n_starts=10, x0=x0, seed=42)
+
+        return result
+
+    def _create_constraint_list(self, constraints: OptimizationConstraints) -> List[Dict[str, Any]]:
+        """Create list of constraints for optimizers."""
+        constraint_list = []
+
+        # Premium budget constraint
+        def premium_constraint(x):
+            premium = self._calculate_premium(x)
+            return constraints.max_premium_budget - premium
+
+        constraint_list.append({"type": "ineq", "fun": premium_constraint})
+
+        # Coverage limit constraints
+        def coverage_min_constraint(x):
+            total_coverage = sum(x)
+            return total_coverage - constraints.min_coverage_limit
+
+        def coverage_max_constraint(x):
+            total_coverage = sum(x)
+            return constraints.max_coverage_limit - total_coverage
+
+        constraint_list.extend(
+            [
+                {"type": "ineq", "fun": coverage_min_constraint},
+                {"type": "ineq", "fun": coverage_max_constraint},
+            ]
+        )
+
+        # Bankruptcy probability constraint
+        def bankruptcy_constraint(x):
+            prob = self._estimate_bankruptcy_probability(x)
+            return constraints.max_bankruptcy_probability - prob
+
+        constraint_list.append({"type": "ineq", "fun": bankruptcy_constraint})
+
+        # Additional constraints from enhanced framework
+
+        # Debt-to-equity ratio constraint
+        def debt_equity_constraint(x):
+            # Estimate based on coverage and retention
+            retained_limit = x[0]
+            coverage = sum(x)
+            # Simplified: higher retention increases debt risk
+            debt_equity_ratio = retained_limit / coverage if coverage > 0 else 0
+            return constraints.max_debt_to_equity - debt_equity_ratio
+
+        constraint_list.append({"type": "ineq", "fun": debt_equity_constraint})
+
+        # Insurance cost ceiling constraint
+        def insurance_cost_constraint(x):
+            premium = self._calculate_premium(x)
+            revenue = self.manufacturer.assets * self.manufacturer.asset_turnover_ratio
+            cost_ratio = premium / revenue if revenue > 0 else 0
+            return constraints.max_insurance_cost_ratio - cost_ratio
+
+        constraint_list.append({"type": "ineq", "fun": insurance_cost_constraint})
+
+        # Minimum coverage requirement
+        if constraints.min_coverage_requirement > 0:
+
+            def min_coverage_constraint(x):
+                coverage = sum(x[1:])  # Exclude retention
+                return coverage - constraints.min_coverage_requirement
+
+            constraint_list.append({"type": "ineq", "fun": min_coverage_constraint})
+
+        # Maximum retention limit
+        if constraints.max_retention_limit < float("inf"):
+
+            def max_retention_constraint(x):
+                return constraints.max_retention_limit - x[0]
+
+            constraint_list.append({"type": "ineq", "fun": max_retention_constraint})
+
+        return constraint_list
 
     def _calculate_objective(self, x: np.ndarray, weights: Dict[str, float]) -> float:
         """Calculate weighted objective function value.
@@ -806,7 +1095,6 @@ class InsuranceDecisionEngine:
             roe_1yr_rolling=float(roe_1yr),
             roe_3yr_rolling=float(roe_3yr),
             roe_5yr_rolling=float(roe_5yr),
-
             # ROE component breakdown
             operating_roe=base_operating_roe,
             insurance_impact_roe=insurance_cost_impact,

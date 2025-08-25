@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.decision_engine import (
     DecisionMetrics,
     InsuranceDecision,
@@ -46,6 +47,20 @@ class TestOptimizationConstraints:
         assert constraints.max_premium_budget == 2_000_000
         assert constraints.min_coverage_limit == 10_000_000
         assert constraints.max_bankruptcy_probability == 0.005
+
+    def test_enhanced_constraints(self):
+        """Test enhanced constraint fields."""
+        constraints = OptimizationConstraints(
+            max_debt_to_equity=1.5,
+            max_insurance_cost_ratio=0.02,
+            min_coverage_requirement=1_000_000,
+            max_retention_limit=5_000_000,
+        )
+
+        assert constraints.max_debt_to_equity == 1.5
+        assert constraints.max_insurance_cost_ratio == 0.02
+        assert constraints.min_coverage_requirement == 1_000_000
+        assert constraints.max_retention_limit == 5_000_000
 
 
 class TestInsuranceDecision:
@@ -676,3 +691,210 @@ class TestIntegration:
         assert decisions["soft"].total_coverage >= decisions["hard"].total_coverage
         # Coverage should be inversely related to market hardness when budget-constrained
         assert all(d.total_premium <= constraints.max_premium_budget for d in decisions.values())
+
+
+class TestEnhancedOptimizationMethods:
+    """Test the new enhanced optimization methods."""
+
+    @pytest.fixture
+    def engine(self):
+        """Create a test engine instance."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.2,
+            operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.expected_value.return_value = 100_000
+
+        return InsuranceDecisionEngine(
+            manufacturer=manufacturer,
+            loss_distribution=loss_dist,
+            pricing_scenario="baseline",
+        )
+
+    def test_enhanced_slsqp_optimization(self, engine):
+        """Test enhanced SLSQP optimization method."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=500_000,
+            min_coverage_limit=5_000_000,
+            max_coverage_limit=20_000_000,
+            max_layers=3,
+        )
+
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.ENHANCED_SLSQP
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        assert decision.optimization_method == "enhanced_slsqp"
+        assert decision.total_premium <= constraints.max_premium_budget
+        assert (
+            constraints.min_coverage_limit
+            <= decision.total_coverage
+            <= constraints.max_coverage_limit
+        )
+        assert len(decision.layers) <= constraints.max_layers
+
+    def test_trust_region_optimization(self, engine):
+        """Test trust-region optimization method."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=400_000,
+            min_coverage_limit=5_000_000,
+            max_coverage_limit=15_000_000,
+            max_layers=2,
+        )
+
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.TRUST_REGION
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        assert decision.optimization_method == "trust_region"
+        assert decision.total_premium <= constraints.max_premium_budget
+        assert (
+            constraints.min_coverage_limit
+            <= decision.total_coverage
+            <= constraints.max_coverage_limit
+        )
+
+    def test_penalty_method_optimization(self, engine):
+        """Test penalty method optimization."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=300_000,
+            min_coverage_limit=4_000_000,
+            max_coverage_limit=12_000_000,
+            max_bankruptcy_probability=0.02,
+        )
+
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.PENALTY_METHOD
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        assert decision.optimization_method == "penalty_method"
+        assert decision.total_premium <= constraints.max_premium_budget
+        assert (
+            constraints.min_coverage_limit
+            <= decision.total_coverage
+            <= constraints.max_coverage_limit
+        )
+
+    def test_augmented_lagrangian_optimization(self, engine):
+        """Test augmented Lagrangian optimization."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=450_000,
+            min_coverage_limit=6_000_000,
+            max_coverage_limit=18_000_000,
+            max_layers=3,
+        )
+
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.AUGMENTED_LAGRANGIAN
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        assert decision.optimization_method == "augmented_lagrangian"
+        assert decision.total_premium <= constraints.max_premium_budget
+        assert (
+            constraints.min_coverage_limit
+            <= decision.total_coverage
+            <= constraints.max_coverage_limit
+        )
+
+    def test_multi_start_optimization(self, engine):
+        """Test multi-start global optimization."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=500_000,
+            min_coverage_limit=5_000_000,
+            max_coverage_limit=20_000_000,
+            max_layers=4,
+        )
+
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.MULTI_START
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        assert decision.optimization_method == "multi_start"
+        assert decision.total_premium <= constraints.max_premium_budget
+        assert (
+            constraints.min_coverage_limit
+            <= decision.total_coverage
+            <= constraints.max_coverage_limit
+        )
+
+    def test_enhanced_constraint_handling(self, engine):
+        """Test the enhanced constraints (debt-to-equity, insurance cost ceiling, etc.)."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=600_000,
+            min_coverage_limit=5_000_000,
+            max_coverage_limit=25_000_000,
+            max_debt_to_equity=1.5,
+            max_insurance_cost_ratio=0.025,  # 2.5% of revenue
+            min_coverage_requirement=3_000_000,
+            max_retention_limit=2_000_000,
+        )
+
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.ENHANCED_SLSQP
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        assert decision.retained_limit <= constraints.max_retention_limit
+
+        # Verify insurance cost ceiling
+        revenue = engine.manufacturer.assets * engine.manufacturer.asset_turnover_ratio
+        cost_ratio = decision.total_premium / revenue
+        assert cost_ratio <= constraints.max_insurance_cost_ratio
+
+        # Verify minimum coverage requirement
+        coverage_from_layers = sum(layer.limit for layer in decision.layers)
+        assert coverage_from_layers >= constraints.min_coverage_requirement
+
+    def test_optimization_convergence_info(self, engine):
+        """Test that optimization methods provide convergence information."""
+        constraints = OptimizationConstraints(
+            max_premium_budget=400_000,
+            min_coverage_limit=5_000_000,
+            max_coverage_limit=15_000_000,
+        )
+
+        # Test with enhanced SLSQP (which should have convergence info)
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.ENHANCED_SLSQP
+        )
+
+        assert isinstance(decision, InsuranceDecision)
+        # Convergence iterations should be set
+        assert decision.convergence_iterations >= 0
+        # Objective value should be set
+        assert decision.objective_value != 0.0
+
+    def test_fallback_optimization_on_failure(self, engine):
+        """Test that optimization falls back to alternative method on failure."""
+        # Create moderately restrictive constraints
+        constraints = OptimizationConstraints(
+            max_premium_budget=100_000,  # Low but not impossible budget
+            min_coverage_limit=10_000_000,  # High coverage requirement
+            max_coverage_limit=20_000_000,
+            max_bankruptcy_probability=0.01,  # Strict but achievable risk constraint
+        )
+
+        # This should complete without hanging
+        decision = engine.optimize_insurance_decision(
+            constraints, method=OptimizationMethod.TRUST_REGION
+        )
+
+        # Should still return a decision (even if not optimal)
+        assert isinstance(decision, InsuranceDecision)
+        # Method might have changed due to fallback
+        assert decision.optimization_method in [
+            "trust_region",
+            "differential_evolution",
+            "weighted_sum",
+        ]
