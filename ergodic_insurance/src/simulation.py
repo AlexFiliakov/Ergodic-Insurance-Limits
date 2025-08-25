@@ -66,19 +66,148 @@ class SimulationResults:
             }
         )
 
+    def calculate_time_weighted_roe(self) -> float:
+        """Calculate time-weighted average ROE.
+
+        Time-weighted ROE gives equal weight to each period regardless
+        of the equity level, providing a better measure of consistent
+        performance over time.
+
+        Returns:
+            Time-weighted average ROE.
+        """
+        valid_roe = self.roe[~np.isnan(self.roe)]
+        if len(valid_roe) == 0:
+            return 0.0
+
+        # For time-weighted average, we use geometric mean for compounding returns
+        # Convert ROE to growth factors (1 + roe)
+        growth_factors = 1 + valid_roe
+
+        # Geometric mean minus 1 to get average return
+        time_weighted_roe = np.exp(np.mean(np.log(growth_factors))) - 1
+        return float(time_weighted_roe)
+
+    def calculate_rolling_roe(self, window: int) -> np.ndarray:
+        """Calculate rolling window ROE.
+
+        Args:
+            window: Window size in years (e.g., 1, 3, 5).
+
+        Returns:
+            Array of rolling ROE values.
+        """
+        if window > len(self.roe):
+            raise ValueError(f"Window {window} larger than data length {len(self.roe)}")
+
+        rolling_roe = np.full(len(self.roe), np.nan)
+
+        for i in range(window - 1, len(self.roe)):
+            window_data = self.roe[i - window + 1 : i + 1]
+            valid_data = window_data[~np.isnan(window_data)]
+            if len(valid_data) > 0:
+                rolling_roe[i] = np.mean(valid_data)
+
+        return rolling_roe
+
+    def calculate_roe_components(self) -> Dict[str, np.ndarray]:
+        """Calculate ROE component breakdown.
+
+        Decomposes ROE into operating, insurance, and tax components
+        using DuPont-style analysis.
+
+        Returns:
+            Dictionary with component arrays.
+        """
+        components = {
+            "operating_roe": np.zeros(len(self.years)),
+            "insurance_impact": np.zeros(len(self.years)),
+            "tax_effect": np.zeros(len(self.years)),
+            "total_roe": self.roe.copy(),
+        }
+
+        # Calculate components based on available data
+        for i in range(len(self.years)):
+            if self.equity[i] > 0 and not np.isnan(self.roe[i]):
+                # Operating ROE = (Revenue - Operating Costs) / Equity
+                # This is a simplified calculation; actual implementation
+                # would need more detailed financial data
+                base_margin = 0.08  # Baseline operating margin
+                components["operating_roe"][i] = (self.revenue[i] * base_margin) / self.equity[i]
+
+                # Insurance impact = reduction in ROE due to premiums and retained losses
+                if self.claim_amounts[i] > 0:
+                    components["insurance_impact"][i] = -self.claim_amounts[i] / self.equity[i]
+
+                # Tax effect (simplified)
+                tax_rate = 0.25
+                components["tax_effect"][i] = self.roe[i] * (1 - tax_rate) - self.roe[i]
+
+        return components
+
+    def calculate_roe_volatility(self) -> Dict[str, float]:
+        """Calculate ROE volatility metrics.
+
+        Returns:
+            Dictionary with volatility metrics.
+        """
+        valid_roe = self.roe[~np.isnan(self.roe)]
+        if len(valid_roe) < 2:
+            return {
+                "roe_std": 0.0,
+                "roe_downside_deviation": 0.0,
+                "roe_sharpe": 0.0,
+                "roe_coefficient_variation": 0.0,
+            }
+
+        mean_roe = np.mean(valid_roe)
+        std_roe = np.std(valid_roe)
+
+        # Downside deviation (only negative deviations from mean)
+        negative_deviations = valid_roe[valid_roe < mean_roe] - mean_roe
+        downside_dev = (
+            np.sqrt(np.mean(negative_deviations**2)) if len(negative_deviations) > 0 else 0.0
+        )
+
+        # Sharpe ratio equivalent for ROE (using risk-free rate of 2%)
+        risk_free_rate = 0.02
+        sharpe = (mean_roe - risk_free_rate) / std_roe if std_roe > 0 else 0.0
+
+        # Coefficient of variation
+        cv = std_roe / abs(mean_roe) if mean_roe != 0 else float("inf")
+
+        return {
+            "roe_std": std_roe,
+            "roe_downside_deviation": downside_dev,
+            "roe_sharpe": sharpe,
+            "roe_coefficient_variation": cv,
+        }
+
     def summary_stats(self) -> Dict[str, float]:
         """Calculate summary statistics for the simulation.
 
         Returns:
-            Dictionary of key statistics.
+            Dictionary of key statistics including enhanced ROE metrics.
         """
         # Filter out NaN values for ROE calculation
         valid_roe = self.roe[~np.isnan(self.roe)]
 
-        return {
+        # Calculate rolling ROE for different windows
+        rolling_1yr = self.calculate_rolling_roe(1) if len(self.years) >= 1 else np.array([])
+        rolling_3yr = self.calculate_rolling_roe(3) if len(self.years) >= 3 else np.array([])
+        rolling_5yr = self.calculate_rolling_roe(5) if len(self.years) >= 5 else np.array([])
+
+        # Get volatility metrics
+        volatility_metrics = self.calculate_roe_volatility()
+
+        base_stats = {
             "mean_roe": np.mean(valid_roe) if len(valid_roe) > 0 else 0.0,
             "std_roe": np.std(valid_roe) if len(valid_roe) > 0 else 0.0,
             "median_roe": np.median(valid_roe) if len(valid_roe) > 0 else 0.0,
+            "time_weighted_roe": self.calculate_time_weighted_roe(),
+            "roe_1yr_avg": np.nanmean(rolling_1yr) if len(rolling_1yr) > 0 else 0.0,
+            "roe_3yr_avg": np.nanmean(rolling_3yr) if len(rolling_3yr) > 0 else 0.0,
+            "roe_5yr_avg": np.nanmean(rolling_5yr) if len(rolling_5yr) > 0 else 0.0,
             "final_assets": self.assets[-1],
             "final_equity": self.equity[-1],
             "total_claims": np.sum(self.claim_amounts),
@@ -88,6 +217,11 @@ class SimulationResults:
                 float(self.insolvency_year) if self.insolvency_year is not None else 0.0
             ),
         }
+
+        # Add volatility metrics
+        base_stats.update(volatility_metrics)
+
+        return base_stats
 
 
 class Simulation:

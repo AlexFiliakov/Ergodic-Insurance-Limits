@@ -118,6 +118,54 @@ class TestDecisionMetrics:
         assert metrics.expected_roe == 0.15
         assert metrics.capital_efficiency == 2.5
 
+        # Test new ROE fields with defaults
+        assert metrics.time_weighted_roe == 0.0
+        assert metrics.roe_volatility == 0.0
+        assert metrics.roe_sharpe_ratio == 0.0
+        assert metrics.roe_downside_deviation == 0.0
+        assert metrics.roe_1yr_rolling == 0.0
+        assert metrics.roe_3yr_rolling == 0.0
+        assert metrics.roe_5yr_rolling == 0.0
+        assert metrics.operating_roe == 0.0
+        assert metrics.insurance_impact_roe == 0.0
+        assert metrics.tax_effect_roe == 0.0
+
+    def test_enhanced_roe_metrics(self):
+        """Test creation with enhanced ROE metrics."""
+        metrics = DecisionMetrics(
+            ergodic_growth_rate=0.12,
+            bankruptcy_probability=0.005,
+            expected_roe=0.15,
+            roe_improvement=0.03,
+            premium_to_limit_ratio=0.02,
+            coverage_adequacy=0.85,
+            capital_efficiency=2.5,
+            value_at_risk_95=5_000_000,
+            conditional_value_at_risk=7_000_000,
+            # Enhanced ROE metrics
+            time_weighted_roe=0.14,
+            roe_volatility=0.05,
+            roe_sharpe_ratio=2.4,
+            roe_downside_deviation=0.03,
+            roe_1yr_rolling=0.15,
+            roe_3yr_rolling=0.14,
+            roe_5yr_rolling=0.13,
+            operating_roe=0.20,
+            insurance_impact_roe=-0.04,
+            tax_effect_roe=-0.01,
+        )
+
+        assert metrics.time_weighted_roe == 0.14
+        assert metrics.roe_volatility == 0.05
+        assert metrics.roe_sharpe_ratio == 2.4
+        assert metrics.roe_downside_deviation == 0.03
+        assert metrics.roe_1yr_rolling == 0.15
+        assert metrics.roe_3yr_rolling == 0.14
+        assert metrics.roe_5yr_rolling == 0.13
+        assert metrics.operating_roe == 0.20
+        assert metrics.insurance_impact_roe == -0.04
+        assert metrics.tax_effect_roe == -0.01
+
     def test_calculate_score_default_weights(self):
         """Test score calculation with default weights."""
         metrics = DecisionMetrics(
