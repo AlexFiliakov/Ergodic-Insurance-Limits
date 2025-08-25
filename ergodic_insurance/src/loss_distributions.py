@@ -6,11 +6,14 @@ with revenue-dependent frequency scaling.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy import stats
+
+if TYPE_CHECKING:
+    from .insurance_program import InsuranceProgram
 
 
 class LossDistribution(ABC):
@@ -197,6 +200,210 @@ class LossEvent:
     time: float  # Time of occurrence (in years)
     amount: float  # Loss amount
     loss_type: str  # Type of loss (attritional, large, catastrophic)
+
+
+@dataclass
+class LossData:
+    """Unified loss data structure for cross-module compatibility.
+
+    This dataclass provides a standardized interface for loss data
+    that can be used consistently across all modules in the framework.
+    """
+
+    timestamps: np.ndarray = field(default_factory=lambda: np.array([]))
+    loss_amounts: np.ndarray = field(default_factory=lambda: np.array([]))
+    loss_types: List[str] = field(default_factory=list)
+    claim_ids: List[str] = field(default_factory=list)
+    development_factors: Optional[np.ndarray] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def validate(self) -> bool:
+        """Validate data consistency.
+
+        Returns:
+            True if data is valid and consistent, False otherwise.
+        """
+        # Check array lengths match
+        if len(self.timestamps) != len(self.loss_amounts):
+            return False
+
+        # Check types list matches if provided
+        if self.loss_types and len(self.loss_types) != len(self.timestamps):
+            return False
+
+        # Check claim IDs if provided
+        if self.claim_ids and len(self.claim_ids) != len(self.timestamps):
+            return False
+
+        # Check development factors if provided
+        if self.development_factors is not None:
+            if len(self.development_factors) != len(self.timestamps):
+                return False
+
+        # Check for valid amounts (non-negative)
+        if np.any(self.loss_amounts < 0):
+            return False
+
+        # Check for valid timestamps (non-negative)
+        if len(self.timestamps) > 0 and np.any(self.timestamps < 0):
+            return False
+
+        return True
+
+    def to_ergodic_format(self) -> "ErgodicData":
+        """Convert to ergodic analyzer format.
+
+        Returns:
+            Data formatted for ergodic analysis.
+        """
+        from .ergodic_analyzer import ErgodicData
+
+        return ErgodicData(
+            time_series=self.timestamps, values=self.loss_amounts, metadata=self.metadata
+        )
+
+    def apply_insurance(self, program: "InsuranceProgram") -> "LossData":
+        """Apply insurance recoveries to losses.
+
+        Args:
+            program: Insurance program to apply.
+
+        Returns:
+            New LossData with insurance recoveries applied.
+        """
+        # Import here to avoid circular dependency
+        from .insurance_program import InsuranceProgram
+
+        # Create copy of data
+        recovered_amounts = self.loss_amounts.copy()
+        recovery_metadata = self.metadata.copy()
+
+        # Apply insurance to each loss
+        total_recoveries = 0.0
+        total_premiums = 0.0
+
+        for i, amount in enumerate(self.loss_amounts):
+            # Process claim through insurance program
+            result = program.process_claim(amount)
+            recovery = result["insurance_recovery"]
+            recovered_amounts[i] = amount - recovery
+            total_recoveries += recovery
+
+        # Calculate total premiums
+        if hasattr(program, "calculate_annual_premium"):
+            total_premiums = program.calculate_annual_premium()
+
+        # Update metadata
+        recovery_metadata.update(
+            {
+                "insurance_applied": True,
+                "total_recoveries": total_recoveries,
+                "total_premiums": total_premiums,
+                "net_benefit": total_recoveries - total_premiums,
+            }
+        )
+
+        return LossData(
+            timestamps=self.timestamps.copy(),
+            loss_amounts=recovered_amounts,
+            loss_types=self.loss_types.copy() if self.loss_types else [],
+            claim_ids=self.claim_ids.copy() if self.claim_ids else [],
+            development_factors=self.development_factors.copy()
+            if self.development_factors is not None
+            else None,
+            metadata=recovery_metadata,
+        )
+
+    @classmethod
+    def from_loss_events(cls, events: List[LossEvent]) -> "LossData":
+        """Create LossData from a list of LossEvent objects.
+
+        Args:
+            events: List of LossEvent objects.
+
+        Returns:
+            LossData instance with consolidated event data.
+        """
+        if not events:
+            return cls()
+
+        timestamps = np.array([e.time for e in events])
+        amounts = np.array([e.amount for e in events])
+        types = [e.loss_type for e in events]
+
+        # Sort by time
+        sort_idx = np.argsort(timestamps)
+
+        return cls(
+            timestamps=timestamps[sort_idx],
+            loss_amounts=amounts[sort_idx],
+            loss_types=[types[i] for i in sort_idx],
+            claim_ids=[f"claim_{i}" for i in range(len(events))],
+            metadata={"source": "loss_events", "n_events": len(events)},
+        )
+
+    def to_loss_events(self) -> List[LossEvent]:
+        """Convert LossData back to LossEvent list.
+
+        Returns:
+            List of LossEvent objects.
+        """
+        events = []
+        for i in range(len(self.timestamps)):
+            loss_type = self.loss_types[i] if i < len(self.loss_types) else "unknown"
+            events.append(
+                LossEvent(time=self.timestamps[i], amount=self.loss_amounts[i], loss_type=loss_type)
+            )
+        return events
+
+    def get_annual_aggregates(self, years: int) -> Dict[int, float]:
+        """Aggregate losses by year.
+
+        Args:
+            years: Number of years to aggregate over.
+
+        Returns:
+            Dictionary mapping year to total loss amount.
+        """
+        annual_losses = {year: 0.0 for year in range(years)}
+
+        for time, amount in zip(self.timestamps, self.loss_amounts):
+            year = int(time)
+            if 0 <= year < years:
+                annual_losses[year] += amount
+
+        return annual_losses
+
+    def calculate_statistics(self) -> Dict[str, float]:
+        """Calculate comprehensive statistics for the loss data.
+
+        Returns:
+            Dictionary of statistical metrics.
+        """
+        if len(self.loss_amounts) == 0:
+            return {
+                "count": 0,
+                "total": 0.0,
+                "mean": 0.0,
+                "std": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "p50": 0.0,
+                "p95": 0.0,
+                "p99": 0.0,
+            }
+
+        return {
+            "count": len(self.loss_amounts),
+            "total": float(np.sum(self.loss_amounts)),
+            "mean": float(np.mean(self.loss_amounts)),
+            "std": float(np.std(self.loss_amounts)),
+            "min": float(np.min(self.loss_amounts)),
+            "max": float(np.max(self.loss_amounts)),
+            "p50": float(np.percentile(self.loss_amounts, 50)),
+            "p95": float(np.percentile(self.loss_amounts, 95)),
+            "p99": float(np.percentile(self.loss_amounts, 99)),
+        }
 
 
 class FrequencyGenerator:

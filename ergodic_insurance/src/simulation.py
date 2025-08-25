@@ -11,7 +11,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -22,6 +22,9 @@ from .insurance import InsurancePolicy
 from .insurance_program import InsuranceProgram
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine
+
+if TYPE_CHECKING:
+    from .loss_distributions import LossData
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +250,105 @@ class Simulation:
         # Calculate total time
         total_time = time.time() - start_time
         logger.info(f"Simulation completed in {total_time:.2f} seconds")
+
+        # Create and return results
+        results = SimulationResults(
+            years=self.years[: year + 1] if self.insolvency_year else self.years,
+            assets=self.assets[: year + 1] if self.insolvency_year else self.assets,
+            equity=self.equity[: year + 1] if self.insolvency_year else self.equity,
+            roe=self.roe[: year + 1] if self.insolvency_year else self.roe,
+            revenue=self.revenue[: year + 1] if self.insolvency_year else self.revenue,
+            net_income=self.net_income[: year + 1] if self.insolvency_year else self.net_income,
+            claim_counts=(
+                self.claim_counts[: year + 1] if self.insolvency_year else self.claim_counts
+            ),
+            claim_amounts=(
+                self.claim_amounts[: year + 1] if self.insolvency_year else self.claim_amounts
+            ),
+            insolvency_year=self.insolvency_year,
+        )
+
+        return results
+
+    def run_with_loss_data(
+        self, loss_data: "LossData", validate: bool = True, progress_interval: int = 100
+    ) -> SimulationResults:
+        """Run simulation using standardized LossData.
+
+        Args:
+            loss_data: Standardized loss data.
+            validate: Whether to validate loss data before running.
+            progress_interval: How often to log progress.
+
+        Returns:
+            SimulationResults object with full trajectory.
+        """
+        # Import here to avoid circular dependency
+        from .loss_distributions import LossData
+
+        # Validate if requested
+        if validate and not loss_data.validate():
+            logger.warning("Loss data validation failed")
+            raise ValueError("Invalid loss data provided")
+
+        # Convert to ClaimEvents
+        claims = ClaimGenerator.from_loss_data(loss_data)
+
+        # Group claims by year
+        claims_by_year: Dict[int, List[ClaimEvent]] = {
+            year: [] for year in range(self.time_horizon)
+        }
+        for claim in claims:
+            if 0 <= claim.year < self.time_horizon:
+                claims_by_year[claim.year].append(claim)
+
+        logger.info(
+            f"Starting {self.time_horizon}-year simulation with {len(claims)} claims from LossData"
+        )
+
+        start_time = time.time()
+
+        # Run simulation year by year
+        for year in range(self.time_horizon):
+            # Log progress
+            if year > 0 and year % progress_interval == 0:
+                elapsed = time.time() - start_time
+                rate = year / elapsed if elapsed > 0 else float("inf")
+                remaining = (self.time_horizon - year) / rate
+                logger.info(
+                    f"Year {year}/{self.time_horizon} - {elapsed:.1f}s elapsed, {remaining:.1f}s remaining"
+                )
+
+            # Get claims for this year
+            year_claims = claims_by_year.get(year, [])
+
+            # Execute time step
+            metrics = self.step_annual(year, year_claims)
+
+            # Store results
+            self.assets[year] = metrics.get("assets", 0)
+            self.equity[year] = metrics.get("equity", 0)
+            self.roe[year] = metrics.get("roe", 0)
+            self.revenue[year] = metrics.get("revenue", 0)
+            self.net_income[year] = metrics.get("net_income", 0)
+            self.claim_counts[year] = metrics.get("claim_count", 0)
+            self.claim_amounts[year] = metrics.get("claim_amount", 0)
+
+            # Check for insolvency
+            if metrics.get("equity", 0) <= 0 and self.insolvency_year is None:
+                self.insolvency_year = year
+                logger.warning(f"Manufacturer became insolvent in year {year}")
+                # Fill remaining years with zeros
+                self.assets[year + 1 :] = 0
+                self.equity[year + 1 :] = 0
+                self.roe[year + 1 :] = np.nan
+                self.revenue[year + 1 :] = 0
+                self.net_income[year + 1 :] = 0
+                break
+
+        # Log completion
+        total_time = time.time() - start_time
+        logger.info(f"Simulation with LossData completed in {total_time:.2f} seconds")
 
         # Create and return results
         results = SimulationResults(

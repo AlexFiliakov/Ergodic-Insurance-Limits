@@ -14,6 +14,7 @@ from ergodic_insurance.src.claim_generator import ClaimGenerator
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
 from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.src.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.src.manufacturer import WidgetManufacturer
 from ergodic_insurance.src.simulation import Simulation, SimulationResults
 
@@ -381,3 +382,208 @@ class TestIntegration:
 
         # All should be finite for these positive trajectories
         assert all(np.isfinite(g) for g in time_averages)
+
+    def test_loss_data_integration(self, base_config: dict):
+        """Test integration of standardized LossData through the pipeline."""
+        # Generate losses using ManufacturingLossGenerator
+        loss_gen = ManufacturingLossGenerator(seed=base_config["random_seed"])
+        losses, stats = loss_gen.generate_losses(
+            duration=10, revenue=10_000_000, include_catastrophic=True
+        )
+
+        # Convert to LossData
+        loss_data = LossData.from_loss_events(losses)
+
+        # Validate the data
+        assert loss_data.validate()
+        assert len(loss_data.timestamps) == len(losses)
+
+        # Create manufacturer and simulation
+        manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
+
+        simulation = Simulation(
+            manufacturer=manufacturer, time_horizon=10, seed=base_config["random_seed"]
+        )
+
+        # Run simulation with LossData
+        result = simulation.run_with_loss_data(loss_data)
+
+        # Verify results
+        assert result is not None
+        assert len(result.years) <= 10
+        assert np.sum(result.claim_amounts) > 0
+
+    def test_loss_data_conversion(self):
+        """Test conversion between ClaimEvent and LossData formats."""
+        # Create claim generator
+        claim_gen = ClaimGenerator(
+            frequency=2.0, severity_mean=100_000, severity_std=50_000, seed=42
+        )
+
+        # Generate claims
+        claims = claim_gen.generate_claims(years=5)
+
+        # Convert to LossData
+        loss_data = claim_gen.to_loss_data(claims)
+
+        # Validate
+        assert loss_data.validate()
+        assert len(loss_data.timestamps) == len(claims)
+
+        # Convert back to ClaimEvents
+        converted_claims = ClaimGenerator.from_loss_data(loss_data)
+
+        # Check conversion preserves data
+        assert len(converted_claims) == len(claims)
+        for orig, conv in zip(claims, converted_claims):
+            assert orig.year == conv.year
+            assert abs(orig.amount - conv.amount) < 0.01
+
+    def test_ergodic_loss_integration(self, base_config: dict):
+        """Test integration of loss modeling with ergodic analysis."""
+        # Create loss generator
+        loss_gen = ManufacturingLossGenerator(seed=42)
+        losses, _ = loss_gen.generate_losses(duration=10, revenue=10_000_000)
+
+        # Convert to LossData
+        loss_data = LossData.from_loss_events(losses)
+
+        # Create manufacturer
+        manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
+
+        # Create insurance program (if using enhanced insurance)
+        from ergodic_insurance.src.insurance_program import InsuranceProgram
+
+        insurance_program = InsuranceProgram(layers=[])
+
+        # Create ergodic analyzer
+        analyzer = ErgodicAnalyzer()
+
+        # Run integrated analysis
+        results = analyzer.integrate_loss_ergodic_analysis(
+            loss_data=loss_data,
+            insurance_program=insurance_program,
+            manufacturer=manufacturer,
+            time_horizon=10,
+            n_simulations=10,  # Small for testing
+        )
+
+        # Verify results
+        assert results.validation_passed
+        assert np.isfinite(results.time_average_growth) or results.time_average_growth == -np.inf
+        assert results.survival_rate >= 0
+        assert results.survival_rate <= 1
+
+    def test_insurance_impact_validation(self, base_config: dict):
+        """Test validation of insurance impact on ergodic calculations."""
+        # Create manufacturer
+        manufacturer_base = self.create_manufacturer(initial_assets=base_config["initial_assets"])
+        manufacturer_insured = self.create_manufacturer(
+            initial_assets=base_config["initial_assets"]
+        )
+
+        # Create claim generator
+        claim_gen = ClaimGenerator(
+            frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+        )
+
+        # Create insurance
+        layer = InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)
+        insurance = InsurancePolicy(layers=[layer], deductible=100_000)
+
+        # Run base scenario (no insurance)
+        sim_base = Simulation(
+            manufacturer=manufacturer_base,
+            claim_generator=claim_gen,
+            time_horizon=20,
+            insurance_policy=None,
+            seed=42,
+        )
+        result_base = sim_base.run()
+
+        # Run insured scenario
+        sim_insured = Simulation(
+            manufacturer=manufacturer_insured,
+            claim_generator=claim_gen,
+            time_horizon=20,
+            insurance_policy=insurance,
+            seed=42,
+        )
+        result_insured = sim_insured.run()
+
+        # Create analyzer and validate
+        analyzer = ErgodicAnalyzer()
+        validation = analyzer.validate_insurance_ergodic_impact(
+            base_scenario=result_base,
+            insurance_scenario=result_insured,
+            insurance_program=None,  # Using simple policy, not program
+        )
+
+        # Check validation results
+        assert validation.recoveries_credited
+        assert validation.overall_valid or validation.time_average_reflects_benefit
+
+    def test_data_flow_consistency(self, base_config: dict):
+        """Test data consistency through the entire pipeline."""
+        # Generate losses
+        loss_gen = ManufacturingLossGenerator(seed=123)
+        original_losses, _ = loss_gen.generate_losses(duration=5, revenue=10_000_000)
+
+        # Track data through pipeline
+        # Step 1: Convert to LossData
+        loss_data = LossData.from_loss_events(original_losses)
+        assert loss_data.validate()
+
+        # Step 2: Apply insurance (if any)
+        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+
+        layer = EnhancedInsuranceLayer(attachment_point=50_000, limit=1_000_000, premium_rate=0.03)
+        program = InsuranceProgram(layers=[layer])
+
+        insured_data = loss_data.apply_insurance(program)
+        assert insured_data.validate()
+
+        # Step 3: Convert to ClaimEvents for simulation
+        claims = ClaimGenerator.from_loss_data(insured_data)
+
+        # Step 4: Run simulation
+        manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
+        simulation = Simulation(manufacturer=manufacturer, time_horizon=5, seed=123)
+
+        # Manually apply claims
+        for claim in claims:
+            if 0 <= claim.year < 5:
+                simulation.step_annual(claim.year, [claim])
+
+        # Verify data consistency
+        total_original = sum(loss.amount for loss in original_losses)
+        total_insured = sum(claim.amount for claim in claims)
+
+        # Insured amount should be less due to recoveries
+        assert total_insured <= total_original
+
+    def test_performance_with_loss_data(self, base_config: dict):
+        """Test performance when using LossData structures."""
+        # Generate large loss dataset
+        loss_gen = ManufacturingLossGenerator(seed=999)
+
+        start_time = time.time()
+
+        # Generate 100 years of losses
+        losses, _ = loss_gen.generate_losses(duration=100, revenue=10_000_000)
+
+        # Convert to LossData
+        loss_data = LossData.from_loss_events(losses)
+
+        # Run simulation
+        manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
+        simulation = Simulation(manufacturer=manufacturer, time_horizon=100, seed=999)
+
+        result = simulation.run_with_loss_data(loss_data)
+
+        elapsed = time.time() - start_time
+
+        # Should complete in reasonable time
+        assert elapsed < 10.0, f"100-year simulation took {elapsed:.2f}s, should be < 10s"
+        assert result is not None
+        assert len(result.years) <= 100
