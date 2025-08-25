@@ -49,13 +49,13 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 
 ## Results
 
-[Ergodic Insurance Part 1: From Cost Center to Growth Engine: When N=1](https://medium.com/@alexfiliakov/ergodic-insurance-part-1-from-cost-center-to-growth-engine-when-n-1-52c17b048a94)
+- [Ergodic Insurance Part 1: From Cost Center to Growth Engine: When N=1](https://medium.com/@alexfiliakov/ergodic-insurance-part-1-from-cost-center-to-growth-engine-when-n-1-52c17b048a94)
 
 ## Exploratory Notebooks
 
-[Growth Dynamics and Asset Fluctuations](ergodic_insurance/notebooks/03_growth_dynamics.ipynb)
-[Ergodic Insurance Advantage Demonstration](ergodic_insurance/notebooks/04_ergodic_demo.ipynb)
-[Risk Metrics Suite for Tail Risk Analysis](ergodic_insurance/notebooks/05_risk_metrics.ipynb)
+- [Growth Dynamics and Asset Fluctuations](ergodic_insurance/notebooks/03_growth_dynamics.ipynb)
+- [Ergodic Insurance Advantage Demonstration](ergodic_insurance/notebooks/04_ergodic_demo.ipynb)
+- [Risk Metrics Suite for Tail Risk Analysis](ergodic_insurance/notebooks/05_risk_metrics.ipynb)
 
 ## Installation
 
