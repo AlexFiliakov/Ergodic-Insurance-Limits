@@ -104,7 +104,7 @@ todo_include_todos = True
 # -- GitHub Pages Configuration ----------------------------------------------
 
 # For standard GitHub Pages (update with your username and repo name)
-# html_baseurl = 'https://alexfiliakov.github.io/Ergodic-Insurance-Limits/'
+html_baseurl = "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/"
 
 
 # Function to create .nojekyll file for GitHub Pages
