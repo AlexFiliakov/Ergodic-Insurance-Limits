@@ -806,6 +806,7 @@ class InsuranceDecisionEngine:
             roe_1yr_rolling=float(roe_1yr),
             roe_3yr_rolling=float(roe_3yr),
             roe_5yr_rolling=float(roe_5yr),
+
             # ROE component breakdown
             operating_roe=base_operating_roe,
             insurance_impact_roe=insurance_cost_impact,
