@@ -532,7 +532,6 @@ cache/
 - Generate 25+ compelling visualizations (10 executive, 15+ technical)
 
 ### Reporting Metrics
-- All visualizations render in <5 seconds from cache
 - Executive summary fits in 5 pages with high impact
 - Technical appendix provides complete reproducibility
 - Blog post visualizations optimized for Medium platform (8×6", 150 DPI)
