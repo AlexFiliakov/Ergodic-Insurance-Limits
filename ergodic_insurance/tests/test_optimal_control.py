@@ -270,6 +270,32 @@ class TestHJBFeedbackControl:
         assert params is not None
         assert "limits" in params
 
+    def test_interpolation_dimension_handling(self, simple_hjb_solver):
+        """Test that HJB feedback control handles state dimensions correctly.
+
+        This is a regression test for an issue where the interpolator
+        received incorrectly shaped states.
+        """
+        control_space = ControlSpace(limits=[(1e6, 5e7)], retentions=[(1e5, 1e6)])
+        control = HJBFeedbackControl(simple_hjb_solver, control_space)
+
+        # Test various state dictionary formats
+        test_states = [
+            {"assets": 2e7, "time": 1.0},  # Standard format
+            {"wealth": 3e7, "time": 2.0},  # Alternative naming
+            {"equity": 1.5e7},  # Missing time (should default)
+            {"assets": 4e7, "time": 0.5, "extra_key": 100},  # Extra keys
+        ]
+
+        for state in test_states:
+            # Should not raise dimension errors
+            params = control.get_control(state, time=0)
+            assert params is not None
+            assert "limits" in params
+            assert "retentions" in params
+            assert len(params["limits"]) == 1
+            assert len(params["retentions"]) == 1
+
 
 class TestOptimalController:
     """Test OptimalController class."""
@@ -433,3 +459,52 @@ class TestCreateHJBController:
         """Test error handling for invalid utility type."""
         with pytest.raises(ValueError, match="Unknown utility type"):
             create_hjb_controller(manufacturer, simulation_years=1, utility_type="invalid")
+
+    def test_hjb_controller_with_manufacturer_integration(self, manufacturer):
+        """Test that HJB controller integrates properly with manufacturer.
+
+        This is a regression test to ensure the HJB feedback control
+        correctly handles manufacturer state extraction and interpolation.
+        """
+        # Create a minimal HJB problem
+        state_space = StateSpace(
+            [StateVariable("wealth", 1e6, 1e8, 3), StateVariable("time", 0, 5, 3)]
+        )
+
+        control_variables = [
+            ControlVariable("limit", 1e6, 3e7, 3),
+            ControlVariable("retention", 1e5, 5e6, 3),
+        ]
+
+        def dynamics(state, control, time):
+            drift = np.zeros_like(state)
+            drift[..., 0] = state[..., 0] * 0.05
+            drift[..., 1] = 1.0
+            return drift
+
+        def running_cost(state, control, time):
+            return np.zeros(state.shape[:-1])
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=control_variables,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            time_horizon=5.0,
+        )
+
+        config = HJBSolverConfig(max_iterations=2, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        # Create controller
+        control_space = ControlSpace(limits=[(1e6, 3e7)], retentions=[(1e5, 5e6)])
+        hjb_strategy = HJBFeedbackControl(solver, control_space)
+        controller = OptimalController(hjb_strategy, control_space)
+
+        # Should be able to apply control without dimension errors
+        insurance = controller.apply_control(manufacturer, time=0)
+        assert insurance is not None
+        assert hasattr(insurance, "layers")
+        assert len(insurance.layers) > 0

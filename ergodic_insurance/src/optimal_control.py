@@ -327,30 +327,30 @@ class HJBFeedbackControl(ControlStrategy):
 
         Note:
             Searches for common state variable names and maps them
-            to HJB state dimensions. Order: wealth, time, loss history.
+            to HJB state dimensions. Order: wealth, time.
+            The HJB problem in create_hjb_controller uses exactly 2 dimensions.
         """
-        # Map common state variables
+        # Map common state variables - must match HJB problem dimensions
         hjb_state = []
 
-        # Wealth/assets
+        # Wealth/assets (first dimension)
         if "assets" in state:
             hjb_state.append(state["assets"])
         elif "wealth" in state:
             hjb_state.append(state["wealth"])
         elif "equity" in state:
             hjb_state.append(state["equity"])
+        else:
+            hjb_state.append(1e7)  # Default value
 
-        # Time if present
+        # Time (second dimension)
         if "time" in state:
             hjb_state.append(state["time"])
+        else:
+            hjb_state.append(0.0)  # Default time
 
-        # Loss history if tracked
-        if "cumulative_losses" in state:
-            hjb_state.append(state["cumulative_losses"])
-        elif "loss_ratio" in state:
-            hjb_state.append(state["loss_ratio"])
-
-        return np.array(hjb_state)
+        # Return exactly 2 dimensions to match the HJB problem
+        return np.array(hjb_state[:2])
 
     def _create_interpolators(self):
         """Create interpolation functions for optimal controls.
@@ -390,14 +390,18 @@ class HJBFeedbackControl(ControlStrategy):
         # Map to HJB state space
         hjb_state = self.state_mapping(state)
 
-        # Ensure state is properly shaped for interpolation
-        if hjb_state.ndim == 1:
-            hjb_state = hjb_state.reshape(1, -1)
+        # Ensure state is a 1D array for interpolation
+        if hjb_state.ndim > 1:
+            # If it's already 2D (e.g., shape (1, 2)), flatten to 1D
+            hjb_state = hjb_state.flatten()
 
         # Extract controls from interpolators
         controls = {}
         for name, interp in self.interpolators.items():
-            controls[name] = float(interp(hjb_state)[0])
+            # Pass state directly as 1D array - interpolator will handle it
+            # Use item() to extract scalar from 0-d array to avoid deprecation warning
+            result = interp(hjb_state)
+            controls[name] = float(result.item() if hasattr(result, "item") else result)
 
         # Map back to insurance parameters format
         n_layers = len(self.control_space.limits)
@@ -824,17 +828,17 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
 
     # Define state space (simplified 2D for demonstration)
     state_variables = [
-        StateVariable(name="wealth", min_value=1e6, max_value=1e8, num_points=50, log_scale=True),
+        StateVariable(name="wealth", min_value=1e6, max_value=1e8, num_points=10, log_scale=True),
         StateVariable(
-            name="time", min_value=0, max_value=simulation_years, num_points=20, log_scale=False
+            name="time", min_value=0, max_value=simulation_years, num_points=5, log_scale=False
         ),
     ]
     state_space = StateSpace(state_variables)
 
     # Define control variables (single layer for simplicity)
     control_variables = [
-        ControlVariable(name="limit", min_value=1e6, max_value=5e7, num_points=20),
-        ControlVariable(name="retention", min_value=1e5, max_value=1e7, num_points=20),
+        ControlVariable(name="limit", min_value=1e6, max_value=5e7, num_points=5),
+        ControlVariable(name="retention", min_value=1e5, max_value=1e7, num_points=5),
     ]
 
     # Select utility function
@@ -903,7 +907,7 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
     )
 
     # Solve HJB equation
-    config = HJBSolverConfig(time_step=0.1, max_iterations=100, tolerance=1e-4, verbose=True)
+    config = HJBSolverConfig(time_step=0.1, max_iterations=10, tolerance=1e-3, verbose=False)
 
     solver = HJBSolver(problem, config)
     logger.info("Solving HJB equation...")
