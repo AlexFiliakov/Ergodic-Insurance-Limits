@@ -117,9 +117,6 @@ Documentation Contents
    :caption: Examples & Tutorials
 
    examples
-   notebooks/01_basic_manufacturer
-   notebooks/04_ergodic_demo
-   notebooks/08_monte_carlo_analysis
 
 .. toctree::
    :maxdepth: 2
@@ -145,7 +142,7 @@ Documentation Contents
    :maxdepth: 1
    :caption: Additional Resources
 
-   faq
+   user_guide/faq
    glossary
    changelog
    contributing

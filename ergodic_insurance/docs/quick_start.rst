@@ -1,0 +1,224 @@
+Quick Start Guide
+=================
+
+Get up and running with Ergodic Insurance Limits in minutes.
+
+Basic Usage
+-----------
+
+1. Load Configuration
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from ergodic_insurance.src.config_manager import ConfigManager
+
+   # Initialize configuration manager
+   manager = ConfigManager()
+
+   # Load default configuration
+   config = manager.load_profile("default")
+
+2. Create Manufacturer
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from ergodic_insurance.src.manufacturer import WidgetManufacturer
+
+   # Create manufacturer with configuration
+   manufacturer = WidgetManufacturer(config.manufacturer)
+
+   print(f"Initial assets: ${manufacturer.assets:,.0f}")
+   print(f"Operating margin: {manufacturer.config.operating_margin:.1%}")
+
+3. Generate Claims
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from ergodic_insurance.src.claim_generator import ClaimGenerator
+
+   # Set up claim generator
+   generator = ClaimGenerator()
+
+   # Generate annual claims
+   claims = generator.generate_claims(
+       n_years=1,
+       attritional_frequency=5,
+       large_loss_frequency=0.2
+   )
+
+4. Run Simulation
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from ergodic_insurance.src.simulation import Simulation
+
+   # Create and run simulation
+   sim = Simulation(
+       manufacturer=manufacturer,
+       claim_generator=generator,
+       config=config.simulation
+   )
+
+   results = sim.run(years=10)
+
+   print(f"Final equity: ${results['final_equity']:,.0f}")
+   print(f"Average ROE: {results['avg_roe']:.1%}")
+
+Complete Example
+----------------
+
+Here's a complete example that demonstrates the key features:
+
+.. code-block:: python
+
+   from ergodic_insurance.src.config_manager import ConfigManager
+   from ergodic_insurance.src.manufacturer import WidgetManufacturer
+   from ergodic_insurance.src.claim_generator import ClaimGenerator
+   from ergodic_insurance.src.insurance import optimize_insurance_limit
+
+   # Configuration
+   manager = ConfigManager()
+   config = manager.load_profile(
+       "default",
+       manufacturer={"operating_margin": 0.12},
+       simulation={"time_horizon_years": 50}
+   )
+
+   # Setup
+   manufacturer = WidgetManufacturer(config.manufacturer)
+   generator = ClaimGenerator()
+
+   # Optimize insurance
+   optimal_limit = optimize_insurance_limit(
+       manufacturer=manufacturer,
+       claim_generator=generator,
+       limits_to_test=[5e6, 10e6, 15e6, 20e6],
+       n_simulations=100
+   )
+
+   print(f"Optimal insurance limit: ${optimal_limit:,.0f}")
+
+Using Different Profiles
+------------------------
+
+Conservative Scenario
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   # Load conservative profile
+   config = manager.load_profile("conservative")
+
+   # Lower growth, higher safety margins
+   print(f"Growth rate: {config.growth.annual_growth_rate:.1%}")
+   print(f"Operating margin: {config.manufacturer.operating_margin:.1%}")
+
+Aggressive Growth
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   # Load aggressive profile with overrides
+   config = manager.load_profile(
+       "aggressive",
+       growth={"annual_growth_rate": 0.20},
+       manufacturer={"retention_ratio": 0.95}
+   )
+
+Custom Scenarios
+~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   # Create custom configuration
+   config = manager.load_profile(
+       "default",
+       presets=["hard_market", "high_volatility"],
+       modules=["insurance", "stochastic"],
+       manufacturer={
+           "initial_assets": 50_000_000,
+           "operating_margin": 0.15
+       }
+   )
+
+Ergodic Analysis
+----------------
+
+Compare time-average vs ensemble-average growth:
+
+.. code-block:: python
+
+   from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+
+   analyzer = ErgodicAnalyzer()
+
+   # Analyze with and without insurance
+   results = analyzer.compare_strategies(
+       manufacturer=manufacturer,
+       strategies={
+           "no_insurance": {"limit": 0, "premium": 0},
+           "basic": {"limit": 5_000_000, "premium_rate": 0.015},
+           "comprehensive": {"limit": 20_000_000, "premium_rate": 0.012}
+       },
+       n_paths=1000,
+       time_horizon=100
+   )
+
+   # Display results
+   analyzer.plot_growth_comparison(results)
+
+   for strategy, metrics in results.items():
+       print(f"{strategy}:")
+       print(f"  Time-average growth: {metrics['time_avg_growth']:.2%}")
+       print(f"  Ensemble-average: {metrics['ensemble_avg']:.2%}")
+       print(f"  Ergodic advantage: {metrics['ergodic_advantage']:.2%}")
+
+Visualization
+-------------
+
+Quick visualizations of results:
+
+.. code-block:: python
+
+   from ergodic_insurance.src.visualization import plot_simulation_results
+
+   # Run simulation
+   results = sim.run(years=20)
+
+   # Plot results
+   plot_simulation_results(
+       results,
+       metrics=["assets", "equity", "roe"],
+       title="20-Year Simulation"
+   )
+
+Next Steps
+----------
+
+Now that you've run your first simulation:
+
+1. **Explore Configurations**: See :doc:`config_best_practices`
+2. **Understand the Theory**: Read :doc:`theory`
+3. **Run Notebooks**: Try the Jupyter notebooks in ``ergodic_insurance/notebooks/``
+4. **Customize**: Create your own profiles in ``data/config/profiles/custom/``
+5. **Optimize**: Use :doc:`api/optimization` for advanced analysis
+
+Tips
+----
+
+* Use caching for faster repeated simulations
+* Start with shorter time horizons for testing
+* Monitor convergence with :doc:`api/convergence`
+* Save results to checkpoints for long simulations
+
+Getting Help
+------------
+
+* Check the :doc:`user_guide/faq`
+* Review :doc:`examples`
+* See API documentation: :doc:`api/modules`
+* Report issues on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`_

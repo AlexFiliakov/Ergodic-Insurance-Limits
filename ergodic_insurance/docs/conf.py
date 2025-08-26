@@ -38,7 +38,26 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "architecture/class_diagrams/*.md",
+    "architecture/*.md",
+    "index_v2.rst",
+    "README.md",
+    "api/config_manager.rst",
+    "changelog.rst",
+    "config_best_practices.md",
+    "contributing.rst",
+    "ergodic_theory.rst",
+    "glossary.rst",
+    "installation.rst",
+    "insurance_optimization.rst",
+    "migration_guide.md",
+    "quick_start.rst",
+    "risk_metrics.rst",
+]
 
 language = "en"
 
