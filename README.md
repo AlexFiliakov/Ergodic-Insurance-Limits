@@ -33,10 +33,13 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 - **Insurance claim processing** with multi-year payment schedules
 - **Collateral management** for letter of credit requirements
 
-### Configuration Management
-- **Pydantic-based configuration** with full validation and type safety
-- **YAML parameter files** for different scenarios (baseline, conservative, optimistic, stochastic)
-- **Flexible override system** for parameter experimentation
+### Configuration Management (v2.0)
+- **3-tier configuration architecture** with profiles, modules, and presets
+- **ConfigManager** with profile inheritance and module composition
+- **Pydantic v2 validation** with comprehensive type safety
+- **Runtime overrides** for flexible parameter experimentation
+- **Preset libraries** for common market conditions and risk scenarios
+- **Full backward compatibility** with legacy ConfigLoader
 
 ### Documentation & Testing
 - **Comprehensive Google-style docstrings** throughout the codebase
@@ -58,6 +61,47 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 - [Growth Dynamics and Asset Fluctuations](ergodic_insurance/notebooks/03_growth_dynamics.ipynb)
 - [Ergodic Insurance Advantage Demonstration](ergodic_insurance/notebooks/04_ergodic_demo.ipynb)
 - [Risk Metrics Suite for Tail Risk Analysis](ergodic_insurance/notebooks/05_risk_metrics.ipynb)
+
+## Configuration System
+
+The project uses a modern 3-tier configuration architecture for maximum flexibility:
+
+### Quick Start
+```python
+from ergodic_insurance.src.config_manager import ConfigManager
+
+# Load a configuration profile
+manager = ConfigManager()
+config = manager.load_profile("default")  # or "conservative", "aggressive"
+
+# Access configuration values
+print(f"Operating margin: {config.manufacturer.operating_margin:.1%}")
+print(f"Growth rate: {config.growth.annual_growth_rate:.1%}")
+```
+
+### Advanced Usage
+```python
+# Override parameters at runtime
+config = manager.load_profile(
+    "conservative",
+    manufacturer={"operating_margin": 0.12},
+    growth={"annual_growth_rate": 0.08}
+)
+
+# Apply preset templates
+config = manager.load_profile(
+    "default",
+    presets=["hard_market", "high_volatility"]
+)
+
+# Load specific modules only
+config = manager.load_profile(
+    "default",
+    modules=["insurance", "stochastic"]
+)
+```
+
+See [migration_guide.md](ergodic_insurance/docs/migration_guide.md) for migrating from the legacy system.
 
 ## Installation
 
@@ -117,7 +161,11 @@ Ergodic Insurance Limits/
 │   ├── notebooks/              # Jupyter notebooks
 │   ├── examples/               # Example scripts
 │   ├── data/                   # Configuration files
-│   │   └── parameters/         # YAML parameters
+│   │   ├── parameters/         # Legacy YAML parameters (deprecated)
+│   │   └── config/             # New 3-tier configuration
+│   │       ├── profiles/       # Complete configurations
+│   │       ├── modules/        # Reusable components
+│   │       └── presets/        # Quick-apply templates
 │   ├── docs/                   # Sphinx documentation
 │   │   ├── api/               # API reference
 │   │   ├── architecture/      # Architecture diagrams
@@ -188,142 +236,3 @@ black ergodic_insurance
 
 # Sort imports with isort
 isort ergodic_insurance
-```
-
-## Project Structure
-
-```
-Ergodic Insurance Limits/
-├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code
-│   │   ├── __init__.py         # Package initialization with comprehensive docs
-│   │   ├── manufacturer.py     # Widget manufacturer financial model
-│   │   ├── claim_generator.py  # Insurance claim generation with Poisson/lognormal
-│   │   ├── claim_development.py # Claim development patterns for cash flow modeling
-│   │   ├── config.py           # Pydantic-based configuration management
-│   │   ├── config_loader.py    # YAML parameter loading utilities
-│   │   ├── stochastic_processes.py # Stochastic modeling (GBM, lognormal, mean-reversion)
-│   │   ├── simulation.py       # Main simulation engine
-│   │   ├── insurance.py        # Basic insurance optimization algorithms
-│   │   ├── insurance_program.py # Enhanced multi-layer insurance programs
-│   │   ├── loss_distributions.py # Enhanced loss distributions for manufacturing risks
-│   │   ├── monte_carlo.py      # Monte Carlo simulation engine
-│   │   ├── ergodic_analyzer.py # Ergodic analysis and optimization tools
-│   │   ├── risk_metrics.py     # Risk metrics and analytics
-│   │   ├── convergence.py      # Convergence analysis tools
-│   │   ├── decision_engine.py  # Insurance decision making engine
-│   │   └── visualization.py    # Visualization utilities
-│   ├── tests/                  # Comprehensive test suite (100% coverage)
-│   │   ├── __init__.py
-│   │   ├── conftest.py         # Pytest configuration and fixtures
-│   │   ├── test_manufacturer.py
-│   │   ├── test_claim_generator.py
-│   │   ├── test_claim_development.py
-│   │   ├── test_config.py
-│   │   ├── test_stochastic.py
-│   │   ├── test_insurance.py
-│   │   ├── test_insurance_program.py
-│   │   ├── test_loss_distributions.py
-│   │   ├── test_simulation.py
-│   │   ├── test_monte_carlo.py
-│   │   ├── test_monte_carlo_extended.py
-│   │   ├── test_ergodic_analyzer.py
-│   │   ├── test_risk_metrics.py
-│   │   ├── test_integration.py
-│   │   ├── test_performance.py
-│   │   ├── test_manufacturer_methods.py
-│   │   ├── test_convergence_extended.py
-│   │   ├── test_decision_engine.py
-│   │   ├── test_pricing_scenarios.py
-│   │   ├── test_visualization_simple.py
-│   │   └── test_setup.py
-│   ├── notebooks/              # Jupyter analysis notebooks
-│   │   ├── 00_setup_verification.ipynb
-│   │   ├── 01_basic_manufacturer.ipynb
-│   │   ├── 02_long_term_simulation.ipynb
-│   │   ├── 03_growth_dynamics.ipynb
-│   │   ├── 04_ergodic_demo.ipynb
-│   │   ├── 05_risk_metrics.ipynb
-│   │   ├── 06_loss_distributions.ipynb
-│   │   ├── 07_insurance_layers.ipynb
-│   │   └── 08_monte_carlo_analysis.ipynb
-│   ├── examples/               # Example scripts and demos
-│   │   ├── demo_manufacturer.py
-│   │   ├── demo_collateral_management.py
-│   │   ├── demo_claim_development.py
-│   │   └── demo_stochastic.py  # Stochastic vs deterministic comparison
-│   ├── data/                   # Configuration parameters
-│   │   └── parameters/
-│   │       ├── baseline.yaml    # Standard configuration
-│   │       ├── conservative.yaml
-│   │       ├── optimistic.yaml
-│   │       ├── stochastic.yaml  # Stochastic process parameters
-│   │       ├── insurance.yaml   # Insurance optimization settings
-│   │       ├── insurance_market.yaml # Market parameters
-│   │       ├── insurance_pricing_scenarios.yaml # Pricing scenarios configuration
-│   │       ├── insurance_structures.yaml # Insurance program structures
-│   │       ├── loss_distributions.yaml # Loss distribution parameters
-│   │       ├── losses.yaml      # Legacy loss parameters
-│   │       └── development_patterns.yaml # Claim development patterns
-│   ├── docs/                   # Sphinx documentation system
-│   │   ├── conf.py            # Sphinx configuration
-│   │   ├── index.rst          # Documentation main page
-│   │   ├── api/               # Auto-generated API documentation
-│   │   │   ├── modules.rst
-│   │   │   ├── src.rst
-│   │   │   ├── manufacturer.rst
-│   │   │   ├── config.rst
-│   │   │   ├── config_loader.rst
-│   │   │   ├── claim_generator.rst
-│   │   │   ├── claim_development.rst
-│   │   │   ├── stochastic_processes.rst
-│   │   │   ├── simulation.rst
-│   │   │   ├── insurance.rst
-│   │   │   ├── insurance_program.rst
-│   │   │   ├── loss_distributions.rst
-│   │   │   ├── monte_carlo.rst
-│   │   │   ├── ergodic_analyzer.rst
-│   │   │   ├── risk_metrics.rst
-│   │   │   ├── convergence.rst
-│   │   │   ├── decision_engine.rst
-│   │   │   └── visualization.rst
-│   │   ├── getting_started.rst
-│   │   ├── theory.rst
-│   │   ├── examples.rst
-│   │   └── overview.rst
-│   ├── checkpoints/            # Simulation checkpoints for long-running analyses
-│   ├── htmlcov/                # Test coverage reports
-│   ├── pyproject.toml          # Python package configuration
-│   ├── pytest.ini             # Pytest configuration
-│   ├── requirements.txt        # Python dependencies
-│   ├── setup.py               # Package setup script
-│   └── uv.lock                # UV dependency lock file
-├── simone/                     # TypeScript simulation components & sprint docs
-│   ├── src/                    # TypeScript source
-│   │   ├── core/simulation.ts
-│   │   ├── models/types.ts
-│   │   ├── utils/statistics.ts
-│   │   └── index.ts
-│   ├── tests/                  # Jest tests
-│   │   ├── simulation.test.ts
-│   │   └── statistics.test.ts
-│   ├── 00_PLAN.md             # Overall project plan
-│   ├── SPRINT_01_FOUNDATION.md # Core financial model sprint
-│   ├── SPRINT_02_ERGODIC_FRAMEWORK.md # Ergodic theory implementation
-│   ├── SPRINT_03_LOSS_MODELING.md # Insurance loss modeling
-│   ├── package.json           # Node dependencies
-│   ├── tsconfig.json          # TypeScript config
-│   └── jest.config.js         # Jest test config
-├── results/                    # Generated reports and blog drafts
-│   ├── BLOG_DRAFT_01_ERGODIC_LIMIT_SELECTION.md
-│   └── BLOG_OUTLINE_01_ERGODIC_LIMIT_SELECTION.md
-├── assets/                     # Images and documentation assets
-│   └── debug/                 # Debug visualizations
-├── main.py                    # Root Python entry point
-├── pyproject.toml             # Root Python configuration
-├── uv.lock                    # UV package lock file
-├── mypy.ini                   # MyPy type checking configuration
-├── CLAUDE.md                  # Project instructions for Claude Code
-├── LICENSE                    # MIT License
-└── README.md                  # This file
-```
