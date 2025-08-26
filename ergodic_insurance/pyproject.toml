@@ -74,6 +74,7 @@ disable = [
     "W1514",  # unspecified-encoding (not critical for config files)
     "W0122",  # exec-used (needed in setup.py)
     "R1732",  # consider-using-with (not always applicable)
+    "E0401",  # import-error (h5py import issues in trajectory_storage)
 ]
 
 [tool.pylint.format]

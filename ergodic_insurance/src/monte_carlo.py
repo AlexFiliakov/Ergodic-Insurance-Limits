@@ -30,6 +30,7 @@ from .parallel_executor import (
 )
 from .risk_metrics import RiskMetrics
 from .ruin_probability import RuinProbabilityAnalyzer, RuinProbabilityConfig, RuinProbabilityResults
+from .trajectory_storage import StorageConfig, TrajectoryStorage
 
 
 def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
@@ -134,6 +135,9 @@ class SimulationConfig:
     monitor_performance: bool = True
     adaptive_chunking: bool = True
     shared_memory: bool = True
+    # Trajectory storage options
+    enable_trajectory_storage: bool = False
+    trajectory_storage_config: Optional[StorageConfig] = None
 
 
 @dataclass
@@ -250,6 +254,12 @@ class MonteCarloEngine:
                 shared_memory_config=shared_memory_config,
                 monitor_performance=self.config.monitor_performance,
             )
+
+        # Initialize trajectory storage if enabled
+        self.trajectory_storage: Optional[TrajectoryStorage] = None
+        if self.config.enable_trajectory_storage:
+            storage_config = self.config.trajectory_storage_config or StorageConfig()
+            self.trajectory_storage = TrajectoryStorage(storage_config)
 
     def run(self) -> SimulationResults:
         """Execute Monte Carlo simulation.
@@ -561,7 +571,27 @@ class MonteCarloEngine:
 
             # Check for ruin
             if manufacturer.assets <= 0:
+                ruin_occurred = True
+                ruin_year = year
                 break
+        else:
+            ruin_occurred = False
+            ruin_year = None
+
+        # Store trajectory if storage is enabled
+        if self.trajectory_storage:
+            self.trajectory_storage.store_simulation(
+                sim_id=sim_id,
+                annual_losses=annual_losses[: year + 1] if ruin_occurred else annual_losses,
+                insurance_recoveries=insurance_recoveries[: year + 1]
+                if ruin_occurred
+                else insurance_recoveries,
+                retained_losses=retained_losses[: year + 1] if ruin_occurred else retained_losses,
+                final_assets=manufacturer.assets,
+                initial_assets=self.manufacturer.assets,
+                ruin_occurred=ruin_occurred,
+                ruin_year=ruin_year,
+            )
 
         return {
             "final_assets": manufacturer.assets,
