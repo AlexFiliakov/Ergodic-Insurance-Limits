@@ -72,8 +72,17 @@ class ConfigManager:
             FileNotFoundError: If profile doesn't exist.
             ValueError: If configuration is invalid.
         """
+
         # Check cache first
-        cache_key = f"{profile_name}_{hash(frozenset(overrides.items()))}"
+        def make_hashable(obj):
+            """Convert nested dicts/lists to hashable format."""
+            if isinstance(obj, dict):
+                return frozenset((k, make_hashable(v)) for k, v in obj.items())
+            if isinstance(obj, list):
+                return tuple(make_hashable(item) for item in obj)
+            return obj
+
+        cache_key = f"{profile_name}_{hash(make_hashable(overrides))}"
         if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
 
