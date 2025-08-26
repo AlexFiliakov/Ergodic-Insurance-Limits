@@ -708,7 +708,7 @@ class TestConfigV2:
         new_config = config.with_overrides(
             manufacturer__initial_assets=20000000,
             manufacturer__operating_margin=0.10,
-            simulation__horizon_years=20,
+            simulation__time_horizon_years=20,
         )
 
         assert new_config.manufacturer.initial_assets == 20000000
@@ -753,7 +753,7 @@ class TestConfigV2:
         )
 
         assert "test" in new_config.custom_modules
-        assert new_config.custom_modules["test"]["module_name"] == "test"  # type: ignore[index]
+        assert new_config.custom_modules["test"].module_name == "test"
         assert new_config.applied_presets == ["preset1"]
 
     def test_validate_completeness(self):
