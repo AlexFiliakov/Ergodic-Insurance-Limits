@@ -175,7 +175,7 @@ sequenceDiagram
 
 | Module | Primary Responsibility | Key Classes |
 |--------|----------------------|-------------|
-| `config.py` | Configuration models with validation | Config, ManufacturerConfig, InsuranceConfig |
+| `config.py` | Configuration models with validation | Config, ManufacturerConfig, WorkingCapitalConfig, DebtConfig |
 | `manufacturer.py` | Financial model and balance sheet | WidgetManufacturer, ClaimLiability |
 | `simulation.py` | Time evolution orchestration | Simulation, SimulationResults |
 | `insurance.py` | Basic insurance structures | InsuranceLayer, InsurancePolicy |

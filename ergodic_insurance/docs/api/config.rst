@@ -73,6 +73,15 @@ Output and Logging
    :no-index:
    :show-inheritance:
 
+Market and Pricing
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: PricingScenarioConfig
+   :members:
+   :undoc-members:
+   :no-index:
+   :show-inheritance:
+
 Key Methods
 -----------
 

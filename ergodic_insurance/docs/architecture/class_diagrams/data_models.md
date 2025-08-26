@@ -16,11 +16,12 @@ classDiagram
 
     class Config {
         +ManufacturerConfig manufacturer
-        +InsuranceConfig insurance
+        +WorkingCapitalConfig working_capital
+        +DebtConfig debt
+        +GrowthConfig growth
         +SimulationConfig simulation
-        +StochasticConfig stochastic
-        +Optional~LossConfig~ losses
-        +Optional~MarketConfig~ market
+        +OutputConfig output
+        +LoggingConfig logging
         +validate_config()
         +from_yaml(path) Config
         +to_yaml(path)
@@ -28,37 +29,30 @@ classDiagram
 
     class ManufacturerConfig {
         +float initial_assets
-        +float asset_turnover_mean
-        +float asset_turnover_std
-        +float operating_margin_mean
-        +float operating_margin_std
+        +float asset_turnover
+        +float operating_margin
         +float tax_rate
-        +float working_capital_ratio
-        +float collateral_requirement_ratio
-        +float min_cash_ratio
-        +float max_leverage_ratio
+        +float depreciation_rate
+        +float capex_rate
+        +float dividend_payout_ratio
+        +float min_cash
         +validate_positive_values()
         +validate_ratios()
     }
 
-    class InsuranceConfig {
-        +List~LayerConfig~ layers
-        +float deductible
-        +str program_type
-        +Optional~float~ aggregate_deductible
-        +Optional~str~ aggregate_deductible_type
-        +validate_layers()
-        +total_coverage() float
-        +total_premium() float
+    class WorkingCapitalConfig {
+        +float receivables_days
+        +float inventory_days
+        +float payables_days
+        +float cash_conversion_cycle
     }
 
-    class LayerConfig {
-        +float attachment_point
-        +float limit
-        +float rate
-        +Optional~int~ reinstatements
-        +Optional~float~ reinstatement_premium
-        +validate_layer()
+    class DebtConfig {
+        +float max_debt_to_equity
+        +float target_debt_to_equity
+        +float interest_rate
+        +float min_interest_coverage
+        +float emergency_credit_rate
     }
 
     class SimulationConfig {
@@ -72,28 +66,43 @@ classDiagram
         +validate_simulation_params()
     }
 
-    class StochasticConfig {
-        +str process_type
-        +float volatility
-        +Optional~float~ drift
-        +Optional~float~ mean_reversion_speed
-        +Optional~float~ long_term_mean
-        +float dt
-        +validate_process_params()
+    class GrowthConfig {
+        +float base_growth_rate
+        +float growth_volatility
+        +str growth_type
+    }
+
+    class OutputConfig {
+        +str output_dir
+        +bool save_trajectories
+        +bool save_checkpoints
+        +int plot_frequency
+    }
+
+    class LoggingConfig {
+        +str level
+        +str format
+        +bool console
+        +bool file
+        +str file_path
     }
 
     Config --|> BaseModel: inherits
     ManufacturerConfig --|> BaseModel: inherits
-    InsuranceConfig --|> BaseModel: inherits
-    LayerConfig --|> BaseModel: inherits
+    WorkingCapitalConfig --|> BaseModel: inherits
+    DebtConfig --|> BaseModel: inherits
+    GrowthConfig --|> BaseModel: inherits
     SimulationConfig --|> BaseModel: inherits
-    StochasticConfig --|> BaseModel: inherits
+    OutputConfig --|> BaseModel: inherits
+    LoggingConfig --|> BaseModel: inherits
 
     Config --> ManufacturerConfig: contains
-    Config --> InsuranceConfig: contains
+    Config --> WorkingCapitalConfig: contains
+    Config --> DebtConfig: contains
+    Config --> GrowthConfig: contains
     Config --> SimulationConfig: contains
-    Config --> StochasticConfig: contains
-    InsuranceConfig --> LayerConfig: contains multiple
+    Config --> OutputConfig: contains
+    Config --> LoggingConfig: contains
 ```
 
 ## Result Data Models
