@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.decision_engine import (
     DecisionMetrics,
@@ -738,6 +739,7 @@ class TestEnhancedOptimizationMethods:
         )
         assert len(decision.layers) <= constraints.max_layers
 
+    @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_trust_region_optimization(self, engine):
         """Test trust-region optimization method."""
         constraints = OptimizationConstraints(
@@ -873,6 +875,7 @@ class TestEnhancedOptimizationMethods:
         # Objective value should be set
         assert decision.objective_value != 0.0
 
+    @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_fallback_optimization_on_failure(self, engine):
         """Test that optimization falls back to alternative method on failure."""
         # Create moderately restrictive constraints

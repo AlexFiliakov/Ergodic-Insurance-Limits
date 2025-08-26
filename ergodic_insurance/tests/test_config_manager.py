@@ -290,6 +290,7 @@ class TestConfigManager:
         assert config.manufacturer.operating_margin == 0.07  # From parent
         assert config.simulation.time_horizon_years == 50  # From parent
 
+    @pytest.mark.filterwarnings("ignore:Configuration issues:UserWarning")
     def test_module_inclusion(self, temp_config_dir):
         """Test module inclusion in profiles."""
         # Create profile with module inclusion

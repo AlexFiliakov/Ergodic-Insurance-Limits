@@ -5,9 +5,12 @@ system, including validation, loading, overrides, and scenario management.
 """
 
 from pathlib import Path
+import warnings
 
+from pydantic import ValidationError
 import pytest
 import yaml
+
 from ergodic_insurance.src.config import (
     Config,
     DebtConfig,
@@ -19,7 +22,6 @@ from ergodic_insurance.src.config import (
     WorkingCapitalConfig,
 )
 from ergodic_insurance.src.config_loader import ConfigLoader, load_config
-from pydantic import ValidationError
 
 
 class TestManufacturerConfig:
@@ -298,6 +300,7 @@ class TestCompleteConfig:
         assert new_config.manufacturer.initial_assets == 10_000_000
 
 
+@pytest.mark.filterwarnings("ignore:ConfigLoader is deprecated:DeprecationWarning")
 class TestConfigLoader:
     """Test configuration loader functionality.
 
@@ -457,6 +460,7 @@ class TestConfigValidation:
         assert expected_log.parent.exists()
 
 
+@pytest.mark.filterwarnings("ignore:ConfigLoader is deprecated:DeprecationWarning")
 class TestQuickLoad:
     """Test quick load convenience function.
 

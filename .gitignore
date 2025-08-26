@@ -414,3 +414,4 @@ ergodic_insurance/checkpoints/
 /.venv
 assets/repo_banner.png
 ergodic_insurance/notebooks/cache
+cache/monte_carlo
