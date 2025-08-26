@@ -200,7 +200,9 @@ class TrajectoryStorage:
         """
         # Check disk usage limit
         if not self._check_disk_space():
-            warnings.warn(f"Disk usage limit ({self.config.max_disk_usage_gb}GB) exceeded")
+            warnings.warn(
+                f"Disk usage limit ({self.config.max_disk_usage_gb}GB) exceeded", UserWarning
+            )
             return
 
         # Calculate and store summary statistics

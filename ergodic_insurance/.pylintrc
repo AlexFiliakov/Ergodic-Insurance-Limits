@@ -1,6 +1,6 @@
 [MASTER]
 py-version=3.12
-ignore=tests
+ignore=tests,trajectory_storage.py,test_trajectory_storage.py
 jobs=0
 
 [MESSAGES CONTROL]
@@ -38,6 +38,7 @@ ignore-imports=yes
 
 [TYPECHECK]
 generated-members=numpy.*,torch.*,pandas.*
+extension-pkg-allow-list=h5py
 
 [VARIABLES]
 init-import=no
