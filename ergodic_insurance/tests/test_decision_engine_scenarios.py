@@ -428,8 +428,7 @@ class TestCatastrophicEventScenarios:
         def generate_loss():
             if np.random.random() < 0.01:  # 1% chance of catastrophe
                 return np.random.lognormal(17, 1.0)  # ~$10M-50M loss
-            else:
-                return np.random.lognormal(12, 1.0)  # Normal losses
+            return np.random.lognormal(12, 1.0)  # Normal losses
 
         loss_dist.rvs = Mock(side_effect=generate_loss)
 

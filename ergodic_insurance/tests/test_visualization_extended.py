@@ -9,10 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
-
-# Use non-interactive backend for testing
-matplotlib.use("Agg")
-
 from ergodic_insurance.src.visualization import (
     WSJFormatter,
     _create_interactive_pareto_2d,
@@ -29,6 +25,9 @@ from ergodic_insurance.src.visualization import (
     plot_pareto_frontier_3d,
     plot_return_period_curve,
 )
+
+# Use non-interactive backend for testing
+matplotlib.use("Agg")
 
 
 @dataclass

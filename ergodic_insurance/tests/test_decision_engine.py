@@ -565,7 +565,6 @@ class TestIntegration:
     def test_full_optimization_workflow(self):
         """Test complete optimization workflow."""
         # Create real components
-        from ergodic_insurance.src.config import ManufacturerConfig
 
         manufacturer_config = ManufacturerConfig(
             initial_assets=10_000_000,
@@ -631,7 +630,6 @@ class TestIntegration:
 
     def test_multi_scenario_optimization(self):
         """Test optimization across different pricing scenarios."""
-        from ergodic_insurance.src.config import ManufacturerConfig
 
         manufacturer_config = ManufacturerConfig(
             initial_assets=10_000_000,
