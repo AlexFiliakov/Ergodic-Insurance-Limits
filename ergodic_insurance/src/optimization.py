@@ -90,7 +90,7 @@ class ConvergenceMonitor:
             if obj_change < self.tolerance:
                 self.converged = True
                 self.convergence_message = f"Objective converged (change: {obj_change:.2e})"
-        elif gradient_norm > 0 and gradient_norm < self.tolerance:
+        elif 0 < gradient_norm < self.tolerance:
             self.converged = True
             self.convergence_message = f"Gradient converged (norm: {gradient_norm:.2e})"
 
@@ -247,17 +247,13 @@ class TrustRegionOptimizer:
         for constr in self.constraints:
             # Set Jacobian to finite differences if not provided
             jac = constr.get("jac", "2-point")
-            
+
             if constr["type"] == "ineq":
                 # Inequality constraint: g(x) >= 0
-                scipy_constraints.append(
-                    NonlinearConstraint(constr["fun"], 0, np.inf, jac=jac)
-                )
+                scipy_constraints.append(NonlinearConstraint(constr["fun"], 0, np.inf, jac=jac))
             elif constr["type"] == "eq":
                 # Equality constraint: h(x) = 0
-                scipy_constraints.append(
-                    NonlinearConstraint(constr["fun"], 0, 0, jac=jac)
-                )
+                scipy_constraints.append(NonlinearConstraint(constr["fun"], 0, 0, jac=jac))
 
         return scipy_constraints
 
@@ -311,7 +307,7 @@ class PenaltyMethodOptimizer:
 
             total_penalty += penalty * violation**2
 
-        return obj + total_penalty
+        return float(obj + total_penalty)
 
     def optimize(
         self,
@@ -347,9 +343,8 @@ class PenaltyMethodOptimizer:
 
         for outer_iter in range(max_outer_iter):
             # Solve penalized problem
-            penalized_fn = lambda x: self._penalized_objective(
-                x, self.penalty_params.current_penalties
-            )
+            def penalized_fn(x):
+                return self._penalized_objective(x, self.penalty_params.current_penalties)
 
             result = minimize(
                 penalized_fn,
@@ -493,9 +488,9 @@ class AugmentedLagrangianOptimizer:
                 L += mus[eq_idx] * h + (rho / 2) * h**2
                 eq_idx += 1
 
-        return L
+        return float(L)
 
-    def optimize(
+    def optimize(  # pylint: disable=too-many-locals
         self,
         x0: np.ndarray,
         max_outer_iter: int = 50,
@@ -534,7 +529,8 @@ class AugmentedLagrangianOptimizer:
 
         for outer_iter in range(max_outer_iter):
             # Minimize augmented Lagrangian
-            aug_lag_fn = lambda x: self._augmented_lagrangian(x, lambdas, mus, rho)
+            def aug_lag_fn(x):
+                return self._augmented_lagrangian(x, lambdas, mus, rho)
 
             result = minimize(
                 aug_lag_fn,
@@ -659,37 +655,39 @@ class MultiStartOptimizer:
 
             try:
                 if self.base_optimizer == "trust-region":
-                    optimizer = TrustRegionOptimizer(
+                    tr_optimizer = TrustRegionOptimizer(
                         self.objective_fn,
                         constraints=self.constraints,
                         bounds=self.bounds,
                     )
-                    result = optimizer.optimize(start_point)
+                    result = tr_optimizer.optimize(start_point)
                 elif self.base_optimizer == "penalty":
-                    optimizer = PenaltyMethodOptimizer(
+                    pm_optimizer = PenaltyMethodOptimizer(
                         self.objective_fn,
                         self.constraints,
                         self.bounds,
                     )
-                    result = optimizer.optimize(start_point)
+                    result = pm_optimizer.optimize(start_point)
                 elif self.base_optimizer == "augmented-lagrangian":
-                    optimizer = AugmentedLagrangianOptimizer(
+                    al_optimizer = AugmentedLagrangianOptimizer(
                         self.objective_fn,
                         self.constraints,
                         self.bounds,
                     )
-                    result = optimizer.optimize(start_point)
+                    result = al_optimizer.optimize(start_point)
                 elif self.base_optimizer == "enhanced-slsqp":
-                    optimizer = EnhancedSLSQPOptimizer(
+                    es_optimizer = EnhancedSLSQPOptimizer(
                         self.objective_fn,
                         gradient_fn=None,  # Let it compute numerically
                         constraints=self.constraints,
                         bounds=self.bounds,
                     )
-                    result = optimizer.optimize(start_point)
+                    result = es_optimizer.optimize(start_point)
                 else:
                     # Default to scipy minimize - map enhanced-slsqp to SLSQP
-                    method = "SLSQP" if self.base_optimizer == "enhanced-slsqp" else self.base_optimizer
+                    method = (
+                        "SLSQP" if self.base_optimizer == "enhanced-slsqp" else self.base_optimizer
+                    )
                     result = minimize(
                         self.objective_fn,
                         start_point,
@@ -701,7 +699,7 @@ class MultiStartOptimizer:
 
                 results.append(result)
 
-            except Exception as e:
+            except (ValueError, RuntimeError, TypeError) as e:
                 logger.warning(f"Optimization failed from start point {i + 1}: {e}")
                 continue
 
@@ -775,6 +773,10 @@ class EnhancedSLSQPOptimizer:
         self.constraints = constraints or []
         self.bounds = bounds
         self.convergence_monitor = ConvergenceMonitor()
+        # Initialize attributes that may be set during optimization
+        self.step_size: float = 1.0
+        self.prev_x: Optional[np.ndarray] = None
+        self.prev_obj: Optional[float] = None
 
     def optimize(
         self,
@@ -851,15 +853,14 @@ def create_optimizer(
 
     if method == "trust-region":
         return TrustRegionOptimizer(objective_fn, constraints=constraints, bounds=bounds, **kwargs)
-    elif method == "penalty":
+    if method == "penalty":
         return PenaltyMethodOptimizer(objective_fn, constraints or [], bounds, **kwargs)
-    elif method == "augmented-lagrangian":
+    if method == "augmented-lagrangian":
         return AugmentedLagrangianOptimizer(objective_fn, constraints or [], bounds, **kwargs)
-    elif method == "multi-start":
+    if method == "multi-start":
         return MultiStartOptimizer(objective_fn, bounds or Bounds([], []), constraints, **kwargs)
-    elif method == "enhanced-slsqp":
+    if method == "enhanced-slsqp":
         return EnhancedSLSQPOptimizer(
             objective_fn, constraints=constraints, bounds=bounds, **kwargs
         )
-    else:
-        raise ValueError(f"Unknown optimization method: {method}")
+    raise ValueError(f"Unknown optimization method: {method}")

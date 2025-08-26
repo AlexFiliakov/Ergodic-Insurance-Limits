@@ -22,6 +22,7 @@ No advanced mathematics or programming knowledge is required. We'll walk you thr
    decision_framework
    case_studies
    advanced_topics
+   hjb_solver_guide
    faq
    glossary
 
