@@ -106,6 +106,9 @@ class ConvergenceDiagnostics:
     def calculate_ess(self, chain: np.ndarray, max_lag: Optional[int] = None) -> float:
         """Calculate effective sample size using autocorrelation.
 
+        Uses the formula: ESS = N / (1 + 2 * sum(autocorrelations))
+        where the sum is truncated at the first negative autocorrelation.
+
         Args:
             chain: 1D array of samples
             max_lag: Maximum lag for autocorrelation calculation
@@ -124,20 +127,88 @@ class ConvergenceDiagnostics:
         # Calculate autocorrelations
         autocorr = self._calculate_autocorrelation(chain, max_lag)
 
-        # Find first negative autocorrelation
+        # Find first negative autocorrelation (Geyer's initial monotone sequence)
         first_negative = np.where(autocorr < 0)[0]
         if len(first_negative) > 0:
             cutoff = first_negative[0]
         else:
             cutoff = len(autocorr)
 
-        # Calculate sum of autocorrelations
-        sum_autocorr = 1 + 2 * np.sum(autocorr[1:cutoff])
+        # Apply Geyer's initial positive sequence estimator
+        # Sum pairs of autocorrelations and stop when sum becomes negative
+        sum_autocorr = 1.0  # Start with lag 0 (always 1)
+        for i in range(1, cutoff, 2):
+            if i + 1 < cutoff:
+                pair_sum = autocorr[i] + autocorr[i + 1]
+                if pair_sum > 0:
+                    sum_autocorr += 2 * pair_sum
+                else:
+                    break
+            else:
+                # Handle odd final term
+                if autocorr[i] > 0:
+                    sum_autocorr += 2 * autocorr[i]
 
         # Calculate ESS
         ess = n / max(sum_autocorr, 1)
 
         return float(min(ess, n))  # ESS cannot exceed actual sample size
+
+    def calculate_batch_ess(
+        self, chains: np.ndarray, method: str = "mean"
+    ) -> Union[float, np.ndarray]:
+        """Calculate ESS for multiple chains or metrics.
+
+        Args:
+            chains: Array of shape (n_chains, n_iterations) or (n_chains, n_iterations, n_metrics)
+            method: How to combine ESS across chains ('mean', 'min', 'all')
+
+        Returns:
+            Combined ESS value(s)
+        """
+        if chains.ndim == 2:
+            # Multiple chains, single metric
+            ess_values = [self.calculate_ess(chain) for chain in chains]
+        elif chains.ndim == 3:
+            # Multiple chains, multiple metrics
+            n_chains, n_iterations, n_metrics = chains.shape
+            ess_values = []
+            for m in range(n_metrics):
+                metric_ess = [self.calculate_ess(chains[c, :, m]) for c in range(n_chains)]
+                ess_values.append(metric_ess)  # type: ignore
+        else:
+            raise ValueError("Chains must be 2D or 3D array")
+
+        # Process based on method
+        if method == "mean":
+            if chains.ndim == 2:
+                return float(np.mean(ess_values))
+            else:
+                return np.array([np.mean(metric_ess) for metric_ess in ess_values])
+        elif method == "min":
+            if chains.ndim == 2:
+                return float(np.min(ess_values))
+            else:
+                return np.array([np.min(metric_ess) for metric_ess in ess_values])
+        elif method == "all":
+            return np.array(ess_values)
+        else:
+            raise ValueError(f"Unknown method: {method}")
+
+    def calculate_ess_per_second(self, chain: np.ndarray, computation_time: float) -> float:
+        """Calculate ESS per second of computation.
+
+        Useful for comparing efficiency of different sampling methods.
+
+        Args:
+            chain: 1D array of samples
+            computation_time: Time in seconds taken to generate the chain
+
+        Returns:
+            ESS per second
+        """
+        ess = self.calculate_ess(chain)
+        return ess / computation_time if computation_time > 0 else 0.0
 
     def calculate_mcse(self, chain: np.ndarray, ess: Optional[float] = None) -> float:
         """Calculate Monte Carlo standard error.

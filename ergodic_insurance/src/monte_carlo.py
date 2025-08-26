@@ -28,6 +28,7 @@ from .parallel_executor import (
     PerformanceMetrics,
     SharedMemoryConfig,
 )
+from .progress_monitor import ProgressMonitor, ProgressStats
 from .risk_metrics import RiskMetrics
 from .ruin_probability import RuinProbabilityAnalyzer, RuinProbabilityConfig, RuinProbabilityResults
 from .trajectory_storage import StorageConfig, TrajectoryStorage
@@ -792,6 +793,170 @@ class MonteCarloEngine:
             np.savez_compressed(checkpoint_file, iteration=iteration, *arrays)
         except (IOError, OSError, ValueError) as e:
             warnings.warn(f"Failed to save checkpoint: {e}")
+
+    def run_with_progress_monitoring(
+        self,
+        check_intervals: Optional[List[int]] = None,
+        convergence_threshold: float = 1.1,
+        early_stopping: bool = True,
+        show_progress: bool = True,
+    ) -> SimulationResults:
+        """Run simulation with advanced progress tracking and convergence monitoring.
+
+        This method provides:
+        - Real-time progress tracking with ETA
+        - Convergence checks at specified intervals
+        - Early stopping when convergence is achieved
+        - Performance overhead tracking
+
+        Args:
+            check_intervals: Iterations at which to check convergence (default: [10k, 25k, 50k, 100k])
+            convergence_threshold: R-hat threshold for convergence (default: 1.1)
+            early_stopping: Stop early if convergence achieved (default: True)
+            show_progress: Show console progress output (default: True)
+
+        Returns:
+            SimulationResults with convergence information
+        """
+        if check_intervals is None:
+            check_intervals = [10_000, 25_000, 50_000, 100_000]
+
+        # Filter intervals to those <= n_simulations
+        check_intervals = [i for i in check_intervals if i <= self.config.n_simulations]
+
+        # Initialize progress monitor
+        monitor = ProgressMonitor(
+            total_iterations=self.config.n_simulations,
+            check_intervals=check_intervals,
+            update_frequency=max(self.config.n_simulations // 100, 100),
+            show_console=show_progress,
+            convergence_threshold=convergence_threshold,
+        )
+
+        start_time = time.time()
+
+        # Pre-allocate arrays for results
+        n_sims = self.config.n_simulations
+        n_years = self.config.n_years
+        dtype = np.float32 if self.config.use_float32 else np.float64
+
+        final_assets = np.zeros(n_sims, dtype=dtype)
+        annual_losses = np.zeros((n_sims, n_years), dtype=dtype)
+        insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
+        retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
+
+        # Track which simulations have been completed
+        completed_iterations = 0
+
+        # Run simulations in batches
+        batch_size = min(1000, self.config.n_simulations // 10)
+
+        for batch_start in range(0, n_sims, batch_size):
+            batch_end = min(batch_start + batch_size, n_sims)
+
+            # Run batch of simulations
+            for i in range(batch_start, batch_end):
+                sim_results = self._run_single_simulation(i)
+                final_assets[i] = sim_results["final_assets"]
+                annual_losses[i] = sim_results["annual_losses"]
+                insurance_recoveries[i] = sim_results["insurance_recoveries"]
+                retained_losses[i] = sim_results["retained_losses"]
+                completed_iterations = i + 1
+
+                # Check if we should perform convergence check
+                if completed_iterations in check_intervals and completed_iterations >= 1000:
+                    # Calculate convergence for completed simulations
+                    partial_growth = self._calculate_growth_rates(
+                        final_assets[:completed_iterations]
+                    )
+
+                    # Split into chains for convergence check
+                    n_chains = min(4, completed_iterations // 250)
+                    if n_chains >= 2:
+                        chain_size = completed_iterations // n_chains
+                        chains = np.array(
+                            [
+                                partial_growth[j * chain_size : (j + 1) * chain_size]
+                                for j in range(n_chains)
+                            ]
+                        )
+
+                        # Calculate R-hat
+                        r_hat = self.convergence_diagnostics.calculate_r_hat(chains)
+                    else:
+                        r_hat = float("inf")
+
+                    # Update monitor
+                    should_continue = monitor.update(completed_iterations, r_hat)
+
+                    # Early stopping if converged
+                    if early_stopping and not should_continue:
+                        if show_progress:
+                            print(
+                                f"\n✓ Early stopping: Convergence achieved at {completed_iterations:,} iterations"
+                            )
+                        break
+                else:
+                    # Regular progress update
+                    monitor.update(completed_iterations)
+
+            # Check if we should stop early
+            if early_stopping and monitor.converged:
+                break
+
+        # Finalize progress monitoring
+        monitor.finalize()
+
+        # Trim arrays if we stopped early
+        if completed_iterations < n_sims:
+            final_assets = final_assets[:completed_iterations]
+            annual_losses = annual_losses[:completed_iterations]
+            insurance_recoveries = insurance_recoveries[:completed_iterations]
+            retained_losses = retained_losses[:completed_iterations]
+
+        # Calculate derived metrics
+        growth_rates = self._calculate_growth_rates(final_assets)
+        ruin_probability = float(np.mean(final_assets <= 0))
+
+        # Create results
+        results = SimulationResults(
+            final_assets=final_assets,
+            annual_losses=annual_losses,
+            insurance_recoveries=insurance_recoveries,
+            retained_losses=retained_losses,
+            growth_rates=growth_rates,
+            ruin_probability=ruin_probability,
+            metrics={},
+            convergence={},
+            execution_time=time.time() - start_time,
+            config=self.config,
+        )
+
+        # Calculate metrics
+        results.metrics = self._calculate_metrics(results)
+
+        # Check final convergence
+        results.convergence = self._check_convergence(results)
+
+        # Add progress summary to metrics
+        progress_stats = monitor.get_stats()
+        convergence_summary = monitor.generate_convergence_summary()
+
+        results.metrics["actual_iterations"] = completed_iterations
+        results.metrics["convergence_achieved"] = monitor.converged
+        results.metrics["convergence_iteration"] = (
+            monitor.converged_at if monitor.converged_at else 0
+        )
+        results.metrics["monitoring_overhead_pct"] = convergence_summary.get(
+            "performance_overhead_pct", 0
+        )
+
+        # Store ESS information
+        if results.convergence:
+            for metric_name, stats in results.convergence.items():
+                results.metrics[f"ess_{metric_name}"] = stats.ess
+
+        return results
 
     def run_with_convergence_monitoring(
         self,
