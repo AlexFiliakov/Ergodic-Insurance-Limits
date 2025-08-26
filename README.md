@@ -133,33 +133,22 @@ pre-commit install
 
 ## Project Structure
 
+See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete directory tree.
+
+### Key Directories
+
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code
-│   │   ├── __init__.py         # Package initialization
-│   │   ├── manufacturer.py     # Widget manufacturer model
-│   │   ├── claim_generator.py  # Insurance claim generation
-│   │   ├── claim_development.py # Claim development patterns
-│   │   ├── config.py           # Pydantic configuration
-│   │   ├── config_loader.py    # YAML parameter loading
-│   │   ├── stochastic_processes.py # Stochastic modeling
-│   │   ├── simulation.py       # Main simulation engine
-│   │   ├── insurance.py        # Insurance optimization
-│   │   ├── insurance_program.py # Multi-layer programs
-│   │   ├── loss_distributions.py # Loss distributions
-│   │   ├── monte_carlo.py      # Monte Carlo engine
-│   │   ├── ergodic_analyzer.py # Ergodic analysis
-│   │   ├── risk_metrics.py     # Risk metrics
-│   │   ├── convergence.py      # Convergence analysis
-│   │   ├── decision_engine.py  # Decision optimization
-│   │   ├── business_optimizer.py # Business outcome optimization
-│   │   ├── optimization.py     # Advanced optimization algorithms
-│   │   ├── pareto_frontier.py  # Multi-objective optimization
-│   │   └── visualization.py    # Plotting utilities
-│   ├── tests/                  # Test suite (100% coverage)
-│   ├── notebooks/              # Jupyter notebooks
-│   ├── examples/               # Example scripts
+│   ├── src/                    # Core source code (26 modules)
+│   │   ├── config_*.py        # Configuration system v2.0
+│   │   ├── manufacturer.py     # Core financial model
+│   │   ├── insurance_*.py     # Insurance modules
+│   │   ├── *_optimizer.py     # Optimization algorithms
+│   │   └── visualization.py   # Plotting utilities
+│   ├── tests/                  # Test suite (100% coverage, 30+ test files)
+│   ├── notebooks/              # Jupyter notebooks (14 analysis notebooks)
+│   ├── examples/               # Example scripts and demos
 │   ├── data/                   # Configuration files
 │   │   ├── parameters/         # Legacy YAML parameters (deprecated)
 │   │   └── config/             # New 3-tier configuration

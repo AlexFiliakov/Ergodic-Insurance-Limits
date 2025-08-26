@@ -10,87 +10,67 @@ This project implements a revolutionary framework for optimizing insurance limit
 4. Validate that optimal insurance premiums can exceed expected losses by 200-500% while enhancing growth
 
 ## Directory Structure
+
+For the complete, detailed directory structure, see [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md).
+
+### Key Components
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code
-│   │   ├── __init__.py         # Package initialization with comprehensive docs
-│   │   ├── manufacturer.py     # Widget manufacturer financial model
-│   │   ├── claim_generator.py  # Insurance claim generation with Poisson/lognormal
-│   │   ├── claim_development.py # Claim development patterns for cash flow modeling
-│   │   ├── config.py           # Pydantic-based configuration management
-│   │   ├── config_loader.py    # YAML parameter loading utilities
-│   │   ├── stochastic_processes.py # Stochastic modeling (GBM, lognormal, mean-reversion)
-│   │   ├── simulation.py       # Main simulation engine
-│   │   ├── insurance.py        # Basic insurance optimization algorithms
-│   │   ├── insurance_program.py # Enhanced multi-layer insurance programs
-│   │   ├── loss_distributions.py # Enhanced loss distributions for manufacturing risks
-│   │   ├── monte_carlo.py      # Monte Carlo simulation engine
-│   │   ├── ergodic_analyzer.py # Ergodic analysis and optimization tools
-│   │   ├── risk_metrics.py     # Risk metrics and analytics
-│   │   ├── convergence.py      # Convergence analysis tools
-│   │   ├── decision_engine.py  # Insurance decision making engine
-│   │   ├── business_optimizer.py # Business outcome optimization algorithms
-│   │   ├── optimization.py     # Advanced optimization methods (trust-region, penalty)
-│   │   ├── pareto_frontier.py  # Multi-objective optimization and Pareto analysis
-│   │   └── visualization.py    # Visualization utilities
-│   ├── tests/                  # Comprehensive test suite (100% coverage)
-│   │   ├── __init__.py
-│   │   ├── conftest.py         # Pytest configuration and fixtures
-│   │   ├── test_manufacturer.py
-│   │   ├── test_claim_generator.py
-│   │   ├── test_claim_development.py
-│   │   ├── test_config.py
-│   │   ├── test_stochastic.py
-│   │   ├── test_insurance.py
-│   │   ├── test_insurance_program.py
-│   │   ├── test_loss_distributions.py
-│   │   ├── test_simulation.py
-│   │   ├── test_monte_carlo.py
-│   │   ├── test_monte_carlo_extended.py
-│   │   ├── test_ergodic_analyzer.py
-│   │   ├── test_risk_metrics.py
-│   │   ├── test_integration.py
-│   │   ├── test_performance.py
-│   │   ├── test_manufacturer_methods.py
-│   │   ├── test_convergence_extended.py
-│   │   ├── test_decision_engine.py
-│   │   ├── test_business_optimizer.py
-│   │   ├── test_optimization.py
-│   │   ├── test_pricing_scenarios.py
-│   │   ├── test_visualization_simple.py
-│   │   └── test_setup.py
-│   ├── notebooks/              # Jupyter analysis notebooks
-│   │   ├── 00_setup_verification.ipynb
-│   │   ├── 01_basic_manufacturer.ipynb
-│   │   ├── 02_long_term_simulation.ipynb
-│   │   ├── 03_growth_dynamics.ipynb
-│   │   ├── 04_ergodic_demo.ipynb
-│   │   ├── 05_risk_metrics.ipynb
-│   │   ├── 06_loss_distributions.ipynb
-│   │   ├── 07_insurance_layers.ipynb
-│   │   ├── 08_monte_carlo_analysis.ipynb
-│   │   ├── 09_optimization_results.ipynb
-│   │   └── 10_sensitivity_analysis.ipynb
-│   ├── examples/               # Example scripts and demos
-│   │   ├── demo_manufacturer.py
-│   │   ├── demo_collateral_management.py
-│   │   ├── demo_claim_development.py
-│   │   └── demo_stochastic.py  # Stochastic vs deterministic comparison
-│   ├── data/                   # Configuration parameters
-│   │   └── parameters/
-│   │       ├── baseline.yaml    # Standard configuration
-│   │       ├── conservative.yaml
-│   │       ├── optimistic.yaml
-│   │       ├── stochastic.yaml  # Stochastic process parameters
-│   │       ├── insurance.yaml   # Insurance optimization settings
-│   │       ├── insurance_market.yaml # Market parameters
-│   │       ├── insurance_pricing_scenarios.yaml # Pricing scenarios configuration
-│   │       ├── insurance_structures.yaml # Insurance program structures
-│   │       ├── loss_distributions.yaml # Loss distribution parameters
-│   │       ├── losses.yaml      # Legacy loss parameters
-│   │       ├── development_patterns.yaml # Claim development patterns
-│   │       └── business_optimization.yaml # Business optimization parameters
+│   ├── src/                    # Core source code (26 modules)
+│   │   ├── # Configuration System v2.0
+│   │   ├── config_manager.py   # NEW: 3-tier configuration manager
+│   │   ├── config_v2.py        # NEW: Enhanced Pydantic v2 models
+│   │   ├── config_migrator.py  # NEW: Migration tool
+│   │   ├── config_compat.py    # NEW: Backward compatibility
+│   │   ├── config.py           # Legacy configuration (deprecated)
+│   │   ├── config_loader.py    # Legacy loader (deprecated)
+│   │   │
+│   │   ├── # Core Financial Models
+│   │   ├── manufacturer.py     # Widget manufacturer model
+│   │   ├── claim_generator.py  # Claim generation
+│   │   ├── claim_development.py # Payment patterns
+│   │   ├── stochastic_processes.py # GBM, mean-reversion
+│   │   │
+│   │   ├── # Insurance & Risk
+│   │   ├── insurance.py        # Basic optimization
+│   │   ├── insurance_program.py # Multi-layer programs
+│   │   ├── loss_distributions.py # Loss modeling
+│   │   ├── risk_metrics.py     # VaR, CVaR, etc.
+│   │   │
+│   │   ├── # Simulation & Analysis
+│   │   ├── simulation.py       # Main engine
+│   │   ├── monte_carlo.py      # MC framework
+│   │   ├── ergodic_analyzer.py # Ergodic theory
+│   │   ├── convergence.py      # Convergence tools
+│   │   │
+│   │   ├── # Optimization
+│   │   ├── optimization.py     # Algorithms
+│   │   ├── business_optimizer.py # Business optimization
+│   │   ├── decision_engine.py  # Decision framework
+│   │   ├── pareto_frontier.py  # Multi-objective
+│   │   ├── hjb_solver.py       # NEW: HJB equations
+│   │   ├── optimal_control.py  # NEW: Control theory
+│   │   │
+│   │   └── visualization.py    # Plotting utilities
+│   ├── tests/                  # Test suite (100% coverage, 30+ test files)
+│   │   ├── Unit tests for all 26 source modules
+│   │   ├── Integration tests (test_integration.py)
+│   │   ├── Performance tests (test_performance.py)
+│   │   └── NEW: Config v2 tests (test_config_*.py)
+│   ├── notebooks/              # Jupyter notebooks (14 analysis notebooks)
+│   │   ├── 00_config_migration_example.ipynb # NEW
+│   │   ├── 01-12: Analysis notebooks covering all aspects
+│   │   └── Executable examples with visualizations
+│   ├── examples/               # Example scripts
+│   │   ├── demo_config_v2.py  # NEW: Configuration v2 demo
+│   │   └── Various domain-specific demos
+│   ├── data/
+│   │   ├── parameters/        # Legacy YAML (12 files, deprecated)
+│   │   └── config/            # NEW: 3-tier configuration
+│   │       ├── profiles/      # Complete configs (default, conservative, aggressive)
+│   │       ├── modules/       # Reusable components (4 files)
+│   │       └── presets/       # Quick templates (3 files)
 │   ├── docs/                   # Sphinx documentation system
 │   │   ├── conf.py            # Sphinx configuration
 │   │   ├── index.rst          # Documentation main page

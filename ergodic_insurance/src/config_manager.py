@@ -1,7 +1,41 @@
 """Configuration manager for the new 3-tier configuration system.
 
 This module provides the main interface for loading and managing configurations
-using profiles, modules, and presets.
+using profiles, modules, and presets. It implements a modern configuration
+architecture that supports inheritance, composition, and runtime overrides.
+
+The configuration system is organized into three tiers:
+    1. Profiles: Complete configuration sets (default, conservative, aggressive)
+    2. Modules: Reusable components (insurance, losses, stochastic, business)
+    3. Presets: Quick-apply templates (market conditions, layer structures)
+
+Example:
+    Basic usage of ConfigManager::
+
+        from ergodic_insurance.src.config_manager import ConfigManager
+
+        # Initialize manager
+        manager = ConfigManager()
+
+        # Load a profile
+        config = manager.load_profile("default")
+
+        # Load with overrides
+        config = manager.load_profile(
+            "conservative",
+            manufacturer={"operating_margin": 0.12},
+            growth={"annual_growth_rate": 0.08}
+        )
+
+        # Apply presets
+        config = manager.load_profile(
+            "default",
+            presets=["hard_market", "high_volatility"]
+        )
+
+Note:
+    This module replaces the legacy ConfigLoader and provides full backward
+    compatibility through the config_compat module.
 """
 
 from functools import lru_cache
@@ -16,13 +50,52 @@ from ergodic_insurance.src.config_v2 import ConfigV2, PresetLibrary
 
 
 class ConfigManager:
-    """Manages configuration loading with profiles, modules, and presets."""
+    """Manages configuration loading with profiles, modules, and presets.
+
+    This class provides a comprehensive configuration management system that
+    supports profile inheritance, module composition, preset application, and
+    runtime parameter overrides. It includes caching for performance and
+    validation for correctness.
+
+    Attributes:
+        config_dir: Root configuration directory path
+        profiles_dir: Directory containing profile configurations
+        modules_dir: Directory containing module configurations
+        presets_dir: Directory containing preset libraries
+        _cache: Internal cache for loaded configurations
+        _preset_libraries: Cached preset library definitions
+
+    Example:
+        Loading configurations with various options::
+
+            manager = ConfigManager()
+
+            # Simple profile load
+            config = manager.load_profile("default")
+
+            # With module selection
+            config = manager.load_profile(
+                "default",
+                modules=["insurance", "stochastic"]
+            )
+
+            # With inheritance chain
+            config = manager.load_profile("custom/client_abc")
+    """
 
     def __init__(self, config_dir: Optional[Path] = None):
         """Initialize the configuration manager.
 
         Args:
-            config_dir: Root configuration directory. Defaults to data/config.
+            config_dir: Root configuration directory. If None, defaults to
+                ergodic_insurance/data/config relative to this module.
+
+        Raises:
+            FileNotFoundError: If the configuration directory doesn't exist.
+
+        Note:
+            The manager expects a specific directory structure with profiles/,
+            modules/, and presets/ subdirectories.
         """
         if config_dir is None:
             # Try to find config directory relative to this file
@@ -60,17 +133,48 @@ class ConfigManager:
     ) -> ConfigV2:
         """Load a configuration profile with optional overrides.
 
+        This method loads a configuration profile, applies any inheritance chain,
+        includes specified modules, applies presets, and finally applies runtime
+        overrides. The result is cached for performance.
+
         Args:
-            profile_name: Name of the profile to load.
-            use_cache: Whether to use cached configurations.
-            **overrides: Runtime overrides in format section__field=value.
+            profile_name: Name of the profile to load. Can be a simple name
+                (e.g., "default") or a path to custom profiles (e.g.,
+                "custom/client_abc").
+            use_cache: Whether to use cached configurations. Set to False when
+                configuration files might have changed during runtime.
+            **overrides: Runtime overrides organized by section. Supports:
+                - modules: List of module names to include
+                - presets: List of preset names to apply
+                - Any configuration section with nested parameters
 
         Returns:
-            Loaded and validated ConfigV2 instance.
+            ConfigV2: Fully loaded, validated, and merged configuration instance.
 
         Raises:
-            FileNotFoundError: If profile doesn't exist.
-            ValueError: If configuration is invalid.
+            FileNotFoundError: If the specified profile doesn't exist.
+            ValueError: If configuration validation fails.
+            yaml.YAMLError: If YAML parsing fails.
+
+        Example:
+            Various ways to load profiles::
+
+                # Basic load
+                config = manager.load_profile("default")
+
+                # With overrides
+                config = manager.load_profile(
+                    "conservative",
+                    manufacturer={"operating_margin": 0.12},
+                    simulation={"time_horizon_years": 50}
+                )
+
+                # With presets and modules
+                config = manager.load_profile(
+                    "default",
+                    modules=["insurance", "stochastic"],
+                    presets=["hard_market"]
+                )
         """
 
         # Check cache first

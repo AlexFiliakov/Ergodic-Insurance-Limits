@@ -3,10 +3,49 @@
 This module implements the core financial model for a widget manufacturing
 company, including balance sheet management, insurance claim processing,
 and stochastic modeling capabilities.
+
+The manufacturer model simulates:
+    - Revenue generation based on assets and turnover ratios
+    - Operating income with configurable margins
+    - Insurance claim processing with deductibles and limits
+    - Letter of credit collateral management
+    - Multi-year claim payment schedules
+    - Balance sheet evolution over time
+    - Integration with stochastic processes for uncertainty
+
+Example:
+    Basic manufacturer setup and simulation::
+
+        from ergodic_insurance.src.config import ManufacturerConfig
+        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+
+        # Configure manufacturer
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            operating_margin=0.08,
+            tax_rate=0.25
+        )
+
+        # Create manufacturer
+        manufacturer = WidgetManufacturer(config)
+
+        # Process a claim
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount=5_000_000,
+            deductible=1_000_000,
+            insurance_limit=10_000_000
+        )
+
+        # Run annual step
+        metrics = manufacturer.step(working_capital_pct=0.2)
+
+Note:
+    This module is the core of the financial simulation and integrates with
+    claim generators, stochastic processes, and insurance programs.
 """
 
-import logging
 from dataclasses import dataclass, field
+import logging
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from .config import ManufacturerConfig
@@ -78,6 +117,46 @@ class WidgetManufacturer:
     This class models the complete financial operations of a manufacturing
     company including revenue generation, claim processing, collateral
     management, and balance sheet evolution over time.
+
+    The manufacturer maintains a balance sheet with assets, equity, and tracks
+    insurance-related collateral. It can process insurance claims with multi-year
+    payment schedules and manages working capital requirements.
+
+    Attributes:
+        config: Manufacturing configuration parameters
+        stochastic_process: Optional stochastic process for revenue volatility
+        assets: Current total assets
+        collateral: Letter of credit collateral for insurance claims
+        restricted_assets: Assets restricted as collateral
+        equity: Current equity (assets minus liabilities)
+        year: Current simulation year
+        outstanding_liabilities: List of active claim liabilities
+        metrics_history: Historical metrics for each simulation period
+        bankruptcy: Whether the company has gone bankrupt
+        bankruptcy_year: Year when bankruptcy occurred (if applicable)
+
+    Example:
+        Running a multi-year simulation::
+
+            manufacturer = WidgetManufacturer(config)
+
+            for year in range(10):
+                # Generate claims for this year
+                claims = claim_generator.generate_claims()
+
+                # Process claims through insurance
+                for claim in claims:
+                    manufacturer.process_insurance_claim(
+                        claim.amount, deductible, limit
+                    )
+
+                # Run annual business operations
+                metrics = manufacturer.step(
+                    working_capital_pct=0.2,
+                    letter_of_credit_rate=0.015
+                )
+
+                print(f"Year {year}: ROE={metrics['roe']:.1%}")
     """
 
     def __init__(
