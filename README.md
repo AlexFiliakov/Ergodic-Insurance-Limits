@@ -109,13 +109,20 @@ Ergodic Insurance Limits/
 │   │   ├── risk_metrics.py     # Risk metrics
 │   │   ├── convergence.py      # Convergence analysis
 │   │   ├── decision_engine.py  # Decision optimization
+│   │   ├── business_optimizer.py # Business outcome optimization
+│   │   ├── optimization.py     # Advanced optimization algorithms
+│   │   ├── pareto_frontier.py  # Multi-objective optimization
 │   │   └── visualization.py    # Plotting utilities
 │   ├── tests/                  # Test suite (100% coverage)
 │   ├── notebooks/              # Jupyter notebooks
 │   ├── examples/               # Example scripts
 │   ├── data/                   # Configuration files
 │   │   └── parameters/         # YAML parameters
-│   └── docs/                   # Sphinx documentation
+│   ├── docs/                   # Sphinx documentation
+│   │   ├── api/               # API reference
+│   │   ├── architecture/      # Architecture diagrams
+│   │   └── user_guide/        # Business user guide
+│   └── checkpoints/           # Simulation checkpoints
 ├── simone/                     # TypeScript simulation
 ├── results/                    # Reports and outputs
 ├── assets/                     # Images and media

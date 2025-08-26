@@ -878,3 +878,458 @@ def plot_convergence_diagnostics(
     plt.tight_layout()
 
     return fig
+
+
+def plot_pareto_frontier_2d(
+    frontier_points: List[Any],
+    x_objective: str,
+    y_objective: str,
+    x_label: Optional[str] = None,
+    y_label: Optional[str] = None,
+    title: str = "Pareto Frontier",
+    highlight_knees: bool = True,
+    show_trade_offs: bool = False,
+    figsize: Tuple[float, float] = (10, 6),
+) -> Figure:
+    """Plot 2D Pareto frontier with WSJ styling.
+
+    Args:
+        frontier_points: List of ParetoPoint objects
+        x_objective: Name of objective for x-axis
+        y_objective: Name of objective for y-axis
+        x_label: Optional custom label for x-axis
+        y_label: Optional custom label for y-axis
+        title: Plot title
+        highlight_knees: Whether to highlight knee points
+        show_trade_offs: Whether to show trade-off annotations
+        figsize: Figure size
+
+    Returns:
+        Matplotlib figure
+    """
+    set_wsj_style()
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Extract data
+    x_values = [p.objectives[x_objective] for p in frontier_points]
+    y_values = [p.objectives[y_objective] for p in frontier_points]
+
+    # Sort points for line connection
+    sorted_indices = np.argsort(x_values)
+    x_sorted = [x_values[i] for i in sorted_indices]
+    y_sorted = [y_values[i] for i in sorted_indices]
+
+    # Plot frontier line
+    ax.plot(
+        x_sorted,
+        y_sorted,
+        color=WSJ_COLORS["blue"],
+        linewidth=2,
+        alpha=0.7,
+        label="Pareto Frontier",
+    )
+
+    # Plot frontier points
+    ax.scatter(
+        x_values,
+        y_values,
+        color=WSJ_COLORS["blue"],
+        s=50,
+        zorder=5,
+        alpha=0.8,
+    )
+
+    # Highlight knee points if requested
+    if highlight_knees:
+        # Find knee points (those with highest crowding distance)
+        knee_points = sorted(frontier_points, key=lambda p: p.crowding_distance, reverse=True)[:3]
+        knee_x = [p.objectives[x_objective] for p in knee_points]
+        knee_y = [p.objectives[y_objective] for p in knee_points]
+
+        ax.scatter(
+            knee_x,
+            knee_y,
+            color=WSJ_COLORS["red"],
+            s=100,
+            marker="D",
+            zorder=6,
+            label="Knee Points",
+            edgecolors="black",
+            linewidths=1,
+        )
+
+    # Show trade-offs if requested
+    if show_trade_offs and len(frontier_points) > 1:
+        for i in range(len(x_sorted) - 1):
+            mid_x = (x_sorted[i] + x_sorted[i + 1]) / 2
+            mid_y = (y_sorted[i] + y_sorted[i + 1]) / 2
+
+            # Calculate trade-off ratio
+            dx = x_sorted[i + 1] - x_sorted[i]
+            dy = y_sorted[i + 1] - y_sorted[i]
+
+            if abs(dx) > 1e-10:
+                trade_off = dy / dx
+                ax.annotate(
+                    f"Trade-off: {trade_off:.2f}",
+                    xy=(mid_x, mid_y),
+                    xytext=(5, 5),
+                    textcoords="offset points",
+                    fontsize=8,
+                    alpha=0.7,
+                )
+
+    # Shade dominated region
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+
+    # Create polygon for dominated region (assumes minimization for both)
+    dominated_x = [x_max] + x_sorted + [x_sorted[-1]]
+    dominated_y = [y_sorted[0]] + y_sorted + [y_max]
+
+    ax.fill(
+        dominated_x,
+        dominated_y,
+        color=WSJ_COLORS["light_gray"],
+        alpha=0.3,
+        label="Dominated Region",
+    )
+
+    # Labels and styling
+    ax.set_xlabel(x_label or x_objective, fontsize=12)
+    ax.set_ylabel(y_label or y_objective, fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.legend(loc="best")
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_pareto_frontier_3d(
+    frontier_points: List[Any],
+    x_objective: str,
+    y_objective: str,
+    z_objective: str,
+    x_label: Optional[str] = None,
+    y_label: Optional[str] = None,
+    z_label: Optional[str] = None,
+    title: str = "3D Pareto Frontier",
+    figsize: Tuple[float, float] = (12, 8),
+) -> Figure:
+    """Plot 3D Pareto frontier surface.
+
+    Args:
+        frontier_points: List of ParetoPoint objects
+        x_objective: Name of objective for x-axis
+        y_objective: Name of objective for y-axis
+        z_objective: Name of objective for z-axis
+        x_label: Optional custom label for x-axis
+        y_label: Optional custom label for y-axis
+        z_label: Optional custom label for z-axis
+        title: Plot title
+        figsize: Figure size
+
+    Returns:
+        Matplotlib figure
+    """
+    from mpl_toolkits.mplot3d import Axes3D
+
+    set_wsj_style()
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Extract data
+    x_values = np.array([p.objectives[x_objective] for p in frontier_points])
+    y_values = np.array([p.objectives[y_objective] for p in frontier_points])
+    z_values = np.array([p.objectives[z_objective] for p in frontier_points])
+
+    # Create scatter plot
+    scatter = ax.scatter(
+        x_values,
+        y_values,
+        z_values,
+        c=z_values,
+        cmap="viridis",
+        s=50,
+        alpha=0.8,
+        edgecolors="black",
+        linewidths=0.5,
+    )
+
+    # Try to create surface if we have enough points
+    if len(frontier_points) > 10:
+        try:
+            from scipy.interpolate import griddata
+
+            # Create grid
+            xi = np.linspace(x_values.min(), x_values.max(), 30)
+            yi = np.linspace(y_values.min(), y_values.max(), 30)
+            xi, yi = np.meshgrid(xi, yi)
+
+            # Interpolate z values
+            zi = griddata(
+                (x_values, y_values),
+                z_values,
+                (xi, yi),
+                method="linear",
+            )
+
+            # Plot surface
+            ax.plot_surface(
+                xi,
+                yi,
+                zi,
+                alpha=0.3,
+                cmap="viridis",
+                edgecolor="none",
+            )
+        except Exception:
+            # If interpolation fails, just show points
+            pass
+
+    # Add colorbar
+    fig.colorbar(scatter, ax=ax, pad=0.1, label=z_label or z_objective)
+
+    # Labels and styling
+    ax.set_xlabel(x_label or x_objective, fontsize=11)
+    ax.set_ylabel(y_label or y_objective, fontsize=11)
+    ax.set_zlabel(z_label or z_objective, fontsize=11)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+
+    # Set viewing angle
+    ax.view_init(elev=20, azim=45)
+
+    plt.tight_layout()
+    return fig
+
+
+def create_interactive_pareto_frontier(
+    frontier_points: List[Any],
+    objectives: List[str],
+    title: str = "Interactive Pareto Frontier",
+    height: int = 600,
+    show_dominated: bool = True,
+) -> go.Figure:
+    """Create interactive Plotly Pareto frontier visualization.
+
+    Args:
+        frontier_points: List of ParetoPoint objects
+        objectives: List of objective names to display
+        title: Plot title
+        height: Plot height in pixels
+        show_dominated: Whether to show dominated region
+
+    Returns:
+        Plotly figure
+    """
+    # Handle 2D or 3D based on number of objectives
+    if len(objectives) == 2:
+        return _create_interactive_pareto_2d(
+            frontier_points, objectives, title, height, show_dominated
+        )
+    elif len(objectives) == 3:
+        return _create_interactive_pareto_3d(frontier_points, objectives, title, height)
+    else:
+        # For more than 3 objectives, create parallel coordinates
+        return _create_pareto_parallel_coordinates(frontier_points, objectives, title, height)
+
+
+def _create_interactive_pareto_2d(
+    frontier_points: List[Any],
+    objectives: List[str],
+    title: str,
+    height: int,
+    show_dominated: bool,
+) -> go.Figure:
+    """Create 2D interactive Pareto frontier."""
+    x_obj, y_obj = objectives[0], objectives[1]
+
+    # Extract data
+    x_values = [p.objectives[x_obj] for p in frontier_points]
+    y_values = [p.objectives[y_obj] for p in frontier_points]
+
+    # Sort for line connection
+    sorted_indices = np.argsort(x_values)
+    x_sorted = [x_values[i] for i in sorted_indices]
+    y_sorted = [y_values[i] for i in sorted_indices]
+
+    fig = go.Figure()
+
+    # Add frontier line
+    fig.add_trace(
+        go.Scatter(
+            x=x_sorted,
+            y=y_sorted,
+            mode="lines",
+            name="Pareto Frontier",
+            line=dict(color=WSJ_COLORS["blue"], width=2),
+            hovertemplate=f"{x_obj}: %{{x:.3f}}<br>{y_obj}: %{{y:.3f}}<extra></extra>",
+        )
+    )
+
+    # Add frontier points
+    fig.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=y_values,
+            mode="markers",
+            name="Solutions",
+            marker=dict(
+                size=10,
+                color=[p.crowding_distance for p in frontier_points],
+                colorscale="Viridis",
+                showscale=True,
+                colorbar=dict(title="Crowding<br>Distance"),
+            ),
+            text=[f"Point {i}" for i in range(len(frontier_points))],
+            hovertemplate=(
+                f"{x_obj}: %{{x:.3f}}<br>"
+                f"{y_obj}: %{{y:.3f}}<br>"
+                "Crowding: %{marker.color:.3f}<br>"
+                "%{text}<extra></extra>"
+            ),
+        )
+    )
+
+    # Add dominated region if requested
+    if show_dominated:
+        x_max = max(x_values) * 1.1
+        y_max = max(y_values) * 1.1
+
+        dominated_x = x_sorted + [x_max, x_max, x_sorted[0]]
+        dominated_y = y_sorted + [y_sorted[-1], y_max, y_max]
+
+        fig.add_trace(
+            go.Scatter(
+                x=dominated_x,
+                y=dominated_y,
+                fill="toself",
+                fillcolor="rgba(200, 200, 200, 0.2)",
+                line=dict(width=0),
+                showlegend=True,
+                name="Dominated Region",
+                hoverinfo="skip",
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_obj,
+        yaxis_title=y_obj,
+        height=height,
+        hovermode="closest",
+        template="plotly_white",
+        font=dict(family="Arial, sans-serif"),
+    )
+
+    return fig
+
+
+def _create_interactive_pareto_3d(
+    frontier_points: List[Any],
+    objectives: List[str],
+    title: str,
+    height: int,
+) -> go.Figure:
+    """Create 3D interactive Pareto frontier."""
+    x_obj, y_obj, z_obj = objectives[0], objectives[1], objectives[2]
+
+    # Extract data
+    x_values = [p.objectives[x_obj] for p in frontier_points]
+    y_values = [p.objectives[y_obj] for p in frontier_points]
+    z_values = [p.objectives[z_obj] for p in frontier_points]
+
+    fig = go.Figure(
+        data=[
+            go.Scatter3d(
+                x=x_values,
+                y=y_values,
+                z=z_values,
+                mode="markers",
+                marker=dict(
+                    size=8,
+                    color=z_values,
+                    colorscale="Viridis",
+                    showscale=True,
+                    colorbar=dict(title=z_obj),
+                ),
+                text=[f"Point {i}" for i in range(len(frontier_points))],
+                hovertemplate=(
+                    f"{x_obj}: %{{x:.3f}}<br>"
+                    f"{y_obj}: %{{y:.3f}}<br>"
+                    f"{z_obj}: %{{z:.3f}}<br>"
+                    "%{text}<extra></extra>"
+                ),
+            )
+        ]
+    )
+
+    # Update layout
+    fig.update_layout(
+        title=title,
+        scene=dict(
+            xaxis_title=x_obj,
+            yaxis_title=y_obj,
+            zaxis_title=z_obj,
+        ),
+        height=height,
+        template="plotly_white",
+        font=dict(family="Arial, sans-serif"),
+    )
+
+    return fig
+
+
+def _create_pareto_parallel_coordinates(
+    frontier_points: List[Any],
+    objectives: List[str],
+    title: str,
+    height: int,
+) -> go.Figure:
+    """Create parallel coordinates plot for many objectives."""
+    # Prepare data for parallel coordinates
+    data = []
+    for i, point in enumerate(frontier_points):
+        row = {"index": i}
+        for obj in objectives:
+            row[obj] = point.objectives[obj]
+        data.append(row)
+
+    df = pd.DataFrame(data)
+
+    # Create dimensions
+    dimensions = []
+    for obj in objectives:
+        dimensions.append(
+            dict(
+                label=obj,
+                values=df[obj],
+                range=[df[obj].min(), df[obj].max()],
+            )
+        )
+
+    # Add crowding distance as color
+    colors = [p.crowding_distance for p in frontier_points]
+
+    fig = go.Figure(
+        data=go.Parcoords(
+            line=dict(
+                color=colors,
+                colorscale="Viridis",
+                showscale=True,
+                colorbar=dict(title="Crowding<br>Distance"),
+            ),
+            dimensions=dimensions,
+        )
+    )
+
+    fig.update_layout(
+        title=title,
+        height=height,
+        template="plotly_white",
+        font=dict(family="Arial, sans-serif"),
+    )
+
+    return fig

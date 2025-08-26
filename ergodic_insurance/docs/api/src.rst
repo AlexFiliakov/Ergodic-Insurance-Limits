@@ -116,6 +116,27 @@ ergodic_insurance.src.visualization module
    :no-members:
    :show-inheritance:
 
+ergodic_insurance.src.business\_optimizer module
+-------------------------------------------------
+
+.. automodule:: ergodic_insurance.src.business_optimizer
+   :no-members:
+   :show-inheritance:
+
+ergodic_insurance.src.optimization module
+------------------------------------------
+
+.. automodule:: ergodic_insurance.src.optimization
+   :no-members:
+   :show-inheritance:
+
+ergodic_insurance.src.pareto\_frontier module
+----------------------------------------------
+
+.. automodule:: ergodic_insurance.src.pareto_frontier
+   :no-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

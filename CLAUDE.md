@@ -30,6 +30,9 @@ Ergodic Insurance Limits/
 │   │   ├── risk_metrics.py     # Risk metrics and analytics
 │   │   ├── convergence.py      # Convergence analysis tools
 │   │   ├── decision_engine.py  # Insurance decision making engine
+│   │   ├── business_optimizer.py # Business outcome optimization algorithms
+│   │   ├── optimization.py     # Advanced optimization methods (trust-region, penalty)
+│   │   ├── pareto_frontier.py  # Multi-objective optimization and Pareto analysis
 │   │   └── visualization.py    # Visualization utilities
 │   ├── tests/                  # Comprehensive test suite (100% coverage)
 │   │   ├── __init__.py
@@ -52,6 +55,8 @@ Ergodic Insurance Limits/
 │   │   ├── test_manufacturer_methods.py
 │   │   ├── test_convergence_extended.py
 │   │   ├── test_decision_engine.py
+│   │   ├── test_business_optimizer.py
+│   │   ├── test_optimization.py
 │   │   ├── test_pricing_scenarios.py
 │   │   ├── test_visualization_simple.py
 │   │   └── test_setup.py
@@ -64,7 +69,9 @@ Ergodic Insurance Limits/
 │   │   ├── 05_risk_metrics.ipynb
 │   │   ├── 06_loss_distributions.ipynb
 │   │   ├── 07_insurance_layers.ipynb
-│   │   └── 08_monte_carlo_analysis.ipynb
+│   │   ├── 08_monte_carlo_analysis.ipynb
+│   │   ├── 09_optimization_results.ipynb
+│   │   └── 10_sensitivity_analysis.ipynb
 │   ├── examples/               # Example scripts and demos
 │   │   ├── demo_manufacturer.py
 │   │   ├── demo_collateral_management.py
@@ -82,7 +89,8 @@ Ergodic Insurance Limits/
 │   │       ├── insurance_structures.yaml # Insurance program structures
 │   │       ├── loss_distributions.yaml # Loss distribution parameters
 │   │       ├── losses.yaml      # Legacy loss parameters
-│   │       └── development_patterns.yaml # Claim development patterns
+│   │       ├── development_patterns.yaml # Claim development patterns
+│   │       └── business_optimization.yaml # Business optimization parameters
 │   ├── docs/                   # Sphinx documentation system
 │   │   ├── conf.py            # Sphinx configuration
 │   │   ├── index.rst          # Documentation main page
@@ -104,11 +112,32 @@ Ergodic Insurance Limits/
 │   │   │   ├── risk_metrics.rst
 │   │   │   ├── convergence.rst
 │   │   │   ├── decision_engine.rst
+│   │   │   ├── business_optimizer.rst
+│   │   │   ├── optimization.rst
+│   │   │   ├── pareto_frontier.rst
 │   │   │   └── visualization.rst
 │   │   ├── getting_started.rst
 │   │   ├── theory.rst
 │   │   ├── examples.rst
-│   │   └── overview.rst
+│   │   ├── overview.rst
+│   │   ├── architecture/      # Architecture diagrams and documentation
+│   │   │   ├── README.md
+│   │   │   ├── context_diagram.md
+│   │   │   ├── module_overview.md
+│   │   │   └── class_diagrams/
+│   │   │       ├── core_classes.md
+│   │   │       ├── data_models.md
+│   │   │       └── service_layer.md
+│   │   └── user_guide/        # Business user guide
+│   │       ├── index.rst
+│   │       ├── executive_summary.rst
+│   │       ├── quick_start.rst
+│   │       ├── decision_framework.rst
+│   │       ├── running_analysis.rst
+│   │       ├── case_studies.rst
+│   │       ├── advanced_topics.rst
+│   │       ├── glossary.rst
+│   │       └── faq.rst
 │   ├── checkpoints/            # Simulation checkpoints for long-running analyses
 │   ├── htmlcov/                # Test coverage reports
 │   ├── pyproject.toml          # Python package configuration

@@ -433,7 +433,7 @@ Flesh out each task and make tradeoffs favoring implementation speed and simplic
 
 ### Documentation
 
-Update all docstrings in modules, submodules, classes, methods, and functions. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the latest code structure and regenerate the docs.
+Update all docstrings in modules, submodules, classes, methods, and functions to aid development and understandability of hte code. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the latest code structure and regenerate the docs.
 
 ### Monte Carlo Issue Questions
 
