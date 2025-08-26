@@ -5,7 +5,9 @@ from typing import Dict
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
+from ergodic_insurance.src.loss_distributions import LossData
 
 
 class TestClaimEvent:
@@ -249,3 +251,143 @@ class TestClaimGenerator:
         gen_zero = ClaimGenerator(frequency=0.0)
         claims = gen_zero.generate_claims(10)
         assert claims == []
+
+    def test_generate_enhanced_claims_fallback(self):
+        """Test generate_enhanced_claims falls back to standard generation."""
+        gen = ClaimGenerator(
+            frequency=1.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            seed=42,
+        )
+
+        # Test with enhanced distributions disabled
+        claims, stats = gen.generate_enhanced_claims(
+            years=10, revenue=5_000_000, use_enhanced_distributions=False
+        )
+
+        assert isinstance(claims, list)
+        assert isinstance(stats, dict)
+        assert stats["method"] == "standard"
+        assert "total_losses" in stats
+        assert "regular_count" in stats
+        assert "catastrophic_count" in stats
+        assert "total_amount" in stats
+        assert stats["total_losses"] == len(claims)
+
+        # Verify claims are valid
+        for claim in claims:
+            assert isinstance(claim, ClaimEvent)
+            assert claim.amount > 0
+            assert 0 <= claim.year < 10
+
+        # Test with no revenue specified (should use default)
+        claims2, stats2 = gen.generate_enhanced_claims(years=5, use_enhanced_distributions=False)
+
+        assert isinstance(claims2, list)
+        assert stats2["method"] == "standard"
+
+    def test_to_loss_data(self):
+        """Test to_loss_data method converts claims to LossData format."""
+        gen = ClaimGenerator(seed=42)
+
+        # Test with actual claims
+        claims = [
+            ClaimEvent(year=0, amount=100000),
+            ClaimEvent(year=1, amount=200000),
+            ClaimEvent(year=1, amount=150000),
+            ClaimEvent(year=2, amount=300000),
+        ]
+
+        loss_data = gen.to_loss_data(claims)
+
+        # Check the LossData structure
+        assert len(loss_data.timestamps) == 4
+        assert len(loss_data.loss_amounts) == 4
+        assert all(t >= 0 for t in loss_data.timestamps)
+        assert all(a > 0 for a in loss_data.loss_amounts)
+
+        # Check metadata
+        assert loss_data.metadata["source"] == "claim_generator"
+        assert loss_data.metadata["generator_type"] == "ClaimGenerator"
+        assert loss_data.metadata["frequency"] == gen.frequency
+        assert loss_data.metadata["severity_mean"] == gen.severity_mean
+        assert loss_data.metadata["severity_std"] == gen.severity_std
+
+        # Test with empty claims list
+        from typing import List
+
+        empty_claims: List[ClaimEvent] = []
+        empty_loss_data = gen.to_loss_data(empty_claims)
+        assert len(empty_loss_data.timestamps) == 0
+        assert len(empty_loss_data.loss_amounts) == 0
+
+    def test_generate_loss_data(self):
+        """Test generate_loss_data method."""
+        gen = ClaimGenerator(
+            frequency=2.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            seed=42,
+        )
+
+        # Test generating loss data with catastrophic events
+        loss_data = gen.generate_loss_data(years=10, include_catastrophic=True)
+
+        # Verify it returns a LossData object
+        assert hasattr(loss_data, "timestamps")
+        assert hasattr(loss_data, "loss_amounts")
+        assert len(loss_data.timestamps) == len(loss_data.loss_amounts)
+
+        # Test without catastrophic events
+        loss_data_no_cat = gen.generate_loss_data(years=5, include_catastrophic=False)
+        assert hasattr(loss_data_no_cat, "timestamps")
+        assert hasattr(loss_data_no_cat, "loss_amounts")
+
+    def test_generate_enhanced_claims_with_enhanced_distributions(self):
+        """Test generate_enhanced_claims uses enhanced distributions when available."""
+        gen = ClaimGenerator(
+            frequency=1.0,
+            severity_mean=500_000,
+            severity_std=100_000,
+            seed=42,
+        )
+
+        # Test with enhanced distributions enabled (default)
+        claims, stats = gen.generate_enhanced_claims(
+            years=5, revenue=15_000_000, use_enhanced_distributions=True
+        )
+
+        assert isinstance(claims, list)
+        assert isinstance(stats, dict)
+        assert stats["method"] == "enhanced"
+
+        # Verify all claims are within the simulation period
+        for claim in claims:
+            assert isinstance(claim, ClaimEvent)
+            assert 0 <= claim.year < 5
+            assert claim.amount > 0
+
+        # Test without specifying revenue (should use default)
+        claims2, stats2 = gen.generate_enhanced_claims(years=3)
+        assert stats2["method"] == "enhanced"
+
+    def test_from_loss_data_static(self):
+        """Test from_loss_data static method with mock data."""
+
+        # Create a LossData object for testing
+        loss_data = LossData(
+            timestamps=np.array([0.5, 1.2, 2.8, 3.1, 4.9]),
+            loss_amounts=np.array([10000, 25000, 15000, 30000, 20000]),
+        )
+
+        claims = ClaimGenerator.from_loss_data(loss_data)
+
+        assert len(claims) == 5
+        assert all(isinstance(c, ClaimEvent) for c in claims)
+
+        # Check that years are properly converted from timestamps
+        expected_years = [0, 1, 2, 3, 4]
+        for claim, expected_year in zip(claims, expected_years):
+            assert claim.year == expected_year
+            assert claim.amount > 0

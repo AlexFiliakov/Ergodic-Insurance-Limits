@@ -303,7 +303,7 @@ class SharedMemoryManager:
             try:
                 shm.close()
                 shm.unlink()
-            except:
+            except (FileNotFoundError, PermissionError):
                 pass
 
         # Clean up shared objects
@@ -311,7 +311,7 @@ class SharedMemoryManager:
             try:
                 shm.close()
                 shm.unlink()
-            except:
+            except (FileNotFoundError, PermissionError):
                 pass
 
         self.shared_arrays.clear()
@@ -556,7 +556,7 @@ class ParallelExecutor:
             loop_count = source.count("for ") + source.count("while ")
             complexity = 1.0 + (loop_count * 0.5)
             return min(10.0, complexity)  # Cap at 10x
-        except:
+        except (AttributeError, ValueError):
             return 1.0  # Default complexity
 
     def _create_chunks(self, work_items: List, chunk_size: int) -> List[Tuple[int, int, List]]:
@@ -599,17 +599,14 @@ class ParallelExecutor:
         results = []
 
         # Create process pool with optimized settings
-        executor_kwargs = {
-            "max_workers": self.n_workers,
-            "mp_context": mp.get_context("spawn"),  # Better for numpy
-        }
-
         # Set CPU affinity if on Linux
         if platform.system() == "Linux":
             # Use taskset equivalent via ProcessPoolExecutor initializer
             pass  # Platform-specific optimization
 
-        with ProcessPoolExecutor(**executor_kwargs) as executor:
+        with ProcessPoolExecutor(
+            max_workers=self.n_workers, mp_context=mp.get_context("spawn")  # Better for numpy
+        ) as executor:
             # Submit all chunks
             futures = {}
             for chunk in chunks:
@@ -630,7 +627,7 @@ class ParallelExecutor:
 
                     if progress_bar:
                         pbar.update(1)
-                except Exception as e:
+                except (TimeoutError, MemoryError, RuntimeError) as e:
                     warnings.warn(f"Chunk execution failed: {e}")
                     results.append((futures[future], None))
 
@@ -738,7 +735,9 @@ def parallel_map(
         List[Any]: Results
     """
     with ParallelExecutor(n_workers=n_workers) as executor:
-        return executor.map_reduce(work_function=func, work_items=items, progress_bar=progress)
+        result = executor.map_reduce(work_function=func, work_items=items, progress_bar=progress)
+        # map_reduce returns list when reduce_function is None
+        return result  # type: ignore[no-any-return]
 
 
 def parallel_aggregate(

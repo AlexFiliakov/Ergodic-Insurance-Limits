@@ -7,6 +7,7 @@ Date: 2025-01-26
 import numpy as np
 import pandas as pd
 import pytest
+
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.hjb_solver import (
     ControlVariable,
@@ -424,6 +425,8 @@ class TestCreateHJBController:
         return WidgetManufacturer(config)
 
     @pytest.mark.slow
+    @pytest.mark.filterwarnings("ignore:overflow encountered:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_create_log_utility_controller(self, manufacturer):
         """Test creating controller with log utility."""
         controller = create_hjb_controller(manufacturer, simulation_years=1, utility_type="log")
@@ -448,6 +451,8 @@ class TestCreateHJBController:
         assert isinstance(controller.strategy, HJBFeedbackControl)
 
     @pytest.mark.slow
+    @pytest.mark.filterwarnings("ignore:overflow encountered:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
     def test_create_linear_utility_controller(self, manufacturer):
         """Test creating controller with linear utility."""
         controller = create_hjb_controller(manufacturer, simulation_years=1, utility_type="linear")

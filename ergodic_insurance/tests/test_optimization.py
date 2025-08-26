@@ -1,7 +1,11 @@
 """Tests for advanced optimization algorithms."""
 
+from typing import List
+
 import numpy as np
 import pytest
+from scipy.optimize import Bounds
+
 from ergodic_insurance.src.optimization import (
     AdaptivePenaltyParameters,
     AugmentedLagrangianOptimizer,
@@ -14,7 +18,6 @@ from ergodic_insurance.src.optimization import (
     TrustRegionOptimizer,
     create_optimizer,
 )
-from scipy.optimize import Bounds
 
 
 class TestConstraintViolation:
@@ -86,7 +89,7 @@ class TestConvergenceMonitor:
 
         monitor.update(objective=10.0 + 1e-7)
         assert monitor.converged
-        assert "Objective converged" in monitor.convergence_message
+        assert "Objective converged" in monitor.convergence_message  # type: ignore[unreachable]
 
     def test_convergence_by_max_iterations(self):
         """Test convergence by max iterations."""
@@ -97,7 +100,7 @@ class TestConvergenceMonitor:
 
         monitor.update(objective=5.0)
         assert monitor.converged
-        assert "Maximum iterations" in monitor.convergence_message
+        assert "Maximum iterations" in monitor.convergence_message  # type: ignore[unreachable]
 
     def test_convergence_summary(self):
         """Test getting convergence summary."""
@@ -179,6 +182,7 @@ class TestTrustRegionOptimizer:
         assert np.allclose(result.x, [2.0, -1.0], atol=1e-4)
         assert result.fun < 1e-6
 
+    @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_constrained_optimization(self):
         """Test constrained trust-region optimization."""
 
@@ -214,6 +218,7 @@ class TestTrustRegionOptimizer:
 class TestPenaltyMethodOptimizer:
     """Test PenaltyMethodOptimizer class."""
 
+    @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_constrained_optimization(self):
         """Test penalty method optimization."""
 
@@ -325,7 +330,7 @@ class TestAugmentedLagrangianOptimizer:
         def objective(x):
             return -x[0]
 
-        constraints = []
+        constraints: List = []
         bounds = Bounds([0.0], [2.0])
 
         optimizer = AugmentedLagrangianOptimizer(objective, constraints, bounds)

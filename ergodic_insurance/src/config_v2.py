@@ -458,11 +458,22 @@ class PresetLibrary(BaseModel):
         # Determine library type from filename
         library_type = path.stem.replace("_", " ").title()
 
+        # Map filename to valid preset type
+        preset_type_map = {
+            "market_conditions": "market",
+            "risk_profiles": "risk",
+            "layer_structures": "layers",
+            "optimization_settings": "optimization",
+            "scenario_definitions": "scenario",
+        }
+        # Use mapped type or default to "scenario"
+        preset_type = preset_type_map.get(path.stem, "scenario")
+
         presets = {}
         for name, params in data.items():
             presets[name] = PresetConfig(
                 preset_name=name,
-                preset_type=library_type.lower().replace(" ", "_"),
+                preset_type=preset_type,
                 description=f"{name} preset for {library_type}",
                 parameters=params,
             )

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
+
 from ergodic_insurance.src.config import (
     MarketCycles,
     PricingScenario,
@@ -353,6 +354,7 @@ class TestPricingScenarioConfig:
         assert abs(reverse_mult * multiplier - 1.0) < 0.01  # Should be reciprocal
 
 
+@pytest.mark.filterwarnings("ignore:ConfigLoader is deprecated:DeprecationWarning")
 class TestConfigLoaderIntegration:
     """Test ConfigLoader integration with pricing scenarios."""
 

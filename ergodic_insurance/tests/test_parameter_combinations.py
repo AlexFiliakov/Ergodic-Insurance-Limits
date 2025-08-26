@@ -9,13 +9,15 @@ import itertools
 from pathlib import Path
 from typing import Any, Dict, List
 
+from pydantic import ValidationError
 import pytest
 import yaml
+
 from ergodic_insurance.src.config import Config
 from ergodic_insurance.src.config_loader import ConfigLoader
-from pydantic import ValidationError
 
 
+@pytest.mark.filterwarnings("ignore:ConfigLoader is deprecated:DeprecationWarning")
 class TestParameterCombinations:
     """Test all parameter combinations for validity."""
 

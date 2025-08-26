@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.decision_engine import (
     DecisionMetrics,
@@ -368,6 +369,7 @@ class TestRegulatoryComplianceScenarios:
         assert coverage_from_insurance >= constraints.min_coverage_requirement
         assert decision.total_coverage >= constraints.min_coverage_limit
 
+    @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_debt_covenant_compliance(self):
         """Test optimization with debt covenant restrictions."""
         config = ManufacturerConfig(
