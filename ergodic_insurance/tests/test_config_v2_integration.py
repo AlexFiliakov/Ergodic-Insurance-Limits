@@ -115,7 +115,7 @@ class TestIntegration:
         # Create override version
         override_config = config.with_overrides(
             manufacturer__initial_assets=20000000,
-            simulation__horizon_years=25,
+            simulation__time_horizon_years=25,
             insurance__deductible=150000,
         )
 

@@ -50,6 +50,13 @@ def _test_work_function(i):
     return i**2
 
 
+def _test_failing_function(x):
+    """Function that fails on specific input for error testing."""
+    if x == 5:
+        raise RuntimeError("Test error")
+    return x
+
+
 def _test_reduce(results):
     """Reduce results from chunks."""
     return sum(sum(chunk) for chunk in results)
@@ -506,17 +513,11 @@ class TestParallelExecutor:
 
     def test_error_handling(self):
         """Test error handling in parallel execution."""
-
-        def failing_function(x):
-            if x == 5:
-                raise ValueError("Test error")
-            return x
-
         executor = ParallelExecutor(n_workers=2)
 
         with pytest.warns(UserWarning, match="Chunk execution failed"):
             results = executor.map_reduce(
-                work_function=failing_function, work_items=range(10), progress_bar=False
+                work_function=_test_failing_function, work_items=range(10), progress_bar=False
             )
 
         # Should still return partial results
