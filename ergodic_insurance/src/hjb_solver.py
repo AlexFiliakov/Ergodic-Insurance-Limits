@@ -13,10 +13,10 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -485,15 +485,19 @@ class HJBSolver:
             diagonals[1, -1] += diagonals[2, -1]
             diagonals[2, -1] = 0
         elif boundary_type == BoundaryCondition.ABSORBING:
-            # Zero second derivative
-            diagonals[0, 0] = 0
-            diagonals[1, 0] = 0
-            diagonals[2, 0] = 0
-            diagonals[0, -1] = 0
-            diagonals[1, -1] = 0
-            diagonals[2, -1] = 0
+            # Absorbing boundaries: value is fixed at boundary
+            # First row: only main diagonal = 1
+            diagonals[1, 0] = 1
+            diagonals[2, 0] = 0  # No upper diagonal from first row
+            # Last row: only main diagonal = 1
+            # Note: For lower diagonal, element at index i goes to matrix[i+1, i]
+            # So to zero out matrix[n-1, n-2], we need diagonals[0, n-2]
+            diagonals[0, n - 2] = 0  # Zero out lower diagonal element going to last row
+            diagonals[1, n - 1] = 1  # Set main diagonal of last row to 1
 
-        return sparse.diags(diagonals, offsets=[-1, 0, 1], shape=(n, n))
+        matrix = sparse.diags(diagonals, offsets=[-1, 0, 1], shape=(n, n))
+
+        return matrix
 
     def _apply_upwind_scheme(self, value: np.ndarray, drift: np.ndarray, dim: int) -> np.ndarray:
         """Apply upwind finite difference for advection term.
@@ -582,22 +586,65 @@ class HJBSolver:
 
         return self.value_function, self.optimal_policy
 
+    def _reshape_cost(self, cost):
+        """Helper method to reshape cost array."""
+        if hasattr(cost, "ndim") and cost.ndim > 1:
+            # If cost is multi-dimensional, take the first column or mean
+            if cost.shape[1] > 1:
+                cost = np.mean(cost, axis=1)  # Average across extra dimensions
+            else:
+                cost = cost[:, 0]  # Take first column
+        return cost.reshape(self.problem.state_space.shape)
+
+    def _apply_upwind_drift(self, new_v, drift, dt):
+        """Apply upwind differencing for drift term."""
+        if not np.any(np.abs(drift) > 1e-10):
+            return new_v
+
+        if self.value_function is None:
+            return new_v
+
+        for dim in range(drift.shape[-1]):
+            if dim >= len(self.problem.state_space.state_variables):
+                continue
+            dx = self.dx[dim]
+            drift_component = drift[..., dim]
+
+            # Simple upwind differencing
+            grad = np.zeros_like(self.value_function)
+            grad[1:] = (self.value_function[1:] - self.value_function[:-1]) / dx
+            new_v += dt * drift_component * grad
+        return new_v
+
+    def _update_value_finite_horizon(self, old_v, cost, drift, dt):
+        """Update value function for finite horizon problems."""
+        # Backward Euler scheme for parabolic PDE
+        new_v = old_v + dt * cost
+
+        # Add discount term if applicable
+        if self.problem.discount_rate > 0:
+            new_v -= dt * self.problem.discount_rate * old_v
+
+        # Add drift term using upwind differencing
+        return self._apply_upwind_drift(new_v, drift, dt)
+
     def _policy_evaluation(self):
         """Evaluate current policy by solving linear PDE."""
         # For now, implement a simple iterative scheme
         # In production, would use sparse linear solver
 
+        if self.value_function is None or self.optimal_policy is None:
+            return
+
         dt = self.config.time_step
 
         for _ in range(100):  # Inner iterations for policy evaluation
-            if self.value_function is None:
-                return
+            # Type guard ensures value_function is not None after the check above
+            assert self.value_function is not None  # For mypy
             old_v = self.value_function.copy()
 
             # Get state and control grids
             state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
-            if self.optimal_policy is None:
-                return
             control_array = np.stack(
                 [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables],
                 axis=-1,
@@ -609,19 +656,17 @@ class HJBSolver:
 
             # Reshape
             drift = drift.reshape(self.problem.state_space.shape + (-1,))
-            if cost.ndim > 1:
-                cost = cost.reshape(self.problem.state_space.shape)
+            cost = self._reshape_cost(cost)
+
+            # Apply finite differences with upwind scheme
+            # For finite horizon problems, integrate backwards from terminal condition
+            if self.problem.time_horizon is not None:
+                new_v = self._update_value_finite_horizon(old_v, cost, drift, dt)
             else:
-                # If cost is 1D, reshape to state shape
-                cost = cost.reshape(self.problem.state_space.shape)
+                # For infinite horizon, use standard update
+                new_v = old_v + dt * (-self.problem.discount_rate * old_v + cost)
 
-            # Apply finite differences (simplified for initial implementation)
-            # Would implement full upwind scheme in production
-            new_v = old_v + dt * (-self.problem.discount_rate * old_v + cost)
-
-            # Apply boundary conditions
-            boundary_mask = self.problem.state_space.get_boundary_mask()
-            new_v[boundary_mask] = 0  # Absorbing boundaries for now
+            # Apply boundary conditions (skip for now to preserve terminal condition)
 
             self.value_function = new_v
 
@@ -659,9 +704,12 @@ class HJBSolver:
                 )
 
                 # Approximate value function gradient (would use interpolation)
-                hamiltonian = (
-                    float(cost[0]) if hasattr(cost, "__getitem__") else float(cost)
-                )  # Simplified
+                if hasattr(cost, "__getitem__"):
+                    # Handle multi-dimensional cost arrays
+                    cost_flat = np.asarray(cost).flatten()
+                    hamiltonian = float(cost_flat[0])
+                else:
+                    hamiltonian = float(cost)  # Simplified
 
                 if hamiltonian > best_value:
                     best_value = hamiltonian

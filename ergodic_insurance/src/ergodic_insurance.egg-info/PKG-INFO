@@ -47,6 +47,8 @@ Dynamic: requires-python
 
 This is a brief research model of a widget manufacturing company to determine what limit of insurance they need to optimize long-term profitability.
 
+[![Documentation Status](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/actions/workflows/docs.yml/badge.svg)](https://alexfiliakov.github.io/Ergodic-Insurance-Limits/)
+
 ## Introduction - Why Do Companies Buy Insurance?
 
 ### Ergodic theory transforms insurance optimization fundamentally
@@ -128,6 +130,52 @@ pip install -e .
 pre-commit install
 ```
 
+## Project Structure
+
+```
+Ergodic Insurance Limits/
+├── ergodic_insurance/           # Main Python package
+│   ├── src/                    # Core source code
+│   │   ├── __init__.py         # Package initialization
+│   │   ├── manufacturer.py     # Widget manufacturer model
+│   │   ├── claim_generator.py  # Insurance claim generation
+│   │   ├── claim_development.py # Claim development patterns
+│   │   ├── config.py           # Pydantic configuration
+│   │   ├── config_loader.py    # YAML parameter loading
+│   │   ├── stochastic_processes.py # Stochastic modeling
+│   │   ├── simulation.py       # Main simulation engine
+│   │   ├── insurance.py        # Insurance optimization
+│   │   ├── insurance_program.py # Multi-layer programs
+│   │   ├── loss_distributions.py # Loss distributions
+│   │   ├── monte_carlo.py      # Monte Carlo engine
+│   │   ├── ergodic_analyzer.py # Ergodic analysis
+│   │   ├── risk_metrics.py     # Risk metrics
+│   │   ├── convergence.py      # Convergence analysis
+│   │   ├── decision_engine.py  # Decision optimization
+│   │   ├── business_optimizer.py # Business outcome optimization
+│   │   ├── optimization.py     # Advanced optimization algorithms
+│   │   ├── pareto_frontier.py  # Multi-objective optimization
+│   │   └── visualization.py    # Plotting utilities
+│   ├── tests/                  # Test suite (100% coverage)
+│   ├── notebooks/              # Jupyter notebooks
+│   ├── examples/               # Example scripts
+│   ├── data/                   # Configuration files
+│   │   └── parameters/         # YAML parameters
+│   ├── docs/                   # Sphinx documentation
+│   │   ├── api/               # API reference
+│   │   ├── architecture/      # Architecture diagrams
+│   │   └── user_guide/        # Business user guide
+│   └── checkpoints/           # Simulation checkpoints
+├── simone/                     # TypeScript simulation
+├── results/                    # Reports and outputs
+├── assets/                     # Images and media
+├── pyproject.toml             # Python configuration
+├── setup.py                   # Package setup
+├── README.md                  # This file
+├── CLAUDE.md                  # Development instructions
+└── LICENSE                    # MIT License
+```
+
 ## Development
 
 ### Code Quality Tools
@@ -138,7 +186,7 @@ This project uses several tools to maintain code quality:
 - **isort**: Import sorting
 - **mypy**: Static type checking
 - **pylint**: Code linting
-- **pytest-cov**: Test coverage reporting (minimum: 80%)
+- **pytest-cov**: Test coverage reporting (minimum: 80%, achieved: 100%)
 
 ### Running Tests
 

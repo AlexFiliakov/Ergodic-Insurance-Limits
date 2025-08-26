@@ -537,53 +537,62 @@ wheels = [
 ]
 
 [[package]]
-name = "ergodic-insurance-limits"
+name = "ergodic-insurance"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
-    { name = "black" },
-    { name = "ipykernel" },
-    { name = "isort" },
-    { name = "jupyter" },
     { name = "matplotlib" },
-    { name = "mypy" },
-    { name = "nbformat" },
-    { name = "notebook" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "pre-commit" },
     { name = "pydantic" },
-    { name = "pylint" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
     { name = "pyyaml" },
     { name = "scipy" },
     { name = "seaborn" },
 ]
 
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "isort" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pylint" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "types-pyyaml" },
+]
+notebooks = [
+    { name = "ipykernel" },
+    { name = "jupyter" },
+    { name = "nbformat" },
+    { name = "notebook" },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "black", specifier = ">=25.1.0" },
-    { name = "ipykernel", specifier = ">=6.30.1" },
-    { name = "isort", specifier = ">=6.0.1" },
-    { name = "jupyter", specifier = ">=1.1.1" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
+    { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.30.1" },
+    { name = "isort", marker = "extra == 'dev'", specifier = ">=6.0.1" },
+    { name = "jupyter", marker = "extra == 'notebooks'", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.5" },
-    { name = "mypy", specifier = ">=1.17.1" },
-    { name = "nbformat", specifier = ">=5.10.4" },
-    { name = "notebook", specifier = ">=7.4.5" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.1" },
+    { name = "nbformat", marker = "extra == 'notebooks'", specifier = ">=5.10.4" },
+    { name = "notebook", marker = "extra == 'notebooks'", specifier = ">=7.4.5" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "pandas", specifier = ">=2.3.2" },
-    { name = "pre-commit", specifier = ">=3.6.0" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.6.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pylint", specifier = ">=3.3.8" },
-    { name = "pytest", specifier = ">=8.4.1" },
-    { name = "pytest-cov", specifier = ">=6.2.1" },
-    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "pylint", marker = "extra == 'dev'", specifier = ">=3.3.8" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "scipy", specifier = ">=1.16.1" },
     { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
 ]
+provides-extras = ["dev", "notebooks"]
 
 [[package]]
 name = "execnet"
@@ -2367,6 +2376,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0c/0a/775f8551665992204c756be326f3575abba58c4a3a52eef9909ef4536428/types_python_dateutil-2.9.0.20250822.tar.gz", hash = "sha256:84c92c34bd8e68b117bff742bc00b692a1e8531262d4507b33afcc9f7716cd53", size = 16084, upload-time = "2025-08-22T03:02:00.613Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/d9/a29dfa84363e88b053bf85a8b7f212a04f0d7343a4d24933baa45c06e08b/types_python_dateutil-2.9.0.20250822-py3-none-any.whl", hash = "sha256:849d52b737e10a6dc6621d2bd7940ec7c65fcb69e6aa2882acf4e56b2b508ddc", size = 17892, upload-time = "2025-08-22T03:01:59.436Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20250822"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/85/90a442e538359ab5c9e30de415006fb22567aa4301c908c09f19e42975c2/types_pyyaml-6.0.12.20250822.tar.gz", hash = "sha256:259f1d93079d335730a9db7cff2bcaf65d7e04b4a56b5927d49a612199b59413", size = 17481, upload-time = "2025-08-22T03:02:16.209Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/8e/8f0aca667c97c0d76024b37cffa39e76e2ce39ca54a38f285a64e6ae33ba/types_pyyaml-6.0.12.20250822-py3-none-any.whl", hash = "sha256:1fe1a5e146aa315483592d292b72a172b65b946a6d98aa6ddd8e4aa838ab7098", size = 20314, upload-time = "2025-08-22T03:02:15.002Z" },
 ]
 
 [[package]]
