@@ -186,7 +186,9 @@ simulation:
 
     def test_run_migration_failure(self, migrator):
         """Test migration failure handling."""
-        with patch.object(migrator, "convert_baseline", side_effect=Exception("Test error")):
+        with patch.object(
+            migrator, "convert_baseline", side_effect=FileNotFoundError("Test error")
+        ):
             result = migrator.run_migration()
             assert result is False
             assert "Migration failed" in migrator.migration_report[-1]
