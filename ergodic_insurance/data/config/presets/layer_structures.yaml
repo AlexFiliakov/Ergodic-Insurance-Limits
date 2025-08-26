@@ -1,0 +1,29 @@
+basic:
+  insurance:
+    layers:
+    - name: Primary
+      limit: 5000000
+      attachment: 0
+      premium_rate: 0.015
+comprehensive:
+  insurance:
+    layers:
+    - name: Primary
+      limit: 5000000
+      attachment: 0
+      premium_rate: 0.015
+    - name: Excess
+      limit: 20000000
+      attachment: 5000000
+      premium_rate: 0.008
+    - name: Umbrella
+      limit: 25000000
+      attachment: 25000000
+      premium_rate: 0.004
+catastrophic:
+  insurance:
+    layers:
+    - name: High Deductible
+      limit: 45000000
+      attachment: 5000000
+      premium_rate: 0.006

@@ -1,0 +1,146 @@
+objectives:
+  roe_maximization:
+    name: ROE
+    weight: 0.35
+    target_value: 0.18
+    optimization_direction: maximize
+    constraint_type: '>='
+    constraint_value: 0.12
+  risk_minimization:
+    name: bankruptcy_risk
+    weight: 0.3
+    target_value: 0.005
+    optimization_direction: minimize
+    constraint_type: <=
+    constraint_value: 0.02
+  growth_optimization:
+    name: growth_rate
+    weight: 0.2
+    target_value: 0.12
+    optimization_direction: maximize
+    constraint_type: '>='
+    constraint_value: 0.08
+  capital_efficiency:
+    name: capital_efficiency
+    weight: 0.15
+    target_value: 1.25
+    optimization_direction: maximize
+constraints:
+  max_risk_tolerance: 0.015
+  max_var_95: 0.1
+  max_expected_shortfall: 0.15
+  min_roe_threshold: 0.1
+  min_roa_threshold: 0.06
+  min_operating_margin: 0.08
+  max_leverage_ratio: 2.5
+  min_liquidity_ratio: 1.3
+  min_quick_ratio: 1.0
+  min_debt_service_coverage: 1.5
+  max_premium_budget: 0.025
+  min_coverage_ratio: 0.6
+  max_deductible_ratio: 0.02
+  regulatory_requirements:
+    capital_adequacy: 0.08
+    liquidity_coverage: 1.0
+    net_stable_funding: 1.0
+time_horizons:
+  short_term: 1
+  medium_term: 3
+  long_term: 10
+  strategic: 30
+optimization:
+  method: weighted_sum
+  algorithm: SLSQP
+  max_iterations: 200
+  tolerance: 1.0e-06
+  n_simulations: 1000
+  random_seed: 42
+scenarios:
+  baseline:
+    name: Baseline Scenario
+    growth_adjustment: 1.0
+    risk_adjustment: 1.0
+    market_conditions: normal
+  recession:
+    name: Recession Scenario
+    growth_adjustment: 0.5
+    risk_adjustment: 2.0
+    market_conditions: stressed
+  boom:
+    name: Economic Boom
+    growth_adjustment: 1.5
+    risk_adjustment: 0.8
+    market_conditions: favorable
+  crisis:
+    name: Financial Crisis
+    growth_adjustment: 0.2
+    risk_adjustment: 3.0
+    market_conditions: crisis
+capital_allocation:
+  categories:
+    insurance_premium:
+      min_allocation: 0.01
+      max_allocation: 0.05
+      expected_return: 0.08
+      risk_factor: 0.05
+    working_capital:
+      min_allocation: 0.15
+      max_allocation: 0.3
+      expected_return: 0.12
+      risk_factor: 0.15
+    growth_investment:
+      min_allocation: 0.2
+      max_allocation: 0.6
+      expected_return: 0.2
+      risk_factor: 0.3
+    cash_reserve:
+      min_allocation: 0.05
+      max_allocation: 0.15
+      expected_return: 0.02
+      risk_factor: 0.01
+metrics_thresholds:
+  excellent:
+    roe: 0.2
+    bankruptcy_risk: 0.001
+    growth_rate: 0.15
+    capital_efficiency: 1.3
+  good:
+    roe: 0.15
+    bankruptcy_risk: 0.005
+    growth_rate: 0.1
+    capital_efficiency: 1.2
+  acceptable:
+    roe: 0.1
+    bankruptcy_risk: 0.01
+    growth_rate: 0.05
+    capital_efficiency: 1.1
+  poor:
+    roe: 0.05
+    bankruptcy_risk: 0.02
+    growth_rate: 0.0
+    capital_efficiency: 0.9
+sensitivity:
+  parameter_delta: 0.01
+  parameters_to_test:
+  - coverage_limit
+  - deductible
+  - premium_rate
+  - leverage_ratio
+  - growth_rate
+  confidence_level: 0.95
+recommendations:
+  roe_thresholds:
+    excellent: Leverage success for strategic expansion
+    good: Maintain current strategy with minor optimizations
+    acceptable: Review capital structure and operational efficiency
+    poor: Urgent restructuring needed to improve returns
+  risk_thresholds:
+    low: Conservative profile allows for growth initiatives
+    moderate: Well-balanced risk profile
+    high: Increase insurance coverage and reduce leverage
+    critical: Immediate risk mitigation required
+  premium_thresholds:
+    low: Verify adequate protection levels
+    optimal: Insurance costs well-managed
+    high: Explore alternative risk financing
+    excessive: Restructure insurance program urgently

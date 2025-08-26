@@ -1,0 +1,25 @@
+stable:
+  manufacturer:
+    revenue_volatility: 0.1
+    cost_volatility: 0.08
+  simulation:
+    stochastic_revenue: false
+volatile:
+  manufacturer:
+    revenue_volatility: 0.25
+    cost_volatility: 0.2
+  simulation:
+    stochastic_revenue: true
+    stochastic_costs: true
+growth:
+  manufacturer:
+    revenue_growth: 0.15
+    market_expansion: 0.1
+  growth:
+    annual_growth_rate: 0.12
+recession:
+  manufacturer:
+    revenue_growth: -0.05
+    cost_inflation: 0.08
+  growth:
+    annual_growth_rate: -0.02

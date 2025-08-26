@@ -1,0 +1,6 @@
+# Ignore custom profiles
+profiles/custom/*.yaml
+profiles/custom/*.yml
+
+# But keep the directory itself
+!profiles/custom/.gitkeep

@@ -1,0 +1,15 @@
+low_risk:
+  losses:
+    frequency_annual: 2.0
+    severity_mean: 50000
+    severity_std: 25000
+moderate_risk:
+  losses:
+    frequency_annual: 5.0
+    severity_mean: 250000
+    severity_std: 150000
+high_risk:
+  losses:
+    frequency_annual: 8.0
+    severity_mean: 1000000
+    severity_std: 750000

@@ -1,0 +1,113 @@
+attritional:
+  frequency:
+    base: 5.0
+    min: 3.0
+    max: 8.0
+    revenue_scaling_exponent: 0.5
+  severity:
+    mean: 25000
+    cv: 1.5
+    distribution: lognormal
+    mu_range:
+    - 8.0
+    - 10.0
+    sigma_range:
+    - 0.6
+    - 1.0
+  validation:
+    typical_range:
+    - 3000
+    - 100000
+    p95_threshold: 150000
+large:
+  frequency:
+    base: 0.3
+    min: 0.1
+    max: 0.5
+    revenue_scaling_exponent: 0.7
+  severity:
+    mean: 2000000
+    cv: 2.0
+    distribution: lognormal
+    mu_range:
+    - 13.0
+    - 15.0
+    sigma_range:
+    - 1.5
+    - 2.0
+  validation:
+    typical_range:
+    - 500000
+    - 50000000
+    p95_threshold: 10000000
+catastrophic:
+  frequency:
+    base: 0.03
+    min: 0.01
+    max: 0.05
+    revenue_scaling_exponent: 0.0
+  severity:
+    type: pareto
+    alpha: 2.5
+    minimum: 5000000
+    distribution: pareto
+    xm: 1000000
+    alpha_range:
+    - 2.0
+    - 3.0
+    xm_range:
+    - 500000
+    - 5000000
+  validation:
+    minimum_loss: 1000000
+    expected_conditional_mean: 3000000
+aggregate:
+  expected_annual_loss: 1175000
+  loss_ratio: 0.1175
+reference:
+  revenue: 10000000
+  assets: 10000000
+composite:
+  include_attritional: true
+  include_large: true
+  include_catastrophic: true
+  correlation:
+    attritional_large: 0.15
+    large_catastrophic: 0.25
+    enabled: false
+validation:
+  ks_test:
+    significance_level: 0.05
+    min_samples: 100
+  anderson_darling:
+    significance_level: 0.05
+  performance:
+    max_time_1m_samples: 1.0
+    max_time_1000_years: 5.0
+benchmarks:
+  manufacturing:
+    total_loss_ratio: 0.1
+    attritional_ratio: 0.02
+    large_ratio: 0.06
+    catastrophic_ratio: 0.02
+  insurance_market:
+    primary_layer_attachment: 0
+    primary_layer_limit: 5000000
+    excess_layer_attachment: 5000000
+    excess_layer_limit: 20000000
+scenarios:
+  baseline:
+    attritional_frequency_multiplier: 1.0
+    large_frequency_multiplier: 1.0
+    catastrophic_frequency_multiplier: 1.0
+    severity_multiplier: 1.0
+  stressed:
+    attritional_frequency_multiplier: 1.5
+    large_frequency_multiplier: 2.0
+    catastrophic_frequency_multiplier: 1.5
+    severity_multiplier: 1.25
+  benign:
+    attritional_frequency_multiplier: 0.7
+    large_frequency_multiplier: 0.5
+    catastrophic_frequency_multiplier: 0.5
+    severity_multiplier: 0.8
