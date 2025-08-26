@@ -684,10 +684,45 @@ proceed work on issue #30 "Premium Pricing Scenario Framework". Ask me any clari
 
 ## Sprint 05: Constrained Optimization
 
-### Sprint Planning Questions
+work on issue #46 "Hamilton-Jacobi-Bellman Solver for Optimal Control". Ask me clarifying questions, then proceed to resolve the issue. Make sure that all new and existing tests pass before closing the issue.
 
-### Sprint Planning Responses
+### Issue #46 Planning Questions
 
+  1. State space dimensionality: The issue mentions starting with 2D
+  (wealth, time). Should I focus on this simplified case first, or would
+  you prefer I design the code to easily extend to higher dimensions
+  (e.g., adding loss history)?
+  2. Utility function: For the value function in the HJB equation, should
+   I use:
+    - Log utility (for ergodic growth rate optimization)
+    - Power utility with risk aversion parameter
+    - Expected wealth maximization
+    - Or make it configurable?
+  3. Control variables: Should the control be:
+    - Just insurance limit and retention levels
+    - Also include dynamic premium negotiation
+    - Allow for multiple insurance layers as controls
+  4. Integration preference: Would you like the HJB solver to:
+    - Be a standalone module that can be called from existing optimizers
+    - Replace certain optimization methods in business_optimizer.py
+    - Work alongside existing methods as an alternative approach
+  5. Performance requirements: The PDE solver can be computationally
+  intensive. Should I:
+    - Focus on correctness first (pure NumPy/SciPy)
+    - Include Numba JIT compilation from the start
+    - Consider sparse matrix techniques for larger grids
+
+### Issue #46 Planning Responses
+
+1. Design for higher dimensions right away, with any simplifications for 2D cases.
+2. Make the utility function configurable with the following built-in options:
+    - Log utility (for ergodic growth rate optimization)
+    - Power utility with risk aversion parameter
+    - Expected wealth maximization
+2.b. Provide guide in the documentation on how to add custom utility functions.
+3. Balance control variables to be what would be most useful to end-users and what they would tend to use in practice.
+4. Make it work alongside existing methods as an alternative approach.
+5. Focus on correctness of implementation first, we can optimize later as needed.
 
 ## Sprint 06: Monte Carlo Engine
 
