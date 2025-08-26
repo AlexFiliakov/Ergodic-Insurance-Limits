@@ -726,7 +726,7 @@ work on issue #46 "Hamilton-Jacobi-Bellman Solver for Optimal Control". Ask me c
 
 ### Code Review
 
-we are now finished with Sprint 05 as described in `00_PLAN.md`. Assess the current state of the project and recommend any hotfixes or enhancements before proceeding onward to Sprint 06 issues. We have issues specified through the rest of the project plan, so Sprint 06, Sprint 07, and Sprint 08. We just need to maintain high standards to keep the project from derailing, so keep your review standards high when making recommendations. The end result must be maintainable as well as valid, and this simulation framework must be usable to answer the main questions of what value does insurance bring to corporate profitability.
+we are now ready to finish Sprint 05 as described in `00_PLAN.md`. Assess the current state of the project and recommend any hotfixes or enhancements before proceeding onward to Sprint 06 issues. We have issues specified through the rest of the project plan, so Sprint 06, Sprint 07, and Sprint 08. We just need to maintain high standards to keep the project from derailing, so keep your review standards high when making recommendations. The end result must be maintainable as well as valid, and this simulation framework must be usable to answer the main questions of what value does insurance bring to corporate profitability.
 
 ## Sprint 06: Monte Carlo Engine
 
