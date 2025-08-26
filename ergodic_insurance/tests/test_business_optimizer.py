@@ -14,7 +14,7 @@ from ergodic_insurance.src.business_optimizer import (
     BusinessConstraints,
     BusinessObjective,
     BusinessOptimizationResult,
-    BusinessOutcomeOptimizer,
+    BusinessOptimizer,
     OptimalStrategy,
     OptimizationDirection,
 )
@@ -199,8 +199,8 @@ class TestBusinessOptimizationResult:
         assert result.is_feasible() is False
 
 
-class TestBusinessOutcomeOptimizer:
-    """Test BusinessOutcomeOptimizer class."""
+class TestBusinessOptimizer:
+    """Test BusinessOptimizer class."""
 
     @pytest.fixture
     def manufacturer(self):
@@ -219,11 +219,11 @@ class TestBusinessOutcomeOptimizer:
     @pytest.fixture
     def optimizer(self, manufacturer):
         """Create optimizer instance."""
-        return BusinessOutcomeOptimizer(manufacturer)
+        return BusinessOptimizer(manufacturer)
 
     def test_initialization(self, manufacturer):
         """Test optimizer initialization."""
-        optimizer = BusinessOutcomeOptimizer(manufacturer)
+        optimizer = BusinessOptimizer(manufacturer)
         assert optimizer.manufacturer == manufacturer
         assert optimizer.decision_engine is not None
         assert optimizer.ergodic_analyzer is None
@@ -232,7 +232,7 @@ class TestBusinessOutcomeOptimizer:
         decision_engine = Mock(spec=InsuranceDecisionEngine)
         ergodic_analyzer = Mock(spec=ErgodicAnalyzer)
 
-        optimizer = BusinessOutcomeOptimizer(
+        optimizer = BusinessOptimizer(
             manufacturer, decision_engine=decision_engine, ergodic_analyzer=ergodic_analyzer
         )
         assert optimizer.decision_engine == decision_engine
@@ -369,13 +369,12 @@ class TestBusinessOutcomeOptimizer:
     def test_optimize_with_ergodic_analyzer(self, manufacturer):
         """Test optimization with ergodic analyzer."""
         ergodic_analyzer = Mock(spec=ErgodicAnalyzer)
-        optimizer = BusinessOutcomeOptimizer(manufacturer, ergodic_analyzer=ergodic_analyzer)
+        optimizer = BusinessOptimizer(manufacturer, ergodic_analyzer=ergodic_analyzer)
 
         strategies = [
             {
-                "name": "Test",
-                "coverage_limit": 10_000_000,
-                "deductible": 100_000,
+                "coverage_limit": 10_000_000.0,
+                "deductible": 100_000.0,
                 "premium_rate": 0.02,
             }
         ]
@@ -522,7 +521,7 @@ class TestBusinessOutcomeOptimizer:
 
     def test_empty_objectives_handling(self, optimizer):
         """Test handling of empty objectives list."""
-        objectives = []
+        objectives: list[BusinessObjective] = []
         constraints = BusinessConstraints()
 
         # Should handle empty objectives gracefully
@@ -584,7 +583,7 @@ class TestIntegration:
         manufacturer = WidgetManufacturer(config)
 
         # Create optimizer
-        optimizer = BusinessOutcomeOptimizer(manufacturer)
+        optimizer = BusinessOptimizer(manufacturer)
 
         # Define objectives
         objectives = [
@@ -658,7 +657,7 @@ class TestIntegration:
         )
         manufacturer = WidgetManufacturer(config)
 
-        optimizer = BusinessOutcomeOptimizer(manufacturer)
+        optimizer = BusinessOptimizer(manufacturer)
 
         # Compare different constraint scenarios
         scenarios = [

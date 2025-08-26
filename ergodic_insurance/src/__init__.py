@@ -13,7 +13,7 @@ __all__ = [
     "BusinessConstraints",
     "OptimalStrategy",
     "BusinessOptimizationResult",
-    "BusinessOutcomeOptimizer",
+    "BusinessOptimizer",
     "ClaimEvent",
     "ClaimGenerator",
     "Config",
@@ -32,13 +32,13 @@ def __getattr__(name):
         "BusinessConstraints",
         "OptimalStrategy",
         "BusinessOptimizationResult",
-        "BusinessOutcomeOptimizer",
+        "BusinessOptimizer",
     ):
         from .business_optimizer import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             BusinessConstraints,
             BusinessObjective,
             BusinessOptimizationResult,
-            BusinessOutcomeOptimizer,
+            BusinessOptimizer,
             OptimalStrategy,
         )
 

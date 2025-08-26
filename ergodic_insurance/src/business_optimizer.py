@@ -162,7 +162,7 @@ class BusinessOptimizationResult:
         return all(self.constraint_satisfaction.values())
 
 
-class BusinessOutcomeOptimizer:
+class BusinessOptimizer:
     """Optimize business outcomes through insurance decisions.
 
     This class implements sophisticated optimization algorithms focused on

@@ -654,13 +654,13 @@ class TestIntegration:
 
         decisions = {}
 
-        for scenario in ["soft", "baseline", "hard"]:
+        for scenario in ["inexpensive", "baseline", "expensive"]:
             with patch("ergodic_insurance.src.decision_engine.ConfigLoader") as mock_loader:
                 # Mock different rates for each scenario
                 rates = {
-                    "soft": (0.005, 0.003, 0.001),
+                    "inexpensive": (0.005, 0.003, 0.001),
                     "baseline": (0.01, 0.005, 0.002),
-                    "hard": (0.015, 0.008, 0.004),
+                    "expensive": (0.015, 0.008, 0.004),
                 }
 
                 mock_scenario = Mock(
@@ -683,12 +683,12 @@ class TestIntegration:
 
         # Verify different scenarios produce different decisions
         # Soft market should have lowest premiums
-        assert decisions["soft"].total_premium <= decisions["baseline"].total_premium
+        assert decisions["inexpensive"].total_premium <= decisions["baseline"].total_premium
         # Hard market may have budget-constrained premium (fallback to differential evolution)
         # so we can't assert it's higher than baseline
 
         # In soft market, should buy more coverage for same or lower cost
-        assert decisions["soft"].total_coverage >= decisions["hard"].total_coverage
+        assert decisions["inexpensive"].total_coverage >= decisions["expensive"].total_coverage
         # Coverage should be inversely related to market hardness when budget-constrained
         assert all(d.total_premium <= constraints.max_premium_budget for d in decisions.values())
 

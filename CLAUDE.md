@@ -236,8 +236,22 @@ npm run format # format code
 6. **Performance**: Long simulations (100-1000 years) must complete in reasonable time ✅ **VERIFIED**
 7. **Version Control**: Never commit directly to main branch - use feature branches ✅ **ENFORCED**
 8. **Code Quality**: Run formatters and linters before committing ✅ **AUTOMATED**
+9. **Import Patterns**: Follow standardized module naming and import conventions ✅ **STANDARDIZED**
+
+### Import Conventions and Module Naming
+- **Module Names**: Use snake_case for module files (e.g., `business_optimizer.py`)
+- **Class Names**: Use PascalCase for classes, matching the module purpose (e.g., `BusinessOptimizer`)
+- **Consistency Rule**: Primary class in a module should align with the module name
+  - ✅ CORRECT: `business_optimizer.py` → `BusinessOptimizer`
+  - ✅ CORRECT: `claim_generator.py` → `ClaimGenerator`
+  - ❌ AVOID: `business_optimizer.py` → `BusinessOutcomeOptimizer`
+- **Import Style**: Use explicit imports from `ergodic_insurance.src`
+  - Example: `from ergodic_insurance.src.business_optimizer import BusinessOptimizer`
+- **Public API**: All public classes are exported through `src/__init__.py`
+- **Validation**: Run `pytest tests/test_imports.py` to verify import patterns
 
 ### Recent Improvements ✨
+- **Standardized Imports**: Renamed `BusinessOutcomeOptimizer` to `BusinessOptimizer` for consistency
 - **Enhanced Documentation Standards**: All modules now feature comprehensive Google-style docstrings
 - **Professional API Documentation**: Sphinx documentation system configured for automated generation
 - **Stochastic Modeling**: Complete implementation of GBM, lognormal volatility, and mean-reversion processes

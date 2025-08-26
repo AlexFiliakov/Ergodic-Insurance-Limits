@@ -115,6 +115,8 @@ show_error_context = true
 [tool.coverage.run]
 source = ["src"]
 omit = ["*/tests/*", "*/test_*.py"]
+branch = false  # Explicitly disable branch coverage to avoid mismatch
+parallel = true  # Enable parallel coverage collection
 
 [tool.coverage.report]
 exclude_lines = [
