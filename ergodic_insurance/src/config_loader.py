@@ -3,15 +3,20 @@
 This module provides utilities for loading, validating, and managing
 configuration files, with support for caching, overrides, and
 scenario-based configurations.
+
+NOTE: This module now uses the new ConfigManager through the compatibility layer.
+It maintains the same interface for backward compatibility.
 """
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+import warnings
 
 import yaml
 
 from .config import Config, PricingScenarioConfig
+from .config_compat import LegacyConfigAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +26,9 @@ class ConfigLoader:
 
     A comprehensive configuration management system that supports
     YAML file loading, validation, caching, and runtime overrides.
+
+    NOTE: This class now delegates to LegacyConfigAdapter for backward compatibility
+    while using the new ConfigManager internally.
     """
 
     DEFAULT_CONFIG_DIR = Path(__file__).parent.parent / "data" / "parameters"
@@ -34,7 +42,9 @@ class ConfigLoader:
                        Defaults to data/parameters/.
         """
         self.config_dir = config_dir or self.DEFAULT_CONFIG_DIR
-        self._cache: Dict[str, Config] = {}
+        self._cache: Dict[Any, Config] = {}  # Changed to Any for tuple keys
+        self._adapter = LegacyConfigAdapter()
+        self._deprecation_warned = False
 
     def load(
         self,
@@ -58,36 +68,36 @@ class ConfigLoader:
             FileNotFoundError: If config file doesn't exist.
             ValidationError: If configuration is invalid.
         """
-        # Determine config path
-        if "/" in config_name or "\\" in config_name:
-            # Full path provided
-            config_path = Path(config_name)
-        else:
-            # Config name provided, add .yaml extension if needed
-            if not config_name.endswith(".yaml"):
-                config_name += ".yaml"
-            config_path = self.config_dir / config_name
+        # Show deprecation warning once
+        if not self._deprecation_warned:
+            warnings.warn(
+                "ConfigLoader is deprecated. Please migrate to ConfigManager for improved functionality.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self._deprecation_warned = True
+
+        # Create cache key - need to handle nested dicts
+        def make_hashable(obj):
+            if isinstance(obj, dict):
+                return frozenset((k, make_hashable(v)) for k, v in obj.items())
+            if isinstance(obj, list):
+                return tuple(make_hashable(item) for item in obj)
+            return obj
+
+        cache_key = (
+            config_name,
+            make_hashable(overrides) if overrides else None,
+            make_hashable(kwargs) if kwargs else None,
+        )
 
         # Check cache
-        cache_key = str(config_path)
-        if cache_key not in self._cache:
-            logger.info(f"Loading configuration from {config_path}")
-            self._cache[cache_key] = Config.from_yaml(config_path)
-        else:
-            logger.debug(f"Using cached configuration for {config_path}")
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
-        config = self._cache[cache_key]
-
-        # Apply dictionary overrides
-        if overrides:
-            logger.debug(f"Applying dictionary overrides: {overrides}")
-            config = Config.from_dict(overrides, base_config=config)
-
-        # Apply keyword overrides
-        if kwargs:
-            logger.debug(f"Applying keyword overrides: {kwargs}")
-            config = config.override(**kwargs)
-
+        # Load using adapter and cache result
+        config = self._adapter.load(config_name, overrides, **kwargs)
+        self._cache[cache_key] = config
         return config
 
     def load_scenario(

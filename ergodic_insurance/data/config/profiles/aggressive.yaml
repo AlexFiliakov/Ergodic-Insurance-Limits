@@ -1,0 +1,37 @@
+profile:
+  name: aggressive
+  description: Growth-focused configuration with higher risk tolerance
+  extends: default
+  version: 2.0.0
+manufacturer:
+  initial_assets: 10000000
+  asset_turnover_ratio: 1.2
+  operating_margin: 0.12
+  tax_rate: 0.21
+  retention_ratio: 1.0
+working_capital:
+  percent_of_sales: 0.15
+growth:
+  type: deterministic
+  annual_growth_rate: 0.08
+  volatility: 0.08
+debt:
+  interest_rate: 0.0125
+  max_leverage_ratio: 2.5
+  minimum_cash_balance: 50000
+simulation:
+  time_resolution: annual
+  time_horizon_years: 50
+  max_horizon_years: 1000
+  random_seed: 42
+output:
+  output_directory: outputs/optimistic
+  file_format: csv
+  checkpoint_frequency: 20
+  detailed_metrics: false
+logging:
+  enabled: true
+  level: WARNING
+  log_file: simulation_optimistic.log
+  console_output: false
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

@@ -730,6 +730,8 @@ we are now ready to finish Sprint 05 as described in `00_PLAN.md`. Assess the cu
 
 ## Sprint 06: Monte Carlo Engine
 
+prepare to work on issue #48 "Design and Implement Enhanced Parallel Simulation Architecture". First ask me clarifying questions then proceed to resolve the issue. Make sure that all new and existing tests pass before closing the issue. Avoid using the `uv-run` command from `uv-mcp`.
+
 ### Sprint Planning Questions
 
 ### Sprint Planning Responses

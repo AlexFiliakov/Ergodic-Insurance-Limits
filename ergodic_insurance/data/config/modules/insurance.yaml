@@ -1,0 +1,382 @@
+deductible: 500000
+layers:
+  primary:
+    attachment_point: 0
+    limit: 5000000
+    rate_on_line: 0.02
+    description: Working layer covering most attritional and some large losses
+  first_excess:
+    attachment_point: 5000000
+    limit: 20000000
+    rate_on_line: 0.01
+    description: Middle market layer for large losses
+  second_excess:
+    attachment_point: 25000000
+    limit: 75000000
+    rate_on_line: 0.005
+    description: High excess layer for severe events
+  third_excess:
+    attachment_point: 100000000
+    limit: 150000000
+    rate_on_line: 0.003
+    description: Catastrophic layer for extreme tail events
+deductibles:
+- 1000000
+- 2000000
+- 5000000
+- 10000000
+- 25000000
+premium_notes: "Premium = \xCE\xA3 (Layer Limit \xC3\u2014 Rate on Line) for selected\
+  \ layers\n\nExample for full coverage with $1M deductible:\n- Primary (above $1M):\
+  \ $4M \xC3\u2014 2.0% = $80K\n- First Excess: $20M \xC3\u2014 1.0% = $200K\n- Second\
+  \ Excess: $75M \xC3\u2014 0.5% = $375K\n- Third Excess: $150M \xC3\u2014 0.3% =\
+  \ $450K\n- Total Annual Premium: $1,105K\n\nDecreasing rates reflect lower expected\
+  \ frequency at higher layers,\nthough ergodic value of high-layer coverage exceeds\
+  \ loss-cost analysis.\n"
+market_conditions:
+  hard_market_adjustment: 1.0
+  minimum_premium: 50000
+  maximum_layers: 4
+standard_manufacturing:
+  program_name: Standard Manufacturing Insurance Program
+  deductible: 250000
+  layers:
+  - attachment_point: 250000
+    limit: 4750000
+    premium_rate: 0.015
+    reinstatements: 0
+    description: Primary working layer for attritional losses
+  - attachment_point: 5000000
+    limit: 20000000
+    premium_rate: 0.008
+    reinstatements: 1
+    reinstatement_premium: 1.0
+    reinstatement_type: full
+    description: First excess for large losses
+  - attachment_point: 25000000
+    limit: 25000000
+    premium_rate: 0.004
+    reinstatements: 2
+    reinstatement_premium: 1.0
+    reinstatement_type: pro_rata
+    description: Second excess for severe events
+  - attachment_point: 50000000
+    limit: 50000000
+    premium_rate: 0.002
+    reinstatements: 999
+    reinstatement_premium: 1.0
+    reinstatement_type: pro_rata
+    description: Catastrophic layer with unlimited reinstatements
+conservative_manufacturing:
+  program_name: Conservative Manufacturing Program
+  deductible: 1000000
+  layers:
+  - attachment_point: 1000000
+    limit: 4000000
+    premium_rate: 0.012
+    reinstatements: 0
+  - attachment_point: 5000000
+    limit: 15000000
+    premium_rate: 0.007
+    reinstatements: 1
+    reinstatement_premium: 0.75
+    reinstatement_type: pro_rata
+  - attachment_point: 20000000
+    limit: 30000000
+    premium_rate: 0.003
+    reinstatements: 1
+    reinstatement_premium: 0.5
+    reinstatement_type: pro_rata
+aggressive_manufacturing:
+  program_name: Aggressive Manufacturing Program
+  deductible: 100000
+  layers:
+  - attachment_point: 100000
+    limit: 4900000
+    premium_rate: 0.018
+    reinstatements: 1
+    reinstatement_premium: 0.5
+    reinstatement_type: pro_rata
+  - attachment_point: 5000000
+    limit: 25000000
+    premium_rate: 0.009
+    reinstatements: 2
+    reinstatement_premium: 1.0
+    reinstatement_type: full
+  - attachment_point: 30000000
+    limit: 70000000
+    premium_rate: 0.005
+    reinstatements: 999
+    reinstatement_premium: 1.0
+    reinstatement_type: pro_rata
+  - attachment_point: 100000000
+    limit: 150000000
+    premium_rate: 0.003
+    reinstatements: 999
+    reinstatement_premium: 1.0
+    reinstatement_type: pro_rata
+small_company:
+  program_name: Small Company Insurance Program
+  deductible: 50000
+  layers:
+  - attachment_point: 50000
+    limit: 950000
+    premium_rate: 0.025
+    reinstatements: 0
+  - attachment_point: 1000000
+    limit: 4000000
+    premium_rate: 0.012
+    reinstatements: 1
+    reinstatement_premium: 1.0
+    reinstatement_type: full
+  - attachment_point: 5000000
+    limit: 10000000
+    premium_rate: 0.006
+    reinstatements: 1
+    reinstatement_premium: 0.5
+    reinstatement_type: pro_rata
+captive_program:
+  program_name: Captive-Backed Insurance Program
+  deductible: 500000
+  layers:
+  - attachment_point: 500000
+    limit: 2500000
+    premium_rate: 0.01
+    reinstatements: 3
+    reinstatement_premium: 0.25
+    reinstatement_type: pro_rata
+    aggregate_limit: 10000000
+  - attachment_point: 3000000
+    limit: 7000000
+    premium_rate: 0.01
+    reinstatements: 1
+    reinstatement_premium: 1.0
+    reinstatement_type: full
+  - attachment_point: 10000000
+    limit: 40000000
+    premium_rate: 0.005
+    reinstatements: 2
+    reinstatement_premium: 1.0
+    reinstatement_type: pro_rata
+selection_guidelines:
+  standard:
+    description: Balanced coverage for typical manufacturing operations
+    recommended_for:
+    - revenue:
+      - 10000000
+      - 50000000
+    - asset_value:
+      - 10000000
+      - 100000000
+    - risk_tolerance: moderate
+  conservative:
+    description: Higher retentions with focused excess coverage
+    recommended_for:
+    - revenue:
+      - 20000000
+      - 100000000
+    - asset_value:
+      - 50000000
+      - 500000000
+    - risk_tolerance: low
+    - strong_balance_sheet: true
+  aggressive:
+    description: Maximum coverage with low retentions
+    recommended_for:
+    - revenue:
+      - 5000000
+      - 30000000
+    - asset_value:
+      - 5000000
+      - 50000000
+    - risk_tolerance: high
+    - growth_focused: true
+  small_company:
+    description: Tailored for smaller manufacturing operations
+    recommended_for:
+    - revenue:
+      - 1000000
+      - 10000000
+    - asset_value:
+      - 1000000
+      - 10000000
+    - employee_count:
+      - 10
+      - 100
+  captive:
+    description: Hybrid structure with captive participation
+    recommended_for:
+    - revenue:
+      - 50000000
+      - 500000000
+    - has_captive: true
+    - sophisticated_risk_management: true
+market_factors:
+  hard_market_multiplier: 1.25
+  soft_market_multiplier: 0.85
+  industry_factors:
+    manufacturing_general: 1.0
+    chemical_manufacturing: 1.5
+    food_manufacturing: 0.9
+    electronics_manufacturing: 1.1
+    heavy_machinery: 1.3
+  loss_history_factors:
+    clean_5_years: 0.8
+    average_losses: 1.0
+    above_average: 1.3
+    recent_large_loss: 1.5
+reinstatement_structures:
+  standard:
+    first_reinstatement: 1.0
+    second_reinstatement: 1.0
+    subsequent: 1.0
+  declining:
+    first_reinstatement: 1.0
+    second_reinstatement: 0.75
+    subsequent: 0.5
+  increasing:
+    first_reinstatement: 0.5
+    second_reinstatement: 1.0
+    subsequent: 1.5
+optimization:
+  constraints:
+    max_total_premium: null
+    min_total_coverage: 50000000
+    max_layers: 5
+    min_layers: 3
+    max_attachment_gap: 0.0
+    min_roe_improvement: 0.15
+    max_iterations: 1000
+    convergence_tolerance: 1.0e-06
+  algorithm_settings:
+    primary_method: scipy_optimize
+    fallback_method: genetic_algorithm
+    monte_carlo_samples: 10000
+  percentile_defaults:
+    3_layers:
+    - 50
+    - 90
+    - 99
+    4_layers:
+    - 40
+    - 80
+    - 95
+    - 99.5
+    5_layers:
+    - 30
+    - 60
+    - 85
+    - 95
+    - 99.5
+  capacity_defaults:
+    low_attachment: 5000000
+    medium_attachment: 25000000
+    high_attachment: 50000000
+    catastrophic_attachment: 100000000
+  rate_structure:
+    primary_rate: 0.015
+    excess_rate: 0.01
+    high_excess_rate: 0.006
+    catastrophic_rate: 0.003
+scenarios:
+  inexpensive:
+    name: Soft Market
+    description: Buyer's market with excess capacity and high competition
+    market_condition: soft
+    primary_layer_rate: 0.005
+    first_excess_rate: 0.003
+    higher_excess_rate: 0.001
+    capacity_factor: 1.5
+    competition_level: high
+    retention_discount: 0.1
+    volume_discount: 0.05
+    loss_ratio_target: 0.65
+    expense_ratio: 0.3
+    new_business_appetite: aggressive
+    renewal_retention_focus: low
+    coverage_enhancement_willingness: high
+  baseline:
+    name: Normal Market
+    description: Balanced market conditions with moderate competition
+    market_condition: normal
+    primary_layer_rate: 0.01
+    first_excess_rate: 0.005
+    higher_excess_rate: 0.002
+    capacity_factor: 1.0
+    competition_level: moderate
+    retention_discount: 0.05
+    volume_discount: 0.025
+    loss_ratio_target: 0.6
+    expense_ratio: 0.28
+    new_business_appetite: selective
+    renewal_retention_focus: balanced
+    coverage_enhancement_willingness: moderate
+  expensive:
+    name: Hard Market
+    description: Seller's market after major losses with limited capacity
+    market_condition: hard
+    primary_layer_rate: 0.015
+    first_excess_rate: 0.008
+    higher_excess_rate: 0.004
+    capacity_factor: 0.7
+    competition_level: low
+    retention_discount: 0.0
+    volume_discount: 0.0
+    loss_ratio_target: 0.5
+    expense_ratio: 0.25
+    new_business_appetite: restrictive
+    renewal_retention_focus: high
+    coverage_enhancement_willingness: low
+market_cycles:
+  average_duration_years: 8
+  soft_market_duration: 3.5
+  normal_market_duration: 3.0
+  hard_market_duration: 1.5
+  transition_probabilities:
+    soft_to_soft: 0.6
+    soft_to_normal: 0.35
+    soft_to_hard: 0.05
+    normal_to_soft: 0.15
+    normal_to_normal: 0.65
+    normal_to_hard: 0.2
+    hard_to_soft: 0.0
+    hard_to_normal: 0.45
+    hard_to_hard: 0.55
+  transition_triggers:
+    to_hard_market:
+    - Major catastrophic loss event (>$50B industry loss)
+    - Multiple mid-size events in single year
+    - Regulatory changes restricting capacity
+    - Major reinsurer exits or failures
+    to_soft_market:
+    - Extended period without major losses (>2 years)
+    - New capital entering market
+    - Alternative risk transfer growth
+    - Technology reducing loss frequency
+    to_normal_market:
+    - Capacity stabilization after hard market
+    - Moderate loss experience
+    - Balanced supply and demand
+decision_impacts:
+  soft_market:
+    optimal_retention: lower
+    coverage_limits: higher
+    program_structure: broader
+    negotiation_leverage: buyer
+  normal_market:
+    optimal_retention: moderate
+    coverage_limits: adequate
+    program_structure: standard
+    negotiation_leverage: balanced
+  hard_market:
+    optimal_retention: higher
+    coverage_limits: reduced
+    program_structure: simplified
+    negotiation_leverage: insurer
+validation:
+  rate_ordering: primary > first_excess > higher_excess
+  min_capacity_factor: 0.5
+  max_capacity_factor: 2.0
+  transition_sum: 1.0
+  min_cycle_years: 5
+  max_cycle_years: 12

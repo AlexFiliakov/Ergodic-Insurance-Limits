@@ -1,0 +1,36 @@
+profile:
+  name: default
+  description: Standard baseline configuration for widget manufacturer
+  version: 2.0.0
+manufacturer:
+  initial_assets: 10000000
+  asset_turnover_ratio: 1.2
+  operating_margin: 0.1
+  tax_rate: 0.25
+  retention_ratio: 0.7
+working_capital:
+  percent_of_sales: 0.2
+growth:
+  type: deterministic
+  annual_growth_rate: 0.12
+  volatility: 0.0
+debt:
+  interest_rate: 0.05
+  max_leverage_ratio: 2.33
+  minimum_cash_balance: 100000
+simulation:
+  time_resolution: monthly
+  time_horizon_years: 100
+  max_horizon_years: 1000
+  random_seed: 42
+output:
+  output_directory: outputs
+  file_format: csv
+  checkpoint_frequency: 10
+  detailed_metrics: true
+logging:
+  enabled: true
+  level: INFO
+  log_file: simulation.log
+  console_output: true
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
