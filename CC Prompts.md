@@ -433,7 +433,7 @@ Flesh out each task and make tradeoffs favoring implementation speed and simplic
 
 ### Documentation
 
-Update all docstrings in modules, submodules, classes, methods, and functions to aid development and understandability of hte code. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the latest code structure and regenerate the docs.
+Update all docstrings in modules, submodules, classes, methods, and functions to aid development and understandability of the code. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the latest code structure and regenerate the docs.
 
 ### Monte Carlo Issue Questions
 
@@ -723,6 +723,10 @@ work on issue #46 "Hamilton-Jacobi-Bellman Solver for Optimal Control". Ask me c
 3. Balance control variables to be what would be most useful to end-users and what they would tend to use in practice.
 4. Make it work alongside existing methods as an alternative approach.
 5. Focus on correctness of implementation first, we can optimize later as needed.
+
+### Code Review
+
+we are now finished with Sprint 05 as described in `00_PLAN.md`. Assess the current state of the project and recommend any hotfixes or enhancements before proceeding onward to Sprint 06 issues. We have issues specified through the rest of the project plan, so Sprint 06, Sprint 07, and Sprint 08. We just need to maintain high standards to keep the project from derailing, so keep your review standards high when making recommendations. The end result must be maintainable as well as valid, and this simulation framework must be usable to answer the main questions of what value does insurance bring to corporate profitability.
 
 ## Sprint 06: Monte Carlo Engine
 
