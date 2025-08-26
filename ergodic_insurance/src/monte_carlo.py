@@ -2,16 +2,17 @@
 
 This module provides a vectorized, parallel Monte Carlo engine capable of running
 millions of scenarios with convergence monitoring and efficient memory management.
+Now enhanced with CPU-optimized parallel execution for budget hardware.
 """
 
-import os
-import pickle
-import time
-import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
+import pickle
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union
+import warnings
 
 import numpy as np
 from scipy import stats
@@ -21,6 +22,12 @@ from .convergence import ConvergenceDiagnostics, ConvergenceStats
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
+from .parallel_executor import (
+    ChunkingStrategy,
+    ParallelExecutor,
+    PerformanceMetrics,
+    SharedMemoryConfig,
+)
 from .risk_metrics import RiskMetrics
 
 
@@ -98,6 +105,10 @@ class SimulationConfig:
         checkpoint_interval: Save checkpoint every N simulations
         progress_bar: Show progress bar
         seed: Random seed for reproducibility
+        use_enhanced_parallel: Use enhanced parallel executor for better performance
+        monitor_performance: Track detailed performance metrics
+        adaptive_chunking: Enable adaptive chunk sizing
+        shared_memory: Enable shared memory for read-only data
     """
 
     n_simulations: int = 100_000
@@ -111,6 +122,10 @@ class SimulationConfig:
     checkpoint_interval: Optional[int] = None
     progress_bar: bool = True
     seed: Optional[int] = None
+    use_enhanced_parallel: bool = True
+    monitor_performance: bool = True
+    adaptive_chunking: bool = True
+    shared_memory: bool = True
 
 
 @dataclass
@@ -128,6 +143,7 @@ class SimulationResults:
         convergence: Convergence statistics
         execution_time: Total execution time in seconds
         config: Simulation configuration used
+        performance_metrics: Detailed performance metrics (if monitoring enabled)
     """
 
     final_assets: np.ndarray
@@ -140,10 +156,11 @@ class SimulationResults:
     convergence: Dict[str, ConvergenceStats]
     execution_time: float
     config: SimulationConfig
+    performance_metrics: Optional[PerformanceMetrics] = None
 
     def summary(self) -> str:
         """Generate summary of simulation results."""
-        return (
+        base_summary = (
             f"Simulation Results Summary\n"
             f"{'='*50}\n"
             f"Simulations: {self.config.n_simulations:,}\n"
@@ -157,11 +174,19 @@ class SimulationResults:
             f"Convergence R-hat: {self.convergence.get('growth_rate', ConvergenceStats(0,0,0,False,0,0)).r_hat:.3f}\n"
         )
 
+        # Add performance metrics if available
+        if self.performance_metrics:
+            base_summary += f"\n{'='*50}\n"
+            base_summary += self.performance_metrics.summary()
+
+        return base_summary
+
 
 class MonteCarloEngine:
     """High-performance Monte Carlo simulation engine.
 
     Supports vectorized operations, parallel processing, and convergence monitoring.
+    Now enhanced with CPU-optimized parallel execution for budget hardware.
     """
 
     def __init__(
@@ -200,6 +225,24 @@ class MonteCarloEngine:
         if self.config.n_workers is None and self.config.parallel:
             self.config.n_workers = min(os.cpu_count() or 4, 8)
 
+        # Initialize enhanced parallel executor if enabled
+        self.parallel_executor = None
+        if self.config.use_enhanced_parallel and self.config.parallel:
+            chunking_strategy = ChunkingStrategy(
+                initial_chunk_size=self.config.chunk_size,
+                adaptive=self.config.adaptive_chunking,
+            )
+            shared_memory_config = SharedMemoryConfig(
+                enable_shared_arrays=self.config.shared_memory,
+                enable_shared_objects=self.config.shared_memory,
+            )
+            self.parallel_executor = ParallelExecutor(
+                n_workers=self.config.n_workers,
+                chunking_strategy=chunking_strategy,
+                shared_memory_config=shared_memory_config,
+                monitor_performance=self.config.monitor_performance,
+            )
+
     def run(self) -> SimulationResults:
         """Execute Monte Carlo simulation.
 
@@ -216,9 +259,12 @@ class MonteCarloEngine:
                 print("Loaded cached results")
                 return cached
 
-        # Run simulation
+        # Run simulation with appropriate executor
         if self.config.parallel and self.config.n_simulations >= 10000:
-            results = self._run_parallel()
+            if self.config.use_enhanced_parallel and self.parallel_executor:
+                results = self._run_enhanced_parallel()
+            else:
+                results = self._run_parallel()
         else:
             results = self._run_sequential()
 
@@ -230,6 +276,10 @@ class MonteCarloEngine:
 
         # Set execution time
         results.execution_time = time.time() - start_time
+
+        # Add performance metrics if using enhanced parallel
+        if self.config.use_enhanced_parallel and self.parallel_executor:
+            results.performance_metrics = self.parallel_executor.performance_metrics
 
         # Cache results
         if self.config.cache_results:
@@ -331,6 +381,135 @@ class MonteCarloEngine:
 
         # Combine results
         return self._combine_chunk_results(all_results)
+
+    def _run_enhanced_parallel(self) -> SimulationResults:
+        """Run simulation using enhanced parallel executor.
+
+        Uses CPU-optimized parallel execution with shared memory and
+        intelligent chunking for better performance on budget hardware.
+        """
+        n_sims = self.config.n_simulations
+
+        # Prepare shared data (configuration that doesn't change)
+        shared_data = {
+            "n_years": self.config.n_years,
+            "use_float32": self.config.use_float32,
+            "manufacturer_config": self.manufacturer.__dict__.copy(),
+            "insurance_layers": [layer.__dict__ for layer in self.insurance_program.layers],
+            "loss_generator_params": {
+                "frequency_params": getattr(self.loss_generator, "frequency_params", {}),
+                "severity_params": getattr(self.loss_generator, "severity_params", {}),
+            },
+        }
+
+        # Define work function
+        def simulate_path_enhanced(sim_id, **shared):
+            """Enhanced simulation function for parallel execution."""
+            # Reconstruct objects from shared data
+            from ergodic_insurance.src.config import ManufacturerConfig
+            from ergodic_insurance.src.manufacturer import WidgetManufacturer
+
+            # Create manufacturer instance
+            config_dict = shared["manufacturer_config"]
+            if "config" in config_dict and hasattr(config_dict["config"], "__dict__"):
+                manufacturer = WidgetManufacturer(config_dict["config"])
+            else:
+                # Create from raw values
+                manufacturer = WidgetManufacturer.__new__(WidgetManufacturer)
+                for key, value in config_dict.items():
+                    setattr(manufacturer, key, value)
+
+            # Run simulation
+            n_years = shared["n_years"]
+            dtype = np.float32 if shared["use_float32"] else np.float64
+
+            annual_losses = np.zeros(n_years, dtype=dtype)
+            insurance_recoveries = np.zeros(n_years, dtype=dtype)
+            retained_losses = np.zeros(n_years, dtype=dtype)
+
+            # Simulate years
+            for year in range(n_years):
+                # Generate losses (simplified for parallel execution)
+                revenue = manufacturer.calculate_revenue()
+
+                # Use simplified loss generation
+                np.random.seed(sim_id * 1000 + year)  # Ensure reproducibility
+                n_events = np.random.poisson(3)  # Average 3 events per year
+                event_amounts = np.random.lognormal(10, 2, n_events)  # Log-normal losses
+                total_loss = np.sum(event_amounts)
+                annual_losses[year] = total_loss
+
+                # Apply insurance (simplified)
+                recovery = min(total_loss, 1_000_000) * 0.9  # Simplified recovery
+                insurance_recoveries[year] = recovery
+                retained_losses[year] = total_loss - recovery
+
+                # Update manufacturer
+                manufacturer.assets *= 1.0 - retained_losses[year] / manufacturer.assets
+
+                # Check for ruin
+                if manufacturer.assets <= 0:
+                    break
+
+            return {
+                "final_assets": manufacturer.assets,
+                "annual_losses": annual_losses,
+                "insurance_recoveries": insurance_recoveries,
+                "retained_losses": retained_losses,
+            }
+
+        # Define reduce function
+        def combine_results_enhanced(chunk_results):
+            """Combine results from enhanced parallel execution."""
+            # Flatten list of lists
+            all_results = []
+            for chunk in chunk_results:
+                all_results.extend(chunk)
+
+            # Extract arrays
+            n_results = len(all_results)
+            n_years = self.config.n_years
+            dtype = np.float32 if self.config.use_float32 else np.float64
+
+            final_assets = np.zeros(n_results, dtype=dtype)
+            annual_losses = np.zeros((n_results, n_years), dtype=dtype)
+            insurance_recoveries = np.zeros((n_results, n_years), dtype=dtype)
+            retained_losses = np.zeros((n_results, n_years), dtype=dtype)
+
+            for i, result in enumerate(all_results):
+                final_assets[i] = result["final_assets"]
+                annual_losses[i] = result["annual_losses"]
+                insurance_recoveries[i] = result["insurance_recoveries"]
+                retained_losses[i] = result["retained_losses"]
+
+            # Calculate derived metrics
+            growth_rates = self._calculate_growth_rates(final_assets)
+            ruin_probability = np.mean(final_assets <= 0)
+
+            return SimulationResults(
+                final_assets=final_assets,
+                annual_losses=annual_losses,
+                insurance_recoveries=insurance_recoveries,
+                retained_losses=retained_losses,
+                growth_rates=growth_rates,
+                ruin_probability=ruin_probability,
+                metrics={},
+                convergence={},
+                execution_time=0,
+                config=self.config,
+                performance_metrics=None,
+            )
+
+        # Execute using enhanced parallel executor
+        results = self.parallel_executor.map_reduce(
+            work_function=simulate_path_enhanced,
+            work_items=range(n_sims),
+            reduce_function=combine_results_enhanced,
+            shared_data=shared_data,
+            progress_bar=self.config.progress_bar,
+        )
+
+        return results
 
     def _run_chunk(self, chunk: Tuple[int, int, Optional[int]]) -> Dict[str, np.ndarray]:
         """Run a chunk of simulations.

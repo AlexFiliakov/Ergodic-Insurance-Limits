@@ -1,12 +1,14 @@
 """Tests for Monte Carlo simulation engine."""
 
+from pathlib import Path
 import shutil
 import tempfile
-from pathlib import Path
+import time
 from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.convergence import ConvergenceStats
 from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
@@ -638,3 +640,200 @@ class TestRuinProbabilityEstimation:
 
         combined = engine._combine_ruin_results([chunk_results, chunk_results2])
         assert len(combined["bankruptcy_years"]) == 15
+
+
+class TestEnhancedParallelExecution:
+    """Test enhanced parallel execution features."""
+
+    @pytest.fixture
+    def setup_enhanced_engine(self):
+        """Set up engine with enhanced parallel features."""
+        from ergodic_insurance.src.config import ManufacturerConfig
+
+        # Create mock loss generator
+        loss_generator = Mock(spec=ManufacturingLossGenerator)
+        loss_generator.generate_losses.return_value = ([], {"total_amount": 50_000})
+        loss_generator.frequency_params = {"lambda": 3.0}
+        loss_generator.severity_params = {"mu": 10, "sigma": 2}
+
+        # Create insurance program
+        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=0.02)
+        insurance_program = InsuranceProgram(layers=[layer])
+
+        # Create manufacturer
+        manufacturer_config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.8,
+        )
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        # Create enhanced config
+        config = SimulationConfig(
+            n_simulations=1000,
+            n_years=5,
+            parallel=True,
+            use_enhanced_parallel=True,
+            monitor_performance=True,
+            adaptive_chunking=True,
+            shared_memory=True,
+            n_workers=2,
+            progress_bar=False,
+            seed=42,
+        )
+
+        engine = MonteCarloEngine(
+            loss_generator=loss_generator,
+            insurance_program=insurance_program,
+            manufacturer=manufacturer,
+            config=config,
+        )
+
+        return engine
+
+    def test_enhanced_parallel_initialization(self, setup_enhanced_engine):
+        """Test initialization of enhanced parallel features."""
+        engine = setup_enhanced_engine
+
+        assert engine.config.use_enhanced_parallel is True
+        assert engine.config.monitor_performance is True
+        assert engine.config.adaptive_chunking is True
+        assert engine.config.shared_memory is True
+        assert engine.parallel_executor is not None
+
+    def test_enhanced_parallel_run(self, setup_enhanced_engine):
+        """Test running simulation with enhanced parallel executor."""
+        engine = setup_enhanced_engine
+
+        # Run simulation
+        results = engine.run()
+
+        # Check results
+        assert results is not None
+        assert results.config.n_simulations == 1000
+        assert len(results.final_assets) == 1000
+        assert results.annual_losses.shape == (1000, 5)
+        assert results.performance_metrics is not None
+
+        # Check performance metrics
+        metrics = results.performance_metrics
+        assert metrics.total_time > 0
+        assert metrics.items_per_second > 0
+
+    def test_performance_monitoring(self, setup_enhanced_engine):
+        """Test performance monitoring in enhanced mode."""
+        engine = setup_enhanced_engine
+        engine.config.monitor_performance = True
+
+        results = engine.run()
+
+        # Should have performance metrics
+        assert results.performance_metrics is not None
+
+        metrics = results.performance_metrics
+        assert metrics.total_time > 0
+        assert metrics.setup_time >= 0
+        assert metrics.computation_time > 0
+        assert metrics.serialization_time >= 0
+        assert metrics.reduction_time >= 0
+        assert metrics.memory_peak > 0
+        assert metrics.cpu_utilization >= 0
+        assert metrics.items_per_second > 0
+        assert metrics.speedup >= 1.0
+
+    def test_adaptive_chunking(self, setup_enhanced_engine):
+        """Test adaptive chunking in enhanced mode."""
+        engine = setup_enhanced_engine
+        engine.config.adaptive_chunking = True
+        engine.config.n_simulations = 100_000
+
+        # The chunking should adapt based on workload
+        # This is tested indirectly through successful execution
+        results = engine.run()
+
+        assert results is not None
+        assert len(results.final_assets) == 100_000
+
+    def test_shared_memory_usage(self, setup_enhanced_engine):
+        """Test shared memory optimization."""
+        engine = setup_enhanced_engine
+        engine.config.shared_memory = True
+
+        # Run with shared memory enabled
+        results = engine.run()
+
+        # Should complete successfully with lower memory overhead
+        assert results is not None
+
+        # Check that serialization overhead is low
+        if results.performance_metrics:
+            total_time = results.performance_metrics.total_time
+            serial_time = results.performance_metrics.serialization_time
+            if total_time > 0:
+                overhead = serial_time / total_time
+                assert overhead < 0.05  # Less than 5% overhead target
+
+    def test_enhanced_vs_standard_parallel(self, setup_enhanced_engine):
+        """Compare enhanced vs standard parallel execution."""
+        engine = setup_enhanced_engine
+
+        # Run with enhanced parallel
+        engine.config.use_enhanced_parallel = True
+        start_enhanced = time.time()
+        results_enhanced = engine.run()
+        time_enhanced = time.time() - start_enhanced
+
+        # Run with standard parallel
+        engine.config.use_enhanced_parallel = False
+        engine.parallel_executor = None  # Reset
+        start_standard = time.time()
+        results_standard = engine.run()
+        time_standard = time.time() - start_standard
+
+        # Both should produce valid results
+        assert results_enhanced is not None
+        assert results_standard is not None
+        assert len(results_enhanced.final_assets) == len(results_standard.final_assets)
+
+        # Enhanced should have performance metrics
+        assert results_enhanced.performance_metrics is not None
+        assert results_standard.performance_metrics is None
+
+    def test_budget_hardware_optimization(self, setup_enhanced_engine):
+        """Test optimization for budget hardware (4-8 cores)."""
+        engine = setup_enhanced_engine
+
+        # Simulate budget hardware constraints
+        engine.config.n_workers = 4  # Budget CPU with 4 cores
+        engine.config.n_simulations = 100_000  # Large workload
+
+        # Should handle efficiently
+        results = engine.run()
+
+        assert results is not None
+        assert len(results.final_assets) == 100_000
+
+        # Check memory efficiency (should stay under 4GB)
+        if results.performance_metrics:
+            memory_mb = results.performance_metrics.memory_peak / 1024**2
+            assert memory_mb < 4096  # Under 4GB
+
+    def test_results_summary_with_performance(self, setup_enhanced_engine):
+        """Test results summary includes performance metrics."""
+        engine = setup_enhanced_engine
+        results = engine.run()
+
+        summary = results.summary()
+
+        # Should include basic results
+        assert "Simulation Results Summary" in summary
+        assert "Simulations:" in summary
+        assert "Execution Time:" in summary
+
+        # Should include performance metrics
+        assert "Performance Summary" in summary
+        assert "CPU Utilization:" in summary
+        assert "Throughput:" in summary
+        assert "Speedup:" in summary

@@ -74,6 +74,13 @@ ergodic_insurance.src.monte\_carlo module
    :no-members:
    :show-inheritance:
 
+ergodic_insurance.src.parallel\_executor module
+------------------------------------------------
+
+.. automodule:: ergodic_insurance.src.parallel_executor
+   :no-members:
+   :show-inheritance:
+
 ergodic_insurance.src.simulation module
 ----------------------------------------
 
