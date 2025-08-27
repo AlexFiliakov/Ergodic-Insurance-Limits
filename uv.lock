@@ -541,6 +541,7 @@ name = "ergodic-insurance"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "jinja2" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
@@ -574,6 +575,7 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
     { name = "ipykernel", marker = "extra == 'notebooks'", specifier = ">=6.30.1" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=6.0.1" },
+    { name = "jinja2", specifier = ">=3.1.0" },
     { name = "jupyter", marker = "extra == 'notebooks'", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.1" },

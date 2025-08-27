@@ -22,6 +22,17 @@ __all__ = [
     "WidgetManufacturer",
     "Simulation",
     "SimulationResults",
+    "ValidationMetrics",
+    "MetricCalculator",
+    "PerformanceTargets",
+    "InsuranceStrategy",
+    "NoInsuranceStrategy",
+    "ConservativeFixedStrategy",
+    "AggressiveFixedStrategy",
+    "OptimizedStaticStrategy",
+    "AdaptiveStrategy",
+    "StrategyBacktester",
+    "WalkForwardValidator",
 ]
 
 
@@ -72,4 +83,38 @@ def __getattr__(name):
         )
 
         return locals()[name]
+    if name in ("ValidationMetrics", "MetricCalculator", "PerformanceTargets"):
+        from .validation_metrics import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            MetricCalculator,
+            PerformanceTargets,
+            ValidationMetrics,
+        )
+
+        return locals()[name]
+    if name in (
+        "InsuranceStrategy",
+        "NoInsuranceStrategy",
+        "ConservativeFixedStrategy",
+        "AggressiveFixedStrategy",
+        "OptimizedStaticStrategy",
+        "AdaptiveStrategy",
+        "StrategyBacktester",
+    ):
+        from .strategy_backtester import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AdaptiveStrategy,
+            AggressiveFixedStrategy,
+            ConservativeFixedStrategy,
+            InsuranceStrategy,
+            NoInsuranceStrategy,
+            OptimizedStaticStrategy,
+            StrategyBacktester,
+        )
+
+        return locals()[name]
+    if name == "WalkForwardValidator":
+        from .walk_forward_validator import (  # pylint: disable=import-outside-toplevel
+            WalkForwardValidator,
+        )
+
+        return WalkForwardValidator
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
