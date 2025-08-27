@@ -424,7 +424,7 @@ def plot_return_period_curve(  # pylint: disable=too-many-locals
     return fig
 
 
-def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statements
+def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     layers: Union[List[Dict[str, float]], pd.DataFrame],
     total_limit: Optional[float] = None,
     title: str = "Insurance Program Structure",
@@ -594,6 +594,54 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
 
     ax2.set_title("Premium Distribution", fontsize=12)
 
+    # Add loss overlay if provided
+    if losses is not None:
+        # Convert to numpy array if needed
+        loss_values: np.ndarray
+        if isinstance(losses, np.ndarray):
+            # Handle numpy arrays first
+            loss_values = losses.flatten()
+        elif hasattr(losses, "values"):
+            # Handle pandas DataFrame and Series
+            values = getattr(losses, "values")
+            if hasattr(values, "flatten"):
+                loss_values = values.flatten()
+            else:
+                loss_values = values
+        else:
+            # Handle any other array-like objects
+            loss_values = np.asarray(losses).flatten()
+
+        # Add loss distribution overlay on the layer structure chart
+        if len(loss_values) > 0 and show_expected_loss:
+            # Calculate expected loss
+            expected_loss = np.mean(loss_values)
+
+            # Add horizontal line for expected loss
+            ax1.axhline(
+                y=expected_loss,
+                color=WSJ_COLORS["orange"],
+                linestyle="--",
+                linewidth=2,
+                label=f"Expected Loss: {format_currency(expected_loss)}",
+                alpha=0.7,
+            )
+
+            # Add text annotation for expected loss
+            ax1.text(
+                len(layers) - 0.5,
+                expected_loss,
+                f"Expected: {format_currency(expected_loss)}",
+                va="bottom",
+                ha="right",
+                fontsize=9,
+                color=WSJ_COLORS["orange"],
+                fontweight="bold",
+            )
+
+            # Add legend if we have the expected loss line
+            ax1.legend(loc="upper left", framealpha=0.9)
+
     # Add total premium annotation
     total_premium = sum(premiums)
     fig.text(
@@ -634,12 +682,12 @@ def create_interactive_dashboard(
         results_dict = {
             "data": results,
             "summary": {
-                "mean_assets": results.get("assets", pd.Series()).mean()
-                if "assets" in results.columns
-                else 0,
-                "mean_losses": results.get("losses", pd.Series()).mean()
-                if "losses" in results.columns
-                else 0,
+                "mean_assets": (
+                    results.get("assets", pd.Series()).mean() if "assets" in results.columns else 0
+                ),
+                "mean_losses": (
+                    results.get("losses", pd.Series()).mean() if "losses" in results.columns else 0
+                ),
                 "years": results["year"].nunique() if "year" in results.columns else 1,
             },
         }
