@@ -15,8 +15,14 @@ import warnings
 
 import yaml
 
-from .config import Config, PricingScenarioConfig
-from .config_compat import LegacyConfigAdapter
+try:
+    # Try relative imports first (when used as a package)
+    from .config import Config, PricingScenarioConfig
+    from .config_compat import LegacyConfigAdapter
+except ImportError:
+    # Fall back to absolute imports (when called directly or from notebooks)
+    from config import Config, PricingScenarioConfig  # type: ignore
+    from config_compat import LegacyConfigAdapter  # type: ignore
 
 logger = logging.getLogger(__name__)
 

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+# Import from the visualization.py module
 from ergodic_insurance.src.visualization import (
     WSJFormatter,
     create_interactive_dashboard,

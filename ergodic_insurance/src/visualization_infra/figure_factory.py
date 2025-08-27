@@ -123,7 +123,7 @@ class FigureFactory:
             )
 
         # Apply styling to all axes
-        axes_list = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+        axes_list: List[Axes] = list(axes.flatten()) if isinstance(axes, np.ndarray) else [axes]
 
         for i, ax in enumerate(axes_list):
             self._apply_axis_styling(ax)
@@ -133,7 +133,7 @@ class FigureFactory:
         plt.tight_layout()
         return fig, axes
 
-    def create_line_plot(
+    def create_line_plot(  # pylint: disable=too-many-locals
         self,
         x_data: Union[List, np.ndarray, pd.Series],
         y_data: Union[List, np.ndarray, pd.Series, Dict[str, Union[List, np.ndarray]]],
@@ -173,14 +173,14 @@ class FigureFactory:
 
         # Handle multiple series
         if isinstance(y_data, dict):
-            for i, (label, data) in enumerate(y_data.items()):
+            for i, (series_label, data) in enumerate(y_data.items()):
                 color = colors.series[i % len(colors.series)]
                 marker = "o" if markers else None
-                ax.plot(x_data, data, label=label, color=color, marker=marker, **kwargs)
+                ax.plot(x_data, data, label=series_label, color=color, marker=marker, **kwargs)
         else:
             # Single series
             marker = "o" if markers else None
-            label = labels[0] if labels else None
+            label: Optional[str] = labels[0] if labels else None
             ax.plot(x_data, y_data, color=colors.primary, label=label, marker=marker, **kwargs)
 
         # Labels and formatting
@@ -197,7 +197,7 @@ class FigureFactory:
         plt.tight_layout()
         return fig, ax
 
-    def create_bar_plot(
+    def create_bar_plot(  # pylint: disable=too-many-locals,too-many-branches
         self,
         categories: Union[List, np.ndarray],
         values: Union[List, np.ndarray, Dict[str, Union[List, np.ndarray]]],
@@ -326,7 +326,7 @@ class FigureFactory:
 
         # Default sizes if not provided
         if sizes is None:
-            sizes = 50
+            sizes = np.array([50] * len(x_data))
 
         # Create scatter plot
         if colors is not None:
@@ -347,7 +347,7 @@ class FigureFactory:
         plt.tight_layout()
         return fig, ax
 
-    def create_histogram(
+    def create_histogram(  # pylint: disable=too-many-locals
         self,
         data: Union[List, np.ndarray, pd.Series],
         title: Optional[str] = None,
@@ -418,7 +418,12 @@ class FigureFactory:
             from scipy import stats
 
             kde = stats.gaussian_kde(data)
-            x_range = np.linspace(data.min(), data.max(), 100)
+            if isinstance(data, (list, np.ndarray, pd.Series)):
+                data_array = np.array(data) if isinstance(data, list) else data
+                x_range = np.linspace(float(np.min(data_array)), float(np.max(data_array)), 100)
+            else:
+                # Should never reach here but keeping for type safety
+                x_range = np.linspace(0, 100, 100)  # type: ignore[unreachable]
             kde_values = kde(x_range)
 
             # Scale KDE to match histogram
@@ -517,7 +522,7 @@ class FigureFactory:
         plt.tight_layout()
         return fig, ax
 
-    def create_box_plot(
+    def create_box_plot(  # pylint: disable=too-many-locals,too-many-branches
         self,
         data: Union[List[List], Dict[str, List], pd.DataFrame],
         title: Optional[str] = None,
@@ -557,7 +562,7 @@ class FigureFactory:
             if labels is None:
                 labels = list(data.keys())
         elif isinstance(data, pd.DataFrame):
-            plot_data = [data[col].dropna() for col in data.columns]
+            plot_data = [data[col].dropna().values.tolist() for col in data.columns]
             if labels is None:
                 labels = list(data.columns)
         else:
@@ -702,9 +707,11 @@ class FigureFactory:
                 xy=(x, y),
                 xytext=offset,
                 textcoords="offset points",
-                arrowprops=dict(
-                    arrowstyle="->", color=colors.neutral, connectionstyle="arc3,rad=0.2"
-                ),
+                arrowprops={
+                    "arrowstyle": "->",
+                    "color": colors.neutral,
+                    "connectionstyle": "arc3,rad=0.2",
+                },
                 fontsize=self.style_manager.get_fonts().size_base - 1,
                 color=colors.text,
                 **kwargs,
@@ -796,11 +803,11 @@ class FigureFactory:
             orientation: Bar orientation
             format_str: Format string for values
         """
-        for bar in bars:
+        for bar_element in bars:
             if orientation == "vertical":
-                height = bar.get_height()
+                height = bar_element.get_height()
                 ax.text(
-                    bar.get_x() + bar.get_width() / 2.0,
+                    bar_element.get_x() + bar_element.get_width() / 2.0,
                     height,
                     f"{height:{format_str}}",
                     ha="center",
@@ -808,10 +815,10 @@ class FigureFactory:
                     fontsize=self.style_manager.get_fonts().size_base - 2,
                 )
             else:
-                width = bar.get_width()
+                width = bar_element.get_width()
                 ax.text(
                     width,
-                    bar.get_y() + bar.get_height() / 2.0,
+                    bar_element.get_y() + bar_element.get_height() / 2.0,
                     f"{width:{format_str}}",
                     ha="left",
                     va="center",

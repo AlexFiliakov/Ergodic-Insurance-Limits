@@ -322,7 +322,9 @@ class StyleManager:
         Returns:
             Current theme's color palette
         """
-        return self.themes[self.current_theme]["colors"]
+        colors = self.themes[self.current_theme]["colors"]
+        assert isinstance(colors, ColorPalette)
+        return colors
 
     def get_fonts(self) -> FontConfig:
         """Get current font configuration.
@@ -330,7 +332,9 @@ class StyleManager:
         Returns:
             Current theme's font configuration
         """
-        return self.themes[self.current_theme]["fonts"]
+        fonts = self.themes[self.current_theme]["fonts"]
+        assert isinstance(fonts, FontConfig)
+        return fonts
 
     def get_figure_config(self) -> FigureConfig:
         """Get current figure configuration.
@@ -338,7 +342,9 @@ class StyleManager:
         Returns:
             Current theme's figure configuration
         """
-        return self.themes[self.current_theme]["figure"]
+        figure = self.themes[self.current_theme]["figure"]
+        assert isinstance(figure, FigureConfig)
+        return figure
 
     def get_grid_config(self) -> GridConfig:
         """Get current grid configuration.
@@ -346,7 +352,9 @@ class StyleManager:
         Returns:
             Current theme's grid configuration
         """
-        return self.themes[self.current_theme]["grid"]
+        grid = self.themes[self.current_theme]["grid"]
+        assert isinstance(grid, GridConfig)
+        return grid
 
     def update_colors(self, updates: Dict[str, str]) -> None:
         """Update colors in current theme.
@@ -485,40 +493,58 @@ class StyleManager:
             config = yaml.safe_load(f)
 
         # Update theme configurations
-        if "themes" in config:
-            for theme_name, theme_config in config["themes"].items():
-                theme = Theme[theme_name.upper()]
-                if theme not in self.themes:
-                    self.themes[theme] = {
-                        "colors": ColorPalette(),
-                        "fonts": FontConfig(),
-                        "figure": FigureConfig(),
-                        "grid": GridConfig(),
-                    }
+        if "themes" not in config:
+            return
 
-                # Update each component
-                if "colors" in theme_config:
-                    for key, value in theme_config["colors"].items():
-                        if hasattr(self.themes[theme]["colors"], key):
-                            setattr(self.themes[theme]["colors"], key, value)
+        for theme_name, theme_config in config["themes"].items():
+            self._update_theme_from_config(theme_name, theme_config)
 
-                if "fonts" in theme_config:
-                    for key, value in theme_config["fonts"].items():
-                        if hasattr(self.themes[theme]["fonts"], key):
-                            setattr(self.themes[theme]["fonts"], key, value)
+    def _update_theme_from_config(self, theme_name: str, theme_config: Dict[str, Any]) -> None:
+        """Update a single theme from configuration.
 
-                if "figure" in theme_config:
-                    for key, value in theme_config["figure"].items():
-                        if hasattr(self.themes[theme]["figure"], key):
-                            # Handle tuple conversions for sizes
-                            if "size" in key and isinstance(value, list):
-                                value = tuple(value)
-                            setattr(self.themes[theme]["figure"], key, value)
+        Args:
+            theme_name: Name of the theme
+            theme_config: Configuration for the theme
+        """
+        theme = Theme[theme_name.upper()]
+        if theme not in self.themes:
+            self.themes[theme] = {
+                "colors": ColorPalette(),
+                "fonts": FontConfig(),
+                "figure": FigureConfig(),
+                "grid": GridConfig(),
+            }
 
-                if "grid" in theme_config:
-                    for key, value in theme_config["grid"].items():
-                        if hasattr(self.themes[theme]["grid"], key):
-                            setattr(self.themes[theme]["grid"], key, value)
+        # Update each component
+        self._update_component(self.themes[theme]["colors"], theme_config.get("colors", {}))
+        self._update_component(self.themes[theme]["fonts"], theme_config.get("fonts", {}))
+        self._update_figure_component(self.themes[theme]["figure"], theme_config.get("figure", {}))
+        self._update_component(self.themes[theme]["grid"], theme_config.get("grid", {}))
+
+    def _update_component(self, component: Any, config_dict: Dict[str, Any]) -> None:
+        """Update a component with configuration values.
+
+        Args:
+            component: Component to update
+            config_dict: Configuration dictionary
+        """
+        for key, value in config_dict.items():
+            if hasattr(component, key):
+                setattr(component, key, value)
+
+    def _update_figure_component(self, component: Any, config_dict: Dict[str, Any]) -> None:
+        """Update figure component with special handling for sizes.
+
+        Args:
+            component: Figure component to update
+            config_dict: Configuration dictionary
+        """
+        for key, value in config_dict.items():
+            if hasattr(component, key):
+                # Handle tuple conversions for sizes
+                if "size" in key and isinstance(value, list):
+                    value = tuple(value)
+                setattr(component, key, value)
 
     def save_config(self, config_path: Union[str, Path]) -> None:
         """Save current configuration to YAML file.
@@ -529,7 +555,7 @@ class StyleManager:
         config_path = Path(config_path)
 
         # Build configuration dictionary
-        config = {"themes": {}}
+        config: Dict[str, Any] = {"themes": {}}
 
         for theme, theme_config in self.themes.items():
             config["themes"][theme.value] = {

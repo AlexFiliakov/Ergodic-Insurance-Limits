@@ -1,0 +1,307 @@
+themes:
+  colorblind:
+    colors:
+      accent: '#029E73'
+      background: '#FFFFFF'
+      grid: '#E0E0E0'
+      neutral: '#666666'
+      primary: '#0173B2'
+      secondary: '#DE8F05'
+      series:
+      - '#0173B2'
+      - '#DE8F05'
+      - '#029E73'
+      - '#CC78BC'
+      - '#ECE133'
+      - '#56B4E9'
+      - '#949494'
+      - '#FBE5D6'
+      success: '#56B4E9'
+      text: '#000000'
+      warning: '#CC78BC'
+    figure:
+      dpi_print: 300
+      dpi_screen: 100
+      dpi_web: 150
+      size_blog:
+      - 8
+      - 6
+      size_large:
+      - 12
+      - 8
+      size_medium:
+      - 8
+      - 6
+      size_presentation:
+      - 10
+      - 7.5
+      size_small:
+      - 6
+      - 4
+      size_technical:
+      - 10
+      - 8
+    fonts:
+      family: Arial
+      size_base: 11
+      size_label: 12
+      size_legend: 10
+      size_tick: 10
+      size_title: 14
+      weight_bold: bold
+      weight_normal: normal
+    grid:
+      grid_alpha: 0.3
+      grid_linewidth: 0.5
+      show_grid: true
+      spine_bottom: true
+      spine_left: true
+      spine_linewidth: 0.8
+      spine_right: false
+      spine_top: false
+      tick_major_width: 0.8
+      tick_minor_width: 0.4
+  default:
+    colors:
+      accent: '#00AA44'
+      background: '#FFFFFF'
+      grid: '#E0E0E0'
+      neutral: '#666666'
+      primary: '#003366'
+      secondary: '#FF6600'
+      series:
+      - '#0080C7'
+      - '#D32F2F'
+      - '#4CAF50'
+      - '#FF9800'
+      - '#7B1FA2'
+      - '#00796B'
+      - '#003F5C'
+      - '#FFD700'
+      success: '#4CAF50'
+      text: '#000000'
+      warning: '#D32F2F'
+    figure:
+      dpi_print: 300
+      dpi_screen: 100
+      dpi_web: 150
+      size_blog:
+      - 8
+      - 6
+      size_large:
+      - 12
+      - 8
+      size_medium:
+      - 8
+      - 6
+      size_presentation:
+      - 10
+      - 7.5
+      size_small:
+      - 6
+      - 4
+      size_technical:
+      - 10
+      - 8
+    fonts:
+      family: Helvetica
+      size_base: 12
+      size_label: 12
+      size_legend: 10
+      size_tick: 10
+      size_title: 16
+      weight_bold: bold
+      weight_normal: normal
+    grid:
+      grid_alpha: 0.3
+      grid_linewidth: 0.5
+      show_grid: true
+      spine_bottom: true
+      spine_left: true
+      spine_linewidth: 0.8
+      spine_right: false
+      spine_top: false
+      tick_major_width: 0.8
+      tick_minor_width: 0.4
+  minimal:
+    colors:
+      accent: '#999999'
+      background: '#FFFFFF'
+      grid: '#E0E0E0'
+      neutral: '#666666'
+      primary: '#333333'
+      secondary: '#666666'
+      series:
+      - '#333333'
+      - '#666666'
+      - '#999999'
+      - '#CCCCCC'
+      success: '#006600'
+      text: '#000000'
+      warning: '#CC0000'
+    figure:
+      dpi_print: 300
+      dpi_screen: 100
+      dpi_web: 150
+      size_blog:
+      - 8
+      - 6
+      size_large:
+      - 12
+      - 8
+      size_medium:
+      - 8
+      - 6
+      size_presentation:
+      - 10
+      - 7.5
+      size_small:
+      - 6
+      - 4
+      size_technical:
+      - 10
+      - 8
+    fonts:
+      family: Helvetica
+      size_base: 11
+      size_label: 12
+      size_legend: 10
+      size_tick: 10
+      size_title: 14
+      weight_bold: bold
+      weight_normal: normal
+    grid:
+      grid_alpha: 0.3
+      grid_linewidth: 0.5
+      show_grid: false
+      spine_bottom: true
+      spine_left: true
+      spine_linewidth: 0.5
+      spine_right: false
+      spine_top: false
+      tick_major_width: 0.8
+      tick_minor_width: 0.4
+  presentation:
+    colors:
+      accent: '#FF9800'
+      background: '#FFFFFF'
+      grid: '#E0E0E0'
+      neutral: '#666666'
+      primary: '#003F7F'
+      secondary: '#003F5C'
+      series:
+      - '#0080C7'
+      - '#D32F2F'
+      - '#4CAF50'
+      - '#FF9800'
+      - '#7B1FA2'
+      - '#00796B'
+      - '#003F5C'
+      - '#FFD700'
+      success: '#00AA00'
+      text: '#000000'
+      warning: '#FF0000'
+    figure:
+      dpi_print: 300
+      dpi_screen: 100
+      dpi_web: 150
+      size_blog:
+      - 8
+      - 6
+      size_large:
+      - 14
+      - 10
+      size_medium:
+      - 10
+      - 7.5
+      size_presentation:
+      - 10
+      - 7.5
+      size_small:
+      - 6
+      - 4
+      size_technical:
+      - 10
+      - 8
+    fonts:
+      family: Arial
+      size_base: 14
+      size_label: 16
+      size_legend: 12
+      size_tick: 12
+      size_title: 18
+      weight_bold: bold
+      weight_normal: normal
+    grid:
+      grid_alpha: 0.2
+      grid_linewidth: 0.5
+      show_grid: true
+      spine_bottom: true
+      spine_left: true
+      spine_linewidth: 0.8
+      spine_right: false
+      spine_top: false
+      tick_major_width: 0.8
+      tick_minor_width: 0.4
+  print:
+    colors:
+      accent: '#FF9800'
+      background: '#FFFFFF'
+      grid: '#CCCCCC'
+      neutral: '#666666'
+      primary: '#0080C7'
+      secondary: '#003F5C'
+      series:
+      - '#0080C7'
+      - '#D32F2F'
+      - '#4CAF50'
+      - '#FF9800'
+      - '#7B1FA2'
+      - '#00796B'
+      - '#003F5C'
+      - '#FFD700'
+      success: '#4CAF50'
+      text: '#000000'
+      warning: '#D32F2F'
+    figure:
+      dpi_print: 600
+      dpi_screen: 300
+      dpi_web: 300
+      size_blog:
+      - 8
+      - 6
+      size_large:
+      - 12
+      - 8
+      size_medium:
+      - 8
+      - 6
+      size_presentation:
+      - 10
+      - 7.5
+      size_small:
+      - 6
+      - 4
+      size_technical:
+      - 10
+      - 8
+    fonts:
+      family: Arial
+      size_base: 10
+      size_label: 11
+      size_legend: 10
+      size_tick: 10
+      size_title: 12
+      weight_bold: bold
+      weight_normal: normal
+    grid:
+      grid_alpha: 0.3
+      grid_linewidth: 0.3
+      show_grid: true
+      spine_bottom: true
+      spine_left: true
+      spine_linewidth: 1.0
+      spine_right: false
+      spine_top: false
+      tick_major_width: 1.0
+      tick_minor_width: 0.4

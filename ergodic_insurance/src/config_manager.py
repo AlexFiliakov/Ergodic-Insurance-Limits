@@ -46,7 +46,16 @@ import warnings
 
 import yaml
 
-from ergodic_insurance.src.config_v2 import ConfigV2, PresetLibrary
+try:
+    # Try absolute import first (for installed package)
+    from ergodic_insurance.src.config_v2 import ConfigV2, PresetLibrary
+except ImportError:
+    try:
+        # Try relative import (for package context)
+        from .config_v2 import ConfigV2, PresetLibrary
+    except ImportError:
+        # Fall back to direct import (for notebooks/scripts)
+        from config_v2 import ConfigV2, PresetLibrary  # type: ignore[no-redef]
 
 
 class ConfigManager:

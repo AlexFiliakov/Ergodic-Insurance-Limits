@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import tempfile
+from typing import Any, Dict, List, Union
 from unittest.mock import MagicMock, Mock, patch
 
 import matplotlib.pyplot as plt
@@ -10,8 +11,8 @@ import pandas as pd
 import pytest
 import yaml
 
-from ergodic_insurance.src.visualization.figure_factory import FigureFactory
-from ergodic_insurance.src.visualization.style_manager import (
+from ergodic_insurance.src.visualization_infra.figure_factory import FigureFactory
+from ergodic_insurance.src.visualization_infra.style_manager import (
     ColorPalette,
     FigureConfig,
     FontConfig,
@@ -44,7 +45,7 @@ class TestStyleManager:
         manager = StyleManager()
 
         with pytest.raises(ValueError):
-            manager.set_theme("INVALID_THEME")  # type: ignore
+            manager.set_theme("INVALID_THEME")  # type: ignore[arg-type]
 
     def test_get_theme_config(self):
         """Test retrieving theme configuration."""
@@ -297,7 +298,7 @@ class TestFigureFactory:
         factory = FigureFactory()
         fig, ax = factory.create_figure(title="Test Title")
 
-        assert fig._suptitle is not None
+        assert hasattr(fig, "_suptitle") and fig._suptitle is not None
         assert fig._suptitle.get_text() == "Test Title"
 
         plt.close(fig)
@@ -324,7 +325,7 @@ class TestFigureFactory:
         fig, axes = factory.create_subplots(rows=2, cols=2)
 
         assert fig is not None
-        assert axes.shape == (2, 2)
+        assert hasattr(axes, "shape") and axes.shape == (2, 2)
 
         plt.close(fig)
 
@@ -334,7 +335,7 @@ class TestFigureFactory:
         subplot_titles = ["Q1", "Q2", "Q3", "Q4"]
         fig, axes = factory.create_subplots(rows=2, cols=2, subplot_titles=subplot_titles)
 
-        axes_flat = axes.flatten()
+        axes_flat = axes.flatten() if hasattr(axes, "flatten") else []
         for i, title in enumerate(subplot_titles):
             assert axes_flat[i].get_title() == title
 
@@ -361,7 +362,10 @@ class TestFigureFactory:
         """Test creating line plot with multiple series."""
         factory = FigureFactory()
         x_data = [1, 2, 3, 4, 5]
-        y_data = {"Series 1": [2, 4, 3, 5, 6], "Series 2": [1, 3, 4, 4, 5]}
+        y_data: Dict[str, Union[List[Any], np.ndarray]] = {
+            "Series 1": [2, 4, 3, 5, 6],
+            "Series 2": [1, 3, 4, 4, 5],
+        }
 
         fig, ax = factory.create_line_plot(x_data, y_data, show_legend=True)
 
@@ -511,7 +515,7 @@ class TestFigureFactory:
     def test_create_box_plot(self):
         """Test creating box plot."""
         factory = FigureFactory()
-        data = [np.random.randn(100) for _ in range(4)]
+        data: List[List[Any]] = [np.random.randn(100).tolist() for _ in range(4)]
 
         fig, ax = factory.create_box_plot(data, title="Box Plot", labels=["A", "B", "C", "D"])
 
@@ -522,10 +526,10 @@ class TestFigureFactory:
     def test_create_box_plot_from_dict(self):
         """Test creating box plot from dictionary."""
         factory = FigureFactory()
-        data = {
-            "Group A": np.random.randn(100),
-            "Group B": np.random.randn(100),
-            "Group C": np.random.randn(100),
+        data: Dict[str, List[Any]] = {
+            "Group A": np.random.randn(100).tolist(),
+            "Group B": np.random.randn(100).tolist(),
+            "Group C": np.random.randn(100).tolist(),
         }
 
         fig, ax = factory.create_box_plot(data)
@@ -537,7 +541,7 @@ class TestFigureFactory:
     def test_create_box_plot_horizontal(self):
         """Test creating horizontal box plot."""
         factory = FigureFactory()
-        data = [np.random.randn(100) for _ in range(3)]
+        data: List[List[Any]] = [np.random.randn(100).tolist() for _ in range(3)]
 
         fig, ax = factory.create_box_plot(data, orientation="horizontal")
 

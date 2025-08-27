@@ -19,8 +19,8 @@ import seaborn as sns
 
 # Import new visualization infrastructure
 try:
-    from .visualization.figure_factory import FigureFactory
-    from .visualization.style_manager import StyleManager, Theme
+    from .visualization_infra.figure_factory import FigureFactory
+    from .visualization_infra.style_manager import StyleManager, Theme
 
     _FACTORY_AVAILABLE = True
 except ImportError:
@@ -66,9 +66,10 @@ def get_figure_factory(theme: Optional["Theme"] = None) -> Optional["FigureFacto
     Returns:
         FigureFactory instance if available, None otherwise
     """
-    global _global_factory
+    global _global_factory  # pylint: disable=global-statement
     if _FACTORY_AVAILABLE:
-        if _global_factory is None or theme is not None:
+        if theme is not None or _global_factory is None:
+            # Create new factory if theme specified or no factory exists
             theme = theme or Theme.DEFAULT
             _global_factory = FigureFactory(theme=theme)
         return _global_factory
@@ -258,7 +259,8 @@ def create_styled_figure(
     }
     figsize = size_map.get(size_type, (8, 6))
     set_wsj_style()
-    return plt.subplots(figsize=figsize, **kwargs)
+    fig, ax = plt.subplots(figsize=figsize, **kwargs)
+    return fig, ax
 
 
 def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statements
