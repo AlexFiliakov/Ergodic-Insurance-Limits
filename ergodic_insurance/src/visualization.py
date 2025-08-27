@@ -17,6 +17,15 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import seaborn as sns
 
+# Import new visualization infrastructure
+try:
+    from .visualization.figure_factory import FigureFactory
+    from .visualization.style_manager import StyleManager, Theme
+
+    _FACTORY_AVAILABLE = True
+except ImportError:
+    _FACTORY_AVAILABLE = False
+
 # WSJ Color Palette
 WSJ_COLORS = {
     "light_blue": "#ADD8E6",  # Light Blue for additional styling
@@ -44,9 +53,43 @@ COLOR_SEQUENCE = [
     WSJ_COLORS["dark_blue"],
 ]
 
+# Global factory instance (created on first use)
+_global_factory = None
 
-def set_wsj_style():
-    """Set matplotlib to use WSJ-style formatting."""
+
+def get_figure_factory(theme: Optional["Theme"] = None) -> Optional["FigureFactory"]:
+    """Get or create global figure factory instance.
+
+    Args:
+        theme: Optional theme to use (defaults to DEFAULT)
+
+    Returns:
+        FigureFactory instance if available, None otherwise
+    """
+    global _global_factory
+    if _FACTORY_AVAILABLE:
+        if _global_factory is None or theme is not None:
+            theme = theme or Theme.DEFAULT
+            _global_factory = FigureFactory(theme=theme)
+        return _global_factory
+    return None
+
+
+def set_wsj_style(use_factory: bool = False, theme: Optional["Theme"] = None):
+    """Set matplotlib to use WSJ-style formatting.
+
+    Args:
+        use_factory: Whether to use new factory-based styling if available
+        theme: Optional theme to use with factory (defaults to DEFAULT)
+    """
+    # Use factory-based styling if available and requested
+    if use_factory and _FACTORY_AVAILABLE:
+        factory = get_figure_factory(theme)
+        if factory:
+            factory.style_manager.apply_style()
+            return
+
+    # Fallback to original WSJ style implementation
     # Set the style
     plt.style.use("seaborn-v0_8-whitegrid")
 
@@ -185,6 +228,39 @@ class WSJFormatter:
         return f"{x/1e6:.0f}M"
 
 
+def create_styled_figure(
+    size_type: str = "medium", theme: Optional["Theme"] = None, use_factory: bool = True, **kwargs
+) -> Tuple[Figure, Union[Axes, np.ndarray]]:
+    """Create a figure with automatic styling applied.
+
+    Args:
+        size_type: Size preset (small, medium, large, blog, technical, presentation)
+        theme: Optional theme to use
+        use_factory: Whether to use factory if available
+        **kwargs: Additional arguments for figure creation
+
+    Returns:
+        Tuple of (figure, axes)
+    """
+    if use_factory and _FACTORY_AVAILABLE:
+        factory = get_figure_factory(theme)
+        if factory:
+            return factory.create_figure(size_type=size_type, **kwargs)
+
+    # Fallback to standard matplotlib
+    size_map = {
+        "small": (6, 4),
+        "medium": (8, 6),
+        "large": (12, 8),
+        "blog": (8, 6),
+        "technical": (10, 8),
+        "presentation": (10, 7.5),
+    }
+    figsize = size_map.get(size_type, (8, 6))
+    set_wsj_style()
+    return plt.subplots(figsize=figsize, **kwargs)
+
+
 def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statements
     losses: Union[np.ndarray, pd.DataFrame],
     title: str = "Loss Distribution",
@@ -194,6 +270,8 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
     figsize: Tuple[int, int] = (12, 6),
     show_stats: bool = False,
     log_scale: bool = False,
+    use_factory: bool = False,
+    theme: Optional["Theme"] = None,
 ) -> Figure:
     """Create WSJ-style loss distribution plot.
 
@@ -204,11 +282,15 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
         show_metrics: Whether to show VaR/TVaR lines
         var_levels: VaR confidence levels to show
         figsize: Figure size
+        show_stats: Whether to show statistics
+        log_scale: Whether to use log scale
+        use_factory: Whether to use new visualization factory if available
+        theme: Optional theme to use with factory
 
     Returns:
         Matplotlib figure
     """
-    set_wsj_style()
+    set_wsj_style(use_factory=use_factory, theme=theme)
 
     # Handle DataFrame input
     if isinstance(losses, pd.DataFrame):
