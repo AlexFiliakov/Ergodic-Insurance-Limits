@@ -796,6 +796,14 @@ prepare to work on issue #48 "Design and Implement Enhanced Parallel Simulation 
 
 ---
 
+### Code Review
+
+we are now ready to finish Sprint 06 as described in `00_PLAN.md`. Assess the current state of the project and recommend any hotfixes or enhancements before proceeding onward to Sprint 07 issues. We have issues specified through the rest of the project plan, so Sprint 07 and Sprint 08. We just need to maintain high standards to keep the project from derailing, so keep your review standards high when making recommendations. The end result must be maintainable as well as valid, and this simulation framework must be usable to answer the main questions of what value does insurance bring to corporate profitability. Look out for any tests which don't really do quality testing on the code, such as always-true conditions, too many mocks, functions that don't do anything, etc, and come up with a plan to remediate.
+
+### Code Review Questions
+
+### Code Review Responses
+
 ## Sprint 07: Reporting & Visualization
 
 ### Sprint Planning Questions
