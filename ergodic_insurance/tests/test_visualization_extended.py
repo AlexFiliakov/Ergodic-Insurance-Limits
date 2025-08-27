@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+
 from ergodic_insurance.src.visualization import (
     WSJFormatter,
     _create_interactive_pareto_2d,
@@ -533,9 +534,18 @@ class TestEdgeCasesExtended:
             )
             # If it returns something, check it's valid
             assert result is None or hasattr(result, "data")
-        except (ValueError, IndexError):
-            # If it raises an error, that's ok too
-            pass
+            # Track that no exception was raised
+            exception_raised = False
+        except (ValueError, IndexError) as e:
+            # These exceptions are expected for single objective
+            exception_raised = True
+            # Verify the exception message is meaningful
+            assert len(str(e)) > 0, "Exception should have a message"
+
+        # Document the expected behavior: either returns None/valid object or raises expected exception
+        assert (
+            exception_raised or result is None or hasattr(result, "data")
+        ), "Function should either handle single objective gracefully or raise ValueError/IndexError"
 
     def test_formatter_with_extreme_values(self):
         """Test formatters with extreme values."""

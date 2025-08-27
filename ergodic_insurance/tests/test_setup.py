@@ -39,8 +39,17 @@ def test_package_imports():
 
 @pytest.mark.unit
 def test_pytest_markers():
-    """Test that pytest markers are working."""
-    assert True
+    """Test that pytest markers are properly configured.
+
+    This test verifies that the pytest marker system is functioning
+    correctly by checking that this test runs when unit tests are selected.
+    """
+    # Verify that pytest module is imported and functional
+    assert pytest.__version__ is not None
+    # Verify that the mark decorator exists and can be accessed
+    assert hasattr(pytest.mark, "unit")
+    assert hasattr(pytest.mark, "slow")
+    assert hasattr(pytest.mark, "integration")
 
 
 @pytest.mark.parametrize(

@@ -1,10 +1,19 @@
-"""Performance benchmarks for Monte Carlo simulation engine."""
+"""Performance benchmarks for Monte Carlo simulation engine.
+
+These tests are marked with @pytest.mark.slow and can be run explicitly with:
+    pytest -m slow                   # Run only slow tests
+    pytest -m "slow and integration"  # Run slow integration tests
+
+To exclude slow tests during regular test runs:
+    pytest -m "not slow"             # Skip all slow tests
+"""
 
 import time
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
@@ -51,7 +60,6 @@ class TestPerformanceBenchmarks:
 
         return loss_generator, insurance_program, manufacturer
 
-    @pytest.mark.skip(reason="Avoiding premature optimization")
     @pytest.mark.slow
     def test_10k_simulations_performance(self, setup_realistic_engine):
         """Test that 10K simulations complete in reasonable time."""
@@ -82,8 +90,8 @@ class TestPerformanceBenchmarks:
         assert execution_time < 60  # Should complete in under 1 minute
         print(f"\n10K simulations completed in {execution_time:.2f}s")
 
-    @pytest.mark.skip(reason="Takes too long even with mocked loss generator")
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_100k_simulations_performance(self, setup_realistic_engine):
         """Test that 100K simulations complete in under 10 seconds."""
         loss_generator, insurance_program, manufacturer = setup_realistic_engine
@@ -121,7 +129,6 @@ class TestPerformanceBenchmarks:
         assert execution_time < 30  # Should complete in under 30 seconds
         print(f"\n100K simulations completed in {execution_time:.2f}s")
 
-    @pytest.mark.skip(reason="Avoiding premature optimization")
     @pytest.mark.slow
     def test_memory_efficiency(self, setup_realistic_engine):
         """Test memory usage for large simulations."""
@@ -171,7 +178,6 @@ class TestPerformanceBenchmarks:
         assert mem_used < 2000  # MB
         print(f"\nMemory used for 100K simulations: {mem_used:.2f} MB")
 
-    @pytest.mark.skip(reason="Avoiding premature optimization")
     @pytest.mark.slow
     def test_parallel_speedup(self, setup_realistic_engine):
         """Test parallel processing speedup."""
@@ -235,8 +241,8 @@ class TestPerformanceBenchmarks:
             f"\nParallel speedup: {speedup:.2f}x (sequential: {time_seq:.2f}s, parallel: {time_par:.2f}s)"
         )
 
-    @pytest.mark.skip(reason="Takes too long with real loss generator")
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_convergence_efficiency(self, setup_realistic_engine):
         """Test convergence monitoring efficiency."""
         loss_generator, insurance_program, manufacturer = setup_realistic_engine
@@ -324,12 +330,12 @@ class TestPerformanceBenchmarks:
         assert metrics_time < 1.0  # Should complete in under 1 second
         print(f"\nRisk metrics calculation for 1M simulations: {metrics_time:.2f}s")
 
-    @pytest.mark.skip(reason="Takes too long with real testing")
     @pytest.mark.slow
+    @pytest.mark.integration
     def test_cache_performance(self, setup_realistic_engine):
         """Test caching performance improvement."""
-        import tempfile
         from pathlib import Path
+        import tempfile
 
         loss_generator, insurance_program, manufacturer = setup_realistic_engine
 

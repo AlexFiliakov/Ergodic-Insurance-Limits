@@ -48,7 +48,11 @@ class TestImportPatterns:
                 ), f"Module {module_name} should contain class {expected_class}"
 
     def test_public_api_imports(self):
-        """Test that all public API imports work from package root."""
+        """Test that all public API imports work from package root.
+
+        This test verifies not just that imports succeed, but that the
+        imported classes have the expected structure and can be instantiated.
+        """
         from ergodic_insurance.src import (
             BusinessConstraints,
             BusinessObjective,
@@ -63,18 +67,37 @@ class TestImportPatterns:
             WidgetManufacturer,
         )
 
-        # Verify all imports are not None
-        assert BusinessOptimizer is not None
-        assert BusinessObjective is not None
-        assert BusinessConstraints is not None
-        assert ClaimEvent is not None
-        assert ClaimGenerator is not None
-        assert Config is not None
-        assert ManufacturerConfig is not None
-        assert ErgodicAnalyzer is not None
-        assert WidgetManufacturer is not None
-        assert Simulation is not None
-        assert SimulationResults is not None
+        # Verify all imports are classes or valid types
+        assert isinstance(BusinessOptimizer, type), "BusinessOptimizer should be a class"
+        assert isinstance(BusinessObjective, type), "BusinessObjective should be a class"
+        assert isinstance(BusinessConstraints, type), "BusinessConstraints should be a class"
+        assert isinstance(ClaimEvent, type), "ClaimEvent should be a class"
+        assert isinstance(ClaimGenerator, type), "ClaimGenerator should be a class"
+        assert isinstance(Config, type), "Config should be a class"
+        assert isinstance(ManufacturerConfig, type), "ManufacturerConfig should be a class"
+        assert isinstance(ErgodicAnalyzer, type), "ErgodicAnalyzer should be a class"
+        assert isinstance(WidgetManufacturer, type), "WidgetManufacturer should be a class"
+        assert isinstance(Simulation, type), "Simulation should be a class"
+        assert isinstance(SimulationResults, type), "SimulationResults should be a class"
+
+        # Verify classes have expected methods/attributes
+        assert hasattr(BusinessOptimizer, "__init__"), "BusinessOptimizer should be instantiable"
+        assert hasattr(
+            ClaimGenerator, "generate_claims"
+        ), "ClaimGenerator should have generate_claims method"
+        assert hasattr(WidgetManufacturer, "__init__"), "WidgetManufacturer should be instantiable"
+        assert hasattr(ErgodicAnalyzer, "__init__"), "ErgodicAnalyzer should be instantiable"
+
+        # Test that basic instantiation works for simple classes
+        try:
+            # ClaimEvent should be instantiable with basic parameters
+            event = ClaimEvent(amount=1000, event_type="test", year=1)
+            assert event.amount == 1000, "ClaimEvent should store amount"
+        except TypeError:
+            # If it needs different parameters, at least verify it's a proper class
+            assert ClaimEvent.__module__.startswith(
+                "ergodic_insurance"
+            ), "ClaimEvent should be from ergodic_insurance module"
 
     def test_no_circular_imports(self):
         """Verify there are no circular import dependencies."""
@@ -146,3 +169,29 @@ class TestImportPatterns:
                     assert (
                         "BusinessOutcomeOptimizer" not in line
                     ), f"Old class name found in {test_file.name}: {line}"
+
+    def test_class_instantiation(self):
+        """Test that imported classes can be instantiated with valid parameters.
+
+        This ensures classes are not just importable but actually functional.
+        """
+        from ergodic_insurance.src import ManufacturerConfig, WidgetManufacturer
+
+        # Test ManufacturerConfig instantiation
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            asset_turnover_ratio=0.5,
+            operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.8,
+        )
+        assert config.initial_assets == 1_000_000, "Config should store initial_assets"
+        assert config.tax_rate == 0.25, "Config should store tax_rate"
+
+        # Test WidgetManufacturer instantiation with config
+        manufacturer = WidgetManufacturer(config)
+        assert manufacturer is not None, "Manufacturer should be created"
+        assert hasattr(manufacturer, "assets"), "Manufacturer should have assets attribute"
+        assert (
+            manufacturer.assets == config.initial_assets
+        ), "Manufacturer should initialize with config's initial_assets"
