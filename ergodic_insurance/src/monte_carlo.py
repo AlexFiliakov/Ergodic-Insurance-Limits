@@ -23,8 +23,16 @@ from .parallel_executor import (
     SharedMemoryConfig,
 )
 from .progress_monitor import ProgressMonitor
+from .result_aggregator import (
+    AggregationConfig,
+    PercentileTracker,
+    ResultAggregator,
+    ResultExporter,
+    TimeSeriesAggregator,
+)
 from .risk_metrics import RiskMetrics
 from .ruin_probability import RuinProbabilityAnalyzer, RuinProbabilityConfig, RuinProbabilityResults
+from .summary_statistics import SummaryReportGenerator, SummaryStatistics
 from .trajectory_storage import StorageConfig, TrajectoryStorage
 
 
@@ -146,6 +154,11 @@ class SimulationConfig:
     # Trajectory storage options
     enable_trajectory_storage: bool = False
     trajectory_storage_config: Optional[StorageConfig] = None
+    # Aggregation options
+    enable_advanced_aggregation: bool = True
+    aggregation_config: Optional[AggregationConfig] = None
+    generate_summary_report: bool = False
+    summary_report_format: str = "markdown"
 
 
 @dataclass
@@ -164,6 +177,10 @@ class SimulationResults:
         execution_time: Total execution time in seconds
         config: Simulation configuration used
         performance_metrics: Detailed performance metrics (if monitoring enabled)
+        aggregated_results: Advanced aggregation results (if enabled)
+        time_series_aggregation: Time series aggregation results (if enabled)
+        statistical_summary: Complete statistical summary (if enabled)
+        summary_report: Formatted summary report (if generated)
     """
 
     final_assets: np.ndarray
@@ -177,6 +194,10 @@ class SimulationResults:
     execution_time: float
     config: SimulationConfig
     performance_metrics: Optional[PerformanceMetrics] = None
+    aggregated_results: Optional[Dict[str, Any]] = None
+    time_series_aggregation: Optional[Dict[str, Any]] = None
+    statistical_summary: Optional[Any] = None
+    summary_report: Optional[str] = None
 
     def summary(self) -> str:
         """Generate summary of simulation results."""
@@ -199,6 +220,17 @@ class SimulationResults:
         if self.performance_metrics:
             base_summary += f"\n{'='*50}\n"
             base_summary += self.performance_metrics.summary()
+
+        # Add advanced aggregation results if available
+        if self.aggregated_results:
+            base_summary += f"\n{'='*50}\nAdvanced Aggregation Results:\n"
+            if "percentiles" in self.aggregated_results:
+                for p, val in self.aggregated_results["percentiles"].items():
+                    base_summary += f"  {p}: ${val:,.0f}\n"
+
+        # Add summary report if available
+        if self.summary_report:
+            base_summary += f"\n{'='*50}\n{self.summary_report}"
 
         return base_summary
 
@@ -270,6 +302,17 @@ class MonteCarloEngine:
             storage_config = self.config.trajectory_storage_config or StorageConfig()
             self.trajectory_storage = TrajectoryStorage(storage_config)
 
+        # Initialize aggregators if enabled
+        self.result_aggregator: Optional[ResultAggregator] = None
+        self.time_series_aggregator: Optional[TimeSeriesAggregator] = None
+        self.summary_statistics: Optional[SummaryStatistics] = None
+
+        if self.config.enable_advanced_aggregation:
+            agg_config = self.config.aggregation_config or AggregationConfig()
+            self.result_aggregator = ResultAggregator(agg_config)
+            self.time_series_aggregator = TimeSeriesAggregator(agg_config)
+            self.summary_statistics = SummaryStatistics()
+
     def run(self) -> SimulationResults:
         """Execute Monte Carlo simulation.
 
@@ -300,6 +343,10 @@ class MonteCarloEngine:
 
         # Check convergence
         results.convergence = self._check_convergence(results)
+
+        # Perform advanced aggregation if enabled
+        if self.config.enable_advanced_aggregation:
+            results = self._perform_advanced_aggregation(results)
 
         # Set execution time
         results.execution_time = time.time() - start_time
@@ -740,6 +787,82 @@ class MonteCarloEngine:
         )
 
         return convergence_stats
+
+    def _perform_advanced_aggregation(self, results: SimulationResults) -> SimulationResults:
+        """Perform advanced aggregation on simulation results.
+
+        Args:
+            results: Initial simulation results
+
+        Returns:
+            Enhanced results with aggregation data
+        """
+        # Aggregate final assets
+        if self.result_aggregator:
+            results.aggregated_results = self.result_aggregator.aggregate(results.final_assets)
+
+        # Time series aggregation
+        if self.time_series_aggregator:
+            # Aggregate annual losses
+            results.time_series_aggregation = {
+                "losses": self.time_series_aggregator.aggregate(
+                    results.annual_losses.T  # Transpose to have time in rows
+                ),
+                "recoveries": self.time_series_aggregator.aggregate(results.insurance_recoveries.T),
+                "retained": self.time_series_aggregator.aggregate(results.retained_losses.T),
+            }
+
+        # Statistical summary
+        if self.summary_statistics:
+            results.statistical_summary = self.summary_statistics.calculate_summary(
+                results.final_assets
+            )
+
+            # Generate report if requested
+            if self.config.generate_summary_report:
+                report_generator = SummaryReportGenerator(style=self.config.summary_report_format)
+                results.summary_report = report_generator.generate_report(
+                    results.statistical_summary,
+                    title="Monte Carlo Simulation Summary",
+                    metadata={
+                        "Simulations": self.config.n_simulations,
+                        "Years": self.config.n_years,
+                        "Ruin Probability": f"{results.ruin_probability:.2%}",
+                        "Mean Growth Rate": f"{np.mean(results.growth_rates):.4f}",
+                    },
+                )
+
+        return results
+
+    def export_results(
+        self, results: SimulationResults, filepath: Path, format: str = "csv"
+    ) -> None:
+        """Export simulation results to file.
+
+        Args:
+            results: Simulation results to export
+            filepath: Output file path
+            format: Export format ('csv', 'json', 'hdf5')
+        """
+        if not results.aggregated_results:
+            # Perform aggregation if not already done
+            if self.result_aggregator:
+                results.aggregated_results = self.result_aggregator.aggregate(results.final_assets)
+            else:
+                # Use default aggregation
+                agg_config = AggregationConfig()
+                aggregator = ResultAggregator(agg_config)
+                results.aggregated_results = aggregator.aggregate(results.final_assets)
+
+        # Export based on format
+        if format.lower() == "csv":
+            ResultExporter.to_csv(results.aggregated_results, filepath)
+        elif format.lower() == "json":
+            ResultExporter.to_json(results.aggregated_results, filepath)
+        elif format.lower() == "hdf5":
+            ResultExporter.to_hdf5(results.aggregated_results, filepath)
+        else:
+            raise ValueError(f"Unsupported export format: {format}")
 
     def _get_cache_key(self) -> str:
         """Generate cache key for current configuration.
