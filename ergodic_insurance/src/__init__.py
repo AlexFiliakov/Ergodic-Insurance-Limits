@@ -33,6 +33,20 @@ __all__ = [
     "AdaptiveStrategy",
     "StrategyBacktester",
     "WalkForwardValidator",
+    "PerformanceOptimizer",
+    "OptimizationConfig",
+    "ProfileResult",
+    "SmartCache",
+    "VectorizedOperations",
+    "AccuracyValidator",
+    "ValidationResult",
+    "ReferenceImplementations",
+    "EdgeCaseTester",
+    "BenchmarkSuite",
+    "BenchmarkConfig",
+    "BenchmarkResult",
+    "BenchmarkMetrics",
+    "SystemProfiler",
 ]
 
 
@@ -117,4 +131,50 @@ def __getattr__(name):
         )
 
         return WalkForwardValidator
+    if name in (
+        "PerformanceOptimizer",
+        "OptimizationConfig",
+        "ProfileResult",
+        "SmartCache",
+        "VectorizedOperations",
+    ):
+        from .performance_optimizer import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            OptimizationConfig,
+            PerformanceOptimizer,
+            ProfileResult,
+            SmartCache,
+            VectorizedOperations,
+        )
+
+        return locals()[name]
+    if name in (
+        "AccuracyValidator",
+        "ValidationResult",
+        "ReferenceImplementations",
+        "EdgeCaseTester",
+    ):
+        from .accuracy_validator import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AccuracyValidator,
+            EdgeCaseTester,
+            ReferenceImplementations,
+            ValidationResult,
+        )
+
+        return locals()[name]
+    if name in (
+        "BenchmarkSuite",
+        "BenchmarkConfig",
+        "BenchmarkResult",
+        "BenchmarkMetrics",
+        "SystemProfiler",
+    ):
+        from .benchmarking import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            BenchmarkConfig,
+            BenchmarkMetrics,
+            BenchmarkResult,
+            BenchmarkSuite,
+            SystemProfiler,
+        )
+
+        return locals()[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
