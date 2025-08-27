@@ -206,8 +206,9 @@ class SummaryStatistics:
 
         # Normal distribution
         try:
-            mu, sigma = stats.norm.fit(data)
-            ks_stat, ks_pvalue = stats.kstest(data, lambda x: stats.norm.cdf(x, mu, sigma))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                mu, sigma = stats.norm.fit(data)
+                ks_stat, ks_pvalue = stats.kstest(data, lambda x: stats.norm.cdf(x, mu, sigma))
             results["normal"] = {
                 "mu": float(mu),
                 "sigma": float(sigma),
@@ -220,10 +221,11 @@ class SummaryStatistics:
 
         # Log-normal distribution
         try:
-            shape, loc, scale = stats.lognorm.fit(data, floc=0)
-            ks_stat, ks_pvalue = stats.kstest(
-                data, lambda x: stats.lognorm.cdf(x, shape, loc, scale)
-            )
+            with np.errstate(divide="ignore", invalid="ignore"):
+                shape, loc, scale = stats.lognorm.fit(data, floc=0)
+                ks_stat, ks_pvalue = stats.kstest(
+                    data, lambda x: stats.lognorm.cdf(x, shape, loc, scale)
+                )
             results["lognormal"] = {
                 "shape": float(shape),
                 "location": float(loc),
@@ -237,8 +239,11 @@ class SummaryStatistics:
 
         # Gamma distribution
         try:
-            alpha, loc, scale = stats.gamma.fit(data, floc=0)
-            ks_stat, ks_pvalue = stats.kstest(data, lambda x: stats.gamma.cdf(x, alpha, loc, scale))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                alpha, loc, scale = stats.gamma.fit(data, floc=0)
+                ks_stat, ks_pvalue = stats.kstest(
+                    data, lambda x: stats.gamma.cdf(x, alpha, loc, scale)
+                )
             results["gamma"] = {
                 "alpha": float(alpha),
                 "location": float(loc),
@@ -335,8 +340,20 @@ class SummaryStatistics:
         results = {}
 
         # Normality tests
-        shapiro_stat, shapiro_p = stats.shapiro(data[: min(5000, len(data))])  # Limit sample size
-        jarque_bera_stat, jarque_bera_p = stats.jarque_bera(data)
+        # Shapiro test requires at least 3 samples
+        if len(data) >= 3:
+            shapiro_stat, shapiro_p = stats.shapiro(
+                data[: min(5000, len(data))]
+            )  # Limit sample size
+        else:
+            shapiro_stat, shapiro_p = np.nan, np.nan
+
+        # Jarque-Bera test needs sufficient samples
+        if len(data) >= 2:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                jarque_bera_stat, jarque_bera_p = stats.jarque_bera(data)
+        else:
+            jarque_bera_stat, jarque_bera_p = np.nan, np.nan
 
         results["normality"] = {
             "shapiro_statistic": float(shapiro_stat),
@@ -346,12 +363,18 @@ class SummaryStatistics:
         }
 
         # One-sample t-test (test if mean is different from 0)
-        t_stat, t_p = stats.ttest_1samp(data, 0)
+        if len(data) >= 2:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                t_stat, t_p = stats.ttest_1samp(data, 0)
+        else:
+            t_stat, t_p = np.nan, np.nan
         results["t_test"] = {"statistic": float(t_stat), "pvalue": float(t_p)}
 
         # Autocorrelation test (Ljung-Box test approximation)
         if len(data) > 1:
-            lag1_corr = np.corrcoef(data[:-1], data[1:])[0, 1]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                corr_matrix = np.corrcoef(data[:-1], data[1:])
+                lag1_corr = corr_matrix[0, 1] if not np.isnan(corr_matrix[0, 1]) else 0.0
             results["autocorrelation"] = {
                 "lag1_correlation": float(lag1_corr),
                 "significant": float(abs(lag1_corr) > 2 / np.sqrt(len(data))),

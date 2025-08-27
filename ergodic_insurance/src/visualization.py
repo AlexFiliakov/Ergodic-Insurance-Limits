@@ -1051,6 +1051,7 @@ def plot_pareto_frontier_3d(  # pylint: disable=too-many-locals
     if len(frontier_points) > 10:
         try:
             from scipy.interpolate import griddata
+            from scipy.spatial import QhullError  # pylint: disable=no-name-in-module
 
             # Create grid
             xi = np.linspace(x_values.min(), x_values.max(), 30)
@@ -1074,8 +1075,8 @@ def plot_pareto_frontier_3d(  # pylint: disable=too-many-locals
                 cmap="viridis",
                 edgecolor="none",
             )
-        except (ValueError, TypeError):
-            # If interpolation fails, just show points
+        except (ValueError, TypeError, QhullError):
+            # If interpolation fails (e.g., coplanar points), just show points
             pass
 
     # Add colorbar
