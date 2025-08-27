@@ -732,17 +732,71 @@ we are now ready to finish Sprint 05 as described in `00_PLAN.md`. Assess the cu
 
 prepare to work on issue #48 "Design and Implement Enhanced Parallel Simulation Architecture". First ask me clarifying questions then proceed to resolve the issue. Make sure that all new and existing tests pass before closing the issue. Avoid using the `uv-run` command from `uv-mcp`.
 
-### Sprint Planning Questions
+---
 
-### Sprint Planning Responses
+  1. Report Frequency: Should Excel reports be generated:
+    - Per simulation run (single trajectory)?
+    - For batch/Monte Carlo results (aggregated across many simulations)?
+    - Both options available?
+  2. Financial Statements to Include:
+    - Balance Sheet: Assets, liabilities (claim liabilities), equity,
+  collateral positions?
+    - Income Statement: Revenue, operating income, insurance costs, claim
+  expenses, taxes, net income?
+    - Cash Flow Statement: Operating, investing, financing activities?
+    - Other: Key metrics dashboard, insurance program analysis, ergodic vs
+   ensemble comparisons?
+  3. Time Granularity:
+    - Annual statements?
+    - Monthly/quarterly statements (I noticed the model supports monthly
+  resolution)?
+    - Period-over-period comparisons?
+  4. Excel Features Desired:
+    - Simple data export with basic formatting?
+    - Rich formatting with charts and conditional formatting?
+    - Multiple worksheets for different views/periods?
+    - Interactive elements (data validation, dropdowns)?
+    - Pivot table ready data structures?
+  5. Integration Points:
+    - Should this integrate with the existing ResultAggregator and batch
+  processing?
+    - Standalone export utility or integrated into simulation workflow?
+    - Should it work with checkpoint/resume functionality for long
+  simulations?
+  6. Reconciliation Features:
+    - What specific reconciliation checks are needed?
+    - Balance sheet balancing (Assets = Liabilities + Equity)?
+    - Cash flow to income statement reconciliation?
+    - Insurance claim development tracking?
+  7. Ad Hoc Exhibits:
+    - What types of conceptual explorations are most common?
+    - Scenario comparison tables?
+    - Sensitivity analysis outputs?
+    - Pareto frontier visualizations in Excel?
 
+1. Create single trajectory Excel reports, as well as useful aggregated monte carlo reports for high-level diagnostics.
+2. These are all useful, feel free to expand on these:
+    - Balance Sheet: Assets, liabilities (claim liabilities), equity, collateral positions
+    - Income Statement: Revenue, operating income, insurance costs, claim expenses, taxes, net income
+    - Cash Flow Statement: Operating, investing, financing activities?
+    - Other: Key metrics dashboard, insurance program analysis, ergodic vs ensemble comparisons
+3. Annual statements. Provide year-to-year comparisons.
+4. You can provide multiple worksheets with some table styling. No charts or interactive elements, and no pivot tables. Make pivot-table-ready data structures.
+5. Integrate with existing results generators, but allow the option to turn these outputs off. Integrate into simulation workflow. Make it work with checkpoint/resume functionality for long simulations.
+6. Basic reconciliations that can be expanded:
+    - Balance sheet balancing (Assets = Liabilities + Equity)
+    - Cash flow to income statement reconciliation
+    - Insurance claim development tracking
+    - Income statement to balance sheet reconciliation
+7. Conceptual explorations will include exploring anomalies, such as large drops in assets, or consistently poor performance. Maybe program comparison across scenarios, as well.
+
+---
 
 ## Sprint 07: Reporting & Visualization
 
 ### Sprint Planning Questions
 
 ### Sprint Planning Responses
-
 
 ## Sprint 08: Validation & Documentation
 
