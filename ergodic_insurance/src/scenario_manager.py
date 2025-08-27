@@ -72,11 +72,11 @@ class ParameterSpec(BaseModel):
         """
         if method == ScenarioType.GRID_SEARCH and self.values:
             return self.values
-        elif method == ScenarioType.RANDOM_SEARCH:
+        if method == ScenarioType.RANDOM_SEARCH:
             if self.min_value is not None and self.max_value is not None:
                 if self.distribution == "uniform":
                     return list(np.random.uniform(self.min_value, self.max_value, self.n_samples))
-                elif self.distribution == "log":
+                if self.distribution == "log":
                     return list(
                         np.exp(
                             np.random.uniform(
@@ -84,7 +84,8 @@ class ParameterSpec(BaseModel):
                             )
                         )
                     )
-        elif method == ScenarioType.SENSITIVITY and self.base_value is not None:
+        if method == ScenarioType.SENSITIVITY and self.base_value is not None:
+            # pylint: disable=invalid-unary-operand-type
             variations = [-self.variation_pct, 0, self.variation_pct]
             return [self.base_value * (1 + v) for v in variations]
 
@@ -93,20 +94,7 @@ class ParameterSpec(BaseModel):
 
 @dataclass
 class ScenarioConfig:
-    """Configuration for a single scenario.
-
-    Attributes:
-        scenario_id: Unique identifier for the scenario
-        name: Human-readable scenario name
-        description: Detailed description
-        base_config: Base configuration object
-        simulation_config: Simulation configuration
-        parameter_overrides: Parameter overrides to apply
-        tags: Tags for categorization
-        priority: Execution priority (lower = higher priority)
-        created_at: Creation timestamp
-        metadata: Additional metadata
-    """
+    """Configuration for a single scenario."""
 
     scenario_id: str
     name: str

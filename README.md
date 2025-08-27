@@ -187,17 +187,70 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete dire
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (27 modules)
-│   │   ├── config_*.py        # Configuration system v2.0
-│   │   ├── manufacturer.py     # Core financial model
-│   │   ├── insurance_*.py     # Insurance modules
-│   │   ├── monte_carlo.py     # Enhanced Monte Carlo engine
-│   │   ├── parallel_executor.py # CPU-optimized parallel execution
-│   │   ├── *_optimizer.py     # Optimization algorithms
-│   │   └── visualization.py   # Plotting utilities
+│   ├── src/                    # Core source code (36 modules)
+│   │   ├── # Configuration System v2.0
+│   │   ├── config_manager.py   # 3-tier configuration manager
+│   │   ├── config_v2.py        # Enhanced Pydantic v2 models
+│   │   ├── config_migrator.py  # Migration tool
+│   │   ├── config_compat.py    # Backward compatibility
+│   │   ├── config.py           # Legacy configuration (deprecated)
+│   │   ├── config_loader.py    # Legacy loader (deprecated)
+│   │   │
+│   │   ├── # Core Financial Models
+│   │   ├── manufacturer.py     # Widget manufacturer model
+│   │   ├── claim_generator.py  # Claim generation
+│   │   ├── claim_development.py # Payment patterns
+│   │   ├── stochastic_processes.py # GBM, mean-reversion
+│   │   │
+│   │   ├── # Insurance & Risk
+│   │   ├── insurance.py        # Basic optimization
+│   │   ├── insurance_program.py # Multi-layer programs
+│   │   ├── loss_distributions.py # Loss modeling
+│   │   ├── risk_metrics.py     # VaR, CVaR, etc.
+│   │   ├── ruin_probability.py # Ruin probability calculations
+│   │   │
+│   │   ├── # Simulation & Analysis
+│   │   ├── simulation.py       # Main engine
+│   │   ├── monte_carlo.py      # MC framework
+│   │   ├── ergodic_analyzer.py # Ergodic theory
+│   │   ├── convergence.py      # Convergence tools
+│   │   │
+│   │   ├── # Optimization & Control
+│   │   ├── optimization.py     # Algorithms
+│   │   ├── business_optimizer.py # Business optimization
+│   │   ├── decision_engine.py  # Decision framework
+│   │   ├── pareto_frontier.py  # Multi-objective
+│   │   ├── hjb_solver.py       # HJB equations
+│   │   ├── optimal_control.py  # Control theory
+│   │   │
+│   │   ├── # Enhanced Parallel Processing
+│   │   ├── parallel_executor.py # CPU-optimized execution
+│   │   ├── trajectory_storage.py # Memory-efficient storage
+│   │   ├── progress_monitor.py # Progress tracking
+│   │   ├── batch_processor.py  # Batch processing
+│   │   ├── scenario_manager.py # Scenario management
+│   │   │
+│   │   ├── # Statistical Analysis
+│   │   ├── result_aggregator.py # Result aggregation
+│   │   ├── summary_statistics.py # Statistical summaries
+│   │   ├── bootstrap_analysis.py # Bootstrap methods
+│   │   ├── statistical_tests.py # Hypothesis testing
+│   │   │
+│   │   └── visualization.py    # Plotting utilities
 │   ├── tests/                  # Test suite (100% coverage, 30+ test files)
-│   ├── notebooks/              # Jupyter notebooks (14 analysis notebooks)
-│   ├── examples/               # Example scripts and demos
+│   ├── notebooks/              # Jupyter notebooks (15 analysis notebooks)
+│   │   ├── 00_config_migration_example.ipynb # Configuration v2 demo
+│   │   ├── 00_setup_verification.ipynb
+│   │   ├── 01-12: Analysis notebooks covering all aspects
+│   │   └── cache/             # Monte Carlo simulation cache
+│   ├── examples/               # Example scripts (7 demos)
+│   │   ├── demo_config_v2.py  # Configuration v2 demo
+│   │   ├── demo_config_practical.py # Practical configuration
+│   │   ├── demo_manufacturer.py
+│   │   ├── demo_stochastic.py
+│   │   ├── demo_claim_development.py
+│   │   ├── demo_collateral_management.py
+│   │   └── benchmark_parallel.py # Performance benchmarking
 │   ├── data/                   # Configuration files
 │   │   ├── parameters/         # Legacy YAML parameters (deprecated)
 │   │   └── config/             # New 3-tier configuration
@@ -205,17 +258,27 @@ Ergodic Insurance Limits/
 │   │       ├── modules/        # Reusable components
 │   │       └── presets/        # Quick-apply templates
 │   ├── docs/                   # Sphinx documentation
-│   │   ├── api/               # API reference
+│   │   ├── conf.py            # Sphinx configuration
+│   │   ├── index.rst          # Documentation main page
+│   │   ├── api/               # Auto-generated API docs (37 modules)
 │   │   ├── architecture/      # Architecture diagrams
 │   │   └── user_guide/        # Business user guide
 │   └── checkpoints/           # Simulation checkpoints
-├── simone/                     # TypeScript simulation
+├── simone/                     # TypeScript simulation & sprint docs
+│   ├── src/                   # TypeScript source
+│   ├── tests/                 # Jest tests
+│   ├── 00_PLAN.md            # Overall project plan
+│   ├── SPRINT_0*.md          # Sprint planning documents
+│   └── package.json          # Node dependencies
 ├── results/                    # Reports and outputs
 ├── assets/                     # Images and media
 ├── pyproject.toml             # Python configuration
 ├── setup.py                   # Package setup
+├── uv.lock                    # UV dependency lock
+├── mypy.ini                   # MyPy configuration
 ├── README.md                  # This file
 ├── CLAUDE.md                  # Development instructions
+├── CC Prompts.md              # Development history
 └── LICENSE                    # MIT License
 ```
 

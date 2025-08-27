@@ -48,16 +48,7 @@ from tqdm import tqdm
 
 @dataclass
 class CPUProfile:
-    """CPU performance profile for optimization decisions.
-
-    Attributes:
-        n_cores: Number of physical CPU cores
-        n_threads: Number of logical CPU threads
-        cache_sizes: L1, L2, L3 cache sizes in bytes
-        available_memory: Available system memory in bytes
-        cpu_freq: Current CPU frequency in MHz
-        system_load: Current system load average
-    """
+    """CPU performance profile for optimization decisions."""
 
     n_cores: int
     n_threads: int
@@ -106,16 +97,7 @@ class CPUProfile:
 
 @dataclass
 class ChunkingStrategy:
-    """Dynamic chunking strategy for parallel workloads.
-
-    Attributes:
-        initial_chunk_size: Starting chunk size
-        min_chunk_size: Minimum chunk size
-        max_chunk_size: Maximum chunk size
-        target_chunks_per_worker: Target number of chunks per worker
-        adaptive: Enable adaptive chunk sizing
-        profile_samples: Number of samples for profiling
-    """
+    """Dynamic chunking strategy for parallel workloads."""
 
     initial_chunk_size: int = 1000
     min_chunk_size: int = 100
@@ -166,14 +148,7 @@ class ChunkingStrategy:
 
 @dataclass
 class SharedMemoryConfig:
-    """Configuration for shared memory optimization.
-
-    Attributes:
-        enable_shared_arrays: Use shared memory for numpy arrays
-        enable_shared_objects: Use shared memory for serialized objects
-        compression: Compress shared data
-        cleanup_on_exit: Automatically cleanup shared memory
-    """
+    """Configuration for shared memory optimization."""
 
     enable_shared_arrays: bool = True
     enable_shared_objects: bool = True
@@ -325,19 +300,7 @@ class SharedMemoryManager:
 
 @dataclass
 class PerformanceMetrics:
-    """Performance metrics for parallel execution.
-
-    Attributes:
-        total_time: Total execution time in seconds
-        setup_time: Time spent on setup and initialization
-        computation_time: Time spent on actual computation
-        serialization_time: Time spent on serialization/deserialization
-        reduction_time: Time spent on reduction/combining results
-        memory_peak: Peak memory usage in bytes
-        cpu_utilization: Average CPU utilization percentage
-        items_per_second: Processing throughput
-        speedup: Speedup relative to sequential execution
-    """
+    """Performance metrics for parallel execution."""
 
     total_time: float = 0.0
     setup_time: float = 0.0

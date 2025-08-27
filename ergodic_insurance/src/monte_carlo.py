@@ -12,6 +12,7 @@ import warnings
 import numpy as np
 from tqdm import tqdm
 
+from .bootstrap_analysis import BootstrapAnalyzer, bootstrap_confidence_interval
 from .convergence import ConvergenceDiagnostics, ConvergenceStats
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
@@ -159,6 +160,11 @@ class SimulationConfig:
     aggregation_config: Optional[AggregationConfig] = None
     generate_summary_report: bool = False
     summary_report_format: str = "markdown"
+    # Bootstrap confidence interval options
+    compute_bootstrap_ci: bool = False
+    bootstrap_confidence_level: float = 0.95
+    bootstrap_n_iterations: int = 10000
+    bootstrap_method: str = "percentile"
 
 
 @dataclass
@@ -181,6 +187,7 @@ class SimulationResults:
         time_series_aggregation: Time series aggregation results (if enabled)
         statistical_summary: Complete statistical summary (if enabled)
         summary_report: Formatted summary report (if generated)
+        bootstrap_confidence_intervals: Bootstrap confidence intervals for key metrics
     """
 
     final_assets: np.ndarray
@@ -198,6 +205,7 @@ class SimulationResults:
     time_series_aggregation: Optional[Dict[str, Any]] = None
     statistical_summary: Optional[Any] = None
     summary_report: Optional[str] = None
+    bootstrap_confidence_intervals: Optional[Dict[str, Tuple[float, float]]] = None
 
     def summary(self) -> str:
         """Generate summary of simulation results."""
@@ -227,6 +235,24 @@ class SimulationResults:
             if "percentiles" in self.aggregated_results:
                 for p, val in self.aggregated_results["percentiles"].items():
                     base_summary += f"  {p}: ${val:,.0f}\n"
+
+        # Add bootstrap confidence intervals if available
+        if self.bootstrap_confidence_intervals:
+            base_summary += f"\n{'='*50}\nBootstrap Confidence Intervals (95%):\n"
+            for metric_name, (lower, upper) in self.bootstrap_confidence_intervals.items():
+                if (
+                    "assets" in metric_name.lower()
+                    or "var" in metric_name.lower()
+                    or "tvar" in metric_name.lower()
+                ):
+                    # Format as currency for asset-related metrics
+                    base_summary += f"  {metric_name}: [${lower:,.0f}, ${upper:,.0f}]\n"
+                elif "probability" in metric_name.lower() or "rate" in metric_name.lower():
+                    # Format as percentage for rates and probabilities
+                    base_summary += f"  {metric_name}: [{lower:.2%}, {upper:.2%}]\n"
+                else:
+                    # Default formatting
+                    base_summary += f"  {metric_name}: [{lower:.4f}, {upper:.4f}]\n"
 
         # Add summary report if available
         if self.summary_report:
@@ -354,6 +380,16 @@ class MonteCarloEngine:
         # Add performance metrics if using enhanced parallel
         if self.config.use_enhanced_parallel and self.parallel_executor:
             results.performance_metrics = self.parallel_executor.performance_metrics
+
+        # Compute bootstrap confidence intervals if requested
+        if self.config.compute_bootstrap_ci:
+            results.bootstrap_confidence_intervals = self.compute_bootstrap_confidence_intervals(
+                results,
+                confidence_level=self.config.bootstrap_confidence_level,
+                n_bootstrap=self.config.bootstrap_n_iterations,
+                method=self.config.bootstrap_method,
+                show_progress=self.config.progress_bar,
+            )
 
         # Cache results
         if self.config.cache_results:
@@ -863,6 +899,125 @@ class MonteCarloEngine:
             ResultExporter.to_hdf5(results.aggregated_results, filepath)
         else:
             raise ValueError(f"Unsupported export format: {format}")
+
+    def compute_bootstrap_confidence_intervals(
+        self,
+        results: SimulationResults,
+        confidence_level: float = 0.95,
+        n_bootstrap: int = 10000,
+        method: str = "percentile",
+        show_progress: bool = False,
+    ) -> Dict[str, Tuple[float, float]]:
+        """Compute bootstrap confidence intervals for key simulation metrics.
+
+        Args:
+            results: Simulation results to analyze.
+            confidence_level: Confidence level for intervals (default 0.95).
+            n_bootstrap: Number of bootstrap iterations (default 10000).
+            method: Bootstrap method ('percentile' or 'bca').
+            show_progress: Whether to show progress bar.
+
+        Returns:
+            Dictionary mapping metric names to (lower, upper) confidence bounds.
+        """
+        analyzer = BootstrapAnalyzer(
+            n_bootstrap=n_bootstrap,
+            confidence_level=confidence_level,
+            seed=self.config.seed,
+            show_progress=show_progress,
+        )
+
+        confidence_intervals = {}
+
+        # Bootstrap CI for mean final assets
+        _, ci = bootstrap_confidence_interval(
+            results.final_assets,
+            np.mean,
+            confidence_level=confidence_level,
+            n_bootstrap=n_bootstrap,
+            method=method,
+            seed=self.config.seed,
+        )
+        confidence_intervals["Mean Final Assets"] = ci
+
+        # Bootstrap CI for median final assets
+        _, ci = bootstrap_confidence_interval(
+            results.final_assets,
+            np.median,
+            confidence_level=confidence_level,
+            n_bootstrap=n_bootstrap,
+            method=method,
+            seed=self.config.seed,
+        )
+        confidence_intervals["Median Final Assets"] = ci
+
+        # Bootstrap CI for mean growth rate
+        _, ci = bootstrap_confidence_interval(
+            results.growth_rates,
+            np.mean,
+            confidence_level=confidence_level,
+            n_bootstrap=n_bootstrap,
+            method=method,
+            seed=self.config.seed,
+        )
+        confidence_intervals["Mean Growth Rate"] = ci
+
+        # Bootstrap CI for ruin probability
+        # Create binary ruin indicator
+        ruin_indicator = (results.final_assets <= 0).astype(float)
+        _, ci = bootstrap_confidence_interval(
+            ruin_indicator,
+            np.mean,
+            confidence_level=confidence_level,
+            n_bootstrap=n_bootstrap,
+            method=method,
+            seed=self.config.seed,
+        )
+        confidence_intervals["Ruin Probability"] = ci
+
+        # Bootstrap CI for VaR if available
+        if "var_99" in results.metrics:
+
+            def var_99(x):
+                return np.percentile(x, 99)
+
+            _, ci = bootstrap_confidence_interval(
+                results.final_assets,
+                var_99,
+                confidence_level=confidence_level,
+                n_bootstrap=n_bootstrap,
+                method=method,
+                seed=self.config.seed,
+            )
+            confidence_intervals["VaR(99%)"] = ci
+
+        # Bootstrap CI for mean annual losses
+        mean_annual_losses = np.mean(
+            results.annual_losses, axis=1
+        )  # Mean across years for each simulation
+        _, ci = bootstrap_confidence_interval(
+            mean_annual_losses,
+            np.mean,
+            confidence_level=confidence_level,
+            n_bootstrap=n_bootstrap,
+            method=method,
+            seed=self.config.seed,
+        )
+        confidence_intervals["Mean Annual Losses"] = ci
+
+        # Bootstrap CI for mean insurance recoveries
+        mean_recoveries = np.mean(results.insurance_recoveries, axis=1)
+        _, ci = bootstrap_confidence_interval(
+            mean_recoveries,
+            np.mean,
+            confidence_level=confidence_level,
+            n_bootstrap=n_bootstrap,
+            method=method,
+            seed=self.config.seed,
+        )
+        confidence_intervals["Mean Insurance Recoveries"] = ci
+
+        return confidence_intervals
 
     def _get_cache_key(self) -> str:
         """Generate cache key for current configuration.

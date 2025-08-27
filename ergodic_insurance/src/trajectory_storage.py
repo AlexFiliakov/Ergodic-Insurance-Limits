@@ -49,20 +49,7 @@ import pandas as pd
 
 @dataclass
 class StorageConfig:
-    """Configuration for trajectory storage system.
-
-    Attributes:
-        storage_dir: Directory for storing trajectory data
-        backend: Storage backend ('memmap' or 'hdf5')
-        sample_interval: Store every Nth year (1 = store all)
-        max_disk_usage_gb: Maximum disk space to use
-        compression: Enable compression (HDF5 only)
-        compression_level: Compression level 0-9 (HDF5 only)
-        chunk_size: Chunk size for batch operations
-        enable_summary_stats: Store summary statistics
-        enable_time_series: Store time series data
-        dtype: Data type for storage (np.float32 or np.float64)
-    """
+    """Configuration for trajectory storage system."""
 
     storage_dir: str = "./trajectory_storage"
     backend: str = "memmap"  # 'memmap' or 'hdf5'
@@ -78,21 +65,7 @@ class StorageConfig:
 
 @dataclass
 class SimulationSummary:
-    """Summary statistics for a single simulation.
-
-    Attributes:
-        sim_id: Simulation identifier
-        final_assets: Final asset value
-        total_losses: Total losses over simulation
-        total_recoveries: Total insurance recoveries
-        mean_annual_loss: Average annual loss
-        max_annual_loss: Maximum annual loss
-        min_annual_loss: Minimum annual loss
-        growth_rate: Realized growth rate
-        ruin_occurred: Whether ruin occurred
-        ruin_year: Year of ruin (if occurred)
-        volatility: Standard deviation of returns
-    """
+    """Summary statistics for a single simulation."""
 
     sim_id: int
     final_assets: float

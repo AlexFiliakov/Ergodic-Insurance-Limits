@@ -1,108 +1,156 @@
-# Data Models and Configuration Architecture
+# Data Models and Configuration Classes
 
-## Overview
-This document details the data models, configuration structures, and their relationships within the Ergodic Insurance system.
-
-## Configuration Models (Pydantic)
+## Configuration Data Models
 
 ```mermaid
 classDiagram
-    class BaseModel {
-        <<pydantic>>
-        +model_validate()
-        +model_dump()
-        +model_json_schema()
-    }
-
     class Config {
         +ManufacturerConfig manufacturer
+        +SimulationConfig simulation
         +WorkingCapitalConfig working_capital
         +DebtConfig debt
         +GrowthConfig growth
-        +SimulationConfig simulation
         +OutputConfig output
         +LoggingConfig logging
-        +validate_config()
-        +from_yaml(path) Config
+        +validate() bool
         +to_yaml(path)
+        +from_yaml(path) Config
     }
 
     class ManufacturerConfig {
         +float initial_assets
-        +float asset_turnover
-        +float operating_margin
+        +float asset_turnover_mean
+        +float asset_turnover_std
+        +float operating_margin_mean
+        +float operating_margin_std
         +float tax_rate
-        +float depreciation_rate
-        +float capex_rate
         +float dividend_payout_ratio
-        +float min_cash
-        +validate_positive_values()
-        +validate_ratios()
-    }
-
-    class WorkingCapitalConfig {
-        +float receivables_days
-        +float inventory_days
-        +float payables_days
-        +float cash_conversion_cycle
-    }
-
-    class DebtConfig {
         +float max_debt_to_equity
-        +float target_debt_to_equity
         +float interest_rate
-        +float min_interest_coverage
-        +float emergency_credit_rate
     }
 
     class SimulationConfig {
-        +int years
+        +int n_years
         +int n_simulations
-        +Optional~int~ seed
-        +bool use_parallel
-        +int n_workers
+        +float time_step
+        +int seed
+        +bool use_stochastic
+        +float volatility
+        +bool save_trajectories
         +str checkpoint_dir
-        +int checkpoint_frequency
-        +validate_simulation_params()
+    }
+
+    class WorkingCapitalConfig {
+        +float base_ratio
+        +float safety_stock_days
+        +float receivables_days
+        +float payables_days
+        +float inventory_turnover
+        +calculate_requirement(revenue) float
+    }
+
+    class DebtConfig {
+        +float initial_debt
+        +float interest_rate
+        +float term_years
+        +str repayment_type
+        +float covenant_debt_to_equity
+        +float covenant_coverage_ratio
     }
 
     class GrowthConfig {
         +float base_growth_rate
-        +float growth_volatility
-        +str growth_type
+        +float volatility
+        +float mean_reversion_speed
+        +float long_term_mean
+        +str growth_model
     }
 
-    class OutputConfig {
-        +str output_dir
-        +bool save_trajectories
-        +bool save_checkpoints
-        +int plot_frequency
+    Config --> ManufacturerConfig : contains
+    Config --> SimulationConfig : contains
+    Config --> WorkingCapitalConfig : contains
+    Config --> DebtConfig : contains
+    Config --> GrowthConfig : contains
+```
+
+## ConfigV2 Enhanced Models
+
+```mermaid
+classDiagram
+    class ConfigV2 {
+        +ProfileMetadata metadata
+        +Dict~str,ModuleConfig~ modules
+        +PresetConfig preset
+        +InsuranceConfig insurance
+        +LossDistributionConfig losses
+        +validate_consistency() bool
+        +merge_with_preset(preset) ConfigV2
+        +export_profile() dict
     }
 
-    class LoggingConfig {
-        +str level
-        +str format
-        +bool console
-        +bool file
-        +str file_path
+    class ProfileMetadata {
+        +str name
+        +str version
+        +str description
+        +datetime created_at
+        +datetime updated_at
+        +List~str~ tags
+        +str author
+        +dict compatibility
     }
 
-    Config --|> BaseModel: inherits
-    ManufacturerConfig --|> BaseModel: inherits
-    WorkingCapitalConfig --|> BaseModel: inherits
-    DebtConfig --|> BaseModel: inherits
-    GrowthConfig --|> BaseModel: inherits
-    SimulationConfig --|> BaseModel: inherits
-    OutputConfig --|> BaseModel: inherits
-    LoggingConfig --|> BaseModel: inherits
+    class InsuranceLayerConfig {
+        +float limit
+        +float attachment
+        +float premium_rate
+        +int reinstatements
+        +float reinstatement_cost
+        +str coverage_type
+        +dict exclusions
+    }
 
-    Config --> ManufacturerConfig: contains
-    Config --> WorkingCapitalConfig: contains
-    Config --> DebtConfig: contains
-    Config --> GrowthConfig: contains
-    Config --> SimulationConfig: contains
-    Config --> OutputConfig: contains
-    Config --> LoggingConfig: contains
+    class InsuranceConfig {
+        +List~InsuranceLayerConfig~ layers
+        +float retention
+        +float aggregate_limit
+        +str program_type
+        +dict optimization_params
+        +calculate_total_limit() float
+        +optimize_structure() List~InsuranceLayerConfig~
+    }
+
+    class LossDistributionConfig {
+        +str frequency_distribution
+        +dict frequency_params
+        +str severity_distribution
+        +dict severity_params
+        +float correlation
+        +List~str~ peril_types
+        +dict calibration_data
+    }
+
+    class ModuleConfig {
+        +str module_type
+        +dict parameters
+        +bool enabled
+        +int priority
+        +List~str~ dependencies
+    }
+
+    class PresetConfig {
+        +str base_preset
+        +dict overrides
+        +List~str~ included_modules
+        +List~str~ excluded_modules
+        +merge(other) PresetConfig
+    }
+
+    ConfigV2 --> ProfileMetadata : has
+    ConfigV2 --> InsuranceConfig : contains
+    ConfigV2 --> LossDistributionConfig : contains
+    ConfigV2 --> ModuleConfig : contains many
+    ConfigV2 --> PresetConfig : uses
+    InsuranceConfig --> InsuranceLayerConfig : contains many
 ```
 
 ## Result Data Models
@@ -110,226 +158,295 @@ classDiagram
 ```mermaid
 classDiagram
     class SimulationResults {
-        +ndarray years
-        +ndarray assets
-        +ndarray equity
-        +ndarray roe
-        +ndarray revenue
-        +ndarray net_income
-        +ndarray claim_counts
-        +ndarray claim_amounts
-        +Optional~int~ insolvency_year
-        +to_dataframe() DataFrame
-        +to_dict() Dict
-        +to_csv(path)
-        +plot_trajectories()
-        +summary_stats() Dict
+        +ndarray timestamps
+        +ndarray asset_values
+        +ndarray revenues
+        +ndarray claims
+        +ndarray insurance_recoveries
+        +dict metrics
+        +dict metadata
+        +to_dataframe() pd.DataFrame
+        +to_dict() dict
+        +save(path)
+        +load(path) SimulationResults
     }
 
-    class MonteCarloResults {
-        +List~SimulationResults~ paths
-        +Dict ensemble_stats
-        +Dict ergodic_stats
-        +float convergence_metric
-        +to_dataframe() DataFrame
-        +aggregate_paths() DataFrame
-        +get_percentiles(percentiles) Dict
-        +calculate_var(confidence) float
-        +calculate_tvar(confidence) float
+    class BatchResult {
+        +str batch_id
+        +ProcessingStatus status
+        +List~SimulationResults~ results
+        +datetime start_time
+        +datetime end_time
+        +dict performance_metrics
+        +aggregate() AggregatedResults
+    }
+
+    class AggregatedResults {
+        +Dict~str,ndarray~ percentiles
+        +Dict~str,float~ mean_metrics
+        +Dict~str,float~ std_metrics
+        +Dict~str,float~ risk_metrics
+        +pd.DataFrame summary_table
+        +export_summary() dict
+    }
+
+    class RiskMetricsResult {
+        +float var_95
+        +float var_99
+        +float cvar_95
+        +float cvar_99
+        +float sharpe_ratio
+        +float sortino_ratio
+        +float max_drawdown
+        +dict tail_statistics
+    }
+
+    class BootstrapResult {
+        +ndarray samples
+        +float mean
+        +float std
+        +Tuple~float,float~ confidence_interval
+        +float bias
+        +float standard_error
         +plot_distribution()
     }
 
-    class ErgodicAnalysisResults {
+    class StatisticalSummary {
+        +float mean
+        +float median
+        +float std
+        +float skewness
+        +float kurtosis
+        +Dict~int,float~ percentiles
+        +float min
+        +float max
+        +to_series() pd.Series
+    }
+
+    BatchResult --> SimulationResults : contains many
+    BatchResult --> AggregatedResults : produces
+    AggregatedResults --> RiskMetricsResult : includes
+    AggregatedResults --> StatisticalSummary : uses
+    SimulationResults --> StatisticalSummary : generates
+```
+
+## Analysis Result Models
+
+```mermaid
+classDiagram
+    class ErgodicAnalysisResult {
         +float time_average_growth
         +float ensemble_average_growth
-        +float survival_rate
-        +float ergodic_divergence
-        +Dict insurance_impact
-        +bool validation_passed
-        +Dict metadata
-        +to_dict() Dict
+        +float ergodic_difference
+        +ndarray time_averages
+        +ndarray ensemble_averages
+        +dict convergence_metrics
+        +bool is_ergodic
         +plot_comparison()
     }
 
-    class RiskMetrics {
-        +float var_95
-        +float var_99
-        +float tvar_95
-        +float tvar_99
-        +float expected_shortfall
-        +float maximum_drawdown
-        +float ruin_probability
-        +float sharpe_ratio
-        +float sortino_ratio
-        +to_dict() Dict
-        +to_dataframe() DataFrame
+    class OptimalStrategy {
+        +Dict~str,float~ parameters
+        +float expected_return
+        +float risk_level
+        +InsuranceProgram recommended_insurance
+        +dict sensitivity_analysis
+        +str reasoning
+        +to_recommendation() str
     }
 
-    class OptimizationResults {
-        +InsuranceProgram optimal_program
-        +float optimal_retention
-        +Dict~str_float~ optimal_limits
-        +float expected_cost
-        +float expected_utility
-        +RiskMetrics risk_metrics
-        +List~Dict~ iteration_history
-        +plot_efficient_frontier()
-        +sensitivity_analysis() Dict
+    class DecisionMetrics {
+        +float expected_value
+        +float downside_risk
+        +float upside_potential
+        +float information_ratio
+        +Dict~str,float~ scenario_outcomes
+        +rank_alternatives() List~Tuple~
     }
 
-    MonteCarloResults --> SimulationResults: aggregates
-    OptimizationResults --> RiskMetrics: contains
-    OptimizationResults --> InsuranceProgram: references
+    class ParetoPoint {
+        +List~float~ objectives
+        +Dict~str,Any~ parameters
+        +int rank
+        +float crowding_distance
+        +bool is_dominated_by(other) bool
+        +distance_to(ideal) float
+    }
+
+    class HJBSolution {
+        +ndarray value_function
+        +ndarray optimal_control
+        +ndarray state_grid
+        +float convergence_error
+        +int iterations
+        +plot_value_function()
+        +get_control_at_state(state) float
+    }
+
+    class ConvergenceStats {
+        +List~float~ running_mean
+        +List~float~ running_std
+        +float gelman_rubin_stat
+        +float effective_sample_size
+        +bool has_converged
+        +int burn_in_period
+        +plot_diagnostics()
+    }
+
+    OptimalStrategy --> DecisionMetrics : based on
+    OptimalStrategy --> InsuranceProgram : recommends
+    ParetoPoint --> DecisionMetrics : evaluates
+    ErgodicAnalysisResult --> ConvergenceStats : uses
+    HJBSolution --> OptimalStrategy : informs
 ```
 
-## Event and State Models
+## State and Progress Models
 
 ```mermaid
 classDiagram
-    class ClaimEvent {
-        +float amount
-        +int year
-        +str claim_type
-        +Optional~str~ severity_class
-        +Optional~Dict~ metadata
-        +to_dict() Dict
-        +is_catastrophic() bool
-        +is_attritional() bool
+    class SimulationState {
+        +int current_period
+        +float current_assets
+        +float current_equity
+        +List~ClaimLiability~ pending_claims
+        +InsuranceProgramState insurance_state
+        +dict custom_state
+        +checkpoint() bytes
+        +restore(data)
     }
 
-    class ManufacturerState {
-        +float assets
-        +float equity
+    class InsuranceProgramState {
+        +Dict~str,LayerState~ layer_states
+        +float ytd_losses
+        +float ytd_recoveries
+        +float ytd_premiums
+        +List~ClaimEvent~ claim_history
+        +reset_annual()
+        +get_summary() dict
+    }
+
+    class LayerState {
+        +str layer_id
+        +float remaining_limit
+        +float remaining_aggregate
+        +int reinstatements_used
+        +float premium_paid
+        +bool is_exhausted
+        +update(loss) float
+    }
+
+    class ProgressStats {
+        +int total_tasks
+        +int completed_tasks
+        +float progress_percentage
+        +datetime start_time
+        +datetime estimated_completion
+        +float tasks_per_second
+        +str current_task
+        +update(completed)
+        +get_eta() timedelta
+    }
+
+    class CheckpointData {
+        +str simulation_id
+        +SimulationState state
+        +int iteration
+        +datetime timestamp
+        +dict metadata
+        +save(path)
+        +load(path) CheckpointData
+    }
+
+    class ScenarioConfig {
+        +str name
+        +ScenarioType type
+        +Dict~str,ParameterSpec~ parameters
+        +List~str~ dependencies
+        +int priority
+        +generate_variations() List~dict~
+        +validate_parameters() bool
+    }
+
+    SimulationState --> InsuranceProgramState : contains
+    InsuranceProgramState --> LayerState : manages many
+    CheckpointData --> SimulationState : stores
+    ScenarioConfig --> ParameterSpec : defines
+```
+
+## Data Transfer Objects
+
+```mermaid
+classDiagram
+    class ClaimRequest {
+        +float amount
+        +datetime occurrence_date
+        +str claim_type
+        +str policy_number
+        +dict supporting_docs
+        +validate() bool
+    }
+
+    class ClaimResult {
+        +ClaimRequest request
+        +float gross_loss
+        +float deductible
+        +float recovery
+        +float net_loss
+        +Dict~str,float~ layer_recoveries
+        +datetime processed_date
+    }
+
+    class YearResult {
+        +int year
+        +float starting_assets
+        +float ending_assets
         +float revenue
         +float operating_income
         +float net_income
-        +float collateral
-        +float restricted_assets
-        +List~ClaimLiability~ outstanding_claims
-        +int year
-        +to_dict() Dict
-        +is_solvent() bool
-        +liquidity_ratio() float
+        +List~ClaimResult~ claims
+        +float total_recovery
+        +float insurance_premium
     }
 
-    class MarketState {
-        +float interest_rate
-        +float inflation_rate
-        +float gdp_growth
-        +float market_volatility
-        +Dict~str_float~ sector_indices
-        +update(dt) MarketState
+    class MonteCarloRequest {
+        +int n_simulations
+        +int n_periods
+        +Config config
+        +bool parallel
+        +int batch_size
+        +str output_format
     }
 
-    class InsuranceState {
-        +Dict~str_float~ layer_utilization
-        +float total_recoveries
-        +float total_premiums_paid
-        +float ytd_losses
-        +List~Dict~ claim_history
-        +reset_annual()
-        +update_claim(claim_event, recovery)
+    class OptimizationRequest {
+        +List~str~ objectives
+        +Dict~str,Tuple~ constraints
+        +str algorithm
+        +int max_iterations
+        +float tolerance
+        +dict initial_guess
     }
+
+    class ReportRequest {
+        +str report_type
+        +List~str~ metrics
+        +str format
+        +bool include_charts
+        +dict filters
+        +str output_path
+    }
+
+    ClaimResult --> ClaimRequest : processes
+    YearResult --> ClaimResult : contains many
+    MonteCarloRequest --> Config : uses
+    OptimizationRequest --> OptimalStrategy : produces
+    ReportRequest --> AggregatedResults : generates from
 ```
 
-## Data Flow Relationships
+## Key Data Model Patterns
 
-```mermaid
-graph LR
-    subgraph Input["Input Data"]
-        YAML[YAML Files]
-        CSV[CSV Data]
-    end
-
-    subgraph Config["Configuration Layer"]
-        ConfigLoader[ConfigLoader]
-        ConfigModels[Pydantic Models]
-    end
-
-    subgraph Processing["Processing"]
-        Simulation[Simulation Engine]
-        Analysis[Analysis Tools]
-    end
-
-    subgraph Output["Output Data"]
-        Results[Result Models]
-        DataFrames[Pandas DataFrames]
-        JSON[JSON Export]
-    end
-
-    YAML --> ConfigLoader
-    CSV --> ConfigLoader
-    ConfigLoader --> ConfigModels
-    ConfigModels --> Simulation
-    Simulation --> Results
-    Results --> Analysis
-    Analysis --> Results
-    Results --> DataFrames
-    Results --> JSON
-
-    style Input fill:#e8f5e9
-    style Config fill:#e3f2fd
-    style Processing fill:#fff3e0
-    style Output fill:#fce4ec
-```
-
-## Configuration Loading Pattern
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Loader as ConfigLoader
-    participant YAML as YAML File
-    participant Validator as Pydantic
-    participant Config as Config Object
-
-    User->>Loader: load_config("parameters/baseline.yaml")
-    Loader->>YAML: Read file
-    YAML-->>Loader: Raw data
-    Loader->>Validator: Parse and validate
-
-    alt Validation Success
-        Validator-->>Loader: Valid config dict
-        Loader->>Config: Create Config instance
-        Config-->>Loader: Config object
-        Loader-->>User: Config object
-    else Validation Error
-        Validator-->>Loader: ValidationError
-        Loader-->>User: Error with details
-    end
-
-    User->>Config: Access parameters
-    Config-->>User: Typed attributes
-```
-
-## Data Persistence
-
-```mermaid
-classDiagram
-    class CheckpointManager {
-        -str checkpoint_dir
-        -int checkpoint_frequency
-        +save_checkpoint(year, state, results)
-        +load_checkpoint(checkpoint_id) Tuple
-        +list_checkpoints() List
-        +cleanup_old_checkpoints(keep_last_n)
-    }
-
-    class ResultsExporter {
-        +export_to_csv(results, path)
-        +export_to_excel(results, path)
-        +export_to_json(results, path)
-        +export_to_parquet(results, path)
-        +create_report(results, template) str
-    }
-
-    class DataCache {
-        -Dict cache_data
-        -int max_size
-        -float ttl
-        +get(key) Optional~Any~
-        +set(key, value)
-        +invalidate(key)
-        +clear()
-    }
-```
+1. **Configuration Hierarchy**: Nested configuration models with validation at each level
+2. **Result Aggregation**: Hierarchical results from individual simulations to batch aggregations
+3. **State Management**: Comprehensive state tracking for checkpointing and recovery
+4. **Request-Response**: Clean DTOs for API boundaries and service interactions
+5. **Immutable Results**: Result objects are designed to be immutable after creation
+6. **Serialization**: All data models support serialization to/from standard formats (JSON, YAML, HDF5)

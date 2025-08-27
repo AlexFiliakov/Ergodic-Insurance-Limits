@@ -17,12 +17,12 @@ For the complete, detailed directory structure, see [docs/PROJECT_STRUCTURE.md](
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (26 modules)
+│   ├── src/                    # Core source code (36 modules)
 │   │   ├── # Configuration System v2.0
-│   │   ├── config_manager.py   # NEW: 3-tier configuration manager
-│   │   ├── config_v2.py        # NEW: Enhanced Pydantic v2 models
-│   │   ├── config_migrator.py  # NEW: Migration tool
-│   │   ├── config_compat.py    # NEW: Backward compatibility
+│   │   ├── config_manager.py   # 3-tier configuration manager
+│   │   ├── config_v2.py        # Enhanced Pydantic v2 models
+│   │   ├── config_migrator.py  # Migration tool
+│   │   ├── config_compat.py    # Backward compatibility
 │   │   ├── config.py           # Legacy configuration (deprecated)
 │   │   ├── config_loader.py    # Legacy loader (deprecated)
 │   │   │
@@ -37,6 +37,7 @@ Ergodic Insurance Limits/
 │   │   ├── insurance_program.py # Multi-layer programs
 │   │   ├── loss_distributions.py # Loss modeling
 │   │   ├── risk_metrics.py     # VaR, CVaR, etc.
+│   │   ├── ruin_probability.py # Ruin probability calculations
 │   │   │
 │   │   ├── # Simulation & Analysis
 │   │   ├── simulation.py       # Main engine
@@ -44,57 +45,103 @@ Ergodic Insurance Limits/
 │   │   ├── ergodic_analyzer.py # Ergodic theory
 │   │   ├── convergence.py      # Convergence tools
 │   │   │
-│   │   ├── # Optimization
+│   │   ├── # Optimization & Control
 │   │   ├── optimization.py     # Algorithms
 │   │   ├── business_optimizer.py # Business optimization
 │   │   ├── decision_engine.py  # Decision framework
 │   │   ├── pareto_frontier.py  # Multi-objective
-│   │   ├── hjb_solver.py       # NEW: HJB equations
-│   │   ├── optimal_control.py  # NEW: Control theory
+│   │   ├── hjb_solver.py       # HJB equations
+│   │   ├── optimal_control.py  # Control theory
+│   │   │
+│   │   ├── # Enhanced Parallel Processing
+│   │   ├── parallel_executor.py # CPU-optimized execution
+│   │   ├── trajectory_storage.py # Memory-efficient storage
+│   │   ├── progress_monitor.py # Progress tracking
+│   │   ├── batch_processor.py  # Batch processing
+│   │   ├── scenario_manager.py # Scenario management
+│   │   │
+│   │   ├── # Statistical Analysis
+│   │   ├── result_aggregator.py # Result aggregation
+│   │   ├── summary_statistics.py # Statistical summaries
+│   │   ├── bootstrap_analysis.py # Bootstrap methods
+│   │   ├── statistical_tests.py # Hypothesis testing
 │   │   │
 │   │   └── visualization.py    # Plotting utilities
 │   ├── tests/                  # Test suite (100% coverage, 30+ test files)
-│   │   ├── Unit tests for all 26 source modules
+│   │   ├── Unit tests for all 36 source modules
 │   │   ├── Integration tests (test_integration.py)
 │   │   ├── Performance tests (test_performance.py)
-│   │   └── NEW: Config v2 tests (test_config_*.py)
-│   ├── notebooks/              # Jupyter notebooks (14 analysis notebooks)
-│   │   ├── 00_config_migration_example.ipynb # NEW
-│   │   ├── 01-12: Analysis notebooks covering all aspects
-│   │   └── Executable examples with visualizations
-│   ├── examples/               # Example scripts
-│   │   ├── demo_config_v2.py  # NEW: Configuration v2 demo
-│   │   └── Various domain-specific demos
+│   │   └── Config v2 tests (test_config_*.py)
+│   ├── notebooks/              # Jupyter notebooks (15 analysis notebooks)
+│   │   ├── 00_config_migration_example.ipynb
+│   │   ├── 00_setup_verification.ipynb
+│   │   ├── 01_basic_manufacturer.ipynb
+│   │   ├── 02_long_term_simulation.ipynb
+│   │   ├── 03_growth_dynamics.ipynb
+│   │   ├── 04_ergodic_demo.ipynb
+│   │   ├── 05_risk_metrics.ipynb
+│   │   ├── 06_loss_distributions.ipynb
+│   │   ├── 07_insurance_layers.ipynb
+│   │   ├── 08_monte_carlo_analysis.ipynb
+│   │   ├── 09_optimization_results.ipynb
+│   │   ├── 10_sensitivity_analysis.ipynb
+│   │   ├── 11_pareto_analysis.ipynb
+│   │   ├── 12_hjb_optimal_control.ipynb
+│   │   └── cache/              # Monte Carlo simulation cache
+│   ├── examples/               # Example scripts (7 demos)
+│   │   ├── demo_config_v2.py  # Configuration v2 demo
+│   │   ├── demo_config_practical.py # Practical configuration
+│   │   ├── demo_manufacturer.py
+│   │   ├── demo_stochastic.py
+│   │   ├── demo_claim_development.py
+│   │   ├── demo_collateral_management.py
+│   │   └── benchmark_parallel.py # Performance benchmarking
 │   ├── data/
 │   │   ├── parameters/        # Legacy YAML (12 files, deprecated)
-│   │   └── config/            # NEW: 3-tier configuration
+│   │   └── config/            # 3-tier configuration
 │   │       ├── profiles/      # Complete configs (default, conservative, aggressive)
 │   │       ├── modules/       # Reusable components (4 files)
 │   │       └── presets/       # Quick templates (3 files)
 │   ├── docs/                   # Sphinx documentation system
 │   │   ├── conf.py            # Sphinx configuration
 │   │   ├── index.rst          # Documentation main page
-│   │   ├── api/               # Auto-generated API documentation
+│   │   ├── api/               # Auto-generated API documentation (37 modules)
 │   │   │   ├── modules.rst
 │   │   │   ├── src.rst
-│   │   │   ├── manufacturer.rst
-│   │   │   ├── config.rst
-│   │   │   ├── config_loader.rst
-│   │   │   ├── claim_generator.rst
+│   │   │   ├── batch_processor.rst
+│   │   │   ├── bootstrap_analysis.rst
+│   │   │   ├── business_optimizer.rst
 │   │   │   ├── claim_development.rst
-│   │   │   ├── stochastic_processes.rst
-│   │   │   ├── simulation.rst
+│   │   │   ├── claim_generator.rst
+│   │   │   ├── config.rst
+│   │   │   ├── config_compat.rst
+│   │   │   ├── config_loader.rst
+│   │   │   ├── config_manager.rst
+│   │   │   ├── config_migrator.rst
+│   │   │   ├── config_v2.rst
+│   │   │   ├── convergence.rst
+│   │   │   ├── decision_engine.rst
+│   │   │   ├── ergodic_analyzer.rst
+│   │   │   ├── hjb_solver.rst
 │   │   │   ├── insurance.rst
 │   │   │   ├── insurance_program.rst
 │   │   │   ├── loss_distributions.rst
+│   │   │   ├── manufacturer.rst
 │   │   │   ├── monte_carlo.rst
-│   │   │   ├── ergodic_analyzer.rst
-│   │   │   ├── risk_metrics.rst
-│   │   │   ├── convergence.rst
-│   │   │   ├── decision_engine.rst
-│   │   │   ├── business_optimizer.rst
+│   │   │   ├── optimal_control.rst
 │   │   │   ├── optimization.rst
+│   │   │   ├── parallel_executor.rst
 │   │   │   ├── pareto_frontier.rst
+│   │   │   ├── progress_monitor.rst
+│   │   │   ├── result_aggregator.rst
+│   │   │   ├── risk_metrics.rst
+│   │   │   ├── ruin_probability.rst
+│   │   │   ├── scenario_manager.rst
+│   │   │   ├── simulation.rst
+│   │   │   ├── statistical_tests.rst
+│   │   │   ├── stochastic_processes.rst
+│   │   │   ├── summary_statistics.rst
+│   │   │   ├── trajectory_storage.rst
 │   │   │   └── visualization.rst
 │   │   ├── getting_started.rst
 │   │   ├── theory.rst

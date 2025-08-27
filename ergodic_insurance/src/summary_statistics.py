@@ -9,6 +9,7 @@ from datetime import datetime
 from functools import lru_cache
 import io
 from typing import Any, Dict, List, Optional, Tuple
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -18,15 +19,7 @@ from scipy.optimize import minimize
 
 @dataclass
 class StatisticalSummary:
-    """Complete statistical summary of simulation results.
-
-    Attributes:
-        basic_stats: Basic descriptive statistics
-        distribution_params: Fitted distribution parameters
-        confidence_intervals: Bootstrap confidence intervals
-        hypothesis_tests: Statistical test results
-        extreme_values: Tail statistics
-    """
+    """Complete statistical summary of simulation results."""
 
     basic_stats: Dict[str, float]
     distribution_params: Dict[str, Dict[str, float]]
@@ -120,6 +113,14 @@ class SummaryStatistics:
             extreme_values=extreme_values,
         )
 
+    def _safe_skew_kurtosis(self, data: np.ndarray, stat_type: str) -> float:
+        """Calculate skewness or kurtosis with warning suppression."""
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Precision loss occurred")
+            if stat_type == "skew":
+                return float(stats.skew(data, nan_policy="omit"))
+            return float(stats.kurtosis(data, nan_policy="omit"))
+
     def _calculate_basic_stats(
         self, data: np.ndarray, weights: Optional[np.ndarray] = None
     ) -> Dict[str, float]:
@@ -144,31 +145,31 @@ class SummaryStatistics:
                 "range": float(np.max(data) - np.min(data)),
                 "iqr": float(np.percentile(data, 75) - np.percentile(data, 25)),
                 "cv": float(np.std(data) / np.mean(data)) if np.mean(data) != 0 else np.inf,
-                "skewness": float(stats.skew(data)),
-                "kurtosis": float(stats.kurtosis(data)),
+                "skewness": float(self._safe_skew_kurtosis(data, "skew")),
+                "kurtosis": float(self._safe_skew_kurtosis(data, "kurtosis")),
                 "stderr": float(np.std(data) / np.sqrt(len(data))),
             }
-        else:
-            mean = np.average(data, weights=weights)
-            variance = np.average((data - mean) ** 2, weights=weights)
-            std = np.sqrt(variance)
 
-            return {
-                "count": len(data),
-                "mean": float(mean),
-                "median": float(self._weighted_percentile(data, weights, 50)),
-                "std": float(std),
-                "variance": float(variance),
-                "min": float(np.min(data)),
-                "max": float(np.max(data)),
-                "range": float(np.max(data) - np.min(data)),
-                "iqr": float(
-                    self._weighted_percentile(data, weights, 75)
-                    - self._weighted_percentile(data, weights, 25)
-                ),
-                "cv": float(std / mean) if mean != 0 else np.inf,
-                "effective_sample_size": float(np.sum(weights) ** 2 / np.sum(weights**2)),
-            }
+        mean = np.average(data, weights=weights)
+        variance = np.average((data - mean) ** 2, weights=weights)
+        std = np.sqrt(variance)
+
+        return {
+            "count": len(data),
+            "mean": float(mean),
+            "median": float(self._weighted_percentile(data, weights, 50)),
+            "std": float(std),
+            "variance": float(variance),
+            "min": float(np.min(data)),
+            "max": float(np.max(data)),
+            "range": float(np.max(data) - np.min(data)),
+            "iqr": float(
+                self._weighted_percentile(data, weights, 75)
+                - self._weighted_percentile(data, weights, 25)
+            ),
+            "cv": float(std / mean) if mean != 0 else np.inf,
+            "effective_sample_size": float(np.sum(weights) ** 2 / np.sum(weights**2)),
+        }
 
     def _weighted_percentile(
         self, data: np.ndarray, weights: np.ndarray, percentile: float
@@ -214,7 +215,7 @@ class SummaryStatistics:
                 "ks_pvalue": float(ks_pvalue),
                 "aic": float(self._calculate_aic(data, stats.norm, mu, sigma)),
             }
-        except Exception:
+        except (ValueError, TypeError, RuntimeError):
             pass
 
         # Log-normal distribution
@@ -231,7 +232,7 @@ class SummaryStatistics:
                 "ks_pvalue": float(ks_pvalue),
                 "aic": float(self._calculate_aic(data, stats.lognorm, shape, loc, scale)),
             }
-        except Exception:
+        except (ValueError, TypeError, RuntimeError):
             pass
 
         # Gamma distribution
@@ -246,7 +247,7 @@ class SummaryStatistics:
                 "ks_pvalue": float(ks_pvalue),
                 "aic": float(self._calculate_aic(data, stats.gamma, alpha, loc, scale)),
             }
-        except Exception:
+        except (ValueError, TypeError, RuntimeError):
             pass
 
         # Exponential distribution
@@ -260,7 +261,7 @@ class SummaryStatistics:
                 "ks_pvalue": float(ks_pvalue),
                 "aic": float(self._calculate_aic(data, stats.expon, loc, scale)),
             }
-        except Exception:
+        except (ValueError, TypeError, RuntimeError):
             pass
 
         return results
@@ -278,7 +279,7 @@ class SummaryStatistics:
         """
         log_likelihood = np.sum(distribution.logpdf(data, *params))
         n_params = len(params)
-        return 2 * n_params - 2 * log_likelihood
+        return float(2 * n_params - 2 * log_likelihood)
 
     def _calculate_confidence_intervals(self, data: np.ndarray) -> Dict[str, Tuple[float, float]]:
         """Calculate bootstrap confidence intervals.
@@ -397,7 +398,7 @@ class SummaryStatistics:
 class QuantileCalculator:
     """Efficient quantile calculation for large datasets."""
 
-    def __init__(self, quantiles: List[float] = None):
+    def __init__(self, quantiles: Optional[List[float]] = None):
         """Initialize quantile calculator.
 
         Args:
@@ -434,8 +435,8 @@ class QuantileCalculator:
         """
         results = {}
 
-        # Use numpy's quantile function with specified method
-        quantile_values = np.quantile(data, self.quantiles, method=method)
+        # Use numpy's percentile function for compatibility
+        quantile_values = np.percentile(data, [q * 100 for q in self.quantiles])
 
         for q, value in zip(self.quantiles, quantile_values):
             results[f"q{int(q*100):03d}"] = float(value)
@@ -517,7 +518,9 @@ class DistributionFitter:
                 self.fitted_params[dist_name] = params
 
                 # Calculate goodness of fit metrics
-                ks_stat, ks_p = stats.kstest(data, lambda x: dist.cdf(x, *params))
+                ks_stat, ks_p = stats.kstest(
+                    data, lambda x, dist=dist, params=params: dist.cdf(x, *params)
+                )
                 log_likelihood = np.sum(dist.logpdf(data, *params))
                 aic = 2 * len(params) - 2 * log_likelihood
                 bic = len(params) * np.log(len(data)) - 2 * log_likelihood
@@ -541,7 +544,7 @@ class DistributionFitter:
                     "bic": bic,
                 }
 
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError) as e:
                 results.append({"distribution": dist_name, "error": str(e)})
 
         # Create DataFrame and sort by AIC
@@ -633,12 +636,11 @@ class SummaryReportGenerator:
         """
         if self.style == "markdown":
             return self._generate_markdown_report(summary, title, metadata)
-        elif self.style == "html":
+        if self.style == "html":
             return self._generate_html_report(summary, title, metadata)
-        elif self.style == "latex":
+        if self.style == "latex":
             return self._generate_latex_report(summary, title, metadata)
-        else:
-            raise ValueError(f"Unsupported style: {self.style}")
+        raise ValueError(f"Unsupported style: {self.style}")
 
     def _generate_markdown_report(
         self, summary: StatisticalSummary, title: str, metadata: Optional[Dict[str, Any]]
@@ -751,7 +753,7 @@ class SummaryReportGenerator:
         html += df.to_html(index=False, classes="results-table")
         html += "</body></html>"
 
-        return html
+        return str(html)
 
     def _generate_latex_report(
         self, summary: StatisticalSummary, title: str, metadata: Optional[Dict[str, Any]]
@@ -790,4 +792,4 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         latex += df.to_latex(index=False, longtable=True)
         latex += "\\end{document}"
 
-        return latex
+        return str(latex)

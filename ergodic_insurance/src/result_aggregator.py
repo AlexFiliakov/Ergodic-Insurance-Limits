@@ -11,6 +11,7 @@ from functools import lru_cache
 import json
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import warnings
 
 import h5py
 import numpy as np
@@ -20,16 +21,7 @@ from scipy import stats
 
 @dataclass
 class AggregationConfig:
-    """Configuration for result aggregation.
-
-    Attributes:
-        percentiles: List of percentiles to calculate (default: [1, 5, 10, 25, 50, 75, 90, 95, 99])
-        calculate_moments: Whether to calculate statistical moments
-        calculate_distribution_fit: Whether to fit distributions to data
-        chunk_size: Size of chunks for memory-efficient processing
-        cache_results: Whether to cache intermediate results
-        precision: Decimal precision for aggregated values
-    """
+    """Configuration for result aggregation."""
 
     percentiles: List[float] = field(default_factory=lambda: [1, 5, 10, 25, 50, 75, 90, 95, 99])
     calculate_moments: bool = True
@@ -64,7 +56,7 @@ class BaseAggregator(ABC):
         Returns:
             Dictionary of aggregated statistics
         """
-        pass
+        raise NotImplementedError("Subclasses must implement aggregate method")
 
     def _get_cache_key(self, data_hash: str, operation: str) -> str:
         """Generate cache key for operation."""
@@ -113,7 +105,7 @@ class ResultAggregator(BaseAggregator):
         Returns:
             Dictionary containing all aggregated statistics
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Basic statistics
         results["count"] = len(data)
@@ -142,12 +134,12 @@ class ResultAggregator(BaseAggregator):
         for name, func in self.custom_functions.items():
             try:
                 results[f"custom_{name}"] = self._round_value(func(data))
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 results[f"custom_{name}_error"] = str(e)
 
         return results
 
-    def _calculate_moments(self, data: np.ndarray) -> Dict[str, float]:
+    def _calculate_moments(self, data: np.ndarray) -> Dict[str, Any]:
         """Calculate statistical moments.
 
         Args:
@@ -156,10 +148,16 @@ class ResultAggregator(BaseAggregator):
         Returns:
             Dictionary of statistical moments
         """
+        # Suppress precision warnings for nearly identical data
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Precision loss occurred")
+            skewness = stats.skew(data, nan_policy="omit")
+            kurtosis = stats.kurtosis(data, nan_policy="omit")
+
         return {
             "variance": self._round_value(np.var(data)),
-            "skewness": self._round_value(stats.skew(data)),
-            "kurtosis": self._round_value(stats.kurtosis(data)),
+            "skewness": self._round_value(skewness),
+            "kurtosis": self._round_value(kurtosis),
             "coefficient_variation": self._round_value(
                 np.std(data) / np.mean(data) if np.mean(data) != 0 else np.nan
             ),
@@ -184,7 +182,7 @@ class ResultAggregator(BaseAggregator):
                 "sigma": self._round_value(sigma),
                 "ks_statistic": self._round_value(stats.kstest(data, "norm", (mu, sigma))[0]),
             }
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
         # Fit lognormal distribution
@@ -197,7 +195,7 @@ class ResultAggregator(BaseAggregator):
                     stats.kstest(data, "lognorm", (shape, loc, scale))[0]
                 ),
             }
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
         return distributions
@@ -232,7 +230,7 @@ class TimeSeriesAggregator(BaseAggregator):
             data = data.reshape(-1, 1)
 
         n_periods, n_simulations = data.shape
-        results = {}
+        results: Dict[str, Any] = {}
 
         # Period-wise statistics
         results["period_mean"] = self._round_value(np.mean(data, axis=1))
@@ -251,7 +249,10 @@ class TimeSeriesAggregator(BaseAggregator):
 
         # Growth rates
         if n_periods > 1:
-            growth_rates = (data[1:] / data[:-1] - 1) * 100
+            # Handle division by zero in growth rate calculation
+            with np.errstate(divide="ignore", invalid="ignore"):
+                growth_rates = (data[1:] / data[:-1] - 1) * 100
+                growth_rates = np.where(np.isfinite(growth_rates), growth_rates, 0)
             results["growth_rate_mean"] = self._round_value(np.mean(growth_rates, axis=1))
             results["growth_rate_std"] = self._round_value(np.std(growth_rates, axis=1))
 
@@ -260,7 +261,7 @@ class TimeSeriesAggregator(BaseAggregator):
 
         return results
 
-    def _calculate_rolling_stats(self, data: np.ndarray) -> Dict[str, np.ndarray]:
+    def _calculate_rolling_stats(self, data: np.ndarray) -> Dict[str, Any]:
         """Calculate rolling window statistics.
 
         Args:
@@ -286,7 +287,7 @@ class TimeSeriesAggregator(BaseAggregator):
             "volatility": self._round_value(np.std(rolling_mean, axis=1)),
         }
 
-    def _calculate_autocorrelation(self, data: np.ndarray, max_lag: int = 5) -> Dict[str, float]:
+    def _calculate_autocorrelation(self, data: np.ndarray, max_lag: int = 5) -> Dict[str, Any]:
         """Calculate autocorrelation for different lags.
 
         Args:
@@ -297,7 +298,7 @@ class TimeSeriesAggregator(BaseAggregator):
             Dictionary of autocorrelations by lag
         """
         n_periods = data.shape[0]
-        autocorr = {}
+        autocorr: Dict[str, Any] = {}
 
         for lag in range(1, min(max_lag + 1, n_periods)):
             if n_periods > lag:
@@ -323,7 +324,7 @@ class PercentileTracker:
         """
         self.percentiles = sorted(percentiles)
         self.max_samples = max_samples
-        self.samples = []
+        self.samples: List[float] = []
         self.total_count = 0
         self.reservoir_full = False
 
@@ -436,7 +437,7 @@ class ResultExporter:
         Returns:
             Flattened dictionary
         """
-        items = []
+        items: List[Tuple[str, Any]] = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
@@ -457,14 +458,13 @@ class ResultExporter:
         """
         if isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif isinstance(obj, np.generic):
+        if isinstance(obj, np.generic):
             return obj.item()
-        elif isinstance(obj, dict):
+        if isinstance(obj, dict):
             return {k: ResultExporter._prepare_for_json(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple)):
+        if isinstance(obj, (list, tuple)):
             return [ResultExporter._prepare_for_json(item) for item in obj]
-        else:
-            return obj
+        return obj
 
     @staticmethod
     def _write_to_hdf5(group: h5py.Group, data: Dict[str, Any], compression: str = "gzip") -> None:
@@ -515,21 +515,24 @@ class HierarchicalAggregator:
         """
         if level >= len(self.levels):
             # Leaf level - aggregate the actual data
-            if isinstance(data, np.ndarray):
-                return self.aggregator.aggregate(data)
-            else:
+            if isinstance(data, dict):
+                # Data is a dict but we've reached the end of levels
                 return data
+            if isinstance(data, np.ndarray):  # type: ignore[unreachable]
+                return self.aggregator.aggregate(data)
+            # Default case for any other type
+            return data
 
         current_level = self.levels[level]
         results = {"level": current_level, "items": {}}
 
         # Aggregate each item at this level
         for key, value in data.items():
-            results["items"][key] = self.aggregate_hierarchy(value, level + 1)
+            results["items"][key] = self.aggregate_hierarchy(value, level + 1)  # type: ignore[index]
 
         # Add summary across all items at this level
         if results["items"]:
-            results["summary"] = self._summarize_level(results["items"])
+            results["summary"] = self._summarize_level(results["items"])  # type: ignore[arg-type]
 
         return results
 

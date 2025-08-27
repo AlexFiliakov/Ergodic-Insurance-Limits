@@ -143,6 +143,7 @@ class TestParameterSpec:
             name="manufacturer.initial_assets", values=[10000000, 15000000, 20000000]
         )
         assert spec.name == "manufacturer.initial_assets"
+        assert spec.values is not None
         assert len(spec.values) == 3
 
     def test_generate_values_grid_search(self):
@@ -564,6 +565,7 @@ class TestBatchProcessor:
         assert "ruin_prob_change_pct" in sensitivity.columns
 
         # Check calculations
+        # pylint: disable-next=unsubscriptable-object
         growth_change = sensitivity["growth_rate_change_pct"].iloc[0]
         assert np.isclose(growth_change, 20.0, rtol=0.01)  # (0.06 - 0.05) / 0.05 * 100
 
@@ -588,7 +590,7 @@ class TestBatchProcessor:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Test CSV export
             csv_path = Path(tmpdir) / "results.csv"
-            processor.export_results(csv_path, format="csv")
+            processor.export_results(csv_path, export_format="csv")
             assert csv_path.exists()
 
             df = pd.read_csv(csv_path)
@@ -597,7 +599,7 @@ class TestBatchProcessor:
 
             # Test JSON export
             json_path = Path(tmpdir) / "results.json"
-            processor.export_results(json_path, format="json")
+            processor.export_results(json_path, export_format="json")
             assert json_path.exists()
 
             with open(json_path) as f:

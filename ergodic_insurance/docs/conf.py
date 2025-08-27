@@ -46,7 +46,6 @@ exclude_patterns = [
     "architecture/*.md",
     "index_v2.rst",
     "README.md",
-    "api/config_manager.rst",
     "changelog.rst",
     "config_best_practices.md",
     "contributing.rst",
@@ -75,7 +74,15 @@ autodoc_default_options = {
     "member-order": "bysource",
     "undoc-members": True,
     "exclude-members": "__weakref__",
+    "inherited-members": False,
 }
+
+# Prevent duplicate documentation of dataclass attributes
+autodoc_typehints_description_target = "documented"
+autodoc_inherit_docstrings = True
+
+# Don't show attributes for dataclasses twice
+add_module_names = False
 
 # -- Options for autosummary extension --------------------------------------
 autosummary_generate = True
@@ -96,8 +103,10 @@ napoleon_use_rtype = True
 
 # -- Options for autodoc_typehints extension --------------------------------
 typehints_fully_qualified = False
-always_document_param_types = True
+always_document_param_types = False
 typehints_document_rtype = True
+typehints_use_signature = True
+typehints_use_signature_return = True
 autodoc_type_aliases = {
     "InsuranceProgram": "ergodic_insurance.src.insurance_program.InsuranceProgram",
     "ErgodicData": "ergodic_insurance.src.ergodic_analyzer.ErgodicData",

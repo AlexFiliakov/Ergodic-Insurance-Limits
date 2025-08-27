@@ -5,7 +5,9 @@ solver for finding optimal insurance strategies through dynamic programming. The
 handles multi-dimensional state spaces and provides theoretically optimal control policies.
 
 The HJB equation provides globally optimal solutions by solving:
+
     ∂V/∂t + max_u[L^u V + f(x,u)] = 0
+
 where V is the value function, L^u is the controlled infinitesimal generator,
 and f(x,u) is the running cost/reward.
 
@@ -45,17 +47,7 @@ class BoundaryCondition(Enum):
 
 @dataclass
 class StateVariable:
-    """Definition of a state variable in the HJB problem.
-
-    Attributes:
-        name: Variable name (e.g., 'wealth', 'time', 'loss_history')
-        min_value: Minimum value for the grid
-        max_value: Maximum value for the grid
-        num_points: Number of grid points
-        boundary_lower: Boundary condition at minimum value
-        boundary_upper: Boundary condition at maximum value
-        log_scale: Whether to use logarithmic spacing for grid points
-    """
+    """Definition of a state variable in the HJB problem."""
 
     name: str
     min_value: float
@@ -87,15 +79,7 @@ class StateVariable:
 
 @dataclass
 class ControlVariable:
-    """Definition of a control variable in the HJB problem.
-
-    Attributes:
-        name: Variable name (e.g., 'limit', 'retention')
-        min_value: Minimum control value
-        max_value: Maximum control value
-        num_points: Number of discrete control values to consider
-        continuous: Whether control is continuous (True) or discrete (False)
-    """
+    """Definition of a control variable in the HJB problem."""
 
     name: str
     min_value: float
@@ -348,18 +332,7 @@ class ExpectedWealth(UtilityFunction):
 
 @dataclass
 class HJBProblem:
-    """Complete specification of an HJB optimal control problem.
-
-    Attributes:
-        state_space: State space definition
-        control_variables: List of control variables
-        utility_function: Utility function for optimization
-        dynamics: Function defining state dynamics dx/dt = f(x, u, t)
-        running_cost: Function defining running cost/reward L(x, u, t)
-        terminal_value: Terminal condition V(x, T)
-        discount_rate: Discount rate for future rewards
-        time_horizon: Time horizon for optimization (None for infinite horizon)
-    """
+    """Complete specification of an HJB optimal control problem."""
 
     state_space: StateSpace
     control_variables: List[ControlVariable]
@@ -385,16 +358,7 @@ class HJBProblem:
 
 @dataclass
 class HJBSolverConfig:
-    """Configuration for HJB solver.
-
-    Attributes:
-        time_step: Time step for PDE integration
-        max_iterations: Maximum iterations for policy iteration
-        tolerance: Convergence tolerance for value function
-        scheme: Time stepping scheme
-        use_sparse: Whether to use sparse matrices for large problems
-        verbose: Whether to print progress information
-    """
+    """Configuration for HJB solver."""
 
     time_step: float = 0.01
     max_iterations: int = 1000

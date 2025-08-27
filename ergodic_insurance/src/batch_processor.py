@@ -115,15 +115,7 @@ class AggregatedResults:
 
 @dataclass
 class CheckpointData:
-    """Checkpoint data for resumable batch processing.
-
-    Attributes:
-        completed_scenarios: Set of completed scenario IDs
-        failed_scenarios: Set of failed scenario IDs
-        batch_results: Results collected so far
-        timestamp: Checkpoint timestamp
-        metadata: Additional checkpoint metadata
-    """
+    """Checkpoint data for resumable batch processing."""
 
     completed_scenarios: Set[str]
     failed_scenarios: Set[str]
@@ -328,7 +320,7 @@ class BatchProcessor:
                 scenario = future_to_scenario[future]
                 try:
                     result = future.result()
-                except Exception as e:
+                except (ValueError, RuntimeError, TypeError) as e:
                     result = BatchResult(
                         scenario_id=scenario.scenario_id,
                         scenario_name=scenario.name,
@@ -353,6 +345,30 @@ class BatchProcessor:
 
         return results
 
+    def _apply_overrides(self, obj: Any, prefix: str, overrides: Dict[str, Any]) -> Any:
+        """Apply parameter overrides to an object.
+
+        Args:
+            obj: Object to apply overrides to
+            prefix: Prefix to match in parameter paths
+            overrides: Parameter overrides
+
+        Returns:
+            Modified copy of object or original if no overrides
+        """
+        if not obj or not overrides:
+            return obj
+
+        import copy
+
+        obj_copy = copy.deepcopy(obj)
+        for param_path, value in overrides.items():
+            if param_path.startswith(prefix):
+                param = param_path.replace(prefix, "")
+                if hasattr(obj_copy, param):
+                    setattr(obj_copy, param, value)
+        return obj_copy
+
     def _process_scenario(self, scenario: ScenarioConfig) -> BatchResult:
         """Process a single scenario.
 
@@ -365,42 +381,13 @@ class BatchProcessor:
         start_time = time.time()
 
         try:
-            # Apply configuration overrides to manufacturer if provided
-            manufacturer = self.manufacturer
-            if manufacturer and scenario.parameter_overrides:
-                # Clone manufacturer and apply overrides
-                import copy
-
-                manufacturer = copy.deepcopy(manufacturer)
-                for param_path, value in scenario.parameter_overrides.items():
-                    if param_path.startswith("manufacturer."):
-                        param = param_path.replace("manufacturer.", "")
-                        if hasattr(manufacturer, param):
-                            setattr(manufacturer, param, value)
-
-            # Apply overrides to insurance program if provided
-            insurance_program = self.insurance_program
-            if insurance_program and scenario.parameter_overrides:
-                import copy
-
-                insurance_program = copy.deepcopy(insurance_program)
-                for param_path, value in scenario.parameter_overrides.items():
-                    if param_path.startswith("insurance."):
-                        param = param_path.replace("insurance.", "")
-                        if hasattr(insurance_program, param):
-                            setattr(insurance_program, param, value)
-
-            # Apply overrides to loss generator if provided
-            loss_generator = self.loss_generator
-            if loss_generator and scenario.parameter_overrides:
-                import copy
-
-                loss_generator = copy.deepcopy(loss_generator)
-                for param_path, value in scenario.parameter_overrides.items():
-                    if param_path.startswith("loss."):
-                        param = param_path.replace("loss.", "")
-                        if hasattr(loss_generator, param):
-                            setattr(loss_generator, param, value)
+            # Apply configuration overrides
+            overrides = scenario.parameter_overrides or {}
+            manufacturer = self._apply_overrides(self.manufacturer, "manufacturer.", overrides)
+            insurance_program = self._apply_overrides(
+                self.insurance_program, "insurance.", overrides
+            )
+            loss_generator = self._apply_overrides(self.loss_generator, "loss.", overrides)
 
             # Create Monte Carlo engine for this scenario
             if not all([loss_generator, insurance_program, manufacturer]):
@@ -408,6 +395,11 @@ class BatchProcessor:
                     "BatchProcessor requires loss_generator, insurance_program, "
                     "and manufacturer to be initialized"
                 )
+
+            # Assert types for mypy
+            assert loss_generator is not None
+            assert insurance_program is not None
+            assert manufacturer is not None
 
             monte_carlo_engine = MonteCarloEngine(
                 loss_generator=loss_generator,
@@ -428,7 +420,7 @@ class BatchProcessor:
                 metadata={"tags": list(scenario.tags)},
             )
 
-        except Exception as e:
+        except (ValueError, RuntimeError, TypeError) as e:
             return BatchResult(
                 scenario_id=scenario.scenario_id,
                 scenario_name=scenario.name,
@@ -633,19 +625,19 @@ class BatchProcessor:
         self.failed_scenarios.clear()
         self.batch_results.clear()
 
-    def export_results(self, path: Union[str, Path], format: str = "csv") -> None:
+    def export_results(self, path: Union[str, Path], export_format: str = "csv") -> None:
         """Export aggregated results to file.
 
         Args:
             path: Output file path
-            format: Export format (csv, json, excel)
+            export_format: Export format (csv, json, excel)
         """
         path = Path(path)
         aggregated = self._aggregate_results()
 
-        if format == "csv":
+        if export_format == "csv":
             aggregated.to_dataframe().to_csv(path, index=False)
-        elif format == "json":
+        elif export_format == "json":
             data = {
                 "summary": aggregated.summary_statistics.to_dict("records"),
                 "execution_summary": aggregated.execution_summary,
@@ -660,9 +652,9 @@ class BatchProcessor:
                     for r in aggregated.batch_results
                 ],
             }
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, default=str)
-        elif format == "excel":
+        elif export_format == "excel":
             with pd.ExcelWriter(path, engine="openpyxl") as writer:
                 aggregated.summary_statistics.to_excel(writer, sheet_name="Summary", index=False)
                 aggregated.to_dataframe().to_excel(writer, sheet_name="Details", index=False)
