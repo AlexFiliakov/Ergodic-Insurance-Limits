@@ -79,6 +79,7 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 100
+max-module-lines = 2000
 
 [tool.pylint.design]
 max-args = 7

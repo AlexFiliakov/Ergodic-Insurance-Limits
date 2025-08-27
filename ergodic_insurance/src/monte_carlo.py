@@ -1,21 +1,15 @@
-"""High-performance Monte Carlo simulation engine for insurance optimization.
-
-This module provides a vectorized, parallel Monte Carlo engine capable of running
-millions of scenarios with convergence monitoring and efficient memory management.
-Now enhanced with CPU-optimized parallel execution for budget hardware.
-"""
+"""High-performance Monte Carlo simulation engine for insurance optimization."""
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import pickle
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 import warnings
 
 import numpy as np
-from scipy import stats
 from tqdm import tqdm
 
 from .convergence import ConvergenceDiagnostics, ConvergenceStats
@@ -28,9 +22,37 @@ from .parallel_executor import (
     PerformanceMetrics,
     SharedMemoryConfig,
 )
+from .progress_monitor import ProgressMonitor
 from .risk_metrics import RiskMetrics
 from .ruin_probability import RuinProbabilityAnalyzer, RuinProbabilityConfig, RuinProbabilityResults
 from .trajectory_storage import StorageConfig, TrajectoryStorage
+
+
+def _create_manufacturer(config_dict: Dict[str, Any]) -> Any:
+    """Create manufacturer instance from config dictionary."""
+    from ergodic_insurance.src.manufacturer import WidgetManufacturer as WM
+
+    if "config" in config_dict and hasattr(config_dict["config"], "__dict__"):
+        return WM(config_dict["config"])
+    # Create from raw values
+    manufacturer = WM.__new__(WM)
+    for key, value in config_dict.items():
+        setattr(manufacturer, key, value)
+    return manufacturer
+
+
+def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
+    """Simulate losses for a single year."""
+    np.random.seed(sim_id * 1000 + year)  # Ensure reproducibility
+    n_events = np.random.poisson(3)  # Average 3 events per year
+    event_amounts = np.random.lognormal(10, 2, n_events)  # Log-normal losses
+    total_loss = np.sum(event_amounts)
+
+    # Apply insurance (simplified)
+    recovery = min(total_loss, 1_000_000) * 0.9  # Simplified recovery
+    retained = total_loss - recovery
+
+    return total_loss, recovery, retained
 
 
 def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
@@ -45,57 +67,43 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     Returns:
         Dict with simulation results
     """
-    from ergodic_insurance.src.config import ManufacturerConfig
-    from ergodic_insurance.src.manufacturer import WidgetManufacturer
+    # Add parent directory to path for imports in worker processes
+    import sys
+
+    module_path = Path(__file__).parent.parent.parent
+    if str(module_path) not in sys.path:
+        sys.path.insert(0, str(module_path))
 
     # Create manufacturer instance
-    config_dict = shared["manufacturer_config"]
-    if "config" in config_dict and hasattr(config_dict["config"], "__dict__"):
-        manufacturer = WidgetManufacturer(config_dict["config"])
-    else:
-        # Create from raw values
-        manufacturer = WidgetManufacturer.__new__(WidgetManufacturer)
-        for key, value in config_dict.items():
-            setattr(manufacturer, key, value)
+    manufacturer = _create_manufacturer(shared["manufacturer_config"])
 
-    # Run simulation
+    # Initialize simulation arrays
     n_years = shared["n_years"]
     dtype = np.float32 if shared["use_float32"] else np.float64
 
-    annual_losses = np.zeros(n_years, dtype=dtype)
-    insurance_recoveries = np.zeros(n_years, dtype=dtype)
-    retained_losses = np.zeros(n_years, dtype=dtype)
+    result_arrays = {
+        "annual_losses": np.zeros(n_years, dtype=dtype),
+        "insurance_recoveries": np.zeros(n_years, dtype=dtype),
+        "retained_losses": np.zeros(n_years, dtype=dtype),
+    }
 
     # Simulate years
     for year in range(n_years):
-        # Generate losses (simplified for parallel execution)
-        revenue = manufacturer.calculate_revenue()
+        # Generate and process losses
+        total_loss, recovery, retained = _simulate_year_losses(sim_id, year)
 
-        # Use simplified loss generation
-        np.random.seed(sim_id * 1000 + year)  # Ensure reproducibility
-        n_events = np.random.poisson(3)  # Average 3 events per year
-        event_amounts = np.random.lognormal(10, 2, n_events)  # Log-normal losses
-        total_loss = np.sum(event_amounts)
-        annual_losses[year] = total_loss
-
-        # Apply insurance (simplified)
-        recovery = min(total_loss, 1_000_000) * 0.9  # Simplified recovery
-        insurance_recoveries[year] = recovery
-        retained_losses[year] = total_loss - recovery
+        result_arrays["annual_losses"][year] = total_loss
+        result_arrays["insurance_recoveries"][year] = recovery
+        result_arrays["retained_losses"][year] = retained
 
         # Update manufacturer
-        manufacturer.assets *= 1.0 - retained_losses[year] / manufacturer.assets
+        manufacturer.assets *= 1.0 - retained / manufacturer.assets
 
         # Check for ruin
         if manufacturer.assets <= 0:
             break
 
-    return {
-        "final_assets": manufacturer.assets,
-        "annual_losses": annual_losses,
-        "insurance_recoveries": insurance_recoveries,
-        "retained_losses": retained_losses,
-    }
+    return {"final_assets": manufacturer.assets, **result_arrays}
 
 
 @dataclass
@@ -183,7 +191,8 @@ class SimulationResults:
             f"Mean Growth Rate: {np.mean(self.growth_rates):.4f}\n"
             f"VaR(99%): ${self.metrics.get('var_99', 0):,.0f}\n"
             f"TVaR(99%): ${self.metrics.get('tvar_99', 0):,.0f}\n"
-            f"Convergence R-hat: {self.convergence.get('growth_rate', ConvergenceStats(0,0,0,False,0,0)).r_hat:.3f}\n"
+            f"Convergence R-hat: "
+            f"{self.convergence.get('growth_rate', ConvergenceStats(0,0,0,False,0,0)).r_hat:.3f}\n"
         )
 
         # Add performance metrics if available
@@ -564,7 +573,7 @@ class MonteCarloEngine:
                 manufacturer.process_insurance_claim(event.amount)
 
             # Update manufacturer state with annual step
-            metrics = manufacturer.step(
+            manufacturer.step(
                 working_capital_pct=0.2,
                 growth_rate=0.0,  # No growth rate for now
             )
@@ -792,6 +801,167 @@ class MonteCarloEngine:
             np.savez_compressed(checkpoint_file, iteration=iteration, *arrays)
         except (IOError, OSError, ValueError) as e:
             warnings.warn(f"Failed to save checkpoint: {e}")
+
+    def _initialize_simulation_arrays(self) -> Dict[str, np.ndarray]:
+        """Initialize arrays for simulation results."""
+        n_sims = self.config.n_simulations
+        n_years = self.config.n_years
+        dtype = np.float32 if self.config.use_float32 else np.float64
+
+        return {
+            "final_assets": np.zeros(n_sims, dtype=dtype),
+            "annual_losses": np.zeros((n_sims, n_years), dtype=dtype),
+            "insurance_recoveries": np.zeros((n_sims, n_years), dtype=dtype),
+            "retained_losses": np.zeros((n_sims, n_years), dtype=dtype),
+        }
+
+    def _check_convergence_at_interval(
+        self, completed_iterations: int, final_assets: np.ndarray
+    ) -> float:
+        """Check convergence at specified interval."""
+        partial_growth = self._calculate_growth_rates(final_assets[:completed_iterations])
+
+        # Split into chains for convergence check
+        n_chains = min(4, completed_iterations // 250)
+        if n_chains >= 2:
+            chain_size = completed_iterations // n_chains
+            chains = np.array(
+                [partial_growth[j * chain_size : (j + 1) * chain_size] for j in range(n_chains)]
+            )
+            r_hat = self.convergence_diagnostics.calculate_r_hat(chains)
+        else:
+            r_hat = float("inf")
+
+        return r_hat
+
+    def _run_simulation_batch(
+        self, batch_range: range, arrays: Dict[str, np.ndarray], batch_config: Dict[str, Any]
+    ) -> int:
+        """Run a batch of simulations with monitoring."""
+        monitor = batch_config["monitor"]
+        check_intervals = batch_config["check_intervals"]
+        early_stopping = batch_config["early_stopping"]
+        show_progress = batch_config["show_progress"]
+        completed_iterations = 0
+
+        for i in batch_range:
+            sim_results = self._run_single_simulation(i)
+            arrays["final_assets"][i] = sim_results["final_assets"]
+            arrays["annual_losses"][i] = sim_results["annual_losses"]
+            arrays["insurance_recoveries"][i] = sim_results["insurance_recoveries"]
+            arrays["retained_losses"][i] = sim_results["retained_losses"]
+            completed_iterations = i + 1
+
+            # Check if we should perform convergence check
+            if completed_iterations in check_intervals and completed_iterations >= 1000:
+                r_hat = self._check_convergence_at_interval(
+                    completed_iterations, arrays["final_assets"]
+                )
+                should_continue = monitor.update(completed_iterations, r_hat)
+
+                if early_stopping and not should_continue:
+                    if show_progress:
+                        print(
+                            f"\n✓ Early stopping: Convergence achieved at {completed_iterations:,} iterations"
+                        )
+                    break
+            else:
+                monitor.update(completed_iterations)
+
+        return completed_iterations
+
+    def run_with_progress_monitoring(
+        self,
+        check_intervals: Optional[List[int]] = None,
+        convergence_threshold: float = 1.1,
+        early_stopping: bool = True,
+        show_progress: bool = True,
+    ) -> SimulationResults:
+        """Run simulation with progress tracking and convergence monitoring."""
+        if check_intervals is None:
+            check_intervals = [10_000, 25_000, 50_000, 100_000]
+        check_intervals = [i for i in check_intervals if i <= self.config.n_simulations]
+
+        # Initialize monitor and arrays
+        monitor = ProgressMonitor(
+            total_iterations=self.config.n_simulations,
+            check_intervals=check_intervals,
+            update_frequency=max(self.config.n_simulations // 100, 100),
+            show_console=show_progress,
+            convergence_threshold=convergence_threshold,
+        )
+
+        start_time = time.time()
+        arrays = self._initialize_simulation_arrays()
+
+        # Run simulations in batches
+        batch_size = min(1000, self.config.n_simulations // 10)
+        completed_iterations = 0
+
+        for batch_start in range(0, self.config.n_simulations, batch_size):
+            batch_end = min(batch_start + batch_size, self.config.n_simulations)
+
+            completed_iterations = self._run_simulation_batch(
+                range(batch_start, batch_end),
+                arrays,
+                {
+                    "monitor": monitor,
+                    "check_intervals": check_intervals,
+                    "early_stopping": early_stopping,
+                    "show_progress": show_progress,
+                },
+            )
+
+            if early_stopping and monitor.converged:
+                break
+
+        monitor.finalize()
+
+        # Trim arrays if stopped early
+        if completed_iterations < self.config.n_simulations:
+            for key in arrays:
+                if key == "final_assets":
+                    arrays[key] = arrays[key][:completed_iterations]
+                else:
+                    arrays[key] = arrays[key][:completed_iterations]
+
+        # Create results
+        growth_rates = self._calculate_growth_rates(arrays["final_assets"])
+        results = SimulationResults(
+            final_assets=arrays["final_assets"],
+            annual_losses=arrays["annual_losses"],
+            insurance_recoveries=arrays["insurance_recoveries"],
+            retained_losses=arrays["retained_losses"],
+            growth_rates=growth_rates,
+            ruin_probability=float(np.mean(arrays["final_assets"] <= 0)),
+            metrics={},
+            convergence={},
+            execution_time=time.time() - start_time,
+            config=self.config,
+        )
+
+        results.metrics = self._calculate_metrics(results)
+        results.convergence = self._check_convergence(results)
+
+        # Add progress summary to metrics
+        monitor.get_stats()
+        convergence_summary = monitor.generate_convergence_summary()
+
+        results.metrics["actual_iterations"] = completed_iterations
+        results.metrics["convergence_achieved"] = monitor.converged
+        results.metrics["convergence_iteration"] = (
+            monitor.converged_at if monitor.converged_at else 0
+        )
+        results.metrics["monitoring_overhead_pct"] = convergence_summary.get(
+            "performance_overhead_pct", 0
+        )
+
+        # Store ESS information
+        if results.convergence:
+            for metric_name, conv_stats in results.convergence.items():
+                results.metrics[f"ess_{metric_name}"] = conv_stats.ess
+
+        return results
 
     def run_with_convergence_monitoring(
         self,
