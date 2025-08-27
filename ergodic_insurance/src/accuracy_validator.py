@@ -163,7 +163,7 @@ class ReferenceImplementations:
             return float(loss), 0.0
 
         excess = loss - attachment
-        recovery = min(excess, limit)
+        recovery = min(float(excess), float(limit))
         retained = loss - recovery
 
         return float(retained), float(recovery)

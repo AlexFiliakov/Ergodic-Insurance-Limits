@@ -37,7 +37,7 @@ import gc
 import io
 import pstats
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import psutil
@@ -89,12 +89,12 @@ class ProfileResult:
         summary += f"Peak Memory: {self.memory_usage:.1f} MB\n"
 
         if self.bottlenecks:
-            summary += f"\nTop Bottlenecks:\n"
+            summary += "\nTop Bottlenecks:\n"
             for bottleneck in self.bottlenecks[:5]:
                 summary += f"  - {bottleneck}\n"
 
         if self.recommendations:
-            summary += f"\nRecommendations:\n"
+            summary += "\nRecommendations:\n"
             for rec in self.recommendations:
                 summary += f"  - {rec}\n"
 
@@ -135,11 +135,11 @@ class SmartCache:
         Args:
             max_size: Maximum number of cache entries.
         """
-        self.cache: Dict[str, Any] = {}
+        self.cache: Dict[Tuple, Any] = {}
         self.max_size = max_size
         self.hits = 0
         self.misses = 0
-        self.access_counts: Dict[str, int] = defaultdict(int)
+        self.access_counts: Dict[Tuple, int] = defaultdict(int)
 
     def get(self, key: Tuple) -> Optional[Any]:
         """Get value from cache.
@@ -250,7 +250,7 @@ class VectorizedOperations:
         Returns:
             Array of premium amounts.
         """
-        return limits * rates
+        return limits * rates  # type: ignore[no-any-return]
 
 
 class PerformanceOptimizer:
@@ -271,7 +271,9 @@ class PerformanceOptimizer:
         self.vectorized = VectorizedOperations()
         self._profile_data = None
 
-    def profile_execution(self, func: Callable, *args, **kwargs) -> ProfileResult:
+    def profile_execution(  # pylint: disable=too-many-locals
+        self, func: Callable, *args, **kwargs
+    ) -> ProfileResult:
         """Profile function execution to identify bottlenecks.
 
         Args:
@@ -413,7 +415,7 @@ class PerformanceOptimizer:
 
         return np.array(losses)
 
-    def optimize_insurance_calculation(
+    def optimize_insurance_calculation(  # pylint: disable=too-many-locals
         self, losses: np.ndarray, layers: List[Tuple[float, float, float]]
     ) -> Dict[str, Any]:
         """Optimize insurance calculations using vectorization and caching.
@@ -430,7 +432,7 @@ class PerformanceOptimizer:
         cached_result = self.cache.get(cache_key) if self.config.enable_caching else None
 
         if cached_result is not None:
-            return cached_result
+            return cast(Dict[str, Any], cached_result)
 
         total_premiums = 0.0
         total_recovered = np.zeros_like(losses)
@@ -533,18 +535,18 @@ class PerformanceOptimizer:
         memory_metrics = self.optimize_memory_usage()
 
         summary = f"Performance Optimization Summary\n{'='*50}\n"
-        summary += f"Configuration:\n"
+        summary += "Configuration:\n"
         summary += (
             f"  Vectorization: {'Enabled' if self.config.enable_vectorization else 'Disabled'}\n"
         )
         summary += f"  Caching: {'Enabled' if self.config.enable_caching else 'Disabled'}\n"
         summary += f"  Numba JIT: {'Enabled' if self.config.enable_numba else 'Disabled'}\n"
         summary += f"  Memory Limit: {self.config.memory_limit_mb:.0f} MB\n"
-        summary += f"\nCache Performance:\n"
+        summary += "\nCache Performance:\n"
         summary += f"  Hit Rate: {self.cache.hit_rate:.1f}%\n"
         summary += f"  Hits: {self.cache.hits:,}\n"
         summary += f"  Misses: {self.cache.misses:,}\n"
-        summary += f"\nMemory Usage:\n"
+        summary += "\nMemory Usage:\n"
         summary += f"  Process: {memory_metrics['process_memory_mb']:.1f} MB\n"
         summary += f"  Available: {memory_metrics['available_memory_mb']:.1f} MB\n"
         summary += f"  System Usage: {memory_metrics['memory_percent']:.1f}%\n"
@@ -602,7 +604,7 @@ if __name__ == "__main__":
 
     # Example: Optimize loss calculations
     losses = np.random.exponential(100000, 100000)
-    layers = [(0, 1000000, 0.015), (1000000, 4000000, 0.008)]
+    layers = [(0.0, 1000000.0, 0.015), (1000000.0, 4000000.0, 0.008)]
 
     start = time.time()
     result = optimizer.optimize_insurance_calculation(losses, layers)

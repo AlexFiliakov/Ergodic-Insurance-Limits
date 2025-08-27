@@ -35,11 +35,11 @@ import gc
 import json
 from pathlib import Path
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import psutil
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 
 
 @dataclass
@@ -180,6 +180,7 @@ class SystemProfiler:
         self.process = psutil.Process()
         self.cpu_samples = []
         self.memory_samples = []
+        self.initial_memory = 0.0
 
     def start(self) -> None:
         """Start profiling."""
@@ -249,7 +250,11 @@ class BenchmarkRunner:
         self.profiler = profiler or SystemProfiler()
 
     def run_single_benchmark(
-        self, func: Callable, args: Tuple = (), kwargs: Dict = None, monitor_interval: float = 0.1
+        self,
+        func: Callable,
+        args: Tuple = (),
+        kwargs: Optional[Dict] = None,
+        monitor_interval: float = 0.1,
     ) -> BenchmarkMetrics:
         """Run a single benchmark with monitoring.
 
@@ -283,7 +288,7 @@ class BenchmarkRunner:
                 time.sleep(monitor_interval)
 
         except Exception as e:
-            raise RuntimeError(f"Benchmark failed: {e}")
+            raise RuntimeError(f"Benchmark failed: {e}") from e
 
         execution_time = time.time() - start_time
 
@@ -326,7 +331,7 @@ class BenchmarkRunner:
         self,
         func: Callable,
         args: Tuple = (),
-        kwargs: Dict = None,
+        kwargs: Optional[Dict] = None,
         warmup_runs: int = 2,
         benchmark_runs: int = 3,
     ) -> List[BenchmarkMetrics]:
@@ -377,7 +382,7 @@ class BenchmarkSuite:
         self.system_info = SystemProfiler.get_system_info()
 
     def benchmark_scale(
-        self, engine, scale: int, config: BenchmarkConfig, optimizations: List[str] = None
+        self, engine, scale: int, config: BenchmarkConfig, optimizations: Optional[List[str]] = None
     ) -> BenchmarkResult:
         """Benchmark at a specific scale.
 
@@ -408,13 +413,13 @@ class BenchmarkSuite:
 
         # Average metrics
         avg_metrics = BenchmarkMetrics(
-            execution_time=np.mean([m.execution_time for m in metrics_list]),
-            simulations_per_second=np.mean([m.simulations_per_second for m in metrics_list]),
-            memory_peak_mb=np.max([m.memory_peak_mb for m in metrics_list]),
-            memory_average_mb=np.mean([m.memory_average_mb for m in metrics_list]),
-            cpu_utilization=np.mean([m.cpu_utilization for m in metrics_list]),
-            cache_hit_rate=np.mean([m.cache_hit_rate for m in metrics_list]),
-            accuracy_score=np.mean([m.accuracy_score for m in metrics_list]),
+            execution_time=float(np.mean([m.execution_time for m in metrics_list])),
+            simulations_per_second=float(np.mean([m.simulations_per_second for m in metrics_list])),
+            memory_peak_mb=float(np.max([m.memory_peak_mb for m in metrics_list])),
+            memory_average_mb=float(np.mean([m.memory_average_mb for m in metrics_list])),
+            cpu_utilization=float(np.mean([m.cpu_utilization for m in metrics_list])),
+            cache_hit_rate=float(np.mean([m.cache_hit_rate for m in metrics_list])),
+            accuracy_score=float(np.mean([m.accuracy_score for m in metrics_list])),
             convergence_iterations=int(np.mean([m.convergence_iterations for m in metrics_list])),
         )
 
@@ -657,7 +662,7 @@ class ConfigurationComparison:
             Best configuration based on execution time.
         """
         best = min(self.results, key=lambda x: x["result"].metrics.execution_time)
-        return best["configuration"]
+        return cast(Dict[str, Any], best["configuration"])
 
     def summary(self) -> str:
         """Generate comparison summary.
@@ -729,7 +734,11 @@ if __name__ == "__main__":
     insurance_program = InsuranceProgram(layers=layers)
 
     manufacturer_config = ManufacturerConfig(
-        initial_assets=10_000_000, asset_turnover_ratio=0.5, operating_margin=0.08
+        initial_assets=10_000_000,
+        asset_turnover_ratio=0.5,
+        operating_margin=0.08,
+        tax_rate=0.25,
+        retention_ratio=0.6,
     )
     manufacturer = WidgetManufacturer(manufacturer_config)
 

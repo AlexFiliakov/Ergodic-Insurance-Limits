@@ -341,19 +341,11 @@ class TestLegacyConfigAdapter:
 
     def test_load_legacy_direct_file_not_found(self, legacy_adapter):
         """Test legacy loading when file doesn't exist."""
-        with patch("ergodic_insurance.src.config_compat.Path") as mock_path:
-            mock_dir = MagicMock()
-            mock_path.return_value = mock_dir
+        # Test with a file name that definitely doesn't exist
+        with pytest.raises(FileNotFoundError) as exc_info:
+            legacy_adapter._load_legacy_direct("nonexistent_config_12345", {})
 
-            # Mock that no files exist
-            mock_file = MagicMock()
-            mock_file.exists.return_value = False
-            mock_dir.__truediv__.return_value = mock_file
-
-            with pytest.raises(FileNotFoundError) as exc_info:
-                legacy_adapter._load_legacy_direct("nonexistent", {})
-
-            assert "not found in legacy or new locations" in str(exc_info.value)
+        assert "not found in legacy or new locations" in str(exc_info.value)
 
     def test_flatten_dict(self, legacy_adapter):
         """Test dictionary flattening."""
