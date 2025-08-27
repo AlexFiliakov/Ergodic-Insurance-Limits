@@ -10,10 +10,6 @@ Configuration System
 .. toctree::
    :maxdepth: 2
 
-   config_manager
-   config_v2
-   config_migrator
-   config_compat
    config
    config_loader
 
@@ -38,7 +34,6 @@ Insurance & Risk
    insurance_program
    loss_distributions
    risk_metrics
-   ruin_probability
 
 Simulation & Analysis
 ---------------------
@@ -61,31 +56,16 @@ Optimization & Control
    business_optimizer
    decision_engine
    pareto_frontier
-   hjb_solver
-   optimal_control
 
 Parallel Processing
 -------------------
 
-.. toctree::
-   :maxdepth: 2
-
-   parallel_executor
-   trajectory_storage
-   progress_monitor
-   batch_processor
-   scenario_manager
+All parallel processing modules are documented in the Complete Package section below.
 
 Statistical Analysis
 --------------------
 
-.. toctree::
-   :maxdepth: 2
-
-   result_aggregator
-   summary_statistics
-   bootstrap_analysis
-   statistical_tests
+All statistical analysis modules are documented in the Complete Package section below.
 
 Visualization
 -------------
