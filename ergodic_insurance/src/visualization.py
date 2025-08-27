@@ -95,18 +95,15 @@ def format_currency(value: float, decimals: int = 0, abbreviate: bool = False) -
     if abbreviate:
         if abs(value) >= 1e9:
             return f"${value/1e9:.{decimals}f}B"
-        elif abs(value) >= 1e6:
+        if abs(value) >= 1e6:
             return f"${value/1e6:.{decimals}f}M"
-        elif abs(value) >= 1e3:
+        if abs(value) >= 1e3:
             return f"${value/1e3:.{decimals}f}K"
-        else:
-            return f"${value:.{decimals}f}"
-    else:
-        # Handle negative values
-        if value < 0:
-            return f"-${abs(value):,.{decimals}f}"
-        else:
-            return f"${value:,.{decimals}f}"
+        return f"${value:.{decimals}f}"
+    # Handle negative values
+    if value < 0:
+        return f"-${abs(value):,.{decimals}f}"
+    return f"${value:,.{decimals}f}"
 
 
 def format_percentage(value: float, decimals: int = 1) -> str:
@@ -131,7 +128,7 @@ class WSJFormatter:
         return format_currency(x, decimals=0, abbreviate=True)
 
     @staticmethod
-    def currency(x: float, decimals: int = 1) -> str:
+    def currency(x: float, decimals: int = 1) -> str:  # pylint: disable=too-many-return-statements
         """Format value as currency (shortened method name)."""
         sign = "-" if x < 0 else ""
         x = abs(x)
@@ -139,28 +136,22 @@ class WSJFormatter:
         if x >= 1e12:
             if x == int(x / 1e12) * 1e12:  # Whole trillions
                 return f"{sign}${int(x/1e12)}T"
-            else:
-                return f"{sign}${x/1e12:.{decimals}f}T"
-        elif x >= 1e9:
+            return f"{sign}${x/1e12:.{decimals}f}T"
+        if x >= 1e9:
             if x == int(x / 1e9) * 1e9:  # Whole billions
                 return f"{sign}${int(x/1e9)}B"
-            else:
-                return f"{sign}${x/1e9:.{decimals}f}B"
-        elif x >= 1e6:
+            return f"{sign}${x/1e9:.{decimals}f}B"
+        if x >= 1e6:
             if x == int(x / 1e6) * 1e6:  # Whole millions
                 return f"{sign}${int(x/1e6)}M"
-            else:
-                return f"{sign}${x/1e6:.{decimals}f}M"
-        elif x >= 1e3:
+            return f"{sign}${x/1e6:.{decimals}f}M"
+        if x >= 1e3:
             if x == int(x / 1e3) * 1e3:  # Whole thousands
                 return f"{sign}${int(x/1e3)}K"
-            else:
-                return f"{sign}${x/1e3:.{decimals}f}K"
-        else:
-            if x < 1 and x > 0:
-                return f"{sign}${x:.2f}"
-            else:
-                return f"{sign}${int(x)}" if x == int(x) else f"{sign}${x:.{decimals}f}"
+            return f"{sign}${x/1e3:.{decimals}f}K"
+        if 0 < x < 1:
+            return f"{sign}${x:.2f}"
+        return f"{sign}${int(x)}" if x == int(x) else f"{sign}${x:.{decimals}f}"
 
     @staticmethod
     def percentage_formatter(x, pos):
@@ -180,14 +171,13 @@ class WSJFormatter:
                 # Very large numbers - show in trillions with multiplier
                 return f"{int(x/1e12)}T"
             return f"{x/1e12:.{decimals}f}T"
-        elif abs(x) >= 1e9:
+        if abs(x) >= 1e9:
             return f"{x/1e9:.{decimals}f}B"
-        elif abs(x) >= 1e6:
+        if abs(x) >= 1e6:
             return f"{x/1e6:.{decimals}f}M"
-        elif abs(x) >= 1e3:
+        if abs(x) >= 1e3:
             return f"{x/1e3:.{decimals}f}K"
-        else:
-            return f"{int(x)}" if x == int(x) else f"{x:.{decimals}f}"
+        return f"{int(x)}" if x == int(x) else f"{x:.{decimals}f}"
 
     @staticmethod
     def millions_formatter(x, pos):
@@ -195,7 +185,7 @@ class WSJFormatter:
         return f"{x/1e6:.0f}M"
 
 
-def plot_loss_distribution(
+def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statements
     losses: Union[np.ndarray, pd.DataFrame],
     title: str = "Loss Distribution",
     bins: int = 50,
@@ -326,7 +316,7 @@ def plot_loss_distribution(
     return fig
 
 
-def plot_return_period_curve(
+def plot_return_period_curve(  # pylint: disable=too-many-locals
     losses: Union[np.ndarray, pd.DataFrame],
     return_periods: Optional[np.ndarray] = None,
     scenarios: Optional[Dict[str, np.ndarray]] = None,
@@ -434,7 +424,7 @@ def plot_return_period_curve(
     return fig
 
 
-def plot_insurance_layers(
+def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statements
     layers: Union[List[Dict[str, float]], pd.DataFrame],
     total_limit: Optional[float] = None,
     title: str = "Insurance Program Structure",
@@ -554,13 +544,13 @@ def plot_insurance_layers(
     )
 
     # Add layer annotations
-    for i, (bar, layer) in enumerate(zip(bars, layers)):
-        height = bar.get_height()
-        bottom = bar.get_y()
+    for i, (layer_bar, layer) in enumerate(zip(bars, layers)):
+        height = layer_bar.get_height()
+        bottom = layer_bar.get_y()
 
         # Layer info
         ax1.text(
-            bar.get_x() + bar.get_width() / 2,
+            layer_bar.get_x() + layer_bar.get_width() / 2,
             bottom + height / 2,
             f'{format_currency(layer["limit"])}\n@ {layer["premium"]:.2%}',
             ha="center",
@@ -571,7 +561,7 @@ def plot_insurance_layers(
 
         # Attachment point
         ax1.text(
-            bar.get_x() + bar.get_width() / 2,
+            layer_bar.get_x() + layer_bar.get_width() / 2,
             bottom,
             f"{format_currency(bottom)}",
             ha="center",
@@ -706,7 +696,7 @@ def create_interactive_dashboard(
                 x=sorted_losses / 1e6,
                 y=exceedance_prob,
                 mode="lines",
-                line=dict(color=WSJ_COLORS["red"], width=2),
+                line={"color": WSJ_COLORS["red"], "width": 2},
                 name="Exceedance",
             ),
             row=1,
@@ -725,8 +715,8 @@ def create_interactive_dashboard(
                 x=iterations,
                 y=r_hat,
                 mode="lines+markers",
-                line=dict(color=WSJ_COLORS["green"], width=2),
-                marker=dict(size=6),
+                line={"color": WSJ_COLORS["green"], "width": 2},
+                marker={"size": 6},
                 name="R-hat",
             ),
             row=2,
@@ -780,7 +770,7 @@ def create_interactive_dashboard(
     return fig
 
 
-def plot_convergence_diagnostics(
+def plot_convergence_diagnostics(  # pylint: disable=too-many-locals
     convergence_stats: Dict[str, Any],
     title: str = "Convergence Diagnostics",
     figsize: Tuple[int, int] = (12, 8),
@@ -863,10 +853,10 @@ def plot_convergence_diagnostics(
         ax.grid(True, axis="y", alpha=0.3)
 
         # Add value labels on bars
-        for bar, val in zip(bars, mcse_values):
-            height = bar.get_height()
+        for mcse_bar, val in zip(bars, mcse_values):
+            height = mcse_bar.get_height()
             ax.text(
-                bar.get_x() + bar.get_width() / 2.0,
+                mcse_bar.get_x() + mcse_bar.get_width() / 2.0,
                 height,
                 f"{val:.4f}",
                 ha="center",
@@ -880,7 +870,7 @@ def plot_convergence_diagnostics(
     return fig
 
 
-def plot_pareto_frontier_2d(
+def plot_pareto_frontier_2d(  # pylint: disable=too-many-locals
     frontier_points: List[Any],
     x_objective: str,
     y_objective: str,
@@ -1006,7 +996,7 @@ def plot_pareto_frontier_2d(
     return fig
 
 
-def plot_pareto_frontier_3d(
+def plot_pareto_frontier_3d(  # pylint: disable=too-many-locals
     frontier_points: List[Any],
     x_objective: str,
     y_objective: str,
@@ -1084,7 +1074,7 @@ def plot_pareto_frontier_3d(
                 cmap="viridis",
                 edgecolor="none",
             )
-        except Exception:
+        except (ValueError, TypeError):
             # If interpolation fails, just show points
             pass
 
@@ -1128,14 +1118,13 @@ def create_interactive_pareto_frontier(
         return _create_interactive_pareto_2d(
             frontier_points, objectives, title, height, show_dominated
         )
-    elif len(objectives) == 3:
+    if len(objectives) == 3:
         return _create_interactive_pareto_3d(frontier_points, objectives, title, height)
-    else:
-        # For more than 3 objectives, create parallel coordinates
-        return _create_pareto_parallel_coordinates(frontier_points, objectives, title, height)
+    # For more than 3 objectives, create parallel coordinates
+    return _create_pareto_parallel_coordinates(frontier_points, objectives, title, height)
 
 
-def _create_interactive_pareto_2d(
+def _create_interactive_pareto_2d(  # pylint: disable=too-many-locals
     frontier_points: List[Any],
     objectives: List[str],
     title: str,
@@ -1163,7 +1152,7 @@ def _create_interactive_pareto_2d(
             y=y_sorted,
             mode="lines",
             name="Pareto Frontier",
-            line=dict(color=WSJ_COLORS["blue"], width=2),
+            line={"color": WSJ_COLORS["blue"], "width": 2},
             hovertemplate=f"{x_obj}: %{{x:.3f}}<br>{y_obj}: %{{y:.3f}}<extra></extra>",
         )
     )
@@ -1175,13 +1164,13 @@ def _create_interactive_pareto_2d(
             y=y_values,
             mode="markers",
             name="Solutions",
-            marker=dict(
-                size=10,
-                color=[p.crowding_distance for p in frontier_points],
-                colorscale="Viridis",
-                showscale=True,
-                colorbar=dict(title="Crowding<br>Distance"),
-            ),
+            marker={
+                "size": 10,
+                "color": [p.crowding_distance for p in frontier_points],
+                "colorscale": "Viridis",
+                "showscale": True,
+                "colorbar": {"title": "Crowding<br>Distance"},
+            },
             text=[f"Point {i}" for i in range(len(frontier_points))],
             hovertemplate=(
                 f"{x_obj}: %{{x:.3f}}<br>"
@@ -1206,7 +1195,7 @@ def _create_interactive_pareto_2d(
                 y=dominated_y,
                 fill="toself",
                 fillcolor="rgba(200, 200, 200, 0.2)",
-                line=dict(width=0),
+                line={"width": 0},
                 showlegend=True,
                 name="Dominated Region",
                 hoverinfo="skip",
@@ -1221,7 +1210,7 @@ def _create_interactive_pareto_2d(
         height=height,
         hovermode="closest",
         template="plotly_white",
-        font=dict(family="Arial, sans-serif"),
+        font={"family": "Arial, sans-serif"},
     )
 
     return fig
@@ -1248,13 +1237,13 @@ def _create_interactive_pareto_3d(
                 y=y_values,
                 z=z_values,
                 mode="markers",
-                marker=dict(
-                    size=8,
-                    color=z_values,
-                    colorscale="Viridis",
-                    showscale=True,
-                    colorbar=dict(title=z_obj),
-                ),
+                marker={
+                    "size": 8,
+                    "color": z_values,
+                    "colorscale": "Viridis",
+                    "showscale": True,
+                    "colorbar": {"title": z_obj},
+                },
                 text=[f"Point {i}" for i in range(len(frontier_points))],
                 hovertemplate=(
                     f"{x_obj}: %{{x:.3f}}<br>"
@@ -1269,14 +1258,14 @@ def _create_interactive_pareto_3d(
     # Update layout
     fig.update_layout(
         title=title,
-        scene=dict(
-            xaxis_title=x_obj,
-            yaxis_title=y_obj,
-            zaxis_title=z_obj,
-        ),
+        scene={
+            "xaxis_title": x_obj,
+            "yaxis_title": y_obj,
+            "zaxis_title": z_obj,
+        },
         height=height,
         template="plotly_white",
-        font=dict(family="Arial, sans-serif"),
+        font={"family": "Arial, sans-serif"},
     )
 
     return fig
@@ -1303,11 +1292,11 @@ def _create_pareto_parallel_coordinates(
     dimensions = []
     for obj in objectives:
         dimensions.append(
-            dict(
-                label=obj,
-                values=df[obj],
-                range=[df[obj].min(), df[obj].max()],
-            )
+            {
+                "label": obj,
+                "values": df[obj],
+                "range": [df[obj].min(), df[obj].max()],
+            }
         )
 
     # Add crowding distance as color
@@ -1315,12 +1304,12 @@ def _create_pareto_parallel_coordinates(
 
     fig = go.Figure(
         data=go.Parcoords(
-            line=dict(
-                color=colors,
-                colorscale="Viridis",
-                showscale=True,
-                colorbar=dict(title="Crowding<br>Distance"),
-            ),
+            line={
+                "color": colors,
+                "colorscale": "Viridis",
+                "showscale": True,
+                "colorbar": {"title": "Crowding<br>Distance"},
+            },
             dimensions=dimensions,
         )
     )
@@ -1329,7 +1318,7 @@ def _create_pareto_parallel_coordinates(
         title=title,
         height=height,
         template="plotly_white",
-        font=dict(family="Arial, sans-serif"),
+        font={"family": "Arial, sans-serif"},
     )
 
     return fig
@@ -1338,7 +1327,7 @@ def _create_pareto_parallel_coordinates(
 # Scenario Batch Processing Visualizations
 
 
-def plot_scenario_comparison(
+def plot_scenario_comparison(  # pylint: disable=too-many-locals
     aggregated_results: Any,
     metrics: Optional[List[str]] = None,
     figsize: Tuple[float, float] = (14, 8),
@@ -1409,11 +1398,11 @@ def plot_scenario_comparison(
         ax.grid(True, alpha=0.3)
 
         # Add value labels
-        for j, (bar, val) in enumerate(zip(bars, values)):
-            height = bar.get_height()
+        for j, (value_bar, val) in enumerate(zip(bars, values)):
+            height = value_bar.get_height()
             format_str = f"{val:.2%}" if "probability" in metric else f"{val:.2g}"
             ax.text(
-                bar.get_x() + bar.get_width() / 2,
+                value_bar.get_x() + value_bar.get_width() / 2,
                 height,
                 format_str,
                 ha="center",
@@ -1434,7 +1423,7 @@ def plot_scenario_comparison(
     return fig
 
 
-def plot_sensitivity_heatmap(
+def plot_sensitivity_heatmap(  # pylint: disable=too-many-locals
     aggregated_results: Any,
     metric: str = "mean_growth_rate",
     figsize: Tuple[float, float] = (10, 8),
@@ -1463,7 +1452,7 @@ def plot_sensitivity_heatmap(
         return plt.figure()
 
     # Prepare data for heatmap
-    sensitivity_matrix = []
+    sensitivity_matrix: List[List[float]] = []
     param_names = []
 
     for _, row in sensitivity_df.iterrows():
@@ -1496,11 +1485,11 @@ def plot_sensitivity_heatmap(
     bars = ax.barh(scenarios, values, color=WSJ_COLORS["blue"], alpha=0.8)
 
     # Color code by positive/negative
-    for bar, val in zip(bars, values):
+    for sens_bar, val in zip(bars, values):
         if val < 0:
-            bar.set_color(WSJ_COLORS["red"])
+            sens_bar.set_color(WSJ_COLORS["red"])
         else:
-            bar.set_color(WSJ_COLORS["green"])
+            sens_bar.set_color(WSJ_COLORS["green"])
 
     ax.set_xlabel(f"% Change in {metric.replace('_', ' ').title()}")
     ax.set_ylabel("Scenario")
@@ -1575,13 +1564,13 @@ def plot_parameter_sweep_3d(
                 y=param2_values,
                 z=metric_values,
                 mode="markers",
-                marker=dict(
-                    size=8,
-                    color=metric_values,
-                    colorscale="Viridis",
-                    showscale=True,
-                    colorbar=dict(title=metric.replace("_", " ").title()),
-                ),
+                marker={
+                    "size": 8,
+                    "color": metric_values,
+                    "colorscale": "Viridis",
+                    "showscale": True,
+                    "colorbar": {"title": metric.replace("_", " ").title()},
+                },
                 text=[
                     f"{param1}: {p1:.3g}<br>{param2}: {p2:.3g}<br>{metric}: {m:.3g}"
                     for p1, p2, m in zip(param1_values, param2_values, metric_values)
@@ -1593,14 +1582,14 @@ def plot_parameter_sweep_3d(
 
     fig.update_layout(
         title=f"Parameter Sweep: {metric.replace('_', ' ').title()}",
-        scene=dict(
-            xaxis_title=param1.replace("_", " ").title(),
-            yaxis_title=param2.replace("_", " ").title(),
-            zaxis_title=metric.replace("_", " ").title(),
-        ),
+        scene={
+            "xaxis_title": param1.replace("_", " ").title(),
+            "yaxis_title": param2.replace("_", " ").title(),
+            "zaxis_title": metric.replace("_", " ").title(),
+        },
         height=height,
         template="plotly_white",
-        font=dict(family="Arial, sans-serif"),
+        font={"family": "Arial, sans-serif"},
     )
 
     if save_path:

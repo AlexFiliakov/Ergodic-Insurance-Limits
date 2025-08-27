@@ -1,294 +1,376 @@
 # Service Layer Architecture
 
-## Overview
-This document details the service layer components that provide analysis, decision-making, and visualization capabilities.
-
-## Analysis Services
+## Analytics and Optimization Services
 
 ```mermaid
 classDiagram
     class ErgodicAnalyzer {
-        -float convergence_threshold
-        +__init__(convergence_threshold)
-        +calculate_time_average(values) float
+        -Config config
+        -ConvergenceDiagnostics diagnostics
+        +__init__(config)
+        +analyze_single_path(trajectory) float
+        +analyze_ensemble(trajectories) ErgodicResult
+        +calculate_time_average(path) float
         +calculate_ensemble_average(paths) float
-        +calculate_growth_rate(trajectory) float
-        +compare_averages(simulation_results) Dict
-        +analyze_insurance_impact(with_insurance, without_insurance) Dict
-        +validate_ergodicity(results) bool
-        +plot_ergodic_comparison(results)
+        +test_ergodicity(paths) bool
+        +plot_ergodic_comparison()
     }
 
-    class RiskAnalyzer {
-        -Dict risk_parameters
-        +__init__(risk_parameters)
-        +calculate_var(data, confidence) float
-        +calculate_tvar(data, confidence) float
-        +calculate_expected_shortfall(data, confidence) float
-        +calculate_maximum_drawdown(trajectory) float
-        +calculate_ruin_probability(paths, threshold) float
-        +calculate_sharpe_ratio(returns, risk_free_rate) float
+    class RiskMetrics {
+        -Dict~str,Callable~ metric_functions
+        +__init__()
+        +calculate_var(returns, confidence) float
+        +calculate_cvar(returns, confidence) float
+        +calculate_sharpe_ratio(returns, risk_free) float
         +calculate_sortino_ratio(returns, mar) float
-        +comprehensive_risk_report(results) RiskMetrics
+        +calculate_max_drawdown(prices) float
+        +calculate_all_metrics(data) RiskMetricsResult
     }
 
-    class ConvergenceAnalyzer {
-        -float tolerance
-        -int min_samples
-        +__init__(tolerance, min_samples)
-        +test_convergence(data) ConvergenceResults
-        +calculate_standard_error(data) float
-        +gelman_rubin_statistic(chains) float
-        +effective_sample_size(data) int
-        +plot_convergence_diagnostic(data)
-    }
-
-    class SensitivityAnalyzer {
-        -Dict baseline_params
-        -List~str~ parameters_to_vary
-        +__init__(baseline_params, parameters_to_vary)
-        +run_sensitivity_analysis(simulation, param_ranges) Dict
-        +calculate_elasticity(param, results) float
-        +tornado_diagram(sensitivities)
-        +heatmap_2d_sensitivity(param1, param2, results)
-    }
-```
-
-## Decision Engine
-
-```mermaid
-classDiagram
-    class DecisionEngine {
-        -ErgodicAnalyzer ergodic_analyzer
-        -RiskAnalyzer risk_analyzer
-        -Dict optimization_parameters
-        +__init__(ergodic_analyzer, risk_analyzer, optimization_params)
-        +optimize_insurance_program(manufacturer, constraints) OptimizationResults
-        +evaluate_strategy(strategy, simulations) StrategyEvaluation
-        +compare_strategies(strategies) ComparisonResults
-        +recommend_action(current_state, market_conditions) Recommendation
-    }
-
-    class OptimizationEngine {
-        -str optimization_method
-        -Dict constraints
-        -callable objective_function
-        +__init__(method, constraints, objective)
-        +optimize() OptimalSolution
-        +grid_search(param_grid) GridSearchResults
-        +bayesian_optimization(n_iterations) BayesianResults
-        +genetic_algorithm(population_size, generations) GAResults
-    }
-
-    class StrategyEvaluator {
-        +evaluate_fixed_retention(retention, simulations) Dict
-        +evaluate_dynamic_retention(retention_function, simulations) Dict
-        +evaluate_layer_structure(layers, simulations) Dict
-        +rank_strategies(evaluations) List~Tuple~
-    }
-
-    class RecommendationEngine {
+    class BusinessOptimizer {
         -DecisionEngine decision_engine
-        -Dict business_rules
-        +generate_recommendation(analysis_results) Recommendation
-        +explain_recommendation(recommendation) str
-        +confidence_score(recommendation) float
+        -ParetoFrontier pareto_frontier
+        -Dict constraints
+        +__init__(objectives, constraints)
+        +optimize(simulation_func) OptimalStrategy
+        +evaluate_strategy(params) float
+        +generate_candidates() List~Dict~
+        +apply_constraints(candidates) List~Dict~
+        +select_best(evaluated) OptimalStrategy
     }
 
-    DecisionEngine --> ErgodicAnalyzer: uses
-    DecisionEngine --> RiskAnalyzer: uses
-    DecisionEngine --> OptimizationEngine: uses
-    DecisionEngine --> StrategyEvaluator: uses
-    RecommendationEngine --> DecisionEngine: uses
+    class InsuranceDecisionEngine {
+        -RiskMetrics risk_calculator
+        -Dict optimization_constraints
+        +__init__(constraints)
+        +evaluate_program(program, simulations) DecisionMetrics
+        +compare_programs(programs) List~Tuple~
+        +optimize_retention(base_program) float
+        +recommend_structure(metrics) InsuranceProgram
+        +sensitivity_analysis(program) Dict
+    }
+
+    class ParetoFrontier {
+        -List~Objective~ objectives
+        -List~ParetoPoint~ frontier
+        +__init__(objectives)
+        +add_point(values, params) bool
+        +is_dominated(point) bool
+        +get_frontier() List~ParetoPoint~
+        +find_knee_point() ParetoPoint
+        +plot_frontier()
+    }
+
+    class ConvergenceDiagnostics {
+        +__init__(tolerance, min_iterations)
+        +check_convergence(values) bool
+        +gelman_rubin_statistic(chains) float
+        +effective_sample_size(chain) int
+        +autocorrelation(chain) ndarray
+        +plot_diagnostics(chains)
+    }
+
+    ErgodicAnalyzer --> ConvergenceDiagnostics : uses
+    BusinessOptimizer --> InsuranceDecisionEngine : contains
+    BusinessOptimizer --> ParetoFrontier : uses
+    InsuranceDecisionEngine --> RiskMetrics : uses
 ```
 
-## Visualization Services
+## Simulation Orchestration Services
 
 ```mermaid
 classDiagram
-    class VisualizationService {
-        -Dict plot_config
-        +__init__(plot_config)
-        +plot_trajectory(results, metrics) Figure
-        +plot_distribution(data, type) Figure
-        +plot_comparison(datasets, labels) Figure
-        +create_dashboard(results) Dashboard
+    class MonteCarloEngine {
+        -SimulationConfig config
+        -ParallelExecutor executor
+        -ProgressMonitor monitor
+        -TrajectoryStorage storage
+        +__init__(config)
+        +run(n_simulations) MonteCarloResults
+        +run_batch(batch_params) BatchResult
+        +checkpoint_state(iteration)
+        +resume_from_checkpoint(path)
+        +aggregate_results() AggregatedResults
     }
 
-    class TrajectoryPlotter {
-        +plot_assets_evolution(results)
-        +plot_equity_evolution(results)
-        +plot_roe_timeline(results)
-        +plot_claims_timeline(results)
-        +plot_multiple_paths(monte_carlo_results)
+    class ParallelExecutor {
+        -int n_workers
+        -ChunkingStrategy strategy
+        -SharedMemoryManager mem_manager
+        -Queue task_queue
+        +__init__(n_workers, strategy)
+        +execute(func, data) List
+        +map(func, iterable) List
+        +map_reduce(map_func, reduce_func, data) Any
+        +shutdown()
     }
 
-    class DistributionPlotter {
-        +plot_histogram(data, bins)
-        +plot_density(data, kernel)
-        +plot_qq(data, distribution)
-        +plot_ecdf(data)
-        +plot_violin(groups)
+    class BatchProcessor {
+        -ScenarioManager scenario_manager
+        -ResultAggregator aggregator
+        -CheckpointManager checkpointer
+        +__init__(config)
+        +process_scenarios(scenarios) AggregatedResults
+        +process_batch(batch) BatchResult
+        +handle_failure(batch_id, error)
+        +merge_results(batch_results) AggregatedResults
     }
 
-    class ComparisonPlotter {
-        +plot_ergodic_comparison(time_avg, ensemble_avg)
-        +plot_strategy_comparison(strategies)
-        +plot_sensitivity_tornado(sensitivities)
-        +plot_efficient_frontier(risk, return)
+    class ScenarioManager {
+        -List~ScenarioConfig~ scenarios
+        -Dict parameter_grids
+        +__init__(base_config)
+        +create_scenario(name, params) ScenarioConfig
+        +generate_grid(param_specs) List~Dict~
+        +validate_scenario(scenario) bool
+        +prioritize_scenarios() List~ScenarioConfig~
+        +export_scenarios(path)
     }
 
-    class InteractiveDashboard {
-        -List~Component~ components
-        +add_component(component)
-        +update_data(new_data)
-        +export_html(path)
-        +serve(port)
+    class TrajectoryStorage {
+        -StorageConfig config
+        -h5py.File file_handle
+        -LRUCache cache
+        +__init__(config)
+        +store(simulation_id, data)
+        +retrieve(simulation_id) ndarray
+        +query(criteria) List~SimulationSummary~
+        +compress_data(data) bytes
+        +cleanup_old(days)
     }
 
-    VisualizationService --> TrajectoryPlotter: uses
-    VisualizationService --> DistributionPlotter: uses
-    VisualizationService --> ComparisonPlotter: uses
-    VisualizationService --> InteractiveDashboard: creates
+    class ProgressMonitor {
+        -ProgressStats stats
+        -List~Callable~ callbacks
+        +__init__()
+        +start_task(name, total)
+        +update(completed)
+        +finish_task()
+        +add_callback(func)
+        +get_eta() datetime
+        +display_progress()
+    }
+
+    MonteCarloEngine --> ParallelExecutor : uses
+    MonteCarloEngine --> ProgressMonitor : uses
+    MonteCarloEngine --> TrajectoryStorage : stores to
+    ParallelExecutor --> SharedMemoryManager : uses
+    BatchProcessor --> ScenarioManager : uses
+    BatchProcessor --> ResultAggregator : uses
 ```
 
-## Integration Layer
+## Statistical Analysis Services
+
+```mermaid
+classDiagram
+    class BootstrapAnalyzer {
+        -int n_bootstrap
+        -float confidence_level
+        -np.random.RandomState rng
+        +__init__(n_bootstrap, confidence, seed)
+        +bootstrap_mean(data) BootstrapResult
+        +bootstrap_statistic(data, func) BootstrapResult
+        +confidence_interval(samples) Tuple
+        +bias_correction(samples, observed) float
+        +plot_bootstrap_distribution(result)
+    }
+
+    class StatisticalTests {
+        +__init__()
+        +t_test(group1, group2) TestResult
+        +mann_whitney_u(group1, group2) TestResult
+        +kolmogorov_smirnov(data, distribution) TestResult
+        +anderson_darling(data) TestResult
+        +jarque_bera(data) TestResult
+        +adf_test(series) TestResult
+        +run_all_tests(data) Dict~str,TestResult~
+    }
+
+    class SummaryStatistics {
+        -Dict cache
+        +__init__()
+        +calculate(data) StatisticalSummary
+        +rolling_statistics(data, window) pd.DataFrame
+        +expanding_statistics(data) pd.DataFrame
+        +grouped_statistics(data, groups) Dict
+        +weighted_statistics(data, weights) StatisticalSummary
+    }
+
+    class ResultAggregator {
+        -AggregationConfig config
+        -List~BaseAggregator~ aggregators
+        +__init__(config)
+        +aggregate(results) AggregatedResults
+        +add_aggregator(aggregator)
+        +hierarchical_aggregate(results, levels) Dict
+        +time_series_aggregate(results) TimeSeriesResult
+        +export_summary(format) Any
+    }
+
+    class ResultExporter {
+        -Dict~str,Callable~ exporters
+        +__init__()
+        +export_csv(results, path)
+        +export_excel(results, path)
+        +export_json(results, path)
+        +export_parquet(results, path)
+        +export_html_report(results, template, path)
+        +create_dashboard(results) str
+    }
+
+    ResultAggregator --> SummaryStatistics : uses
+    ResultAggregator --> ResultExporter : exports via
+    BootstrapAnalyzer --> StatisticalTests : may use
+```
+
+## Control and Optimization Services
+
+```mermaid
+classDiagram
+    class HJBSolver {
+        -HJBProblem problem
+        -StateSpace state_space
+        -ndarray value_function
+        -HJBSolverConfig config
+        +__init__(problem, config)
+        +solve() HJBSolution
+        +iterate_value_function() float
+        +compute_optimal_control(state) float
+        +check_convergence() bool
+        +refine_grid()
+    }
+
+    class OptimalController {
+        -ControlSpace control_space
+        -ControlStrategy strategy
+        -Dict state_feedback
+        +__init__(control_space, mode)
+        +compute_control(state, time) float
+        +update_feedback(state, value)
+        +switch_strategy(new_strategy)
+        +evaluate_performance(trajectory) float
+    }
+
+    class ControlStrategy {
+        <<abstract>>
+        +compute(state, time) float
+        +update(feedback)
+        +get_parameters() Dict
+    }
+
+    class HJBFeedbackControl {
+        -HJBSolution solution
+        -Interpolator interpolator
+        +__init__(solution)
+        +compute(state, time) float
+        +interpolate_value(state) float
+        +gradient_ascent(state) float
+    }
+
+    class StaticControl {
+        -Dict parameters
+        +__init__(params)
+        +compute(state, time) float
+        +optimize_parameters(objective) Dict
+    }
+
+    class TimeVaryingControl {
+        -List~float~ control_schedule
+        -Interpolator time_interpolator
+        +__init__(schedule)
+        +compute(state, time) float
+        +update_schedule(new_schedule)
+    }
+
+    HJBSolver --> StateSpace : uses
+    HJBSolver --> HJBProblem : solves
+    OptimalController --> ControlStrategy : implements
+    ControlStrategy <|-- HJBFeedbackControl : inherits
+    ControlStrategy <|-- StaticControl : inherits
+    ControlStrategy <|-- TimeVaryingControl : inherits
+    HJBFeedbackControl --> HJBSolution : uses
+```
+
+## Service Integration Layer
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant Client
     participant API as Service API
-    participant Engine as Decision Engine
-    participant Analyzer as Analysis Services
-    participant Sim as Simulation
-    participant Viz as Visualization
+    participant Engine as MonteCarloEngine
+    participant Optimizer as BusinessOptimizer
+    participant Analytics as ErgodicAnalyzer
+    participant Storage as TrajectoryStorage
+    participant Export as ResultExporter
 
-    User->>API: Request optimization
-    API->>Engine: Initialize decision engine
+    Client->>API: Run optimization request
+    API->>Engine: Initialize simulations
 
-    Engine->>Sim: Run baseline simulation
-    Sim-->>Engine: Baseline results
-
-    Engine->>Analyzer: Analyze baseline
-    Analyzer-->>Engine: Risk metrics
-
-    loop Optimization iterations
-        Engine->>Engine: Generate candidate
-        Engine->>Sim: Test candidate
-        Sim-->>Engine: Candidate results
-        Engine->>Analyzer: Evaluate candidate
-        Analyzer-->>Engine: Candidate metrics
+    loop For each scenario
+        Engine->>Engine: Run simulation batch
+        Engine->>Storage: Store trajectories
     end
 
-    Engine->>Engine: Select optimal
-    Engine->>Viz: Prepare visualizations
-    Viz-->>Engine: Charts and reports
+    Engine->>Analytics: Analyze results
+    Analytics->>Analytics: Calculate ergodic metrics
+    Analytics-->>Engine: Return analysis
 
-    Engine-->>API: Optimization results
-    API-->>User: Results + visualizations
+    Engine->>Optimizer: Optimize with results
+    Optimizer->>Optimizer: Evaluate strategies
+    Optimizer-->>Engine: Return optimal strategy
+
+    Engine->>Export: Export results
+    Export->>Export: Generate reports
+    Export-->>API: Return report paths
+
+    API-->>Client: Return optimization results
 ```
 
-## Service Orchestration
+## Service Responsibilities
 
-```mermaid
-graph TB
-    subgraph Input["Input Layer"]
-        Config[Configuration]
-        Data[Historical Data]
-        Constraints[Business Constraints]
-    end
+### Core Services
 
-    subgraph Services["Service Layer"]
-        Decision[Decision Engine]
-        Ergodic[Ergodic Analyzer]
-        Risk[Risk Analyzer]
-        Sensitivity[Sensitivity Analyzer]
-        Convergence[Convergence Analyzer]
-    end
+| Service | Primary Responsibility | Key Operations |
+|---------|----------------------|----------------|
+| **MonteCarloEngine** | Orchestrate ensemble simulations | run(), checkpoint(), aggregate() |
+| **ErgodicAnalyzer** | Ergodic theory calculations | time_average(), ensemble_average() |
+| **BusinessOptimizer** | Find optimal strategies | optimize(), evaluate_strategy() |
+| **RiskMetrics** | Calculate risk measures | VaR, CVaR, Sharpe, Sortino |
 
-    subgraph Core["Core Simulation"]
-        Simulation[Simulation Engine]
-        MonteCarlo[Monte Carlo]
-    end
+### Infrastructure Services
 
-    subgraph Output["Output Layer"]
-        Reports[Report Generator]
-        Viz[Visualization Service]
-        Export[Data Exporter]
-    end
+| Service | Primary Responsibility | Key Operations |
+|---------|----------------------|----------------|
+| **ParallelExecutor** | Distribute computation | execute(), map_reduce() |
+| **TrajectoryStorage** | Persist simulation data | store(), retrieve(), query() |
+| **ProgressMonitor** | Track execution progress | update(), get_eta() |
+| **ResultAggregator** | Combine and summarize results | aggregate(), hierarchical_aggregate() |
 
-    Config --> Decision
-    Data --> Risk
-    Constraints --> Decision
+### Analysis Services
 
-    Decision --> Simulation
-    Decision --> Ergodic
-    Decision --> Risk
-    Decision --> Sensitivity
+| Service | Primary Responsibility | Key Operations |
+|---------|----------------------|----------------|
+| **BootstrapAnalyzer** | Bootstrap confidence intervals | bootstrap_statistic(), confidence_interval() |
+| **StatisticalTests** | Hypothesis testing | t_test(), ks_test(), adf_test() |
+| **SummaryStatistics** | Statistical summaries | calculate(), rolling_statistics() |
+| **ResultExporter** | Export results to various formats | export_csv(), export_html_report() |
 
-    Simulation --> MonteCarlo
-    MonteCarlo --> Convergence
+### Control Services
 
-    Ergodic --> Reports
-    Risk --> Reports
-    Sensitivity --> Viz
-    Convergence --> Viz
+| Service | Primary Responsibility | Key Operations |
+|---------|----------------------|----------------|
+| **HJBSolver** | Solve Hamilton-Jacobi-Bellman equations | solve(), compute_optimal_control() |
+| **OptimalController** | Implement control strategies | compute_control(), update_feedback() |
+| **ScenarioManager** | Manage simulation scenarios | create_scenario(), generate_grid() |
+| **BatchProcessor** | Process simulation batches | process_batch(), merge_results() |
 
-    Reports --> Export
-    Viz --> Export
+## Key Service Patterns
 
-    style Services fill:#e0f2f1
-    style Core fill:#fff3e0
-    style Output fill:#f3e5f5
-    style Input fill:#e8f5e9
-```
-
-## Complete Service Architecture
-
-```mermaid
-classDiagram
-    class ServiceRegistry {
-        -Dict~str_Service~ services
-        +register(name, service)
-        +get(name) Service
-        +list_services() List~str~
-        +health_check() Dict
-    }
-
-    class ServiceBase {
-        <<abstract>>
-        +str name
-        +str version
-        +Dict config
-        +initialize()
-        +shutdown()
-        +health_check() bool
-    }
-
-    class AnalysisService {
-        +analyze(data) Results
-        +validate(results) bool
-    }
-
-    class ComputeService {
-        +compute(inputs) Outputs
-        +estimate_runtime(inputs) float
-    }
-
-    class DataService {
-        +load(source) Data
-        +save(data, destination)
-        +transform(data) Data
-    }
-
-    ServiceBase <|-- AnalysisService: inherits
-    ServiceBase <|-- ComputeService: inherits
-    ServiceBase <|-- DataService: inherits
-
-    ServiceRegistry --> ServiceBase: manages
-
-    ErgodicAnalyzer --|> AnalysisService: implements
-    RiskAnalyzer --|> AnalysisService: implements
-    DecisionEngine --|> ComputeService: implements
-    VisualizationService --|> DataService: implements
-```
+1. **Dependency Injection**: Services receive dependencies through constructors
+2. **Strategy Pattern**: Multiple implementations for control strategies
+3. **Chain of Responsibility**: Aggregators can be chained for processing
+4. **Observer Pattern**: Progress monitoring with callbacks
+5. **Repository Pattern**: TrajectoryStorage abstracts data persistence
+6. **Factory Pattern**: ScenarioManager creates scenario configurations
+7. **Template Method**: Abstract base classes for aggregators and strategies
+8. **Singleton Pattern**: Service registry maintains single instances

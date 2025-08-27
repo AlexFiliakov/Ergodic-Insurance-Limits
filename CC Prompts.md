@@ -1098,7 +1098,7 @@ Update the corporate assumptions used in the simulation configurations to be sim
 
 ---
 
-Please analyze my codebase and create two types of mermaid diagrams:
+Please analyze my codebase and create two types of mermaid diagrams, updating existing mermaid diagrams as you go along:
 
 1. **High-Level Context Diagram**: Show the overall system architecture, including:
    - Main modules/packages and their relationships

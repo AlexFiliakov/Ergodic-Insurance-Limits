@@ -15,22 +15,7 @@ from tqdm import tqdm
 
 @dataclass
 class RuinProbabilityConfig:
-    """Configuration for ruin probability analysis.
-
-    Attributes:
-        time_horizons: List of time horizons to evaluate (years)
-        n_simulations: Number of simulations to run
-        min_assets_threshold: Minimum asset level before bankruptcy
-        min_equity_threshold: Minimum equity level before bankruptcy
-        debt_service_coverage_ratio: Minimum debt service coverage ratio
-        consecutive_negative_periods: Number of consecutive negative periods
-        early_stopping: Stop simulation on bankruptcy
-        parallel: Use parallel processing
-        n_workers: Number of workers for parallel processing
-        seed: Random seed for reproducibility
-        n_bootstrap: Number of bootstrap samples for confidence intervals
-        bootstrap_confidence_level: Confidence level for bootstrap intervals
-    """
+    """Configuration for ruin probability analysis."""
 
     time_horizons: List[int] = field(default_factory=lambda: [1, 5, 10])
     n_simulations: int = 10000
@@ -48,18 +33,7 @@ class RuinProbabilityConfig:
 
 @dataclass
 class RuinProbabilityResults:
-    """Results from ruin probability analysis.
-
-    Attributes:
-        time_horizons: Time horizons evaluated
-        ruin_probabilities: Ruin probability at each horizon
-        confidence_intervals: Bootstrap confidence intervals
-        bankruptcy_causes: Breakdown by cause
-        survival_curves: Survival probability over time
-        execution_time: Time taken to run analysis
-        n_simulations: Number of simulations
-        convergence_achieved: Whether convergence was achieved
-    """
+    """Results from ruin probability analysis."""
 
     time_horizons: np.ndarray
     ruin_probabilities: np.ndarray

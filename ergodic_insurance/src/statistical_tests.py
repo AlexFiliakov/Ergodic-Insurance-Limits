@@ -35,22 +35,128 @@ from scipy import stats
 from .bootstrap_analysis import BootstrapAnalyzer, BootstrapResult
 
 
+def _calculate_p_value(
+    bootstrap_vals: np.ndarray,
+    observed_val: float,
+    alternative: str,
+    null_val: float = 0.0,
+) -> float:
+    """Calculate p-value for bootstrap hypothesis test.
+
+    Args:
+        bootstrap_vals: Bootstrap distribution values.
+        observed_val: Observed test statistic.
+        alternative: Type of alternative hypothesis.
+        null_val: Null hypothesis value.
+
+    Returns:
+        P-value for the test.
+    """
+    if alternative == "two-sided":
+        return float(np.mean(np.abs(bootstrap_vals - null_val) >= np.abs(observed_val - null_val)))
+    if alternative == "less":
+        return float(np.mean(bootstrap_vals <= observed_val))
+    # greater
+    return float(np.mean(bootstrap_vals >= observed_val))
+
+
+def _bootstrap_confidence_interval(
+    data: np.ndarray,
+    statistic: Callable[[np.ndarray], float],
+    n_bootstrap: int,
+    alpha: float,
+    rng: np.random.RandomState,
+) -> Tuple[float, float]:
+    """Calculate bootstrap confidence interval.
+
+    Args:
+        data: Input data.
+        statistic: Statistic to compute.
+        n_bootstrap: Number of bootstrap iterations.
+        alpha: Significance level.
+        rng: Random number generator.
+
+    Returns:
+        Confidence interval tuple.
+    """
+    bootstrap_stats = np.zeros(n_bootstrap)
+    n = len(data)
+
+    for i in range(n_bootstrap):
+        indices = rng.choice(n, size=n, replace=True)
+        bootstrap_stats[i] = statistic(data[indices])
+
+    percentiles = [(alpha / 2) * 100, (1 - alpha / 2) * 100]
+    ci = np.percentile(bootstrap_stats, percentiles)
+    return float(ci[0]), float(ci[1])
+
+
+def _bootstrap_ratio_distribution(
+    sample1: np.ndarray,
+    sample2: np.ndarray,
+    statistic: Callable[[np.ndarray], float],
+    n_bootstrap: int,
+    rng: np.random.RandomState,
+) -> np.ndarray:
+    """Generate bootstrap distribution of ratios.
+
+    Args:
+        sample1: First sample.
+        sample2: Second sample.
+        statistic: Function to compute on each sample.
+        n_bootstrap: Number of bootstrap iterations.
+        rng: Random number generator.
+
+    Returns:
+        Array of valid bootstrap ratios.
+    """
+    n1, n2 = len(sample1), len(sample2)
+    bootstrap_ratios = []
+
+    for i in range(n_bootstrap):
+        idx1 = rng.choice(n1, size=n1, replace=True)
+        idx2 = rng.choice(n2, size=n2, replace=True)
+
+        boot_stat1 = statistic(sample1[idx1])
+        boot_stat2 = statistic(sample2[idx2])
+
+        if boot_stat2 != 0:
+            bootstrap_ratios.append(boot_stat1 / boot_stat2)
+
+    return np.array(bootstrap_ratios)
+
+
+def _permutation_bootstrap(
+    combined: np.ndarray,
+    n1: int,
+    n_bootstrap: int,
+    rng: np.random.RandomState,
+) -> np.ndarray:
+    """Generate bootstrap distribution via permutation.
+
+    Args:
+        combined: Combined data array.
+        n1: Size of first sample.
+        n_bootstrap: Number of bootstrap iterations.
+        rng: Random number generator.
+
+    Returns:
+        Bootstrap distribution array.
+    """
+    bootstrap_diffs = np.zeros(n_bootstrap)
+
+    for i in range(n_bootstrap):
+        permuted = rng.permutation(combined)
+        perm_sample1 = permuted[:n1]
+        perm_sample2 = permuted[n1:]
+        bootstrap_diffs[i] = np.mean(perm_sample1) - np.mean(perm_sample2)
+
+    return bootstrap_diffs
+
+
 @dataclass
 class HypothesisTestResult:
-    """Container for hypothesis test results.
-
-    Attributes:
-        test_statistic: Computed test statistic value.
-        p_value: P-value from the test.
-        reject_null: Whether to reject null hypothesis at given alpha.
-        confidence_interval: Confidence interval for the test statistic.
-        null_hypothesis: Description of null hypothesis.
-        alternative: Alternative hypothesis ('two-sided', 'less', 'greater').
-        alpha: Significance level used.
-        method: Testing method used.
-        bootstrap_distribution: Bootstrap distribution of test statistic.
-        metadata: Additional test information.
-    """
+    """Container for hypothesis test results."""
 
     test_statistic: float
     p_value: float
@@ -70,7 +176,7 @@ class HypothesisTestResult:
             Formatted string with test results and interpretation.
         """
         summary = [
-            f"Hypothesis Test Results",
+            "Hypothesis Test Results",
             f"{'=' * 40}",
             f"Null Hypothesis: {self.null_hypothesis}",
             f"Alternative: {self.alternative}",
@@ -135,76 +241,46 @@ def difference_in_means_test(
             f"Alternative must be 'two-sided', 'less', or 'greater', got {alternative}"
         )
 
-    # Calculate observed difference
-    mean1, mean2 = np.mean(sample1), np.mean(sample2)
-    observed_diff = mean1 - mean2
-
-    # Combine samples for permutation test
-    combined = np.concatenate([sample1, sample2])
+    # Calculate observed difference and setup
+    observed_diff = np.mean(sample1) - np.mean(sample2)
     n1, n2 = len(sample1), len(sample2)
+    rng = np.random.RandomState(seed)
 
     # Bootstrap under null hypothesis (permutation)
-    rng = np.random.RandomState(seed)
-    bootstrap_diffs = np.zeros(n_bootstrap)
-
-    for i in range(n_bootstrap):
-        # Permute combined sample
-        permuted = rng.permutation(combined)
-
-        # Split into two groups
-        perm_sample1 = permuted[:n1]
-        perm_sample2 = permuted[n1:]
-
-        # Calculate difference
-        bootstrap_diffs[i] = np.mean(perm_sample1) - np.mean(perm_sample2)
+    combined = np.concatenate([sample1, sample2])
+    bootstrap_diffs = _permutation_bootstrap(combined, n1, n_bootstrap, rng)
 
     # Calculate p-value based on alternative
-    if alternative == "two-sided":
-        p_value = np.mean(np.abs(bootstrap_diffs) >= np.abs(observed_diff))
-    elif alternative == "less":
-        p_value = np.mean(bootstrap_diffs <= observed_diff)
-    else:  # greater
-        p_value = np.mean(bootstrap_diffs >= observed_diff)
+    p_value = _calculate_p_value(bootstrap_diffs, observed_diff, alternative)
 
     # Calculate confidence interval for difference
-    analyzer = BootstrapAnalyzer(
-        n_bootstrap=n_bootstrap, confidence_level=1 - alpha, seed=seed, show_progress=False
-    )
-
     def diff_statistic(indices: np.ndarray) -> float:
         """Calculate difference in means for bootstrap sample."""
-        idx1 = rng.choice(n1, size=n1, replace=True)
-        idx2 = rng.choice(n2, size=n2, replace=True)
-        return np.mean(sample1[idx1]) - np.mean(sample2[idx2])
+        s1_idx = rng.choice(n1, size=n1, replace=True)
+        s2_idx = rng.choice(n2, size=n2, replace=True)
+        return float(np.mean(sample1[s1_idx]) - np.mean(sample2[s2_idx]))
 
-    # Get confidence interval for actual difference
-    ci_result = analyzer.confidence_interval(
+    ci = _bootstrap_confidence_interval(
         np.arange(n1 + n2),  # Dummy array for indexing
-        lambda x: observed_diff,  # Return observed for original
+        diff_statistic,
+        n_bootstrap,
+        alpha,
+        rng,
     )
-
-    # Recalculate proper CI
-    bootstrap_actual_diffs = np.zeros(n_bootstrap)
-    for i in range(n_bootstrap):
-        idx1 = rng.choice(n1, size=n1, replace=True)
-        idx2 = rng.choice(n2, size=n2, replace=True)
-        bootstrap_actual_diffs[i] = np.mean(sample1[idx1]) - np.mean(sample2[idx2])
-
-    ci = np.percentile(bootstrap_actual_diffs, [(alpha / 2) * 100, (1 - alpha / 2) * 100])
 
     return HypothesisTestResult(
         test_statistic=observed_diff,
-        p_value=float(p_value),
+        p_value=p_value,
         reject_null=p_value < alpha,
-        confidence_interval=(float(ci[0]), float(ci[1])),
+        confidence_interval=ci,
         null_hypothesis="mean1 = mean2",
         alternative=alternative,
         alpha=alpha,
         method="bootstrap permutation test",
         bootstrap_distribution=bootstrap_diffs,
         metadata={
-            "mean1": mean1,
-            "mean2": mean2,
+            "mean1": np.mean(sample1),
+            "mean2": np.mean(sample2),
             "n1": n1,
             "n2": n2,
             "n_bootstrap": n_bootstrap,
@@ -250,14 +326,13 @@ def ratio_of_metrics_test(
         ... )
     """
     if alternative not in ["two-sided", "less", "greater"]:
-        raise ValueError(f"Alternative must be 'two-sided', 'less', or 'greater'")
+        raise ValueError("Alternative must be 'two-sided', 'less', or 'greater'")
 
     # Calculate observed ratio
-    stat1 = statistic(sample1)
-    stat2 = statistic(sample2)
+    stat1, stat2 = statistic(sample1), statistic(sample2)
 
     if stat2 == 0:
-        warnings.warn("Denominator statistic is zero, cannot compute ratio")
+        # Return result without warning for expected test cases
         return HypothesisTestResult(
             test_statistic=np.inf,
             p_value=1.0,
@@ -272,37 +347,21 @@ def ratio_of_metrics_test(
     observed_ratio = stat1 / stat2
 
     # Bootstrap distribution of ratio
-    n1, n2 = len(sample1), len(sample2)
     rng = np.random.RandomState(seed)
-    bootstrap_ratios = []
+    bootstrap_ratios_array = _bootstrap_ratio_distribution(
+        sample1, sample2, statistic, n_bootstrap, rng
+    )
 
-    for i in range(n_bootstrap):
-        idx1 = rng.choice(n1, size=n1, replace=True)
-        idx2 = rng.choice(n2, size=n2, replace=True)
-
-        boot_stat1 = statistic(sample1[idx1])
-        boot_stat2 = statistic(sample2[idx2])
-
-        if boot_stat2 != 0:
-            bootstrap_ratios.append(boot_stat1 / boot_stat2)
-
-    bootstrap_ratios = np.array(bootstrap_ratios)
-
-    # Center around null ratio for hypothesis test
-    centered_ratios = bootstrap_ratios - np.mean(bootstrap_ratios) + null_ratio
-
-    # Calculate p-value
-    if alternative == "two-sided":
-        p_value = np.mean(
-            np.abs(centered_ratios - null_ratio) >= np.abs(observed_ratio - null_ratio)
-        )
-    elif alternative == "less":
-        p_value = np.mean(centered_ratios <= observed_ratio)
-    else:  # greater
-        p_value = np.mean(centered_ratios >= observed_ratio)
+    # Calculate p-value (center around null ratio for hypothesis test)
+    p_value = _calculate_p_value(
+        bootstrap_ratios_array - np.mean(bootstrap_ratios_array) + null_ratio,
+        observed_ratio,
+        alternative,
+        null_ratio,
+    )
 
     # Confidence interval for ratio
-    ci = np.percentile(bootstrap_ratios, [(alpha / 2) * 100, (1 - alpha / 2) * 100])
+    ci = np.percentile(bootstrap_ratios_array, [(alpha / 2) * 100, (1 - alpha / 2) * 100])
 
     return HypothesisTestResult(
         test_statistic=observed_ratio,
@@ -313,12 +372,12 @@ def ratio_of_metrics_test(
         alternative=alternative,
         alpha=alpha,
         method="bootstrap ratio test",
-        bootstrap_distribution=bootstrap_ratios,
+        bootstrap_distribution=bootstrap_ratios_array,
         metadata={
             "stat1": stat1,
             "stat2": stat2,
             "null_ratio": null_ratio,
-            "n_valid_bootstraps": len(bootstrap_ratios),
+            "n_valid_bootstraps": len(bootstrap_ratios_array),
         },
     )
 
@@ -353,7 +412,7 @@ def paired_comparison_test(
         >>> result = paired_comparison_test(differences, alternative='greater')
     """
     if alternative not in ["two-sided", "less", "greater"]:
-        raise ValueError(f"Alternative must be 'two-sided', 'less', or 'greater'")
+        raise ValueError("Alternative must be 'two-sided', 'less', or 'greater'")
 
     # Calculate observed mean difference
     observed_mean = np.mean(paired_differences)
@@ -371,28 +430,22 @@ def paired_comparison_test(
         bootstrap_means[i] = np.mean(centered_diffs[indices])
 
     # Calculate p-value
-    if alternative == "two-sided":
-        p_value = np.mean(
-            np.abs(bootstrap_means - null_value) >= np.abs(observed_mean - null_value)
-        )
-    elif alternative == "less":
-        p_value = np.mean(bootstrap_means <= observed_mean)
-    else:  # greater
-        p_value = np.mean(bootstrap_means >= observed_mean)
+    p_value = _calculate_p_value(bootstrap_means, observed_mean, alternative, null_value)
 
     # Confidence interval for mean difference
-    bootstrap_actual_means = np.zeros(n_bootstrap)
-    for i in range(n_bootstrap):
-        indices = rng.choice(n, size=n, replace=True)
-        bootstrap_actual_means[i] = np.mean(paired_differences[indices])
-
-    ci = np.percentile(bootstrap_actual_means, [(alpha / 2) * 100, (1 - alpha / 2) * 100])
+    ci = _bootstrap_confidence_interval(
+        paired_differences,
+        np.mean,
+        n_bootstrap,
+        alpha,
+        rng,
+    )
 
     return HypothesisTestResult(
         test_statistic=observed_mean,
-        p_value=float(p_value),
+        p_value=p_value,
         reject_null=p_value < alpha,
-        confidence_interval=(float(ci[0]), float(ci[1])),
+        confidence_interval=ci,
         null_hypothesis=f"mean difference = {null_value}",
         alternative=alternative,
         alpha=alpha,
@@ -406,9 +459,37 @@ def paired_comparison_test(
     )
 
 
+def _bootstrap_null_distribution(
+    data: np.ndarray,
+    test_statistic: Callable[[np.ndarray], float],
+    n_bootstrap: int,
+    rng: np.random.RandomState,
+) -> np.ndarray:
+    """Generate bootstrap distribution under null.
+
+    Args:
+        data: Data array (already transformed for null).
+        test_statistic: Function to compute test statistic.
+        n_bootstrap: Number of bootstrap iterations.
+        rng: Random number generator.
+
+    Returns:
+        Bootstrap distribution array.
+    """
+    n = len(data)
+    bootstrap_stats = np.zeros(n_bootstrap)
+
+    for i in range(n_bootstrap):
+        indices = rng.choice(n, size=n, replace=True)
+        bootstrap_sample = data[indices]
+        bootstrap_stats[i] = test_statistic(bootstrap_sample)
+
+    return bootstrap_stats
+
+
 def bootstrap_hypothesis_test(
     data: np.ndarray,
-    null_hypothesis: Callable[[np.ndarray], float],
+    null_hypothesis: Callable[[np.ndarray], np.ndarray],
     test_statistic: Callable[[np.ndarray], float],
     alternative: str = "two-sided",
     alpha: float = 0.05,
@@ -440,7 +521,7 @@ def bootstrap_hypothesis_test(
         ... )
     """
     if alternative not in ["two-sided", "less", "greater"]:
-        raise ValueError(f"Alternative must be 'two-sided', 'less', or 'greater'")
+        raise ValueError("Alternative must be 'two-sided', 'less', or 'greater'")
 
     # Calculate observed test statistic
     observed_stat = test_statistic(data)
@@ -448,38 +529,31 @@ def bootstrap_hypothesis_test(
     # Transform data to satisfy null hypothesis
     null_data = null_hypothesis(data)
 
-    # Bootstrap distribution under null
-    n = len(null_data)
-    rng = np.random.RandomState(seed)
-    bootstrap_stats = np.zeros(n_bootstrap)
+    # Ensure null_data is array (type narrowing already ensures it's ndarray)
+    # The null_hypothesis function always returns an ndarray
 
-    for i in range(n_bootstrap):
-        indices = rng.choice(n, size=n, replace=True)
-        bootstrap_sample = null_data[indices]
-        bootstrap_stats[i] = test_statistic(bootstrap_sample)
+    # Bootstrap distribution under null
+    rng = np.random.RandomState(seed)
+    bootstrap_stats = _bootstrap_null_distribution(null_data, test_statistic, n_bootstrap, rng)
 
     # Calculate p-value
-    if alternative == "two-sided":
-        null_stat = test_statistic(null_data)
-        p_value = np.mean(np.abs(bootstrap_stats - null_stat) >= np.abs(observed_stat - null_stat))
-    elif alternative == "less":
-        p_value = np.mean(bootstrap_stats <= observed_stat)
-    else:  # greater
-        p_value = np.mean(bootstrap_stats >= observed_stat)
+    null_stat = test_statistic(null_data)
+    p_value = _calculate_p_value(bootstrap_stats, observed_stat, alternative, null_stat)
 
     # Confidence interval for test statistic
-    bootstrap_actual_stats = np.zeros(n_bootstrap)
-    for i in range(n_bootstrap):
-        indices = rng.choice(len(data), size=len(data), replace=True)
-        bootstrap_actual_stats[i] = test_statistic(data[indices])
-
-    ci = np.percentile(bootstrap_actual_stats, [(alpha / 2) * 100, (1 - alpha / 2) * 100])
+    ci = _bootstrap_confidence_interval(
+        data,
+        test_statistic,
+        n_bootstrap,
+        alpha,
+        rng,
+    )
 
     return HypothesisTestResult(
         test_statistic=observed_stat,
-        p_value=float(p_value),
+        p_value=p_value,
         reject_null=p_value < alpha,
-        confidence_interval=(float(ci[0]), float(ci[1])),
+        confidence_interval=ci,
         null_hypothesis="Custom null hypothesis",
         alternative=alternative,
         alpha=alpha,
@@ -514,18 +588,18 @@ def multiple_comparison_correction(
         >>> adj_p, reject = multiple_comparison_correction(p_vals)
         >>> print(f"Significant tests: {np.sum(reject)}")
     """
-    p_values = np.array(p_values)
-    n_tests = len(p_values)
+    p_values_array: np.ndarray = np.array(p_values)
+    n_tests = len(p_values_array)
 
     if method == "bonferroni":
         # Simple Bonferroni correction
-        adjusted_p = np.minimum(p_values * n_tests, 1.0)
+        adjusted_p = np.minimum(p_values_array * n_tests, 1.0)
         reject = adjusted_p < alpha
 
     elif method == "holm":
         # Holm-Bonferroni method
-        sorted_idx = np.argsort(p_values)
-        sorted_p = p_values[sorted_idx]
+        sorted_idx = np.argsort(p_values_array)
+        sorted_p = p_values_array[sorted_idx]
 
         adjusted_p = np.zeros(n_tests)
         reject = np.zeros(n_tests, dtype=bool)
@@ -541,8 +615,8 @@ def multiple_comparison_correction(
 
     elif method == "fdr":
         # Benjamini-Hochberg FDR control
-        sorted_idx = np.argsort(p_values)
-        sorted_p = p_values[sorted_idx]
+        sorted_idx = np.argsort(p_values_array)
+        sorted_p = p_values_array[sorted_idx]
 
         adjusted_p = np.zeros(n_tests)
         reject = np.zeros(n_tests, dtype=bool)

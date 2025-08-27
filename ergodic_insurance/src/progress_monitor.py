@@ -14,19 +14,7 @@ import numpy as np
 
 @dataclass
 class ProgressStats:
-    """Statistics for progress monitoring.
-
-    Attributes:
-        current_iteration: Current iteration number
-        total_iterations: Total planned iterations
-        start_time: Simulation start time
-        elapsed_time: Elapsed time in seconds
-        estimated_time_remaining: Estimated time remaining in seconds
-        iterations_per_second: Current processing speed
-        convergence_checks: List of convergence check results
-        converged: Whether convergence has been achieved
-        converged_at: Iteration where convergence was achieved
-    """
+    """Statistics for progress monitoring."""
 
     current_iteration: int
     total_iterations: int
@@ -176,7 +164,7 @@ class ProgressMonitor:
         progress_pct = (self.current_iteration / self.total_iterations) * 100
         bar_width = 40
         filled = int(bar_width * self.current_iteration / self.total_iterations)
-        bar = "█" * filled + "░" * (bar_width - filled)
+        progress_bar = "█" * filled + "░" * (bar_width - filled)
 
         # Format time strings
         elapsed_str = str(timedelta(seconds=int(elapsed)))
@@ -184,7 +172,7 @@ class ProgressMonitor:
 
         # Build status line
         status = (
-            f"\r[{bar}] {progress_pct:5.1f}% | "
+            f"\r[{progress_bar}] {progress_pct:5.1f}% | "
             f"{self.current_iteration:,}/{self.total_iterations:,} | "
             f"{speed:.0f} it/s | "
             f"Elapsed: {elapsed_str} | "
@@ -288,19 +276,17 @@ class ProgressMonitor:
         if is_decreasing:
             if self.converged:
                 return "monotonic convergence achieved"
-            else:
-                return "monotonic improvement"
-        else:
-            # Check overall trend
-            first_half = np.mean(values[: len(values) // 2])
-            second_half = np.mean(values[len(values) // 2 :])
+            return "monotonic improvement"
 
-            if second_half < first_half * 0.9:
-                return "improving with fluctuations"
-            elif second_half < first_half:
-                return "slow improvement"
-            else:
-                return "no clear improvement"
+        # Check overall trend
+        first_half = np.mean(values[: len(values) // 2])
+        second_half = np.mean(values[len(values) // 2 :])
+
+        if second_half < first_half * 0.9:
+            return "improving with fluctuations"
+        if second_half < first_half:
+            return "slow improvement"
+        return "no clear improvement"
 
     def _estimate_convergence_rate(
         self, iterations: List[int], values: List[float]

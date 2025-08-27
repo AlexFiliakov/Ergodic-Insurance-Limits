@@ -39,10 +39,10 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -74,14 +74,7 @@ class ControlMode(Enum):
 
 @dataclass
 class ControlSpace:
-    """Definition of the control space for insurance decisions.
-
-    Attributes:
-        limits: Insurance limit controls for each layer
-        retentions: Retention/deductible levels
-        coverage_percentages: Percentage of loss covered after retention
-        reinsurance_limits: Optional reinsurance program limits
-    """
+    """Definition of the control space for insurance decisions."""
 
     limits: List[Tuple[float, float]]  # (min, max) for each layer
     retentions: List[Tuple[float, float]]  # (min, max) for each layer
@@ -718,9 +711,9 @@ class OptimalController:
 
         Returns:
             pd.DataFrame: DataFrame with columns for step number,
-                state variables (prefixed with 'state_'),
-                control variables (prefixed with 'control_'),
-                and outcomes (prefixed with 'outcome_').
+                state variables (prefixed with ``state_``),
+                control variables (prefixed with ``control_``),
+                and outcomes (prefixed with ``outcome_``).
 
         Note:
             Useful for analyzing control strategy effectiveness

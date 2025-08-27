@@ -62,20 +62,7 @@ def _bootstrap_worker(args: Tuple[np.ndarray, Any, int, int, Optional[int]]) -> 
 
 @dataclass
 class BootstrapResult:
-    """Container for bootstrap analysis results.
-
-    Attributes:
-        statistic: Original statistic value from the data.
-        confidence_level: Confidence level used (e.g., 0.95).
-        confidence_interval: Tuple of (lower, upper) confidence bounds.
-        bootstrap_distribution: Array of bootstrap statistics.
-        method: Method used ('percentile' or 'bca').
-        n_bootstrap: Number of bootstrap iterations performed.
-        bias: Estimated bias of the statistic (BCa method only).
-        acceleration: Acceleration parameter (BCa method only).
-        converged: Whether bootstrap distribution converged.
-        metadata: Additional information about the analysis.
-    """
+    """Container for bootstrap analysis results."""
 
     statistic: float
     confidence_level: float
@@ -95,7 +82,7 @@ class BootstrapResult:
             Formatted string with key bootstrap statistics.
         """
         summary = [
-            f"Bootstrap Analysis Results",
+            "Bootstrap Analysis Results",
             f"{'=' * 40}",
             f"Original Statistic: {self.statistic:.6f}",
             f"Method: {self.method}",
@@ -154,7 +141,9 @@ class BootstrapAnalyzer:
         if not 0 < confidence_level < 1:
             raise ValueError(f"Confidence level must be in (0, 1), got {confidence_level}")
         if n_bootstrap < 100:
-            warnings.warn(f"Low n_bootstrap ({n_bootstrap}) may produce unstable results")
+            warnings.warn(
+                f"Low n_bootstrap ({n_bootstrap}) may produce unstable results", UserWarning
+            )
 
         self.n_bootstrap = n_bootstrap
         self.confidence_level = confidence_level
@@ -280,6 +269,33 @@ class BootstrapAnalyzer:
 
         return bootstrap_dist
 
+    def _submit_bootstrap_jobs(
+        self,
+        executor: ProcessPoolExecutor,
+        data: np.ndarray,
+        statistic: Callable[[np.ndarray], float],
+        chunks: List[np.ndarray],
+    ) -> List[Tuple[int, Any]]:
+        """Submit bootstrap jobs to executor.
+
+        Args:
+            executor: Process pool executor
+            data: Input data array
+            statistic: Function to compute on each sample
+            chunks: Array chunks for parallel processing
+
+        Returns:
+            List of (start_index, future) tuples
+        """
+        futures = []
+        for i, chunk in enumerate(chunks):
+            if len(chunk) > 0:
+                worker_seed = self.seed + i if self.seed else None
+                args = (data, statistic, chunk[0], len(chunk), worker_seed)
+                future = executor.submit(_bootstrap_worker, args)
+                futures.append((chunk[0], future))
+        return futures
+
     def _parallel_bootstrap(
         self,
         data: np.ndarray,
@@ -298,24 +314,14 @@ class BootstrapAnalyzer:
         bootstrap_dist = np.zeros(self.n_bootstrap)
 
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-            futures = []
-
-            for i, chunk in enumerate(chunks):
-                chunk_size = len(chunk)
-                if chunk_size > 0:
-                    worker_seed = self.seed + i if self.seed else None
-                    # Use module-level worker function with args tuple
-                    args = (data, statistic, chunk[0], chunk_size, worker_seed)
-                    future = executor.submit(_bootstrap_worker, args)
-                    futures.append((chunk[0], future))
+            futures = self._submit_bootstrap_jobs(executor, data, statistic, chunks)
 
             if self.show_progress:
                 pbar = tqdm(total=self.n_bootstrap, desc="Parallel bootstrap", unit="sample")
 
             for start_idx, future in futures:
                 results = future.result()
-                end_idx = start_idx + len(results)
-                bootstrap_dist[start_idx:end_idx] = results
+                bootstrap_dist[start_idx : start_idx + len(results)] = results
 
                 if self.show_progress:
                     pbar.update(len(results))
@@ -348,6 +354,43 @@ class BootstrapAnalyzer:
 
         return (float(lower), float(upper))
 
+    def _calculate_bias(self, bootstrap_dist: np.ndarray, original_stat: float) -> float:
+        """Calculate bias correction for BCa interval.
+
+        Args:
+            bootstrap_dist: Array of bootstrap statistics.
+            original_stat: Original statistic value.
+
+        Returns:
+            Bias correction value.
+        """
+        return float(stats.norm.ppf(np.mean(bootstrap_dist < original_stat)))
+
+    def _calculate_acceleration(
+        self, data: np.ndarray, statistic: Callable[[np.ndarray], float]
+    ) -> float:
+        """Calculate acceleration parameter using jackknife.
+
+        Args:
+            data: Original data array.
+            statistic: Function to compute the statistic.
+
+        Returns:
+            Acceleration parameter.
+        """
+        n = len(data)
+        jackknife_stats = np.zeros(n)
+
+        for i in range(n):
+            jackknife_sample = np.delete(data, i)
+            jackknife_stats[i] = statistic(jackknife_sample)
+
+        jackknife_mean = np.mean(jackknife_stats)
+        num = np.sum((jackknife_mean - jackknife_stats) ** 3)
+        den = 6 * (np.sum((jackknife_mean - jackknife_stats) ** 2) ** 1.5)
+
+        return float(num / den) if den != 0 else 0.0
+
     def _bca_interval(
         self,
         data: np.ndarray,
@@ -370,28 +413,8 @@ class BootstrapAnalyzer:
             Tuple of ((lower, upper), bias, acceleration).
         """
         original_stat = statistic(data)
-
-        # Calculate bias correction
-        bias = stats.norm.ppf(np.mean(bootstrap_dist < original_stat))
-
-        # Calculate acceleration using jackknife
-        n = len(data)
-        jackknife_stats = np.zeros(n)
-
-        for i in range(n):
-            jackknife_sample = np.delete(data, i)
-            jackknife_stats[i] = statistic(jackknife_sample)
-
-        jackknife_mean = np.mean(jackknife_stats)
-
-        # Acceleration parameter
-        num = np.sum((jackknife_mean - jackknife_stats) ** 3)
-        den = 6 * (np.sum((jackknife_mean - jackknife_stats) ** 2) ** 1.5)
-
-        if den != 0:
-            acceleration = num / den
-        else:
-            acceleration = 0
+        bias = self._calculate_bias(bootstrap_dist, original_stat)
+        acceleration = self._calculate_acceleration(data, statistic)
 
         # Adjusted percentiles
         alpha = 1 - confidence_level
@@ -482,10 +505,10 @@ class BootstrapAnalyzer:
 
             if comparison == "difference":
                 return stat1 - stat2
-            else:  # ratio
-                if stat2 == 0:
-                    return np.nan
-                return stat1 / stat2
+            # ratio
+            if stat2 == 0:
+                return np.nan
+            return stat1 / stat2
 
         # Create combined index array for resampling
         combined_indices = np.arange(len(data1) + len(data2))
