@@ -187,7 +187,7 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete dire
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (36 modules)
+│   ├── src/                    # Core source code (42 modules)
 │   │   ├── # Configuration System v2.0
 │   │   ├── config_manager.py   # 3-tier configuration manager
 │   │   ├── config_v2.py        # Enhanced Pydantic v2 models
@@ -236,8 +236,18 @@ Ergodic Insurance Limits/
 │   │   ├── bootstrap_analysis.py # Bootstrap methods
 │   │   ├── statistical_tests.py # Hypothesis testing
 │   │   │
+│   │   ├── # Validation Framework (NEW)
+│   │   ├── walk_forward_validator.py # Walk-forward validation
+│   │   ├── strategy_backtester.py # Strategy backtesting
+│   │   ├── validation_metrics.py # Validation metrics
+│   │   ├── accuracy_validator.py # Accuracy validation
+│   │   │
+│   │   ├── # Performance Tools
+│   │   ├── performance_optimizer.py # Performance optimization
+│   │   ├── benchmarking.py # Benchmarking utilities
+│   │   │
 │   │   └── visualization.py    # Plotting utilities
-│   ├── tests/                  # Test suite (100% coverage, 30+ test files)
+│   ├── tests/                  # Test suite (100% coverage, 40+ test files)
 │   ├── notebooks/              # Jupyter notebooks (15 analysis notebooks)
 │   │   ├── 00_config_migration_example.ipynb # Configuration v2 demo
 │   │   ├── 00_setup_verification.ipynb

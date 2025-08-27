@@ -134,7 +134,9 @@ class LegacyConfigAdapter:
             Config object.
         """
         # Try to find legacy config file
-        legacy_dir = Path("ergodic_insurance/data/parameters")
+        # Use absolute path based on current module location
+        module_path = Path(__file__).parent.parent
+        legacy_dir = module_path / "data" / "parameters"
         config_file = legacy_dir / f"{config_name}.yaml"
 
         if not config_file.exists():
@@ -149,6 +151,10 @@ class LegacyConfigAdapter:
         # Load the legacy config
         with open(config_file, "r") as f:
             data = yaml.safe_load(f)
+
+        # Handle empty or invalid YAML files
+        if data is None:
+            data = {}
 
         # Remove YAML anchors
         data = {k: v for k, v in data.items() if not k.startswith("_")}

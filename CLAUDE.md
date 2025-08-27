@@ -17,7 +17,7 @@ For the complete, detailed directory structure, see [docs/PROJECT_STRUCTURE.md](
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (36 modules)
+│   ├── src/                    # Core source code (42 modules)
 │   │   ├── # Configuration System v2.0
 │   │   ├── config_manager.py   # 3-tier configuration manager
 │   │   ├── config_v2.py        # Enhanced Pydantic v2 models
@@ -66,9 +66,19 @@ Ergodic Insurance Limits/
 │   │   ├── bootstrap_analysis.py # Bootstrap methods
 │   │   ├── statistical_tests.py # Hypothesis testing
 │   │   │
+│   │   ├── # Validation Framework (NEW)
+│   │   ├── walk_forward_validator.py # Walk-forward validation
+│   │   ├── strategy_backtester.py # Strategy backtesting
+│   │   ├── validation_metrics.py # Validation metrics
+│   │   ├── accuracy_validator.py # Accuracy validation
+│   │   │
+│   │   ├── # Performance Tools
+│   │   ├── performance_optimizer.py # Performance optimization
+│   │   ├── benchmarking.py # Benchmarking utilities
+│   │   │
 │   │   └── visualization.py    # Plotting utilities
-│   ├── tests/                  # Test suite (100% coverage, 30+ test files)
-│   │   ├── Unit tests for all 36 source modules
+│   ├── tests/                  # Test suite (100% coverage, 40+ test files)
+│   │   ├── Unit tests for all 42 source modules
 │   │   ├── Integration tests (test_integration.py)
 │   │   ├── Performance tests (test_performance.py)
 │   │   └── Config v2 tests (test_config_*.py)
@@ -105,7 +115,7 @@ Ergodic Insurance Limits/
 │   ├── docs/                   # Sphinx documentation system
 │   │   ├── conf.py            # Sphinx configuration
 │   │   ├── index.rst          # Documentation main page
-│   │   ├── api/               # Auto-generated API documentation (37 modules)
+│   │   ├── api/               # Auto-generated API documentation (42 modules)
 │   │   │   ├── modules.rst
 │   │   │   ├── src.rst
 │   │   │   ├── batch_processor.rst
@@ -142,6 +152,12 @@ Ergodic Insurance Limits/
 │   │   │   ├── stochastic_processes.rst
 │   │   │   ├── summary_statistics.rst
 │   │   │   ├── trajectory_storage.rst
+│   │   │   ├── walk_forward_validator.rst
+│   │   │   ├── strategy_backtester.rst
+│   │   │   ├── validation_metrics.rst
+│   │   │   ├── accuracy_validator.rst
+│   │   │   ├── performance_optimizer.rst
+│   │   │   ├── benchmarking.rst
 │   │   │   └── visualization.rst
 │   │   ├── getting_started.rst
 │   │   ├── theory.rst
