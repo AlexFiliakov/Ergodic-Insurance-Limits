@@ -41,7 +41,7 @@ Insurance & Risk
    ruin_probability
 
 Simulation & Analysis
---------------------
+---------------------
 
 .. toctree::
    :maxdepth: 2
@@ -52,7 +52,7 @@ Simulation & Analysis
    convergence
 
 Optimization & Control
----------------------
+----------------------
 
 .. toctree::
    :maxdepth: 2
@@ -65,7 +65,7 @@ Optimization & Control
    optimal_control
 
 Parallel Processing
-------------------
+-------------------
 
 .. toctree::
    :maxdepth: 2
@@ -77,7 +77,7 @@ Parallel Processing
    scenario_manager
 
 Statistical Analysis
--------------------
+--------------------
 
 .. toctree::
    :maxdepth: 2
