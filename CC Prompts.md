@@ -435,6 +435,10 @@ Flesh out each task and make tradeoffs favoring implementation speed and simplic
 
 Update all docstrings in modules, submodules, classes, methods, and functions to aid development and understandability of the code. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the latest code structure and regenerate the docs.
 
+---
+
+Update all docstrings in modules, submodules, classes, methods, and functions to aid development and understandability of the code. Adhere to the Google docstring style. Then update README.md and CLAUDE.md with the latest directory structures. Then update Sphinx documentation templates for the newest code structure, ensuring the documentation clearly references the refactored configuration with clear and practical demos. Make sure all Sphinx warnings are resolved.
+
 ### Monte Carlo Issue Questions
 
   1. Dependencies: The requirements don't currently include joblib, tqdm,
