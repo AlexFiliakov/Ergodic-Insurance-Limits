@@ -1051,7 +1051,7 @@ def plot_pareto_frontier_3d(  # pylint: disable=too-many-locals
     if len(frontier_points) > 10:
         try:
             from scipy.interpolate import griddata
-            from scipy.spatial.qhull import QhullError
+            from scipy.spatial import QhullError  # pylint: disable=no-name-in-module
 
             # Create grid
             xi = np.linspace(x_values.min(), x_values.max(), 30)

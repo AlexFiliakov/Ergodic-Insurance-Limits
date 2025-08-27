@@ -26,7 +26,7 @@ Example:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -34,8 +34,10 @@ import pandas as pd
 from .config import Config
 from .insurance import InsuranceLayer, InsurancePolicy
 from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine, SimulationConfig
+from .monte_carlo import SimulationResults as MCSimulationResults
 from .optimization import PenaltyMethodOptimizer
 from .simulation import Simulation, SimulationResults
 from .validation_metrics import MetricCalculator, ValidationMetrics
@@ -77,7 +79,6 @@ class InsuranceStrategy(ABC):
         Returns:
             InsuranceProgram or None for no insurance.
         """
-        pass
 
     def update(self, losses: np.ndarray, recoveries: np.ndarray, year: int):
         """Update strategy based on recent experience.
@@ -87,7 +88,6 @@ class InsuranceStrategy(ABC):
             recoveries: Recent recovery amounts
             year: Current year
         """
-        pass
 
     def reset(self):
         """Reset strategy to initial state."""
@@ -280,7 +280,9 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             from .monte_carlo import SimulationConfig as MCConfig
 
             mc_config = MCConfig(n_simulations=100, n_years=5)
-            mc_engine = MonteCarloEngine(mc_config)
+
+            # Create loss generator
+            loss_generator = ManufacturingLossGenerator(seed=42)
 
             # Create insurance program from policy
             from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
@@ -295,7 +297,15 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             ]
             program = InsuranceProgram(layers=program_layers)
 
-            results = mc_engine.run(manufacturer=manufacturer, insurance_program=program)
+            # Initialize Monte Carlo engine with required parameters
+            mc_engine = MonteCarloEngine(
+                loss_generator=loss_generator,
+                insurance_program=program,
+                manufacturer=manufacturer,
+                config=mc_config,
+            )
+
+            results = mc_engine.run()
 
             # Maximize ROE (minimize negative ROE)
             return -results.metrics.get("mean_roe", 0)
@@ -315,7 +325,9 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             from .monte_carlo import SimulationConfig as MCConfig
 
             mc_config = MCConfig(n_simulations=100, n_years=5)
-            mc_engine = MonteCarloEngine(mc_config)
+
+            # Create loss generator
+            loss_generator = ManufacturingLossGenerator(seed=42)
 
             # Create insurance program from policy
             from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
@@ -330,7 +342,15 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             ]
             program = InsuranceProgram(layers=program_layers)
 
-            results = mc_engine.run(manufacturer=manufacturer, insurance_program=program)
+            # Initialize Monte Carlo engine with required parameters
+            mc_engine = MonteCarloEngine(
+                loss_generator=loss_generator,
+                insurance_program=program,
+                manufacturer=manufacturer,
+                config=mc_config,
+            )
+
+            results = mc_engine.run()
 
             # Constraint: ruin_prob <= max_ruin_prob
             return self.max_ruin_prob - results.ruin_probability
@@ -462,26 +482,34 @@ class AdaptiveStrategy(InsuranceStrategy):
 
             # Calculate adjustment ratio
             if avg_losses > 0:
-                ratio = recent_losses / avg_losses
+                ratio = float(recent_losses / avg_losses)
             else:
                 ratio = 1.0
 
             # Adjust limits based on recent experience
             if ratio > 1.5:  # Recent losses much higher than average
                 # Increase coverage
-                adjustment = 1 + self.adjustment_factor * (ratio - 1)
-                self.current_primary = min(self.base_primary * adjustment, self.base_primary * 2)
-                self.current_excess = min(self.base_excess * adjustment, self.base_excess * 2)
-                self.current_deductible = max(
-                    self.base_deductible / adjustment, self.base_deductible * 0.5
+                adjustment = float(1 + self.adjustment_factor * (ratio - 1))
+                self.current_primary = float(
+                    min(self.base_primary * adjustment, self.base_primary * 2)
+                )
+                self.current_excess = float(
+                    min(self.base_excess * adjustment, self.base_excess * 2)
+                )
+                self.current_deductible = float(
+                    max(self.base_deductible / adjustment, self.base_deductible * 0.5)
                 )
             elif ratio < 0.5:  # Recent losses much lower than average
                 # Decrease coverage
-                adjustment = 1 - self.adjustment_factor * (1 - ratio)
-                self.current_primary = max(self.base_primary * adjustment, self.base_primary * 0.5)
-                self.current_excess = max(self.base_excess * adjustment, self.base_excess * 0.5)
-                self.current_deductible = min(
-                    self.base_deductible / adjustment, self.base_deductible * 2
+                adjustment = float(1 - self.adjustment_factor * (1 - ratio))
+                self.current_primary = float(
+                    max(self.base_primary * adjustment, self.base_primary * 0.5)
+                )
+                self.current_excess = float(
+                    max(self.base_excess * adjustment, self.base_excess * 0.5)
+                )
+                self.current_deductible = float(
+                    min(self.base_deductible / adjustment, self.base_deductible * 2)
                 )
             else:
                 # Gradually return to base levels
@@ -545,14 +573,14 @@ class BacktestResult:
 
     Attributes:
         strategy_name: Name of tested strategy
-        simulation_results: Raw simulation results
+        simulation_results: Raw simulation results (either Simulation or MC results)
         metrics: Calculated performance metrics
         execution_time: Time taken to run backtest
         config: Configuration used for backtest
     """
 
     strategy_name: str
-    simulation_results: SimulationResults
+    simulation_results: Union[SimulationResults, MCSimulationResults]
     metrics: ValidationMetrics
     execution_time: float
     config: SimulationConfig
@@ -605,7 +633,11 @@ class StrategyBacktester:
         # Handle OptimizedStaticStrategy
         if isinstance(strategy, OptimizedStaticStrategy) and not strategy.optimized_params:
             logger.info(f"Running optimization for {strategy.name}")
-            strategy.optimize_limits(manufacturer, self.simulation_engine)
+            # Ensure we pass a valid simulation engine
+            if self.simulation_engine is not None:
+                strategy.optimize_limits(manufacturer, self.simulation_engine)
+            else:
+                logger.warning("No simulation engine available for optimization")
 
         # Get insurance program
         insurance_program = strategy.get_insurance_program(manufacturer)
@@ -615,15 +647,28 @@ class StrategyBacktester:
 
         start_time = time.time()
 
-        monte_carlo = MonteCarloEngine(config)
-        simulation_results = monte_carlo.run(
-            manufacturer=manufacturer, insurance_program=insurance_program
+        # Create loss generator
+        loss_generator = ManufacturingLossGenerator(seed=config.seed)
+
+        # Create a default insurance program if None is returned
+        if insurance_program is None:
+            from .insurance_program import InsuranceProgram
+
+            insurance_program = InsuranceProgram(layers=[])  # No insurance
+
+        # Initialize Monte Carlo engine with required parameters
+        monte_carlo = MonteCarloEngine(
+            loss_generator=loss_generator,
+            insurance_program=insurance_program,
+            manufacturer=manufacturer,
+            config=config,
         )
+        simulation_results = monte_carlo.run()
 
         execution_time = time.time() - start_time
 
-        # Calculate metrics
-        metrics = self._calculate_metrics(simulation_results, config.n_years)
+        # Calculate metrics - handle Monte Carlo results
+        metrics = self._calculate_metrics_mc(simulation_results, config.n_years)
 
         # Create result
         result = BacktestResult(
@@ -676,13 +721,13 @@ class StrategyBacktester:
 
         return pd.DataFrame(results)
 
-    def _calculate_metrics(
-        self, simulation_results: SimulationResults, n_years: int
+    def _calculate_metrics_mc(
+        self, simulation_results: MCSimulationResults, n_years: int
     ) -> ValidationMetrics:
-        """Calculate metrics from simulation results.
+        """Calculate metrics from Monte Carlo simulation results.
 
         Args:
-            simulation_results: Raw simulation results
+            simulation_results: Monte Carlo simulation results
             n_years: Number of years simulated
 
         Returns:
@@ -700,7 +745,38 @@ class StrategyBacktester:
             n_years=n_years,
         )
 
-        # Override ruin probability from simulation
+        # Add ruin probability from MC results
         metrics.ruin_probability = simulation_results.ruin_probability
+
+        return metrics
+
+    def _calculate_metrics(
+        self, simulation_results: SimulationResults, n_years: int
+    ) -> ValidationMetrics:
+        """Calculate metrics from simulation results.
+
+        Args:
+            simulation_results: Raw simulation results
+            n_years: Number of years simulated
+
+        Returns:
+            ValidationMetrics object.
+        """
+        # Calculate growth rates from ROE
+        returns = simulation_results.roe
+
+        # Get final assets from the last asset value
+        final_assets = np.array([simulation_results.assets[-1]])
+
+        # Calculate metrics
+        metrics = self.metric_calculator.calculate_metrics(
+            returns=returns,
+            final_assets=final_assets,
+            initial_assets=10000000,  # Default initial assets
+            n_years=n_years,
+        )
+
+        # Calculate ruin probability from insolvency
+        metrics.ruin_probability = 1.0 if simulation_results.insolvency_year is not None else 0.0
 
         return metrics

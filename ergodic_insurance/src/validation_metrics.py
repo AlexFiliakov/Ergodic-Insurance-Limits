@@ -132,7 +132,7 @@ class StrategyPerformance:
             # Calculate overfitting score based on key metrics
             key_metrics = ["roe", "sharpe_ratio", "growth_rate"]
             degradations = [abs(self.degradation.get(f"{m}_diff", 0)) for m in key_metrics]
-            self.overfitting_score = np.mean(degradations)
+            self.overfitting_score = float(np.mean(degradations))
 
     def to_dataframe(self) -> pd.DataFrame:
         """Convert performance to DataFrame for reporting.
@@ -143,14 +143,16 @@ class StrategyPerformance:
         data = []
 
         if self.in_sample_metrics:
-            row = {"period": "in_sample", "strategy": self.strategy_name}
-            row.update(self.in_sample_metrics.to_dict())
+            row: Dict[str, Any] = {"period": "in_sample", "strategy": self.strategy_name}
+            metrics_dict = self.in_sample_metrics.to_dict()
+            row.update({k: str(v) if isinstance(v, float) else v for k, v in metrics_dict.items()})
             data.append(row)
 
         if self.out_sample_metrics:
-            row = {"period": "out_sample", "strategy": self.strategy_name}
-            row.update(self.out_sample_metrics.to_dict())
-            data.append(row)
+            row2: Dict[str, Any] = {"period": "out_sample", "strategy": self.strategy_name}
+            metrics_dict = self.out_sample_metrics.to_dict()
+            row2.update({k: str(v) if isinstance(v, float) else v for k, v in metrics_dict.items()})
+            data.append(row2)
 
         return pd.DataFrame(data) if data else pd.DataFrame()
 
@@ -166,7 +168,7 @@ class MetricCalculator:
         """
         self.risk_free_rate = risk_free_rate
 
-    def calculate_metrics(
+    def calculate_metrics(  # pylint: disable=too-many-locals
         self,
         returns: np.ndarray,
         losses: Optional[np.ndarray] = None,

@@ -37,7 +37,7 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Template
 import matplotlib.pyplot as plt
@@ -130,7 +130,7 @@ class ValidationResult:
     overfitting_analysis: Dict[str, float] = field(default_factory=dict)
     consistency_scores: Dict[str, float] = field(default_factory=dict)
     best_strategy: Optional[str] = None
-    metadata: Dict[str, any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class WalkForwardValidator:
@@ -222,9 +222,65 @@ class WalkForwardValidator:
 
         # Initialize manufacturer and config if not provided
         if manufacturer is None:
-            manufacturer = WidgetManufacturer()
+            from ergodic_insurance.src.config import ManufacturerConfig
+
+            default_mfg_config = ManufacturerConfig(
+                initial_assets=10000000,
+                asset_turnover_ratio=1.0,
+                operating_margin=0.08,
+                tax_rate=0.25,
+                retention_ratio=0.7,
+            )
+            manufacturer = WidgetManufacturer(default_mfg_config)
         if config is None:
-            config = Config()
+            from ergodic_insurance.src.config import (
+                Config,
+                DebtConfig,
+                GrowthConfig,
+                LoggingConfig,
+                ManufacturerConfig,
+                OutputConfig,
+            )
+            from ergodic_insurance.src.config import SimulationConfig as SimConfig
+            from ergodic_insurance.src.config import WorkingCapitalConfig
+
+            config = Config(
+                manufacturer=ManufacturerConfig(
+                    initial_assets=10000000,
+                    asset_turnover_ratio=1.0,
+                    operating_margin=0.08,
+                    tax_rate=0.25,
+                    retention_ratio=0.7,
+                ),
+                working_capital=WorkingCapitalConfig(
+                    percent_of_sales=0.15,
+                ),
+                growth=GrowthConfig(
+                    type="deterministic",
+                    annual_growth_rate=0.05,
+                    volatility=0.15,
+                ),
+                debt=DebtConfig(
+                    interest_rate=0.05,
+                    max_leverage_ratio=2.0,
+                    minimum_cash_balance=100000,
+                ),
+                simulation=SimConfig(
+                    time_resolution="annual",
+                    time_horizon_years=10,
+                ),
+                output=OutputConfig(
+                    output_directory="./results",
+                    file_format="csv",
+                    checkpoint_frequency=0,
+                    detailed_metrics=True,
+                ),
+                logging=LoggingConfig(
+                    enabled=True,
+                    level="INFO",
+                    log_file=None,
+                ),
+            )
 
         # Generate windows
         windows = self.generate_windows(n_years)
@@ -326,7 +382,7 @@ class WalkForwardValidator:
 
         return window_result
 
-    def _analyze_results(
+    def _analyze_results(  # pylint: disable=too-many-branches
         self, validation_result: ValidationResult, strategies: List[InsuranceStrategy]
     ):
         """Analyze validation results.
@@ -336,11 +392,19 @@ class WalkForwardValidator:
             strategies: List of strategies tested
         """
         # Collect metrics across windows
-        strategy_metrics = {s.name: [] for s in strategies}
+        strategy_metrics: Dict[str, List[ValidationMetrics]] = {s.name: [] for s in strategies}
+
+        # Also collect from window results to handle all strategies
+        for window_result in validation_result.window_results:
+            for strategy_name in window_result.strategy_performances:
+                if strategy_name not in strategy_metrics:
+                    strategy_metrics[strategy_name] = []
 
         for window_result in validation_result.window_results:
             for strategy_name, performance in window_result.strategy_performances.items():
                 if performance.out_sample_metrics:
+                    if strategy_name not in strategy_metrics:
+                        strategy_metrics[strategy_name] = []
                     strategy_metrics[strategy_name].append(performance.out_sample_metrics)
 
         # Calculate overfitting scores
@@ -353,7 +417,7 @@ class WalkForwardValidator:
                         performances.append(perf.overfitting_score)
 
             if performances:
-                validation_result.overfitting_analysis[strategy_name] = np.mean(performances)
+                validation_result.overfitting_analysis[strategy_name] = float(np.mean(performances))
 
         # Calculate consistency scores (coefficient of variation)
         for strategy_name, metrics_list in strategy_metrics.items():
@@ -361,7 +425,9 @@ class WalkForwardValidator:
                 roes = [m.roe for m in metrics_list]
                 if len(roes) > 1 and np.mean(roes) != 0:
                     consistency = 1 - (np.std(roes) / abs(np.mean(roes)))
-                    validation_result.consistency_scores[strategy_name] = max(0, consistency)
+                    validation_result.consistency_scores[strategy_name] = max(
+                        0.0, float(consistency)
+                    )
                 else:
                     validation_result.consistency_scores[strategy_name] = 1.0
 
@@ -416,17 +482,17 @@ class WalkForwardValidator:
             return ValidationMetrics(0, 0, 0, 0)
 
         avg_metrics = ValidationMetrics(
-            roe=np.mean([m.roe for m in metrics_list]),
-            ruin_probability=np.mean([m.ruin_probability for m in metrics_list]),
-            growth_rate=np.mean([m.growth_rate for m in metrics_list]),
-            volatility=np.mean([m.volatility for m in metrics_list]),
-            sharpe_ratio=np.mean([m.sharpe_ratio for m in metrics_list]),
-            max_drawdown=np.mean([m.max_drawdown for m in metrics_list]),
-            var_95=np.mean([m.var_95 for m in metrics_list]),
-            cvar_95=np.mean([m.cvar_95 for m in metrics_list]),
-            win_rate=np.mean([m.win_rate for m in metrics_list]),
-            profit_factor=np.mean([m.profit_factor for m in metrics_list]),
-            stability=np.mean([m.stability for m in metrics_list]),
+            roe=float(np.mean([m.roe for m in metrics_list])),
+            ruin_probability=float(np.mean([m.ruin_probability for m in metrics_list])),
+            growth_rate=float(np.mean([m.growth_rate for m in metrics_list])),
+            volatility=float(np.mean([m.volatility for m in metrics_list])),
+            sharpe_ratio=float(np.mean([m.sharpe_ratio for m in metrics_list])),
+            max_drawdown=float(np.mean([m.max_drawdown for m in metrics_list])),
+            var_95=float(np.mean([m.var_95 for m in metrics_list])),
+            cvar_95=float(np.mean([m.cvar_95 for m in metrics_list])),
+            win_rate=float(np.mean([m.win_rate for m in metrics_list])),
+            profit_factor=float(np.mean([m.profit_factor for m in metrics_list])),
+            stability=float(np.mean([m.stability for m in metrics_list])),
         )
 
         return avg_metrics
@@ -457,7 +523,7 @@ class WalkForwardValidator:
         }
 
         # Calculate weighted score
-        score = sum(weights[k] * components[k] for k in weights)
+        score = sum(weight * components[component] for component, weight in weights.items())
 
         return score
 
@@ -466,7 +532,7 @@ class WalkForwardValidator:
         validation_result: ValidationResult,
         output_dir: str = "./reports",
         include_visualizations: bool = True,
-    ) -> Dict[str, Path]:
+    ) -> Dict[str, Any]:
         """Generate validation reports.
 
         Args:
@@ -481,7 +547,7 @@ class WalkForwardValidator:
         output_path.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_files = {}
+        report_files: Dict[str, Any] = {}
 
         # Generate markdown summary
         md_path = output_path / f"validation_summary_{timestamp}.md"
@@ -518,29 +584,29 @@ class WalkForwardValidator:
         lines = []
         lines.append("# Walk-Forward Validation Report")
         lines.append(f"\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append(f"\n## Configuration")
+        lines.append("\n## Configuration")
         lines.append(f"- Window Size: {self.window_size} years")
         lines.append(f"- Step Size: {self.step_size} years")
         lines.append(f"- Test Ratio: {self.test_ratio:.1%}")
         lines.append(f"- Total Windows: {len(validation_result.window_results)}")
 
-        lines.append(f"\n## Strategy Rankings")
+        lines.append("\n## Strategy Rankings")
         if not validation_result.strategy_rankings.empty:
             lines.append("\n" + validation_result.strategy_rankings.to_markdown(index=False))
 
         lines.append(f"\n## Best Strategy: **{validation_result.best_strategy}**")
 
-        lines.append(f"\n## Overfitting Analysis")
+        lines.append("\n## Overfitting Analysis")
         for strategy, score in validation_result.overfitting_analysis.items():
             status = "✓ Low" if score < 0.2 else "⚠ Moderate" if score < 0.4 else "✗ High"
             lines.append(f"- {strategy}: {score:.3f} ({status})")
 
-        lines.append(f"\n## Consistency Scores")
+        lines.append("\n## Consistency Scores")
         for strategy, score in validation_result.consistency_scores.items():
             status = "✓ High" if score > 0.8 else "⚠ Moderate" if score > 0.6 else "✗ Low"
             lines.append(f"- {strategy}: {score:.3f} ({status})")
 
-        lines.append(f"\n## Performance by Window")
+        lines.append("\n## Performance by Window")
         for window_result in validation_result.window_results:
             lines.append(f"\n### {window_result.window}")
             for strategy_name, performance in window_result.strategy_performances.items():
@@ -553,7 +619,7 @@ class WalkForwardValidator:
                     deg = performance.degradation.get("roe_diff", 0)
                     lines.append(f"- Degradation: {deg:.2%}")
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
     def _generate_html_report(
@@ -669,10 +735,10 @@ class WalkForwardValidator:
         template = Template(html_template)
         html_content = template.render(**template_data)
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-    def _generate_visualizations(
+    def _generate_visualizations(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
         self, validation_result: ValidationResult, output_dir: Path
     ) -> List[Path]:
         """Generate visualization plots.
@@ -685,18 +751,44 @@ class WalkForwardValidator:
             List of generated plot files.
         """
         plot_files = []
-
-        # Set style
         sns.set_style("whitegrid")
 
-        # 1. Strategy performance across windows
+        # Generate performance plot
+        perf_plot = self._plot_performance_across_windows(validation_result, output_dir)
+        if perf_plot:
+            plot_files.append(perf_plot)
+
+        # Generate overfitting analysis plot
+        overfit_plot = self._plot_overfitting_analysis(validation_result, output_dir)
+        if overfit_plot:
+            plot_files.append(overfit_plot)
+
+        # Generate ranking heatmap
+        heatmap_plot = self._plot_strategy_ranking_heatmap(validation_result, output_dir)
+        if heatmap_plot:
+            plot_files.append(heatmap_plot)
+
+        return plot_files
+
+    def _plot_performance_across_windows(
+        self, validation_result: ValidationResult, output_dir: Path
+    ) -> Optional[Path]:
+        """Plot strategy performance across windows.
+
+        Args:
+            validation_result: Results to visualize
+            output_dir: Directory for plot
+
+        Returns:
+            Path to generated plot or None.
+        """
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
         # Collect data for plotting
         strategies = list(validation_result.window_results[0].strategy_performances.keys())
         windows = list(range(len(validation_result.window_results)))
 
-        metrics_data = {
+        metrics_data: Dict[str, Dict[str, List[float]]] = {
             "ROE": {s: [] for s in strategies},
             "Sharpe": {s: [] for s in strategies},
             "Ruin Prob": {s: [] for s in strategies},
@@ -737,52 +829,100 @@ class WalkForwardValidator:
         plot_path = output_dir / "performance_across_windows.png"
         plt.savefig(plot_path, dpi=100, bbox_inches="tight")
         plt.close()
-        plot_files.append(plot_path)
+        return plot_path
 
-        # 2. Overfitting analysis bar chart
-        if validation_result.overfitting_analysis:
-            fig, ax = plt.subplots(figsize=(10, 6))
+    def _plot_overfitting_analysis(
+        self, validation_result: ValidationResult, output_dir: Path
+    ) -> Optional[Path]:
+        """Plot overfitting analysis bar chart.
 
-            strategies = list(validation_result.overfitting_analysis.keys())
-            scores = list(validation_result.overfitting_analysis.values())
+        Args:
+            validation_result: Results to visualize
+            output_dir: Directory for plot
 
-            bars = ax.bar(strategies, scores)
+        Returns:
+            Path to generated plot or None.
+        """
+        if not validation_result.overfitting_analysis:
+            return None
 
-            # Color bars based on severity
-            for bar, score in zip(bars, scores):
-                if score < 0.2:
-                    bar.set_color("green")
-                elif score < 0.4:
-                    bar.set_color("orange")
-                else:
-                    bar.set_color("red")
+        fig, ax = plt.subplots(figsize=(10, 6))
 
-            ax.set_title("Overfitting Scores by Strategy")
-            ax.set_xlabel("Strategy")
-            ax.set_ylabel("Overfitting Score")
-            ax.axhline(y=0.2, color="orange", linestyle="--", alpha=0.5, label="Moderate threshold")
-            ax.axhline(y=0.4, color="red", linestyle="--", alpha=0.5, label="High threshold")
-            ax.legend()
+        strategies = list(validation_result.overfitting_analysis.keys())
+        scores = list(validation_result.overfitting_analysis.values())
 
-            plt.tight_layout()
-            plot_path = output_dir / "overfitting_analysis.png"
-            plt.savefig(plot_path, dpi=100, bbox_inches="tight")
-            plt.close()
-            plot_files.append(plot_path)
+        bars = ax.bar(strategies, scores)
 
-        # 3. Strategy ranking heatmap
-        if not validation_result.strategy_rankings.empty:
-            fig, ax = plt.subplots(figsize=(10, 6))
+        # Color bars based on severity
+        for bar_element, score in zip(bars, scores):  # Renamed 'bar' to 'bar_element'
+            if score < 0.2:
+                bar_element.set_color("green")
+            elif score < 0.4:
+                bar_element.set_color("orange")
+            else:
+                bar_element.set_color("red")
 
-            # Prepare data for heatmap
-            ranking_cols = ["avg_roe", "avg_sharpe", "consistency_score", "composite_score"]
-            heatmap_data = validation_result.strategy_rankings.set_index("strategy")[ranking_cols].T
+        ax.set_title("Overfitting Scores by Strategy")
+        ax.set_xlabel("Strategy")
+        ax.set_ylabel("Overfitting Score")
+        ax.axhline(y=0.2, color="orange", linestyle="--", alpha=0.5, label="Moderate threshold")
+        ax.axhline(y=0.4, color="red", linestyle="--", alpha=0.5, label="High threshold")
+        ax.legend()
 
+        plt.tight_layout()
+        plot_path = output_dir / "overfitting_analysis.png"
+        plt.savefig(plot_path, dpi=100, bbox_inches="tight")
+        plt.close()
+        return plot_path
+
+    def _plot_strategy_ranking_heatmap(
+        self, validation_result: ValidationResult, output_dir: Path
+    ) -> Optional[Path]:
+        """Plot strategy ranking heatmap.
+
+        Args:
+            validation_result: Results to visualize
+            output_dir: Directory for plot
+
+        Returns:
+            Path to generated plot or None.
+        """
+        if validation_result.strategy_rankings.empty:
+            return None
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Prepare data for heatmap - use available columns
+        possible_cols = ["avg_roe", "avg_sharpe", "consistency_score", "composite_score"]
+        available_cols = [
+            col for col in possible_cols if col in validation_result.strategy_rankings.columns
+        ]
+
+        if available_cols:
+            heatmap_data = validation_result.strategy_rankings.set_index("strategy")[
+                available_cols
+            ].T
+        else:
+            # Skip heatmap if no ranking columns available
+            heatmap_data = None
+
+        if heatmap_data is not None and not heatmap_data.empty:
             # Normalize for better visualization
-            heatmap_norm = (heatmap_data - heatmap_data.min(axis=1).values.reshape(-1, 1)) / (
-                heatmap_data.max(axis=1).values.reshape(-1, 1)
-                - heatmap_data.min(axis=1).values.reshape(-1, 1)
-            )
+            # Convert to numpy array to ensure reshape works
+            row_mins = np.asarray(heatmap_data.min(axis=1).values).reshape(-1, 1)
+            row_maxs = np.asarray(heatmap_data.max(axis=1).values).reshape(-1, 1)
+            row_ranges = row_maxs - row_mins
+
+            # Avoid division by zero for rows with no variation
+            with np.errstate(divide="ignore", invalid="ignore"):
+                heatmap_norm = np.where(
+                    row_ranges != 0,
+                    (heatmap_data - row_mins) / row_ranges,
+                    0.5,  # Use 0.5 for rows with no variation (centered value)
+                )
+
+            # Handle any remaining NaN values
+            heatmap_norm = np.nan_to_num(heatmap_norm, nan=0.5)
 
             sns.heatmap(
                 heatmap_norm,
@@ -800,9 +940,9 @@ class WalkForwardValidator:
             plot_path = output_dir / "strategy_ranking_heatmap.png"
             plt.savefig(plot_path, dpi=100, bbox_inches="tight")
             plt.close()
-            plot_files.append(plot_path)
+            return plot_path
 
-        return plot_files
+        return None
 
     def _save_results_json(self, validation_result: ValidationResult, output_path: Path):
         """Save results as JSON.
@@ -812,7 +952,7 @@ class WalkForwardValidator:
             output_path: Output file path
         """
         # Convert to serializable format
-        results_dict = {
+        results_dict: Dict[str, Any] = {
             "metadata": validation_result.metadata,
             "best_strategy": validation_result.best_strategy,
             "overfitting_analysis": validation_result.overfitting_analysis,
@@ -824,7 +964,7 @@ class WalkForwardValidator:
         }
 
         for window_result in validation_result.window_results:
-            window_dict = {
+            window_dict: Dict[str, Any] = {
                 "window_id": window_result.window.window_id,
                 "train_start": window_result.window.train_start,
                 "train_end": window_result.window.train_end,
@@ -835,8 +975,9 @@ class WalkForwardValidator:
                 "performances": {},
             }
 
+            performances_dict: Dict[str, Any] = {}
             for strategy_name, perf in window_result.strategy_performances.items():
-                window_dict["performances"][strategy_name] = {
+                performances_dict[strategy_name] = {
                     "in_sample": perf.in_sample_metrics.to_dict()
                     if perf.in_sample_metrics
                     else None,
@@ -846,7 +987,11 @@ class WalkForwardValidator:
                     "overfitting_score": perf.overfitting_score,
                 }
 
-            results_dict["windows"].append(window_dict)
+            window_dict["performances"] = performances_dict
 
-        with open(output_path, "w") as f:
+            windows_list = results_dict.get("windows")
+            if isinstance(windows_list, list):
+                windows_list.append(window_dict)
+
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results_dict, f, indent=2, default=str)

@@ -1098,6 +1098,14 @@ Update the corporate assumptions used in the simulation configurations to be sim
 
 ---
 
+Analyze existing tests and identify areas where the tests pass without really testing any code execution or conditions. Note things like stub implementations, mock output, forced positive, etc. Create a report of your findings in `simone/TEST_REVIEW_06.md`
+
+---
+
+Review the plan to remediate the quality of our automated tests as described in "TEST_REVIEW_06.md", ask any clarifying questions, then ultrathink and come up with concrete steps to remediate, then create a GitHub issue outlining the solution approach.
+
+---
+
 Please analyze my codebase and create two types of mermaid diagrams, updating existing mermaid diagrams as you go along:
 
 1. **High-Level Context Diagram**: Show the overall system architecture, including:

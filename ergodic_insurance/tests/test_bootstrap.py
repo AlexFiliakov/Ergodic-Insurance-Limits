@@ -397,7 +397,7 @@ class TestConvenienceFunctions:
 
     def test_bootstrap_ci_with_list_input(self):
         """Test bootstrap CI function with list input."""
-        data_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        data_list = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
         stat, ci = bootstrap_confidence_interval(
             data_list, statistic=np.mean, confidence_level=0.90, n_bootstrap=1000, seed=42
@@ -564,12 +564,22 @@ class TestEdgeCases:
 
     def test_empty_array(self):
         """Test handling of empty arrays."""
-        analyzer = BootstrapAnalyzer(n_bootstrap=10, show_progress=False)
+        import warnings
+
+        # Suppress warning about low n_bootstrap since it's intentional for this test
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Low n_bootstrap.*may produce unstable results"
+            )
+            analyzer = BootstrapAnalyzer(n_bootstrap=10, show_progress=False)
+
         empty_data = np.array([])
 
         # Should return NaN for empty data
-        result = analyzer.confidence_interval(empty_data, np.mean)
-        assert np.isnan(result.statistic)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            result = analyzer.confidence_interval(empty_data, np.mean)
+            assert np.isnan(result.statistic)
 
     def test_single_value_array(self):
         """Test handling of single-value arrays."""

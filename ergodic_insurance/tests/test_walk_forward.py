@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import tempfile
+from typing import List
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -154,6 +155,8 @@ class TestStrategyBacktester:
         )
         manufacturer = WidgetManufacturer(config)
 
+        # NoInsuranceStrategy intentionally returns None
+        # pylint: disable-next=assignment-from-none
         program = strategy.get_insurance_program(manufacturer)
         assert program is None
         assert strategy.name == "No Insurance"
@@ -263,9 +266,9 @@ class TestStrategyBacktester:
             retention_ratio=0.7,
         )
         manufacturer = WidgetManufacturer(config)
-        config = SimulationConfig(n_simulations=100, n_years=5)
+        sim_config = SimulationConfig(n_simulations=100, n_years=5)
 
-        result = backtester.test_strategy(strategy, manufacturer, config)
+        result = backtester.test_strategy(strategy, manufacturer, sim_config)
 
         assert isinstance(result, BacktestResult)
         assert result.strategy_name == "No Insurance"
@@ -299,9 +302,9 @@ class TestStrategyBacktester:
             retention_ratio=0.7,
         )
         manufacturer = WidgetManufacturer(config)
-        config = SimulationConfig(n_simulations=100, n_years=5)
+        sim_config = SimulationConfig(n_simulations=100, n_years=5)
 
-        results_df = backtester.test_multiple_strategies(strategies, manufacturer, config)
+        results_df = backtester.test_multiple_strategies(strategies, manufacturer, sim_config)
 
         assert isinstance(results_df, pd.DataFrame)
         assert len(results_df) == 3
@@ -369,23 +372,49 @@ class TestWalkForwardValidator:
 
         validator = WalkForwardValidator()
         window = ValidationWindow(0, 0, 2, 2, 3)
-        strategies = [NoInsuranceStrategy()]
-        config = ManufacturerConfig(
+        strategies: List[InsuranceStrategy] = [NoInsuranceStrategy()]
+        mfg_config = ManufacturerConfig(
             initial_assets=10000000,
             asset_turnover_ratio=1.0,
             operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
-        manufacturer = WidgetManufacturer(config)
-        # Config not needed - _process_window will handle defaults
+        manufacturer = WidgetManufacturer(mfg_config)
+        # Create full config since None is not allowed
+        from ergodic_insurance.src.config import (  # pylint: disable=reimported
+            Config,
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            OutputConfig,
+        )
+        from ergodic_insurance.src.config import SimulationConfig as SimConfig
+        from ergodic_insurance.src.config import WorkingCapitalConfig  # pylint: disable=reimported
+
+        full_config = Config(
+            manufacturer=mfg_config,
+            working_capital=WorkingCapitalConfig(percent_of_sales=0.15),
+            growth=GrowthConfig(type="deterministic", annual_growth_rate=0.05, volatility=0.15),
+            debt=DebtConfig(
+                interest_rate=0.05, max_leverage_ratio=2.0, minimum_cash_balance=100000
+            ),
+            simulation=SimConfig(time_resolution="annual", time_horizon_years=10),
+            output=OutputConfig(
+                output_directory="./results",
+                file_format="csv",
+                checkpoint_frequency=0,
+                detailed_metrics=True,
+            ),
+            logging=LoggingConfig(enabled=True, level="INFO", log_file=None),
+        )
 
         result = validator._process_window(
             window=window,
             strategies=strategies,
             n_simulations=100,
             manufacturer=manufacturer,
-            config=None,
+            config=full_config,
         )
 
         assert isinstance(result, WindowResult)
@@ -453,7 +482,12 @@ class TestWalkForwardValidator:
             window_results.append(window_result)
 
         validation_result = ValidationResult(window_results=window_results)
-        strategies = [Mock(name="Strategy1"), Mock(name="Strategy2")]
+        # Create proper strategy objects
+        strategy1 = Mock(spec=InsuranceStrategy)
+        strategy1.name = "Strategy1"
+        strategy2 = Mock(spec=InsuranceStrategy)
+        strategy2.name = "Strategy2"
+        strategies: List[InsuranceStrategy] = [strategy1, strategy2]
 
         validator._analyze_results(validation_result, strategies)
 
@@ -554,7 +588,7 @@ class TestWalkForwardValidator:
             md_path = Path(temp_dir) / "test_report.md"
             validator._generate_markdown_report(validation_result, md_path)
 
-            content = md_path.read_text()
+            content = md_path.read_text(encoding="utf-8")
             assert "Walk-Forward Validation Report" in content
             assert "BestStrategy" in content
             assert "✓ Low" in content  # For low overfitting
