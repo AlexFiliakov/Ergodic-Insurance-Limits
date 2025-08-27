@@ -4,30 +4,95 @@ API Reference
 This section provides detailed documentation for all modules, classes, and functions
 in the Ergodic Insurance Limits package.
 
-Core Modules
-------------
+Configuration System
+--------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   config_manager
+   config_v2
+   config_migrator
+   config_compat
+   config
+   config_loader
+
+Financial Models
+----------------
 
 .. toctree::
    :maxdepth: 2
 
    manufacturer
-   config
-   config_loader
    claim_generator
    claim_development
    stochastic_processes
-   simulation
+
+Insurance & Risk
+----------------
+
+.. toctree::
+   :maxdepth: 2
+
    insurance
    insurance_program
    loss_distributions
+   risk_metrics
+   ruin_probability
+
+Simulation & Analysis
+--------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   simulation
    monte_carlo
    ergodic_analyzer
-   risk_metrics
    convergence
-   decision_engine
-   business_optimizer
+
+Optimization & Control
+---------------------
+
+.. toctree::
+   :maxdepth: 2
+
    optimization
+   business_optimizer
+   decision_engine
    pareto_frontier
+   hjb_solver
+   optimal_control
+
+Parallel Processing
+------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   parallel_executor
+   trajectory_storage
+   progress_monitor
+   batch_processor
+   scenario_manager
+
+Statistical Analysis
+-------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   result_aggregator
+   summary_statistics
+   bootstrap_analysis
+   statistical_tests
+
+Visualization
+-------------
+
+.. toctree::
+   :maxdepth: 2
+
    visualization
 
 Complete Package

@@ -187,13 +187,16 @@ See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete dire
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (27 modules)
+│   ├── src/                    # Core source code (36 modules)
 │   │   ├── config_*.py        # Configuration system v2.0
 │   │   ├── manufacturer.py     # Core financial model
 │   │   ├── insurance_*.py     # Insurance modules
 │   │   ├── monte_carlo.py     # Enhanced Monte Carlo engine
 │   │   ├── parallel_executor.py # CPU-optimized parallel execution
 │   │   ├── *_optimizer.py     # Optimization algorithms
+│   │   ├── statistical_*.py   # Statistical analysis
+│   │   ├── trajectory_*.py    # Memory-efficient storage
+│   │   ├── batch_*.py         # Batch processing
 │   │   └── visualization.py   # Plotting utilities
 │   ├── tests/                  # Test suite (100% coverage, 30+ test files)
 │   ├── notebooks/              # Jupyter notebooks (14 analysis notebooks)

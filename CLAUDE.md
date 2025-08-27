@@ -17,12 +17,12 @@ For the complete, detailed directory structure, see [docs/PROJECT_STRUCTURE.md](
 ```
 Ergodic Insurance Limits/
 ├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (26 modules)
+│   ├── src/                    # Core source code (36 modules)
 │   │   ├── # Configuration System v2.0
-│   │   ├── config_manager.py   # NEW: 3-tier configuration manager
-│   │   ├── config_v2.py        # NEW: Enhanced Pydantic v2 models
-│   │   ├── config_migrator.py  # NEW: Migration tool
-│   │   ├── config_compat.py    # NEW: Backward compatibility
+│   │   ├── config_manager.py   # 3-tier configuration manager
+│   │   ├── config_v2.py        # Enhanced Pydantic v2 models
+│   │   ├── config_migrator.py  # Migration tool
+│   │   ├── config_compat.py    # Backward compatibility
 │   │   ├── config.py           # Legacy configuration (deprecated)
 │   │   ├── config_loader.py    # Legacy loader (deprecated)
 │   │   │
@@ -37,6 +37,7 @@ Ergodic Insurance Limits/
 │   │   ├── insurance_program.py # Multi-layer programs
 │   │   ├── loss_distributions.py # Loss modeling
 │   │   ├── risk_metrics.py     # VaR, CVaR, etc.
+│   │   ├── ruin_probability.py # Ruin probability calculations
 │   │   │
 │   │   ├── # Simulation & Analysis
 │   │   ├── simulation.py       # Main engine
@@ -44,17 +45,30 @@ Ergodic Insurance Limits/
 │   │   ├── ergodic_analyzer.py # Ergodic theory
 │   │   ├── convergence.py      # Convergence tools
 │   │   │
-│   │   ├── # Optimization
+│   │   ├── # Optimization & Control
 │   │   ├── optimization.py     # Algorithms
 │   │   ├── business_optimizer.py # Business optimization
 │   │   ├── decision_engine.py  # Decision framework
 │   │   ├── pareto_frontier.py  # Multi-objective
-│   │   ├── hjb_solver.py       # NEW: HJB equations
-│   │   ├── optimal_control.py  # NEW: Control theory
+│   │   ├── hjb_solver.py       # HJB equations
+│   │   ├── optimal_control.py  # Control theory
+│   │   │
+│   │   ├── # Enhanced Parallel Processing (v2.0)
+│   │   ├── parallel_executor.py # CPU-optimized execution
+│   │   ├── trajectory_storage.py # Memory-efficient storage
+│   │   ├── progress_monitor.py # Progress tracking
+│   │   ├── batch_processor.py  # Batch processing
+│   │   ├── scenario_manager.py # Scenario management
+│   │   │
+│   │   ├── # Statistical Analysis
+│   │   ├── result_aggregator.py # Result aggregation
+│   │   ├── summary_statistics.py # Statistical summaries
+│   │   ├── bootstrap_analysis.py # Bootstrap methods
+│   │   ├── statistical_tests.py # Hypothesis testing
 │   │   │
 │   │   └── visualization.py    # Plotting utilities
 │   ├── tests/                  # Test suite (100% coverage, 30+ test files)
-│   │   ├── Unit tests for all 26 source modules
+│   │   ├── Unit tests for all 36 source modules
 │   │   ├── Integration tests (test_integration.py)
 │   │   ├── Performance tests (test_performance.py)
 │   │   └── NEW: Config v2 tests (test_config_*.py)
