@@ -339,6 +339,39 @@ class TestLegacyConfigAdapter:
             assert result.manufacturer.initial_assets == 15_000_000
             assert result.simulation.time_horizon_years == 75
 
+    def test_load_with_dict_overrides_merging(self, legacy_adapter, sample_config_dict):
+        """Test that dictionary overrides merge instead of replace."""
+        # Create a mock ConfigV2 with proper structure
+        from ergodic_insurance.src.config_v2 import ProfileMetadata
+
+        # Build a proper ConfigV2 object from sample config
+        config_data = sample_config_dict.copy()
+        config_data["profile"] = ProfileMetadata(name="test", description="Test configuration")
+        mock_config_v2 = ConfigV2(**config_data)
+
+        with patch.object(legacy_adapter.config_manager, "load_profile") as mock_load:
+            # Return our properly structured config
+            mock_load.return_value = mock_config_v2
+
+            # Test with dictionary override
+            result = legacy_adapter.load(
+                "baseline",
+                override_params={"manufacturer": {"operating_margin": 0.12}},
+            )
+
+            # Verify the flatten_dict was used to handle nested params
+            # The override should be flattened to manufacturer__operating_margin
+            call_args = mock_load.call_args
+            assert call_args is not None
+            assert call_args[0][0] == "default"  # mapped profile name
+            # Check that the override was properly flattened
+            assert "manufacturer__operating_margin" in call_args[1]
+            assert call_args[1]["manufacturer__operating_margin"] == 0.12
+
+            # Verify the result is a proper Config object
+            assert isinstance(result, Config)
+            assert result.manufacturer.initial_assets == 10_000_000
+
     def test_load_legacy_direct_file_not_found(self, legacy_adapter):
         """Test legacy loading when file doesn't exist."""
         # Test with a file name that definitely doesn't exist

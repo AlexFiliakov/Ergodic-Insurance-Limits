@@ -12,15 +12,40 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 import yaml
 
 # Import existing config models that we'll extend
-from ergodic_insurance.src.config import (
-    DebtConfig,
-    GrowthConfig,
-    LoggingConfig,
-    ManufacturerConfig,
-    OutputConfig,
-    SimulationConfig,
-    WorkingCapitalConfig,
-)
+try:
+    # Try absolute import first (for installed package)
+    from ergodic_insurance.src.config import (
+        DebtConfig,
+        GrowthConfig,
+        LoggingConfig,
+        ManufacturerConfig,
+        OutputConfig,
+        SimulationConfig,
+        WorkingCapitalConfig,
+    )
+except ImportError:
+    try:
+        # Try relative import (for package context)
+        from .config import (
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            ManufacturerConfig,
+            OutputConfig,
+            SimulationConfig,
+            WorkingCapitalConfig,
+        )
+    except ImportError:
+        # Fall back to direct import (for notebooks/scripts)
+        from config import (  # type: ignore[no-redef]
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            ManufacturerConfig,
+            OutputConfig,
+            SimulationConfig,
+            WorkingCapitalConfig,
+        )
 
 
 class ProfileMetadata(BaseModel):
@@ -407,7 +432,12 @@ class ConfigV2(BaseModel):
                     current = current[part]
                 current[parts[-1]] = value
             else:
-                data[key] = value
+                # For nested objects, merge instead of replace
+                if isinstance(value, dict) and key in data and isinstance(data[key], dict):
+                    # Merge dictionaries recursively
+                    data[key] = {**data[key], **value}
+                else:
+                    data[key] = value
 
         # Track overrides
         data["overrides"] = kwargs

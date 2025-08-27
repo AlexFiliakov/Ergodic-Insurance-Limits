@@ -48,8 +48,19 @@ from dataclasses import dataclass, field
 import logging
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-from .config import ManufacturerConfig
-from .stochastic_processes import StochasticProcess
+try:
+    # Try absolute import first (for installed package)
+    from ergodic_insurance.src.config import ManufacturerConfig
+    from ergodic_insurance.src.stochastic_processes import StochasticProcess
+except ImportError:
+    try:
+        # Try relative import (for package context)
+        from .config import ManufacturerConfig
+        from .stochastic_processes import StochasticProcess
+    except ImportError:
+        # Fall back to direct import (for notebooks/scripts)
+        from config import ManufacturerConfig  # type: ignore[no-redef]
+        from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
 
 # Optional import for claim development integration
 if TYPE_CHECKING:

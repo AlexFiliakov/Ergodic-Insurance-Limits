@@ -1,25 +1,24 @@
 stable:
-  manufacturer:
-    revenue_volatility: 0.1
-    cost_volatility: 0.08
+  growth:
+    type: deterministic
+    volatility: 0.1
   simulation:
-    stochastic_revenue: false
+    n_years: 10
 volatile:
-  manufacturer:
-    revenue_volatility: 0.25
-    cost_volatility: 0.2
+  growth:
+    type: stochastic
+    volatility: 0.25
   simulation:
-    stochastic_revenue: true
-    stochastic_costs: true
+    n_years: 10
 growth:
   manufacturer:
-    revenue_growth: 0.15
-    market_expansion: 0.1
+    operating_margin: 0.12
   growth:
     annual_growth_rate: 0.12
+    type: deterministic
 recession:
   manufacturer:
-    revenue_growth: -0.05
-    cost_inflation: 0.08
+    operating_margin: 0.05
   growth:
     annual_growth_rate: -0.02
+    type: deterministic

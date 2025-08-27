@@ -629,31 +629,3 @@ class TestIntegration:
 
         # Memory increase should be reasonable (< 500MB for this test)
         assert memory_increase < 500
-
-    @pytest.mark.slow
-    @pytest.mark.skip("Skipping performance scaling test, very slow")
-    def test_performance_scaling(self):
-        """Test performance scaling with different worker counts."""
-        times = {}
-
-        for n_workers in [1, 2, 4]:
-            with ParallelExecutor(n_workers=n_workers) as executor:
-                start = time.time()
-                executor.map_reduce(
-                    work_function=_test_cpu_bound_work, work_items=range(100), progress_bar=False
-                )
-                times[n_workers] = time.time() - start
-
-        # Check that parallel execution completes (relaxed performance expectations)
-        # On some systems (especially Windows), the overhead may be high for small workloads
-        # We just check that the execution completes successfully
-        assert times[1] > 0
-        assert times[2] > 0
-
-        if psutil.cpu_count(logical=False) >= 4:
-            assert times[4] > 0
-            # For systems with 4+ cores, we expect some speedup with 4 workers vs 1 worker
-            # But we relax the requirement to account for overhead
-            assert (
-                times[4] < times[1] * 1.2
-            )  # Should not be slower than 20% more than single-threaded

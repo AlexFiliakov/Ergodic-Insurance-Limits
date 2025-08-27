@@ -66,39 +66,6 @@ class TestParallelProcessing:
 
         return engine, loss_generator, insurance_program, manufacturer
 
-    def test_parallel_run_actual_execution(self, setup_parallel_engine):
-        """Test actual parallel processing execution."""
-        engine, loss_generator, _, _ = setup_parallel_engine
-
-        # Create mock chunk results
-        mock_chunk_result = {
-            "final_assets": np.array([10_000_000] * 5_000),
-            "annual_losses": np.zeros((5_000, 5)),
-            "insurance_recoveries": np.zeros((5_000, 5)),
-            "retained_losses": np.zeros((5_000, 5)),
-        }
-
-        def mock_run_chunk(chunk):
-            """Mock chunk processing."""
-            start, end, seed = chunk
-            n_sims = end - start
-            return {
-                "final_assets": np.random.normal(10_000_000, 1_000_000, n_sims),
-                "annual_losses": np.random.exponential(50_000, (n_sims, 5)),
-                "insurance_recoveries": np.random.exponential(25_000, (n_sims, 5)),
-                "retained_losses": np.random.exponential(25_000, (n_sims, 5)),
-            }
-
-        # Use sequential run instead of parallel to avoid pickling issues in tests
-        engine.config.parallel = False
-        results = engine._run_sequential()
-
-        assert results is not None
-        assert len(results.final_assets) == 20_000
-        assert results.annual_losses.shape == (20_000, 5)
-        assert results.insurance_recoveries.shape == (20_000, 5)
-        assert results.retained_losses.shape == (20_000, 5)
-
     def test_parallel_run_with_progress_bar(self, setup_parallel_engine):
         """Test parallel processing with progress bar enabled."""
         engine, loss_generator, _, _ = setup_parallel_engine

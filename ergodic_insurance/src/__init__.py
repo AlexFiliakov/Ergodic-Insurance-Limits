@@ -47,6 +47,9 @@ __all__ = [
     "BenchmarkResult",
     "BenchmarkMetrics",
     "SystemProfiler",
+    "StyleManager",
+    "Theme",
+    "FigureFactory",
 ]
 
 
@@ -174,6 +177,14 @@ def __getattr__(name):
             BenchmarkResult,
             BenchmarkSuite,
             SystemProfiler,
+        )
+
+        return locals()[name]
+    if name in ("StyleManager", "Theme", "FigureFactory"):
+        from .visualization import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            FigureFactory,
+            StyleManager,
+            Theme,
         )
 
         return locals()[name]

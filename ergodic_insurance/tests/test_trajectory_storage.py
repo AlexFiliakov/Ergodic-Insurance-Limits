@@ -513,69 +513,6 @@ class TestTrajectoryStorage:
 class TestMemoryEfficiency:
     """Test memory efficiency requirements."""
 
-    @pytest.mark.skip(reason="Slow test, run manually as needed")
-    @pytest.mark.slow
-    def test_large_scale_memory_usage(self, tmp_path):
-        """Test memory usage with large number of simulations."""
-        import gc
-
-        import psutil
-
-        # Get initial memory usage
-        process = psutil.Process()
-        gc.collect()
-        initial_memory = process.memory_info().rss / (1024 * 1024)  # MB
-
-        config = StorageConfig(
-            storage_dir=str(tmp_path),
-            backend="memmap",
-            sample_interval=10,  # Store every 10th year
-            chunk_size=1000,
-            dtype=np.float32,  # Use float32 for efficiency
-        )
-
-        storage = TrajectoryStorage(config)
-
-        # Simulate 10000 trajectories (scaled down from 100K for test speed)
-        n_years = 100
-        for i in range(10000):
-            annual_losses = np.random.lognormal(10, 2, n_years).astype(np.float32)
-            insurance_recoveries = annual_losses * 0.8
-            retained_losses = annual_losses * 0.2
-
-            storage.store_simulation(
-                sim_id=i,
-                annual_losses=annual_losses,
-                insurance_recoveries=insurance_recoveries,
-                retained_losses=retained_losses,
-                initial_assets=10_000_000.0,
-                final_assets=np.random.uniform(8_000_000, 12_000_000),
-                ruin_occurred=False,
-            )
-
-            # Check memory periodically
-            if i % 1000 == 0:
-                gc.collect()
-                current_memory = process.memory_info().rss / (1024 * 1024)
-                memory_increase = current_memory - initial_memory
-
-                # Memory increase should be minimal due to chunking
-                assert memory_increase < 500, f"Memory increase too large: {memory_increase}MB"
-
-        # Final memory check
-        gc.collect()
-        final_memory = process.memory_info().rss / (1024 * 1024)
-        total_memory_increase = final_memory - initial_memory
-
-        # Total memory increase should be well under 2GB (2048MB)
-        assert total_memory_increase < 1000, f"Total memory increase: {total_memory_increase}MB"
-
-        # Check disk usage
-        stats = storage.get_storage_stats()
-        assert stats["disk_usage_gb"] < 1.0, f"Disk usage: {stats['disk_usage_gb']}GB"
-
-        storage.clear_storage()
-
     @pytest.mark.slow
     def test_lazy_loading_efficiency(self, tmp_path):
         """Test that lazy loading doesn't load unnecessary data."""

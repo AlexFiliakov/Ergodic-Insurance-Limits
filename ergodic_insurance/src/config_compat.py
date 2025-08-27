@@ -10,9 +10,22 @@ import warnings
 
 import yaml
 
-from ergodic_insurance.src.config import Config
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_v2 import ConfigV2
+try:
+    # Try absolute import first (for installed package)
+    from ergodic_insurance.src.config import Config
+    from ergodic_insurance.src.config_manager import ConfigManager
+    from ergodic_insurance.src.config_v2 import ConfigV2
+except ImportError:
+    try:
+        # Try relative import (for package context)
+        from .config import Config
+        from .config_manager import ConfigManager
+        from .config_v2 import ConfigV2
+    except ImportError:
+        # Fall back to direct import (for notebooks/scripts)
+        from config import Config  # type: ignore[no-redef]
+        from config_manager import ConfigManager  # type: ignore[no-redef]
+        from config_v2 import ConfigV2  # type: ignore[no-redef]
 
 
 class LegacyConfigAdapter:
@@ -103,15 +116,43 @@ class LegacyConfigAdapter:
             Legacy format Config object.
         """
         # Extract the sections needed for legacy Config
-        from ergodic_insurance.src.config import (
-            DebtConfig,
-            GrowthConfig,
-            LoggingConfig,
-            ManufacturerConfig,
-            OutputConfig,
-            SimulationConfig,
-            WorkingCapitalConfig,
-        )
+        try:
+            # Try absolute import first (for installed package)
+            from ergodic_insurance.src.config import (
+                Config,
+                DebtConfig,
+                GrowthConfig,
+                LoggingConfig,
+                ManufacturerConfig,
+                OutputConfig,
+                SimulationConfig,
+                WorkingCapitalConfig,
+            )
+        except ImportError:
+            try:
+                # Try relative import (for package context)
+                from .config import (
+                    Config,
+                    DebtConfig,
+                    GrowthConfig,
+                    LoggingConfig,
+                    ManufacturerConfig,
+                    OutputConfig,
+                    SimulationConfig,
+                    WorkingCapitalConfig,
+                )
+            except ImportError:
+                # Fall back to direct import (for notebooks/scripts)
+                from config import (  # type: ignore
+                    Config,
+                    DebtConfig,
+                    GrowthConfig,
+                    LoggingConfig,
+                    ManufacturerConfig,
+                    OutputConfig,
+                    SimulationConfig,
+                    WorkingCapitalConfig,
+                )
 
         return Config(
             manufacturer=ManufacturerConfig(**config_v2.manufacturer.model_dump()),
