@@ -1609,3 +1609,658 @@ Survivor Bias Factor:
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
     return fig
+
+
+def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    data: Dict[str, np.ndarray],
+    correlation_type: str = "pearson",
+    risk_types: Optional[List[str]] = None,
+    title: str = "Risk Correlation Structure",
+    figsize: Tuple[float, float] = (14, 10),
+    show_copula: bool = True,
+) -> Figure:
+    """Create correlation structure visualization with copula analysis (Figure B2).
+
+    Visualizes correlation matrices, copula density plots, and scatter plots with
+    fitted copulas to show dependencies between different risk types.
+
+    Args:
+        data: Dictionary mapping risk type names to data arrays (n_samples, n_variables)
+        correlation_type: Type of correlation ('pearson', 'spearman', 'kendall')
+        risk_types: List of risk types to analyze (defaults to all in data)
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_copula: Whether to show copula density plots
+
+    Returns:
+        Matplotlib figure with correlation structure visualization
+
+    Examples:
+        >>> data = {
+        ...     "operational": np.random.randn(1000, 3),
+        ...     "financial": np.random.randn(1000, 3)
+        ... }
+        >>> fig = plot_correlation_structure(data)
+    """
+    from scipy import stats as scipy_stats
+    from scipy.stats import gaussian_kde
+    import seaborn as sns
+
+    set_wsj_style()
+
+    # Determine risk types to plot
+    if risk_types is None:
+        risk_types = list(data.keys())
+
+    # Create figure with subplots
+    n_risk_types = len(risk_types)
+    fig = plt.figure(figsize=figsize)
+
+    if n_risk_types == 1:
+        # Single risk type: 2x2 layout
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+    else:
+        # Multiple risk types: dynamic layout
+        gs = fig.add_gridspec(2, n_risk_types, hspace=0.3, wspace=0.3)
+
+    # Plot correlation matrix heatmap
+    for idx, risk_type in enumerate(risk_types):
+        if risk_type not in data:
+            continue
+
+        risk_data = data[risk_type]
+
+        # Calculate correlation matrix
+        if correlation_type == "pearson":
+            corr_matrix = np.corrcoef(risk_data.T)
+        elif correlation_type == "spearman":
+            from scipy.stats import spearmanr
+
+            corr_matrix, _ = spearmanr(risk_data)
+            if risk_data.shape[1] == 1:
+                corr_matrix = np.array([[1.0]])
+            else:
+                corr_matrix = np.array(corr_matrix)
+        elif correlation_type == "kendall":
+            from scipy.stats import kendalltau
+
+            n_vars = risk_data.shape[1]
+            corr_matrix = np.ones((n_vars, n_vars))
+            for i in range(n_vars):
+                for j in range(i + 1, n_vars):
+                    tau, _ = kendalltau(risk_data[:, i], risk_data[:, j])
+                    corr_matrix[i, j] = tau
+                    corr_matrix[j, i] = tau
+        else:
+            raise ValueError(f"Unknown correlation type: {correlation_type}")
+
+        # Create correlation heatmap
+        if n_risk_types == 1:
+            ax_corr = fig.add_subplot(gs[0, 0])
+        else:
+            ax_corr = fig.add_subplot(gs[0, idx])
+
+        # Use seaborn heatmap
+        mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
+        sns.heatmap(
+            corr_matrix,
+            mask=mask,
+            annot=True,
+            fmt=".2f",
+            cmap="coolwarm",
+            center=0,
+            vmin=-1,
+            vmax=1,
+            square=True,
+            ax=ax_corr,
+            cbar_kws={"shrink": 0.8},
+        )
+        ax_corr.set_title(f"{risk_type.title()} Correlations", fontsize=12, fontweight="bold")
+
+        # Create scatter plot with copula if we have at least 2 variables
+        if risk_data.shape[1] >= 2 and show_copula:
+            if n_risk_types == 1:
+                ax_scatter = fig.add_subplot(gs[0, 1])
+            else:
+                ax_scatter = fig.add_subplot(gs[1, idx])
+
+            # Use first two variables for scatter plot
+            x_data = risk_data[:, 0]
+            y_data = risk_data[:, 1]
+
+            # Transform to uniform marginals for copula
+            x_uniform = scipy_stats.rankdata(x_data) / (len(x_data) + 1)
+            y_uniform = scipy_stats.rankdata(y_data) / (len(y_data) + 1)
+
+            # Create scatter plot
+            ax_scatter.scatter(x_uniform, y_uniform, alpha=0.3, s=10, color=WSJ_COLORS["blue"])
+
+            # Fit and plot copula density contours
+            try:
+                kde = gaussian_kde(np.vstack([x_uniform, y_uniform]))
+                xi, yi = np.mgrid[0:1:complex(0, 50), 0:1:complex(0, 50)]
+                zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
+                ax_scatter.contour(xi, yi, zi, colors=WSJ_COLORS["red"], alpha=0.5, linewidths=1)
+            except (ValueError, np.linalg.LinAlgError):
+                # If KDE fails, skip contours
+                pass
+
+            ax_scatter.set_xlabel("U1 (Uniform)", fontsize=10)
+            ax_scatter.set_ylabel("U2 (Uniform)", fontsize=10)
+            ax_scatter.set_title(f"{risk_type.title()} Copula", fontsize=12, fontweight="bold")
+            ax_scatter.grid(True, alpha=0.3)
+
+    # Add copula density plot if single risk type and enough variables
+    if n_risk_types == 1 and show_copula:
+        risk_data = data[risk_types[0]]
+        if risk_data.shape[1] >= 2:
+            # Create 2D copula density plot
+            ax_density = fig.add_subplot(gs[1, 0])
+
+            x_data = risk_data[:, 0]
+            y_data = risk_data[:, 1]
+
+            # Transform to normal scores for Gaussian copula
+            from scipy.stats import norm
+
+            x_normal = norm.ppf(scipy_stats.rankdata(x_data) / (len(x_data) + 1))
+            y_normal = norm.ppf(scipy_stats.rankdata(y_data) / (len(y_data) + 1))
+
+            # Create density plot
+            try:
+                kde = gaussian_kde(np.vstack([x_normal, y_normal]))
+                xi, yi = np.mgrid[-3:3:complex(0, 100), -3:3:complex(0, 100)]
+                zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
+                im = ax_density.contourf(xi, yi, zi, levels=15, cmap="viridis", alpha=0.7)
+                fig.colorbar(im, ax=ax_density, label="Density")
+            except (ValueError, np.linalg.LinAlgError):
+                # If KDE fails, show scatter instead
+                ax_density.scatter(x_normal, y_normal, alpha=0.3, s=10)
+
+            ax_density.set_xlabel("Normal Score 1", fontsize=10)
+            ax_density.set_ylabel("Normal Score 2", fontsize=10)
+            ax_density.set_title("Gaussian Copula Density", fontsize=12, fontweight="bold")
+            ax_density.grid(True, alpha=0.3)
+
+            # Add tail dependence coefficient
+            ax_info = fig.add_subplot(gs[1, 1])
+            ax_info.axis("off")
+
+            # Calculate empirical tail dependence
+            threshold = 0.95
+            upper_tail = np.sum((x_uniform > threshold) & (y_uniform > threshold)) / np.sum(
+                x_uniform > threshold
+            )
+            lower_tail = np.sum(
+                (x_uniform < (1 - threshold)) & (y_uniform < (1 - threshold))
+            ) / np.sum(x_uniform < (1 - threshold))
+
+            info_text = f"""
+Dependence Measures:
+• {correlation_type.title()}: {corr_matrix[0, 1]:.3f}
+• Upper Tail: {upper_tail:.3f}
+• Lower Tail: {lower_tail:.3f}
+
+Sample Size: {len(x_data):,}
+Variables: {risk_data.shape[1]}
+"""
+            ax_info.text(
+                0.1,
+                0.9,
+                info_text,
+                transform=ax_info.transAxes,
+                fontsize=11,
+                verticalalignment="top",
+                bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
+            )
+
+    plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    return fig
+
+
+def plot_premium_decomposition(  # pylint: disable=too-many-locals
+    premium_components: Dict[str, Dict[str, Dict[str, float]]],
+    company_sizes: Optional[List[str]] = None,
+    layers: Optional[List[str]] = None,
+    title: str = "Premium Loading Decomposition",
+    figsize: Tuple[float, float] = (14, 8),
+    show_percentages: bool = True,
+    color_scheme: Optional[Dict[str, str]] = None,
+) -> Figure:
+    """Create premium loading decomposition visualization (Figure C4).
+
+    Shows stacked bar charts breaking down insurance premium into components:
+    expected loss (base), volatility load, tail load, expense load, and profit margin.
+
+    Args:
+        premium_components: Nested dict with structure:
+                           {company_size: {layer: {component: value}}}
+                           Components: 'expected_loss', 'volatility_load', 'tail_load',
+                                     'expense_load', 'profit_margin'
+        company_sizes: List of company sizes to show (defaults to all)
+        layers: List of insurance layers to show (defaults to all)
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_percentages: Whether to show percentage labels on segments
+        color_scheme: Dict mapping component names to colors
+
+    Returns:
+        Matplotlib figure with premium decomposition
+
+    Examples:
+        >>> components = {
+        ...     "Small": {
+        ...         "Primary": {"expected_loss": 100, "volatility_load": 20,
+        ...                    "tail_load": 15, "expense_load": 10, "profit_margin": 5}
+        ...     }
+        ... }
+        >>> fig = plot_premium_decomposition(components)
+    """
+    set_wsj_style()
+
+    # Default color scheme
+    if color_scheme is None:
+        color_scheme = {
+            "expected_loss": WSJ_COLORS["blue"],
+            "volatility_load": WSJ_COLORS["orange"],
+            "tail_load": WSJ_COLORS["red"],
+            "expense_load": WSJ_COLORS["green"],
+            "profit_margin": WSJ_COLORS["purple"],
+        }
+
+    # Get company sizes and layers
+    if company_sizes is None:
+        company_sizes = list(premium_components.keys())
+    if layers is None:
+        # Get all unique layers across all company sizes
+        all_layers: set[str] = set()
+        for comp_data in premium_components.values():
+            all_layers.update(comp_data.keys())
+        layers = sorted(list(all_layers))
+
+    # Prepare data for plotting
+    n_groups = len(company_sizes) * len(layers)
+    group_labels = []
+    component_names = [
+        "expected_loss",
+        "volatility_load",
+        "tail_load",
+        "expense_load",
+        "profit_margin",
+    ]
+    component_data: Dict[str, List[float]] = {comp: [] for comp in component_names}
+
+    for company_size in company_sizes:
+        if company_size not in premium_components:
+            continue
+        for layer in layers:
+            group_labels.append(f"{company_size}\n{layer}")
+            if layer in premium_components[company_size]:
+                layer_data = premium_components[company_size][layer]
+                for comp in component_names:
+                    component_data[comp].append(layer_data.get(comp, 0))
+            else:
+                # No data for this combination
+                for comp in component_names:
+                    component_data[comp].append(0)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Create stacked bar chart
+    x = np.arange(len(group_labels))
+    width = 0.6
+    bottom = np.zeros(len(group_labels))
+
+    bars = {}
+    for component in component_names:
+        values = np.array(component_data[component])
+        bars[component] = ax.bar(
+            x,
+            values,
+            width,
+            bottom=bottom,
+            label=component.replace("_", " ").title(),
+            color=color_scheme.get(component, "gray"),
+            alpha=0.8,
+        )
+        bottom += values
+
+    # Add percentage labels if requested
+    if show_percentages:
+        for i in range(len(group_labels)):
+            total = sum(component_data[comp][i] for comp in component_names)
+            if total > 0:
+                cumulative = 0
+                for component in component_names:
+                    value = component_data[component][i]
+                    if value > 0:
+                        percentage = (value / total) * 100
+                        if percentage >= 5:  # Only show label if segment is large enough
+                            y_pos = cumulative + value / 2
+                            ax.text(
+                                i,
+                                y_pos,
+                                f"{percentage:.1f}%",
+                                ha="center",
+                                va="center",
+                                color="white",
+                                fontweight="bold",
+                                fontsize=9,
+                            )
+                    cumulative += value
+
+    # Add total premium values on top of bars
+    for i, (label, total_height) in enumerate(zip(group_labels, bottom)):
+        if total_height > 0:
+            ax.text(
+                i,
+                total_height + total_height * 0.01,
+                f"${total_height:.0f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontweight="bold",
+            )
+
+    # Formatting
+    ax.set_xlabel("Company Size / Layer", fontsize=12)
+    ax.set_ylabel("Premium Amount ($)", fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(group_labels, rotation=0, ha="center")
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=10)
+    ax.grid(True, axis="y", alpha=0.3)
+
+    # Add component breakdown table as inset
+    if len(company_sizes) <= 3:
+        # Create inset axes for summary table
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+        ax_inset = inset_axes(ax, width="40%", height="30%", loc="upper right", borderpad=3)
+        ax_inset.axis("off")
+
+        # Calculate average percentages
+        avg_percentages = {}
+        for component in component_names:
+            total_value = sum(component_data[component])
+            total_premium = sum(bottom)
+            avg_percentages[component] = (
+                (total_value / total_premium * 100) if total_premium > 0 else 0
+            )
+
+        table_text = "Average Composition:\n" + "-" * 20 + "\n"
+        for component in component_names:
+            comp_name = component.replace("_", " ").title()
+            table_text += f"{comp_name}: {avg_percentages[component]:.1f}%\n"
+
+        ax_inset.text(
+            0.1,
+            0.9,
+            table_text,
+            transform=ax_inset.transAxes,
+            fontsize=9,
+            verticalalignment="top",
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
+        )
+
+    plt.tight_layout()
+    return fig
+
+
+def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    efficiency_data: Dict[str, Dict[str, np.ndarray]],
+    company_sizes: Optional[List[str]] = None,
+    optimal_paths: Optional[Dict[str, np.ndarray]] = None,
+    title: str = "Capital Efficiency Frontier",
+    figsize: Tuple[float, float] = (14, 10),
+    view_angles: Optional[Tuple[float, float]] = None,
+    export_views: bool = False,
+) -> Union[Figure, List[Figure]]:
+    """Create 3D capital efficiency frontier visualization (Figure C5).
+
+    Shows 3D surface plot with ROE, Ruin Probability, and Insurance Spend axes,
+    with separate surfaces for each company size and highlighted optimal paths.
+
+    Args:
+        efficiency_data: Nested dict with structure:
+                        {company_size: {
+                            'roe': 2D array (n_ruin x n_spend),
+                            'ruin_prob': 1D array (n_ruin),
+                            'insurance_spend': 1D array (n_spend)
+                        }}
+        company_sizes: List of company sizes to show (defaults to all)
+        optimal_paths: Dict mapping company size to optimal path coordinates
+                      {company_size: array of shape (n_points, 3) with [roe, ruin, spend]}
+        title: Plot title
+        figsize: Figure size (width, height)
+        view_angles: Tuple of (elevation, azimuth) angles for 3D view
+        export_views: Whether to return multiple figures with different view angles
+
+    Returns:
+        Single figure or list of figures with different viewing angles if export_views=True
+
+    Examples:
+        >>> data = {
+        ...     "Small": {
+        ...         "roe": np.random.rand(20, 30),
+        ...         "ruin_prob": np.linspace(0, 0.1, 20),
+        ...         "insurance_spend": np.linspace(0, 1e6, 30)
+        ...     }
+        ... }
+        >>> fig = plot_capital_efficiency_frontier_3d(data)
+    """
+    from matplotlib import cm
+    from matplotlib.colors import Normalize
+    from mpl_toolkits.mplot3d import Axes3D
+
+    set_wsj_style()
+
+    # Get company sizes
+    if company_sizes is None:
+        company_sizes = list(efficiency_data.keys())
+
+    # Default view angles
+    if view_angles is None:
+        view_angles = (20, 45)
+
+    # Color map for different company sizes
+    size_colors = {
+        "Small": "Blues",
+        "Medium": "Greens",
+        "Large": "Reds",
+    }
+
+    # Create main figure
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Plot surfaces for each company size
+    for idx, company_size in enumerate(company_sizes):
+        if company_size not in efficiency_data:
+            continue
+
+        data = efficiency_data[company_size]
+        roe_surface = data.get("roe")
+        ruin_probs = data.get("ruin_prob")
+        insurance_spends = data.get("insurance_spend")
+
+        if roe_surface is None or ruin_probs is None or insurance_spends is None:
+            continue
+
+        # Create meshgrid
+        X, Y = np.meshgrid(ruin_probs, insurance_spends)
+        Z = roe_surface.T  # Transpose for correct orientation
+
+        # Choose colormap
+        cmap_name = size_colors.get(company_size, f"viridis")
+        cmap = cm.get_cmap(cmap_name)
+
+        # Plot surface with transparency
+        surf = ax.plot_surface(
+            X,
+            Y,
+            Z,
+            cmap=cmap,
+            alpha=0.6,
+            edgecolor="none",
+            label=company_size,
+        )
+
+        # Add contour lines at the bottom
+        ax.contour(X, Y, Z, zdir="z", offset=np.min(Z), colors="gray", alpha=0.3, linewidths=0.5)
+
+    # Plot optimal paths if provided
+    if optimal_paths is not None:
+        for company_size, path in optimal_paths.items():
+            if path is not None and len(path) > 0:
+                # Path should have shape (n_points, 3) with columns [ruin_prob, insurance_spend, roe]
+                ax.plot(
+                    path[:, 0],  # Ruin probability
+                    path[:, 1],  # Insurance spend
+                    path[:, 2],  # ROE
+                    color=WSJ_COLORS.get("red", "red"),
+                    linewidth=3,
+                    alpha=0.9,
+                    label=f"Optimal Path ({company_size})",
+                )
+
+                # Mark start and end points
+                ax.scatter(
+                    [path[0, 0]],
+                    [path[0, 1]],
+                    [path[0, 2]],
+                    color="green",
+                    s=100,
+                    marker="o",
+                    label="Start",
+                )
+                ax.scatter(
+                    [path[-1, 0]],
+                    [path[-1, 1]],
+                    [path[-1, 2]],
+                    color="red",
+                    s=100,
+                    marker="^",
+                    label="End",
+                )
+
+    # Labels and formatting
+    ax.set_xlabel("Ruin Probability", fontsize=11, labelpad=10)
+    ax.set_ylabel("Insurance Spend ($M)", fontsize=11, labelpad=10)
+    ax.set_zlabel("ROE (%)", fontsize=11, labelpad=10)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+
+    # Set view angle
+    ax.view_init(elev=view_angles[0], azim=view_angles[1])
+
+    # Format axes
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x:.2%}"))
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x/1e6:.1f}M"))
+    ax.zaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x:.1%}"))
+
+    # Add grid
+    ax.grid(True, alpha=0.3)
+
+    # Add legend (create proxy artists for surfaces)
+    from matplotlib.patches import Patch
+
+    legend_elements = []
+    for company_size in company_sizes:
+        if company_size in efficiency_data:
+            color = size_colors.get(company_size, "viridis")
+            legend_elements.append(
+                Patch(facecolor=cm.get_cmap(color)(0.5), alpha=0.6, label=f"{company_size} Company")
+            )
+
+    if optimal_paths:
+        from matplotlib.lines import Line2D
+
+        legend_elements.append(
+            Line2D([0], [0], color=WSJ_COLORS.get("red", "red"), linewidth=3, label="Optimal Path")
+        )
+
+    ax.legend(handles=legend_elements, loc="upper left", fontsize=9)
+
+    plt.tight_layout()
+
+    # Export multiple views if requested
+    if export_views:
+        figures = [fig]
+
+        # Additional viewing angles
+        additional_views = [
+            (30, 60),  # Higher elevation, rotated
+            (10, 120),  # Low angle from side
+            (45, 225),  # Bird's eye from opposite corner
+            (5, 0),  # Near ground level, front view
+        ]
+
+        for elev, azim in additional_views:
+            fig_view = plt.figure(figsize=figsize)
+            ax_view = fig_view.add_subplot(111, projection="3d")
+
+            # Recreate the plot with new viewing angle
+            for idx, company_size in enumerate(company_sizes):
+                if company_size not in efficiency_data:
+                    continue
+
+                data = efficiency_data[company_size]
+                roe_surface = data.get("roe")
+                ruin_probs = data.get("ruin_prob")
+                insurance_spends = data.get("insurance_spend")
+
+                if roe_surface is None or ruin_probs is None or insurance_spends is None:
+                    continue
+
+                X, Y = np.meshgrid(ruin_probs, insurance_spends)
+                Z = roe_surface.T
+
+                cmap_name = size_colors.get(company_size, f"viridis")
+                cmap = cm.get_cmap(cmap_name)
+
+                ax_view.plot_surface(
+                    X,
+                    Y,
+                    Z,
+                    cmap=cmap,
+                    alpha=0.6,
+                    edgecolor="none",
+                )
+
+            # Plot optimal paths
+            if optimal_paths is not None:
+                for company_size, path in optimal_paths.items():
+                    if path is not None and len(path) > 0:
+                        ax_view.plot(
+                            path[:, 0],
+                            path[:, 1],
+                            path[:, 2],
+                            color=WSJ_COLORS.get("red", "red"),
+                            linewidth=3,
+                            alpha=0.9,
+                        )
+
+            # Set labels and view
+            ax_view.set_xlabel("Ruin Probability", fontsize=11, labelpad=10)
+            ax_view.set_ylabel("Insurance Spend ($M)", fontsize=11, labelpad=10)
+            ax_view.set_zlabel("ROE (%)", fontsize=11, labelpad=10)
+            ax_view.set_title(
+                f"{title} (View {len(figures)})", fontsize=14, fontweight="bold", pad=20
+            )
+            ax_view.view_init(elev=elev, azim=azim)
+
+            # Format axes
+            ax_view.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x:.2%}"))
+            ax_view.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"${x/1e6:.1f}M"))
+            ax_view.zaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x:.1%}"))
+
+            ax_view.grid(True, alpha=0.3)
+            plt.tight_layout()
+            figures.append(fig_view)
+
+        return figures
+
+    return fig

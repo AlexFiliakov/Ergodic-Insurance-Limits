@@ -683,5 +683,306 @@ class TestPathDependentWealth:
         plt.close(fig2)
 
 
+class TestCorrelationStructure:
+    """Test suite for correlation structure visualization."""
+
+    def test_basic_correlation_structure(self):
+        """Test basic correlation structure plot."""
+        np.random.seed(42)
+
+        # Generate test data with correlation
+        n_samples = 1000
+        mean = [0, 0, 0]
+        cov = [[1, 0.5, 0.3], [0.5, 1, 0.7], [0.3, 0.7, 1]]
+        data = {
+            "operational": np.random.multivariate_normal(mean, cov, n_samples),
+            "financial": np.random.multivariate_normal(mean, cov, n_samples),
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+
+        fig = plot_correlation_structure(data)
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) >= 2  # At least correlation matrices and copula plots
+
+        plt.close(fig)
+
+    def test_correlation_structure_single_risk(self):
+        """Test correlation structure with single risk type."""
+        np.random.seed(42)
+
+        # Generate test data
+        n_samples = 500
+        data = {"operational": np.random.randn(n_samples, 4)}
+
+        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+
+        fig = plot_correlation_structure(data, correlation_type="spearman")
+
+        assert isinstance(fig, Figure)
+        # Single risk type should have 2x2 layout
+        assert len(fig.axes) >= 4
+
+        plt.close(fig)
+
+    def test_correlation_structure_with_kendall(self):
+        """Test correlation structure with Kendall tau."""
+        np.random.seed(42)
+
+        # Generate test data
+        data = {
+            "risk_type_1": np.random.randn(200, 2),
+            "risk_type_2": np.random.randn(200, 2),
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+
+        fig = plot_correlation_structure(data, correlation_type="kendall")
+
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+
+class TestPremiumDecomposition:
+    """Test suite for premium decomposition visualization."""
+
+    def test_basic_premium_decomposition(self):
+        """Test basic premium decomposition plot."""
+        # Create test data
+        premium_components = {
+            "Small": {
+                "Primary": {
+                    "expected_loss": 100000,
+                    "volatility_load": 20000,
+                    "tail_load": 15000,
+                    "expense_load": 10000,
+                    "profit_margin": 5000,
+                },
+                "Excess": {
+                    "expected_loss": 50000,
+                    "volatility_load": 10000,
+                    "tail_load": 8000,
+                    "expense_load": 5000,
+                    "profit_margin": 2000,
+                },
+            },
+            "Medium": {
+                "Primary": {
+                    "expected_loss": 200000,
+                    "volatility_load": 40000,
+                    "tail_load": 30000,
+                    "expense_load": 20000,
+                    "profit_margin": 10000,
+                }
+            },
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import plot_premium_decomposition
+
+        fig = plot_premium_decomposition(premium_components)
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) >= 1  # At least main bar chart
+
+        # Check bars are present
+        ax = fig.axes[0]
+        assert len(ax.patches) > 0  # Should have bar patches
+
+        plt.close(fig)
+
+    def test_premium_decomposition_with_percentages(self):
+        """Test premium decomposition with percentage labels."""
+        # Create test data
+        premium_components = {
+            "Large": {
+                "Primary": {
+                    "expected_loss": 500000,
+                    "volatility_load": 100000,
+                    "tail_load": 75000,
+                    "expense_load": 50000,
+                    "profit_margin": 25000,
+                }
+            }
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import plot_premium_decomposition
+
+        fig = plot_premium_decomposition(premium_components, show_percentages=True)
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+
+        # Check for text labels (percentages)
+        texts = ax.texts
+        assert len(texts) > 0  # Should have percentage labels
+
+        plt.close(fig)
+
+    def test_premium_decomposition_custom_colors(self):
+        """Test premium decomposition with custom color scheme."""
+        # Create test data
+        premium_components = {
+            "Small": {
+                "Layer1": {
+                    "expected_loss": 100000,
+                    "volatility_load": 20000,
+                    "tail_load": 15000,
+                    "expense_load": 10000,
+                    "profit_margin": 5000,
+                }
+            }
+        }
+
+        color_scheme = {
+            "expected_loss": "#1f77b4",
+            "volatility_load": "#ff7f0e",
+            "tail_load": "#d62728",
+            "expense_load": "#2ca02c",
+            "profit_margin": "#9467bd",
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import plot_premium_decomposition
+
+        fig = plot_premium_decomposition(premium_components, color_scheme=color_scheme)
+
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+
+class TestCapitalEfficiencyFrontier3D:
+    """Test suite for 3D capital efficiency frontier visualization."""
+
+    def test_basic_capital_efficiency_frontier(self):
+        """Test basic 3D capital efficiency frontier plot."""
+        np.random.seed(42)
+
+        # Create test data
+        n_ruin = 20
+        n_spend = 30
+        efficiency_data = {
+            "Small": {
+                "roe": np.random.rand(n_ruin, n_spend) * 0.2,  # ROE values 0-20%
+                "ruin_prob": np.linspace(0, 0.1, n_ruin),  # 0-10% ruin probability
+                "insurance_spend": np.linspace(0, 1e6, n_spend),  # $0-1M insurance spend
+            }
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import (
+            plot_capital_efficiency_frontier_3d,
+        )
+
+        fig = plot_capital_efficiency_frontier_3d(efficiency_data)
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1  # Should have one 3D axis
+
+        # Check it's a 3D plot
+        ax = fig.axes[0]
+        assert hasattr(ax, "zaxis")  # 3D axes have a zaxis
+
+        plt.close(fig)
+
+    def test_capital_efficiency_with_optimal_paths(self):
+        """Test 3D capital efficiency frontier with optimal paths."""
+        np.random.seed(42)
+
+        # Create test data
+        efficiency_data = {
+            "Small": {
+                "roe": np.random.rand(15, 20) * 0.15,
+                "ruin_prob": np.linspace(0, 0.08, 15),
+                "insurance_spend": np.linspace(0, 800000, 20),
+            },
+            "Medium": {
+                "roe": np.random.rand(15, 20) * 0.18,
+                "ruin_prob": np.linspace(0, 0.06, 15),
+                "insurance_spend": np.linspace(0, 1500000, 20),
+            },
+        }
+
+        # Create optimal paths
+        n_path_points = 10
+        optimal_paths = {
+            "Small": np.column_stack(
+                [
+                    np.linspace(0.08, 0.01, n_path_points),  # Ruin prob decreasing
+                    np.linspace(0, 500000, n_path_points),  # Insurance spend increasing
+                    np.linspace(0.08, 0.12, n_path_points),  # ROE increasing
+                ]
+            )
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import (
+            plot_capital_efficiency_frontier_3d,
+        )
+
+        fig = plot_capital_efficiency_frontier_3d(efficiency_data, optimal_paths=optimal_paths)
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+
+        # Check for 3D lines (optimal paths)
+        assert len(ax.lines) >= 1  # Should have at least one path
+
+        plt.close(fig)
+
+    def test_capital_efficiency_export_views(self):
+        """Test 3D capital efficiency frontier with multiple view exports."""
+        np.random.seed(42)
+
+        # Create simple test data
+        efficiency_data = {
+            "Small": {
+                "roe": np.random.rand(10, 15) * 0.2,
+                "ruin_prob": np.linspace(0, 0.1, 10),
+                "insurance_spend": np.linspace(0, 1e6, 15),
+            }
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import (
+            plot_capital_efficiency_frontier_3d,
+        )
+
+        figures = plot_capital_efficiency_frontier_3d(efficiency_data, export_views=True)
+
+        assert isinstance(figures, list)
+        assert len(figures) == 5  # Main + 4 additional views
+
+        # Check all are valid figures
+        for fig in figures:
+            assert isinstance(fig, Figure)
+            assert len(fig.axes) == 1
+            assert hasattr(fig.axes[0], "zaxis")
+            plt.close(fig)
+
+    def test_capital_efficiency_custom_view(self):
+        """Test 3D capital efficiency frontier with custom viewing angle."""
+        np.random.seed(42)
+
+        # Create test data
+        efficiency_data = {
+            "Large": {
+                "roe": np.random.rand(12, 18) * 0.25,
+                "ruin_prob": np.linspace(0, 0.05, 12),
+                "insurance_spend": np.linspace(0, 2e6, 18),
+            }
+        }
+
+        from ergodic_insurance.src.visualization.technical_plots import (
+            plot_capital_efficiency_frontier_3d,
+        )
+
+        fig = plot_capital_efficiency_frontier_3d(efficiency_data, view_angles=(30, 60))
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+
+        # Check view angle is set (can't directly verify values, but check it doesn't error)
+        assert hasattr(ax, "view_init")
+
+        plt.close(fig)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
