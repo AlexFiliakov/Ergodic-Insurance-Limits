@@ -71,8 +71,12 @@ from .style_manager import StyleManager, Theme
 from .technical_plots import (
     create_interactive_pareto_frontier,
     plot_convergence_diagnostics,
+    plot_enhanced_convergence_diagnostics,
+    plot_loss_distribution_validation,
+    plot_monte_carlo_convergence,
     plot_pareto_frontier_2d,
     plot_pareto_frontier_3d,
+    plot_trace_plots,
 )
 
 __all__ = [
@@ -91,6 +95,10 @@ __all__ = [
     "plot_ruin_cliff",
     # Technical plots
     "plot_convergence_diagnostics",
+    "plot_enhanced_convergence_diagnostics",
+    "plot_trace_plots",
+    "plot_loss_distribution_validation",
+    "plot_monte_carlo_convergence",
     "plot_pareto_frontier_2d",
     "plot_pareto_frontier_3d",
     "create_interactive_pareto_frontier",
