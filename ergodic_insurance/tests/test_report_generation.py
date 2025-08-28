@@ -364,7 +364,7 @@ class TestReportBuilder:
 
             assert path.exists()
             assert path.suffix == ".md"
-            content = path.read_text()
+            content = path.read_text(encoding='utf-8')
             assert "Test Report" in content
 
     def test_save_html(self):
@@ -386,7 +386,7 @@ class TestReportBuilder:
 
             assert path.exists()
             assert path.suffix == ".html"
-            content = path.read_text()
+            content = path.read_text(encoding='utf-8')
             assert "<html>" in content.lower()
             assert "Test Report" in content
 
@@ -629,7 +629,7 @@ class TestIntegration:
             assert path.exists()
 
             # Check content
-            content = path.read_text()
+            content = path.read_text(encoding='utf-8')
             assert "Insurance Optimization Analysis" in content
             assert "Key Findings" in content
             assert "18.5%" in content or "0.185" in content
@@ -665,7 +665,7 @@ class TestIntegration:
             assert path.exists()
 
             # Check content
-            content = path.read_text()
+            content = path.read_text(encoding='utf-8')
             assert "Technical Appendix" in content
             assert "Methodology" in content
 
