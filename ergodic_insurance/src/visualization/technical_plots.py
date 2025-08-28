@@ -1607,7 +1607,7 @@ Survivor Bias Factor:
         pass
     else:
         # For simple subplot, tight_layout works fine
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.tight_layout(rect=(0, 0.03, 1, 0.95))
 
     return fig
 
@@ -1763,7 +1763,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             # Fit and plot copula density contours
             try:
                 kde = gaussian_kde(np.vstack([x_uniform, y_uniform]))
-                xi, yi = np.mgrid[0 : 1 : complex(0, 50), 0 : 1 : complex(0, 50)]
+                xi, yi = np.mgrid[0:1:50j, 0:1:50j]  # type: ignore[misc]
                 zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
                 ax_scatter.contour(xi, yi, zi, colors=WSJ_COLORS["red"], alpha=0.5, linewidths=1)
             except (ValueError, np.linalg.LinAlgError):
@@ -1798,7 +1798,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             # Create density plot
             try:
                 kde = gaussian_kde(np.vstack([x_normal, y_normal]))
-                xi, yi = np.mgrid[-3 : 3 : complex(0, 100), -3 : 3 : complex(0, 100)]
+                xi, yi = np.mgrid[-3:3:100j, -3:3:100j]  # type: ignore[misc]
                 zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
                 im = ax_density.contourf(xi, yi, zi, levels=15, cmap="viridis", alpha=0.7)
                 fig.colorbar(im, ax=ax_density, label="Density")
@@ -1871,7 +1871,7 @@ at least 2 variables.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         try:
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+            plt.tight_layout(rect=(0, 0.03, 1, 0.95))
         except Exception:
             # Ignore layout errors for complex subplot arrangements
             pass
@@ -2009,7 +2009,7 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals
                                 fontweight="bold",
                                 fontsize=9,
                             )
-                    cumulative += value
+                    cumulative += value  # type: ignore[assignment]
 
     # Add total premium values on top of bars
     for i, (label, total_height) in enumerate(zip(group_labels, bottom)):
