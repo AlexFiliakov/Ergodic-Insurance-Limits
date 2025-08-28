@@ -1677,11 +1677,17 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
         elif correlation_type == "spearman":
             from scipy.stats import spearmanr
 
-            corr_matrix, _ = spearmanr(risk_data)
+            corr_result, _ = spearmanr(risk_data)
             if risk_data.shape[1] == 1:
                 corr_matrix = np.array([[1.0]])
+            elif risk_data.shape[1] == 2:
+                # spearmanr returns a scalar for 2 variables
+                if np.isscalar(corr_result):
+                    corr_matrix = np.array([[1.0, corr_result], [corr_result, 1.0]])
+                else:
+                    corr_matrix = np.array(corr_result)
             else:
-                corr_matrix = np.array(corr_matrix)
+                corr_matrix = np.array(corr_result)
         elif correlation_type == "kendall":
             from scipy.stats import kendalltau
 

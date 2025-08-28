@@ -742,6 +742,28 @@ class TestCorrelationStructure:
 
         assert isinstance(fig, Figure)
         plt.close(fig)
+    
+    def test_correlation_structure_two_variables(self):
+        """Test correlation structure with exactly 2 variables (edge case for spearmanr)."""
+        np.random.seed(42)
+        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+        
+        # Test data with exactly 2 variables
+        data = {"risk": np.random.randn(100, 2)}
+        
+        # Test with spearman (which returns scalar for 2 variables)
+        fig = plot_correlation_structure(
+            data, correlation_type="spearman", title="Test Spearman 2-var", figsize=(12, 8)
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+        
+        # Test with kendall as well
+        fig = plot_correlation_structure(
+            data, correlation_type="kendall", title="Test Kendall 2-var", figsize=(12, 8)
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
 
 
 class TestPremiumDecomposition:
