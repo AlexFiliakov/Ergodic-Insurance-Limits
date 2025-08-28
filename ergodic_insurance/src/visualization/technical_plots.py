@@ -1738,7 +1738,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             # Fit and plot copula density contours
             try:
                 kde = gaussian_kde(np.vstack([x_uniform, y_uniform]))
-                xi, yi = np.mgrid[0:1:complex(0, 50), 0:1:complex(0, 50)]
+                xi, yi = np.mgrid[0 : 1 : complex(0, 50), 0 : 1 : complex(0, 50)]
                 zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
                 ax_scatter.contour(xi, yi, zi, colors=WSJ_COLORS["red"], alpha=0.5, linewidths=1)
             except (ValueError, np.linalg.LinAlgError):
@@ -1769,7 +1769,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             # Create density plot
             try:
                 kde = gaussian_kde(np.vstack([x_normal, y_normal]))
-                xi, yi = np.mgrid[-3:3:complex(0, 100), -3:3:complex(0, 100)]
+                xi, yi = np.mgrid[-3 : 3 : complex(0, 100), -3 : 3 : complex(0, 100)]
                 zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
                 im = ax_density.contourf(xi, yi, zi, levels=15, cmap="viridis", alpha=0.7)
                 fig.colorbar(im, ax=ax_density, label="Density")
