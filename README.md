@@ -50,6 +50,7 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 - **Type safety** enforced with mypy static analysis
 
 ### Analysis Tools
+![Sample Analytics: Optimal Insurance Configuration by Company Size](assets/sample_optmal_insurance_config_by_company_size.png)
 - **Jupyter notebooks** for interactive exploration and visualization
 - **Demo scripts** showing stochastic vs deterministic comparisons
 - **Performance metrics** including ROE, risk of ruin, and time-average growth rates
