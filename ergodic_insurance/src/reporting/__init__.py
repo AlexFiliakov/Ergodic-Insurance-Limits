@@ -38,6 +38,7 @@ from .config import (
     create_technical_config,
 )
 from .executive_report import ExecutiveReport
+from .formatters import ColorCoder, NumberFormatter, TableFormatter, format_for_export
 from .report_builder import ReportBuilder
 from .table_generator import (
     TableGenerator,
@@ -64,6 +65,11 @@ __all__ = [
     "TableConfig",
     "create_executive_config",
     "create_technical_config",
+    # Formatters
+    "NumberFormatter",
+    "ColorCoder",
+    "TableFormatter",
+    "format_for_export",
     # Table generation
     "TableGenerator",
     "create_performance_table",
