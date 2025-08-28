@@ -1677,17 +1677,19 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
         elif correlation_type == "spearman":
             from scipy.stats import spearmanr
 
-            corr_result, _ = spearmanr(risk_data)
             if risk_data.shape[1] == 1:
+                # spearmanr doesn't handle single variable well
                 corr_matrix = np.array([[1.0]])
-            elif risk_data.shape[1] == 2:
-                # spearmanr returns a scalar for 2 variables
-                if np.isscalar(corr_result):
-                    corr_matrix = np.array([[1.0, corr_result], [corr_result, 1.0]])
+            else:
+                corr_result, _ = spearmanr(risk_data)
+                if risk_data.shape[1] == 2:
+                    # spearmanr returns a scalar for 2 variables
+                    if np.isscalar(corr_result):
+                        corr_matrix = np.array([[1.0, corr_result], [corr_result, 1.0]])
+                    else:
+                        corr_matrix = np.array(corr_result)
                 else:
                     corr_matrix = np.array(corr_result)
-            else:
-                corr_matrix = np.array(corr_result)
         elif correlation_type == "kendall":
             from scipy.stats import kendalltau
 
@@ -1706,6 +1708,22 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             ax_corr = fig.add_subplot(gs[0, 0])
         else:
             ax_corr = fig.add_subplot(gs[0, idx])
+
+        # Ensure corr_matrix is a proper numpy array
+        if not isinstance(corr_matrix, np.ndarray):
+            corr_matrix = np.array(corr_matrix)
+        
+        # Handle edge case where corr_matrix might be 0-dimensional
+        if corr_matrix.ndim == 0:
+            corr_matrix = corr_matrix.reshape(1, 1)
+        elif corr_matrix.ndim == 1:
+            # If 1D, make it a proper correlation matrix
+            n = len(corr_matrix)
+            if n == 1:
+                corr_matrix = corr_matrix.reshape(1, 1)
+            else:
+                # Assume it's the upper triangle, create full matrix
+                corr_matrix = np.eye(n)
 
         # Use seaborn heatmap
         mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
@@ -1758,7 +1776,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             ax_scatter.grid(True, alpha=0.3)
 
     # Add copula density plot if single risk type and enough variables
-    if n_risk_types == 1 and show_copula:
+    if n_risk_types == 1 and show_copula and risk_types:
         risk_data = data[risk_types[0]]
         if risk_data.shape[1] >= 2:
             # Create 2D copula density plot
@@ -1766,12 +1784,16 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
 
             x_data = risk_data[:, 0]
             y_data = risk_data[:, 1]
+            
+            # Transform to uniform marginals for tail dependence calculation
+            x_uniform = scipy_stats.rankdata(x_data) / (len(x_data) + 1)
+            y_uniform = scipy_stats.rankdata(y_data) / (len(y_data) + 1)
 
             # Transform to normal scores for Gaussian copula
             from scipy.stats import norm
 
-            x_normal = norm.ppf(scipy_stats.rankdata(x_data) / (len(x_data) + 1))
-            y_normal = norm.ppf(scipy_stats.rankdata(y_data) / (len(y_data) + 1))
+            x_normal = norm.ppf(x_uniform)
+            y_normal = norm.ppf(y_uniform)
 
             # Create density plot
             try:
@@ -1804,12 +1826,36 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
 
             info_text = f"""
 Dependence Measures:
-• {correlation_type.title()}: {corr_matrix[0, 1]:.3f}
+• {correlation_type.title()}: {corr_matrix[0, 1] if corr_matrix.shape[0] > 1 else 1.0:.3f}
 • Upper Tail: {upper_tail:.3f}
 • Lower Tail: {lower_tail:.3f}
 
 Sample Size: {len(x_data):,}
 Variables: {risk_data.shape[1]}
+"""
+            ax_info.text(
+                0.1,
+                0.9,
+                info_text,
+                transform=ax_info.transAxes,
+                fontsize=11,
+                verticalalignment="top",
+                bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
+            )
+        elif risk_data.shape[1] == 1:
+            # Single variable case - show info only
+            ax_info = fig.add_subplot(gs[1, 0])
+            ax_info.axis("off")
+            
+            info_text = f"""
+Single Variable Analysis:
+• Variable: {risk_types[0]}
+• Sample Size: {len(risk_data):,}
+• Mean: {np.mean(risk_data):.3f}
+• Std Dev: {np.std(risk_data):.3f}
+
+Note: Correlation analysis requires
+at least 2 variables.
 """
             ax_info.text(
                 0.1,
