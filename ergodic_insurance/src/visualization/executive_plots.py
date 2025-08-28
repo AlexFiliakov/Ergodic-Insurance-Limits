@@ -1937,6 +1937,459 @@ def plot_robustness_heatmap(
     return fig
 
 
+def plot_premium_multiplier(  # pylint: disable=too-many-locals,too-many-statements
+    optimization_results: Optional[Dict[float, Dict[str, Any]]] = None,
+    company_sizes: Optional[List[float]] = None,
+    title: str = "Premium Multiplier Analysis",
+    figsize: Tuple[int, int] = (12, 8),
+    show_confidence: bool = True,
+    show_reference_lines: bool = True,
+    show_annotations: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create premium multiplier analysis visualization.
+
+    Visualizes the optimal premium as a multiple of expected loss for different
+    company sizes, demonstrating why premiums 2-5× expected losses are optimal
+    from an ergodic perspective.
+
+    Args:
+        optimization_results: Dict of company_size -> optimization data containing
+                            'expected_loss', 'optimal_premium', and optionally
+                            'confidence_bounds' for each company size
+        company_sizes: List of company sizes to analyze (default: [1e6, 1e7, 1e8])
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_confidence: Whether to show confidence intervals
+        show_reference_lines: Whether to show horizontal reference lines
+        show_annotations: Whether to add explanatory annotations
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with premium multiplier analysis
+
+    Examples:
+        >>> results = {
+        ...     1e6: {'expected_loss': 50000, 'optimal_premium': 150000},
+        ...     1e7: {'expected_loss': 200000, 'optimal_premium': 600000}
+        ... }
+        >>> fig = plot_premium_multiplier(results)
+    """
+    set_wsj_style()
+
+    if company_sizes is None:
+        company_sizes = [1_000_000, 10_000_000, 100_000_000]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Generate or use provided data
+    if optimization_results is None:
+        # Generate synthetic demonstration data
+        optimization_results = {}
+        for size in company_sizes:
+            # Expected loss scales with company size
+            expected_loss = size * 0.005  # 0.5% of company size
+
+            # Optimal premium multiplier varies by company size
+            # Smaller companies need higher multiples for safety
+            size_factor = np.log10(size / 1_000_000)
+            base_multiplier = 3.5 - 0.3 * size_factor  # Decreases with size
+
+            # Add some structure
+            optimal_premium = expected_loss * base_multiplier
+
+            # Generate confidence bounds
+            confidence_lower = optimal_premium * 0.85
+            confidence_upper = optimal_premium * 1.15
+
+            optimization_results[size] = {
+                "expected_loss": expected_loss,
+                "optimal_premium": optimal_premium,
+                "confidence_bounds": (confidence_lower, confidence_upper),
+                "percentiles": {
+                    "25": optimal_premium * 0.9,
+                    "75": optimal_premium * 1.1,
+                },
+            }
+
+    # Prepare data for plotting
+    sizes_log = np.array([np.log10(s) for s in company_sizes])
+    multipliers = []
+    confidence_lower = []
+    confidence_upper = []
+
+    for size in company_sizes:
+        data = optimization_results[size]
+        multiplier = data["optimal_premium"] / data["expected_loss"]
+        multipliers.append(multiplier)
+
+        if "confidence_bounds" in data and show_confidence:
+            confidence_lower.append(data["confidence_bounds"][0] / data["expected_loss"])
+            confidence_upper.append(data["confidence_bounds"][1] / data["expected_loss"])
+
+    # Create smooth interpolation for better visualization
+    sizes_smooth = np.linspace(sizes_log.min(), sizes_log.max(), 100)
+
+    # Use cubic spline for smooth curve
+    from scipy.interpolate import make_interp_spline
+
+    spline = make_interp_spline(sizes_log, multipliers, k=min(3, len(multipliers) - 1))
+    multipliers_smooth = spline(sizes_smooth)
+
+    # Convert back to actual company sizes for x-axis
+    company_sizes_smooth = 10**sizes_smooth
+
+    # Main curve
+    ax.semilogx(
+        company_sizes_smooth,
+        multipliers_smooth,
+        color=WSJ_COLORS["blue"],
+        linewidth=3,
+        label="Optimal Premium/Expected Loss",
+        zorder=5,
+    )
+
+    # Data points
+    ax.scatter(
+        company_sizes,
+        multipliers,
+        color=WSJ_COLORS["blue"],
+        s=100,
+        edgecolor="white",
+        linewidth=2,
+        zorder=10,
+    )
+
+    # Confidence intervals
+    if confidence_lower and show_confidence:
+        # Interpolate confidence bounds
+        spline_lower = make_interp_spline(
+            sizes_log, confidence_lower, k=min(3, len(confidence_lower) - 1)
+        )
+        spline_upper = make_interp_spline(
+            sizes_log, confidence_upper, k=min(3, len(confidence_upper) - 1)
+        )
+        confidence_lower_smooth = spline_lower(sizes_smooth)
+        confidence_upper_smooth = spline_upper(sizes_smooth)
+
+        ax.fill_between(
+            company_sizes_smooth,
+            confidence_lower_smooth,
+            confidence_upper_smooth,
+            alpha=0.2,
+            color=WSJ_COLORS["blue"],
+            label="95% Confidence Interval",
+        )
+
+    # Reference lines
+    if show_reference_lines:
+        reference_levels = [1, 2, 3, 5]
+        colors = [WSJ_COLORS["gray"], WSJ_COLORS["orange"], WSJ_COLORS["green"], WSJ_COLORS["red"]]
+        styles = [":", "--", "--", "--"]
+
+        for level, color, style in zip(reference_levels, colors, styles):
+            ax.axhline(
+                y=level,
+                color=color,
+                linestyle=style,
+                alpha=0.5,
+                linewidth=1.5,
+                label=f"{level}× Expected Loss",
+            )
+
+    # Annotations
+    if show_annotations:
+        # Annotate key insight regions
+        ax.annotate(
+            "Small Companies\nNeed Higher\nMultiples",
+            xy=(company_sizes[0], multipliers[0]),
+            xytext=(company_sizes[0] * 0.3, multipliers[0] + 0.5),
+            fontsize=10,
+            color=WSJ_COLORS["gray"],
+            fontweight="bold",
+            ha="center",
+            arrowprops={"arrowstyle": "->", "color": WSJ_COLORS["gray"], "alpha": 0.5, "lw": 1},
+        )
+
+        if len(company_sizes) > 2:
+            ax.annotate(
+                "Large Companies\nCan Accept\nLower Multiples",
+                xy=(company_sizes[-1], multipliers[-1]),
+                xytext=(company_sizes[-1] * 1.5, multipliers[-1] - 0.5),
+                fontsize=10,
+                color=WSJ_COLORS["gray"],
+                fontweight="bold",
+                ha="center",
+                arrowprops={"arrowstyle": "->", "color": WSJ_COLORS["gray"], "alpha": 0.5, "lw": 1},
+            )
+
+        # Add shaded optimal zone
+        ax.axhspan(2, 5, alpha=0.05, color="green", label="Optimal Zone (2-5×)")
+
+    # Format axes
+    ax.set_xlabel("Company Size (Assets)", fontsize=12)
+    ax.set_ylabel("Premium Multiple (Premium / Expected Loss)", fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+
+    # Format x-axis
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(WSJFormatter.currency_formatter))
+
+    # Format y-axis
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.1f}×"))
+
+    # Grid
+    ax.grid(True, which="both", alpha=0.3)
+    ax.grid(True, which="minor", alpha=0.1)
+
+    # Legend
+    ax.legend(loc="upper right", frameon=True, fancybox=False, edgecolor=WSJ_COLORS["gray"])
+
+    # Set reasonable y-limits
+    ax.set_ylim(0, max(multipliers) * 1.3)
+
+    safe_tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def plot_breakeven_timeline(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
+    simulation_results: Optional[Dict[float, Dict[str, Any]]] = None,
+    company_sizes: Optional[List[float]] = None,
+    time_horizon: int = 30,
+    title: str = "Insurance Break-even Timeline Analysis",
+    figsize: Tuple[int, int] = (14, 8),
+    show_percentiles: bool = True,
+    show_breakeven_markers: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create break-even timeline visualization.
+
+    Shows when the cumulative benefits of optimal insurance exceed the cumulative
+    excess premiums paid (premiums above expected losses), demonstrating the
+    long-term value proposition.
+
+    Args:
+        simulation_results: Dict of company_size -> simulation data containing
+                          'cumulative_benefit', 'cumulative_excess_premium',
+                          and optionally percentile data
+        company_sizes: List of company sizes to analyze (default: [1e6, 1e7, 1e8])
+        time_horizon: Years to simulate (default: 30)
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_percentiles: Whether to show 25th/75th percentile bands
+        show_breakeven_markers: Whether to mark break-even points
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with break-even timeline analysis
+
+    Examples:
+        >>> results = {
+        ...     1e6: {
+        ...         'cumulative_benefit': np.array([...]),
+        ...         'cumulative_excess_premium': np.array([...])
+        ...     }
+        ... }
+        >>> fig = plot_breakeven_timeline(results)
+    """
+    set_wsj_style()
+
+    if company_sizes is None:
+        company_sizes = [1_000_000, 10_000_000, 100_000_000]
+
+    # Create subplot grid
+    n_companies = len(company_sizes)
+    fig, axes = plt.subplots(1, n_companies, figsize=figsize, sharey=True)
+
+    if n_companies == 1:
+        axes = [axes]
+
+    # Generate or use provided data
+    if simulation_results is None:
+        # Generate synthetic demonstration data
+        simulation_results = {}
+        np.random.seed(42)
+
+        for size in company_sizes:
+            years = np.arange(time_horizon)
+
+            # Expected annual loss and optimal premium
+            expected_loss = size * 0.005  # 0.5% of size
+            size_factor = np.log10(size / 1_000_000)
+            premium_multiplier = 3.5 - 0.3 * size_factor
+            optimal_premium = expected_loss * premium_multiplier
+            excess_premium = optimal_premium - expected_loss
+
+            # Cumulative excess premium paid (linear accumulation)
+            cumulative_excess = excess_premium * (years + 1)
+
+            # Cumulative benefit (grows exponentially due to avoided ruin)
+            # Starts slow, accelerates over time
+            base_benefit = size * 0.001  # 0.1% annual benefit initially
+            growth_factor = 1.08  # Benefit compounds
+            cumulative_benefit = base_benefit * (
+                (growth_factor ** (years + 1) - 1) / (growth_factor - 1)
+            )
+
+            # Add some realistic noise
+            noise = np.random.normal(0, size * 0.0005, len(years))
+            cumulative_benefit += np.cumsum(noise)
+
+            # Calculate percentiles
+            benefit_25 = cumulative_benefit * 0.85
+            benefit_75 = cumulative_benefit * 1.15
+
+            simulation_results[size] = {
+                "years": years,
+                "cumulative_benefit": cumulative_benefit,
+                "cumulative_excess_premium": cumulative_excess,
+                "benefit_25": benefit_25,
+                "benefit_75": benefit_75,
+                "net_benefit": cumulative_benefit - cumulative_excess,
+            }
+
+    # Plot each company size
+    for idx, (ax, company_size) in enumerate(zip(axes, company_sizes)):
+        data = simulation_results[company_size]
+        years = data.get("years", np.arange(time_horizon))
+
+        # Main lines
+        ax.plot(
+            years,
+            data["cumulative_benefit"] / 1e6,
+            color=WSJ_COLORS["blue"],
+            linewidth=2.5,
+            label="Cumulative Benefit",
+        )
+
+        ax.plot(
+            years,
+            data["cumulative_excess_premium"] / 1e6,
+            color=WSJ_COLORS["red"],
+            linewidth=2.5,
+            label="Excess Premium Paid",
+        )
+
+        # Percentile bands
+        if show_percentiles and "benefit_25" in data:
+            ax.fill_between(
+                years,
+                data["benefit_25"] / 1e6,
+                data["benefit_75"] / 1e6,
+                alpha=0.2,
+                color=WSJ_COLORS["blue"],
+                label="25-75% Percentile",
+            )
+
+        # Find break-even point
+        net_benefit = data["cumulative_benefit"] - data["cumulative_excess_premium"]
+        breakeven_idx = np.where(net_benefit > 0)[0]
+
+        if len(breakeven_idx) > 0 and show_breakeven_markers:
+            breakeven_year = years[breakeven_idx[0]]
+            breakeven_benefit = data["cumulative_benefit"][breakeven_idx[0]]
+
+            # Mark break-even point
+            ax.scatter(
+                breakeven_year,
+                breakeven_benefit / 1e6,
+                s=200,
+                color=WSJ_COLORS["green"],
+                marker="*",
+                edgecolor="white",
+                linewidth=2,
+                zorder=10,
+                label=f"Break-even: Year {breakeven_year}",
+            )
+
+            # Add vertical line at break-even
+            ax.axvline(
+                x=breakeven_year,
+                color=WSJ_COLORS["green"],
+                linestyle="--",
+                alpha=0.5,
+                linewidth=1.5,
+            )
+
+            # Add annotation
+            ax.annotate(
+                f"Break-even\nYear {breakeven_year}",
+                xy=(breakeven_year, breakeven_benefit / 1e6),
+                xytext=(breakeven_year + 2, breakeven_benefit / 1e6 * 0.8),
+                fontsize=9,
+                fontweight="bold",
+                color=WSJ_COLORS["green"],
+                arrowprops={
+                    "arrowstyle": "->",
+                    "color": WSJ_COLORS["green"],
+                    "alpha": 0.5,
+                    "lw": 1,
+                },
+            )
+
+        # Shade positive NPV region
+        positive_region = net_benefit > 0
+        if np.any(positive_region):
+            ax.fill_between(
+                years,
+                0,
+                (data["cumulative_benefit"] - data["cumulative_excess_premium"]) / 1e6,
+                where=positive_region,
+                alpha=0.1,
+                color="green",
+                label="Positive NPV",
+            )
+
+        # Format axes
+        ax.set_xlabel("Years", fontsize=11)
+        if idx == 0:
+            ax.set_ylabel("Cumulative Value ($M)", fontsize=11)
+
+        # Title for each subplot
+        ax.set_title(
+            f"${format_currency(company_size, decimals=0).replace('$', '')} Company",
+            fontsize=11,
+            fontweight="bold",
+        )
+
+        # Grid
+        ax.grid(True, alpha=0.3)
+
+        # Legend (only on first subplot to avoid clutter)
+        if idx == 0:
+            ax.legend(loc="upper left", fontsize=9)
+
+        # Set reasonable limits
+        ax.set_xlim(0, time_horizon)
+        ax.set_ylim(bottom=0)
+
+    # Main title
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+
+    # Add footer annotation
+    fig.text(
+        0.5,
+        0.02,
+        "Analysis shows when insurance transforms from cost to investment through compound benefits",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color=WSJ_COLORS["gray"],
+    )
+
+    safe_tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
 def _find_knee_point(x: np.ndarray, y: np.ndarray) -> int:
     """Find the knee point (elbow) in a curve using curvature analysis.
 
