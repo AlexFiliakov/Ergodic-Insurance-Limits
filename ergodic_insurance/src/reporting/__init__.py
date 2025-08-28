@@ -1,9 +1,14 @@
-"""Reporting and caching infrastructure for expensive computations.
+"""Reporting and caching infrastructure with automated report generation.
 
-This module provides high-performance caching for Monte Carlo simulations
-and analysis results, enabling fast figure regeneration and report compilation.
+This module provides comprehensive report generation capabilities along with
+high-performance caching for Monte Carlo simulations and analysis results.
 
 Key Features:
+    - Automated report generation (Executive & Technical)
+    - Configurable report structures
+    - Table generation utilities
+    - Multi-format output (Markdown, HTML, PDF)
+    - Report validation and quality checks
     - HDF5 storage for large simulation data
     - Parquet support for structured results
     - Hash-based cache invalidation
@@ -11,26 +16,67 @@ Key Features:
     - Configurable storage backends
 
 Example:
-    >>> from ergodic_insurance.src.reporting import CacheManager
+    >>> from ergodic_insurance.src.reporting import ExecutiveReport, CacheManager
+    >>> # Generate executive report
+    >>> report = ExecutiveReport(results={'roe': 0.18, 'ruin_probability': 0.01})
+    >>> report_path = report.generate()
+    >>>
+    >>> # Use caching for simulations
     >>> cache = CacheManager(cache_dir="./cache")
-    >>> # Cache simulation results
-    >>> cache.cache_simulation_paths(
-    ...     params=simulation_params,
-    ...     paths=simulation_paths,
-    ...     metadata={'n_sims': 10000}
-    ... )
-    >>> # Load cached results
-    >>> paths = cache.load_simulation_paths(params)
+    >>> cache.cache_simulation_paths(params, paths, metadata={'n_sims': 10000})
 """
 
 from .cache_manager import CacheConfig, CacheKey, CacheManager, CacheStats, StorageBackend
+from .config import (
+    FigureConfig,
+    ReportConfig,
+    ReportMetadata,
+    ReportStyle,
+    SectionConfig,
+    TableConfig,
+    create_executive_config,
+    create_technical_config,
+)
+from .executive_report import ExecutiveReport
+from .report_builder import ReportBuilder
+from .table_generator import (
+    TableGenerator,
+    create_parameter_table,
+    create_performance_table,
+    create_sensitivity_table,
+)
+from .technical_report import TechnicalReport
+from .validator import ReportValidator, validate_parameters, validate_results_data
 
 __all__ = [
+    # Cache management
     "CacheManager",
     "CacheConfig",
     "CacheStats",
     "StorageBackend",
     "CacheKey",
+    # Configuration
+    "ReportConfig",
+    "ReportMetadata",
+    "ReportStyle",
+    "SectionConfig",
+    "FigureConfig",
+    "TableConfig",
+    "create_executive_config",
+    "create_technical_config",
+    # Table generation
+    "TableGenerator",
+    "create_performance_table",
+    "create_parameter_table",
+    "create_sensitivity_table",
+    # Report builders
+    "ReportBuilder",
+    "ExecutiveReport",
+    "TechnicalReport",
+    # Validation
+    "ReportValidator",
+    "validate_results_data",
+    "validate_parameters",
 ]
 
 __version__ = "1.0.0"
