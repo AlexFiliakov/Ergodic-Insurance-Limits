@@ -17,7 +17,7 @@ from scipy import stats
 from .core import COLOR_SEQUENCE, WSJ_COLORS, set_wsj_style
 
 
-def plot_convergence_diagnostics(  # pylint: disable=too-many-locals
+def plot_convergence_diagnostics(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     convergence_stats: Dict[str, Any],
     title: str = "Convergence Diagnostics",
     figsize: Tuple[int, int] = (12, 8),
@@ -687,7 +687,7 @@ def plot_trace_plots(
     return fig
 
 
-def plot_loss_distribution_validation(
+def plot_loss_distribution_validation(  # pylint: disable=too-many-statements
     attritional_losses: np.ndarray,
     large_losses: np.ndarray,
     attritional_dist: Optional[Dict[str, Any]] = None,
@@ -778,7 +778,7 @@ def plot_loss_distribution_validation(
             transform=ax.transAxes,
             fontsize=9,
             verticalalignment="top",
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
         ax.set_xlabel(f"Theoretical Quantiles ({dist_name})")
@@ -848,7 +848,7 @@ def plot_loss_distribution_validation(
             fontsize=9,
             horizontalalignment="right",
             verticalalignment="bottom",
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
         ax.set_xlabel("Loss Amount")
@@ -869,7 +869,7 @@ def plot_loss_distribution_validation(
     return fig
 
 
-def plot_monte_carlo_convergence(
+def plot_monte_carlo_convergence(  # pylint: disable=too-many-locals
     metrics_history: Dict[str, List[float]],
     iterations: Optional[np.ndarray] = None,
     convergence_thresholds: Optional[Dict[str, float]] = None,
@@ -997,7 +997,7 @@ def plot_monte_carlo_convergence(
                 fontsize=9,
                 horizontalalignment="right",
                 verticalalignment="top",
-                bbox=dict(boxstyle="round", facecolor=status_color, alpha=0.3),
+                bbox={"boxstyle": "round", "facecolor": status_color, "alpha": 0.3},
             )
 
         # Formatting
@@ -1020,7 +1020,7 @@ def plot_monte_carlo_convergence(
     return fig
 
 
-def plot_enhanced_convergence_diagnostics(
+def plot_enhanced_convergence_diagnostics(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     chains: np.ndarray,
     parameter_names: Optional[List[str]] = None,
     burn_in: Optional[int] = None,
@@ -1145,10 +1145,10 @@ def plot_enhanced_convergence_diagnostics(
     ax_ess.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
-    for bar, val in zip(bars, ess_values):
-        height = bar.get_height()
+    for rect, val in zip(bars, ess_values):
+        height = rect.get_height()
         ax_ess.text(
-            bar.get_x() + bar.get_width() / 2.0,
+            rect.get_x() + rect.get_width() / 2.0,
             height,
             f"{val:.0f}",
             ha="center",
@@ -1198,10 +1198,10 @@ def plot_enhanced_convergence_diagnostics(
     ax_mcse.grid(True, alpha=0.3, axis="y")
 
     # Add value labels
-    for bar, val in zip(bars, mcse_values):
-        height = bar.get_height()
+    for rect, val in zip(bars, mcse_values):
+        height = rect.get_height()
         ax_mcse.text(
-            bar.get_x() + bar.get_width() / 2.0,
+            rect.get_x() + rect.get_width() / 2.0,
             height,
             f"{val:.4f}",
             ha="center",
@@ -1210,5 +1210,402 @@ def plot_enhanced_convergence_diagnostics(
         )
 
     plt.suptitle(title, fontsize=14, fontweight="bold")
+
+    return fig
+
+
+def plot_ergodic_divergence(  # pylint: disable=too-many-locals
+    time_horizons: np.ndarray,
+    time_averages: np.ndarray,
+    ensemble_averages: np.ndarray,
+    standard_errors: Optional[np.ndarray] = None,
+    parameter_scenarios: Optional[Dict[str, Dict[str, Any]]] = None,
+    title: str = "Ergodic vs Ensemble Average Divergence",
+    figsize: Tuple[float, float] = (14, 8),
+    add_formulas: bool = True,
+) -> Figure:
+    """Create ergodic vs ensemble divergence visualization (Figure C1).
+
+    Demonstrates the fundamental difference between time-average (ergodic) and
+    ensemble-average growth rates as time horizon increases, showing why insurance
+    decisions must consider individual path dynamics rather than expected values.
+
+    Args:
+        time_horizons: Array of time horizons (e.g., 1 to 1000 years)
+        time_averages: Time-average growth rates for each horizon
+        ensemble_averages: Ensemble-average growth rates for each horizon
+        standard_errors: Optional standard errors for confidence bands
+        parameter_scenarios: Optional dict of scenario name to parameter values
+        title: Plot title
+        figsize: Figure size (width, height)
+        add_formulas: Whether to add LaTeX formula annotations
+
+    Returns:
+        Matplotlib figure showing divergence visualization
+
+    Examples:
+        >>> horizons = np.logspace(0, 3, 50)  # 1 to 1000 years
+        >>> time_avg = np.array([0.05 * (1 - 0.1 * np.log10(t)) for t in horizons])
+        >>> ensemble_avg = np.array([0.08] * len(horizons))
+        >>> fig = plot_ergodic_divergence(horizons, time_avg, ensemble_avg)
+    """
+    set_wsj_style()
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+
+    # Main divergence plot (left)
+    ax1.semilogx(
+        time_horizons,
+        time_averages,
+        color=WSJ_COLORS["blue"],
+        linewidth=2.5,
+        label="Time Average (Ergodic)",
+    )
+    ax1.semilogx(
+        time_horizons,
+        ensemble_averages,
+        color=WSJ_COLORS["red"],
+        linewidth=2.5,
+        linestyle="--",
+        label="Ensemble Average",
+    )
+
+    # Add confidence bands if provided
+    if standard_errors is not None:
+        ax1.fill_between(
+            time_horizons,
+            time_averages - 2 * standard_errors,
+            time_averages + 2 * standard_errors,
+            alpha=0.2,
+            color=WSJ_COLORS["blue"],
+            label="95% CI (Time Average)",
+        )
+
+    # Add parameter sensitivity scenarios if provided
+    if parameter_scenarios:
+        colors = ["purple", "orange", "green"]
+        for idx, (scenario_name, scenario_data) in enumerate(parameter_scenarios.items()):
+            color = WSJ_COLORS.get(colors[idx % len(colors)], colors[idx % len(colors)])
+            ax1.semilogx(
+                scenario_data["horizons"],
+                scenario_data["time_avg"],
+                color=color,
+                linewidth=1.5,
+                alpha=0.7,
+                linestyle=":",
+                label=f"Scenario: {scenario_name}",
+            )
+
+    # Add divergence region shading
+    divergence_start = None
+    for i, _ in enumerate(time_horizons):
+        if abs(time_averages[i] - ensemble_averages[i]) > 0.005:  # 0.5% divergence threshold
+            divergence_start = time_horizons[i]
+            break
+
+    if divergence_start:
+        ax1.axvspan(
+            divergence_start,
+            time_horizons[-1],
+            alpha=0.1,
+            color=WSJ_COLORS["light_gray"],
+            label="Divergence Region",
+        )
+        ax1.axvline(x=divergence_start, color="gray", linestyle=":", linewidth=1, alpha=0.5)
+        ax1.text(
+            divergence_start,
+            ax1.get_ylim()[0] + 0.01,
+            f"Divergence at {divergence_start:.0f} years",
+            rotation=90,
+            va="bottom",
+            fontsize=9,
+            alpha=0.7,
+        )
+
+    ax1.set_xlabel("Time Horizon (years)", fontsize=12)
+    ax1.set_ylabel("Growth Rate", fontsize=12)
+    ax1.set_title("Time vs Ensemble Average Growth", fontsize=13, fontweight="bold")
+    ax1.legend(loc="best", fontsize=10)
+    ax1.grid(True, alpha=0.3, which="both")
+
+    # Mathematical formulas (right panel)
+    ax2.axis("off")
+    ax2.set_title("Mathematical Framework", fontsize=13, fontweight="bold")
+
+    if add_formulas:
+        formula_text = r"""
+$\mathbf{Time\ Average\ (Ergodic):}$
+$g_{time} = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W(T)}{W(0)}\right)$
+
+$\mathbf{Ensemble\ Average:}$
+$g_{ensemble} = \mathbb{E}[\ln(W(T)/W(0))]$
+
+$\mathbf{For\ Multiplicative\ Processes:}$
+$W(t+1) = W(t) \cdot (1 + r + \sigma \xi_t)$
+
+$\mathbf{Key\ Result:}$
+$g_{time} = \mu - \frac{\sigma^2}{2}$ (volatility drag)
+$g_{ensemble} = \mu$
+
+$\mathbf{Insurance\ Impact:}$
+Premium $p$ reduces both averages equally
+But insurance caps losses at $L$:
+$g_{time}^{ins} > g_{time}^{no\ ins}$ for high $\sigma$
+"""
+        ax2.text(
+            0.1,
+            0.9,
+            formula_text,
+            transform=ax2.transAxes,
+            fontsize=11,
+            verticalalignment="top",
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
+        )
+
+        # Add interpretation box
+        interpretation = """
+        Key Insights:
+        • Time and ensemble averages diverge for multiplicative processes
+        • Volatility creates a "drag" on time-average growth
+        • Insurance reduces effective volatility, improving time-average growth
+        • This justifies higher premiums than expected loss alone
+        """
+        ax2.text(
+            0.1,
+            0.3,
+            interpretation,
+            transform=ax2.transAxes,
+            fontsize=10,
+            verticalalignment="top",
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": WSJ_COLORS["light_gray"], "alpha": 0.2},
+        )
+
+    plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    return fig
+
+
+def plot_path_dependent_wealth(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    trajectories: np.ndarray,
+    time_points: Optional[np.ndarray] = None,
+    ruin_threshold: float = 0.0,
+    percentiles: Optional[List[int]] = None,
+    highlight_ruined: bool = True,
+    add_survivor_bias_inset: bool = True,
+    title: str = "Path-Dependent Wealth Evolution",
+    figsize: Tuple[float, float] = (14, 8),
+    log_scale: bool = True,
+) -> Figure:
+    """Create path-dependent wealth evolution visualization (Figure C2).
+
+    Shows multiple wealth trajectories over time with percentile bands, highlighting
+    paths that hit ruin and demonstrating survivor bias effects. This visualization
+    makes clear why ensemble averages mislead decision-making.
+
+    Args:
+        trajectories: Array of shape (n_paths, n_time_points) with wealth values
+        time_points: Optional array of time points (defaults to years)
+        ruin_threshold: Wealth level considered as ruin (default 0)
+        percentiles: List of percentiles to show (default [5, 25, 50, 75, 95])
+        highlight_ruined: Whether to highlight paths that hit ruin
+        add_survivor_bias_inset: Whether to add survivor bias analysis inset
+        title: Plot title
+        figsize: Figure size (width, height)
+        log_scale: Whether to use log scale for wealth axis
+
+    Returns:
+        Matplotlib figure showing path evolution
+
+    Examples:
+        >>> n_paths, n_years = 1000, 100
+        >>> trajectories = np.random.lognormal(0, 0.2, (n_paths, n_years)).cumprod(axis=1)
+        >>> fig = plot_path_dependent_wealth(trajectories)
+    """
+    set_wsj_style()
+
+    if percentiles is None:
+        percentiles = [5, 25, 50, 75, 95]
+
+    # Generate time points if not provided
+    if time_points is None:
+        time_points = np.arange(trajectories.shape[1])
+
+    # Calculate statistics
+    n_paths, n_time = trajectories.shape
+
+    # Identify ruined paths
+    ruined_mask = np.any(trajectories <= ruin_threshold, axis=1)
+    survived_mask = ~ruined_mask
+    n_ruined = np.sum(ruined_mask)
+    n_survived = np.sum(survived_mask)
+
+    # Calculate percentiles for all paths and survivors only
+    percentile_values = np.percentile(trajectories, percentiles, axis=0)
+    survivor_percentiles = (
+        np.percentile(trajectories[survived_mask], percentiles, axis=0)
+        if n_survived > 0
+        else percentile_values
+    )
+
+    # Create figure with optional inset
+    if add_survivor_bias_inset:
+        fig = plt.figure(figsize=figsize)
+        gs = fig.add_gridspec(
+            2, 2, height_ratios=[3, 1], width_ratios=[3, 1], hspace=0.3, wspace=0.3
+        )
+        ax = fig.add_subplot(gs[0, :])
+        ax_inset = fig.add_subplot(gs[1, 0])
+        ax_stats = fig.add_subplot(gs[1, 1])
+    else:
+        fig, ax = plt.subplots(figsize=figsize)
+
+    # Plot individual trajectories
+    # Sample paths to plot (limit for performance)
+    max_paths_to_plot = min(100, n_paths)
+    sample_indices = np.random.choice(n_paths, max_paths_to_plot, replace=False)
+
+    for idx in sample_indices:
+        trajectory = trajectories[idx]
+        is_ruined = ruined_mask[idx]
+
+        if is_ruined and highlight_ruined:
+            # Find ruin point
+            ruin_point = np.where(trajectory <= ruin_threshold)[0]
+            if len(ruin_point) > 0:
+                ruin_idx = ruin_point[0]
+                # Plot until ruin in red
+                ax.plot(
+                    time_points[: ruin_idx + 1],
+                    trajectory[: ruin_idx + 1],
+                    alpha=0.3,
+                    linewidth=0.5,
+                    color=WSJ_COLORS["red"],
+                )
+            else:
+                ax.plot(
+                    time_points,
+                    trajectory,
+                    alpha=0.1,
+                    linewidth=0.5,
+                    color=WSJ_COLORS["light_gray"],
+                )
+        else:
+            ax.plot(
+                time_points, trajectory, alpha=0.1, linewidth=0.5, color=WSJ_COLORS["light_gray"]
+            )
+
+    # Plot percentile bands
+    colors = ["green", "blue", "purple", "blue", "green"]
+    alphas = [0.3, 0.4, 0.6, 0.4, 0.3]
+
+    for i in range(len(percentiles) // 2):
+        lower_idx = i
+        upper_idx = -(i + 1)
+
+        ax.fill_between(
+            time_points,
+            percentile_values[lower_idx],
+            percentile_values[upper_idx],
+            alpha=alphas[i],
+            color=WSJ_COLORS[colors[i]],
+            label=f"{percentiles[lower_idx]}-{percentiles[upper_idx]}%",
+        )
+
+    # Plot median
+    median_idx = len(percentiles) // 2
+    ax.plot(
+        time_points,
+        percentile_values[median_idx],
+        color=WSJ_COLORS["black"],
+        linewidth=2,
+        label="Median",
+    )
+
+    # Formatting
+    if log_scale:
+        ax.set_yscale("log")
+
+    ax.set_xlabel("Time (years)", fontsize=12)
+    ax.set_ylabel("Wealth (log scale)" if log_scale else "Wealth", fontsize=12)
+    ax.set_title("Wealth Trajectories with Percentile Bands", fontsize=13, fontweight="bold")
+    ax.legend(loc="upper left", fontsize=9)
+    ax.grid(True, alpha=0.3)
+
+    # Add ruin region shading
+    if highlight_ruined and n_ruined > 0:
+        ax.axhspan(
+            0,
+            ruin_threshold if ruin_threshold > 0 else ax.get_ylim()[0],
+            alpha=0.1,
+            color=WSJ_COLORS["red"],
+            label="Ruin Region",
+        )
+
+    # Survivor bias inset
+    if add_survivor_bias_inset:
+        # Calculate survival rate over time
+        survival_rate = np.zeros(n_time)
+        for t in range(n_time):
+            survival_rate[t] = np.mean(trajectories[:, t] > ruin_threshold) * 100
+
+        ax_inset.plot(time_points, survival_rate, color=WSJ_COLORS["blue"], linewidth=2)
+        ax_inset.fill_between(time_points, 0, survival_rate, alpha=0.3, color=WSJ_COLORS["blue"])
+        ax_inset.set_xlabel("Time (years)", fontsize=10)
+        ax_inset.set_ylabel("Survival Rate (%)", fontsize=10)
+        ax_inset.set_title("Survivor Bias Effect", fontsize=11, fontweight="bold")
+        ax_inset.grid(True, alpha=0.3)
+
+        # Add annotation for final survival rate
+        final_survival = survival_rate[-1]
+        ax_inset.text(
+            0.95,
+            0.05,
+            f"Final: {final_survival:.1f}%",
+            transform=ax_inset.transAxes,
+            horizontalalignment="right",
+            fontsize=9,
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+        )
+
+        # Statistics panel
+        ax_stats.axis("off")
+
+        stats_text = f"""
+Path Statistics:
+• Total paths: {n_paths:,}
+• Survived: {n_survived:,} ({n_survived/n_paths*100:.1f}%)
+• Ruined: {n_ruined:,} ({n_ruined/n_paths*100:.1f}%)
+
+Final Wealth (survivors):
+• Median: {np.median(trajectories[survived_mask, -1]) if n_survived > 0 else 0:.2f}
+• Mean: {np.mean(trajectories[survived_mask, -1]) if n_survived > 0 else 0:.2f}
+
+All Paths (inc. ruined):
+• Median: {np.median(trajectories[:, -1]):.2f}
+• Mean: {np.mean(trajectories[:, -1]):.2f}
+
+Survivor Bias Factor:
+{np.mean(trajectories[survived_mask, -1]) / np.mean(trajectories[:, -1]) if n_survived > 0 else 1:.2f}x
+"""
+        ax_stats.text(
+            0.1,
+            0.9,
+            stats_text,
+            transform=ax_stats.transAxes,
+            fontsize=9,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": WSJ_COLORS["light_gray"], "alpha": 0.2},
+        )
+
+    plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
+
+    # Use constrained_layout or manual adjustment instead of tight_layout for GridSpec
+    if add_survivor_bias_inset:
+        # GridSpec already handles spacing, no need for tight_layout
+        pass
+    else:
+        # For simple subplot, tight_layout works fine
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
     return fig

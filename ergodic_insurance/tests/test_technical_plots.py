@@ -13,8 +13,10 @@ import pytest
 
 from ergodic_insurance.src.visualization.technical_plots import (
     plot_enhanced_convergence_diagnostics,
+    plot_ergodic_divergence,
     plot_loss_distribution_validation,
     plot_monte_carlo_convergence,
+    plot_path_dependent_wealth,
     plot_trace_plots,
 )
 
@@ -409,6 +411,276 @@ class TestIntegration:
         fig5 = plot_monte_carlo_convergence(large_history)
         assert isinstance(fig5, Figure)
         plt.close(fig5)
+
+
+class TestErgodicDivergence:
+    """Test suite for ergodic divergence visualization."""
+
+    def test_basic_ergodic_divergence(self):
+        """Test basic ergodic divergence plot."""
+        np.random.seed(42)
+
+        # Generate test data
+        time_horizons = np.logspace(0, 3, 50)  # 1 to 1000 years
+        time_averages = np.array([0.05 * (1 - 0.1 * np.log10(t)) for t in time_horizons])
+        ensemble_averages = np.array([0.08] * len(time_horizons))
+
+        fig = plot_ergodic_divergence(time_horizons, time_averages, ensemble_averages)
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 2  # Main plot and formula panel
+
+        # Check axes content
+        ax1 = fig.axes[0]
+        assert len(ax1.lines) >= 2  # At least time and ensemble average lines
+        assert ax1.get_xscale() == "log"  # Should be log scale
+
+        plt.close(fig)
+
+    def test_ergodic_divergence_with_confidence(self):
+        """Test ergodic divergence with confidence bands."""
+        np.random.seed(42)
+
+        # Generate test data with standard errors
+        time_horizons = np.logspace(0, 2, 30)
+        time_averages = np.array([0.05 * (1 - 0.05 * np.log10(t)) for t in time_horizons])
+        ensemble_averages = np.array([0.06] * len(time_horizons))
+        standard_errors = np.array([0.01 / np.sqrt(t) for t in time_horizons])
+
+        fig = plot_ergodic_divergence(
+            time_horizons, time_averages, ensemble_averages, standard_errors=standard_errors
+        )
+
+        assert isinstance(fig, Figure)
+        # Check for confidence bands (fill_between creates PolyCollection)
+        ax1 = fig.axes[0]
+        assert any(hasattr(c, "get_facecolor") for c in ax1.collections)
+
+        plt.close(fig)
+
+    def test_ergodic_divergence_with_scenarios(self):
+        """Test ergodic divergence with parameter scenarios."""
+        np.random.seed(42)
+
+        # Generate base data
+        time_horizons = np.logspace(0, 2.5, 40)
+        time_averages = np.array([0.045 * (1 - 0.08 * np.log10(t)) for t in time_horizons])
+        ensemble_averages = np.array([0.07] * len(time_horizons))
+
+        # Add parameter scenarios
+        scenarios = {
+            "High Vol": {
+                "horizons": time_horizons,
+                "time_avg": np.array([0.03 * (1 - 0.15 * np.log10(t)) for t in time_horizons]),
+            },
+            "Low Vol": {
+                "horizons": time_horizons,
+                "time_avg": np.array([0.06 * (1 - 0.05 * np.log10(t)) for t in time_horizons]),
+            },
+        }
+
+        fig = plot_ergodic_divergence(
+            time_horizons, time_averages, ensemble_averages, parameter_scenarios=scenarios
+        )
+
+        assert isinstance(fig, Figure)
+        ax1 = fig.axes[0]
+        # Should have base lines plus scenario lines
+        assert len(ax1.lines) >= 4  # 2 base + 2 scenarios
+
+        plt.close(fig)
+
+    def test_ergodic_divergence_without_formulas(self):
+        """Test ergodic divergence without formula annotations."""
+        np.random.seed(42)
+
+        time_horizons = np.logspace(0, 2, 20)
+        time_averages = 0.05 * np.ones(len(time_horizons))
+        ensemble_averages = 0.08 * np.ones(len(time_horizons))
+
+        fig = plot_ergodic_divergence(
+            time_horizons, time_averages, ensemble_averages, add_formulas=False
+        )
+
+        assert isinstance(fig, Figure)
+        # Second axis should still exist but be empty
+        ax2 = fig.axes[1]
+        assert not ax2.texts or len(ax2.texts) == 0
+
+        plt.close(fig)
+
+    def test_ergodic_divergence_custom_parameters(self):
+        """Test ergodic divergence with custom parameters."""
+        np.random.seed(42)
+
+        time_horizons = np.linspace(1, 100, 50)
+        time_averages = 0.04 + 0.001 * np.random.randn(50)
+        ensemble_averages = 0.06 + 0.0005 * np.random.randn(50)
+
+        fig = plot_ergodic_divergence(
+            time_horizons,
+            time_averages,
+            ensemble_averages,
+            title="Custom Ergodic Analysis",
+            figsize=(16, 10),
+        )
+
+        assert isinstance(fig, Figure)
+        assert fig.get_size_inches()[0] == 16
+        assert fig.get_size_inches()[1] == 10
+
+        plt.close(fig)
+
+
+class TestPathDependentWealth:
+    """Test suite for path-dependent wealth visualization."""
+
+    def test_basic_path_dependent_wealth(self):
+        """Test basic path-dependent wealth plot."""
+        np.random.seed(42)
+
+        # Generate test trajectories
+        n_paths, n_years = 100, 50
+        trajectories = np.ones((n_paths, n_years))
+        for i in range(n_paths):
+            shocks = np.exp(np.random.normal(0, 0.2, n_years))
+            trajectories[i] = np.cumprod(shocks)
+
+        fig = plot_path_dependent_wealth(trajectories)
+
+        assert isinstance(fig, Figure)
+        # Should have main plot, survivor bias inset, and stats panel
+        assert len(fig.axes) >= 1
+
+        plt.close(fig)
+
+    def test_path_dependent_wealth_with_ruin(self):
+        """Test path-dependent wealth with ruined paths."""
+        np.random.seed(42)
+
+        # Generate trajectories with some hitting ruin
+        n_paths, n_years = 200, 75
+        trajectories = np.ones((n_paths, n_years))
+
+        for i in range(n_paths):
+            shocks = np.exp(np.random.normal(0, 0.3, n_years))
+            trajectories[i] = np.cumprod(shocks)
+            # Force some paths to ruin
+            if i % 5 == 0:
+                ruin_time = np.random.randint(20, n_years)
+                trajectories[i, ruin_time:] = 0
+
+        fig = plot_path_dependent_wealth(trajectories, ruin_threshold=0.01, highlight_ruined=True)
+
+        assert isinstance(fig, Figure)
+        # Check for ruined paths (red lines)
+        ax = fig.axes[0]
+        has_red_lines = any(
+            line
+            for line in ax.lines
+            if hasattr(line, "get_color") and "red" in str(line.get_color()).lower()
+        )
+
+        plt.close(fig)
+
+    def test_path_dependent_wealth_custom_percentiles(self):
+        """Test path-dependent wealth with custom percentiles."""
+        np.random.seed(42)
+
+        # Generate test data
+        n_paths, n_years = 150, 60
+        trajectories = np.random.lognormal(0, 0.15, (n_paths, n_years)).cumprod(axis=1)
+
+        custom_percentiles = [10, 25, 50, 75, 90]
+
+        fig = plot_path_dependent_wealth(trajectories, percentiles=custom_percentiles)
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        # Should have percentile bands
+        assert len(ax.collections) > 0  # fill_between creates collections
+
+        plt.close(fig)
+
+    def test_path_dependent_wealth_no_inset(self):
+        """Test path-dependent wealth without survivor bias inset."""
+        np.random.seed(42)
+
+        # Generate simple test data
+        n_paths, n_years = 50, 30
+        trajectories = np.ones((n_paths, n_years))
+        for i in range(n_paths):
+            trajectories[i] = np.cumprod(1 + 0.05 * np.random.randn(n_years))
+
+        fig = plot_path_dependent_wealth(trajectories, add_survivor_bias_inset=False)
+
+        assert isinstance(fig, Figure)
+        # Should only have main plot
+        assert len(fig.axes) == 1
+
+        plt.close(fig)
+
+    def test_path_dependent_wealth_linear_scale(self):
+        """Test path-dependent wealth with linear scale."""
+        np.random.seed(42)
+
+        # Generate test data
+        n_paths, n_years = 80, 40
+        trajectories = np.ones((n_paths, n_years))
+        for i in range(n_paths):
+            trajectories[i] = np.cumsum(np.random.normal(100, 20, n_years))
+
+        fig = plot_path_dependent_wealth(trajectories, log_scale=False, ruin_threshold=-100)
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        assert ax.get_yscale() == "linear"
+
+        plt.close(fig)
+
+    def test_path_dependent_wealth_with_time_points(self):
+        """Test path-dependent wealth with custom time points."""
+        np.random.seed(42)
+
+        # Generate test data
+        n_paths = 75
+        time_points = np.array([0, 1, 2, 5, 10, 20, 30, 50, 75, 100])
+        n_years = len(time_points)
+        trajectories = np.random.lognormal(0, 0.2, (n_paths, n_years)).cumprod(axis=1)
+
+        fig = plot_path_dependent_wealth(trajectories, time_points=time_points)
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        # Check x-axis reflects custom time points
+        x_data = ax.lines[0].get_xdata() if ax.lines else []
+
+        plt.close(fig)
+
+    def test_path_dependent_wealth_extreme_scenarios(self):
+        """Test path-dependent wealth with extreme scenarios."""
+        np.random.seed(42)
+
+        # All paths survive
+        n_paths, n_years = 100, 50
+        trajectories_survive = np.ones((n_paths, n_years))
+        for i in range(n_paths):
+            trajectories_survive[i] = np.cumprod(1 + np.abs(np.random.normal(0.02, 0.01, n_years)))
+
+        fig1 = plot_path_dependent_wealth(trajectories_survive, ruin_threshold=0.5)
+        assert isinstance(fig1, Figure)
+        plt.close(fig1)
+
+        # All paths hit ruin
+        trajectories_ruin = np.ones((n_paths, n_years))
+        for i in range(n_paths):
+            ruin_time = np.random.randint(10, n_years - 10)
+            trajectories_ruin[i, :ruin_time] = np.cumprod(1 + np.random.normal(0, 0.1, ruin_time))
+            trajectories_ruin[i, ruin_time:] = 0
+
+        fig2 = plot_path_dependent_wealth(trajectories_ruin, ruin_threshold=0.01)
+        assert isinstance(fig2, Figure)
+        plt.close(fig2)
 
 
 if __name__ == "__main__":

@@ -72,10 +72,12 @@ from .technical_plots import (
     create_interactive_pareto_frontier,
     plot_convergence_diagnostics,
     plot_enhanced_convergence_diagnostics,
+    plot_ergodic_divergence,
     plot_loss_distribution_validation,
     plot_monte_carlo_convergence,
     plot_pareto_frontier_2d,
     plot_pareto_frontier_3d,
+    plot_path_dependent_wealth,
     plot_trace_plots,
 )
 
@@ -96,11 +98,13 @@ __all__ = [
     # Technical plots
     "plot_convergence_diagnostics",
     "plot_enhanced_convergence_diagnostics",
+    "plot_ergodic_divergence",
     "plot_trace_plots",
     "plot_loss_distribution_validation",
     "plot_monte_carlo_convergence",
     "plot_pareto_frontier_2d",
     "plot_pareto_frontier_3d",
+    "plot_path_dependent_wealth",
     "create_interactive_pareto_frontier",
     # Interactive plots
     "create_interactive_dashboard",
