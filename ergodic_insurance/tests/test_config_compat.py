@@ -353,11 +353,13 @@ class TestLegacyConfigAdapter:
             # Return our properly structured config
             mock_load.return_value = mock_config_v2
 
-            # Test with dictionary override
-            result = legacy_adapter.load(
-                "baseline",
-                override_params={"manufacturer": {"operating_margin": 0.12}},
-            )
+            # Test with dictionary override - suppress expected deprecation warning
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                result = legacy_adapter.load(
+                    "baseline",
+                    override_params={"manufacturer": {"operating_margin": 0.12}},
+                )
 
             # Verify the flatten_dict was used to handle nested params
             # The override should be flattened to manufacturer__operating_margin

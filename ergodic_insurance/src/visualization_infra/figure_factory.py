@@ -569,15 +569,22 @@ class FigureFactory:
             plot_data = data
 
         # Create box plot (using updated matplotlib API)
-        vert = orientation == "vertical"
-        bp = ax.boxplot(
-            plot_data,
-            vert=vert if hasattr(ax.boxplot, "__wrapped__") else None,  # Support old API
-            tick_labels=labels,  # Use tick_labels instead of labels
-            showmeans=show_means,
-            patch_artist=True,
-            **kwargs,
-        )
+        # Filter out 'vert' from kwargs if it exists to avoid duplication
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != "vert"}
+
+        # Use vert parameter with warning suppression for compatibility
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=PendingDeprecationWarning)
+            bp = ax.boxplot(
+                plot_data,
+                vert=(orientation == "vertical"),
+                tick_labels=labels,  # Use tick_labels instead of labels
+                showmeans=show_means,
+                patch_artist=True,
+                **filtered_kwargs,
+            )
 
         # Style the boxes
         for i, (box, median) in enumerate(zip(bp["boxes"], bp["medians"])):
@@ -617,7 +624,9 @@ class FigureFactory:
             ax.set_ylabel(y_label)
 
         ax.grid(
-            True, alpha=self.style_manager.get_grid_config().grid_alpha, axis="y" if vert else "x"
+            True,
+            alpha=self.style_manager.get_grid_config().grid_alpha,
+            axis="y" if orientation == "vertical" else "x",
         )
 
         plt.tight_layout()
