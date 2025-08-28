@@ -17,7 +17,7 @@ from scipy import stats
 from .core import COLOR_SEQUENCE, WSJ_COLORS, set_wsj_style
 
 
-def plot_convergence_diagnostics(  # pylint: disable=too-many-locals
+def plot_convergence_diagnostics(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     convergence_stats: Dict[str, Any],
     title: str = "Convergence Diagnostics",
     figsize: Tuple[int, int] = (12, 8),
@@ -687,7 +687,7 @@ def plot_trace_plots(
     return fig
 
 
-def plot_loss_distribution_validation(
+def plot_loss_distribution_validation(  # pylint: disable=too-many-statements
     attritional_losses: np.ndarray,
     large_losses: np.ndarray,
     attritional_dist: Optional[Dict[str, Any]] = None,
@@ -778,7 +778,7 @@ def plot_loss_distribution_validation(
             transform=ax.transAxes,
             fontsize=9,
             verticalalignment="top",
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
         ax.set_xlabel(f"Theoretical Quantiles ({dist_name})")
@@ -848,7 +848,7 @@ def plot_loss_distribution_validation(
             fontsize=9,
             horizontalalignment="right",
             verticalalignment="bottom",
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
         ax.set_xlabel("Loss Amount")
@@ -869,7 +869,7 @@ def plot_loss_distribution_validation(
     return fig
 
 
-def plot_monte_carlo_convergence(
+def plot_monte_carlo_convergence(  # pylint: disable=too-many-locals
     metrics_history: Dict[str, List[float]],
     iterations: Optional[np.ndarray] = None,
     convergence_thresholds: Optional[Dict[str, float]] = None,
@@ -997,7 +997,7 @@ def plot_monte_carlo_convergence(
                 fontsize=9,
                 horizontalalignment="right",
                 verticalalignment="top",
-                bbox=dict(boxstyle="round", facecolor=status_color, alpha=0.3),
+                bbox={"boxstyle": "round", "facecolor": status_color, "alpha": 0.3},
             )
 
         # Formatting
@@ -1020,7 +1020,7 @@ def plot_monte_carlo_convergence(
     return fig
 
 
-def plot_enhanced_convergence_diagnostics(
+def plot_enhanced_convergence_diagnostics(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     chains: np.ndarray,
     parameter_names: Optional[List[str]] = None,
     burn_in: Optional[int] = None,
@@ -1145,10 +1145,10 @@ def plot_enhanced_convergence_diagnostics(
     ax_ess.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
-    for bar, val in zip(bars, ess_values):
-        height = bar.get_height()
+    for rect, val in zip(bars, ess_values):
+        height = rect.get_height()
         ax_ess.text(
-            bar.get_x() + bar.get_width() / 2.0,
+            rect.get_x() + rect.get_width() / 2.0,
             height,
             f"{val:.0f}",
             ha="center",
@@ -1198,10 +1198,10 @@ def plot_enhanced_convergence_diagnostics(
     ax_mcse.grid(True, alpha=0.3, axis="y")
 
     # Add value labels
-    for bar, val in zip(bars, mcse_values):
-        height = bar.get_height()
+    for rect, val in zip(bars, mcse_values):
+        height = rect.get_height()
         ax_mcse.text(
-            bar.get_x() + bar.get_width() / 2.0,
+            rect.get_x() + rect.get_width() / 2.0,
             height,
             f"{val:.4f}",
             ha="center",
@@ -1298,7 +1298,7 @@ def plot_ergodic_divergence(  # pylint: disable=too-many-locals
 
     # Add divergence region shading
     divergence_start = None
-    for i in range(len(time_horizons)):
+    for i, _ in enumerate(time_horizons):
         if abs(time_averages[i] - ensemble_averages[i]) > 0.005:  # 0.5% divergence threshold
             divergence_start = time_horizons[i]
             break
@@ -1359,7 +1359,7 @@ $g_{time}^{ins} > g_{time}^{no\ ins}$ for high $\sigma$
             transform=ax2.transAxes,
             fontsize=11,
             verticalalignment="top",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="wheat", alpha=0.3),
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
         )
 
         # Add interpretation box
@@ -1377,7 +1377,7 @@ $g_{time}^{ins} > g_{time}^{no\ ins}$ for high $\sigma$
             transform=ax2.transAxes,
             fontsize=10,
             verticalalignment="top",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor=WSJ_COLORS["light_gray"], alpha=0.2),
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": WSJ_COLORS["light_gray"], "alpha": 0.2},
         )
 
     plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
@@ -1386,7 +1386,7 @@ $g_{time}^{ins} > g_{time}^{no\ ins}$ for high $\sigma$
     return fig
 
 
-def plot_path_dependent_wealth(  # pylint: disable=too-many-locals
+def plot_path_dependent_wealth(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     trajectories: np.ndarray,
     time_points: Optional[np.ndarray] = None,
     ruin_threshold: float = 0.0,
@@ -1565,7 +1565,7 @@ def plot_path_dependent_wealth(  # pylint: disable=too-many-locals
             transform=ax_inset.transAxes,
             horizontalalignment="right",
             fontsize=9,
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
         # Statistics panel
@@ -1595,10 +1595,17 @@ Survivor Bias Factor:
             transform=ax_stats.transAxes,
             fontsize=9,
             verticalalignment="top",
-            bbox=dict(boxstyle="round", facecolor=WSJ_COLORS["light_gray"], alpha=0.2),
+            bbox={"boxstyle": "round", "facecolor": WSJ_COLORS["light_gray"], "alpha": 0.2},
         )
 
     plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    # Use constrained_layout or manual adjustment instead of tight_layout for GridSpec
+    if add_survivor_bias_inset:
+        # GridSpec already handles spacing, no need for tight_layout
+        pass
+    else:
+        # For simple subplot, tight_layout works fine
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
     return fig
