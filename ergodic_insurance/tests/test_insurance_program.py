@@ -5,12 +5,13 @@ reinstatements, multi-layer structures, complex claim scenarios, and
 optimization algorithms.
 """
 
-import tempfile
 from pathlib import Path
+import tempfile
 
 import numpy as np
 import pytest
 import yaml
+
 from ergodic_insurance.src.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,

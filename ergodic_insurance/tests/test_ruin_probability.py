@@ -272,7 +272,7 @@ class TestRuinProbabilityAnalyzer:
         )
 
         assert is_bankrupt is True
-        assert causes["asset_threshold"][0] is True
+        assert bool(causes["asset_threshold"][0])
 
     def test_check_bankruptcy_conditions_equity_threshold(self, analyzer):
         """Test bankruptcy due to equity threshold."""
@@ -293,7 +293,7 @@ class TestRuinProbabilityAnalyzer:
         )
 
         assert is_bankrupt is True
-        assert causes["equity_threshold"][0] is True
+        assert bool(causes["equity_threshold"][0])
 
     def test_check_bankruptcy_conditions_consecutive_negative(self, analyzer):
         """Test bankruptcy due to consecutive negative equity."""
@@ -330,7 +330,7 @@ class TestRuinProbabilityAnalyzer:
             manufacturer, {"equity": -50_000}, 2, config, causes, count
         )
         assert is_bankrupt is True
-        assert causes["consecutive_negative"][2] is True
+        assert bool(causes["consecutive_negative"][2])
 
     def test_check_bankruptcy_conditions_debt_service(self, analyzer):
         """Test bankruptcy due to debt service coverage."""
@@ -352,7 +352,7 @@ class TestRuinProbabilityAnalyzer:
         )
 
         assert is_bankrupt is True
-        assert causes["debt_service"][0] is True
+        assert bool(causes["debt_service"][0])  # numpy bool comparison
 
     def test_check_bankruptcy_conditions_reset_consecutive(self, analyzer):
         """Test resetting consecutive negative count."""

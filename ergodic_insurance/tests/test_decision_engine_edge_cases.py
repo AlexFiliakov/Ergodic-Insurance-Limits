@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import numpy as np
 import pytest
+from scipy.optimize import OptimizeResult
+
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.decision_engine import (
     DecisionMetrics,
@@ -17,7 +19,6 @@ from ergodic_insurance.src.decision_engine import (
 from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer as Layer
 from ergodic_insurance.src.loss_distributions import LossDistribution
 from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from scipy.optimize import OptimizeResult
 
 
 class TestCVaREdgeCases:

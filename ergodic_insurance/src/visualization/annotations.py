@@ -48,8 +48,8 @@ def add_value_labels(
     y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
     offset_value = offset * y_range
 
-    for bar in bars:
-        height = bar.get_height()
+    for bar_elem in bars:
+        height = bar_elem.get_height()
         if format_func:
             label = format_func(height)
         else:
@@ -58,7 +58,7 @@ def add_value_labels(
         y_pos = height + offset_value if va == "bottom" else height / 2
 
         ax.text(
-            bar.get_x() + bar.get_width() / 2,
+            bar_elem.get_x() + bar_elem.get_width() / 2,
             y_pos,
             label,
             ha=ha,
@@ -147,13 +147,13 @@ def add_callout(
     arrow_color = arrow_color or WSJ_COLORS["gray"]
 
     if bbox_props is None:
-        bbox_props = dict(
-            boxstyle="round,pad=0.3",
-            facecolor="white",
-            edgecolor=WSJ_COLORS["gray"],
-            linewidth=0.5,
-            alpha=0.9,
-        )
+        bbox_props = {
+            "boxstyle": "round,pad=0.3",
+            "facecolor": "white",
+            "edgecolor": WSJ_COLORS["gray"],
+            "linewidth": 0.5,
+            "alpha": 0.9,
+        }
 
     ax.annotate(
         text,
@@ -162,12 +162,12 @@ def add_callout(
         fontsize=fontsize,
         color=color,
         bbox=bbox_props,
-        arrowprops=dict(
-            arrowstyle="->",
-            connectionstyle="arc3,rad=0.2",
-            color=arrow_color,
-            linewidth=1,
-        ),
+        arrowprops={
+            "arrowstyle": "->",
+            "connectionstyle": "arc3,rad=0.2",
+            "color": arrow_color,
+            "linewidth": 1,
+        },
     )
 
 
@@ -224,13 +224,13 @@ def add_benchmark_line(
         va="center",
         fontsize=fontsize,
         color=color,
-        bbox=dict(
-            boxstyle="round,pad=0.3",
-            facecolor="white",
-            edgecolor=color,
-            linewidth=0.5,
-            alpha=0.9,
-        ),
+        bbox={
+            "boxstyle": "round,pad=0.3",
+            "facecolor": "white",
+            "edgecolor": color,
+            "linewidth": 0.5,
+            "alpha": 0.9,
+        },
     )
 
 

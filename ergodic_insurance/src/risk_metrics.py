@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from scipy import stats
+import seaborn as sns
 
 
 @dataclass
@@ -129,12 +129,11 @@ class RiskMetrics:
         """Calculate empirical VaR using percentiles."""
         if self.weights is None:
             return float(np.percentile(self.losses, confidence * 100))
-        else:
-            # Weighted percentile
-            idx = np.searchsorted(self._cumulative_weights, confidence)
-            if idx >= len(self._sorted_losses):
-                idx = len(self._sorted_losses) - 1  # type: ignore
-            return float(self._sorted_losses[idx])
+        # Weighted percentile
+        idx = np.searchsorted(self._cumulative_weights, confidence)
+        if idx >= len(self._sorted_losses):
+            idx = len(self._sorted_losses) - 1  # type: ignore
+        return float(self._sorted_losses[idx])
 
     def _parametric_var(self, confidence: float) -> float:
         """Calculate parametric VaR assuming normal distribution."""
@@ -204,13 +203,12 @@ class RiskMetrics:
             if len(tail_losses) == 0:
                 return float(var_value) if var_value is not None else 0.0
             return float(np.mean(tail_losses))
-        else:
-            mask = self.losses >= var_value
-            if not np.any(mask):
-                return float(var_value) if var_value is not None else 0.0
-            tail_losses = self.losses[mask]
-            tail_weights = self.weights[mask]
-            return float(np.average(tail_losses, weights=tail_weights))
+        mask = self.losses >= var_value
+        if not np.any(mask):
+            return float(var_value) if var_value is not None else 0.0
+        tail_losses = self.losses[mask]
+        tail_weights = self.weights[mask]
+        return float(np.average(tail_losses, weights=tail_weights))
 
     def expected_shortfall(
         self,
@@ -231,13 +229,12 @@ class RiskMetrics:
             if len(tail_losses) == 0:
                 return 0.0
             return float(np.mean(tail_losses))
-        else:
-            mask = self.losses >= threshold
-            if not np.any(mask):
-                return 0.0
-            tail_losses = self.losses[mask]
-            tail_weights = self.weights[mask]
-            return float(np.average(tail_losses, weights=tail_weights))
+        mask = self.losses >= threshold
+        if not np.any(mask):
+            return 0.0
+        tail_losses = self.losses[mask]
+        tail_weights = self.weights[mask]
+        return float(np.average(tail_losses, weights=tail_weights))
 
     def pml(self, return_period: int) -> float:
         """Calculate Probable Maximum Loss (PML) for a given return period.
@@ -262,8 +259,7 @@ class RiskMetrics:
         var_result = self.var(confidence)
         if isinstance(var_result, RiskMetricsResult):
             return var_result.value
-        else:
-            return var_result
+        return var_result
 
     def conditional_tail_expectation(
         self,
@@ -514,7 +510,7 @@ class RiskMetrics:
             "count": len(self.losses),
         }
 
-    def plot_distribution(
+    def plot_distribution(  # pylint: disable=too-many-locals
         self,
         bins: int = 50,
         show_metrics: bool = True,
@@ -608,7 +604,7 @@ class RiskMetrics:
             metrics_text += f"  TVaR: ${tvar_val:,.0f}\n"
 
         pml_periods = [100, 250]
-        metrics_text += f"\nPML Values:\n"
+        metrics_text += "\nPML Values:\n"
         for period in pml_periods:
             pml_val = self.pml(period)
             metrics_text += f"  {period}-year: ${pml_val:,.0f}\n"
@@ -829,7 +825,9 @@ class ROEAnalyzer:
             "tracking_error": tracking_error,
         }
 
-    def performance_ratios(self, risk_free_rate: float = 0.02) -> Dict[str, float]:
+    def performance_ratios(
+        self, risk_free_rate: float = 0.02
+    ) -> Dict[str, float]:  # pylint: disable=too-many-locals
         """Calculate performance ratios for ROE.
 
         Args:

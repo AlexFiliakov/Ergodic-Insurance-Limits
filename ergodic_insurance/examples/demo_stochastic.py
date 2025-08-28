@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Demo script showing stochastic processes in action."""
 
-import sys
 from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np

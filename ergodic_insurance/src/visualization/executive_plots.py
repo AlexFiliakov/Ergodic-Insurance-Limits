@@ -18,6 +18,20 @@ from scipy.signal import argrelextrema
 from .core import COLOR_SEQUENCE, WSJ_COLORS, WSJFormatter, format_currency, set_wsj_style
 
 
+def safe_tight_layout():
+    """Apply tight_layout with warning suppression."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*Tight layout not applied.*")
+        warnings.filterwarnings("ignore", message=".*not compatible with tight_layout.*")
+        try:
+            plt.tight_layout()
+        except (ValueError, RuntimeError):
+            # If tight_layout fails, continue without it
+            pass
+
+
 def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statements
     losses: Union[np.ndarray, pd.DataFrame],
     title: str = "Loss Distribution",
@@ -100,7 +114,7 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
             fontsize=12,
         )
         ax2.set_title("Q-Q Plot")
-        plt.tight_layout()
+        safe_tight_layout()
         return fig
 
     # Histogram
@@ -157,7 +171,7 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
             lines[1].set_linewidth(2)
 
     plt.suptitle(title, fontsize=14, fontweight="bold")
-    plt.tight_layout()
+    safe_tight_layout()
 
     return fig
 
@@ -275,7 +289,7 @@ def plot_return_period_curve(  # pylint: disable=too-many-locals
                 color=WSJ_COLORS["gray"],
             )
 
-    plt.tight_layout()
+    safe_tight_layout()
     return fig
 
 
@@ -343,7 +357,7 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
                 fontsize=12,
             )
             ax2.set_title("Premium Distribution")
-            plt.tight_layout()
+            safe_tight_layout()
             return fig
 
         # Convert DataFrame to list of dicts
@@ -380,7 +394,7 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
             fontsize=12,
         )
         ax2.set_title("Premium Distribution")
-        plt.tight_layout()
+        safe_tight_layout()
         return fig
 
     # Calculate total limit if not provided
@@ -522,7 +536,7 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
     )
 
     plt.suptitle(title, fontsize=14, fontweight="bold")
-    plt.tight_layout()
+    safe_tight_layout()
 
     return fig
 
@@ -753,7 +767,7 @@ def plot_roe_ruin_frontier(  # pylint: disable=too-many-locals,too-many-statemen
         ax.set_ylim(bottom=0)
 
     # Adjust layout
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:
@@ -930,27 +944,27 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
     if show_warnings:
         # Cliff edge warning
         ax.annotate(
-            f"⚠️ CLIFF EDGE\n${cliff_retention:,.0f} retention\n{cliff_ruin:.1%} ruin risk",
+            f"[!] CLIFF EDGE\n${cliff_retention:,.0f} retention\n{cliff_ruin:.1%} ruin risk",
             xy=(cliff_retention, cliff_ruin),
             xytext=(cliff_retention * 3, cliff_ruin + 0.15),
             fontsize=11,
             fontweight="bold",
             color="darkred",
-            bbox=dict(
-                boxstyle="round,pad=0.5",
-                facecolor="yellow",
-                edgecolor="red",
-                alpha=0.9,
-                linewidth=2,
-            ),
-            arrowprops=dict(
-                arrowstyle="-|>",
-                connectionstyle="arc3,rad=0.3",
-                color="red",
-                linewidth=2,
-                shrinkA=5,
-                shrinkB=5,
-            ),
+            bbox={
+                "boxstyle": "round,pad=0.5",
+                "facecolor": "yellow",
+                "edgecolor": "red",
+                "alpha": 0.9,
+                "linewidth": 2,
+            },
+            arrowprops={
+                "arrowstyle": "-|>",
+                "connectionstyle": "arc3,rad=0.3",
+                "color": "red",
+                "linewidth": 2,
+                "shrinkA": 5,
+                "shrinkB": 5,
+            },
         )
 
         # Safe zone indicator
@@ -958,14 +972,17 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
         if len(safe_idx) > 0:
             safe_retention = retentions[safe_idx[0]]
             ax.annotate(
-                f"✓ Safe Zone\nRetention > ${safe_retention:,.0f}",
+                f"[OK] Safe Zone\nRetention > ${safe_retention:,.0f}",
                 xy=(safe_retention * 2, 0.01),
                 fontsize=10,
                 color="darkgreen",
                 fontweight="bold",
-                bbox=dict(
-                    boxstyle="round,pad=0.3", facecolor="lightgreen", edgecolor="green", alpha=0.8
-                ),
+                bbox={
+                    "boxstyle": "round,pad=0.3",
+                    "facecolor": "lightgreen",
+                    "edgecolor": "green",
+                    "alpha": 0.8,
+                },
             )
 
     # Add inset plot for critical region if requested
@@ -1044,7 +1061,7 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
     )
 
     # Adjust layout
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:
@@ -1137,7 +1154,7 @@ def plot_simulation_architecture(
     # Draw main boxes
     for box in boxes:
         rect = plt.Rectangle(
-            (box["x"] - box_width / 2, box["y"] - box_height / 2),
+            (float(box["x"]) - box_width / 2, float(box["y"]) - box_height / 2),  # type: ignore[arg-type]
             box_width,
             box_height,
             facecolor=box["color"],
@@ -1163,9 +1180,12 @@ def plot_simulation_architecture(
     for box in sub_boxes:
         size_factor = box.get("size", 1.0)
         rect = plt.Rectangle(
-            (box["x"] - box_width * size_factor * 0.4, box["y"] - box_height * size_factor * 0.4),
-            box_width * size_factor * 0.8,
-            box_height * size_factor * 0.8,
+            (
+                float(box["x"]) - box_width * float(size_factor) * 0.4,  # type: ignore[arg-type]
+                float(box["y"]) - box_height * float(size_factor) * 0.4,  # type: ignore[arg-type]
+            ),
+            box_width * float(size_factor) * 0.8,  # type: ignore[arg-type]
+            box_height * float(size_factor) * 0.8,  # type: ignore[arg-type]
             facecolor="white",
             alpha=0.8,
             edgecolor=box["color"],
@@ -1186,30 +1206,30 @@ def plot_simulation_architecture(
         )
 
     # Draw arrows between main boxes
-    arrow_props = dict(
-        arrowstyle="-|>",
-        connectionstyle="arc3,rad=0",
-        color=WSJ_COLORS["gray"],
-        linewidth=2,
-        alpha=0.7,
-    )
+    arrow_props = {
+        "arrowstyle": "-|>",
+        "connectionstyle": "arc3,rad=0",
+        "color": WSJ_COLORS["gray"],
+        "linewidth": 2,
+        "alpha": 0.7,
+    }
 
     for i in range(len(boxes) - 1):
         ax.annotate(
             "",
-            xy=(boxes[i + 1]["x"] - box_width / 2 - 0.01, boxes[i + 1]["y"]),
-            xytext=(boxes[i]["x"] + box_width / 2 + 0.01, boxes[i]["y"]),
+            xy=(float(boxes[i + 1]["x"]) - box_width / 2 - 0.01, float(boxes[i + 1]["y"])),  # type: ignore[arg-type]
+            xytext=(float(boxes[i]["x"]) + box_width / 2 + 0.01, float(boxes[i]["y"])),  # type: ignore[arg-type]
             arrowprops=arrow_props,
         )
 
     # Draw connecting arrows from sub-components
-    thin_arrow_props = dict(
-        arrowstyle="->",
-        connectionstyle="arc3,rad=0.2",
-        color=WSJ_COLORS["gray"],
-        linewidth=1,
-        alpha=0.4,
-    )
+    thin_arrow_props = {
+        "arrowstyle": "->",
+        "connectionstyle": "arc3,rad=0.2",
+        "color": WSJ_COLORS["gray"],
+        "linewidth": 1,
+        "alpha": 0.4,
+    }
 
     # Connect sub-boxes to main boxes
     connections = [
@@ -1253,7 +1273,7 @@ def plot_simulation_architecture(
     ax.axis("off")
     ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:
@@ -1262,7 +1282,7 @@ def plot_simulation_architecture(
     return fig
 
 
-def plot_sample_paths(
+def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     simulation_data: Optional[Dict[str, Any]] = None,
     n_paths: int = 5,
     short_horizon: int = 10,
@@ -1439,7 +1459,7 @@ def plot_sample_paths(
         color=WSJ_COLORS["gray"],
     )
 
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:
@@ -1580,7 +1600,7 @@ def plot_optimal_coverage_heatmap(
         ax.legend(loc="upper left", fontsize=8)
 
     plt.suptitle(title, fontsize=14, fontweight="bold")
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:
@@ -1683,12 +1703,12 @@ def plot_sensitivity_tornado(
 
     # Add percentage labels
     if show_percentages:
-        for bar, param, impact in zip(bars, params, impacts):
-            width = bar.get_width()
+        for bar_item, param, impact in zip(bars, params, impacts):
+            width = bar_item.get_width()
             label_x = width * 1.02 if width > 0 else width * 1.02
             ax.text(
                 label_x,
-                bar.get_y() + bar.get_height() / 2,
+                bar_item.get_y() + bar_item.get_height() / 2,
                 f"{impact:+.1%}",
                 ha="left" if width > 0 else "right",
                 va="center",
@@ -1729,7 +1749,7 @@ def plot_sensitivity_tornado(
         color=WSJ_COLORS["gray"],
     )
 
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:
@@ -1793,7 +1813,7 @@ def plot_robustness_heatmap(
 
         # Add some structure/noise
         robustness_data += 0.1 * np.sin(5 * F) * np.cos(5 * S)
-        robustness_data = np.clip(robustness_data, 0, 1)
+        robustness_data = np.clip(robustness_data, 0, 1)  # type: ignore[arg-type]
     else:
         n_points = robustness_data.shape[0]
         freq_values = np.linspace(frequency_range[0], frequency_range[1], n_points)
@@ -1892,8 +1912,10 @@ def plot_robustness_heatmap(
     # Add grid
     ax.grid(True, alpha=0.2)
 
-    # Add legend
-    ax.legend(loc="upper right", fontsize=9)
+    # Add legend only if there are labeled artists
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(loc="upper right", fontsize=9)
 
     # Add annotations
     fig.text(
@@ -1906,7 +1928,7 @@ def plot_robustness_heatmap(
         color=WSJ_COLORS["gray"],
     )
 
-    plt.tight_layout()
+    safe_tight_layout()
 
     # Set export DPI if specified
     if export_dpi:

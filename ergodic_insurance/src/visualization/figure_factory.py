@@ -192,7 +192,10 @@ class FigureFactory:
         if show_legend and (isinstance(y_data, dict) or labels):
             ax.legend(loc="best", frameon=True)
 
-        ax.grid(show_grid, alpha=self.style_manager.get_grid_config().grid_alpha)
+        if show_grid:
+            ax.grid(True, alpha=self.style_manager.get_grid_config().grid_alpha)
+        else:
+            ax.grid(False)
 
         plt.tight_layout()
         return fig, ax

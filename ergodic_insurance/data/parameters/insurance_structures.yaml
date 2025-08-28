@@ -245,18 +245,18 @@ optimization:
     primary_method: "scipy_optimize"  # Primary optimization method
     fallback_method: "genetic_algorithm"  # Fallback if primary fails
     monte_carlo_samples: 10000  # Samples for validation
-    
+
   percentile_defaults:
     3_layers: [50, 90, 99]  # Working, excess, catastrophic
     4_layers: [40, 80, 95, 99.5]  # More granular structure
     5_layers: [30, 60, 85, 95, 99.5]  # Fine-grained layers
-    
+
   capacity_defaults:
     low_attachment: 5_000_000  # < $1M attachment
     medium_attachment: 25_000_000  # $1M - $10M attachment
     high_attachment: 50_000_000  # $10M - $50M attachment
     catastrophic_attachment: 100_000_000  # > $50M attachment
-    
+
   rate_structure:
     primary_rate: 0.015  # < $1M attachment
     excess_rate: 0.010  # $1M - $5M attachment

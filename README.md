@@ -27,6 +27,8 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 
 ## Key Features
 
+![System Architecture Diagram](assets/system_architecture.png)
+
 ### Financial Modeling
 - **Widget manufacturer model** with comprehensive balance sheet management
 - **Stochastic processes** including geometric Brownian motion, lognormal volatility, and mean-reversion

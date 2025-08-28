@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
+
 from ergodic_insurance.src.business_optimizer import (
     BusinessConstraints,
     BusinessObjective,

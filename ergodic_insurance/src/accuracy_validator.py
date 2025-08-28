@@ -249,10 +249,23 @@ class StatisticalValidation:
         Returns:
             Dictionary of statistical test results.
         """
+        import warnings
+
         results = {}
 
-        # Kolmogorov-Smirnov test
-        ks_stat, ks_p = stats.ks_2samp(data1, data2)
+        # Kolmogorov-Smirnov test - use asymptotic method for small samples or edge cases
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*Exact calculation unsuccessful.*")
+            # Force asymptotic method for very small samples or when data has many duplicates
+            if (
+                len(data1) < 10
+                or len(data2) < 10
+                or len(np.unique(data1)) < 3
+                or len(np.unique(data2)) < 3
+            ):
+                ks_stat, ks_p = stats.ks_2samp(data1, data2, method="asymp")
+            else:
+                ks_stat, ks_p = stats.ks_2samp(data1, data2)
         results["ks_statistic"] = ks_stat
         results["ks_pvalue"] = ks_p
         results["ks_passes"] = bool(ks_p > 0.05)

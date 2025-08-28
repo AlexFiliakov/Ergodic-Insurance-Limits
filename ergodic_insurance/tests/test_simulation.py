@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
+
 from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.src.config import Config, ManufacturerConfig
 from ergodic_insurance.src.manufacturer import WidgetManufacturer

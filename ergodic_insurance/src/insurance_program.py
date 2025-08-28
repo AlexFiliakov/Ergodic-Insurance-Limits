@@ -12,9 +12,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
-import yaml
 from scipy import optimize
 from scipy.optimize import OptimizeResult
+import yaml
 
 if TYPE_CHECKING:
     from .loss_distributions import LossEvent
@@ -113,12 +113,11 @@ class EnhancedInsuranceLayer:
 
         if self.reinstatement_type == ReinstatementType.FREE:
             return 0.0
-        elif self.reinstatement_type == ReinstatementType.FULL:
+        if self.reinstatement_type == ReinstatementType.FULL:
             return base_premium * self.reinstatement_premium
-        elif self.reinstatement_type == ReinstatementType.PRO_RATA:
+        if self.reinstatement_type == ReinstatementType.PRO_RATA:
             return base_premium * self.reinstatement_premium * timing_factor
-        else:
-            return 0.0
+        return 0.0
 
     def can_respond(self, loss_amount: float) -> bool:
         """Check if this layer can respond to a loss.
@@ -471,6 +470,56 @@ class InsuranceProgram:
 
         return max_coverage
 
+    def _get_default_manufacturer_profile(self) -> Dict[str, Any]:
+        """Get default manufacturer profile."""
+        return {
+            "initial_assets": 10_000_000,
+            "annual_revenue": 15_000_000,
+            "operating_margin": 0.08,
+            "growth_rate": 0.05,
+        }
+
+    def _calculate_insurance_metrics(self, loss_history: List[List[float]]) -> tuple:
+        """Calculate metrics with and without insurance.
+
+        Returns:
+            Tuple of (metrics_with, metrics_without) as numpy arrays.
+        """
+        metrics_with_insurance = []
+        metrics_without_insurance = []
+
+        for annual_losses in loss_history:
+            # Without insurance: company bears all losses
+            total_loss_without = sum(annual_losses)
+            net_impact_without = -total_loss_without
+
+            # With insurance: apply structure
+            result = self.process_annual_claims(annual_losses)
+            total_loss_with = result["total_deductible"]
+            total_premium_paid = result["total_premium_paid"]
+            net_impact_with = -total_loss_with - total_premium_paid
+
+            metrics_without_insurance.append(net_impact_without)
+            metrics_with_insurance.append(net_impact_with)
+
+            # Reset for next year
+            self.reset_annual()
+        return np.array(metrics_with_insurance), np.array(metrics_without_insurance)
+
+    def _calculate_time_average_growth(self, metrics: np.ndarray, initial_assets: float) -> tuple:
+        """Calculate time-average growth rate.
+
+        Returns:
+            Tuple of (time_avg_growth, final_assets).
+        """
+        assets = initial_assets + np.cumsum(metrics)
+        assets = np.maximum(assets, 1.0)  # Ensure positive for log
+        if len(assets) > 1:
+            time_avg = np.log(assets[-1] / initial_assets) / len(assets)
+        else:
+            time_avg = 0.0
+        return time_avg, assets[-1]
+
     def calculate_ergodic_benefit(
         self,
         loss_history: List[List[float]],
@@ -500,55 +549,15 @@ class InsuranceProgram:
 
         # Default manufacturer profile
         if manufacturer_profile is None:
-            manufacturer_profile = {
-                "initial_assets": 10_000_000,
-                "annual_revenue": 15_000_000,
-                "operating_margin": 0.08,
-                "growth_rate": 0.05,
-            }
+            manufacturer_profile = self._get_default_manufacturer_profile()
 
         # Calculate metrics with and without insurance
-        metrics_with_insurance = []
-        metrics_without_insurance = []
-        annual_premium = self.calculate_annual_premium()
-
-        for annual_losses in loss_history:
-            # Without insurance: company bears all losses
-            total_loss_without = sum(annual_losses)
-            net_impact_without = -total_loss_without
-
-            # With insurance: apply structure
-            result = self.process_annual_claims(annual_losses)
-            total_loss_with = result["total_deductible"]
-            total_premium_paid = result["total_premium_paid"]
-            net_impact_with = -total_loss_with - total_premium_paid
-
-            metrics_without_insurance.append(net_impact_without)
-            metrics_with_insurance.append(net_impact_with)
-
-            # Reset for next year
-            self.reset_annual()
-
-        # Calculate ergodic metrics
-        metrics_without = np.array(metrics_without_insurance)
-        metrics_with = np.array(metrics_with_insurance)
+        metrics_with, metrics_without = self._calculate_insurance_metrics(loss_history)
 
         # Time-average growth rates
         initial_assets = manufacturer_profile["initial_assets"]
-        assets_without = initial_assets + np.cumsum(metrics_without)
-        assets_with = initial_assets + np.cumsum(metrics_with)
-
-        # Ensure positive values for log calculation
-        assets_without = np.maximum(assets_without, 1.0)
-        assets_with = np.maximum(assets_with, 1.0)
-
-        # Calculate time-average growth
-        if len(assets_without) > 1:
-            time_avg_without = np.log(assets_without[-1] / initial_assets) / len(assets_without)
-            time_avg_with = np.log(assets_with[-1] / initial_assets) / len(assets_with)
-        else:
-            time_avg_without = 0.0
-            time_avg_with = 0.0
+        time_avg_with, _ = self._calculate_time_average_growth(metrics_with, initial_assets)
+        time_avg_without, _ = self._calculate_time_average_growth(metrics_without, initial_assets)
 
         # Ensemble averages
         ensemble_avg_without = np.mean(metrics_without)
@@ -632,12 +641,24 @@ class InsuranceProgram:
         """Round attachment point to reasonable market value."""
         if value < 100_000:
             return float(round(value / 10_000) * 10_000)
-        elif value < 1_000_000:
+        if value < 1_000_000:
             return float(round(value / 50_000) * 50_000)
-        elif value < 10_000_000:
+        if value < 10_000_000:
             return float(round(value / 250_000) * 250_000)
-        else:
-            return float(round(value / 1_000_000) * 1_000_000)
+        return float(round(value / 1_000_000) * 1_000_000)
+
+    def _get_layer_capacity(self, attachment_point: float) -> float:
+        """Get default capacity for a layer based on attachment point."""
+        capacity_thresholds = [
+            (1_000_000, 5_000_000),
+            (10_000_000, 25_000_000),
+            (50_000_000, 50_000_000),
+            (float("inf"), 100_000_000),
+        ]
+        for threshold, capacity in capacity_thresholds:
+            if attachment_point < threshold:
+                return capacity
+        return 100_000_000  # Default fallback
 
     def optimize_layer_widths(
         self,
@@ -664,16 +685,9 @@ class InsuranceProgram:
 
         # Default capacity constraints
         if capacity_constraints is None:
-            capacity_constraints = {}
-            for i, ap in enumerate(attachment_points):
-                if ap < 1_000_000:
-                    capacity_constraints[f"layer_{i}"] = 5_000_000
-                elif ap < 10_000_000:
-                    capacity_constraints[f"layer_{i}"] = 25_000_000
-                elif ap < 50_000_000:
-                    capacity_constraints[f"layer_{i}"] = 50_000_000
-                else:
-                    capacity_constraints[f"layer_{i}"] = 100_000_000
+            capacity_constraints = {
+                f"layer_{i}": self._get_layer_capacity(ap) for i, ap in enumerate(attachment_points)
+            }
 
         # Analyze loss severity at each attachment point
         severity_weights: List[float] = []
@@ -722,6 +736,55 @@ class InsuranceProgram:
 
         return layer_widths
 
+    def _get_premium_rate(self, attachment_point: float) -> float:
+        """Get premium rate based on attachment point."""
+        rate_thresholds = [
+            (1_000_000, 0.015),
+            (5_000_000, 0.010),
+            (25_000_000, 0.006),
+            (float("inf"), 0.003),
+        ]
+        for threshold, rate in rate_thresholds:
+            if attachment_point < threshold:
+                return rate
+        return 0.003  # Default fallback
+
+    def _calculate_reinstatements(self, layer_index: int, num_layers: int) -> int:
+        """Calculate reinstatements for a layer."""
+        if layer_index == 0:
+            return 0  # Primary layer
+        if layer_index == num_layers - 1:
+            return 999  # Top layer - unlimited
+        return max(0, 2 - layer_index // 2)  # Decreasing with height
+
+    def _create_layer_structure(
+        self, attachment_points: List[float], layer_widths: List[float]
+    ) -> List[EnhancedInsuranceLayer]:
+        """Create insurance layers from attachment points and widths."""
+        layers = []
+        num_layers = len(attachment_points)
+        for i, (ap, width) in enumerate(zip(attachment_points, layer_widths)):
+            layer = EnhancedInsuranceLayer(
+                attachment_point=ap,
+                limit=width,
+                premium_rate=self._get_premium_rate(ap),
+                reinstatements=self._calculate_reinstatements(i, num_layers),
+                reinstatement_premium=1.0,
+                reinstatement_type=ReinstatementType.PRO_RATA,
+            )
+            layers.append(layer)
+        return layers
+
+    def _calculate_roe_improvement(
+        self, ergodic_metrics: Dict[str, float], company_profile: Optional[Dict[str, Any]]
+    ) -> float:
+        """Calculate ROE improvement from ergodic metrics."""
+        if company_profile and "initial_assets" in company_profile:
+            initial_roe = 0.08  # Baseline assumption
+            improved_roe = initial_roe + ergodic_metrics["time_average_benefit"]
+            return improved_roe / initial_roe - 1.0
+        return ergodic_metrics["time_average_benefit"] / 0.08
+
     def optimize_layer_structure(
         self,
         loss_data: List[List[float]],
@@ -758,70 +821,26 @@ class InsuranceProgram:
             if not attachment_points:
                 continue
 
-            # Set deductible as percentage of first attachment
+            # Set deductible and budget
             deductible = attachment_points[0] * 0.5
-
-            # Estimate total budget if not provided
-            if constraints.max_total_premium:
-                budget = constraints.max_total_premium
-            else:
-                # Estimate based on loss history
-                annual_expected_loss = np.mean([sum(annual) for annual in loss_data])
-                budget = float(annual_expected_loss) * 0.15  # 15% loading factor
+            budget = constraints.max_total_premium or (
+                float(np.mean([sum(annual) for annual in loss_data])) * 0.15
+            )
 
             # Optimize layer widths
             layer_widths = self.optimize_layer_widths(
                 attachment_points, budget, loss_data=all_losses
             )
 
-            # Create layers
-            layers = []
-            for i, (ap, width) in enumerate(zip(attachment_points, layer_widths)):
-                # Determine premium rate based on attachment
-                if ap < 1_000_000:
-                    rate = 0.015
-                elif ap < 5_000_000:
-                    rate = 0.010
-                elif ap < 25_000_000:
-                    rate = 0.006
-                else:
-                    rate = 0.003
-
-                # Determine reinstatements
-                if i == 0:
-                    reinstatements = 0  # Primary layer
-                elif i == len(attachment_points) - 1:
-                    reinstatements = 999  # Top layer - unlimited
-                else:
-                    reinstatements = 2 - i // 2  # Decreasing with height
-
-                layer = EnhancedInsuranceLayer(
-                    attachment_point=ap,
-                    limit=width,
-                    premium_rate=rate,
-                    reinstatements=max(0, reinstatements),
-                    reinstatement_premium=1.0,
-                    reinstatement_type=ReinstatementType.PRO_RATA,
-                )
-                layers.append(layer)
-
-            # Create temporary program to test
+            # Create and test layer structure
+            layers = self._create_layer_structure(attachment_points, layer_widths)
             test_program = InsuranceProgram(layers=layers, deductible=deductible)
-
-            # Calculate ergodic benefit
             ergodic_metrics = test_program.calculate_ergodic_benefit(loss_data, company_profile)
 
             # Check if this is better
             if ergodic_metrics["time_average_benefit"] > best_ergodic_benefit:
                 best_ergodic_benefit = ergodic_metrics["time_average_benefit"]
-
-                # Calculate ROE improvement (simplified)
-                if company_profile and "initial_assets" in company_profile:
-                    initial_roe = 0.08  # Baseline assumption
-                    improved_roe = initial_roe + ergodic_metrics["time_average_benefit"]
-                    roe_improvement = improved_roe / initial_roe - 1.0
-                else:
-                    roe_improvement = ergodic_metrics["time_average_benefit"] / 0.08
+                roe_improvement = self._calculate_roe_improvement(ergodic_metrics, company_profile)
 
                 best_structure = OptimalStructure(
                     layers=layers,

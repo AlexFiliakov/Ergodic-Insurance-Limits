@@ -7,10 +7,10 @@ claim events, financial calculations, and result collection.
 Includes both single-path simulation and Monte Carlo capabilities.
 """
 
-import logging
-import time
 from dataclasses import dataclass, field
+import logging
 from pathlib import Path
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
@@ -516,7 +516,7 @@ class Simulation:
         return results.to_dataframe()
 
     @classmethod
-    def run_monte_carlo(
+    def run_monte_carlo(  # pylint: disable=too-many-locals
         cls,
         config: Config,
         insurance_policy: InsurancePolicy,

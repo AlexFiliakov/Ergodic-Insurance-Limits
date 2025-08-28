@@ -1006,7 +1006,7 @@ class TestCacheManagerAdvanced:
             assert "metadata" in f
             assert f["metadata"].attrs["string_value"] == "test"
             assert f["metadata"].attrs["int_value"] == 42
-            assert f["metadata"].attrs["bool_value"] is True
+            assert bool(f["metadata"].attrs["bool_value"])
             # Complex value should be JSON string
             complex_data = json.loads(f["metadata"].attrs["complex_value"])
             assert complex_data["nested"] == "data"

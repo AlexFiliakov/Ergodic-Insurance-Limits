@@ -8,9 +8,9 @@ see the insurance_program module which provides EnhancedInsuranceLayer and
 InsuranceProgram classes.
 """
 
-import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple
+import warnings
 
 import yaml
 

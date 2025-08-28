@@ -6,8 +6,8 @@ and mean-reverting processes. These are used to add realistic randomness to
 revenue and growth modeling in the manufacturing simulation.
 """
 
-import logging
 from abc import ABC, abstractmethod
+import logging
 from typing import Optional
 
 import numpy as np
