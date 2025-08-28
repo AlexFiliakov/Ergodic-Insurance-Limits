@@ -168,6 +168,6 @@ Simulations terminate when ALL of the following are satisfied:
 - Dimensional analysis checks
 - Round-trip accuracy tests
 
-{{ if metadata.date }}
+{% if metadata.date %}
 *Last Updated: {{ metadata.date.strftime('%B %Y') }}*
-{{ endif }}
+{% endif %}
