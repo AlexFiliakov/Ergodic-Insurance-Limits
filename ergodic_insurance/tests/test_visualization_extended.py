@@ -10,12 +10,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# Import from the visualization.py module (not the package)
+# Import public functions from the visualization package
 from ergodic_insurance.src.visualization import (
     WSJFormatter,
-    _create_interactive_pareto_2d,
-    _create_interactive_pareto_3d,
-    _create_pareto_parallel_coordinates,
     create_interactive_dashboard,
     create_interactive_pareto_frontier,
     format_currency,
@@ -26,6 +23,13 @@ from ergodic_insurance.src.visualization import (
     plot_pareto_frontier_2d,
     plot_pareto_frontier_3d,
     plot_return_period_curve,
+)
+
+# Import private functions directly from the technical_plots module for testing
+from ergodic_insurance.src.visualization.technical_plots import (
+    _create_interactive_pareto_2d,
+    _create_interactive_pareto_3d,
+    _create_pareto_parallel_coordinates,
 )
 
 # Use non-interactive backend for testing
