@@ -391,7 +391,7 @@ def plot_scenario_convergence(
     return fig
 
 
-def plot_parallel_scenarios(
+def plot_parallel_scenarios(  # pylint: disable=too-many-branches
     batch_results: List[Any],
     metrics: List[str],
     figsize: Tuple[float, float] = (12, 8),
@@ -442,20 +442,20 @@ def plot_parallel_scenarios(
         print("No data to plot")
         return fig
 
-    data = np.array(data)
+    data_array = np.array(data)
 
     # Normalize if requested
     if normalize:
-        for i in range(data.shape[1]):
-            col_min = np.nanmin(data[:, i])
-            col_max = np.nanmax(data[:, i])
+        for i in range(data_array.shape[1]):
+            col_min = np.nanmin(data_array[:, i])
+            col_max = np.nanmax(data_array[:, i])
             if col_max > col_min:
-                data[:, i] = (data[:, i] - col_min) / (col_max - col_min)
+                data_array[:, i] = (data_array[:, i] - col_min) / (col_max - col_min)
 
     # Create parallel coordinates
     x = np.arange(len(metrics))
 
-    for i, scenario in enumerate(data):
+    for i, scenario in enumerate(data_array):
         color = COLOR_SEQUENCE[i % len(COLOR_SEQUENCE)]
         ax.plot(x, scenario, "o-", color=color, alpha=0.7, label=scenario_names[i])
 
