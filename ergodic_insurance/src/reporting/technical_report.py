@@ -261,7 +261,7 @@ class TechnicalReport(ReportBuilder):
         methodology.append("\n#### Convergence Criteria\n")
         methodology.append(
             "Simulations continue until:\n"
-            "1. Gelman-Rubin statistic R̂ < 1.1\n"
+            "1. Gelman-Rubin statistic R-hat < 1.1\n"
             "2. Effective sample size > 1000\n"
             "3. Relative standard error < 1%\n"
             "4. Batch means test p-value > 0.05"
@@ -281,12 +281,12 @@ class TechnicalReport(ReportBuilder):
         summary.append("### Convergence Validation\n")
         if "gelman_rubin" in self.validation_metrics:
             gr = self.validation_metrics["gelman_rubin"]
-            status = "✓ Converged" if gr < 1.1 else "⚠ Not converged"
-            summary.append(f"- Gelman-Rubin R̂: {gr:.4f} ({status})")
+            status = "Converged" if gr < 1.1 else "Not converged"
+            summary.append(f"- Gelman-Rubin R-hat: {gr:.4f} ({status})")
 
         if "effective_sample_size" in self.validation_metrics:
             ess = self.validation_metrics["effective_sample_size"]
-            status = "✓ Sufficient" if ess > 1000 else "⚠ Insufficient"
+            status = "Sufficient" if ess > 1000 else "Insufficient"
             summary.append(f"- Effective sample size: {ess:.0f} ({status})")
 
         # Statistical validation

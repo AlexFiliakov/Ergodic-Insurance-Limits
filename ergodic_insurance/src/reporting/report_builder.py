@@ -368,7 +368,9 @@ class ReportBuilder(ABC):
 
         if format == "markdown":
             output_path = self.config.output_dir / f"{base_name}.md"
-            output_path.write_text(content, encoding='utf-8')
+            # Write with explicit UTF-8 encoding and handle errors
+            with open(output_path, 'w', encoding='utf-8', errors='replace') as f:
+                f.write(content)
 
         elif format == "html":
             import markdown2
@@ -400,7 +402,9 @@ class ReportBuilder(ABC):
 {html_content}
 </body>
 </html>"""
-            output_path.write_text(html_template, encoding='utf-8')
+            # Write with explicit UTF-8 encoding and handle errors
+            with open(output_path, 'w', encoding='utf-8', errors='replace') as f:
+                f.write(html_template)
 
         elif format == "pdf":
             # First convert to HTML, then to PDF
@@ -410,7 +414,8 @@ class ReportBuilder(ABC):
 
             # Create temporary HTML file
             temp_html = self.config.output_dir / f"{base_name}_temp.html"
-            temp_html.write_text(html_content, encoding='utf-8')
+            with open(temp_html, 'w', encoding='utf-8', errors='replace') as f:
+                f.write(html_content)
 
             # Convert to PDF using weasyprint
             output_path = self.config.output_dir / f"{base_name}.pdf"

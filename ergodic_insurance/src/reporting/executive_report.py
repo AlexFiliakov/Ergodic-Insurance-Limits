@@ -502,46 +502,46 @@ class ExecutiveReport(ReportBuilder):
             conv = self.results["convergence_metrics"]
             metrics = [
                 {
-                    "Metric": "Gelman-Rubin R̂",
+                    "Metric": "Gelman-Rubin R-hat",
                     "Value": conv.get("gelman_rubin", "N/A"),
                     "Target": "< 1.1",
-                    "Status": "✓" if conv.get("gelman_rubin", 2) < 1.1 else "✗",
+                    "Status": "PASS" if conv.get("gelman_rubin", 2) < 1.1 else "FAIL",
                 },
                 {
                     "Metric": "Effective Sample Size",
                     "Value": conv.get("ess", "N/A"),
                     "Target": "> 1000",
-                    "Status": "✓" if conv.get("ess", 0) > 1000 else "✗",
+                    "Status": "PASS" if conv.get("ess", 0) > 1000 else "FAIL",
                 },
                 {
                     "Metric": "Autocorrelation",
                     "Value": f"{conv.get('autocorr', 'N/A'):.3f}",
                     "Target": "< 0.1",
-                    "Status": "✓" if conv.get("autocorr", 1) < 0.1 else "✗",
+                    "Status": "PASS" if conv.get("autocorr", 1) < 0.1 else "FAIL",
                 },
                 {
                     "Metric": "Batch Means p-value",
                     "Value": f"{conv.get('batch_p', 'N/A'):.3f}",
                     "Target": "> 0.05",
-                    "Status": "✓" if conv.get("batch_p", 0) > 0.05 else "✗",
+                    "Status": "PASS" if conv.get("batch_p", 0) > 0.05 else "FAIL",
                 },
             ]
         else:
             # Generate placeholder data
             metrics = [
-                {"Metric": "Gelman-Rubin R̂", "Value": 1.02, "Target": "< 1.1", "Status": "✓"},
+                {"Metric": "Gelman-Rubin R-hat", "Value": 1.02, "Target": "< 1.1", "Status": "PASS"},
                 {
                     "Metric": "Effective Sample Size",
                     "Value": 5234,
                     "Target": "> 1000",
-                    "Status": "✓",
+                    "Status": "PASS",
                 },
-                {"Metric": "Autocorrelation", "Value": 0.045, "Target": "< 0.1", "Status": "✓"},
+                {"Metric": "Autocorrelation", "Value": 0.045, "Target": "< 0.1", "Status": "PASS"},
                 {
                     "Metric": "Batch Means p-value",
                     "Value": 0.342,
                     "Target": "> 0.05",
-                    "Status": "✓",
+                    "Status": "PASS",
                 },
             ]
 
