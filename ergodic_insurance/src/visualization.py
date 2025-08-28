@@ -2,9 +2,13 @@
 
 This module provides standardized plotting functions with Wall Street Journal
 aesthetic for insurance analysis and risk metrics visualization.
+
+NOTE: This module now acts as a facade for the new modular visualization package.
+New code should import directly from ergodic_insurance.src.visualization.
 """
 
 from typing import Any, Dict, List, Optional, Tuple, Union
+import warnings
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -17,43 +21,71 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import seaborn as sns
 
-# Import new visualization infrastructure
+# Import from new modular structure
 try:
-    from .visualization_infra.figure_factory import FigureFactory
-    from .visualization_infra.style_manager import StyleManager, Theme
+    from .visualization import (
+        create_interactive_pareto_frontier as _new_create_interactive_pareto_frontier,
+    )
+    from .visualization import (
+        set_wsj_style as _new_set_wsj_style,  # Core; Executive plots; Technical plots; Interactive plots; Batch plots; Factory
+    )
+    from .visualization import COLOR_SEQUENCE, WSJ_COLORS, FigureFactory, StyleManager, Theme
+    from .visualization import WSJFormatter as _new_WSJFormatter
+    from .visualization import create_interactive_dashboard as _new_create_interactive_dashboard
+    from .visualization import format_currency as _new_format_currency
+    from .visualization import format_percentage as _new_format_percentage
+    from .visualization import plot_convergence_diagnostics as _new_plot_convergence_diagnostics
+    from .visualization import plot_insurance_layers as _new_plot_insurance_layers
+    from .visualization import plot_loss_distribution as _new_plot_loss_distribution
+    from .visualization import plot_parameter_sweep_3d as _new_plot_parameter_sweep_3d
+    from .visualization import plot_pareto_frontier_2d as _new_plot_pareto_frontier_2d
+    from .visualization import plot_pareto_frontier_3d as _new_plot_pareto_frontier_3d
+    from .visualization import plot_return_period_curve as _new_plot_return_period_curve
+    from .visualization import plot_scenario_comparison as _new_plot_scenario_comparison
+    from .visualization import plot_scenario_convergence as _new_plot_scenario_convergence
+    from .visualization import plot_sensitivity_heatmap as _new_plot_sensitivity_heatmap
 
-    _FACTORY_AVAILABLE = True
+    _NEW_MODULE_AVAILABLE = True
 except ImportError:
-    _FACTORY_AVAILABLE = False
+    # Fallback to legacy implementation if new module not available
+    _NEW_MODULE_AVAILABLE = False
 
-# WSJ Color Palette
-WSJ_COLORS = {
-    "light_blue": "#ADD8E6",  # Light Blue for additional styling
-    "blue": "#0080C7",  # Primary blue
-    "dark_blue": "#003F5C",  # Dark blue
-    "red": "#D32F2F",  # Red for negative/warning
-    "green": "#4CAF50",  # Green for positive
-    "gray": "#666666",  # Gray for secondary
-    "light_gray": "#E0E0E0",  # Light gray for grid
-    "black": "#000000",  # Black for text
-    "orange": "#FF9800",  # Orange for highlights
-    "yellow": "#FFD700",  # Yellow for highlights
-    "purple": "#7B1FA2",  # Purple for special
-    "teal": "#00796B",  # Teal for alternative
-}
+    # Define legacy colors and sequences
+    WSJ_COLORS = {
+        "light_blue": "#ADD8E6",
+        "blue": "#0080C7",
+        "dark_blue": "#003F5C",
+        "red": "#D32F2F",
+        "green": "#4CAF50",
+        "gray": "#666666",
+        "light_gray": "#E0E0E0",
+        "black": "#000000",
+        "orange": "#FF9800",
+        "yellow": "#FFD700",
+        "purple": "#7B1FA2",
+        "teal": "#00796B",
+    }
 
-# Professional color sequence for multiple series
-COLOR_SEQUENCE = [
-    WSJ_COLORS["blue"],
-    WSJ_COLORS["red"],
-    WSJ_COLORS["green"],
-    WSJ_COLORS["orange"],
-    WSJ_COLORS["purple"],
-    WSJ_COLORS["teal"],
-    WSJ_COLORS["dark_blue"],
-]
+    COLOR_SEQUENCE = [
+        WSJ_COLORS["blue"],
+        WSJ_COLORS["red"],
+        WSJ_COLORS["green"],
+        WSJ_COLORS["orange"],
+        WSJ_COLORS["purple"],
+        WSJ_COLORS["teal"],
+        WSJ_COLORS["dark_blue"],
+    ]
 
-# Global factory instance (created on first use)
+    # Try to import from old location
+    try:
+        from .visualization_infra.figure_factory import FigureFactory
+        from .visualization_infra.style_manager import StyleManager, Theme
+
+        _FACTORY_AVAILABLE = True
+    except ImportError:
+        _FACTORY_AVAILABLE = False
+
+# Global factory instance
 _global_factory = None
 
 
@@ -67,7 +99,7 @@ def get_figure_factory(theme: Optional["Theme"] = None) -> Optional["FigureFacto
         FigureFactory instance if available, None otherwise
     """
     global _global_factory  # pylint: disable=global-statement
-    if _FACTORY_AVAILABLE:
+    if _NEW_MODULE_AVAILABLE or _FACTORY_AVAILABLE:
         if theme is not None or _global_factory is None:
             # Create new factory if theme specified or no factory exists
             theme = theme or Theme.DEFAULT
@@ -82,19 +114,29 @@ def set_wsj_style(use_factory: bool = False, theme: Optional["Theme"] = None):
     Args:
         use_factory: Whether to use new factory-based styling if available
         theme: Optional theme to use with factory (defaults to DEFAULT)
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.set_wsj_style` instead.
     """
-    # Use factory-based styling if available and requested
+    if _NEW_MODULE_AVAILABLE:
+        warnings.warn(
+            "visualization.set_wsj_style is deprecated. "
+            "Use ergodic_insurance.src.visualization.set_wsj_style instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        _new_set_wsj_style()
+        return
+
+    # Fallback to legacy implementation
     if use_factory and _FACTORY_AVAILABLE:
         factory = get_figure_factory(theme)
         if factory:
             factory.style_manager.apply_style()
             return
 
-    # Fallback to original WSJ style implementation
-    # Set the style
+    # Original implementation
     plt.style.use("seaborn-v0_8-whitegrid")
-
-    # Update rcParams for WSJ style
     plt.rcParams.update(
         {
             "font.family": "sans-serif",
@@ -135,7 +177,14 @@ def format_currency(value: float, decimals: int = 0, abbreviate: bool = False) -
 
     Returns:
         Formatted string (e.g., "$1,000" or "$1K" if abbreviate=True)
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.format_currency` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        return _new_format_currency(value, decimals, abbreviate)
+
+    # Fallback to legacy implementation
     if abbreviate:
         if abs(value) >= 1e9:
             return f"${value/1e9:.{decimals}f}B"
@@ -144,7 +193,6 @@ def format_currency(value: float, decimals: int = 0, abbreviate: bool = False) -
         if abs(value) >= 1e3:
             return f"${value/1e3:.{decimals}f}K"
         return f"${value:.{decimals}f}"
-    # Handle negative values
     if value < 0:
         return f"-${abs(value):,.{decimals}f}"
     return f"${value:,.{decimals}f}"
@@ -159,16 +207,37 @@ def format_percentage(value: float, decimals: int = 1) -> str:
 
     Returns:
         Formatted string (e.g., "5.0%")
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.format_percentage` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        return _new_format_percentage(value, decimals)
+
     return f"{value*100:.{decimals}f}%"
 
 
 class WSJFormatter:
-    """Formatter for WSJ-style axis labels."""
+    """Formatter for WSJ-style axis labels.
+
+    .. deprecated:: 2.0.0
+        Use :class:`ergodic_insurance.src.visualization.WSJFormatter` instead.
+    """
+
+    def __init__(self):
+        if _NEW_MODULE_AVAILABLE:
+            warnings.warn(
+                "WSJFormatter is deprecated. "
+                "Use ergodic_insurance.src.visualization.WSJFormatter instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
     @staticmethod
     def currency_formatter(x, pos):
         """Format axis values as currency."""
+        if _NEW_MODULE_AVAILABLE:
+            return _new_WSJFormatter.currency_formatter(x, pos)
         return format_currency(x, decimals=0, abbreviate=True)
 
     @staticmethod
@@ -291,7 +360,31 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
 
     Returns:
         Matplotlib figure
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.plot_loss_distribution` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        warnings.warn(
+            "visualization.plot_loss_distribution is deprecated. "
+            "Use ergodic_insurance.src.visualization.plot_loss_distribution instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _new_plot_loss_distribution(
+            losses,
+            title,
+            bins,
+            show_metrics,
+            var_levels,
+            figsize,
+            show_stats,
+            log_scale,
+            use_factory,
+            theme,
+        )
+
+    # Legacy implementation
     set_wsj_style(use_factory=use_factory, theme=theme)
 
     # Handle DataFrame input
@@ -420,7 +513,22 @@ def plot_return_period_curve(  # pylint: disable=too-many-locals
 
     Returns:
         Matplotlib figure
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.plot_return_period_curve` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        warnings.warn(
+            "visualization.plot_return_period_curve is deprecated. "
+            "Use ergodic_insurance.src.visualization.plot_return_period_curve instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _new_plot_return_period_curve(
+            losses, return_periods, scenarios, title, figsize, confidence_level, show_grid
+        )
+
+    # Legacy implementation
     set_wsj_style()
 
     # Handle DataFrame input
@@ -527,7 +635,22 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
 
     Returns:
         Matplotlib figure
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.plot_insurance_layers` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        warnings.warn(
+            "visualization.plot_insurance_layers is deprecated. "
+            "Use ergodic_insurance.src.visualization.plot_insurance_layers instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _new_plot_insurance_layers(
+            layers, total_limit, title, figsize, losses, loss_data, show_expected_loss
+        )
+
+    # Legacy implementation
     set_wsj_style()
 
     # Handle loss_data parameter (alias for losses)
@@ -759,7 +882,18 @@ def create_interactive_dashboard(
 
     Returns:
         Plotly figure
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.create_interactive_dashboard` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        warnings.warn(
+            "visualization.create_interactive_dashboard is deprecated. "
+            "Use ergodic_insurance.src.visualization.create_interactive_dashboard instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _new_create_interactive_dashboard(results, title, height, show_distributions)
     # Handle DataFrame input
     if isinstance(results, pd.DataFrame):
         # Convert DataFrame to dictionary format expected by dashboard
@@ -918,7 +1052,22 @@ def plot_convergence_diagnostics(  # pylint: disable=too-many-locals
 
     Returns:
         Matplotlib figure
+
+    .. deprecated:: 2.0.0
+        Use :func:`ergodic_insurance.src.visualization.plot_convergence_diagnostics` instead.
     """
+    if _NEW_MODULE_AVAILABLE:
+        warnings.warn(
+            "visualization.plot_convergence_diagnostics is deprecated. "
+            "Use ergodic_insurance.src.visualization.plot_convergence_diagnostics instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return _new_plot_convergence_diagnostics(
+            convergence_stats, title, figsize, r_hat_threshold, show_threshold
+        )
+
+    # Legacy implementation
     set_wsj_style()
 
     fig, axes = plt.subplots(2, 2, figsize=figsize)
