@@ -81,8 +81,8 @@ Successful implementation should deliver:
 4. Begin negotiations with insurance providers
 5. Initiate change management process
 
-{{ if metadata.authors }}
+{% if metadata.authors %}
 *Prepared by: {{ ', '.join(metadata.authors) }}*
-{{ endif }}
+{% endif %}
 
 *For questions or clarifications, please contact the Analytics Team*

@@ -6,9 +6,9 @@ Our comprehensive analysis of insurance optimization using ergodic theory reveal
 
 ## Performance Improvements
 
-{{ if figures }}
+{% if figures %}
 *Reference: Figure {{ figures[0].name }} - ROE-Ruin Efficient Frontier*
-{{ endif }}
+{% endif %}
 
 The optimized insurance structure delivers:
 - **Enhanced Returns**: Achieved through strategic risk-return balancing
