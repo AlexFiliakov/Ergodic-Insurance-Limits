@@ -49,7 +49,19 @@ class ReportBuilder(ABC):
             cache_dir: Optional cache directory override.
         """
         self.config = config
-        self.cache_dir = cache_dir or config.cache_dir
+        # Ensure cache_dir is created as a subdirectory of output_dir if not absolute
+        if cache_dir:
+            self.cache_dir = Path(cache_dir)
+        elif config.cache_dir.is_absolute():
+            self.cache_dir = config.cache_dir
+        else:
+            # Make cache_dir relative to output_dir
+            self.cache_dir = config.output_dir / "cache"
+        
+        # Ensure directories exist
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+        
         from ..reporting.cache_manager import CacheConfig
         cache_config = CacheConfig(cache_dir=self.cache_dir)
         self.cache_manager = CacheManager(cache_config)
@@ -176,8 +188,15 @@ class ReportBuilder(ABC):
             {"name": fig_config.name, "path": str(fig_path), "caption": fig_config.caption}
         )
 
-        # Generate markdown for figure
-        return f"![{fig_config.caption}]({fig_path})\n*Figure: {fig_config.caption}*"
+        # Generate markdown for figure with relative path
+        # Get relative path from output_dir to cache_dir
+        try:
+            rel_path = fig_path.relative_to(self.config.output_dir)
+        except ValueError:
+            # If not relative to output_dir, use absolute path
+            rel_path = fig_path
+        
+        return f"![{fig_config.caption}]({rel_path.as_posix()})\n*Figure: {fig_config.caption}*"
 
     def _generate_figure(self, fig_config: FigureConfig) -> Path:
         """Generate a figure from configuration.
