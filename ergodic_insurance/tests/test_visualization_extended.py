@@ -754,7 +754,7 @@ class TestROERuinFrontier:
 
         # Test with invalid data type
         with pytest.raises(ValueError, match="Results must be DataFrame or dict"):
-            plot_roe_ruin_frontier("invalid_data")  # type: ignore
+            plot_roe_ruin_frontier("invalid_data")  # type: ignore[arg-type]
 
         # Test with DataFrame missing required column
         df_missing = pd.DataFrame({"roe": [0.1, 0.2], "ruin_prob": [0.01, 0.02]})
@@ -824,3 +824,242 @@ class TestROERuinFrontier:
         fig_print = plot_roe_ruin_frontier(sample_optimization_results, export_dpi=300)
         assert fig_print.dpi == 300
         plt.close(fig_print)
+
+
+class TestRuinCliffVisualization:
+    """Tests for the ruin cliff visualization function."""
+
+    def test_plot_ruin_cliff_basic(self):
+        """Test basic ruin cliff visualization with synthetic data."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        # Test with default parameters (synthetic data)
+        fig = plot_ruin_cliff()
+
+        assert fig is not None
+        assert len(fig.axes) >= 1  # Main plot and possibly inset
+        ax = fig.axes[0]
+
+        # Check labels
+        assert "Retention" in ax.get_xlabel()
+        assert "Ruin" in ax.get_ylabel()
+        assert "Ruin Cliff" in ax.get_title()
+
+        # Check that log scale is applied to x-axis
+        assert ax.get_xscale() == "log"
+
+        # Check that danger zones exist
+        patches = ax.patches
+        assert len(patches) > 0  # Should have danger zone patches
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_custom_retention_range(self):
+        """Test ruin cliff with custom retention range."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        fig = plot_ruin_cliff(retention_range=(5000, 5_000_000), n_points=30)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check x-axis limits are reasonable for the retention range
+        xlim = ax.get_xlim()
+        assert xlim[0] < 5000 * 1.5  # Some margin
+        assert xlim[1] > 5_000_000 * 0.8
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_with_simulation_data(self):
+        """Test ruin cliff with provided simulation data."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        # Create mock simulation data
+        retentions = np.logspace(4, 7, 50)
+        # Create a curve with cliff effect
+        log_ret = np.log10(retentions)
+        log_ret_norm = (log_ret - log_ret.min()) / (log_ret.max() - log_ret.min())
+        ruin_probs = 1 / (1 + np.exp(10 * (log_ret_norm - 0.4)))
+
+        simulation_data = {"retentions": retentions, "ruin_probs": ruin_probs}
+
+        fig = plot_ruin_cliff(simulation_data=simulation_data)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check that data was used (verify some lines exist)
+        lines = ax.get_lines()
+        assert len(lines) > 0
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_without_3d_effect(self):
+        """Test ruin cliff without 3D gradient effects."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        fig = plot_ruin_cliff(show_3d_effect=False)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Should still have the main plot elements
+        assert "Retention" in ax.get_xlabel()
+
+        # Check collections (contour plots create collections)
+        # Without 3D effect, should have fewer collections
+        collections_without_3d = len(ax.collections)
+
+        # Compare with version with 3D effect
+        fig_with_3d = plot_ruin_cliff(show_3d_effect=True)
+        ax_with_3d = fig_with_3d.axes[0]
+        collections_with_3d = len(ax_with_3d.collections)
+
+        # Should have more collections with 3D effect (from contourf)
+        assert collections_with_3d >= collections_without_3d
+
+        plt.close(fig)
+        plt.close(fig_with_3d)
+
+    def test_plot_ruin_cliff_without_warnings(self):
+        """Test ruin cliff without warning annotations."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        fig = plot_ruin_cliff(show_warnings=False)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check that annotations are minimal (no warning callouts)
+        annotations = ax.texts
+        warning_annotations = [
+            a for a in annotations if "⚠️" in a.get_text() or "CLIFF" in a.get_text()
+        ]
+        assert len(warning_annotations) == 0
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_without_inset(self):
+        """Test ruin cliff without inset plot."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        fig = plot_ruin_cliff(show_inset=False)
+
+        assert fig is not None
+        # Should only have one axis (no inset)
+        assert len(fig.axes) == 1
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_with_inset(self):
+        """Test ruin cliff with inset plot."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        fig = plot_ruin_cliff(show_inset=True)
+
+        assert fig is not None
+        # Should have more than one axis when inset is shown
+        assert len(fig.axes) >= 2  # Main plot and inset
+
+        # Check inset has proper title
+        inset_found = False
+        for ax in fig.axes[1:]:
+            if ax.get_title() and "Critical" in ax.get_title():
+                inset_found = True
+                break
+        assert inset_found
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_custom_title_and_size(self):
+        """Test ruin cliff with custom title and figure size."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        custom_title = "Custom Cliff Analysis"
+        fig = plot_ruin_cliff(title=custom_title, figsize=(16, 10), company_size=50_000_000)
+
+        assert fig is not None
+        ax = fig.axes[0]
+        assert custom_title in ax.get_title()
+
+        # Check figure size
+        size = fig.get_size_inches()
+        assert size[0] == 16
+        assert size[1] == 10
+
+        # Check that company size is mentioned in subtitle
+        texts = fig.texts
+        company_text_found = False
+        for text in texts:
+            if "50,000,000" in text.get_text() or "50M" in text.get_text():
+                company_text_found = True
+                break
+        assert company_text_found
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_export_dpi(self):
+        """Test ruin cliff with export DPI settings."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        # Test web resolution
+        fig_web = plot_ruin_cliff(export_dpi=150, n_points=10)  # Fewer points for speed
+        assert fig_web.dpi == 150
+        plt.close(fig_web)
+
+        # Test print resolution
+        fig_print = plot_ruin_cliff(export_dpi=300, n_points=10)
+        assert fig_print.dpi == 300
+        plt.close(fig_print)
+
+    def test_plot_ruin_cliff_cliff_detection(self):
+        """Test that cliff edge detection works properly."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        # Create data with known cliff location
+        retentions = np.logspace(4, 7, 100)
+        ruin_probs = np.zeros(100)
+        # Create artificial cliff at index 30
+        ruin_probs[:30] = 0.8
+        ruin_probs[30:] = 0.02
+
+        simulation_data = {"retentions": retentions, "ruin_probs": ruin_probs}
+
+        fig = plot_ruin_cliff(simulation_data=simulation_data, show_warnings=True)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check that a cliff edge marker exists (red scatter point)
+        scatter_collections = [c for c in ax.collections if hasattr(c, "get_sizes")]
+        large_markers = []
+        for coll in scatter_collections:
+            sizes = coll.get_sizes()
+            if len(sizes) > 0 and sizes[0] > 200:  # Large marker for cliff edge
+                large_markers.append(coll)
+
+        assert len(large_markers) > 0  # Should have at least one large marker for cliff
+
+        plt.close(fig)
+
+    def test_plot_ruin_cliff_edge_cases(self):
+        """Test ruin cliff with edge case data."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+
+        # Test with flat data (no cliff)
+        retentions = np.logspace(4, 6, 20)
+        ruin_probs = np.ones(20) * 0.05  # Flat 5% probability
+
+        simulation_data = {"retentions": retentions, "ruin_probs": ruin_probs}
+
+        fig = plot_ruin_cliff(simulation_data=simulation_data)
+        assert fig is not None
+        plt.close(fig)
+
+        # Test with monotonically decreasing data
+        ruin_probs_decreasing = np.linspace(0.9, 0.01, 20)
+        simulation_data_decreasing = {"retentions": retentions, "ruin_probs": ruin_probs_decreasing}
+
+        fig2 = plot_ruin_cliff(simulation_data=simulation_data_decreasing)
+        assert fig2 is not None
+        plt.close(fig2)

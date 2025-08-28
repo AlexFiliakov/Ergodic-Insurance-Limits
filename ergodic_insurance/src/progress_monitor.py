@@ -321,6 +321,49 @@ class ProgressMonitor:
         except (ValueError, RuntimeWarning):
             return None
 
+    def finish(self) -> ProgressStats:
+        """Finish progress monitoring and return final stats.
+
+        Returns:
+            Final progress statistics
+        """
+        if self.show_console:
+            print()  # New line after progress bar
+
+        return self.get_stats()
+
+    def get_overhead_percentage(self) -> float:
+        """Get the monitoring overhead as a percentage of total elapsed time.
+
+        Returns:
+            Overhead percentage (0-100)
+        """
+        elapsed = time.time() - self.start_time
+        if elapsed > 0:
+            return (self.monitor_overhead / elapsed) * 100
+        return 0.0
+
+    def reset(self) -> None:
+        """Reset the monitor to initial state."""
+        self.start_time = time.time()
+        self.last_update_time = self.start_time
+        self.last_update_iteration = 0
+        self.current_iteration = 0
+        self.iteration_times = []
+        self.convergence_checks = []
+        self.converged = False
+        self.converged_at = None
+        self.monitor_overhead = 0.0
+        self.total_check_time = 0.0
+
+    def __enter__(self) -> "ProgressMonitor":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager and finish monitoring."""
+        self.finish()
+
     def finalize(self) -> None:
         """Finalize progress monitoring and print summary."""
         if self.show_console:

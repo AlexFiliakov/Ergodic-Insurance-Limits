@@ -53,7 +53,7 @@ class TestImportPatterns:
         This test verifies not just that imports succeed, but that the
         imported classes have the expected structure and can be instantiated.
         """
-        from ergodic_insurance.src import (
+        from ergodic_insurance.src import (  # pylint: disable=no-name-in-module
             BusinessConstraints,
             BusinessObjective,
             BusinessOptimizer,
@@ -154,15 +154,17 @@ class TestImportPatterns:
             if test_file.name == "test_imports.py":
                 continue
 
-            content = test_file.read_text()
+            content = test_file.read_text(encoding="utf-8")
             lines = content.split("\n")
 
             for line in lines:
                 # Check for consistent import patterns
                 if "from ergodic_insurance" in line:
-                    # Should use .src. pattern
+                    # Should use .src. pattern for module imports
+                    # Allow both "from ergodic_insurance.src.module import ..." and
+                    # "from ergodic_insurance.src import module"
                     assert (
-                        ".src." in line or "ergodic_insurance import" in line
+                        ".src" in line or "from ergodic_insurance import" in line
                     ), f"Inconsistent import pattern in {test_file.name}: {line}"
 
                     # Should not use old naming
@@ -175,7 +177,10 @@ class TestImportPatterns:
 
         This ensures classes are not just importable but actually functional.
         """
-        from ergodic_insurance.src import ManufacturerConfig, WidgetManufacturer
+        from ergodic_insurance.src import (  # pylint: disable=no-name-in-module
+            ManufacturerConfig,
+            WidgetManufacturer,
+        )
 
         # Test ManufacturerConfig instantiation
         config = ManufacturerConfig(

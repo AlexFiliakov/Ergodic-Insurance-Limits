@@ -255,13 +255,13 @@ class StatisticalValidation:
         ks_stat, ks_p = stats.ks_2samp(data1, data2)
         results["ks_statistic"] = ks_stat
         results["ks_pvalue"] = ks_p
-        results["ks_passes"] = ks_p > 0.05
+        results["ks_passes"] = bool(ks_p > 0.05)
 
         # Mann-Whitney U test
         mw_stat, mw_p = stats.mannwhitneyu(data1, data2, alternative="two-sided")
         results["mw_statistic"] = mw_stat
         results["mw_pvalue"] = mw_p
-        results["mw_passes"] = mw_p > 0.05
+        results["mw_passes"] = bool(mw_p > 0.05)
 
         # Compare moments
         results["mean_diff"] = abs(np.mean(data1) - np.mean(data2))
@@ -298,11 +298,16 @@ class StatisticalValidation:
         actual_std = np.std(data)
 
         validations = {
-            "mean_valid": abs(actual_mean - expected_mean) / (abs(expected_mean) + 1e-10)
-            < tolerance,
-            "std_valid": abs(actual_std - expected_std) / (abs(expected_std) + 1e-10) < tolerance,
-            "normality_test": stats.normaltest(data).pvalue > 0.05 if len(data) > 20 else True,
-            "no_outliers": np.sum(np.abs(stats.zscore(data)) > 4) / len(data) < 0.01,
+            "mean_valid": bool(
+                abs(actual_mean - expected_mean) / (abs(expected_mean) + 1e-10) < tolerance
+            ),
+            "std_valid": bool(
+                abs(actual_std - expected_std) / (abs(expected_std) + 1e-10) < tolerance
+            ),
+            "normality_test": bool(stats.normaltest(data).pvalue > 0.05)
+            if len(data) > 20
+            else True,
+            "no_outliers": bool(np.sum(np.abs(stats.zscore(data)) > 4) / len(data) < 0.01),
         }
 
         return validations
@@ -322,23 +327,25 @@ class EdgeCaseTester:
         ref = ReferenceImplementations()
 
         # Test zero values
-        tests["zero_initial_assets"] = ref.calculate_growth_rate_precise(100, 0, 10) == -np.inf
-        tests["zero_final_assets"] = ref.calculate_growth_rate_precise(0, 100, 10) == -np.inf
+        tests["zero_initial_assets"] = bool(
+            ref.calculate_growth_rate_precise(100, 0, 10) == -np.inf
+        )
+        tests["zero_final_assets"] = bool(ref.calculate_growth_rate_precise(0, 100, 10) == -np.inf)
 
         # Test infinity
-        tests["infinite_loss"] = ref.apply_insurance_precise(np.inf, 1000, 10000)[0] == np.inf
+        tests["infinite_loss"] = bool(ref.apply_insurance_precise(np.inf, 1000, 10000)[0] == np.inf)
 
         # Test negative values
-        tests["negative_assets"] = ref.calculate_growth_rate_precise(-100, 100, 10) == -np.inf
+        tests["negative_assets"] = bool(ref.calculate_growth_rate_precise(-100, 100, 10) == -np.inf)
 
         # Test very large numbers
         large_num = 1e308  # Near float64 max
         retained, recovered = ref.apply_insurance_precise(large_num, 1000, 10000)
-        tests["large_number_handling"] = retained > 0 and not np.isnan(retained)
+        tests["large_number_handling"] = bool(retained > 0 and not np.isnan(retained))
 
         # Test very small numbers
         small_num = 1e-308  # Near float64 min
-        tests["small_number_handling"] = (
+        tests["small_number_handling"] = bool(
             ref.apply_insurance_precise(small_num, 0, 1)[1] == small_num
         )
 
@@ -359,20 +366,20 @@ class EdgeCaseTester:
         attachment = 1000
         limit = 3000
         retained, recovered = ref.apply_insurance_precise(loss, attachment, limit)
-        tests["insurance_limit_boundary"] = abs(recovered - limit) < 1e-10
+        tests["insurance_limit_boundary"] = bool(abs(recovered - limit) < 1e-10)
 
         # Test exact attachment point
         retained2, recovered2 = ref.apply_insurance_precise(attachment, attachment, limit)
-        tests["exact_attachment"] = recovered2 == 0
+        tests["exact_attachment"] = bool(recovered2 == 0)
 
         # Test loss below attachment
         retained3, recovered3 = ref.apply_insurance_precise(500, attachment, limit)
-        tests["below_attachment"] = recovered3 == 0 and retained3 == 500
+        tests["below_attachment"] = bool(recovered3 == 0 and retained3 == 500)
 
         # Test empty arrays
-        tests["empty_var"] = ref.calculate_var_precise(np.array([]), 0.95) == 0
-        tests["empty_tvar"] = ref.calculate_tvar_precise(np.array([]), 0.95) == 0
-        tests["empty_ruin"] = ref.calculate_ruin_probability_precise(np.array([]), 0) == 0
+        tests["empty_var"] = bool(ref.calculate_var_precise(np.array([]), 0.95) == 0)
+        tests["empty_tvar"] = bool(ref.calculate_tvar_precise(np.array([]), 0.95) == 0)
+        tests["empty_ruin"] = bool(ref.calculate_ruin_probability_precise(np.array([]), 0) == 0)
 
         return tests
 

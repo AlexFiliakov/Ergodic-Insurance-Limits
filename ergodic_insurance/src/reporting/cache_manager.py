@@ -169,32 +169,26 @@ class BaseStorageBackend(ABC):
     @abstractmethod
     def exists(self, path: Path) -> bool:
         """Check if path exists."""
-        pass
 
     @abstractmethod
-    def save(self, path: Path, data: Any, format: str = "pickle") -> int:
+    def save(self, path: Path, data: Any, file_format: str = "pickle") -> int:
         """Save data to path, return size in bytes."""
-        pass
 
     @abstractmethod
-    def load(self, path: Path, format: str = "pickle") -> Any:
+    def load(self, path: Path, file_format: str = "pickle") -> Any:
         """Load data from path."""
-        pass
 
     @abstractmethod
     def delete(self, path: Path) -> bool:
         """Delete data at path."""
-        pass
 
     @abstractmethod
     def list_files(self, pattern: str = "*") -> List[Path]:
         """List files matching pattern."""
-        pass
 
     @abstractmethod
     def get_size(self, path: Path) -> int:
         """Get size of file in bytes."""
-        pass
 
 
 class LocalStorageBackend(BaseStorageBackend):
@@ -214,41 +208,41 @@ class LocalStorageBackend(BaseStorageBackend):
         full_path = self.root_dir / path
         return full_path.exists()
 
-    def save(self, path: Path, data: Any, format: str = "pickle") -> int:
+    def save(self, path: Path, data: Any, file_format: str = "pickle") -> int:
         """Save data to path."""
         full_path = self.root_dir / path
         full_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if format == "pickle":
+        if file_format == "pickle":
             with open(full_path, "wb") as f:
                 pickle.dump(data, f)
-        elif format == "json":
+        elif file_format == "json":
             with open(full_path, "w") as f:
                 json.dump(data, f)
-        elif format == "parquet":
+        elif file_format == "parquet":
             if isinstance(data, pd.DataFrame):
                 data.to_parquet(full_path, compression="snappy")
             else:
                 raise ValueError("Parquet format requires pandas DataFrame")
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            raise ValueError(f"Unsupported format: {file_format}")
 
         return full_path.stat().st_size
 
-    def load(self, path: Path, format: str = "pickle") -> Any:
+    def load(self, path: Path, file_format: str = "pickle") -> Any:
         """Load data from path."""
         full_path = self.root_dir / path
 
-        if format == "pickle":
+        if file_format == "pickle":
             with open(full_path, "rb") as f:
                 return pickle.load(f)
-        elif format == "json":
+        elif file_format == "json":
             with open(full_path, "r") as f:
                 return json.load(f)
-        elif format == "parquet":
+        elif file_format == "parquet":
             return pd.read_parquet(full_path)
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            raise ValueError(f"Unsupported format: {file_format}")
 
     def delete(self, path: Path) -> bool:
         """Delete data at path."""
@@ -271,8 +265,7 @@ class LocalStorageBackend(BaseStorageBackend):
         if full_path.exists():
             if full_path.is_file():
                 return full_path.stat().st_size
-            else:
-                return sum(f.stat().st_size for f in full_path.rglob("*") if f.is_file())
+            return sum(f.stat().st_size for f in full_path.rglob("*") if f.is_file())
         return 0
 
 
@@ -315,7 +308,7 @@ class CacheManager:
 
         # Create cache directory structure
         self._init_cache_structure()
-        
+
         # Initialize cache index
         self._cache_index: Dict[str, CacheKey] = {}
 
@@ -364,7 +357,7 @@ class CacheManager:
                     self._cache_index = {
                         k: CacheKey.from_dict(v) for k, v in data.get("index", {}).items()
                     }
-            except Exception as e:
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
                 warnings.warn(f"Failed to load cache metadata: {e}")
                 self._cache_index = {}
         else:
@@ -389,7 +382,7 @@ class CacheManager:
 
             with open(metadata_file, "w") as f:
                 json.dump(data, f, indent=2, default=str)
-        except Exception as e:
+        except (OSError, TypeError) as e:
             warnings.warn(f"Failed to save cache metadata: {e}")
 
     def cache_simulation_paths(
@@ -398,7 +391,7 @@ class CacheManager:
         """Cache Monte Carlo simulation paths to HDF5.
 
         Stores large simulation arrays efficiently using HDF5 with optional
-        compression. Supports arrays up to 10,000 × 1,000 dimensions.
+        compression. Supports arrays up to 10,000 x 1,000 dimensions.
 
         Args:
             params: Simulation parameters (used for cache key)
@@ -463,7 +456,7 @@ class CacheManager:
         # Update statistics
         save_time = (time.time() - start_time) * 1000
         self._save_times.append(save_time)
-        self.stats.avg_save_time_ms = np.mean(self._save_times[-100:])
+        self.stats.avg_save_time_ms = float(np.mean(self._save_times[-100:]))
         self.stats.n_entries = len(self._cache_index)
         self.stats.total_size_bytes += size_bytes
 
@@ -555,13 +548,13 @@ class CacheManager:
             # Update statistics
             load_time = (time.time() - start_time) * 1000
             self._load_times.append(load_time)
-            self.stats.avg_load_time_ms = np.mean(self._load_times[-100:])
+            self.stats.avg_load_time_ms = float(np.mean(self._load_times[-100:]))
             self.stats.n_hits += 1
             self.stats.update_hit_rate()
 
-            return paths
+            return paths  # type: ignore[no-any-return]
 
-        except Exception as e:
+        except (OSError, KeyError, ValueError) as e:
             warnings.warn(f"Failed to load cached data: {e}")
             self.stats.n_misses += 1
             self.stats.update_hit_rate()
@@ -610,7 +603,7 @@ class CacheManager:
         # Update statistics
         save_time = (time.time() - start_time) * 1000
         self._save_times.append(save_time)
-        self.stats.avg_save_time_ms = np.mean(self._save_times[-100:])
+        self.stats.avg_save_time_ms = float(np.mean(self._save_times[-100:]))
         self.stats.n_entries = len(self._cache_index)
         self.stats.total_size_bytes += size_bytes
 
@@ -672,13 +665,13 @@ class CacheManager:
             # Update statistics
             load_time = (time.time() - start_time) * 1000
             self._load_times.append(load_time)
-            self.stats.avg_load_time_ms = np.mean(self._load_times[-100:])
+            self.stats.avg_load_time_ms = float(np.mean(self._load_times[-100:]))
             self.stats.n_hits += 1
             self.stats.update_hit_rate()
 
             return results
 
-        except Exception as e:
+        except (OSError, KeyError, ValueError) as e:
             warnings.warn(f"Failed to load cached results: {e}")
             self.stats.n_misses += 1
             self.stats.update_hit_rate()
@@ -690,7 +683,7 @@ class CacheManager:
         figure: Any,
         figure_name: str,
         figure_type: str = "technical",
-        format: str = "pickle",
+        file_format: str = "pickle",
     ) -> str:
         """Cache matplotlib or plotly figure.
 
@@ -701,22 +694,22 @@ class CacheManager:
             figure: Matplotlib or Plotly figure object
             figure_name: Name of the figure
             figure_type: 'executive' or 'technical'
-            format: Storage format ('pickle', 'json' for plotly)
+            file_format: Storage format ('pickle', 'json' for plotly)
 
         Returns:
             Cache key for retrieval
         """
         # Generate cache key
         cache_key = self._generate_cache_key(params)
-        file_ext = "pkl" if format == "pickle" else "json"
+        file_ext = "pkl" if file_format == "pickle" else "json"
         file_path = Path("figures") / figure_type / f"{figure_name}_{cache_key}.{file_ext}"
         full_path = self.config.cache_dir / file_path
 
         # Save figure
-        if format == "pickle":
+        if file_format == "pickle":
             with open(full_path, "wb") as f:
                 pickle.dump(figure, f)
-        elif format == "json":
+        elif file_format == "json":
             # For Plotly figures
             import plotly.io as pio
 
@@ -868,7 +861,7 @@ class CacheManager:
                     results = compute_func(params)
                     self.cache_simulation_paths(params, results)
                     n_cached += 1
-                except Exception as e:
+                except (OSError, ValueError, TypeError) as e:
                     warnings.warn(f"Failed to warm cache for {params}: {e}")
 
         print(f"Warmed cache with {n_cached} new entries")
@@ -913,6 +906,33 @@ class CacheManager:
 
             self._save_metadata()
 
+    def _get_cache_files(self, key: str, entry: CacheKey) -> List[Path]:
+        """Get files associated with a cache key."""
+        if key.startswith("fig_"):
+            pattern = f"*{entry.hash_key}*"
+            return list((self.config.cache_dir / "figures").rglob(pattern))
+        if "_" in key and not key.startswith("fig_"):
+            pattern = f"*{entry.hash_key}*"
+            return list((self.config.cache_dir / "processed_results").glob(pattern))
+
+        file_path = self.config.cache_dir / "raw_simulations" / f"{entry.hash_key}.h5"
+        return [file_path] if file_path.exists() else []
+
+    def _validate_file(self, key: str, file_path: Path) -> bool:
+        """Validate a single cache file."""
+        try:
+            if key.startswith("fig_"):
+                with open(file_path, "rb") as f:
+                    pickle.load(f)
+            elif "_" in key and not key.startswith("fig_"):
+                pd.read_parquet(file_path)
+            else:
+                with h5py.File(file_path, "r") as f:
+                    _ = f["paths"].shape
+            return True
+        except (OSError, KeyError, ValueError, pickle.PickleError):
+            return False
+
     def validate_cache(self) -> Dict[str, Any]:
         """Validate cache integrity and consistency.
 
@@ -929,35 +949,14 @@ class CacheManager:
 
         # Check all index entries have corresponding files
         for key, entry in self._cache_index.items():
-            if key.startswith("fig_"):
-                # Figure cache
-                pattern = f"*{entry.hash_key}*"
-                files = list((self.config.cache_dir / "figures").rglob(pattern))
-            elif "_" in key and not key.startswith("fig_"):
-                # Processed results
-                pattern = f"*{entry.hash_key}*"
-                files = list((self.config.cache_dir / "processed_results").glob(pattern))
-            else:
-                # Raw simulations
-                file_path = self.config.cache_dir / "raw_simulations" / f"{entry.hash_key}.h5"
-                files = [file_path] if file_path.exists() else []
+            files = self._get_cache_files(key, entry)
 
             if not files:
                 results["missing_files"].append(key)
+            elif self._validate_file(key, files[0]):
+                results["valid_entries"] += 1
             else:
-                # Try to load to check for corruption
-                try:
-                    if key.startswith("fig_"):
-                        with open(files[0], "rb") as f:
-                            pickle.load(f)
-                    elif "_" in key and not key.startswith("fig_"):
-                        pd.read_parquet(files[0])
-                    else:
-                        with h5py.File(files[0], "r") as f:
-                            _ = f["paths"].shape
-                    results["valid_entries"] += 1
-                except Exception:
-                    results["corrupted_files"].append(str(files[0]))
+                results["corrupted_files"].append(str(files[0]))
 
         # Check for orphaned files (files without index entries)
         all_cached_files = set()

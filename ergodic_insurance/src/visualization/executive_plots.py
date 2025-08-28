@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import numpy as np
 import pandas as pd
 from scipy.interpolate import make_interp_spline
@@ -750,6 +751,297 @@ def plot_roe_ruin_frontier(  # pylint: disable=too-many-locals,too-many-statemen
     ax.set_xlim(left=0)
     if not log_scale_y:
         ax.set_ylim(bottom=0)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
+    retention_range: Optional[Tuple[float, float]] = None,
+    n_points: int = 50,
+    company_size: float = 10_000_000,
+    simulation_data: Optional[Dict[str, Any]] = None,
+    title: str = "The Ruin Cliff: Retention vs Failure Risk",
+    figsize: Tuple[int, int] = (14, 8),
+    show_inset: bool = True,
+    show_warnings: bool = True,
+    show_3d_effect: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create dramatic ruin cliff visualization with 3D effects.
+
+    Visualizes the relationship between insurance retention (deductible) levels
+    and ruin probability, highlighting the "cliff edge" where risk dramatically
+    increases. Features 3D-style gradient effects and warning zones.
+
+    Args:
+        retention_range: Tuple of (min, max) retention values in dollars.
+                        Default: (10_000, 10_000_000)
+        n_points: Number of points to calculate along retention axis
+        company_size: Company asset size for scaling retention levels
+        simulation_data: Optional pre-computed simulation results with keys:
+                        'retentions', 'ruin_probs', 'confidence_intervals'
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_inset: Whether to show zoomed inset of critical region
+        show_warnings: Whether to show warning callouts and annotations
+        show_3d_effect: Whether to add 3D gradient background effects
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with ruin cliff visualization
+
+    Examples:
+        >>> # Basic usage with synthetic data
+        >>> fig = plot_ruin_cliff()
+
+        >>> # With custom retention range
+        >>> fig = plot_ruin_cliff(retention_range=(5000, 5_000_000))
+
+        >>> # With pre-computed simulation data
+        >>> data = {
+        ...     'retentions': np.logspace(4, 7, 50),
+        ...     'ruin_probs': np.array([...]),
+        ... }
+        >>> fig = plot_ruin_cliff(simulation_data=data)
+
+    Notes:
+        The visualization uses a log scale for retention values to show
+        the full range from small to large deductibles. The cliff edge
+        is detected using derivative analysis to find the steepest point
+        of increase in ruin probability.
+    """
+    set_wsj_style()
+
+    # Set default retention range if not provided
+    if retention_range is None:
+        retention_range = (10_000, 10_000_000)
+
+    # Generate or use provided data
+    if simulation_data is not None:
+        retentions = simulation_data["retentions"]
+        ruin_probs = simulation_data["ruin_probs"]
+    else:
+        # Generate synthetic demonstration data
+        retentions = np.logspace(
+            np.log10(retention_range[0]), np.log10(retention_range[1]), n_points
+        )
+
+        # Create realistic ruin probability curve with cliff effect
+        # Low retention = high ruin probability, high retention = low probability
+        # but with a steep cliff in the middle
+        log_ret = np.log10(retentions)
+        log_ret_norm = (log_ret - log_ret.min()) / (log_ret.max() - log_ret.min())
+
+        # Sigmoid-like function with adjustable steepness for cliff effect
+        cliff_center = 0.3  # Position of cliff (30% along log scale)
+        cliff_steepness = 15  # How steep the cliff is
+        base_curve = 1 / (1 + np.exp(cliff_steepness * (log_ret_norm - cliff_center)))
+
+        # Add some noise and ensure realistic bounds
+        noise = np.random.RandomState(42).normal(0, 0.01, len(retentions))
+        ruin_probs = np.clip(base_curve + noise, 0.001, 0.99)
+
+    # Find cliff edge (steepest point)
+    derivatives = np.gradient(ruin_probs, np.log10(retentions))
+    cliff_idx = np.argmax(np.abs(derivatives))
+    cliff_retention = retentions[cliff_idx]
+    cliff_ruin = ruin_probs[cliff_idx]
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Add 3D gradient effect background if requested
+    if show_3d_effect:
+        # Create gradient mesh for contour fill
+        x_mesh = np.logspace(np.log10(retentions.min()), np.log10(retentions.max()), 100)
+        y_mesh = np.linspace(0, 1, 100)
+        X_mesh, Y_mesh = np.meshgrid(x_mesh, y_mesh)
+
+        # Create Z values based on distance from the curve
+        Z_mesh = np.zeros_like(X_mesh)
+        for i, x_val in enumerate(x_mesh):
+            # Interpolate ruin probability at this retention
+            interp_ruin = np.interp(x_val, retentions, ruin_probs)
+            for j, y_val in enumerate(y_mesh):
+                # Distance from the curve determines intensity
+                dist = abs(y_val - interp_ruin)
+                Z_mesh[j, i] = 1 - dist
+
+        # Create custom colormap for 3D effect
+        from matplotlib.colors import LinearSegmentedColormap
+
+        colors_3d = ["#ffffff", "#e8f4fd", "#c5e4fd", "#7ec0ee", "#4a90e2", "#ff6b6b"]
+        n_bins = 100
+        cmap_3d = LinearSegmentedColormap.from_list("ruin_cliff", colors_3d, N=n_bins)
+
+        # Add gradient background
+        contour = ax.contourf(
+            X_mesh, Y_mesh, Z_mesh, levels=20, cmap=cmap_3d, alpha=0.3, antialiased=True
+        )
+
+    # Define color zones based on ruin probability
+    danger_threshold = 0.05  # 5% ruin probability
+    warning_threshold = 0.02  # 2% ruin probability
+
+    # Add danger zones
+    ax.axhspan(danger_threshold, 1.0, alpha=0.1, color="red", label="Danger Zone (>5% risk)")
+    ax.axhspan(
+        warning_threshold,
+        danger_threshold,
+        alpha=0.1,
+        color="orange",
+        label="Warning Zone (2-5% risk)",
+    )
+    ax.axhspan(0, warning_threshold, alpha=0.1, color="green", label="Safe Zone (<2% risk)")
+
+    # Plot main curve with color gradient based on risk level
+    for i in range(len(retentions) - 1):
+        # Determine color based on ruin probability
+        if ruin_probs[i] > danger_threshold:
+            color = "#ff4444"  # Red
+        elif ruin_probs[i] > warning_threshold:
+            color = "#ff8800"  # Orange
+        else:
+            color = "#00aa00"  # Green
+
+        ax.plot(retentions[i : i + 2], ruin_probs[i : i + 2], color=color, linewidth=3, alpha=0.9)
+
+    # Mark the cliff edge
+    ax.scatter(
+        cliff_retention,
+        cliff_ruin,
+        s=300,
+        color="red",
+        marker="o",
+        edgecolor="darkred",
+        linewidth=3,
+        zorder=10,
+        label=f"Cliff Edge: ${cliff_retention:,.0f}",
+    )
+
+    # Add warning callouts if requested
+    if show_warnings:
+        # Cliff edge warning
+        ax.annotate(
+            f"⚠️ CLIFF EDGE\n${cliff_retention:,.0f} retention\n{cliff_ruin:.1%} ruin risk",
+            xy=(cliff_retention, cliff_ruin),
+            xytext=(cliff_retention * 3, cliff_ruin + 0.15),
+            fontsize=11,
+            fontweight="bold",
+            color="darkred",
+            bbox=dict(
+                boxstyle="round,pad=0.5",
+                facecolor="yellow",
+                edgecolor="red",
+                alpha=0.9,
+                linewidth=2,
+            ),
+            arrowprops=dict(
+                arrowstyle="-|>",
+                connectionstyle="arc3,rad=0.3",
+                color="red",
+                linewidth=2,
+                shrinkA=5,
+                shrinkB=5,
+            ),
+        )
+
+        # Safe zone indicator
+        safe_idx = np.where(ruin_probs < warning_threshold)[0]
+        if len(safe_idx) > 0:
+            safe_retention = retentions[safe_idx[0]]
+            ax.annotate(
+                f"✓ Safe Zone\nRetention > ${safe_retention:,.0f}",
+                xy=(safe_retention * 2, 0.01),
+                fontsize=10,
+                color="darkgreen",
+                fontweight="bold",
+                bbox=dict(
+                    boxstyle="round,pad=0.3", facecolor="lightgreen", edgecolor="green", alpha=0.8
+                ),
+            )
+
+    # Add inset plot for critical region if requested
+    if show_inset:
+        # Define inset region around cliff
+        inset_range = (cliff_retention * 0.3, cliff_retention * 3)
+        inset_mask = (retentions >= inset_range[0]) & (retentions <= inset_range[1])
+
+        if np.any(inset_mask):
+            # Create inset axes
+            ax_inset = inset_axes(ax, width="40%", height="40%", loc="upper right", borderpad=3)
+
+            # Plot zoomed region
+            ax_inset.semilogx(retentions[inset_mask], ruin_probs[inset_mask], "b-", linewidth=2)
+            ax_inset.scatter(
+                cliff_retention,
+                cliff_ruin,
+                s=100,
+                color="red",
+                marker="o",
+                edgecolor="darkred",
+                linewidth=2,
+            )
+
+            # Style inset
+            ax_inset.set_xlabel("Retention ($)", fontsize=9)
+            ax_inset.set_ylabel("Ruin Probability", fontsize=9)
+            ax_inset.set_title("Critical Region Detail", fontsize=10, fontweight="bold")
+            ax_inset.grid(True, alpha=0.3)
+            ax_inset.xaxis.set_major_formatter(
+                mticker.FuncFormatter(WSJFormatter.currency_formatter)
+            )
+            ax_inset.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.1%}"))
+
+            # Add shading to inset
+            ax_inset.axhspan(danger_threshold, 1.0, alpha=0.2, color="red")
+            ax_inset.axhspan(warning_threshold, danger_threshold, alpha=0.2, color="orange")
+
+    # Format main axes
+    ax.set_xscale("log")
+    ax.set_xlabel("Retention Level (Deductible)", fontsize=13, fontweight="bold")
+    ax.set_ylabel("10-Year Ruin Probability", fontsize=13, fontweight="bold")
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
+    # Format axes
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(WSJFormatter.currency_formatter))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.0%}"))
+
+    # Set sensible limits
+    ax.set_xlim(retentions.min() * 0.8, retentions.max() * 1.2)
+    ax.set_ylim(0, min(1.0, ruin_probs.max() * 1.1))
+
+    # Add grid
+    ax.grid(True, which="both", alpha=0.3, linestyle="--")
+    ax.grid(True, which="minor", alpha=0.1, linestyle=":")
+
+    # Add legend
+    ax.legend(
+        loc="upper left",
+        frameon=True,
+        fancybox=False,
+        edgecolor="black",
+        framealpha=0.95,
+        fontsize=10,
+    )
+
+    # Add subtitle with company info
+    fig.text(
+        0.5,
+        0.94,
+        f"Company Size: {format_currency(company_size)} | Analysis: 10-Year Time Horizon",
+        ha="center",
+        fontsize=11,
+        style="italic",
+        color=WSJ_COLORS["gray"],
+    )
 
     # Adjust layout
     plt.tight_layout()
