@@ -38,7 +38,12 @@ from .core import (
 )
 
 # Executive visualization functions
-from .executive_plots import plot_insurance_layers, plot_loss_distribution, plot_return_period_curve
+from .executive_plots import (
+    plot_insurance_layers,
+    plot_loss_distribution,
+    plot_return_period_curve,
+    plot_roe_ruin_frontier,
+)
 
 # Export utilities
 from .export import (
@@ -81,6 +86,7 @@ __all__ = [
     "plot_loss_distribution",
     "plot_return_period_curve",
     "plot_insurance_layers",
+    "plot_roe_ruin_frontier",
     # Technical plots
     "plot_convergence_diagnostics",
     "plot_pareto_frontier_2d",

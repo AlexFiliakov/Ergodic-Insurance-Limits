@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+from scipy.interpolate import make_interp_spline
+from scipy.signal import argrelextrema
 
 from .core import COLOR_SEQUENCE, WSJ_COLORS, WSJFormatter, format_currency, set_wsj_style
 
@@ -522,3 +524,284 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
     plt.tight_layout()
 
     return fig
+
+
+def plot_roe_ruin_frontier(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
+    results: Union[Dict[float, pd.DataFrame], pd.DataFrame],
+    company_sizes: Optional[List[float]] = None,
+    title: str = "ROE-Ruin Efficient Frontier",
+    figsize: Tuple[int, int] = (12, 8),
+    highlight_sweet_spots: bool = True,
+    show_optimal_zones: bool = True,
+    export_dpi: Optional[int] = None,
+    log_scale_y: bool = True,
+    grid: bool = True,
+    annotations: bool = True,
+    color_scheme: Optional[List[str]] = None,
+) -> Figure:
+    """Create ROE-Ruin efficient frontier visualization.
+
+    Visualizes the Pareto frontier showing trade-offs between Return on Equity (ROE)
+    and Ruin Probability for different company sizes. This helps executives understand
+    optimal insurance purchasing decisions.
+
+    Args:
+        results: Either a dict of company_size (float) -> optimization results DataFrame,
+                or a single DataFrame with 'company_size' column
+        company_sizes: List of company sizes to plot (e.g., [1e6, 1e7, 1e8])
+                      If None, will use all available sizes in results
+        title: Plot title
+        figsize: Figure size (width, height)
+        highlight_sweet_spots: Whether to highlight knee points on curves
+        show_optimal_zones: Whether to show shaded optimal zones
+        export_dpi: DPI for export (150 for web, 300 for print, None for screen)
+        log_scale_y: Whether to use log scale for ruin probability axis
+        grid: Whether to show grid lines
+        annotations: Whether to show annotations for key points
+        color_scheme: List of colors for different company sizes
+
+    Returns:
+        Matplotlib figure with ROE-Ruin efficient frontier plots
+
+    Raises:
+        ValueError: If results format is invalid or no data available
+
+    Examples:
+        >>> # With dictionary of results
+        >>> results = {
+        ...     1e6: pd.DataFrame({'roe': [0.1, 0.15, 0.2],
+        ...                       'ruin_prob': [0.05, 0.02, 0.01]}),
+        ...     1e7: pd.DataFrame({'roe': [0.08, 0.12, 0.18],
+        ...                       'ruin_prob': [0.03, 0.015, 0.008]})
+        ... }
+        >>> fig = plot_roe_ruin_frontier(results)
+
+        >>> # With single DataFrame
+        >>> df = pd.DataFrame({
+        ...     'company_size': [1e6, 1e6, 1e7, 1e7],
+        ...     'roe': [0.1, 0.15, 0.08, 0.12],
+        ...     'ruin_prob': [0.05, 0.02, 0.03, 0.015]
+        ... })
+        >>> fig = plot_roe_ruin_frontier(df)
+    """
+    set_wsj_style()
+
+    # Process input data
+    data_dict = {}
+
+    if isinstance(results, pd.DataFrame):
+        # Single DataFrame with company_size column
+        if "company_size" not in results.columns:
+            raise ValueError("DataFrame must have 'company_size' column")
+
+        for size in results["company_size"].unique():
+            size_data = results[results["company_size"] == size].copy()
+            data_dict[size] = size_data
+    elif isinstance(results, dict):
+        # Dictionary of company_size -> DataFrame
+        data_dict = results
+    else:
+        raise ValueError("Results must be DataFrame or dict of DataFrames")
+
+    # Determine company sizes to plot
+    if company_sizes is None:
+        company_sizes = sorted(data_dict.keys())
+    else:
+        # Filter to requested sizes that exist in data
+        company_sizes = [s for s in company_sizes if s in data_dict]
+
+    if not company_sizes:
+        raise ValueError("No valid company sizes found in data")
+
+    # Set up color scheme
+    if color_scheme is None:
+        # Default corporate blues with good contrast
+        color_scheme = [
+            WSJ_COLORS["blue"],  # Primary blue
+            "#4A90E2",  # Lighter blue
+            "#1E3A8A",  # Darker blue
+            WSJ_COLORS["orange"],  # Accent for contrast if > 3 sizes
+            WSJ_COLORS["red"],  # Additional contrast
+        ]
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Storage for sweet spots
+    sweet_spots = []
+
+    # Plot each company size
+    for idx, size in enumerate(company_sizes):
+        df = data_dict[size]
+
+        # Ensure required columns exist
+        required_cols = ["roe", "ruin_prob"]
+        if not all(col in df.columns for col in required_cols):
+            # Try alternative column names
+            roe_col = next(
+                (c for c in df.columns if "roe" in c.lower() or "return" in c.lower()), None
+            )
+            ruin_col = next((c for c in df.columns if "ruin" in c.lower()), None)
+
+            if roe_col and ruin_col:
+                df = df.rename(columns={roe_col: "roe", ruin_col: "ruin_prob"})
+            else:
+                raise ValueError(f"Company size {size} missing ROE or ruin probability data")
+
+        # Sort by ROE for proper curve drawing
+        df = df.sort_values("roe")
+
+        # Extract data
+        roe_values = df["roe"].values * 100  # Convert to percentage
+        ruin_values = df["ruin_prob"].values * 100  # Convert to percentage
+
+        # Apply smoothing if enough points
+        if len(roe_values) > 3:
+            try:
+                # Create smooth curve using spline interpolation
+                x_smooth = np.linspace(roe_values.min(), roe_values.max(), 100)
+                spline = make_interp_spline(roe_values, ruin_values, k=min(3, len(roe_values) - 1))
+                y_smooth = spline(x_smooth)
+                y_smooth = np.clip(y_smooth, 0, 100)  # Ensure values stay in valid range
+            except Exception:  # pylint: disable=broad-except
+                # Fallback to linear interpolation on error
+                x_smooth = roe_values
+                y_smooth = ruin_values
+        else:
+            x_smooth = roe_values
+            y_smooth = ruin_values
+
+        # Plot the frontier curve
+        color = color_scheme[idx % len(color_scheme)]
+        label = f"${format_currency(size, decimals=0).replace('$', '')} Company"
+
+        ax.plot(x_smooth, y_smooth, "-", color=color, linewidth=2.5, label=label)
+        ax.scatter(roe_values, ruin_values, color=color, s=50, alpha=0.6, zorder=5)
+
+        # Find and highlight sweet spot (knee point)
+        if highlight_sweet_spots and len(roe_values) > 2:
+            sweet_spot_idx = _find_knee_point(roe_values, ruin_values)
+            sweet_roe = roe_values[sweet_spot_idx]
+            sweet_ruin = ruin_values[sweet_spot_idx]
+            sweet_spots.append((sweet_roe, sweet_ruin, size))
+
+            # Mark sweet spot
+            ax.scatter(
+                sweet_roe,
+                sweet_ruin,
+                color=color,
+                s=200,
+                marker="*",
+                edgecolor="white",
+                linewidth=2,
+                zorder=10,
+            )
+
+            # Add annotation if enabled
+            if annotations:
+                ax.annotate(
+                    f"Sweet Spot\n{sweet_roe:.1f}% ROE\n{sweet_ruin:.2f}% Risk",
+                    xy=(sweet_roe, sweet_ruin),
+                    xytext=(sweet_roe + 2, sweet_ruin * 1.5),
+                    fontsize=9,
+                    color=color,
+                    fontweight="bold",
+                    arrowprops={"arrowstyle": "->", "color": color, "alpha": 0.5, "lw": 1},
+                    bbox={
+                        "boxstyle": "round,pad=0.3",
+                        "facecolor": "white",
+                        "edgecolor": color,
+                        "alpha": 0.8,
+                    },
+                )
+
+    # Add optimal zones if requested
+    if show_optimal_zones and sweet_spots:
+        # Calculate optimal zone bounds based on sweet spots
+        roe_range = [min(s[0] for s in sweet_spots) - 2, max(s[0] for s in sweet_spots) + 2]
+        ruin_range = [min(s[1] for s in sweet_spots) * 0.5, max(s[1] for s in sweet_spots) * 2]
+
+        # Add shaded optimal zone
+        ax.axvspan(roe_range[0], roe_range[1], alpha=0.05, color="green", label="Optimal Zone")
+        ax.axhspan(ruin_range[0], ruin_range[1], alpha=0.05, color="green")
+
+    # Format axes
+    ax.set_xlabel("Return on Equity (%)", fontsize=12)
+    ax.set_ylabel("Ruin Probability (%)", fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+
+    # Apply log scale to y-axis if requested
+    if log_scale_y:
+        ax.set_yscale("log")
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.2f}%"))
+    else:
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.1f}%"))
+
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.0f}%"))
+
+    # Add grid if requested
+    if grid:
+        ax.grid(True, which="both", alpha=0.3, linestyle="--")
+
+    # Add legend
+    ax.legend(loc="upper right", frameon=True, fancybox=False, edgecolor=WSJ_COLORS["gray"])
+
+    # Set axis limits for better visualization
+    ax.set_xlim(left=0)
+    if not log_scale_y:
+        ax.set_ylim(bottom=0)
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def _find_knee_point(x: np.ndarray, y: np.ndarray) -> int:
+    """Find the knee point (elbow) in a curve using curvature analysis.
+
+    Args:
+        x: X-axis values (ROE)
+        y: Y-axis values (Ruin probability)
+
+    Returns:
+        Index of the knee point
+    """
+    # Normalize data
+    x_norm = (x - x.min()) / (x.max() - x.min() + 1e-10)
+    y_norm = (y - y.min()) / (y.max() - y.min() + 1e-10)
+
+    # Calculate distances from each point to the line between start and end
+    start = np.array([x_norm[0], y_norm[0]])
+    end = np.array([x_norm[-1], y_norm[-1]])
+
+    distances = []
+    for x_val, y_val in zip(x_norm, y_norm):
+        point = np.array([x_val, y_val])
+        # Distance from point to line using 2D cross product formula
+        # For 2D vectors, cross product gives scalar: (a × b) = ax*by - ay*bx
+        line_vec = end - start
+        point_vec = point - start
+        cross_prod = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
+        dist = np.abs(cross_prod) / np.linalg.norm(line_vec)
+        distances.append(dist)
+
+    # The knee point is where distance is maximum
+    knee_idx = np.argmax(distances)
+
+    # Refine by looking for the point where curvature changes most
+    if len(x) > 5:
+        # Calculate curvature using second derivative approximation
+        curvature = np.abs(np.gradient(np.gradient(y_norm)))
+        # Find local maxima in curvature
+        maxima = argrelextrema(curvature, np.greater)[0]
+        if len(maxima) > 0:
+            # Choose the maximum closest to our initial estimate
+            distances_to_knee = np.abs(maxima - knee_idx)
+            knee_idx = maxima[np.argmin(distances_to_knee)]
+
+    return int(knee_idx)

@@ -581,3 +581,246 @@ class TestEdgeCasesExtended:
         # Check all are closed
         final_figs = plt.get_fignums()
         assert len(final_figs) == len(initial_figs)
+
+
+class TestROERuinFrontier:
+    """Test ROE-Ruin Efficient Frontier visualization."""
+
+    @pytest.fixture
+    def sample_optimization_results(self):
+        """Create sample optimization results for different company sizes."""
+        # Generate synthetic Pareto frontier data
+        np.random.seed(42)
+
+        # $1M company - higher risk tolerance
+        roe_1m = np.array([0.05, 0.08, 0.10, 0.12, 0.15, 0.18, 0.20])
+        ruin_1m = np.array([0.08, 0.05, 0.03, 0.02, 0.015, 0.012, 0.01])
+
+        # $10M company - moderate risk
+        roe_10m = np.array([0.04, 0.06, 0.08, 0.10, 0.12, 0.14])
+        ruin_10m = np.array([0.05, 0.03, 0.02, 0.012, 0.008, 0.006])
+
+        # $100M company - conservative
+        roe_100m = np.array([0.03, 0.05, 0.07, 0.09, 0.11])
+        ruin_100m = np.array([0.03, 0.02, 0.01, 0.006, 0.004])
+
+        return {
+            1e6: pd.DataFrame({"roe": roe_1m, "ruin_prob": ruin_1m}),
+            1e7: pd.DataFrame({"roe": roe_10m, "ruin_prob": ruin_10m}),
+            1e8: pd.DataFrame({"roe": roe_100m, "ruin_prob": ruin_100m}),
+        }
+
+    @pytest.fixture
+    def single_dataframe_results(self):
+        """Create sample results as a single DataFrame with company_size column."""
+        data = []
+
+        # $1M company data
+        for roe, ruin in zip([0.05, 0.10, 0.15], [0.05, 0.02, 0.01]):
+            data.append({"company_size": 1e6, "roe": roe, "ruin_prob": ruin})
+
+        # $10M company data
+        for roe, ruin in zip([0.04, 0.08, 0.12], [0.03, 0.015, 0.008]):
+            data.append({"company_size": 1e7, "roe": roe, "ruin_prob": ruin})
+
+        return pd.DataFrame(data)
+
+    def test_plot_roe_ruin_frontier_basic(self, sample_optimization_results):
+        """Test basic ROE-Ruin frontier plotting."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        fig = plot_roe_ruin_frontier(sample_optimization_results)
+
+        assert fig is not None
+        assert len(fig.axes) == 1
+        ax = fig.axes[0]
+
+        # Check labels
+        assert ax.get_xlabel() == "Return on Equity (%)"
+        assert ax.get_ylabel() == "Ruin Probability (%)"
+        assert "ROE-Ruin Efficient Frontier" in ax.get_title()
+
+        # Check that curves were plotted (3 company sizes)
+        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        assert len(lines) >= 3
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_with_dataframe(self, single_dataframe_results):
+        """Test ROE-Ruin frontier with single DataFrame input."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        fig = plot_roe_ruin_frontier(single_dataframe_results)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check that curves were plotted
+        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        assert len(lines) >= 2  # Two company sizes in the data
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_customization(self, sample_optimization_results):
+        """Test ROE-Ruin frontier with custom options."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        fig = plot_roe_ruin_frontier(
+            sample_optimization_results,
+            company_sizes=[1e6, 1e7],  # Only plot two sizes
+            title="Custom Title",
+            figsize=(10, 6),
+            highlight_sweet_spots=False,
+            show_optimal_zones=False,
+            log_scale_y=False,
+            grid=False,
+            annotations=False,
+            color_scheme=["red", "blue"],
+            export_dpi=150,
+        )
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check customizations
+        assert "Custom Title" in ax.get_title()
+        assert fig.get_size_inches()[0] == 10
+        assert fig.get_size_inches()[1] == 6
+        assert ax.get_yscale() == "linear"  # Not log scale
+        assert fig.dpi == 150
+
+        # Check only 2 curves plotted
+        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        assert len(lines) == 2
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_sweet_spots(self, sample_optimization_results):
+        """Test sweet spot detection and highlighting."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        fig = plot_roe_ruin_frontier(
+            sample_optimization_results, highlight_sweet_spots=True, annotations=True
+        )
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check for star markers (sweet spots)
+        star_collections = [
+            c for c in ax.collections if hasattr(c, "get_paths") and len(c.get_paths()) > 0
+        ]
+        assert len(star_collections) > 0
+
+        # Check for annotations
+        annotations = ax.texts
+        assert len(annotations) > 0
+        assert any("Sweet Spot" in str(ann.get_text()) for ann in annotations)
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_optimal_zones(self, sample_optimization_results):
+        """Test optimal zone visualization."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        fig = plot_roe_ruin_frontier(sample_optimization_results, show_optimal_zones=True)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check for shaded regions (axvspan and axhspan create patches)
+        patches = ax.patches
+        assert len(patches) > 0
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_log_scale(self, sample_optimization_results):
+        """Test log scale for ruin probability axis."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        fig = plot_roe_ruin_frontier(sample_optimization_results, log_scale_y=True)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check y-axis is log scale
+        assert ax.get_yscale() == "log"
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_invalid_input(self):
+        """Test error handling for invalid inputs."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        # Test with invalid data type
+        with pytest.raises(ValueError, match="Results must be DataFrame or dict"):
+            plot_roe_ruin_frontier("invalid_data")  # type: ignore
+
+        # Test with DataFrame missing required column
+        df_missing = pd.DataFrame({"roe": [0.1, 0.2], "ruin_prob": [0.01, 0.02]})
+        with pytest.raises(ValueError, match="DataFrame must have 'company_size' column"):
+            plot_roe_ruin_frontier(df_missing)
+
+        # Test with empty dict
+        with pytest.raises(ValueError, match="No valid company sizes found"):
+            plot_roe_ruin_frontier({})
+
+    def test_plot_roe_ruin_frontier_alternative_column_names(self):
+        """Test handling of alternative column names."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        # Create data with alternative column names
+        data = {
+            1e6: pd.DataFrame(
+                {"return_on_equity": [0.1, 0.15, 0.2], "ruin_probability": [0.05, 0.02, 0.01]}
+            )
+        }
+
+        fig = plot_roe_ruin_frontier(data)
+        assert fig is not None
+        plt.close(fig)
+
+    def test_find_knee_point(self):
+        """Test knee point detection algorithm."""
+        from ergodic_insurance.src.visualization.executive_plots import _find_knee_point
+
+        # Create a curve with clear knee point
+        x = np.array([1, 2, 3, 4, 5, 6, 7])
+        y = np.array([10, 7, 5, 3, 2.5, 2.2, 2.0])
+
+        knee_idx = _find_knee_point(x, y)
+
+        # The knee should be around index 2-3 where curvature is highest
+        assert 1 <= knee_idx <= 4
+
+    def test_plot_roe_ruin_frontier_single_company(self, sample_optimization_results):
+        """Test plotting with single company size."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        # Use only one company size
+        single_company = {1e6: sample_optimization_results[1e6]}
+
+        fig = plot_roe_ruin_frontier(single_company)
+
+        assert fig is not None
+        ax = fig.axes[0]
+
+        # Check only one curve plotted
+        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        assert len(lines) == 1
+
+        plt.close(fig)
+
+    def test_plot_roe_ruin_frontier_export_dpi(self, sample_optimization_results):
+        """Test export DPI settings."""
+        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+
+        # Test web resolution
+        fig_web = plot_roe_ruin_frontier(sample_optimization_results, export_dpi=150)
+        assert fig_web.dpi == 150
+        plt.close(fig_web)
+
+        # Test print resolution
+        fig_print = plot_roe_ruin_frontier(sample_optimization_results, export_dpi=300)
+        assert fig_print.dpi == 300
+        plt.close(fig_print)
