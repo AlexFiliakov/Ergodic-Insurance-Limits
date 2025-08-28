@@ -136,7 +136,7 @@ class ExecutiveReport(ReportBuilder):
             baseline = self.results[f"{metric}_baseline"]
             current = self.results[metric]
             if baseline > 0:
-                return (current / baseline - 1) * 100
+                return float((current / baseline - 1) * 100)
         return 0.0
 
     def _calculate_reduction(self, metric: str) -> float:
@@ -152,7 +152,7 @@ class ExecutiveReport(ReportBuilder):
             baseline = self.results[f"{metric}_baseline"]
             current = self.results[metric]
             if baseline > 0:
-                return (1 - current / baseline) * 100
+                return float((1 - current / baseline) * 100)
         return 0.0
 
     def _calculate_premium_ratio(self) -> float:
@@ -165,7 +165,7 @@ class ExecutiveReport(ReportBuilder):
             premium = self.results["total_premium"]
             expected = self.results["expected_losses"]
             if expected > 0:
-                return premium / expected
+                return float(premium / expected)
         return 0.0
 
     def _calculate_max_drawdown(self, trajectories: np.ndarray) -> float:
@@ -184,7 +184,7 @@ class ExecutiveReport(ReportBuilder):
                 peak = np.maximum.accumulate(traj)
                 drawdown = (traj - peak) / peak
                 drawdowns.append(np.min(drawdown))
-            return np.mean(drawdowns)
+            return float(np.mean(drawdowns))
         return 0.0
 
     def _update_config_with_results(self):
@@ -338,7 +338,7 @@ class ExecutiveReport(ReportBuilder):
                 data["ruin_probs"],
                 data["roes"],
                 data.get("optimal_point"),
-                figsize=(fig_config.width, fig_config.height),
+                figsize=(int(fig_config.width), int(fig_config.height)),
             )
         else:
             # Create placeholder

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore[import-untyped]
 
 
 class TableGenerator:
@@ -109,7 +109,7 @@ class TableGenerator:
         if caption:
             table = self._add_caption(table, caption, format_key)
 
-        return table
+        return table  # type: ignore[no-any-return]
 
     def generate_summary_statistics(
         self, df: pd.DataFrame, metrics: Optional[List[str]] = None, format: Optional[str] = None

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class FigureConfig(BaseModel):
@@ -34,7 +34,8 @@ class FigureConfig(BaseModel):
     position: str = Field(default="htbp")
     cache_key: Optional[str] = None
 
-    @validator("source")
+    @field_validator("source")
+    @classmethod
     def validate_source(cls, v):
         """Validate that source is a valid path or callable name."""
         if isinstance(v, str) and not v.startswith("generate_"):
@@ -89,10 +90,7 @@ class SectionConfig(BaseModel):
     subsections: List["SectionConfig"] = Field(default_factory=list)
     page_break: bool = False
 
-    class Config:
-        """Pydantic config."""
-
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class ReportMetadata(BaseModel):
@@ -174,7 +172,8 @@ class ReportConfig(BaseModel):
     cache_dir: Path = Field(default_factory=lambda: Path("reports/cache"))
     debug: bool = False
 
-    @validator("output_dir", "cache_dir")
+    @field_validator("output_dir", "cache_dir")
+    @classmethod
     def create_directories(cls, v):
         """Ensure output directories exist."""
         v.mkdir(parents=True, exist_ok=True)

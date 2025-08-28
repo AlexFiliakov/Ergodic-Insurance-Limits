@@ -50,7 +50,9 @@ class ReportBuilder(ABC):
         """
         self.config = config
         self.cache_dir = cache_dir or config.cache_dir
-        self.cache_manager = CacheManager(self.cache_dir)
+        from ..reporting.cache_manager import CacheConfig
+        cache_config = CacheConfig(cache_dir=self.cache_dir)
+        self.cache_manager = CacheManager(cache_config)
         self.table_generator = TableGenerator()
 
         self.content: List[str] = []
@@ -138,7 +140,7 @@ class ReportBuilder(ABC):
             template_path = self.template_dir / content_ref
             if template_path.exists():
                 template = self.env.get_template(content_ref)
-                return template.render(
+                return template.render(  # type: ignore[no-any-return]
                     metadata=self.config.metadata, figures=self.figures, tables=self.tables
                 )
 
@@ -198,8 +200,8 @@ class ReportBuilder(ABC):
                 return dest_path
 
             # If it's a generation function name
-            elif source.startswith("generate_"):
-                func_name = source
+            elif str(source).startswith("generate_"):
+                func_name = str(source)
                 if hasattr(self, func_name):
                     fig = getattr(self, func_name)(fig_config)
                     dest_path = self.cache_dir / f"{fig_config.name}.png"
@@ -270,10 +272,10 @@ class ReportBuilder(ABC):
                     return pd.read_json(source_path)
 
             # If it's a generation function name
-            elif data_source.startswith("generate_"):
-                func_name = data_source
+            elif str(data_source).startswith("generate_"):
+                func_name = str(data_source)
                 if hasattr(self, func_name):
-                    return getattr(self, func_name)()
+                    return getattr(self, func_name)()  # type: ignore[no-any-return]
 
         # Fallback: create sample data
         return pd.DataFrame({"Column A": [1, 2, 3], "Column B": [4, 5, 6], "Column C": [7, 8, 9]})
