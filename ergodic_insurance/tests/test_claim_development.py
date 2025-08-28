@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import yaml
+
 from ergodic_insurance.src.claim_development import (
     CashFlowProjector,
     Claim,

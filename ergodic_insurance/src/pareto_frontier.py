@@ -5,9 +5,9 @@ Pareto frontiers in multi-objective optimization problems, particularly focused 
 insurance optimization trade-offs between ROE, risk, and costs.
 """
 
-import logging
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -261,9 +261,9 @@ class ParetoFrontier:
             # Random weights for this run
             weights = np.random.dirichlet(np.ones(len(self.objectives)))
 
-            def weighted_objective(x):
+            def weighted_objective(x, w=weights):
                 obj_vals = multi_objective_wrapper(x)
-                return np.dot(weights, obj_vals)
+                return np.dot(w, obj_vals)
 
             result = differential_evolution(
                 weighted_objective,
@@ -364,11 +364,10 @@ class ParetoFrontier:
                         "type": "ineq",
                         "fun": lambda x, n=name, e=eps: self.objective_function(x)[n] - e,
                     }
-                else:
-                    return {
-                        "type": "ineq",
-                        "fun": lambda x, n=name, e=eps: e - self.objective_function(x)[n],
-                    }
+                return {
+                    "type": "ineq",
+                    "fun": lambda x, n=name, e=eps: e - self.objective_function(x)[n],
+                }
 
             additional_constraints.append(make_constraint(obj_name, epsilon_val, obj.type))
 
@@ -430,7 +429,7 @@ class ParetoFrontier:
             # Sort points by this objective
             sorted_points = sorted(
                 enumerate(self.frontier_points),
-                key=lambda x: x[1].objectives[obj.name],
+                key=lambda x, o=obj: x[1].objectives[o.name],  # type: ignore[misc]
             )
 
             # Boundary points get infinite distance

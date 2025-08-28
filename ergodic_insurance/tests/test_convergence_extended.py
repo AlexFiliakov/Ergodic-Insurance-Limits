@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.convergence import ConvergenceDiagnostics, ConvergenceStats
 
 

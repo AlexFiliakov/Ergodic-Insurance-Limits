@@ -23,34 +23,52 @@ import seaborn as sns
 
 # Import from new modular structure
 try:
-    from .visualization import (
-        create_interactive_pareto_frontier as _new_create_interactive_pareto_frontier,
+    from .visualization.batch_plots import (
+        plot_scenario_convergence as _new_plot_scenario_convergence,
     )
-    from .visualization import (
+    from .visualization.batch_plots import plot_parameter_sweep_3d as _new_plot_parameter_sweep_3d
+    from .visualization.batch_plots import plot_scenario_comparison as _new_plot_scenario_comparison
+    from .visualization.batch_plots import plot_sensitivity_heatmap as _new_plot_sensitivity_heatmap
+    from .visualization.core import (
         set_wsj_style as _new_set_wsj_style,  # Core; Executive plots; Technical plots; Interactive plots; Batch plots; Factory
     )
-    from .visualization import COLOR_SEQUENCE, WSJ_COLORS, FigureFactory, StyleManager, Theme
-    from .visualization import WSJFormatter as _new_WSJFormatter
-    from .visualization import create_interactive_dashboard as _new_create_interactive_dashboard
-    from .visualization import format_currency as _new_format_currency
-    from .visualization import format_percentage as _new_format_percentage
-    from .visualization import plot_convergence_diagnostics as _new_plot_convergence_diagnostics
-    from .visualization import plot_insurance_layers as _new_plot_insurance_layers
-    from .visualization import plot_loss_distribution as _new_plot_loss_distribution
-    from .visualization import plot_parameter_sweep_3d as _new_plot_parameter_sweep_3d
-    from .visualization import plot_pareto_frontier_2d as _new_plot_pareto_frontier_2d
-    from .visualization import plot_pareto_frontier_3d as _new_plot_pareto_frontier_3d
-    from .visualization import plot_return_period_curve as _new_plot_return_period_curve
-    from .visualization import plot_scenario_comparison as _new_plot_scenario_comparison
-    from .visualization import plot_scenario_convergence as _new_plot_scenario_convergence
-    from .visualization import plot_sensitivity_heatmap as _new_plot_sensitivity_heatmap
+    from .visualization.core import COLOR_SEQUENCE, WSJ_COLORS
+    from .visualization.core import WSJFormatter as _new_WSJFormatter
+    from .visualization.core import format_currency as _new_format_currency
+    from .visualization.core import format_percentage as _new_format_percentage
+    from .visualization.executive_plots import (
+        plot_return_period_curve as _new_plot_return_period_curve,
+    )
+    from .visualization.executive_plots import plot_insurance_layers as _new_plot_insurance_layers
+    from .visualization.executive_plots import plot_loss_distribution as _new_plot_loss_distribution
+    from .visualization.figure_factory import FigureFactory
+    from .visualization.interactive_plots import (
+        create_interactive_dashboard as _new_create_interactive_dashboard,
+    )
+    from .visualization.style_manager import StyleManager, Theme
+    from .visualization.technical_plots import (
+        create_interactive_pareto_frontier as _new_create_interactive_pareto_frontier,
+    )
+    from .visualization.technical_plots import (
+        plot_convergence_diagnostics as _new_plot_convergence_diagnostics,
+    )
+    from .visualization.technical_plots import (
+        plot_pareto_frontier_2d as _new_plot_pareto_frontier_2d,
+    )
+    from .visualization.technical_plots import (
+        plot_pareto_frontier_3d as _new_plot_pareto_frontier_3d,
+    )
 
     _NEW_MODULE_AVAILABLE = True
 except ImportError:
     # Fallback to legacy implementation if new module not available
     _NEW_MODULE_AVAILABLE = False
 
-    # Define legacy colors and sequences
+# Initialize factory availability flag
+_FACTORY_AVAILABLE = False
+
+# Define legacy colors and sequences
+if not _NEW_MODULE_AVAILABLE:
     WSJ_COLORS = {
         "light_blue": "#ADD8E6",
         "blue": "#0080C7",
@@ -76,14 +94,21 @@ except ImportError:
         WSJ_COLORS["dark_blue"],
     ]
 
-    # Try to import from old location
+# Try to import from old location
+# Import fallback factory classes if new module not available
+if not _NEW_MODULE_AVAILABLE:
     try:
-        from .visualization_infra.figure_factory import FigureFactory
-        from .visualization_infra.style_manager import StyleManager, Theme
+        from .visualization_infra.figure_factory import FigureFactory  # type: ignore[assignment]
+        from .visualization_infra.style_manager import (  # type: ignore[assignment]
+            StyleManager,
+            Theme,
+        )
 
         _FACTORY_AVAILABLE = True
     except ImportError:
         _FACTORY_AVAILABLE = False
+else:
+    _FACTORY_AVAILABLE = True
 
 # Global factory instance
 _global_factory = None
@@ -99,7 +124,7 @@ def get_figure_factory(theme: Optional["Theme"] = None) -> Optional["FigureFacto
         FigureFactory instance if available, None otherwise
     """
     global _global_factory  # pylint: disable=global-statement
-    if _NEW_MODULE_AVAILABLE or _FACTORY_AVAILABLE:
+    if _NEW_MODULE_AVAILABLE:
         if theme is not None or _global_factory is None:
             # Create new factory if theme specified or no factory exists
             theme = theme or Theme.DEFAULT
@@ -128,14 +153,7 @@ def set_wsj_style(use_factory: bool = False, theme: Optional["Theme"] = None):
         _new_set_wsj_style()
         return
 
-    # Fallback to legacy implementation
-    if use_factory and _FACTORY_AVAILABLE:
-        factory = get_figure_factory(theme)
-        if factory:
-            factory.style_manager.apply_style()
-            return
-
-    # Original implementation
+    # Original implementation (fallback when new module not available)
     plt.style.use("seaborn-v0_8-whitegrid")
     plt.rcParams.update(
         {

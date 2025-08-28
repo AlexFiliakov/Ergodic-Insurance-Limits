@@ -4,8 +4,8 @@ This script shows how to use the claim development module to model
 realistic claim payment patterns and project cash flows.
 """
 
-import sys
 from pathlib import Path
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

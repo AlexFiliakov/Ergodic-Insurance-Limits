@@ -282,7 +282,7 @@ class TestResultExporter:
             assert "mean" in df.index
             assert "std" in df.index
             assert "percentiles.p50" in df.index
-            assert float(df.loc["mean", "value"]) == 100.5
+            assert float(df.loc["mean", "value"]) == 100.5  # type: ignore[arg-type]
         finally:
             filepath.unlink()
 

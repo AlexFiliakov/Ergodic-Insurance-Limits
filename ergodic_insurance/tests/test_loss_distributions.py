@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.loss_distributions import (
     AttritionalLossGenerator,
     CatastrophicLossGenerator,

@@ -5,9 +5,9 @@ insurance purchasing decisions using multi-objective optimization to balance
 growth targets with bankruptcy risk constraints.
 """
 
-import logging
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -1223,6 +1223,7 @@ class InsuranceDecisionEngine:
         Returns:
             Comprehensive sensitivity report
         """
+        # pylint: disable=too-many-locals
         if parameters is None:
             parameters = [
                 "premium_rates",

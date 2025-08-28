@@ -7,8 +7,8 @@ fundamental difference between expected value and experienced growth.
 Based on Ole Peters' ergodic economics framework.
 """
 
-import logging
 from dataclasses import dataclass, field
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np

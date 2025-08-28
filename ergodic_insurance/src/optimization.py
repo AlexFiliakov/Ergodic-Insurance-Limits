@@ -5,9 +5,9 @@ penalty methods, augmented Lagrangian, and multi-start techniques for finding
 global optima in complex insurance optimization problems.
 """
 
-import logging
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np

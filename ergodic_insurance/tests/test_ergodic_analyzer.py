@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
 from ergodic_insurance.src.simulation import SimulationResults
 

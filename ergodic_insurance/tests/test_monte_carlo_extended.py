@@ -202,7 +202,7 @@ class TestMonteCarloExtended:
 
             # Load and verify
             with np.load(checkpoint_file) as data:
-                assert data["iteration"] == 10
+                assert int(data["iteration"]) == 10
                 assert np.array_equal(data["arr_0"], test_array)
 
     def test_checkpoint_save_failure(self, setup_simple_engine):

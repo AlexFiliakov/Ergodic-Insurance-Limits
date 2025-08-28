@@ -167,7 +167,12 @@ class RuinProbabilityAnalyzer:
             # Track bankruptcy causes
             for cause, cause_data in bankruptcy_causes.items():
                 cause_mask = simulation_results["bankruptcy_causes"][cause][:, horizon - 1]
-                cause_data[i] = np.mean(cause_mask[horizon_data])
+                # Handle empty array when no bankruptcies occurred
+                bankrupted_subset = cause_mask[horizon_data]
+                if len(bankrupted_subset) > 0:
+                    cause_data[i] = np.mean(bankrupted_subset)
+                else:
+                    cause_data[i] = 0.0
 
             # Calculate survival curve
             bankruptcy_at_year = np.zeros(horizon)

@@ -5,8 +5,9 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from ergodic_insurance.src.risk_metrics import RiskMetrics, RiskMetricsResult, compare_risk_metrics
 from scipy import stats
+
+from ergodic_insurance.src.risk_metrics import RiskMetrics, RiskMetricsResult, compare_risk_metrics
 
 
 class TestRiskMetrics:
