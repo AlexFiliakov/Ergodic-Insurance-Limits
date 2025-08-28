@@ -7,6 +7,7 @@ diagnostics, loss distribution validation, and Monte Carlo convergence analysis.
 from unittest.mock import MagicMock, patch
 
 from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -38,6 +39,7 @@ class TestTracePlots:
         ax = fig.axes[0]
         lines = ax.get_lines()
         assert any(line.get_xdata()[0] == 20 for line in lines if len(line.get_xdata()) == 2)
+        plt.close(fig)
 
     def test_trace_plots_multiple_chains_multiple_params(self):
         """Test trace plots with multiple chains and parameters."""
@@ -58,6 +60,7 @@ class TestTracePlots:
         titles = [ax.get_title() for ax in fig.axes if ax.get_visible()]
         for name in param_names:
             assert any(name in title for title in titles)
+        plt.close(fig)
 
     def test_trace_plots_2d_input(self):
         """Test trace plots with 2D input (single chain, multiple parameters)."""
@@ -71,6 +74,7 @@ class TestTracePlots:
         # Assertions
         assert isinstance(fig, Figure)
         assert len([ax for ax in fig.axes if ax.get_visible()]) >= 2
+        plt.close(fig)
 
 
 class TestLossDistributionValidation:
@@ -93,6 +97,7 @@ class TestLossDistributionValidation:
         # Check that all subplots have content
         for ax in fig.axes:
             assert len(ax.get_lines()) > 0 or len(ax.collections) > 0
+        plt.close(fig)
 
     def test_loss_distribution_validation_with_dist_params(self):
         """Test loss distribution validation with theoretical distribution parameters."""
@@ -122,6 +127,7 @@ class TestLossDistributionValidation:
             # Look for text containing "K-S"
             texts = ax.texts
             assert any("K-S" in text.get_text() for text in texts)
+        plt.close(fig)
 
     def test_loss_distribution_validation_cdf_comparison(self):
         """Test that CDF comparison includes goodness-of-fit metrics."""
@@ -143,6 +149,7 @@ class TestLossDistributionValidation:
             texts = ax.texts
             assert any("MSE" in text.get_text() for text in texts)
             assert any("Max Dev" in text.get_text() for text in texts)
+        plt.close(fig)
 
 
 class TestMonteCarloConvergence:
@@ -181,6 +188,7 @@ class TestMonteCarloConvergence:
 
             # Check for confidence bands (fill_between creates patch collections)
             assert len(ax.collections) >= 1
+        plt.close(fig)
 
     def test_monte_carlo_convergence_with_thresholds(self):
         """Test Monte Carlo convergence with convergence thresholds."""
@@ -223,6 +231,7 @@ class TestMonteCarloConvergence:
                 # If no threshold line found in lines, check if label mentions threshold
                 labels = [line.get_label() for line in ax.get_lines()]
                 assert any("Threshold" in label for label in labels)
+        plt.close(fig)
 
     def test_monte_carlo_convergence_status(self):
         """Test convergence status calculation and display."""
@@ -248,6 +257,7 @@ class TestMonteCarloConvergence:
         assert any(
             "Converged" in text.get_text() or "Not converged" in text.get_text() for text in texts
         )
+        plt.close(fig)
 
 
 class TestEnhancedConvergenceDiagnostics:
@@ -272,6 +282,7 @@ class TestEnhancedConvergenceDiagnostics:
         # Check that trace plot contains chain lines
         trace_ax = fig.axes[0]
         assert len(trace_ax.get_lines()) >= 4  # At least 4 chains
+        plt.close(fig)
 
     @patch("ergodic_insurance.src.convergence.ConvergenceDiagnostics")
     def test_enhanced_convergence_diagnostics_calculations(self, mock_conv_diag):
@@ -295,6 +306,7 @@ class TestEnhancedConvergenceDiagnostics:
 
         # Check that values appear on plot
         assert isinstance(fig, Figure)
+        plt.close(fig)
 
     def test_enhanced_convergence_diagnostics_single_chain(self):
         """Test enhanced convergence diagnostics with single chain."""
@@ -310,6 +322,7 @@ class TestEnhancedConvergenceDiagnostics:
 
         # Should still create diagnostic plots (except R-hat which needs multiple chains)
         assert len(fig.axes) >= 4  # At least trace, ESS, ACF, MCSE
+        plt.close(fig)
 
 
 class TestIntegration:
@@ -351,15 +364,19 @@ class TestIntegration:
         # Test all plots
         fig1 = plot_trace_plots(chains, burn_in=200)
         assert isinstance(fig1, Figure)
+        plt.close(fig1)
 
         fig2 = plot_loss_distribution_validation(attritional_losses, large_losses)
         assert isinstance(fig2, Figure)
+        plt.close(fig2)
 
         fig3 = plot_monte_carlo_convergence(metrics_history)
         assert isinstance(fig3, Figure)
+        plt.close(fig3)
 
         fig4 = plot_enhanced_convergence_diagnostics(chains, burn_in=200)
         assert isinstance(fig4, Figure)
+        plt.close(fig4)
 
     def test_plots_handle_edge_cases(self):
         """Test that plots handle edge cases gracefully."""
@@ -371,12 +388,15 @@ class TestIntegration:
         # All functions should handle small data without errors
         fig1 = plot_trace_plots(small_chains)
         assert isinstance(fig1, Figure)
+        plt.close(fig1)
 
         fig2 = plot_loss_distribution_validation(small_losses, small_losses)
         assert isinstance(fig2, Figure)
+        plt.close(fig2)
 
         fig3 = plot_monte_carlo_convergence(small_history)
         assert isinstance(fig3, Figure)
+        plt.close(fig3)
 
         # Large data
         large_chains = np.random.randn(10, 10000, 5)
@@ -384,9 +404,11 @@ class TestIntegration:
 
         fig4 = plot_trace_plots(large_chains[:, ::100, :])  # Subsample for performance
         assert isinstance(fig4, Figure)
+        plt.close(fig4)
 
         fig5 = plot_monte_carlo_convergence(large_history)
         assert isinstance(fig5, Figure)
+        plt.close(fig5)
 
 
 if __name__ == "__main__":
