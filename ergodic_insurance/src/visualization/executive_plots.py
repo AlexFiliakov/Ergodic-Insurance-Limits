@@ -1053,6 +1053,868 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
     return fig
 
 
+def plot_simulation_architecture(
+    title: str = "Simulation Architecture Flow",
+    figsize: Tuple[int, int] = (14, 8),
+    export_dpi: Optional[int] = None,
+    show_icons: bool = True,
+) -> Figure:
+    """Create simulation architecture flow diagram.
+
+    Visualizes the data flow from parameters through simulation to insights
+    using a clean flowchart style with boxes and arrows.
+
+    Args:
+        title: Plot title
+        figsize: Figure size (width, height)
+        export_dpi: DPI for export (150 for web, 300 for print)
+        show_icons: Whether to show icons in boxes
+
+    Returns:
+        Matplotlib figure with architecture diagram
+
+    Examples:
+        >>> fig = plot_simulation_architecture()
+        >>> fig.savefig("architecture.png", dpi=150)
+    """
+    set_wsj_style()
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Define box positions and sizes
+    box_width = 0.15
+    box_height = 0.12
+    arrow_width = 0.02
+
+    # Main flow boxes (left to right)
+    boxes = [
+        {"x": 0.1, "y": 0.5, "label": "Parameters\n& Config", "color": WSJ_COLORS["blue"]},
+        {"x": 0.35, "y": 0.5, "label": "Monte Carlo\nSimulation", "color": WSJ_COLORS["orange"]},
+        {"x": 0.6, "y": 0.5, "label": "Analysis\nEngine", "color": WSJ_COLORS["red"]},
+        {"x": 0.85, "y": 0.5, "label": "Insights &\nDecisions", "color": WSJ_COLORS["green"]},
+    ]
+
+    # Sub-component boxes
+    sub_boxes = [
+        {
+            "x": 0.1,
+            "y": 0.75,
+            "label": "Company\nProfile",
+            "color": WSJ_COLORS["gray"],
+            "size": 0.8,
+        },
+        {
+            "x": 0.1,
+            "y": 0.25,
+            "label": "Insurance\nProgram",
+            "color": WSJ_COLORS["gray"],
+            "size": 0.8,
+        },
+        {
+            "x": 0.35,
+            "y": 0.75,
+            "label": "Loss\nGeneration",
+            "color": WSJ_COLORS["gray"],
+            "size": 0.8,
+        },
+        {
+            "x": 0.35,
+            "y": 0.25,
+            "label": "Financial\nDynamics",
+            "color": WSJ_COLORS["gray"],
+            "size": 0.8,
+        },
+        {
+            "x": 0.6,
+            "y": 0.75,
+            "label": "Ergodic\nCalculations",
+            "color": WSJ_COLORS["gray"],
+            "size": 0.8,
+        },
+        {"x": 0.6, "y": 0.25, "label": "Risk\nMetrics", "color": WSJ_COLORS["gray"], "size": 0.8},
+    ]
+
+    # Draw main boxes
+    for box in boxes:
+        rect = plt.Rectangle(
+            (box["x"] - box_width / 2, box["y"] - box_height / 2),
+            box_width,
+            box_height,
+            facecolor=box["color"],
+            alpha=0.3,
+            edgecolor=box["color"],
+            linewidth=2,
+        )
+        ax.add_patch(rect)
+
+        # Add text
+        ax.text(
+            box["x"],
+            box["y"],
+            box["label"],
+            ha="center",
+            va="center",
+            fontsize=12,
+            fontweight="bold",
+            color=box["color"],
+        )
+
+    # Draw sub-component boxes
+    for box in sub_boxes:
+        size_factor = box.get("size", 1.0)
+        rect = plt.Rectangle(
+            (box["x"] - box_width * size_factor * 0.4, box["y"] - box_height * size_factor * 0.4),
+            box_width * size_factor * 0.8,
+            box_height * size_factor * 0.8,
+            facecolor="white",
+            alpha=0.8,
+            edgecolor=box["color"],
+            linewidth=1,
+            linestyle="--",
+        )
+        ax.add_patch(rect)
+
+        ax.text(
+            box["x"],
+            box["y"],
+            box["label"],
+            ha="center",
+            va="center",
+            fontsize=9,
+            style="italic",
+            color=box["color"],
+        )
+
+    # Draw arrows between main boxes
+    arrow_props = dict(
+        arrowstyle="-|>",
+        connectionstyle="arc3,rad=0",
+        color=WSJ_COLORS["gray"],
+        linewidth=2,
+        alpha=0.7,
+    )
+
+    for i in range(len(boxes) - 1):
+        ax.annotate(
+            "",
+            xy=(boxes[i + 1]["x"] - box_width / 2 - 0.01, boxes[i + 1]["y"]),
+            xytext=(boxes[i]["x"] + box_width / 2 + 0.01, boxes[i]["y"]),
+            arrowprops=arrow_props,
+        )
+
+    # Draw connecting arrows from sub-components
+    thin_arrow_props = dict(
+        arrowstyle="->",
+        connectionstyle="arc3,rad=0.2",
+        color=WSJ_COLORS["gray"],
+        linewidth=1,
+        alpha=0.4,
+    )
+
+    # Connect sub-boxes to main boxes
+    connections = [
+        (0.1, 0.75, 0.35, 0.5),  # Company Profile -> Monte Carlo
+        (0.1, 0.25, 0.35, 0.5),  # Insurance Program -> Monte Carlo
+        (0.35, 0.75, 0.6, 0.5),  # Loss Generation -> Analysis
+        (0.35, 0.25, 0.6, 0.5),  # Financial Dynamics -> Analysis
+    ]
+
+    for x1, y1, x2, y2 in connections:
+        ax.annotate(
+            "",
+            xy=(x2 - box_width / 2 - 0.01, y2),
+            xytext=(x1 + box_width * 0.4 + 0.01, y1),
+            arrowprops=thin_arrow_props,
+        )
+
+    # Add annotations
+    ax.text(
+        0.5,
+        0.9,
+        "Data Flow: Parameters → Simulation → Analysis → Insights",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color=WSJ_COLORS["gray"],
+    )
+
+    ax.text(
+        0.5,
+        0.05,
+        "Each stage transforms data to extract actionable business insights",
+        ha="center",
+        fontsize=10,
+        color=WSJ_COLORS["gray"],
+    )
+
+    # Style the plot
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
+
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def plot_sample_paths(
+    simulation_data: Optional[Dict[str, Any]] = None,
+    n_paths: int = 5,
+    short_horizon: int = 10,
+    long_horizon: int = 100,
+    company_size: float = 10_000_000,
+    title: str = "Sample Path Visualization",
+    figsize: Tuple[int, int] = (14, 8),
+    show_failures: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create sample path visualization showing trajectory evolution.
+
+    Displays representative paths over short and long time horizons,
+    highlighting survivors vs failed companies with transparency effects.
+
+    Args:
+        simulation_data: Optional pre-computed simulation results with paths
+        n_paths: Number of paths to display (default 5)
+        short_horizon: Years for short-term view (default 10)
+        long_horizon: Years for long-term view (default 100)
+        company_size: Starting company size
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_failures: Whether to highlight failed paths
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with dual-panel path visualization
+
+    Examples:
+        >>> fig = plot_sample_paths(n_paths=5)
+        >>> fig.savefig("sample_paths.png", dpi=150)
+    """
+    set_wsj_style()
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+
+    # Generate or use provided data
+    if simulation_data is not None:
+        paths_short = simulation_data.get("paths_short", None)
+        paths_long = simulation_data.get("paths_long", None)
+    else:
+        # Generate synthetic demonstration paths
+        np.random.seed(42)
+
+        # Short horizon paths
+        time_short = np.linspace(0, short_horizon, 100)
+        paths_short = []
+
+        for i in range(n_paths):
+            # Generate path with random walk and drift
+            drift = np.random.normal(0.08, 0.02)  # Annual growth
+            volatility = np.random.uniform(0.15, 0.25)
+            shocks = np.random.normal(0, volatility, len(time_short))
+            cumulative = np.cumsum(drift / len(time_short) + shocks / np.sqrt(len(time_short)))
+            path = company_size * np.exp(cumulative)
+
+            # Randomly determine if path fails
+            fails = np.random.random() < 0.2  # 20% failure rate
+            if fails and show_failures:
+                fail_time = np.random.uniform(short_horizon * 0.3, short_horizon * 0.9)
+                fail_idx = int(fail_time / short_horizon * len(time_short))
+                path[fail_idx:] = path[fail_idx] * np.exp(-np.arange(len(path) - fail_idx) * 0.1)
+
+            paths_short.append({"values": path, "failed": fails})
+
+        # Long horizon paths
+        time_long = np.linspace(0, long_horizon, 500)
+        paths_long = []
+
+        for i in range(n_paths):
+            drift = np.random.normal(0.08, 0.02)
+            volatility = np.random.uniform(0.15, 0.30)
+            shocks = np.random.normal(0, volatility, len(time_long))
+            cumulative = np.cumsum(drift / len(time_long) + shocks / np.sqrt(len(time_long)))
+            path = company_size * np.exp(cumulative)
+
+            fails = np.random.random() < 0.3  # 30% failure rate long-term
+            if fails and show_failures:
+                fail_time = np.random.uniform(long_horizon * 0.2, long_horizon * 0.8)
+                fail_idx = int(fail_time / long_horizon * len(time_long))
+                path[fail_idx:] = path[fail_idx] * np.exp(-np.arange(len(path) - fail_idx) * 0.05)
+
+            paths_long.append({"values": path, "failed": fails})
+
+    # Plot short horizon
+    for i, path_data in enumerate(paths_short):
+        path = path_data["values"]
+        failed = path_data.get("failed", False)
+
+        if failed:
+            color = WSJ_COLORS["red"]
+            alpha = 0.7
+            linewidth = 1.5
+            label = "Failed" if i == 0 else None
+        else:
+            color = WSJ_COLORS["blue"]
+            alpha = 0.8
+            linewidth = 2
+            label = "Survivor" if i == 0 else None
+
+        ax1.plot(
+            time_short if "time_short" in locals() else np.linspace(0, short_horizon, len(path)),
+            path / 1e6,  # Convert to millions
+            color=color,
+            alpha=alpha,
+            linewidth=linewidth,
+            label=label,
+        )
+
+    # Add starting point marker
+    ax1.scatter(
+        0,
+        company_size / 1e6,
+        s=100,
+        color=WSJ_COLORS["green"],
+        marker="o",
+        zorder=10,
+        label=f"Start: ${company_size/1e6:.0f}M",
+    )
+
+    ax1.set_xlabel("Years", fontsize=11)
+    ax1.set_ylabel("Company Value ($M)", fontsize=11)
+    ax1.set_title(f"{short_horizon}-Year Horizon", fontsize=12, fontweight="bold")
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(loc="upper left", fontsize=9)
+    ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"${x:.0f}M"))
+
+    # Plot long horizon
+    for i, path_data in enumerate(paths_long):
+        path = path_data["values"]
+        failed = path_data.get("failed", False)
+
+        if failed:
+            color = WSJ_COLORS["red"]
+            alpha = 0.6
+            linewidth = 1.5
+        else:
+            color = WSJ_COLORS["blue"]
+            alpha = 0.7
+            linewidth = 2
+
+        ax2.plot(
+            time_long if "time_long" in locals() else np.linspace(0, long_horizon, len(path)),
+            path / 1e6,
+            color=color,
+            alpha=alpha,
+            linewidth=linewidth,
+        )
+
+    # Add starting point
+    ax2.scatter(0, company_size / 1e6, s=100, color=WSJ_COLORS["green"], marker="o", zorder=10)
+
+    ax2.set_xlabel("Years", fontsize=11)
+    ax2.set_ylabel("Company Value ($M)", fontsize=11)
+    ax2.set_title(f"{long_horizon}-Year Horizon", fontsize=12, fontweight="bold")
+    ax2.grid(True, alpha=0.3)
+    ax2.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"${x:.0f}M"))
+
+    # Use log scale for long horizon
+    ax2.set_yscale("log")
+
+    # Main title
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+
+    # Add annotation
+    fig.text(
+        0.5,
+        0.02,
+        "Trajectories show potential outcomes: survivors grow exponentially, failures decline to zero",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color=WSJ_COLORS["gray"],
+    )
+
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def plot_optimal_coverage_heatmap(
+    optimization_results: Optional[Dict[str, Any]] = None,
+    company_sizes: Optional[List[float]] = None,
+    title: str = "Optimal Coverage Heatmap",
+    figsize: Tuple[int, int] = (16, 6),
+    show_contours: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create optimal insurance coverage heatmap for different company sizes.
+
+    Visualizes the relationship between retention, limit, and growth rate
+    using color intensity to show optimal configurations.
+
+    Args:
+        optimization_results: Optional pre-computed optimization data
+        company_sizes: List of company sizes (default: [1e6, 1e7, 1e8])
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_contours: Whether to show contour lines
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with 3-panel heatmap
+
+    Examples:
+        >>> fig = plot_optimal_coverage_heatmap(
+        ...     company_sizes=[1e6, 1e7, 1e8]
+        ... )
+        >>> fig.savefig("coverage_heatmap.png", dpi=150)
+    """
+    set_wsj_style()
+
+    if company_sizes is None:
+        company_sizes = [1_000_000, 10_000_000, 100_000_000]
+
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+
+    for idx, (ax, company_size) in enumerate(zip(axes, company_sizes)):
+        # Generate or use provided data
+        if optimization_results is not None:
+            data = optimization_results.get(f"company_{company_size}", None)
+            if data is not None:
+                retention_values = data["retention"]
+                limit_values = data["limit"]
+                growth_rates = data["growth_rate"]
+        else:
+            # Generate synthetic demonstration data
+            retention_values = np.logspace(4, np.log10(company_size * 0.5), 20)
+            limit_values = np.logspace(5, np.log10(company_size * 5), 20)
+
+            # Create mesh grid
+            R, L = np.meshgrid(retention_values, limit_values)
+
+            # Synthetic growth rate function
+            # Higher growth with moderate retention and appropriate limits
+            optimal_retention = company_size * 0.01  # 1% of company size
+            optimal_limit = company_size * 0.5  # 50% of company size
+
+            growth_rates = 0.12 * np.exp(
+                -0.5
+                * (
+                    (np.log10(R) - np.log10(optimal_retention)) ** 2 / 1.5
+                    + (np.log10(L) - np.log10(optimal_limit)) ** 2 / 2.0
+                )
+            )
+
+            # Add some noise
+            growth_rates += np.random.RandomState(42 + idx).normal(0, 0.005, growth_rates.shape)
+
+        # Create heatmap
+        im = ax.contourf(
+            retention_values / company_size,  # As percentage of company size
+            limit_values / company_size,
+            growth_rates * 100,  # Convert to percentage
+            levels=20,
+            cmap="RdYlGn",
+            alpha=0.8,
+        )
+
+        # Add contour lines if requested
+        if show_contours:
+            contours = ax.contour(
+                retention_values / company_size,
+                limit_values / company_size,
+                growth_rates * 100,
+                levels=5,
+                colors="black",
+                alpha=0.3,
+                linewidths=1,
+            )
+            ax.clabel(contours, inline=True, fontsize=8, fmt="%.1f%%")
+
+        # Find and mark optimal point
+        max_idx = np.unravel_index(growth_rates.argmax(), growth_rates.shape)
+        ax.scatter(
+            retention_values[max_idx[1]] / company_size,
+            limit_values[max_idx[0]] / company_size,
+            s=200,
+            color="white",
+            marker="*",
+            edgecolor="black",
+            linewidth=2,
+            zorder=10,
+            label="Optimal",
+        )
+
+        # Format axes
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Retention (% of Company Size)", fontsize=10)
+        if idx == 0:
+            ax.set_ylabel("Coverage Limit (% of Company Size)", fontsize=10)
+
+        # Format tick labels
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x*100:.0f}%"))
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x*100:.0f}%"))
+
+        # Add company size label
+        ax.set_title(
+            f"${format_currency(company_size, decimals=0).replace('$', '')} Company",
+            fontsize=11,
+            fontweight="bold",
+        )
+
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label("Growth Rate (%)", fontsize=9)
+
+        ax.grid(True, alpha=0.2, which="both")
+        ax.legend(loc="upper left", fontsize=8)
+
+    plt.suptitle(title, fontsize=14, fontweight="bold")
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def plot_sensitivity_tornado(
+    sensitivity_data: Optional[Dict[str, float]] = None,
+    baseline_value: Optional[float] = None,
+    title: str = "Sensitivity Analysis - Tornado Chart",
+    figsize: Tuple[int, int] = (10, 8),
+    show_percentages: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create tornado chart showing parameter sensitivity analysis.
+
+    Visualizes the impact of parameter variations on key metrics using
+    horizontal bars sorted by influence magnitude.
+
+    Args:
+        sensitivity_data: Dict of parameter names to impact values
+        baseline_value: Baseline metric value for reference
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_percentages: Whether to show percentage labels
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with tornado chart
+
+    Examples:
+        >>> sensitivity = {
+        ...     "Premium Rate": 0.15,
+        ...     "Loss Frequency": -0.12,
+        ...     "Loss Severity": -0.08,
+        ... }
+        >>> fig = plot_sensitivity_tornado(sensitivity)
+    """
+    set_wsj_style()
+
+    # Generate or use provided data
+    if sensitivity_data is None:
+        # Generate synthetic demonstration data
+        sensitivity_data = {
+            "Premium Rate": 0.18,
+            "Loss Frequency": -0.15,
+            "Loss Severity": -0.12,
+            "Retention Level": 0.10,
+            "Coverage Limit": 0.08,
+            "Investment Return": 0.07,
+            "Operating Margin": 0.06,
+            "Tax Rate": -0.05,
+            "Working Capital": -0.04,
+            "Growth Rate": 0.03,
+        }
+
+    if baseline_value is None:
+        baseline_value = 0.12  # 12% ROE baseline
+
+    # Sort by absolute impact
+    sorted_params = sorted(sensitivity_data.items(), key=lambda x: abs(x[1]), reverse=True)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Prepare data
+    params = [item[0] for item in sorted_params]
+    impacts = [item[1] for item in sorted_params]
+
+    # Calculate bar positions
+    y_pos = np.arange(len(params))
+
+    # Color coding based on impact magnitude
+    colors = []
+    for impact in impacts:
+        abs_impact = abs(impact)
+        if abs_impact >= 0.10:  # High sensitivity (>10%)
+            colors.append(WSJ_COLORS["red"])
+        elif abs_impact >= 0.05:  # Moderate sensitivity (5-10%)
+            colors.append(WSJ_COLORS["orange"])
+        else:  # Low sensitivity (<5%)
+            colors.append(WSJ_COLORS["green"])
+
+    # Create bars
+    bars = ax.barh(y_pos, impacts, color=colors, alpha=0.7, edgecolor="black", linewidth=1)
+
+    # Add baseline reference line
+    ax.axvline(x=0, color=WSJ_COLORS["gray"], linewidth=2, linestyle="-", alpha=0.5)
+    ax.text(
+        0,
+        len(params),
+        "Baseline",
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        color=WSJ_COLORS["gray"],
+        fontweight="bold",
+    )
+
+    # Add percentage labels
+    if show_percentages:
+        for bar, param, impact in zip(bars, params, impacts):
+            width = bar.get_width()
+            label_x = width * 1.02 if width > 0 else width * 1.02
+            ax.text(
+                label_x,
+                bar.get_y() + bar.get_height() / 2,
+                f"{impact:+.1%}",
+                ha="left" if width > 0 else "right",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+            )
+
+    # Format axes
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(params)
+    ax.set_xlabel("Impact on Key Metric (%)", fontsize=11)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+
+    # Format x-axis as percentage
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:+.0%}"))
+
+    # Add grid
+    ax.grid(True, axis="x", alpha=0.3)
+
+    # Add legend
+    from matplotlib.patches import Patch
+
+    legend_elements = [
+        Patch(facecolor=WSJ_COLORS["red"], alpha=0.7, label="High Sensitivity (>10%)"),
+        Patch(facecolor=WSJ_COLORS["orange"], alpha=0.7, label="Moderate (5-10%)"),
+        Patch(facecolor=WSJ_COLORS["green"], alpha=0.7, label="Low (<5%)"),
+    ]
+    ax.legend(handles=legend_elements, loc="lower right", fontsize=9)
+
+    # Add annotation
+    fig.text(
+        0.5,
+        0.02,
+        f"Baseline Value: {baseline_value:.1%} | Analysis shows ±20% parameter variation impact",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color=WSJ_COLORS["gray"],
+    )
+
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
+def plot_robustness_heatmap(
+    robustness_data: Optional[np.ndarray] = None,
+    frequency_range: Optional[Tuple[float, float]] = None,
+    severity_range: Optional[Tuple[float, float]] = None,
+    title: str = "Insurance Program Robustness Analysis",
+    figsize: Tuple[int, int] = (10, 8),
+    show_reference: bool = True,
+    export_dpi: Optional[int] = None,
+) -> Figure:
+    """Create robustness heatmap showing stability across parameter variations.
+
+    Visualizes how optimal coverage changes with variations in loss
+    frequency and severity parameters.
+
+    Args:
+        robustness_data: 2D array of stability metrics
+        frequency_range: Tuple of (min, max) frequency variation (default 0.7-1.3)
+        severity_range: Tuple of (min, max) severity variation (default 0.7-1.3)
+        title: Plot title
+        figsize: Figure size (width, height)
+        show_reference: Whether to show reference point at 100%/100%
+        export_dpi: DPI for export (150 for web, 300 for print)
+
+    Returns:
+        Matplotlib figure with robustness heatmap
+
+    Examples:
+        >>> fig = plot_robustness_heatmap()
+        >>> fig.savefig("robustness.png", dpi=150)
+    """
+    set_wsj_style()
+
+    if frequency_range is None:
+        frequency_range = (0.7, 1.3)
+    if severity_range is None:
+        severity_range = (0.7, 1.3)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Generate or use provided data
+    if robustness_data is None:
+        # Generate synthetic demonstration data
+        n_points = 20
+        freq_values = np.linspace(frequency_range[0], frequency_range[1], n_points)
+        sev_values = np.linspace(severity_range[0], severity_range[1], n_points)
+
+        F, S = np.meshgrid(freq_values, sev_values)
+
+        # Create stability metric (1 = stable, 0 = unstable)
+        # More stable near baseline (1.0, 1.0)
+        distance_from_baseline = np.sqrt((F - 1.0) ** 2 + (S - 1.0) ** 2)
+        robustness_data = np.exp(-2 * distance_from_baseline)
+
+        # Add some structure/noise
+        robustness_data += 0.1 * np.sin(5 * F) * np.cos(5 * S)
+        robustness_data = np.clip(robustness_data, 0, 1)
+    else:
+        n_points = robustness_data.shape[0]
+        freq_values = np.linspace(frequency_range[0], frequency_range[1], n_points)
+        sev_values = np.linspace(severity_range[0], severity_range[1], n_points)
+        F, S = np.meshgrid(freq_values, sev_values)
+
+    # Create heatmap
+    im = ax.contourf(
+        F * 100,  # Convert to percentage
+        S * 100,
+        robustness_data,
+        levels=20,
+        cmap="RdYlGn",
+        alpha=0.8,
+    )
+
+    # Add contour lines
+    contours = ax.contour(
+        F * 100,
+        S * 100,
+        robustness_data,
+        levels=[0.2, 0.4, 0.6, 0.8],
+        colors="black",
+        alpha=0.3,
+        linewidths=1,
+    )
+    ax.clabel(contours, inline=True, fontsize=8, fmt="%.1f")
+
+    # Mark reference point if requested
+    if show_reference:
+        ax.scatter(
+            100,
+            100,  # Baseline at 100%
+            s=200,
+            color="white",
+            marker="o",
+            edgecolor="black",
+            linewidth=3,
+            zorder=10,
+            label="Baseline",
+        )
+
+        # Add crosshairs
+        ax.axhline(y=100, color=WSJ_COLORS["gray"], linestyle="--", alpha=0.5, linewidth=1)
+        ax.axvline(x=100, color=WSJ_COLORS["gray"], linestyle="--", alpha=0.5, linewidth=1)
+
+    # Add regions
+    # Stable region (robustness > 0.7)
+    stable_mask = robustness_data > 0.7
+    if np.any(stable_mask):
+        ax.contour(
+            F * 100,
+            S * 100,
+            stable_mask.astype(float),
+            levels=[0.5],
+            colors=WSJ_COLORS["green"],
+            linewidths=2,
+            linestyles="-",
+            alpha=0.7,
+        )
+
+        # Find center of stable region
+        stable_indices = np.where(stable_mask)
+        if len(stable_indices[0]) > 0:
+            center_y = S[stable_indices] * 100
+            center_x = F[stable_indices] * 100
+            ax.text(
+                center_x.mean(),
+                center_y.mean(),
+                "STABLE\nREGION",
+                ha="center",
+                va="center",
+                fontsize=11,
+                fontweight="bold",
+                color=WSJ_COLORS["green"],
+                alpha=0.7,
+            )
+
+    # Format axes
+    ax.set_xlabel("Loss Frequency Variation (%)", fontsize=11)
+    ax.set_ylabel("Loss Severity Variation (%)", fontsize=11)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+
+    # Set axis limits
+    ax.set_xlim(frequency_range[0] * 100, frequency_range[1] * 100)
+    ax.set_ylim(severity_range[0] * 100, severity_range[1] * 100)
+
+    # Format tick labels
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.0f}%"))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.0f}%"))
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("Coverage Stability (0=Unstable, 1=Stable)", fontsize=10)
+
+    # Add grid
+    ax.grid(True, alpha=0.2)
+
+    # Add legend
+    ax.legend(loc="upper right", fontsize=9)
+
+    # Add annotations
+    fig.text(
+        0.5,
+        0.02,
+        "Green regions indicate robust insurance configurations that remain optimal despite parameter uncertainty",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        color=WSJ_COLORS["gray"],
+    )
+
+    plt.tight_layout()
+
+    # Set export DPI if specified
+    if export_dpi:
+        fig.dpi = export_dpi
+
+    return fig
+
+
 def _find_knee_point(x: np.ndarray, y: np.ndarray) -> int:
     """Find the knee point (elbow) in a curve using curvature analysis.
 
