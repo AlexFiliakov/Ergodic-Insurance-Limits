@@ -200,7 +200,7 @@ class ReportValidator:
             for fig in section.figures:
                 if isinstance(fig.source, (str, Path)):
                     source_path = Path(fig.source)
-                    if not source_path.exists() and not fig.source.startswith("generate_"):
+                    if not source_path.exists() and not str(fig.source).startswith("generate_"):
                         self.warnings.append(
                             f"Figure source not found: {fig.source} (figure: {fig.name})"
                         )
@@ -209,7 +209,7 @@ class ReportValidator:
             for table in section.tables:
                 if isinstance(table.data_source, (str, Path)):
                     source_path = Path(table.data_source)
-                    if not source_path.exists() and not table.data_source.startswith("generate_"):
+                    if not source_path.exists() and not str(table.data_source).startswith("generate_"):
                         self.warnings.append(
                             f"Table data source not found: {table.data_source} (table: {table.name})"
                         )
@@ -265,7 +265,7 @@ class ReportValidator:
 
         # Check for empty sections
         for section in self._iter_sections(self.config.sections):
-            if (
+            if (  # type: ignore[attr-defined]
                 not section.content
                 and not section.figures
                 and not section.tables

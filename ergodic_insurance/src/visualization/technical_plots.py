@@ -1710,7 +1710,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             ax_corr = fig.add_subplot(gs[0, idx])
 
         # Ensure corr_matrix is a proper numpy array
-        if not isinstance(corr_matrix, np.ndarray):
+        if not isinstance(corr_matrix, np.ndarray):  # type: ignore[unreachable]
             corr_matrix = np.array(corr_matrix)
         
         # Handle edge case where corr_matrix might be 0-dimensional
@@ -1763,7 +1763,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             # Fit and plot copula density contours
             try:
                 kde = gaussian_kde(np.vstack([x_uniform, y_uniform]))
-                xi, yi = np.mgrid[0 : 1 : complex(0, 50), 0 : 1 : complex(0, 50)]
+                xi, yi = np.mgrid[0:1:50j, 0:1:50j]
                 zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
                 ax_scatter.contour(xi, yi, zi, colors=WSJ_COLORS["red"], alpha=0.5, linewidths=1)
             except (ValueError, np.linalg.LinAlgError):
@@ -1798,7 +1798,7 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             # Create density plot
             try:
                 kde = gaussian_kde(np.vstack([x_normal, y_normal]))
-                xi, yi = np.mgrid[-3 : 3 : complex(0, 100), -3 : 3 : complex(0, 100)]
+                xi, yi = np.mgrid[-3:3:100j, -3:3:100j]
                 zi = kde(np.vstack([xi.flatten(), yi.flatten()])).reshape(xi.shape)
                 im = ax_density.contourf(xi, yi, zi, levels=15, cmap="viridis", alpha=0.7)
                 fig.colorbar(im, ax=ax_density, label="Density")
@@ -2009,7 +2009,7 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals
                                 fontweight="bold",
                                 fontsize=9,
                             )
-                    cumulative += value
+                    cumulative += value  # type: ignore[assignment]
 
     # Add total premium values on top of bars
     for i, (label, total_height) in enumerate(zip(group_labels, bottom)):

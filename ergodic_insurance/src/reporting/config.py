@@ -39,7 +39,7 @@ class FigureConfig(BaseModel):
         """Validate that source is a valid path or callable name."""
         if isinstance(v, str) and not v.startswith("generate_"):
             path = Path(v)
-            if not path.suffix in [".png", ".jpg", ".pdf", ".svg"]:
+            if path.suffix not in [".png", ".jpg", ".pdf", ".svg"]:
                 raise ValueError(f"Invalid figure format: {path.suffix}")
         return v
 
@@ -168,7 +168,7 @@ class ReportConfig(BaseModel):
     sections: List[SectionConfig]
     template: Literal["executive", "technical", "full", "custom"] = "full"
     output_formats: List[Literal["pdf", "html", "markdown"]] = Field(
-        default_factory=lambda: ["pdf"]
+        default_factory=lambda: ["pdf"]  # type: ignore[arg-type]
     )
     output_dir: Path = Field(default_factory=lambda: Path("reports"))
     cache_dir: Path = Field(default_factory=lambda: Path("reports/cache"))
