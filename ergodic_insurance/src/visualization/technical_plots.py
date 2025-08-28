@@ -6,6 +6,7 @@ and Monte Carlo convergence analysis.
 """
 
 from typing import Any, Dict, List, Optional, Tuple, Union
+import warnings
 
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -1815,7 +1816,13 @@ Variables: {risk_data.shape[1]}
             )
 
     plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        try:
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        except Exception:
+            # Ignore layout errors for complex subplot arrangements
+            pass
 
     return fig
 
@@ -2006,7 +2013,13 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals
             bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
         )
 
-    plt.tight_layout()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        try:
+            plt.tight_layout()
+        except Exception:
+            # Ignore layout errors for complex subplot arrangements  
+            pass
     return fig
 
 
@@ -2095,8 +2108,8 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
         Z = roe_surface.T  # Transpose for correct orientation
 
         # Choose colormap
-        cmap_name = size_colors.get(company_size, f"viridis")
-        cmap = cm.get_cmap(cmap_name)
+        cmap_name = size_colors.get(company_size, "viridis")
+        cmap = plt.colormaps[cmap_name]
 
         # Plot surface with transparency
         surf = ax.plot_surface(
@@ -2171,8 +2184,9 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
     for company_size in company_sizes:
         if company_size in efficiency_data:
             color = size_colors.get(company_size, "viridis")
+            cmap = plt.colormaps[color]
             legend_elements.append(
-                Patch(facecolor=cm.get_cmap(color)(0.5), alpha=0.6, label=f"{company_size} Company")
+                Patch(facecolor=cmap(0.5), alpha=0.6, label=f"{company_size} Company")
             )
 
     if optimal_paths:
@@ -2219,7 +2233,7 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
                 Z = roe_surface.T
 
                 cmap_name = size_colors.get(company_size, f"viridis")
-                cmap = cm.get_cmap(cmap_name)
+                cmap = plt.colormaps[cmap_name]
 
                 ax_view.plot_surface(
                     X,
