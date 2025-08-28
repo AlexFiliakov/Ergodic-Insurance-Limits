@@ -3,7 +3,11 @@
 from pathlib import Path
 import sys
 
+import matplotlib
 import pytest
+
+# Set matplotlib to use non-interactive backend for testing
+matplotlib.use('Agg')
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))

@@ -70,7 +70,9 @@ from .style_manager import StyleManager, Theme
 # Technical visualization functions
 from .technical_plots import (
     create_interactive_pareto_frontier,
+    plot_capital_efficiency_frontier_3d,
     plot_convergence_diagnostics,
+    plot_correlation_structure,
     plot_enhanced_convergence_diagnostics,
     plot_ergodic_divergence,
     plot_loss_distribution_validation,
@@ -78,6 +80,7 @@ from .technical_plots import (
     plot_pareto_frontier_2d,
     plot_pareto_frontier_3d,
     plot_path_dependent_wealth,
+    plot_premium_decomposition,
     plot_trace_plots,
 )
 
@@ -106,6 +109,9 @@ __all__ = [
     "plot_pareto_frontier_3d",
     "plot_path_dependent_wealth",
     "create_interactive_pareto_frontier",
+    "plot_correlation_structure",
+    "plot_premium_decomposition",
+    "plot_capital_efficiency_frontier_3d",
     # Interactive plots
     "create_interactive_dashboard",
     "create_time_series_dashboard",
