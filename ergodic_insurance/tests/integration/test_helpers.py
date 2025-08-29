@@ -6,12 +6,12 @@ data validation, and test scenario generation.
 
 from contextlib import contextmanager
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
-from src.simulation import SimulationResults
+from ergodic_insurance.src.simulation import SimulationResults
 
 # ============================================================================
 # Timing and Performance Utilities
@@ -33,7 +33,7 @@ def timer(name: str = "Operation"):
         ...     run_simulation()
         >>> print(f"Elapsed: {t['elapsed']:.2f}s")
     """
-    result = {}
+    result: Dict[str, Union[float, str]] = {}
     start = time.time()
     try:
         yield result
@@ -46,10 +46,10 @@ def timer(name: str = "Operation"):
 def benchmark_function(
     func: Callable,
     args: tuple = (),
-    kwargs: dict = None,
+    kwargs: Optional[dict] = None,
     n_runs: int = 3,
     warmup: int = 1,
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     """Benchmark a function's performance.
 
     Args:
@@ -80,9 +80,9 @@ def benchmark_function(
     return {
         "min": min(times),
         "max": max(times),
-        "mean": np.mean(times),
-        "std": np.std(times),
-        "median": np.median(times),
+        "mean": float(np.mean(times)),
+        "std": float(np.std(times)),
+        "median": float(np.median(times)),
         "runs": n_runs,
         "last_result": result,
     }
@@ -93,7 +93,7 @@ def benchmark_function(
 # ============================================================================
 
 
-def validate_trajectory(
+def validate_trajectory(  # pylint: disable=too-many-return-statements
     trajectory: np.ndarray,
     min_value: Optional[float] = None,
     max_value: Optional[float] = None,
@@ -158,7 +158,7 @@ def validate_correlation(
         return False
 
     actual_corr = np.corrcoef(series1, series2)[0, 1]
-    return abs(actual_corr - expected_corr) <= tolerance
+    return bool(abs(actual_corr - expected_corr) <= tolerance)
 
 
 def validate_distribution(
@@ -206,7 +206,7 @@ def validate_distribution(
 def compare_scenarios(
     baseline: SimulationResults,
     alternative: SimulationResults,
-    metrics: List[str] = None,
+    metrics: Optional[List[str]] = None,
 ) -> Dict[str, Dict[str, float]]:
     """Compare two simulation scenarios.
 
@@ -429,8 +429,7 @@ def assert_convergence(
     Raises:
         AssertionError: If series doesn't converge.
     """
-    if len(series) < window:
-        window = len(series)
+    window = min(window, len(series))
 
     final_mean = np.mean(series[-window:])
     deviation = abs(final_mean - target)

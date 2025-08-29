@@ -198,9 +198,35 @@ class ParetoLoss(LossDistribution):
 class LossEvent:
     """Represents a single loss event with timing and amount."""
 
-    time: float  # Time of occurrence (in years)
     amount: float  # Loss amount
-    loss_type: str  # Type of loss (attritional, large, catastrophic)
+    time: float = 0.0  # Time of occurrence (in years)
+    loss_type: str = "operational"  # Type of loss (attritional, large, catastrophic)
+    timestamp: Optional[float] = None  # Alternative name for time
+    event_type: Optional[str] = None  # Alternative name for loss_type
+    description: Optional[str] = None  # Optional description
+
+    def __post_init__(self):
+        """Handle alternative parameter names."""
+        if self.timestamp is not None and self.time == 0.0:
+            self.time = self.timestamp
+        if self.event_type is not None and self.loss_type == "operational":
+            self.loss_type = self.event_type
+
+    def __le__(self, other):
+        """Support ordering by amount."""
+        if isinstance(other, (int, float)):
+            return self.amount <= other
+        if isinstance(other, LossEvent):
+            return self.amount <= other.amount
+        return NotImplemented
+
+    def __lt__(self, other):
+        """Support ordering by amount."""
+        if isinstance(other, (int, float)):
+            return self.amount < other
+        if isinstance(other, LossEvent):
+            return self.amount < other.amount
+        return NotImplemented
 
 
 @dataclass
@@ -228,25 +254,23 @@ class LossData:
         if len(self.timestamps) != len(self.loss_amounts):
             return False
 
-        # Check types list matches if provided
-        if self.loss_types and len(self.loss_types) != len(self.timestamps):
+        # Check optional fields match array length if provided
+        n_losses = len(self.timestamps)
+
+        # Check each optional field separately for better readability
+        if self.loss_types and len(self.loss_types) != n_losses:
             return False
 
-        # Check claim IDs if provided
-        if self.claim_ids and len(self.claim_ids) != len(self.timestamps):
+        if self.claim_ids and len(self.claim_ids) != n_losses:
             return False
 
-        # Check development factors if provided
-        if self.development_factors is not None:
-            if len(self.development_factors) != len(self.timestamps):
-                return False
-
-        # Check for valid amounts (non-negative)
-        if np.any(self.loss_amounts < 0):
+        if self.development_factors is not None and len(self.development_factors) != n_losses:
             return False
 
-        # Check for valid timestamps (non-negative)
-        if len(self.timestamps) > 0 and np.any(self.timestamps < 0):
+        # Check for valid amounts and timestamps (non-negative)
+        if np.any(self.loss_amounts < 0) or (
+            len(self.timestamps) > 0 and np.any(self.timestamps < 0)
+        ):
             return False
 
         return True
@@ -350,10 +374,10 @@ class LossData:
             List of LossEvent objects.
         """
         events = []
-        for i in range(len(self.timestamps)):
+        for i, timestamp in enumerate(self.timestamps):
             loss_type = self.loss_types[i] if i < len(self.loss_types) else "unknown"
             events.append(
-                LossEvent(time=self.timestamps[i], amount=self.loss_amounts[i], loss_type=loss_type)
+                LossEvent(time=timestamp, amount=self.loss_amounts[i], loss_type=loss_type)
             )
         return events
 

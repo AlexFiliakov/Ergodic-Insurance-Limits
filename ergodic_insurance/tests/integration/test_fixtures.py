@@ -11,21 +11,37 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pytest
 
-from src.claim_development import ClaimDevelopment
-from src.claim_generator import ClaimEvent, ClaimGenerator
-from src.config import ManufacturerConfig, SimulationConfig
-from src.config_manager import ConfigManager
-from src.config_v2 import ConfigV2, InsuranceConfig
-from src.insurance import InsuranceLayer, InsurancePolicy
-from src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from src.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
-from src.manufacturer import WidgetManufacturer
-from src.monte_carlo import MonteCarloEngine
-from src.stochastic_processes import (
+from ergodic_insurance.src.claim_development import ClaimDevelopment
+from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
+from ergodic_insurance.src.config import (
+    DebtConfig,
+    GrowthConfig,
+    LoggingConfig,
+    ManufacturerConfig,
+    OutputConfig,
+    SimulationConfig,
+    WorkingCapitalConfig,
+)
+from ergodic_insurance.src.config_manager import ConfigManager
+from ergodic_insurance.src.config_v2 import (
+    ConfigV2,
+    InsuranceConfig,
+    InsuranceLayerConfig,
+    ProfileMetadata,
+)
+from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.src.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.src.monte_carlo import MonteCarloEngine
+from ergodic_insurance.src.stochastic_processes import (
     GeometricBrownianMotion,
     LognormalVolatility,
     MeanRevertingProcess,
+    StochasticConfig,
 )
+
+from .test_claim_development_wrapper import ClaimDevelopmentWrapper
 
 # ============================================================================
 # Configuration Fixtures
@@ -33,7 +49,7 @@ from src.stochastic_processes import (
 
 
 @pytest.fixture
-def integration_test_dir(tmp_path) -> Path:
+def integration_test_dir(tmp_path: Path) -> Path:
     """Create a temporary directory for integration test outputs.
 
     Returns:
@@ -52,39 +68,56 @@ def default_config_v2() -> ConfigV2:
         ConfigV2: Default configuration for testing.
     """
     return ConfigV2(
+        profile=ProfileMetadata(
+            name="test_profile",
+            description="Default configuration for integration testing",
+        ),
         manufacturer=ManufacturerConfig(
             initial_assets=10_000_000,
-            asset_turnover=1.2,
+            asset_turnover_ratio=1.2,
             operating_margin=0.10,
             tax_rate=0.25,
-            working_capital_ratio=0.20,
-            growth_capex_ratio=0.05,
-            maintenance_capex_ratio=0.03,
-            dividend_payout_ratio=0.30,
+            retention_ratio=0.70,  # 1 - dividend_payout_ratio
+        ),
+        working_capital=WorkingCapitalConfig(
+            percent_of_sales=0.20,
+        ),
+        growth=GrowthConfig(
+            type="deterministic",
+            annual_growth_rate=0.05,
+            volatility=0.15,
+        ),
+        debt=DebtConfig(
+            interest_rate=0.05,
+            max_leverage_ratio=0.6,
+            minimum_cash_balance=100_000,
+        ),
+        simulation=SimulationConfig(
+            time_horizon_years=50,
+            random_seed=42,
+        ),
+        output=OutputConfig(
+            output_directory="./results",
+        ),
+        logging=LoggingConfig(
+            level="INFO",
         ),
         insurance=InsuranceConfig(
             deductible=100_000,
-            primary_limit=5_000_000,
-            primary_rate=0.02,
-            excess_limit=10_000_000,
-            excess_attachment=5_000_000,
-            excess_rate=0.01,
-        ),
-        simulation=SimulationConfig(
-            n_simulations=100,
-            time_horizon=50,
-            seed=42,
-            confidence_levels=[0.90, 0.95, 0.99],
-            enable_parallel=True,
-            batch_size=20,
-        ),
-        stochastic=StochasticConfig(
-            revenue_volatility=0.15,
-            claim_frequency_mean=5.0,
-            claim_severity_mean=200_000,
-            claim_severity_cv=1.5,
-            catastrophe_probability=0.02,
-            catastrophe_severity_mean=5_000_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    limit=5_000_000,
+                    attachment=100_000,
+                    premium_rate=0.02,
+                ),
+                InsuranceLayerConfig(
+                    name="Excess",
+                    limit=10_000_000,
+                    attachment=5_100_000,
+                    premium_rate=0.01,
+                ),
+            ],
         ),
     )
 
@@ -120,50 +153,43 @@ def config_manager(tmp_path) -> ConfigManager:
 
 
 @pytest.fixture
-def base_manufacturer() -> WidgetManufacturer:
+def base_manufacturer(default_config_v2) -> WidgetManufacturer:
     """Create a base manufacturer with standard parameters.
 
     Returns:
         WidgetManufacturer: Standard manufacturer for testing.
     """
-    config = ConfigV2()
-    return WidgetManufacturer.from_config_v2(config)
+    return WidgetManufacturer(default_config_v2.manufacturer)
 
 
 @pytest.fixture
-def startup_manufacturer() -> WidgetManufacturer:
+def startup_manufacturer(default_config_v2) -> WidgetManufacturer:
     """Create a startup manufacturer (low assets, high growth potential).
 
     Returns:
         WidgetManufacturer: Startup configuration.
     """
-    config = ConfigV2(
-        manufacturer=ManufacturerConfig(
-            initial_assets=1_000_000,
-            asset_turnover=0.8,
-            operating_margin=0.05,
-            growth_capex_ratio=0.10,
-        )
-    )
-    return WidgetManufacturer.from_config_v2(config)
+    config = default_config_v2.model_copy()
+    config.manufacturer.initial_assets = 1_000_000
+    config.manufacturer.asset_turnover_ratio = 0.8
+    config.manufacturer.operating_margin = 0.05
+    config.manufacturer.retention_ratio = 0.90
+    return WidgetManufacturer(config.manufacturer)
 
 
 @pytest.fixture
-def mature_manufacturer() -> WidgetManufacturer:
+def mature_manufacturer(default_config_v2) -> WidgetManufacturer:
     """Create a mature manufacturer (high assets, stable operations).
 
     Returns:
         WidgetManufacturer: Mature company configuration.
     """
-    config = ConfigV2(
-        manufacturer=ManufacturerConfig(
-            initial_assets=50_000_000,
-            asset_turnover=1.5,
-            operating_margin=0.15,
-            dividend_payout_ratio=0.50,
-        )
-    )
-    return WidgetManufacturer.from_config_v2(config)
+    config = default_config_v2.model_copy()
+    config.manufacturer.initial_assets = 50_000_000
+    config.manufacturer.asset_turnover_ratio = 1.5
+    config.manufacturer.operating_margin = 0.15
+    config.manufacturer.retention_ratio = 0.50
+    return WidgetManufacturer(config.manufacturer)
 
 
 # ============================================================================
@@ -232,7 +258,7 @@ def enhanced_insurance_program() -> InsuranceProgram:
         attachment_point=5_100_000,
         limit=10_000_000,
         premium_rate=0.01,
-        participation_rate=0.90,
+        reinstatements=1,
     )
     return InsuranceProgram(layers=[primary, excess])
 
@@ -295,24 +321,33 @@ def manufacturing_loss_generator() -> ManufacturingLossGenerator:
         ManufacturingLossGenerator: Manufacturing loss generator.
     """
     return ManufacturingLossGenerator(
-        base_frequency=3.0,
-        revenue_scaling=True,
-        correlation_factor=0.3,
+        attritional_params={
+            "base_frequency": 5.0,
+            "severity_mean": 100_000,
+            "severity_cv": 1.5,
+        },
+        large_params={
+            "base_frequency": 0.5,
+            "severity_mean": 500_000,
+            "severity_cv": 2.0,
+        },
+        catastrophic_params={
+            "base_frequency": 0.03,
+            "severity_alpha": 2.5,
+            "severity_xm": 1_000_000,
+        },
         seed=42,
     )
 
 
 @pytest.fixture
-def claim_development() -> ClaimDevelopment:
+def claim_development() -> ClaimDevelopmentWrapper:
     """Create a standard claim development pattern.
 
     Returns:
-        ClaimDevelopment: Standard development pattern.
+        ClaimDevelopmentWrapper: Standard development pattern wrapper for testing.
     """
-    return ClaimDevelopment(
-        pattern=[0.60, 0.25, 0.10, 0.05],
-        tail_factor=1.02,
-    )
+    return ClaimDevelopmentWrapper(pattern=[0.6, 0.3, 0.1], ultimate_factor=1.0)
 
 
 # ============================================================================
@@ -327,12 +362,12 @@ def gbm_process() -> GeometricBrownianMotion:
     Returns:
         GeometricBrownianMotion: GBM for testing.
     """
-    return GeometricBrownianMotion(
+    config = StochasticConfig(
         drift=0.05,
         volatility=0.15,
-        initial_value=1.0,
-        seed=42,
+        random_seed=42,
     )
+    return GeometricBrownianMotion(config)
 
 
 @pytest.fixture
@@ -342,12 +377,15 @@ def mean_reverting_process() -> MeanRevertingProcess:
     Returns:
         MeanRevertingProcess: Mean-reverting process for testing.
     """
+    config = StochasticConfig(
+        volatility=0.2,
+        drift=0.0,  # Not used by mean-reverting process
+        random_seed=42,
+    )
     return MeanRevertingProcess(
+        config=config,
         mean_level=1.0,
         reversion_speed=0.5,
-        volatility=0.2,
-        initial_value=1.0,
-        seed=42,
     )
 
 
@@ -358,10 +396,12 @@ def lognormal_volatility() -> LognormalVolatility:
     Returns:
         LognormalVolatility: Lognormal volatility for testing.
     """
-    return LognormalVolatility(
+    config = StochasticConfig(
         volatility=0.20,
-        seed=42,
+        drift=0.0,  # Not used by lognormal volatility
+        random_seed=42,
     )
+    return LognormalVolatility(config)
 
 
 # ============================================================================
@@ -370,26 +410,36 @@ def lognormal_volatility() -> LognormalVolatility:
 
 
 @pytest.fixture
-def monte_carlo_engine(default_config_v2: ConfigV2) -> MonteCarloEngine:
+def monte_carlo_engine(
+    manufacturing_loss_generator: ManufacturingLossGenerator,
+    enhanced_insurance_program: InsuranceProgram,
+    base_manufacturer: WidgetManufacturer,
+) -> MonteCarloEngine:
     """Create a Monte Carlo engine for integration testing.
 
     Args:
-        default_config_v2: Default configuration.
+        loss_generator: Loss generator fixture.
+        insurance_program: Insurance program fixture.
+        manufacturer: Manufacturer fixture.
 
     Returns:
         MonteCarloEngine: Configured engine for testing.
     """
+    from ergodic_insurance.src.monte_carlo import SimulationConfig as MonteCarloSimConfig
+
     # Use smaller numbers for testing
-    config = default_config_v2.model_copy()
-    config.simulation.n_simulations = 10
-    config.simulation.time_horizon = 20
-    config.simulation.enable_parallel = False  # Disable for testing
+    config = MonteCarloSimConfig(
+        n_simulations=10,
+        n_years=20,
+        parallel=False,  # Disable for testing
+        seed=42,
+    )
 
     return MonteCarloEngine(
-        config=config.simulation,
-        manufacturer_config=config.manufacturer,
-        insurance_config=config.insurance,
-        stochastic_config=config.stochastic,
+        loss_generator=manufacturing_loss_generator,
+        insurance_program=enhanced_insurance_program,
+        manufacturer=base_manufacturer,
+        config=config,
     )
 
 
@@ -478,9 +528,9 @@ def generate_loss_data(
 
     return LossData(
         timestamps=np.array([loss.timestamp for loss in losses]),
-        amounts=np.array([loss.amount for loss in losses]),
-        event_types=[loss.event_type for loss in losses],
-        descriptions=[loss.description for loss in losses],
+        loss_amounts=np.array([loss.amount for loss in losses]),
+        loss_types=[loss.event_type or loss.loss_type for loss in losses],
+        claim_ids=[f"CLAIM_{i:04d}" for i in range(len(losses))],
     )
 
 
@@ -498,23 +548,18 @@ def assert_financial_consistency(manufacturer: WidgetManufacturer) -> None:
     Raises:
         AssertionError: If financial state is inconsistent.
     """
-    # Basic balance sheet equation
+    # For this simple model without debt: assets = equity
     assert np.isclose(
         manufacturer.assets,
-        manufacturer.equity + manufacturer.debt,
+        manufacturer.equity,
         rtol=1e-10,
-    ), "Balance sheet equation violated"
+    ), "Balance sheet equation violated (assets should equal equity)"
 
     # Non-negative constraints
     assert manufacturer.assets >= 0, "Negative assets"
     assert (
         manufacturer.equity >= -1e-10
     ), "Significantly negative equity"  # Allow small numerical errors
-    assert manufacturer.debt >= -1e-10, "Negative debt"
-    assert manufacturer.cash >= -1e-10, "Negative cash"
-
-    # Cash is part of assets
-    assert manufacturer.cash <= manufacturer.assets * 1.01, "Cash exceeds assets"
 
 
 def assert_loss_data_valid(loss_data: LossData) -> None:
@@ -527,8 +572,8 @@ def assert_loss_data_valid(loss_data: LossData) -> None:
         AssertionError: If loss data is invalid.
     """
     assert loss_data.validate(), "Loss data validation failed"
-    assert len(loss_data.timestamps) == len(loss_data.amounts), "Mismatched arrays"
-    assert np.all(loss_data.amounts >= 0), "Negative loss amounts"
+    assert len(loss_data.timestamps) == len(loss_data.loss_amounts), "Mismatched arrays"
+    assert np.all(loss_data.loss_amounts >= 0), "Negative loss amounts"
     assert np.all(np.diff(loss_data.timestamps) >= 0), "Non-monotonic timestamps"
 
 
