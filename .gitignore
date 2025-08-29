@@ -418,6 +418,7 @@ checkpoints
 cache
 results/figures
 ergodic_insurance/notebooks/excel_reports
+ergodic_insurance/notebooks/exports/parameter_sweeps
 ergodic_insurance/notebooks/premium_analysis_exports
 ergodic_insurance/notebooks/reports
 ergodic_insurance/notebooks/results
