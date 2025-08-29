@@ -43,75 +43,8 @@ Fix the following test issues: "" has a lot of failing tests
 
 
 
-Fix the following test issues:
-c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\tests\test_bootstrap.py::TestPerformance::test_parallel_speedup failed: ergodic_insurance\tests\test_bootstrap.py:523: in test_parallel_speedup
-    analyzer_par.confidence_interval(data, np.mean, parallel=True)
-ergodic_insurance\src\bootstrap_analysis.py:215: in confidence_interval
-    bootstrap_dist = self._parallel_bootstrap(data, statistic)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ergodic_insurance\src\bootstrap_analysis.py:323: in _parallel_bootstrap
-    results = future.result()
-              ^^^^^^^^^^^^^^^
-..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:456: in result
-    return self.__get_result()
-           ^^^^^^^^^^^^^^^^^^^
-..\..\..\..\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\_base.py:401: in __get_result
-    raise self._exception
-E   concurrent.futures.process.BrokenProcessPool: A process in the process pool was terminated abruptly while the future was running or pending.
 
 
-
-
-Fix the following test issues:
-c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\tests\test_convergence_ess.py::TestProgressMonitor::test_performance_overhead_tracking failed: ergodic_insurance\tests\test_convergence_ess.py:298: in test_performance_overhead_tracking
-    assert summary["performance_overhead_pct"] < 20.0  # Reasonable for minimal test
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   assert 22.389525643164294 < 20.0
-
-
-
-
-Fix the following test issues:
-c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\tests\test_imports.py::TestImportPatterns::test_consistent_import_style failed: ergodic_insurance\tests\test_imports.py:166: in test_consistent_import_style
-    assert (
-E   AssertionError: Inconsistent import pattern in test_end_to_end.py: from ergodic_insurance.tests.test_fixtures import GoldenTestData, ScenarioBuilder, TestDataGenerator
-E   assert ('.src' in 'from ergodic_insurance.tests.test_fixtures import GoldenTestData, ScenarioBuilder, TestDataGenerator' or 'from ergodic_insurance import' in 'from ergodic_insurance.tests.test_fixtures import GoldenTestData, ScenarioBuilder, TestDataGenerator')
-
-
-
-
-Fix the following test issues:
-c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\tests\test_insight_extractor.py::TestInsightExtractor::test_export_insights_markdown failed: ergodic_insurance\tests\test_insight_extractor.py:308: in test_export_insights_markdown
-    result = self.extractor.export_insights(str(output_file), format="markdown")
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   TypeError: InsightExtractor.export_insights() got an unexpected keyword argument 'format'
-
-
-
-
-Fix the following test issues:
-c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\tests\test_insight_extractor.py::TestInsightExtractor::test_export_insights_json failed: ergodic_insurance\tests\test_insight_extractor.py:336: in test_export_insights_json
-    result = self.extractor.export_insights(str(output_file), format="json")
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   TypeError: InsightExtractor.export_insights() got an unexpected keyword argument 'format'
-
-
-
-
-Fix the following test issues:
-c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\tests\test_insight_extractor.py::TestInsightExtractor::test_export_insights_csv failed: ergodic_insurance\tests\test_insight_extractor.py:370: in test_export_insights_csv
-    result = self.extractor.export_insights(str(output_file), format="csv")
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-E   TypeError: InsightExtractor.export_insights() got an unexpected keyword argument 'format'
-
-
-
-
-Fix the following test issues:
-============================== warnings summary ===============================
-ergodic_insurance\src\excel_reporter.py:46
-  c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\src\excel_reporter.py:46: UserWarning: XlsxWriter not available. Some formatting features may be limited.
-    warnings.warn("XlsxWriter not available. Some formatting features may be limited.")
 
 
 
