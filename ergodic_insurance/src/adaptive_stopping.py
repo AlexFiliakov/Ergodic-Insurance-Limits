@@ -28,20 +28,7 @@ class StoppingRule(Enum):
 
 @dataclass
 class StoppingCriteria:
-    """Configuration for stopping criteria.
-
-    Attributes:
-        rule: Type of stopping rule to apply
-        r_hat_threshold: Maximum R-hat for convergence
-        min_ess: Minimum effective sample size
-        relative_tolerance: Relative change tolerance
-        mcse_relative_threshold: Maximum relative MCSE
-        min_iterations: Minimum iterations before checking
-        max_iterations: Maximum iterations allowed
-        check_interval: Check convergence every N iterations
-        patience: Number of consecutive checks before stopping
-        confidence_level: Confidence level for statistical tests
-    """
+    """Configuration for stopping criteria."""
 
     rule: StoppingRule = StoppingRule.COMBINED
     r_hat_threshold: float = 1.05
@@ -66,16 +53,7 @@ class StoppingCriteria:
 
 @dataclass
 class ConvergenceStatus:
-    """Container for convergence status information.
-
-    Attributes:
-        converged: Whether convergence criteria are met
-        iteration: Current iteration number
-        reason: Reason for convergence or non-convergence
-        diagnostics: Dictionary of diagnostic values
-        should_stop: Whether to stop the simulation
-        estimated_remaining: Estimated iterations to convergence
-    """
+    """Container for convergence status information."""
 
     converged: bool
     iteration: int

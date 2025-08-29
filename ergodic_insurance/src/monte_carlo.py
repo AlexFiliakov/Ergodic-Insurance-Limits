@@ -262,10 +262,82 @@ class SimulationResults:
 
 
 class MonteCarloEngine:
-    """High-performance Monte Carlo simulation engine.
+    """High-performance Monte Carlo simulation engine for insurance analysis.
 
-    Supports vectorized operations, parallel processing, and convergence monitoring.
-    Now enhanced with CPU-optimized parallel execution for budget hardware.
+    Provides efficient Monte Carlo simulation with support for parallel processing,
+    convergence monitoring, checkpointing, and comprehensive result aggregation.
+    Optimized for both high-end and budget hardware configurations.
+
+    Examples:
+        Basic Monte Carlo simulation::
+
+            from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
+            from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+            from ergodic_insurance.src.insurance_program import InsuranceProgram
+            from ergodic_insurance.src.manufacturer import WidgetManufacturer
+
+            # Configure simulation
+            config = SimulationConfig(
+                n_simulations=10000,
+                n_years=20,
+                parallel=True,
+                n_workers=4
+            )
+
+            # Create components
+            loss_gen = ManufacturingLossGenerator()
+            insurance = InsuranceProgram.create_standard_program()
+            manufacturer = WidgetManufacturer.from_config()
+
+            # Run Monte Carlo
+            engine = MonteCarloEngine(
+                loss_generator=loss_gen,
+                insurance_program=insurance,
+                manufacturer=manufacturer,
+                config=config
+            )
+            results = engine.run()
+
+            print(f"Survival rate: {results.survival_rate:.1%}")
+            print(f"Mean ROE: {results.mean_roe:.2%}")
+
+        Advanced simulation with convergence monitoring::
+
+            # Enable convergence checking
+            config = SimulationConfig(
+                n_simulations=100000,
+                check_convergence=True,
+                convergence_tolerance=0.001,
+                min_iterations=1000
+            )
+
+            engine = MonteCarloEngine(
+                loss_generator=loss_gen,
+                insurance_program=insurance,
+                manufacturer=manufacturer,
+                config=config
+            )
+
+            # Run with progress tracking
+            results = engine.run(show_progress=True)
+
+            # Check convergence
+            if results.converged:
+                print(f"Converged after {results.iterations} iterations")
+                print(f"Standard error: {results.standard_error:.4f}")
+
+    Attributes:
+        loss_generator: Generator for manufacturing loss events
+        insurance_program: Insurance coverage structure
+        manufacturer: Manufacturing company financial model
+        config: Simulation configuration parameters
+        convergence_diagnostics: Convergence monitoring tools
+
+    See Also:
+        :class:`SimulationConfig`: Configuration parameters
+        :class:`MonteCarloResults`: Simulation results container
+        :class:`ParallelExecutor`: Enhanced parallel processing
+        :class:`ConvergenceDiagnostics`: Convergence analysis tools
     """
 
     def __init__(

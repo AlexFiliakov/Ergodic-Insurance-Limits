@@ -39,29 +39,17 @@ from scipy.stats import kstwobign
 
 @dataclass
 class ValidationResult:
-    """Results from accuracy validation.
+    """Results from accuracy validation."""
 
-    Attributes:
-        accuracy_score: Overall accuracy score (0-1)
-        mean_error: Mean absolute error
-        max_error: Maximum absolute error
-        relative_error: Mean relative error
-        ks_statistic: Kolmogorov-Smirnov test statistic
-        ks_pvalue: Kolmogorov-Smirnov test p-value
-        passed_tests: List of passed validation tests
-        failed_tests: List of failed validation tests
-        edge_cases: Results from edge case testing
-    """
-
-    accuracy_score: float
-    mean_error: float = 0.0
-    max_error: float = 0.0
-    relative_error: float = 0.0
-    ks_statistic: float = 0.0
-    ks_pvalue: float = 0.0
-    passed_tests: List[str] = field(default_factory=list)
-    failed_tests: List[str] = field(default_factory=list)
-    edge_cases: Dict[str, bool] = field(default_factory=dict)
+    accuracy_score: float  #: Overall accuracy score (0-1)
+    mean_error: float = 0.0  #: Mean absolute error
+    max_error: float = 0.0  #: Maximum absolute error
+    relative_error: float = 0.0  #: Mean relative error
+    ks_statistic: float = 0.0  #: Kolmogorov-Smirnov test statistic
+    ks_pvalue: float = 0.0  #: Kolmogorov-Smirnov test p-value
+    passed_tests: List[str] = field(default_factory=list)  #: List of passed validation tests
+    failed_tests: List[str] = field(default_factory=list)  #: List of failed validation tests
+    edge_cases: Dict[str, bool] = field(default_factory=dict)  #: Results from edge case testing
 
     def is_valid(self, tolerance: float = 0.01) -> bool:
         """Check if validation passes within tolerance.
