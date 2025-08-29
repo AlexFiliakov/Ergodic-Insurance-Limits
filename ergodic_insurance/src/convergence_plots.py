@@ -407,9 +407,9 @@ class RealTimeConvergencePlotter:
         gs = gridspec.GridSpec(4, n_params, height_ratios=[2, 1, 1, 1], hspace=0.4, wspace=0.3)
 
         # Color palette for chains
-        from matplotlib import cm
+        from matplotlib import colormaps
 
-        colors = cm.get_cmap("tab10")(np.linspace(0, 1, n_chains))
+        colors = colormaps["tab10"](np.linspace(0, 1, n_chains))
 
         for param_idx, param_name in enumerate(parameter_names):
             # 1. Trace plots with density

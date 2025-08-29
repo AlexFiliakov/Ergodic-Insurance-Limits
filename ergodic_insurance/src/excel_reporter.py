@@ -777,12 +777,13 @@ class ExcelReporter:
         Returns:
             Category name
         """
+        # Check ratios first to avoid false matches with "asset" in "asset_turnover"
+        if any(x in metric_name for x in ["roe", "roa", "margin", "turnover"]):
+            return "Ratios"
         if any(x in metric_name for x in ["revenue", "income", "profit"]):
             return "Income"
         if any(x in metric_name for x in ["asset", "equity", "collateral"]):
             return "Balance Sheet"
-        if any(x in metric_name for x in ["roe", "roa", "margin", "turnover"]):
-            return "Ratios"
         if any(x in metric_name for x in ["claim", "liability"]):
             return "Liabilities"
         return "Other"

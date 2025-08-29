@@ -656,7 +656,9 @@ class BatchProcessor:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, default=str)
         elif export_format == "excel":
-            with pd.ExcelWriter(path, engine="openpyxl") as writer:
+            # Ensure proper file closure on Windows by explicitly saving
+            writer = pd.ExcelWriter(path, engine="openpyxl")
+            try:
                 aggregated.summary_statistics.to_excel(writer, sheet_name="Summary", index=False)
                 aggregated.to_dataframe().to_excel(writer, sheet_name="Details", index=False)
                 if aggregated.sensitivity_analysis is not None:
@@ -665,6 +667,8 @@ class BatchProcessor:
                     )
                 for name, df in aggregated.comparison_metrics.items():
                     df.to_excel(writer, sheet_name=name[:31])  # Excel sheet name limit
+            finally:
+                writer.close()
         elif export_format == "excel_financial":
             # Use the comprehensive Excel reporter for financial statements
             self.export_financial_statements(path)
@@ -701,12 +705,12 @@ class BatchProcessor:
                 output_file = f"financial_report_{result.scenario_name}.xlsx"
                 try:
                     # For now, generate Monte Carlo report since we have MC results
-                    # TODO: Add support for extracting individual trajectories
+                    # TODO: Add support for extracting individual trajectories  # pylint: disable=fixme
                     reporter.generate_monte_carlo_report(
                         result.simulation_results,
                         output_file,
                         title=f"Financial Report - {result.scenario_name}",
                     )
                     print(f"Generated financial report: {path / output_file}")
-                except Exception as e:
+                except (OSError, ValueError, KeyError, AttributeError) as e:
                     print(f"Error generating report for {result.scenario_name}: {e}")

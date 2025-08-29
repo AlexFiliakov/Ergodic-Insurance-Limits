@@ -651,9 +651,9 @@ class TestBatchProcessor:
 
         assert export_path.exists()
         # Verify Excel file has expected sheets
-        xl_file = pd.ExcelFile(export_path)
-        assert "Summary" in xl_file.sheet_names
-        assert "Details" in xl_file.sheet_names
+        with pd.ExcelFile(export_path) as xl_file:
+            assert "Summary" in xl_file.sheet_names
+            assert "Details" in xl_file.sheet_names
 
     def test_apply_overrides(self, temp_checkpoint_dir):
         """Test applying parameter overrides."""
