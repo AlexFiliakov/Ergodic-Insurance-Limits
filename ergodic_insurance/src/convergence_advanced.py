@@ -15,14 +15,7 @@ from scipy.optimize import minimize_scalar
 
 @dataclass
 class SpectralDiagnostics:
-    """Container for spectral analysis results.
-
-    Attributes:
-        spectral_density: Array of spectral density values
-        frequencies: Array of frequency values
-        integrated_autocorr_time: Integrated autocorrelation time
-        effective_sample_size: ESS from spectral analysis
-    """
+    """Container for spectral analysis results."""
 
     spectral_density: np.ndarray
     frequencies: np.ndarray
@@ -39,15 +32,7 @@ class SpectralDiagnostics:
 
 @dataclass
 class AutocorrelationAnalysis:
-    """Container for autocorrelation analysis results.
-
-    Attributes:
-        acf_values: Autocorrelation function values
-        lags: Lag values
-        integrated_time: Integrated autocorrelation time
-        initial_monotone_sequence: Length of initial monotone sequence
-        initial_positive_sequence: Length of initial positive sequence
-    """
+    """Container for autocorrelation analysis results."""
 
     acf_values: np.ndarray
     lags: np.ndarray

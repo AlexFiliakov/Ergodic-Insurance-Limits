@@ -1921,9 +1921,9 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals,too-many-bran
 
     Args:
         premium_components: Nested dict with structure:
-                           {company_size: {layer: {component: value}}}
-                           Components: 'expected_loss', 'volatility_load', 'tail_load',
-                                     'expense_load', 'profit_margin'
+            {company_size: {layer: {component: value}}}
+            Components: 'expected_loss', 'volatility_load', 'tail_load',
+            'expense_load', 'profit_margin'
         company_sizes: List of company sizes to show (defaults to all)
         layers: List of insurance layers to show (defaults to all)
         title: Plot title
@@ -2097,14 +2097,10 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
 
     Args:
         efficiency_data: Nested dict with structure:
-                        {company_size: {
-                            'roe': 2D array (n_ruin x n_spend),
-                            'ruin_prob': 1D array (n_ruin),
-                            'insurance_spend': 1D array (n_spend)
-                        }}
+            ``{company_size: {'roe': 2D array (n_ruin x n_spend), 'ruin_prob': 1D array (n_ruin), 'insurance_spend': 1D array (n_spend)}}``
         company_sizes: List of company sizes to show (defaults to all)
-        optimal_paths: Dict mapping company size to optimal path coordinates
-                      {company_size: array of shape (n_points, 3) with [roe, ruin, spend]}
+        optimal_paths: Dict mapping company size to optimal path coordinates:
+            ``{company_size: array of shape (n_points, 3) with [roe, ruin, spend]}``
         title: Plot title
         figsize: Figure size (width, height)
         view_angles: Tuple of (elevation, azimuth) angles for 3D view

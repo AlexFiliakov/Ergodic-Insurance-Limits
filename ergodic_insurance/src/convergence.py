@@ -13,16 +13,7 @@ from scipy import stats
 
 @dataclass
 class ConvergenceStats:
-    """Container for convergence statistics.
-
-    Attributes:
-        r_hat: Gelman-Rubin convergence statistic (should be < 1.1)
-        ess: Effective sample size
-        mcse: Monte Carlo standard error
-        converged: Whether convergence criteria are met
-        n_iterations: Number of iterations analyzed
-        autocorrelation: Lag-1 autocorrelation
-    """
+    """Container for convergence statistics."""
 
     r_hat: float
     ess: float

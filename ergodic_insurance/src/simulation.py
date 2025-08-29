@@ -231,7 +231,67 @@ class Simulation:
     widget manufacturer model, processing claims and tracking financial
     performance over the specified time horizon.
 
-    Supports both single-path and Monte Carlo simulations.
+    Supports both single-path and Monte Carlo simulations, with comprehensive
+    tracking of financial metrics, claim events, and bankruptcy conditions.
+
+    Examples:
+        Basic simulation setup and execution::
+
+            from ergodic_insurance.src.config import ManufacturerConfig
+            from ergodic_insurance.src.manufacturer import WidgetManufacturer
+            from ergodic_insurance.src.claim_generator import ClaimGenerator
+            from ergodic_insurance.src.insurance import InsurancePolicy
+            from ergodic_insurance.src.simulation import Simulation
+
+            # Create manufacturer
+            config = ManufacturerConfig(initial_assets=10_000_000)
+            manufacturer = WidgetManufacturer(config)
+
+            # Create insurance policy
+            policy = InsurancePolicy(
+                deductible=500_000,
+                limit=5_000_000,
+                premium_rate=0.02
+            )
+
+            # Run simulation
+            sim = Simulation(
+                manufacturer=manufacturer,
+                claim_generator=ClaimGenerator(seed=42),
+                insurance_policy=policy,
+                time_horizon=10
+            )
+            results = sim.run()
+
+            # Analyze results
+            print(f"Mean ROE: {results.summary_stats()['mean_roe']:.2%}")
+            print(f"Survived: {results.insolvency_year is None}")
+
+        Running Monte Carlo simulation::
+
+            # Use MonteCarloEngine for multiple paths
+            monte_carlo = MonteCarloEngine(
+                base_simulation=sim,
+                n_simulations=1000,
+                parallel=True
+            )
+            mc_results = monte_carlo.run()
+
+            print(f"Survival rate: {mc_results.survival_rate:.1%}")
+            print(f"95% VaR: ${mc_results.var_95:,.0f}")
+
+    Attributes:
+        manufacturer: The widget manufacturer being simulated
+        claim_generator: Generator for insurance claim events
+        insurance_policy: Optional insurance coverage
+        time_horizon: Simulation duration in years
+        seed: Random seed for reproducibility
+
+    See Also:
+        :class:`SimulationResults`: Container for simulation output
+        :class:`MonteCarloEngine`: For running multiple simulation paths
+        :class:`WidgetManufacturer`: The core financial model
+        :class:`ClaimGenerator`: For generating loss events
     """
 
     def __init__(
@@ -318,13 +378,56 @@ class Simulation:
         return metrics
 
     def run(self, progress_interval: int = 100) -> SimulationResults:
-        """Run the full simulation.
+        """Run the full simulation over the specified time horizon.
+
+        Executes a complete simulation trajectory, processing claims each year,
+        updating the manufacturer's financial state, and tracking all metrics.
+        The simulation terminates early if the manufacturer becomes insolvent.
 
         Args:
-            progress_interval: How often to log progress (in years).
+            progress_interval: How often to log progress (in years). Set to 0
+                to disable progress logging. Useful for long simulations.
 
         Returns:
-            SimulationResults object with full trajectory.
+            SimulationResults object containing:
+                - Complete time series of financial metrics
+                - Claim history and amounts
+                - ROE trajectory
+                - Insolvency year (if bankruptcy occurred)
+
+        Examples:
+            Run simulation with progress updates::
+
+                sim = Simulation(manufacturer, time_horizon=1000)
+                results = sim.run(progress_interval=100)  # Log every 100 years
+
+                # Check if company survived
+                if results.insolvency_year:
+                    print(f"Bankruptcy in year {results.insolvency_year}")
+                else:
+                    print(f"Survived {len(results.years)} years")
+
+            Analyze simulation results::
+
+                results = sim.run()
+                df = results.to_dataframe()
+
+                # Plot equity evolution
+                import matplotlib.pyplot as plt
+                plt.plot(df['year'], df['equity'])
+                plt.xlabel('Year')
+                plt.ylabel('Equity ($)')
+                plt.title('Company Equity Over Time')
+                plt.show()
+
+        Note:
+            The simulation uses pre-generated claims for efficiency. All claims
+            are generated at the start based on the configured loss distributions
+            and random seed.
+
+        See Also:
+            :meth:`step_annual`: Single year simulation step
+            :class:`SimulationResults`: Output data structure
         """
         start_time = time.time()
 
