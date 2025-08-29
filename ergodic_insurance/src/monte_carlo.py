@@ -656,9 +656,12 @@ class MonteCarloEngine:
                 manufacturer.process_insurance_claim(event.amount)
 
             # Update manufacturer state with annual step
+            # Apply stochastic if the manufacturer has a stochastic process
+            apply_stochastic = manufacturer.stochastic_process is not None
             manufacturer.step(
                 working_capital_pct=0.2,
-                growth_rate=0.0,  # No growth rate for now
+                growth_rate=0.05,  # Use a base growth rate
+                apply_stochastic=apply_stochastic,
             )
 
             # Check for ruin
