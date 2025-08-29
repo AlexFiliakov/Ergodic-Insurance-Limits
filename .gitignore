@@ -421,3 +421,6 @@ results/figures
 ergodic_insurance/notebooks/reports
 ergodic_insurance/notebooks/table_exports
 ergodic_insurance/notebooks/excel_reports
+# Hypothesis testing cache
+.hypothesis/
+ergodic_insurance/.hypothesis/
