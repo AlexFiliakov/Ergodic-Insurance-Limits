@@ -422,7 +422,7 @@ class InsightExtractor:
                     insight = Insight(
                         category="correlation",
                         importance=50 + abs(corr) * 30,
-                        title=f"Strong Correlation Between Metrics",
+                        title="Strong Correlation Between Metrics",
                         description=self.TEMPLATES["correlation"].format(
                             direction=direction,
                             corr=f"{corr:.2f}",
@@ -447,15 +447,13 @@ class InsightExtractor:
         """
         if "probability" in metric_name.lower() or "rate" in metric_name.lower():
             return f"{value:.2%}"
-        elif "assets" in metric_name.lower() or "value" in metric_name.lower():
+        if "assets" in metric_name.lower() or "value" in metric_name.lower():
             if abs(value) > 1e6:
                 return f"${value/1e6:.1f}M"
-            elif abs(value) > 1e3:
+            if abs(value) > 1e3:
                 return f"${value/1e3:.1f}K"
-            else:
-                return f"${value:.2f}"
-        else:
-            return f"{value:.3g}"
+            return f"${value:.2f}"
+        return f"{value:.3g}"
 
     def generate_executive_summary(self, max_points: int = 5, focus_positive: bool = True) -> str:
         """Generate executive summary from insights.
@@ -496,7 +494,7 @@ class InsightExtractor:
         if any(i.category == "performance" for i in top_insights):
             best_performer = next((i for i in top_insights if "best" in i.title.lower()), None)
             if best_performer:
-                summary_lines.append(f"\n### Recommendation:")
+                summary_lines.append("\n### Recommendation:")
                 summary_lines.append(
                     f"Based on the analysis, the {best_performer.data.get('scenario', 'optimal')} "
                     f"configuration provides the best overall performance."
@@ -513,7 +511,7 @@ class InsightExtractor:
         notes = []
 
         # Group insights by category
-        by_category = {}
+        by_category: dict[str, list[Insight]] = {}
         for insight in self.insights:
             if insight.category not in by_category:
                 by_category[insight.category] = []
@@ -547,17 +545,17 @@ class InsightExtractor:
 
         return notes
 
-    def export_insights(self, output_path: str, format: str = "markdown") -> str:
+    def export_insights(self, output_path: str, output_format: str = "markdown") -> str:
         """Export insights to file.
 
         Args:
             output_path: Path for output file
-            format: Output format (markdown, json, csv)
+            output_format: Output format (markdown, json, csv)
 
         Returns:
             Path to exported file
         """
-        if format == "markdown":
+        if output_format == "markdown":
             content = self.generate_executive_summary()
             content += "\n\n## Detailed Insights\n\n"
 
@@ -571,7 +569,7 @@ class InsightExtractor:
             with open(output_path, "w") as f:
                 f.write(content)
 
-        elif format == "json":
+        elif output_format == "json":
             import json
 
             data = [
@@ -590,7 +588,7 @@ class InsightExtractor:
             with open(output_path, "w") as f:
                 json.dump(data, f, indent=2, default=str)
 
-        elif format == "csv":
+        elif output_format == "csv":
             df = pd.DataFrame(
                 [
                     {

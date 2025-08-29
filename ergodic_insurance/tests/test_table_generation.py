@@ -6,6 +6,8 @@ all table generation methods work correctly with proper formatting and validatio
 Google-style docstrings are used throughout for consistency.
 """
 
+from typing import Any, Dict, List
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -182,7 +184,7 @@ class TestTableFormatter:
             }
         )
 
-        column_formats = {
+        column_formats: Dict[str, Dict[str, Any]] = {
             "Revenue": {"type": "currency", "abbreviate": True},
             "Growth": {"type": "percentage"},
             "Risk": {"type": "percentage", "decimals": 1},
@@ -222,13 +224,13 @@ class TestTableFormatter:
         footnotes = ["Note 1", "Note 2"]
 
         # Test markdown format
-        result = formatter.add_footnotes(table_str, footnotes, format="none")
+        result = formatter.add_footnotes(table_str, footnotes, output_format="none")
         assert "[1] Note 1" in result
         assert "[2] Note 2" in result
 
         # Test HTML format
         formatter.output_format = "html"
-        result = formatter.add_footnotes(table_str, footnotes, format="html")
+        result = formatter.add_footnotes(table_str, footnotes, output_format="html")
         assert "<sup>1</sup>" in result
         assert "<sup>2</sup>" in result
 
@@ -565,7 +567,7 @@ class TestHelperFunctions:
         """Test sensitivity analysis table creation."""
         base_case = 0.15
         sensitivities = {"Premium Rate": [0.14, 0.15, 0.16], "Retention": [0.13, 0.15, 0.17]}
-        parameter_ranges = {
+        parameter_ranges: Dict[str, List[float]] = {
             "Premium Rate": [0.01, 0.015, 0.02],
             "Retention": [50_000, 100_000, 150_000],
         }
@@ -585,6 +587,7 @@ class TestFormatForExport:
         df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
         result = format_for_export(df, "csv")
 
+        assert result is not None
         assert "A,B" in result
         assert "1,3" in result
         assert "2,4" in result
@@ -594,6 +597,7 @@ class TestFormatForExport:
         df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
         result = format_for_export(df, "latex", caption="Test Table", label="tab:test")
 
+        assert result is not None
         assert "\\begin{table}" in result
         assert "\\caption{Test Table}" in result
         assert "\\label{tab:test}" in result
@@ -604,6 +608,7 @@ class TestFormatForExport:
         df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
         result = format_for_export(df, "html", table_id="test-table", classes="table table-striped")
 
+        assert result is not None
         assert 'id="test-table"' in result  # Fixed to be more flexible about attribute order
         assert 'class="table table-striped"' in result
         assert "<td>1</td>" in result
@@ -613,6 +618,7 @@ class TestFormatForExport:
         df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
         result = format_for_export(df, "markdown")
 
+        assert result is not None
         assert "|" in result
         assert "A" in result
         assert "B" in result
@@ -626,8 +632,8 @@ class TestIntegration:
         generator = TableGenerator()
 
         # Generate Table 1
-        sizes = [1_000_000, 10_000_000]
-        limits = {
+        sizes: List[float] = [1_000_000, 10_000_000]
+        limits: Dict[float, Dict[str, float]] = {
             1_000_000: {
                 "retention": 50_000,
                 "primary": 500_000,
@@ -672,7 +678,7 @@ class TestIntegration:
         generator = TableGenerator()
 
         # Generate parameter grid
-        params = {
+        params: Dict[str, Dict[str, Any]] = {
             "Model": {"timesteps": [100, 1000, 10000]},
             "Risk": {"volatility": [0.15, 0.20, 0.30]},
         }

@@ -3,6 +3,7 @@
 This module provides high-level visualization functions for executive reporting
 including loss distributions, return period curves, and insurance layer diagrams.
 """
+# pylint: disable=too-many-lines
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -776,7 +777,7 @@ def plot_roe_ruin_frontier(  # pylint: disable=too-many-locals,too-many-statemen
     return fig
 
 
-def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
+def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     retention_range: Optional[Tuple[float, float]] = None,
     n_points: int = 50,
     company_size: float = 10_000_000,
@@ -1070,7 +1071,7 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements
     return fig
 
 
-def plot_simulation_architecture(
+def plot_simulation_architecture(  # pylint: disable=too-many-locals
     title: str = "Simulation Architecture Flow",
     figsize: Tuple[int, int] = (14, 8),
     export_dpi: Optional[int] = None,
@@ -1166,9 +1167,9 @@ def plot_simulation_architecture(
 
         # Add text
         ax.text(
-            box["x"],
-            box["y"],
-            box["label"],
+            float(box["x"]),  # type: ignore[arg-type]
+            float(box["y"]),  # type: ignore[arg-type]
+            str(box["label"]),
             ha="center",
             va="center",
             fontsize=12,
@@ -1195,9 +1196,9 @@ def plot_simulation_architecture(
         ax.add_patch(rect)
 
         ax.text(
-            box["x"],
-            box["y"],
-            box["label"],
+            float(box["x"]),  # type: ignore[arg-type]
+            float(box["y"]),  # type: ignore[arg-type]
+            str(box["label"]),
             ha="center",
             va="center",
             fontsize=9,
@@ -1369,29 +1370,32 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
             paths_long.append({"values": path, "failed": fails})
 
     # Plot short horizon
-    for i, path_data in enumerate(paths_short):
-        path = path_data["values"]
-        failed = path_data.get("failed", False)
+    if paths_short is not None:
+        for i, path_data in enumerate(paths_short):
+            path = path_data["values"]
+            failed = path_data.get("failed", False)
 
-        if failed:
-            color = WSJ_COLORS["red"]
-            alpha = 0.7
-            linewidth = 1.5
-            label = "Failed" if i == 0 else None
-        else:
-            color = WSJ_COLORS["blue"]
-            alpha = 0.8
-            linewidth = 2
-            label = "Survivor" if i == 0 else None
+            if failed:
+                color = WSJ_COLORS["red"]
+                alpha = 0.7
+                linewidth = 1.5
+                label = "Failed" if i == 0 else None
+            else:
+                color = WSJ_COLORS["blue"]
+                alpha = 0.8
+                linewidth = 2
+                label = "Survivor" if i == 0 else None
 
-        ax1.plot(
-            time_short if "time_short" in locals() else np.linspace(0, short_horizon, len(path)),
-            path / 1e6,  # Convert to millions
-            color=color,
-            alpha=alpha,
-            linewidth=linewidth,
-            label=label,
-        )
+            ax1.plot(
+                time_short
+                if "time_short" in locals()
+                else np.linspace(0, short_horizon, len(path)),
+                path / 1e6,  # Convert to millions
+                color=color,
+                alpha=alpha,
+                linewidth=linewidth,
+                label=label,
+            )
 
     # Add starting point marker
     ax1.scatter(
@@ -1412,26 +1416,27 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"${x:.0f}M"))
 
     # Plot long horizon
-    for i, path_data in enumerate(paths_long):
-        path = path_data["values"]
-        failed = path_data.get("failed", False)
+    if paths_long is not None:
+        for i, path_data in enumerate(paths_long):
+            path = path_data["values"]
+            failed = path_data.get("failed", False)
 
-        if failed:
-            color = WSJ_COLORS["red"]
-            alpha = 0.6
-            linewidth = 1.5
-        else:
-            color = WSJ_COLORS["blue"]
-            alpha = 0.7
-            linewidth = 2
+            if failed:
+                color = WSJ_COLORS["red"]
+                alpha = 0.6
+                linewidth = 1.5
+            else:
+                color = WSJ_COLORS["blue"]
+                alpha = 0.7
+                linewidth = 2
 
-        ax2.plot(
-            time_long if "time_long" in locals() else np.linspace(0, long_horizon, len(path)),
-            path / 1e6,
-            color=color,
-            alpha=alpha,
-            linewidth=linewidth,
-        )
+            ax2.plot(
+                time_long if "time_long" in locals() else np.linspace(0, long_horizon, len(path)),
+                path / 1e6,
+                color=color,
+                alpha=alpha,
+                linewidth=linewidth,
+            )
 
     # Add starting point
     ax2.scatter(0, company_size / 1e6, s=100, color=WSJ_COLORS["green"], marker="o", zorder=10)
@@ -1468,7 +1473,7 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
     return fig
 
 
-def plot_optimal_coverage_heatmap(
+def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
     optimization_results: Optional[Dict[str, Any]] = None,
     company_sizes: Optional[List[float]] = None,
     title: str = "Optimal Coverage Heatmap",
@@ -1609,7 +1614,7 @@ def plot_optimal_coverage_heatmap(
     return fig
 
 
-def plot_sensitivity_tornado(
+def plot_sensitivity_tornado(  # pylint: disable=too-many-locals
     sensitivity_data: Optional[Dict[str, float]] = None,
     baseline_value: Optional[float] = None,
     title: str = "Sensitivity Analysis - Tornado Chart",
@@ -1758,7 +1763,7 @@ def plot_sensitivity_tornado(
     return fig
 
 
-def plot_robustness_heatmap(
+def plot_robustness_heatmap(  # pylint: disable=too-many-locals,too-many-statements
     robustness_data: Optional[np.ndarray] = None,
     frequency_range: Optional[Tuple[float, float]] = None,
     severity_range: Optional[Tuple[float, float]] = None,
@@ -2031,8 +2036,6 @@ def plot_premium_multiplier(  # pylint: disable=too-many-locals,too-many-stateme
     sizes_smooth = np.linspace(sizes_log.min(), sizes_log.max(), 100)
 
     # Use cubic spline for smooth curve
-    from scipy.interpolate import make_interp_spline
-
     spline = make_interp_spline(sizes_log, multipliers, k=min(3, len(multipliers) - 1))
     multipliers_smooth = spline(sizes_smooth)
 

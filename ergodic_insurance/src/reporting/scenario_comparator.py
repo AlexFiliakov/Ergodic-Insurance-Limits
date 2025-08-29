@@ -159,7 +159,7 @@ class ScenarioComparator:
         Returns:
             Dictionary of metrics by scenario
         """
-        metric_data = {}
+        metric_data: Dict[str, Dict[str, float]] = {}
 
         for scenario, data in results.items():
             # Handle different result formats
@@ -264,7 +264,7 @@ class ScenarioComparator:
         Returns:
             Dictionary of parameter differences
         """
-        diffs = {}
+        diffs: Dict[str, Dict[str, Any]] = {}
 
         if baseline not in param_data:
             return diffs
@@ -337,8 +337,11 @@ class ScenarioComparator:
                 # Simplified ANOVA using scenario means
                 # Note: This is a simplified version for demonstration
                 grand_mean = np.mean(scenario_values)
-                ss_between = len(scenario_values) * np.sum((scenario_values - grand_mean) ** 2)
-                ss_total = np.sum((scenario_values - grand_mean) ** 2)
+                scenario_values_array = np.array(scenario_values)
+                ss_between = len(scenario_values) * np.sum(
+                    (scenario_values_array - grand_mean) ** 2
+                )
+                ss_total = np.sum((scenario_values_array - grand_mean) ** 2)
 
                 statistics[metric]["anova"] = {
                     "significant_difference": ss_between > 0.5 * ss_total
@@ -392,7 +395,9 @@ class ScenarioComparator:
 
         return fig
 
-    def _plot_metric_comparison(self, ax: plt.Axes, metric: str, show_diff: bool = True):
+    def _plot_metric_comparison(
+        self, ax: plt.Axes, metric: str, show_diff: bool = True
+    ):  # pylint: disable=too-many-locals
         """Plot single metric comparison.
 
         Args:
@@ -400,7 +405,7 @@ class ScenarioComparator:
             metric: Metric name
             show_diff: Show difference from baseline
         """
-        if metric not in self.comparison_data.metrics:
+        if self.comparison_data is None or metric not in self.comparison_data.metrics:
             return
 
         values = self.comparison_data.metrics[metric]
@@ -421,15 +426,15 @@ class ScenarioComparator:
             best_idx = np.argmax(metric_values)
             worst_idx = np.argmin(metric_values)
 
-        for i, bar in enumerate(bars):
+        for i, bar_patch in enumerate(bars):
             if i == best_idx:
-                bar.set_color(WSJ_COLORS["green"])
-                bar.set_alpha(1.0)
+                bar_patch.set_color(WSJ_COLORS["green"])
+                bar_patch.set_alpha(1.0)
             elif i == worst_idx:
-                bar.set_color(WSJ_COLORS["red"])
-                bar.set_alpha(0.7)
+                bar_patch.set_color(WSJ_COLORS["red"])
+                bar_patch.set_alpha(0.7)
             else:
-                bar.set_color(WSJ_COLORS["blue"])
+                bar_patch.set_color(WSJ_COLORS["blue"])
 
         # Add value labels
         add_value_labels(ax, bars)
@@ -473,7 +478,7 @@ class ScenarioComparator:
         ax.grid(True, alpha=0.3, axis="y")
 
         # Add significance indicator if available
-        if metric in self.comparison_data.statistics:
+        if self.comparison_data and metric in self.comparison_data.statistics:
             stats_data = self.comparison_data.statistics[metric]
             if "anova" in stats_data and stats_data["anova"]["significant_difference"]:
                 ax.text(

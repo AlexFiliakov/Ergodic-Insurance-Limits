@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from typing import Any, Dict
-from unittest.mock import MagicMock, Mock, patch
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -641,7 +640,11 @@ class TestROERuinFrontier:
         assert "ROE-Ruin Efficient Frontier" in ax.get_title()
 
         # Check that curves were plotted (3 company sizes)
-        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        lines = []
+        for l in ax.get_lines():
+            label = l.get_label()
+            if label and isinstance(label, str) and "Company" in label:
+                lines.append(l)
         assert len(lines) >= 3
 
         plt.close(fig)
@@ -656,7 +659,11 @@ class TestROERuinFrontier:
         ax = fig.axes[0]
 
         # Check that curves were plotted
-        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        lines = []
+        for l in ax.get_lines():
+            label = l.get_label()
+            if label and isinstance(label, str) and "Company" in label:
+                lines.append(l)
         assert len(lines) >= 2  # Two company sizes in the data
 
         plt.close(fig)
@@ -690,7 +697,11 @@ class TestROERuinFrontier:
         assert fig.dpi == 150
 
         # Check only 2 curves plotted
-        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        lines = []
+        for l in ax.get_lines():
+            label = l.get_label()
+            if label and isinstance(label, str) and "Company" in label:
+                lines.append(l)
         assert len(lines) == 2
 
         plt.close(fig)
@@ -806,7 +817,11 @@ class TestROERuinFrontier:
         ax = fig.axes[0]
 
         # Check only one curve plotted
-        lines = [l for l in ax.get_lines() if l.get_label() and "Company" in l.get_label()]
+        lines = []
+        for l in ax.get_lines():
+            label = l.get_label()
+            if label and isinstance(label, str) and "Company" in label:
+                lines.append(l)
         assert len(lines) == 1
 
         plt.close(fig)

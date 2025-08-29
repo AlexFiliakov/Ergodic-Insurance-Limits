@@ -269,6 +269,7 @@ class ExcelReporter:
         Args:
             title: Report title
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Cover")
 
         # Title
@@ -320,6 +321,7 @@ class ExcelReporter:
         Args:
             generator: Financial statement generator
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Balance Sheet")
 
         # Title
@@ -377,6 +379,7 @@ class ExcelReporter:
         Args:
             generator: Financial statement generator
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Income Statement")
 
         # Title
@@ -441,6 +444,7 @@ class ExcelReporter:
         Args:
             generator: Financial statement generator
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Cash Flow")
 
         # Title
@@ -505,6 +509,7 @@ class ExcelReporter:
         Args:
             generator: Financial statement generator
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Reconciliation")
 
         # Title
@@ -572,12 +577,18 @@ class ExcelReporter:
         worksheet.set_column("B:C", 15)
         worksheet.set_column("D:D", 12)
 
-    def _write_metrics_dashboard_xlsxwriter(self, generator: FinancialStatementGenerator) -> None:
+    def _write_metrics_dashboard_xlsxwriter(  # pylint: disable=too-many-branches
+        self, generator: FinancialStatementGenerator
+    ) -> None:
         """Write metrics dashboard to Excel workbook.
 
         Args:
             generator: Financial statement generator
+
+        Note: Multiple branches are necessary for proper Excel formatting
+        of different data types (currency, percentages, numbers, etc.)
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Metrics Dashboard")
 
         # Title
@@ -629,7 +640,7 @@ class ExcelReporter:
                     "Claim Liabilities",
                 ]:
                     worksheet.write(row, col, value, self.formats["currency"])
-                elif "%" in key:
+                elif "%" in str(key):
                     worksheet.write(row, col, value / 100, self.formats["percent"])
                 elif key == "Solvent":
                     format_to_use = self.formats["good"] if value == "Yes" else self.formats["bad"]
@@ -686,6 +697,7 @@ class ExcelReporter:
         Args:
             generator: Financial statement generator
         """
+        assert self.workbook is not None, "Workbook must be initialized"
         worksheet = self.workbook.add_worksheet("Pivot Data")
 
         # Prepare normalized data for pivot tables
@@ -767,14 +779,13 @@ class ExcelReporter:
         """
         if any(x in metric_name for x in ["revenue", "income", "profit"]):
             return "Income"
-        elif any(x in metric_name for x in ["asset", "equity", "collateral"]):
+        if any(x in metric_name for x in ["asset", "equity", "collateral"]):
             return "Balance Sheet"
-        elif any(x in metric_name for x in ["roe", "roa", "margin", "turnover"]):
+        if any(x in metric_name for x in ["roe", "roa", "margin", "turnover"]):
             return "Ratios"
-        elif any(x in metric_name for x in ["claim", "liability"]):
+        if any(x in metric_name for x in ["claim", "liability"]):
             return "Liabilities"
-        else:
-            return "Other"
+        return "Other"
 
     def _generate_with_openpyxl(
         self, generator: FinancialStatementGenerator, output_path: Path, title: Optional[str] = None
@@ -1008,9 +1019,8 @@ class ExcelReporter:
             column_letter = column[0].column_letter
             for cell in column:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
+                    max_length = max(max_length, len(str(cell.value)))
+                except (TypeError, AttributeError):
                     pass
             adjusted_width = min(max_length + 2, 30)
             ws.column_dimensions[column_letter].width = adjusted_width
@@ -1074,9 +1084,9 @@ class ExcelReporter:
 
     def generate_monte_carlo_report(
         self,
-        results: Any,
+        results: Any,  # TODO: Replace Any with MonteCarloResults when implemented  # pylint: disable=fixme
         output_file: str,
-        title: Optional[str] = None,  # TODO: Replace Any with MonteCarloResults when implemented
+        title: Optional[str] = None,
     ) -> Path:
         """Generate aggregated report from Monte Carlo simulations.
 

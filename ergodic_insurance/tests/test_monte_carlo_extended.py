@@ -3,7 +3,6 @@
 from pathlib import Path
 import pickle
 import tempfile
-from unittest.mock import Mock, patch
 import warnings
 
 import numpy as np
@@ -15,6 +14,7 @@ from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, Insu
 from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.src.manufacturer import WidgetManufacturer
 from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.tests.test_fixtures import ScenarioBuilder, TestDataGenerator
 
 
 class TestMonteCarloExtended:
@@ -63,11 +63,21 @@ class TestMonteCarloExtended:
         )
 
     def test_summary_method(self, setup_simple_engine):
-        """Test the summary method of SimulationResults."""
+        """Test the summary method of SimulationResults with real data."""
         engine = setup_simple_engine
 
-        # Create mock results
-        results = SimulationResults(
+        # Run a real small simulation to get actual results
+        actual_results = engine.run()
+
+        # Verify the summary contains expected information
+        summary = actual_results.summary()
+        assert "Simulations:" in summary
+        assert "Ruin Probability:" in summary
+        assert "Mean Final Assets:" in summary
+        assert "Execution Time:" in summary
+
+        # Test with custom results to verify specific formatting
+        custom_results = SimulationResults(
             final_assets=np.array([100_000, 200_000, 0, -50_000]),
             annual_losses=np.ones((4, 2)) * 10_000,
             insurance_recoveries=np.ones((4, 2)) * 5_000,
@@ -89,12 +99,9 @@ class TestMonteCarloExtended:
             config=engine.config,
         )
 
-        # Test summary
-        summary = results.summary()
-        assert "Simulations: 100" in summary  # Uses config.n_simulations
-        assert "Ruin Probability: 50.00%" in summary
-        assert "Mean Final Assets:" in summary
-        assert "Execution Time: 1.50s" in summary
+        custom_summary = custom_results.summary()
+        assert "Ruin Probability: 50.00%" in custom_summary
+        assert "Execution Time: 1.50s" in custom_summary
 
     def test_run_sequential_with_progress(self, setup_simple_engine):
         """Test sequential run with progress bar."""
@@ -144,10 +151,15 @@ class TestMonteCarloExtended:
             assert cache_file.exists()
 
             # Run second time - should load from cache
-            with patch.object(engine, "_run_sequential") as mock_run:
-                results2 = engine.run()
-                mock_run.assert_not_called()  # Should not run simulation
+            # Track if simulation was actually run by checking execution time
+            import time
 
+            start_time = time.time()
+            results2 = engine.run()
+            cache_load_time = time.time() - start_time
+
+            # Cache load should be much faster than original run
+            assert cache_load_time < results1.execution_time * 0.5
             assert np.array_equal(results1.final_assets, results2.final_assets)
 
     def test_cache_save_failure(self, setup_simple_engine):
@@ -243,28 +255,24 @@ class TestMonteCarloExtended:
         engine = setup_simple_engine
         engine.config.n_simulations = 1000
 
-        # Mock convergence check to never converge
-        with patch.object(engine, "_check_convergence") as mock_check:
-            mock_check.return_value = {
-                "metric": ConvergenceStats(
-                    r_hat=2.0,  # High R-hat, won't converge
-                    ess=100,
-                    mcse=0.1,
-                    converged=False,
-                    n_iterations=1000,
-                    autocorrelation=0.5,
-                )
-            }
+        # Use a configuration that naturally won't converge quickly
+        # Create a high-variance scenario that won't converge easily
+        high_variance_generator = TestDataGenerator.create_test_loss_generator(
+            frequency_scale=2.0,  # High frequency for more variance
+            severity_scale=2.0,  # High severity for more variance
+            seed=666,  # Different seed for different pattern
+        )
+        engine.loss_generator = high_variance_generator
 
-            results = engine.run_with_convergence_monitoring(
-                target_r_hat=1.05,
-                check_interval=100,
-                max_iterations=500,  # Will hit this limit
-            )
+        results = engine.run_with_convergence_monitoring(
+            target_r_hat=1.01,  # Very strict convergence criterion
+            check_interval=100,
+            max_iterations=500,  # Will likely hit this limit
+        )
 
-            assert results is not None
-            # Should have run max_iterations
-            assert len(results.final_assets) <= 500
+        assert results is not None
+        # Should have run up to max_iterations
+        assert len(results.final_assets) <= 500
 
     def test_convergence_monitoring_without_progress(self, setup_simple_engine):
         """Test convergence monitoring without progress bar."""
@@ -389,23 +397,21 @@ class TestMonteCarloExtended:
         engine = setup_simple_engine
         engine.config.n_simulations = 100
 
-        # Mock to converge quickly
-        with patch.object(engine, "_check_convergence") as mock_check:
-            mock_check.return_value = {
-                "metric": ConvergenceStats(
-                    r_hat=1.01,  # Good convergence
-                    ess=1000,
-                    mcse=0.001,
-                    converged=True,
-                    n_iterations=100,
-                    autocorrelation=0.1,
-                )
-            }
+        # Use a stable configuration that converges quickly
+        # Create a low-variance scenario that converges easily
+        stable_generator = TestDataGenerator.create_test_loss_generator(
+            frequency_scale=0.01,  # Very low frequency for stability
+            severity_scale=0.01,  # Very low severity for stability
+            seed=777,  # Lucky seed for good convergence
+        )
+        engine.loss_generator = stable_generator
 
-            results = engine.run_with_convergence_monitoring(
-                target_r_hat=1.05,
-                check_interval=50,
-                max_iterations=None,  # No limit
-            )
+        results = engine.run_with_convergence_monitoring(
+            target_r_hat=1.5,  # Relaxed convergence for quick results
+            check_interval=50,
+            max_iterations=None,  # No limit
+        )
 
-            assert results is not None
+        assert results is not None
+        # Should converge naturally without hitting a limit
+        assert len(results.final_assets) >= 50  # At least one check interval

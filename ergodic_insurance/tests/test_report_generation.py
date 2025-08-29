@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 import tempfile
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -106,7 +107,7 @@ class TestReportConfig:
         assert table_config.name == "test_table"
         assert table_config.caption == "Test Table"
         assert table_config.format == "markdown"
-        assert len(table_config.columns) == 3
+        assert table_config.columns is not None and len(table_config.columns) == 3
         assert table_config.precision == 2
 
     def test_create_section_config(self):
@@ -180,7 +181,7 @@ class TestTableGenerator:
         gen = TableGenerator()
         df = pd.DataFrame({"A": [1, 2, 3], "B": [4.123, 5.456, 6.789]})
 
-        table = gen.generate(df, caption="Test Table", format="markdown")
+        table = gen.generate(df, caption="Test Table", output_format="markdown")
         assert "Test Table" in table
         assert "|" in table  # Markdown table format
         assert "4.12" in table  # Check precision
@@ -190,7 +191,7 @@ class TestTableGenerator:
         gen = TableGenerator()
         df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
 
-        table = gen.generate(df, format="html")
+        table = gen.generate(df, output_format="html")
         assert "<table" in table or "<td>" in table
 
     def test_generate_with_column_selection(self):
@@ -364,7 +365,7 @@ class TestReportBuilder:
 
             assert path.exists()
             assert path.suffix == ".md"
-            content = path.read_text(encoding='utf-8')
+            content = path.read_text(encoding="utf-8")
             assert "Test Report" in content
 
     def test_save_html(self):
@@ -386,7 +387,7 @@ class TestReportBuilder:
 
             assert path.exists()
             assert path.suffix == ".html"
-            content = path.read_text(encoding='utf-8')
+            content = path.read_text(encoding="utf-8")
             assert "<html>" in content.lower()
             assert "Test Report" in content
 
@@ -467,7 +468,7 @@ class TestTechnicalReport:
 
     def test_generate_model_parameters_table(self):
         """Test model parameters table generation."""
-        results = {}
+        results: dict[str, Any] = {}
         parameters = {
             "financial": {"initial_assets": 10000000, "tax_rate": 0.25},
             "insurance": {"premium_rate": 0.03, "deductible": 50000},
@@ -629,7 +630,7 @@ class TestIntegration:
             assert path.exists()
 
             # Check content
-            content = path.read_text(encoding='utf-8')
+            content = path.read_text(encoding="utf-8")
             assert "Insurance Optimization Analysis" in content
             assert "Key Findings" in content
             assert "18.5%" in content or "0.185" in content
@@ -665,7 +666,7 @@ class TestIntegration:
             assert path.exists()
 
             # Check content
-            content = path.read_text(encoding='utf-8')
+            content = path.read_text(encoding="utf-8")
             assert "Technical Appendix" in content
             assert "Methodology" in content
 

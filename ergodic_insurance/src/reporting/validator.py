@@ -7,7 +7,7 @@ accuracy, and quality before generation.
 import logging
 from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -126,8 +126,11 @@ class ReportValidator:
             if section.subsections:
                 self._check_section_hierarchy(section.subsections, section.level)
 
-    def _validate_references(self):
-        """Validate all figure and table references."""
+    def _validate_references(self):  # pylint: disable=too-many-branches
+        """Validate all figure and table references.
+
+        Note: Multiple branches are necessary for comprehensive validation
+        of all figure/table references and their relationships."""
         # Collect all defined figures and tables
         defined_figures = set()
         defined_tables = set()
@@ -171,15 +174,15 @@ class ReportValidator:
         # Check for unused definitions
         unused_figures = defined_figures - referenced_figures
         if unused_figures:
-            for fig in unused_figures:
-                self.info.append(f"Defined but unreferenced figure: {fig}")
+            for fig_name in unused_figures:
+                self.info.append(f"Defined but unreferenced figure: {fig_name}")
 
         unused_tables = defined_tables - referenced_tables
         if unused_tables:
-            for table in unused_tables:
-                self.info.append(f"Defined but unreferenced table: {table}")
+            for table_name in unused_tables:
+                self.info.append(f"Defined but unreferenced table: {table_name}")
 
-    def _iter_sections(self, sections: List[SectionConfig]):
+    def _iter_sections(self, sections: List[SectionConfig]) -> Generator[SectionConfig, None, None]:
         """Iterate through all sections including subsections.
 
         Args:
@@ -209,7 +212,9 @@ class ReportValidator:
             for table in section.tables:
                 if isinstance(table.data_source, (str, Path)):
                     source_path = Path(table.data_source)
-                    if not source_path.exists() and not str(table.data_source).startswith("generate_"):
+                    if not source_path.exists() and not str(table.data_source).startswith(
+                        "generate_"
+                    ):
                         self.warnings.append(
                             f"Table data source not found: {table.data_source} (table: {table.name})"
                         )
@@ -252,20 +257,20 @@ class ReportValidator:
             section_titles = {s.title for s in self.config.sections}
             missing = required_sections - section_titles
             if missing:
-                for section in missing:
-                    self.warnings.append(f"Executive report missing section: {section}")
+                for missing_section in missing:
+                    self.warnings.append(f"Executive report missing section: {missing_section}")
 
         elif self.config.template == "technical":
             required_sections = {"Methodology", "Statistical Validation"}
             section_titles = {s.title for s in self.config.sections}
             missing = required_sections - section_titles
             if missing:
-                for section in missing:
-                    self.warnings.append(f"Technical report missing section: {section}")
+                for missing_section in missing:
+                    self.warnings.append(f"Technical report missing section: {missing_section}")
 
         # Check for empty sections
         for section in self._iter_sections(self.config.sections):
-            if (  # type: ignore[attr-defined]
+            if (
                 not section.content
                 and not section.figures
                 and not section.tables

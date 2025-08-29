@@ -160,6 +160,10 @@ class TestImportPatterns:
             for line in lines:
                 # Check for consistent import patterns
                 if "from ergodic_insurance" in line:
+                    # Allow test fixture imports from ergodic_insurance.tests
+                    if ".tests.test_fixtures" in line:
+                        continue  # Test fixtures are allowed to be imported directly
+
                     # Should use .src. pattern for module imports
                     # Allow both "from ergodic_insurance.src.module import ..." and
                     # "from ergodic_insurance.src import module"
