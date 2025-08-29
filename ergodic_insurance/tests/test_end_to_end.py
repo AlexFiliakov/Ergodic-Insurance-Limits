@@ -375,7 +375,7 @@ class TestDecisionFramework:
 
         # Initialize decision engine
         decision_engine = InsuranceDecisionEngine(
-            manufacturer=manufacturer, loss_distribution=loss_generator
+            manufacturer=manufacturer, loss_distribution=loss_generator  # type: ignore[arg-type]
         )
 
         # Define decision criteria as a dictionary

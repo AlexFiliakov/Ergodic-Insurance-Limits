@@ -70,26 +70,31 @@ class NumberFormatter:
             >>> formatter.format_currency(1234567.89, abbreviate=True)
             '$1.23M'
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         decimals = decimals if decimals is not None else self.decimal_places
 
-        if abbreviate and abs(value) >= 1_000_000_000:
+        # Convert to float for comparison and calculations
+        float_value = float(value)
+        abs_value = abs(float_value)
+
+        if abbreviate and abs_value >= 1_000_000_000:
             return f"{self.currency_symbol}{value/1_000_000_000:.{decimals}f}B"
-        elif abbreviate and abs(value) >= 1_000_000:
+        if abbreviate and abs_value >= 1_000_000:
             return f"{self.currency_symbol}{value/1_000_000:.{decimals}f}M"
-        elif abbreviate and abs(value) >= 1_000:
+        if abbreviate and abs_value >= 1_000:
             return f"{self.currency_symbol}{value/1_000:.{decimals}f}K"
-        else:
-            # Format with thousands separator
-            formatted = f"{value:,.{decimals}f}"
-            # Replace default separators with configured ones
-            if self.thousands_separator != ",":
-                formatted = formatted.replace(",", self.thousands_separator)
-            if self.decimal_separator != ".":
-                formatted = formatted.replace(".", self.decimal_separator)
-            return f"{self.currency_symbol}{formatted}"
+
+        # Format with thousands separator
+        formatted = f"{value:,.{decimals}f}"
+        # Replace default separators with configured ones
+        if self.thousands_separator != ",":
+            formatted = formatted.replace(",", self.thousands_separator)
+        if self.decimal_separator != ".":
+            formatted = formatted.replace(".", self.decimal_separator)
+        return f"{self.currency_symbol}{formatted}"
 
     def format_percentage(
         self,
@@ -114,7 +119,8 @@ class NumberFormatter:
             >>> formatter.format_percentage(12.34, multiply_by_100=False)
             '12.34%'
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         decimals = decimals if decimals is not None else 2
@@ -149,26 +155,27 @@ class NumberFormatter:
             >>> formatter.format_number(0.00001234, scientific=True)
             '1.23e-05'
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         decimals = decimals if decimals is not None else self.decimal_places
 
         if scientific and (abs(value) >= 1e6 or (abs(value) < 1e-3 and value != 0)):
             return f"{value:.{decimals}e}"
-        elif abbreviate and abs(value) >= 1_000_000_000:
+        if abbreviate and abs(value) >= 1_000_000_000:
             return f"{value/1_000_000_000:.{decimals}f}B"
-        elif abbreviate and abs(value) >= 1_000_000:
+        if abbreviate and abs(value) >= 1_000_000:
             return f"{value/1_000_000:.{decimals}f}M"
-        elif abbreviate and abs(value) >= 1_000:
+        if abbreviate and abs(value) >= 1_000:
             return f"{value/1_000:.{decimals}f}K"
-        else:
-            formatted = f"{value:,.{decimals}f}"
-            if self.thousands_separator != ",":
-                formatted = formatted.replace(",", self.thousands_separator)
-            if self.decimal_separator != ".":
-                formatted = formatted.replace(".", self.decimal_separator)
-            return formatted
+
+        formatted = f"{value:,.{decimals}f}"
+        if self.thousands_separator != ",":
+            formatted = formatted.replace(",", self.thousands_separator)
+        if self.decimal_separator != ".":
+            formatted = formatted.replace(".", self.decimal_separator)
+        return formatted
 
     def format_ratio(self, value: Union[float, int], decimals: int = 2) -> str:
         """Format a ratio value.
@@ -185,7 +192,8 @@ class NumberFormatter:
             >>> formatter.format_ratio(1.5)
             '1.50x'
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         return f"{value:.{decimals}f}x"
@@ -257,7 +265,8 @@ class ColorCoder:
             >>> coder.traffic_light(0.18, thresholds)
             '<span style="color: #28a745;">0.18</span>'
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         display_text = text if text is not None else str(value)
@@ -303,7 +312,8 @@ class ColorCoder:
             >>> coder.heatmap(50, 0, 100)
             '<span style="background-color: #42a5f5;">50</span>'
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         display_text = text if text is not None else str(value)
@@ -349,14 +359,15 @@ class ColorCoder:
         Returns:
             Formatted string with threshold-based coloring.
         """
-        if pd.isna(value):
+        # Handle None and NaN values
+        if value is None or (isinstance(value, float) and np.isnan(value)):
             return "-"
 
         display_text = text if text is not None else str(value)
         color = above_color if value >= threshold else below_color
         return self._apply_color(display_text, color)
 
-    def _apply_color(
+    def _apply_color(  # pylint: disable=too-many-return-statements
         self,
         text: str,
         color: str,
@@ -375,26 +386,22 @@ class ColorCoder:
         if self.output_format == "html":
             if is_background:
                 return f'<span style="background-color: {color}; padding: 2px 4px;">{text}</span>'
-            else:
-                return f'<span style="color: {color};">{text}</span>'
-        elif self.output_format == "latex":
+            return f'<span style="color: {color};">{text}</span>'
+        if self.output_format == "latex":
             # LaTeX requires color package
             if is_background:
                 return f"\\colorbox{{{color}}}{{{text}}}"
-            else:
-                return f"\\textcolor{{{color}}}{{{text}}}"
-        elif self.output_format == "terminal":
+            return f"\\textcolor{{{color}}}{{{text}}}"
+        if self.output_format == "terminal":
             # Use Unicode symbols for terminal
             if "good" in str(color) or "#28a745" in str(color):
                 return f"✓ {text}"
-            elif "warning" in str(color) or "#ffc107" in str(color):
+            if "warning" in str(color) or "#ffc107" in str(color):
                 return f"⚠ {text}"
-            elif "bad" in str(color) or "#dc3545" in str(color):
+            if "bad" in str(color) or "#dc3545" in str(color):
                 return f"✗ {text}"
-            else:
-                return text
-        else:
             return text
+        return text
 
 
 class TableFormatter:
@@ -465,47 +472,45 @@ class TableFormatter:
                 fmt_type = fmt.get("type", "number")
 
                 if fmt_type == "currency":
+                    decimals = fmt.get("decimals")
+                    abbreviate = fmt.get("abbreviate", False)
                     formatted_df[col] = formatted_df[col].apply(
-                        lambda x: self.number_formatter.format_currency(
-                            x,
-                            decimals=fmt.get("decimals"),
-                            abbreviate=fmt.get("abbreviate", False),
+                        lambda x, d=decimals, a=abbreviate: self.number_formatter.format_currency(
+                            x, decimals=d, abbreviate=a
                         )
                     )
                 elif fmt_type == "percentage":
+                    decimals = fmt.get("decimals")
+                    multiply_by_100 = fmt.get("multiply_by_100", True)
                     formatted_df[col] = formatted_df[col].apply(
-                        lambda x: self.number_formatter.format_percentage(
-                            x,
-                            decimals=fmt.get("decimals"),
-                            multiply_by_100=fmt.get("multiply_by_100", True),
+                        lambda x, d=decimals, m=multiply_by_100: self.number_formatter.format_percentage(
+                            x, decimals=d, multiply_by_100=m
                         )
                     )
                 elif fmt_type == "number":
+                    decimals = fmt.get("decimals")
+                    scientific = fmt.get("scientific", False)
+                    abbreviate = fmt.get("abbreviate", False)
                     formatted_df[col] = formatted_df[col].apply(
-                        lambda x: self.number_formatter.format_number(
-                            x,
-                            decimals=fmt.get("decimals"),
-                            scientific=fmt.get("scientific", False),
-                            abbreviate=fmt.get("abbreviate", False),
+                        lambda x, d=decimals, s=scientific, a=abbreviate: self.number_formatter.format_number(
+                            x, decimals=d, scientific=s, abbreviate=a
                         )
                     )
                 elif fmt_type == "ratio":
+                    decimals = fmt.get("decimals", 2)
                     formatted_df[col] = formatted_df[col].apply(
-                        lambda x: self.number_formatter.format_ratio(
-                            x,
-                            decimals=fmt.get("decimals", 2),
-                        )
+                        lambda x, d=decimals: self.number_formatter.format_ratio(x, decimals=d)
                     )
                 elif fmt_type == "traffic_light":
                     thresholds = fmt.get("thresholds", {})
                     formatted_df[col] = formatted_df[col].apply(
-                        lambda x: self.color_coder.traffic_light(x, thresholds)
+                        lambda x, t=thresholds: self.color_coder.traffic_light(x, t)
                     )
                 elif fmt_type == "heatmap":
                     min_val = fmt.get("min", formatted_df[col].min())
                     max_val = fmt.get("max", formatted_df[col].max())
                     formatted_df[col] = formatted_df[col].apply(
-                        lambda x: self.color_coder.heatmap(x, min_val, max_val)
+                        lambda x, mi=min_val, ma=max_val: self.color_coder.heatmap(x, mi, ma)
                     )
 
         return formatted_df
@@ -556,30 +561,30 @@ class TableFormatter:
         self,
         table_str: str,
         footnotes: List[str],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Add footnotes to a table string.
 
         Args:
             table_str: Table string.
             footnotes: List of footnote texts.
-            format: Output format (uses instance format if None).
+            output_format: Output format (uses instance format if None).
 
         Returns:
             Table with footnotes added.
         """
-        format = format or self.output_format
+        output_format = output_format or self.output_format
 
         if not footnotes:
             return table_str
 
         footnote_str = ""
-        if format == "html":
+        if output_format == "html":
             footnote_str = "<div class='footnotes'><small>"
             for i, note in enumerate(footnotes, 1):
                 footnote_str += f"<sup>{i}</sup> {note}<br/>"
             footnote_str += "</small></div>"
-        elif format == "latex":
+        elif output_format == "latex":
             for i, note in enumerate(footnotes, 1):
                 footnote_str += f"\\footnote{{{note}}}"
         else:
@@ -592,7 +597,7 @@ class TableFormatter:
 
 def format_for_export(
     df: pd.DataFrame,
-    format: Literal["csv", "excel", "latex", "html", "markdown"],
+    export_format: Literal["csv", "excel", "latex", "html", "markdown"],
     include_index: bool = False,
     **kwargs,
 ) -> Union[str, None]:
@@ -600,7 +605,7 @@ def format_for_export(
 
     Args:
         df: DataFrame to export.
-        format: Export format.
+        export_format: Export format.
         include_index: Whether to include row index.
         **kwargs: Additional format-specific arguments.
 
@@ -612,15 +617,15 @@ def format_for_export(
         >>> csv_str = format_for_export(df, 'csv')
         >>> latex_str = format_for_export(df, 'latex', caption='My Table')
     """
-    if format == "csv":
-        return df.to_csv(index=include_index, **kwargs)
-    elif format == "excel":
+    if export_format == "csv":
+        return str(df.to_csv(index=include_index, **kwargs))
+    if export_format == "excel":
         # Excel export requires file path
         file_path = kwargs.get("file_path")
         if file_path:
             df.to_excel(file_path, index=include_index, **kwargs)
         return None
-    elif format == "latex":
+    if export_format == "latex":
         caption = kwargs.pop("caption", None)
         label = kwargs.pop("label", None)
         latex_str = df.to_latex(index=include_index, **kwargs)
@@ -634,9 +639,9 @@ def format_for_export(
                 table_str += f"\\label{{{label}}}\n"
             table_str += latex_str
             table_str += "\\end{table}"
-            return table_str
-        return latex_str
-    elif format == "html":
+            return str(table_str)
+        return str(latex_str)
+    if export_format == "html":
         table_id = kwargs.pop("table_id", None)
         classes = kwargs.pop("classes", None)
         html_str = df.to_html(index=include_index, **kwargs)
@@ -646,8 +651,7 @@ def format_for_export(
         if classes:
             html_str = html_str.replace("<table", f'<table class="{classes}"')
 
-        return html_str
-    elif format == "markdown":
-        return df.to_markdown(index=include_index, **kwargs)
-    else:
-        raise ValueError(f"Unsupported format: {format}")
+        return str(html_str)
+    if export_format == "markdown":
+        return str(df.to_markdown(index=include_index, **kwargs))
+    raise ValueError(f"Unsupported format: {export_format}")

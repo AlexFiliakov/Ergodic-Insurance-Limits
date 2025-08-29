@@ -575,7 +575,7 @@ class TestFigureFactory:
         fig, axes = factory.create_subplots(rows=2, cols=3)
 
         assert fig is not None
-        assert axes.shape == (2, 3)
+        assert hasattr(axes, "shape") and axes.shape == (2, 3)
         assert len(fig.axes) == 6
 
         plt.close(fig)

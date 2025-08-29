@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 import pickle
 import shutil
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from jinja2 import Environment, FileSystemLoader, Template
 import matplotlib.pyplot as plt
@@ -57,12 +57,13 @@ class ReportBuilder(ABC):
         else:
             # Make cache_dir relative to output_dir
             self.cache_dir = config.output_dir / "cache"
-        
+
         # Ensure directories exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         config.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         from ..reporting.cache_manager import CacheConfig
+
         cache_config = CacheConfig(cache_dir=self.cache_dir)
         self.cache_manager = CacheManager(cache_config)
         self.table_generator = TableGenerator()
@@ -89,7 +90,7 @@ class ReportBuilder(ABC):
         Returns:
             Path to generated report file.
         """
-        pass
+        raise NotImplementedError("Generate method must be implemented")
 
     def build_section(self, section: SectionConfig) -> str:
         """Build a report section.
@@ -152,8 +153,10 @@ class ReportBuilder(ABC):
             template_path = self.template_dir / content_ref
             if template_path.exists():
                 template = self.env.get_template(content_ref)
-                return template.render(  # type: ignore[no-any-return]
-                    metadata=self.config.metadata, figures=self.figures, tables=self.tables
+                return str(
+                    template.render(
+                        metadata=self.config.metadata, figures=self.figures, tables=self.tables
+                    )
                 )
 
         # Check if it's a file path
@@ -195,7 +198,7 @@ class ReportBuilder(ABC):
         except ValueError:
             # If not relative to output_dir, use absolute path
             rel_path = fig_path
-        
+
         return f"![{fig_config.caption}]({rel_path.as_posix()})\n*Figure: {fig_config.caption}*"
 
     def _generate_figure(self, fig_config: FigureConfig) -> Path:
@@ -219,7 +222,7 @@ class ReportBuilder(ABC):
                 return dest_path
 
             # If it's a generation function name
-            elif str(source).startswith("generate_"):
+            if str(source).startswith("generate_"):
                 func_name = str(source)
                 if hasattr(self, func_name):
                     fig = getattr(self, func_name)(fig_config)
@@ -258,7 +261,7 @@ class ReportBuilder(ABC):
             caption=table_config.caption,
             columns=table_config.columns,
             index=table_config.index,
-            format=table_config.format,
+            output_format=table_config.format,
             precision=table_config.precision,
             style=table_config.style,
         )
@@ -285,16 +288,16 @@ class ReportBuilder(ABC):
             if source_path.exists():
                 if source_path.suffix == ".csv":
                     return pd.read_csv(source_path)
-                elif source_path.suffix == ".parquet":
+                if source_path.suffix == ".parquet":
                     return pd.read_parquet(source_path)
-                elif source_path.suffix == ".json":
+                if source_path.suffix == ".json":
                     return pd.read_json(source_path)
 
             # If it's a generation function name
-            elif str(data_source).startswith("generate_"):
+            if str(data_source).startswith("generate_"):
                 func_name = str(data_source)
                 if hasattr(self, func_name):
-                    return getattr(self, func_name)()  # type: ignore[no-any-return]
+                    return cast(pd.DataFrame, getattr(self, func_name)())
 
         # Fallback: create sample data
         return pd.DataFrame({"Column A": [1, 2, 3], "Column B": [4, 5, 6], "Column C": [7, 8, 9]})
@@ -369,11 +372,11 @@ class ReportBuilder(ABC):
         """
         return ""
 
-    def save(self, format: str = "markdown") -> Path:
+    def save(self, output_format: str = "markdown") -> Path:
         """Save report in specified format.
 
         Args:
-            format: Output format (markdown, html, pdf).
+            output_format: Output format (markdown, html, pdf).
 
         Returns:
             Path to saved report.
@@ -385,13 +388,13 @@ class ReportBuilder(ABC):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = f"{self.config.metadata.title.replace(' ', '_')}_{timestamp}"
 
-        if format == "markdown":
+        if output_format == "markdown":
             output_path = self.config.output_dir / f"{base_name}.md"
             # Write with explicit UTF-8 encoding and handle errors
-            with open(output_path, 'w', encoding='utf-8', errors='replace') as f:
+            with open(output_path, "w", encoding="utf-8", errors="replace") as f:
                 f.write(content)
 
-        elif format == "html":
+        elif output_format == "html":
             import markdown2
 
             html_content = markdown2.markdown(content, extras=["tables", "fenced-code-blocks"])
@@ -422,10 +425,10 @@ class ReportBuilder(ABC):
 </body>
 </html>"""
             # Write with explicit UTF-8 encoding and handle errors
-            with open(output_path, 'w', encoding='utf-8', errors='replace') as f:
+            with open(output_path, "w", encoding="utf-8", errors="replace") as f:
                 f.write(html_template)
 
-        elif format == "pdf":
+        elif output_format == "pdf":
             # First convert to HTML, then to PDF
             import markdown2
 
@@ -433,7 +436,7 @@ class ReportBuilder(ABC):
 
             # Create temporary HTML file
             temp_html = self.config.output_dir / f"{base_name}_temp.html"
-            with open(temp_html, 'w', encoding='utf-8', errors='replace') as f:
+            with open(temp_html, "w", encoding="utf-8", errors="replace") as f:
                 f.write(html_content)
 
             # Convert to PDF using weasyprint

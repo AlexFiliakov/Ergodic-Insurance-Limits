@@ -60,14 +60,23 @@ class TableGenerator:
             "excel": "excel",
         }
 
+        # Map TableGenerator formats to ColorCoder/TableFormatter formats
+        formatter_format: Literal["html", "latex", "terminal", "none"]
+        if default_format == "html":
+            formatter_format = "html"
+        elif default_format == "latex":
+            formatter_format = "latex"
+        else:
+            formatter_format = "none"  # Default for markdown, grid, csv, excel
+
         # Initialize formatters
         self.number_formatter = NumberFormatter(
             currency_symbol=currency_symbol,
             decimal_places=precision,
         )
-        self.color_coder = ColorCoder(output_format=default_format)
+        self.color_coder = ColorCoder(output_format=formatter_format)
         self.table_formatter = TableFormatter(
-            output_format=default_format,
+            output_format=formatter_format,
             currency_symbol=currency_symbol,
             decimal_places=precision,
         )
@@ -78,7 +87,7 @@ class TableGenerator:
         caption: str = "",
         columns: Optional[List[str]] = None,
         index: bool = False,
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
         precision: Optional[int] = None,
         style: Optional[Dict[str, Any]] = None,
     ) -> str:
@@ -89,7 +98,7 @@ class TableGenerator:
             caption: Table caption.
             columns: Columns to include (None for all).
             index: Whether to include row index.
-            format: Output format (uses default if None).
+            output_format: Output format (uses default if None).
             precision: Decimal precision (uses default if None).
             style: Additional styling options.
 
@@ -116,7 +125,7 @@ class TableGenerator:
             df = self._apply_style(df, style)
 
         # Generate table in specified format
-        format_key = format or self.default_format
+        format_key = output_format or self.default_format
         table_format = self._format_map.get(format_key, "pipe")
 
         # Generate base table
@@ -135,14 +144,17 @@ class TableGenerator:
         return table  # type: ignore[no-any-return]
 
     def generate_summary_statistics(
-        self, df: pd.DataFrame, metrics: Optional[List[str]] = None, format: Optional[str] = None
+        self,
+        df: pd.DataFrame,
+        metrics: Optional[List[str]] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Generate summary statistics table.
 
         Args:
             df: Input DataFrame.
             metrics: List of metrics to compute.
-            format: Output format.
+            output_format: Output format.
 
         Returns:
             Formatted summary statistics table.
@@ -156,26 +168,28 @@ class TableGenerator:
         available_metrics = [m for m in metrics if m in summary.index]
         summary = summary.loc[available_metrics]
 
-        return self.generate(summary.T, caption="Summary Statistics", index=True, format=format)
+        return self.generate(
+            summary.T, caption="Summary Statistics", index=True, output_format=output_format
+        )
 
     def generate_comparison_table(
         self,
         data: Dict[str, pd.Series],
         caption: str = "Comparison Table",
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Generate comparison table from multiple series.
 
         Args:
             data: Dictionary mapping names to series.
             caption: Table caption.
-            format: Output format.
+            output_format: Output format.
 
         Returns:
             Formatted comparison table.
         """
         df = pd.DataFrame(data)
-        return self.generate(df, caption=caption, format=format, index=True)
+        return self.generate(df, caption=caption, output_format=output_format, index=True)
 
     def generate_decision_matrix(
         self,
@@ -183,7 +197,7 @@ class TableGenerator:
         criteria: List[str],
         scores: np.ndarray,
         weights: Optional[List[float]] = None,
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Generate a decision matrix table.
 
@@ -192,7 +206,7 @@ class TableGenerator:
             criteria: List of criteria names.
             scores: Score matrix (alternatives x criteria).
             weights: Optional criteria weights.
-            format: Output format.
+            output_format: Output format.
 
         Returns:
             Formatted decision matrix.
@@ -205,7 +219,7 @@ class TableGenerator:
             df["Weighted Total"] = weighted_scores.sum(axis=1)
             df = df.round(self.precision)
 
-        return self.generate(df, caption="Decision Matrix", index=True, format=format)
+        return self.generate(df, caption="Decision Matrix", index=True, output_format=output_format)
 
     def _to_dataframe(self, data: Union[pd.DataFrame, Dict, List]) -> pd.DataFrame:
         """Convert various data types to DataFrame.
@@ -218,12 +232,11 @@ class TableGenerator:
         """
         if isinstance(data, pd.DataFrame):
             return data.copy()
-        elif isinstance(data, dict):
+        if isinstance(data, dict):
             return pd.DataFrame(data)
-        elif isinstance(data, list):
+        if isinstance(data, list):
             return pd.DataFrame(data)
-        else:
-            raise ValueError(f"Unsupported data type: {type(data)}")
+        raise ValueError(f"Unsupported data type: {type(data)}")
 
     def _format_precision(self, df: pd.DataFrame, precision: int) -> pd.DataFrame:
         """Format numeric columns to specified precision.
@@ -270,25 +283,24 @@ class TableGenerator:
 
         return df
 
-    def _add_caption(self, table: str, caption: str, format: str) -> str:
+    def _add_caption(self, table: str, caption: str, output_format: str) -> str:
         """Add caption to table based on format.
 
         Args:
             table: Table string.
             caption: Caption text.
-            format: Table format.
+            output_format: Table format.
 
         Returns:
             Table with caption.
         """
-        if format == "markdown":
+        if output_format == "markdown":
             return f"**Table: {caption}**\n\n{table}"
-        elif format == "html":
+        if output_format == "html":
             return f"<table>\n<caption>{caption}</caption>\n{table}\n</table>"
-        elif format == "latex":
+        if output_format == "latex":
             return f"\\begin{{table}}[htbp]\n\\caption{{{caption}}}\n{table}\n\\end{{table}}"
-        else:
-            return f"{caption}\n{'-' * len(caption)}\n{table}"
+        return f"{caption}\n{'-' * len(caption)}\n{table}"
 
     # Executive Table Methods
 
@@ -296,7 +308,7 @@ class TableGenerator:
         self,
         company_sizes: List[float],
         optimal_limits: Dict[float, Dict[str, float]],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
         include_percentages: bool = True,
     ) -> str:
         """Generate Table 1: Optimal Insurance Limits by Company Size.
@@ -308,7 +320,7 @@ class TableGenerator:
         Args:
             company_sizes: List of company asset sizes in dollars.
             optimal_limits: Dict mapping size to limits structure.
-            format: Output format (uses default if None).
+            output_format: Output format (uses default if None).
             include_percentages: Whether to include % of assets columns.
 
         Returns:
@@ -360,14 +372,14 @@ class TableGenerator:
         return self.generate(
             df,
             caption="Optimal Insurance Limits by Company Size",
-            format=format,
+            output_format=output_format,
         )
 
     def generate_quick_reference_matrix(
         self,
         characteristics: List[str],
         recommendations: Dict[str, Dict[str, Any]],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
         use_traffic_lights: bool = True,
     ) -> str:
         """Generate Table 2: Quick Reference Decision Matrix.
@@ -379,7 +391,7 @@ class TableGenerator:
         Args:
             characteristics: List of company characteristic names.
             recommendations: Dict mapping characteristics to recommendations.
-            format: Output format.
+            output_format: Output format.
             use_traffic_lights: Whether to apply traffic light coloring.
 
         Returns:
@@ -424,7 +436,7 @@ class TableGenerator:
         return self.generate(
             df,
             caption="Quick Reference - Insurance Decision Matrix",
-            format=format,
+            output_format=output_format,
         )
 
     # Technical Table Methods
@@ -432,8 +444,8 @@ class TableGenerator:
     def generate_parameter_grid(
         self,
         parameters: Dict[str, Dict[str, Any]],
-        scenarios: List[str] = ["Baseline", "Conservative", "Aggressive"],
-        format: Optional[str] = None,
+        scenarios: Optional[List[str]] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Generate Table A1: Complete Parameter Grid.
 
@@ -443,7 +455,7 @@ class TableGenerator:
         Args:
             parameters: Dict of parameter categories and values.
             scenarios: List of scenario names.
-            format: Output format.
+            output_format: Output format.
 
         Returns:
             Formatted parameter grid table.
@@ -456,6 +468,9 @@ class TableGenerator:
             ... }
             >>> table = gen.generate_parameter_grid(params)
         """
+        if scenarios is None:
+            scenarios = ["Baseline", "Conservative", "Aggressive"]
+
         rows = []
         for category, params in parameters.items():
             for param_name, values in params.items():
@@ -489,14 +504,14 @@ class TableGenerator:
         return self.generate(
             df,
             caption="Complete Parameter Grid - All Scenarios",
-            format=format,
+            output_format=output_format,
         )
 
     def generate_loss_distribution_params(
         self,
         loss_types: List[str],
         distribution_params: Dict[str, Dict[str, Any]],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
         include_correlations: bool = True,
     ) -> str:
         """Generate Table A2: Loss Distribution Parameters.
@@ -508,7 +523,7 @@ class TableGenerator:
         Args:
             loss_types: List of loss type names.
             distribution_params: Parameters for each loss type.
-            format: Output format.
+            output_format: Output format.
             include_correlations: Whether to include correlation matrix.
 
         Returns:
@@ -544,29 +559,26 @@ class TableGenerator:
                 for pair, value in corr_data.items():
                     corr_lines.append(f"{pair}: {value}")
                 corr_note += "\n".join(corr_lines)
-            else:
-                # If it's already a matrix format
-                corr_df = pd.DataFrame(corr_data)
-                corr_note += corr_df.to_string()
+            # Note: Removed unreachable else branch since correlations is always a dict
 
             base_table = self.generate(
                 df,
                 caption="Loss Distribution Parameters",
-                format=format,
+                output_format=output_format,
             )
             return base_table + corr_note
 
         return self.generate(
             df,
             caption="Loss Distribution Parameters",
-            format=format,
+            output_format=output_format,
         )
 
     def generate_insurance_pricing_grid(
         self,
         layers: List[Tuple[float, float]],
         pricing_params: Dict[Tuple[float, float], Dict[str, float]],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Generate Table A3: Insurance Pricing Grid.
 
@@ -576,7 +588,7 @@ class TableGenerator:
         Args:
             layers: List of (attachment, limit) tuples.
             pricing_params: Pricing parameters for each layer.
-            format: Output format.
+            output_format: Output format.
 
         Returns:
             Formatted insurance pricing grid.
@@ -611,13 +623,13 @@ class TableGenerator:
         return self.generate(
             df,
             caption="Insurance Layer Pricing Grid",
-            format=format,
+            output_format=output_format,
         )
 
     def generate_statistical_validation(
         self,
         metrics: Dict[str, Dict[str, float]],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
         include_thresholds: bool = True,
     ) -> str:
         """Generate Table B1: Statistical Validation Metrics.
@@ -628,7 +640,7 @@ class TableGenerator:
 
         Args:
             metrics: Dictionary of metric categories and values.
-            format: Output format.
+            output_format: Output format.
             include_thresholds: Whether to include pass/fail thresholds.
 
         Returns:
@@ -674,14 +686,14 @@ class TableGenerator:
         return self.generate(
             df,
             caption="Statistical Validation Metrics",
-            format=format,
+            output_format=output_format,
         )
 
     def generate_comprehensive_results(
         self,
         results: List[Dict[str, Any]],
         ranking_metric: str = "roe",
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
         top_n: Optional[int] = None,
     ) -> str:
         """Generate Table C1: Comprehensive Optimization Results.
@@ -692,7 +704,7 @@ class TableGenerator:
         Args:
             results: List of result dictionaries from optimization.
             ranking_metric: Metric to use for ranking.
-            format: Output format.
+            output_format: Output format.
             top_n: Show only top N results (None for all).
 
         Returns:
@@ -711,9 +723,9 @@ class TableGenerator:
             df = df.head(top_n)
 
         # Format columns appropriately
-        formatted_rows = []
+        formatted_rows: List[Dict[str, Union[int, str]]] = []
         for _, row in df.iterrows():
-            formatted_row = {}
+            formatted_row: Dict[str, Union[int, str]] = {}
 
             # Add rank
             formatted_row["Rank"] = len(formatted_rows) + 1
@@ -758,13 +770,13 @@ class TableGenerator:
         return self.generate(
             result_df,
             caption=f"Comprehensive Optimization Results (Ranked by {ranking_metric})",
-            format=format,
+            output_format=output_format,
         )
 
     def generate_walk_forward_validation(
         self,
         validation_results: List[Dict[str, Any]],
-        format: Optional[str] = None,
+        output_format: Optional[str] = None,
     ) -> str:
         """Generate Table C2: Walk-Forward Validation Results.
 
@@ -773,7 +785,7 @@ class TableGenerator:
 
         Args:
             validation_results: List of validation period results.
-            format: Output format.
+            output_format: Output format.
 
         Returns:
             Formatted walk-forward validation table.
@@ -823,14 +835,14 @@ class TableGenerator:
         return self.generate(
             df,
             caption="Walk-Forward Validation Results",
-            format=format,
+            output_format=output_format,
         )
 
     def export_to_file(
         self,
         df: pd.DataFrame,
         file_path: str,
-        format: Literal["csv", "excel", "latex", "html"],
+        output_format: Literal["csv", "excel", "latex", "html"],
         **kwargs,
     ) -> None:
         """Export DataFrame to file in specified format.
@@ -838,21 +850,23 @@ class TableGenerator:
         Args:
             df: DataFrame to export.
             file_path: Path to save file.
-            format: Export format.
+            output_format: Export format.
             **kwargs: Additional format-specific arguments.
         """
-        if format == "excel":
+        if output_format == "excel":
             df.to_excel(file_path, index=False, **kwargs)
-        elif format == "csv":
+        elif output_format == "csv":
             df.to_csv(file_path, index=False, **kwargs)
-        elif format == "latex":
+        elif output_format == "latex":
             latex_str = format_for_export(df, "latex", **kwargs)
-            Path(file_path).write_text(latex_str)
-        elif format == "html":
+            if latex_str is not None:
+                Path(file_path).write_text(latex_str)
+        elif output_format == "html":
             html_str = format_for_export(df, "html", **kwargs)
-            Path(file_path).write_text(html_str)
+            if html_str is not None:
+                Path(file_path).write_text(html_str)
         else:
-            raise ValueError(f"Unsupported export format: {format}")
+            raise ValueError(f"Unsupported export format: {output_format}")
 
 
 def create_performance_table(results: Dict[str, Any]) -> str:
@@ -887,7 +901,7 @@ def create_performance_table(results: Dict[str, Any]) -> str:
         }
     )
 
-    return gen.generate(metrics_df, caption="Performance Metrics", format="markdown")
+    return gen.generate(metrics_df, caption="Performance Metrics", output_format="markdown")
 
 
 def create_parameter_table(params: Dict[str, Any]) -> str:
@@ -911,7 +925,7 @@ def create_parameter_table(params: Dict[str, Any]) -> str:
             flat_params.append({"Category": "General", "Parameter": category, "Value": values})
 
     df = pd.DataFrame(flat_params)
-    return gen.generate(df, caption="Model Parameters", format="markdown")
+    return gen.generate(df, caption="Model Parameters", output_format="markdown")
 
 
 def create_sensitivity_table(
@@ -945,4 +959,4 @@ def create_sensitivity_table(
             )
 
     df = pd.DataFrame(rows)
-    return gen.generate(df, caption="Sensitivity Analysis", format="markdown")
+    return gen.generate(df, caption="Sensitivity Analysis", output_format="markdown")

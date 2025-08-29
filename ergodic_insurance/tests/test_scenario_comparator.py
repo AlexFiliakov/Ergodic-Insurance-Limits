@@ -4,6 +4,7 @@ This module contains comprehensive tests for the scenario comparator
 and comparison visualization functionality.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import matplotlib.pyplot as plt
@@ -110,6 +111,7 @@ class TestScenarioComparator:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # pylint: disable=attribute-defined-outside-init
         self.comparator = ScenarioComparator()
 
         # Create sample results
@@ -251,12 +253,12 @@ class TestScenarioComparator:
         assert "scenario2" in diffs
         assert diffs["scenario2"]["param1"]["absolute"] == -20
         assert diffs["scenario2"]["param1"]["percentage"] == -20.0
-        assert diffs["scenario2"]["param3"]["changed"] == True
+        assert diffs["scenario2"]["param3"]["changed"] is True
         assert diffs["scenario2"]["param3"]["value"] == "xyz"
 
     def test_perform_statistical_tests(self):
         """Test statistical analysis of metrics."""
-        metric_data = {
+        metric_data: dict[str, dict[str, float]] = {
             "metric1": {"s1": 10, "s2": 20, "s3": 15, "s4": 25},
             "metric2": {"s1": 0.1, "s2": 0.2, "s3": 0.15},
         }
@@ -375,7 +377,7 @@ class TestScenarioComparator:
     def test_edge_cases(self):
         """Test edge cases and error conditions."""
         # Empty results
-        empty_results = {}
+        empty_results: dict[str, Any] = {}
         comparison = self.comparator.compare_scenarios(empty_results)
         assert comparison.scenarios == []
 

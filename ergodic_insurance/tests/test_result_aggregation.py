@@ -513,7 +513,7 @@ class TestQuantileCalculator:
         approx = calculator.streaming_quantiles(data, buffer_size=1000)
 
         # Check approximation quality
-        for key in exact:
+        for key in exact:  # pylint: disable=consider-using-dict-items
             # Use absolute tolerance for values close to zero
             if abs(exact[key]) < 0.1:
                 assert abs(exact[key] - approx[key]) < 0.2

@@ -79,8 +79,8 @@ class TechnicalReport(ReportBuilder):
 
         # Generate report in all requested formats
         output_paths = []
-        for format in self.config.output_formats:
-            path = self.save(format)
+        for output_format in self.config.output_formats:
+            path = self.save(output_format)
             output_paths.append(path)
 
         logger.info(f"Technical report generated: {output_paths}")
@@ -92,7 +92,7 @@ class TechnicalReport(ReportBuilder):
         Returns:
             Dictionary of validation metrics.
         """
-        metrics = {}
+        metrics: Dict[str, Any] = {}
 
         # Convergence metrics
         if "trajectories" in self.results:
@@ -100,9 +100,11 @@ class TechnicalReport(ReportBuilder):
             diagnostics = ConvergenceDiagnostics(trajectories)
 
             # Compute various convergence diagnostics
-            metrics["gelman_rubin"] = diagnostics.calculate_r_hat(trajectories)  # type: ignore[attr-defined]
-            metrics["effective_sample_size"] = diagnostics.calculate_ess(trajectories[0])  # type: ignore[attr-defined]
-            metrics["autocorrelation"] = diagnostics._calculate_autocorrelation(trajectories[0], 50).mean()  # type: ignore[attr-defined]
+            metrics["gelman_rubin"] = diagnostics.calculate_r_hat(trajectories)
+            metrics["effective_sample_size"] = diagnostics.calculate_ess(trajectories[0])
+            metrics["autocorrelation"] = diagnostics._calculate_autocorrelation(
+                trajectories[0], 50
+            ).mean()
             metrics["batch_means_test"] = 0.0  # Placeholder for Geweke statistic
 
         # Statistical tests
@@ -110,15 +112,18 @@ class TechnicalReport(ReportBuilder):
             losses = self.results["simulated_losses"]
 
             # Basic statistical tests using scipy
-            from scipy import stats
 
             # Perform normality test on log-transformed losses
             if np.all(losses > 0):
                 log_losses = np.log(losses)
-                ad_stat, ad_pval = stats.anderson(log_losses, dist="norm"), 0.05  # Simplified
+                ad_result = stats.anderson(log_losses, dist="norm")
                 ks_stat, ks_pval = stats.kstest(log_losses, "norm")
 
-                metrics["anderson_darling"] = {"statistic": ad_stat, "p_value": ad_pval}
+                # Anderson test returns a result object with statistic and critical values
+                # We use the first critical value (15% significance) as a simplified p-value proxy
+                ad_pval = 0.15 if ad_result.statistic < ad_result.critical_values[0] else 0.01
+
+                metrics["anderson_darling"] = {"statistic": ad_result.statistic, "p_value": ad_pval}
                 metrics["kolmogorov_smirnov"] = {"statistic": ks_stat, "p_value": ks_pval}
 
         # Model validation

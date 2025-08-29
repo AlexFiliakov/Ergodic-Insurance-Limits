@@ -4,6 +4,7 @@ This module tests the technical visualization functions including convergence
 diagnostics, loss distribution validation, and Monte Carlo convergence analysis.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from matplotlib.figure import Figure
@@ -653,7 +654,7 @@ class TestPathDependentWealth:
         assert isinstance(fig, Figure)
         ax = fig.axes[0]
         # Check x-axis reflects custom time points
-        x_data = ax.lines[0].get_xdata() if ax.lines else []
+        x_data: Any = ax.lines[0].get_xdata() if ax.lines else []
 
         plt.close(fig)
 
@@ -742,22 +743,22 @@ class TestCorrelationStructure:
 
         assert isinstance(fig, Figure)
         plt.close(fig)
-    
+
     def test_correlation_structure_two_variables(self):
         """Test correlation structure with exactly 2 variables (edge case for spearmanr)."""
         np.random.seed(42)
         from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
-        
+
         # Test data with exactly 2 variables
         data = {"risk": np.random.randn(100, 2)}
-        
+
         # Test with spearman (which returns scalar for 2 variables)
         fig = plot_correlation_structure(
             data, correlation_type="spearman", title="Test Spearman 2-var", figsize=(12, 8)
         )
         assert isinstance(fig, Figure)
         plt.close(fig)
-        
+
         # Test with kendall as well
         fig = plot_correlation_structure(
             data, correlation_type="kendall", title="Test Kendall 2-var", figsize=(12, 8)
@@ -775,27 +776,27 @@ class TestPremiumDecomposition:
         premium_components = {
             "Small": {
                 "Primary": {
-                    "expected_loss": 100000,
-                    "volatility_load": 20000,
-                    "tail_load": 15000,
-                    "expense_load": 10000,
-                    "profit_margin": 5000,
+                    "expected_loss": 100000.0,
+                    "volatility_load": 20000.0,
+                    "tail_load": 15000.0,
+                    "expense_load": 10000.0,
+                    "profit_margin": 5000.0,
                 },
                 "Excess": {
-                    "expected_loss": 50000,
-                    "volatility_load": 10000,
-                    "tail_load": 8000,
-                    "expense_load": 5000,
-                    "profit_margin": 2000,
+                    "expected_loss": 50000.0,
+                    "volatility_load": 10000.0,
+                    "tail_load": 8000.0,
+                    "expense_load": 5000.0,
+                    "profit_margin": 2000.0,
                 },
             },
             "Medium": {
                 "Primary": {
-                    "expected_loss": 200000,
-                    "volatility_load": 40000,
-                    "tail_load": 30000,
-                    "expense_load": 20000,
-                    "profit_margin": 10000,
+                    "expected_loss": 200000.0,
+                    "volatility_load": 40000.0,
+                    "tail_load": 30000.0,
+                    "expense_load": 20000.0,
+                    "profit_margin": 10000.0,
                 }
             },
         }
@@ -819,11 +820,11 @@ class TestPremiumDecomposition:
         premium_components = {
             "Large": {
                 "Primary": {
-                    "expected_loss": 500000,
-                    "volatility_load": 100000,
-                    "tail_load": 75000,
-                    "expense_load": 50000,
-                    "profit_margin": 25000,
+                    "expected_loss": 500000.0,
+                    "volatility_load": 100000.0,
+                    "tail_load": 75000.0,
+                    "expense_load": 50000.0,
+                    "profit_margin": 25000.0,
                 }
             }
         }
@@ -847,11 +848,11 @@ class TestPremiumDecomposition:
         premium_components = {
             "Small": {
                 "Layer1": {
-                    "expected_loss": 100000,
-                    "volatility_load": 20000,
-                    "tail_load": 15000,
-                    "expense_load": 10000,
-                    "profit_margin": 5000,
+                    "expected_loss": 100000.0,
+                    "volatility_load": 20000.0,
+                    "tail_load": 15000.0,
+                    "expense_load": 10000.0,
+                    "profit_margin": 5000.0,
                 }
             }
         }

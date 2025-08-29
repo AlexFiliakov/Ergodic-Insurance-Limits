@@ -543,7 +543,7 @@ class TestIntegration:
             assert fig is not None
 
             # Check for title (all should have titles)
-            if fig._suptitle:
+            if hasattr(fig, "_suptitle") and fig._suptitle:
                 assert fig._suptitle.get_fontweight() == "bold"
 
             # Cleanup
