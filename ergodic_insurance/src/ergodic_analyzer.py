@@ -1,3 +1,8 @@
+# pylint: disable=too-many-lines
+# This module contains comprehensive ergodic analysis functionality with extensive
+# documentation. The length is justified by the complexity of the subject matter
+# and the need for thorough explanations of ergodic theory applications.
+
 """Ergodic analysis framework for comparing time-average vs ensemble-average growth.
 
 This module provides the theoretical foundation and computational tools for applying
@@ -1258,44 +1263,53 @@ class ErgodicAnalyzer:
         Args:
             insured_results (Union[List[SimulationResults], np.ndarray]): Simulation
                 results from insured scenarios. Can be:
+
                 - List of SimulationResults objects from Monte Carlo runs
                 - List of numpy arrays representing trajectories
                 - 2D numpy array with shape (n_simulations, n_timesteps)
+
             uninsured_results (Union[List[SimulationResults], np.ndarray]):
                 Simulation results from uninsured scenarios, same format as
                 insured_results. Should have same number of simulations for
                 valid comparison.
             metric (str): Financial metric to analyze for comparison:
+
                 - "equity": Company equity over time (recommended)
                 - "assets": Total assets over time
                 - "cash": Available cash over time
                 - Any attribute available in SimulationResults objects
+
                 Defaults to "equity".
 
         Returns:
             Dict[str, Any]: Comprehensive comparison results with nested structure:
 
-                'insured': Dict containing insured scenario statistics:
-                    - 'time_average_mean': Mean time-average growth rate
-                    - 'time_average_median': Median time-average growth rate
-                    - 'time_average_std': Standard deviation of growth rates
-                    - 'ensemble_average': Ensemble average growth rate
-                    - 'survival_rate': Fraction avoiding bankruptcy
-                    - 'n_survived': Absolute number of survivors
+                - **'insured'** (Dict): Insured scenario statistics:
 
-                'uninsured': Dict containing uninsured scenario statistics:
-                    - Same structure as 'insured'
+                  - 'time_average_mean': Mean time-average growth rate
+                  - 'time_average_median': Median time-average growth rate
+                  - 'time_average_std': Standard deviation of growth rates
+                  - 'ensemble_average': Ensemble average growth rate
+                  - 'survival_rate': Fraction avoiding bankruptcy
+                  - 'n_survived': Absolute number of survivors
 
-                'ergodic_advantage': Dict containing comparative metrics:
-                    - 'time_average_gain': Difference in time-average growth
-                    - 'ensemble_average_gain': Difference in ensemble averages
-                    - 'survival_gain': Improvement in survival rate
-                    - 't_statistic': t-test statistic for significance
-                    - 'p_value': p-value for statistical significance
-                    - 'significant': Boolean indicating significance (p < 0.05)
+                - **'uninsured'** (Dict): Uninsured scenario statistics:
+
+                  - Same structure as 'insured'
+
+                - **'ergodic_advantage'** (Dict): Comparative metrics:
+
+                  - 'time_average_gain': Difference in time-average growth
+                  - 'ensemble_average_gain': Difference in ensemble averages
+                  - 'survival_gain': Improvement in survival rate
+                  - 't_statistic': t-test statistic for significance
+                  - 'p_value': p-value for statistical significance
+                  - 'significant': Boolean indicating significance (p < 0.05)
 
         Examples:
-            Basic insurance vs no insurance comparison::
+            Basic insurance vs no insurance comparison:
+
+            .. code-block:: python
 
                 # Run Monte Carlo simulations (pseudo-code)
                 insured_sims = run_simulations(insurance_enabled=True, n_sims=1000)
@@ -1317,7 +1331,9 @@ class ErgodicAnalyzer:
                 print(f"Survival rate improvement: {survival_gain:.1%}")
                 print(f"Statistical significance: {is_significant}")
 
-            Detailed analysis of results::
+            Detailed analysis of results:
+
+            .. code-block:: python
 
                 # Examine both perspectives
                 insured = comparison['insured']
@@ -1346,7 +1362,9 @@ class ErgodicAnalyzer:
                 else:
                     print("\n! No clear ergodic advantage detected")
 
-            Statistical significance analysis::
+            Statistical significance analysis:
+
+            .. code-block:: python
 
                 if comparison['ergodic_advantage']['significant']:
                     p_val = comparison['ergodic_advantage']['p_value']
@@ -1360,7 +1378,9 @@ class ErgodicAnalyzer:
                     print("Results not statistically significant")
                     print("Consider running more simulations")
 
-            Multiple metric analysis::
+            Multiple metric analysis:
+
+            .. code-block:: python
 
                 # Compare different financial metrics
                 metrics_to_analyze = ['equity', 'assets', 'cash']
@@ -1653,10 +1673,10 @@ class ErgodicAnalyzer:
             - p >= 0.10: No significant evidence
 
             **t-statistic Guidelines**:
-            - |t| > 3: Very large effect
-            - |t| > 2: Large effect
-            - |t| > 1: Moderate effect
-            - |t| < 1: Small effect
+            - ``|t| > 3``: Very large effect
+            - ``|t| > 2``: Large effect
+            - ``|t| > 1``: Moderate effect
+            - ``|t| < 1``: Small effect
 
         Assumptions and Limitations:
             **t-test Assumptions**:
@@ -1713,38 +1733,43 @@ class ErgodicAnalyzer:
         Returns:
             Dict[str, Any]: Comprehensive analysis dictionary with nested structure:
 
-                'label': str - The provided label for identification
-                'n_simulations': int - Number of simulations analyzed
+                - **'label'** (str): The provided label for identification
+                - **'n_simulations'** (int): Number of simulations analyzed
+                - **'time_average'** (Dict): Time-average growth statistics:
 
-                'time_average': Dict containing time-average growth statistics:
-                    - 'mean': Mean time-average growth rate across all paths
-                    - 'median': Median time-average growth rate
-                    - 'std': Standard deviation of growth rates
-                    - 'min': Minimum growth rate observed
-                    - 'max': Maximum growth rate observed
+                  - 'mean': Mean time-average growth rate across all paths
+                  - 'median': Median time-average growth rate
+                  - 'std': Standard deviation of growth rates
+                  - 'min': Minimum growth rate observed
+                  - 'max': Maximum growth rate observed
 
-                'ensemble_average': Dict containing ensemble statistics:
-                    - 'mean': Ensemble average growth rate
-                    - 'std': Standard deviation of ensemble
-                    - 'median': Median of ensemble
-                    - 'survival_rate': Fraction avoiding bankruptcy
-                    - 'n_survived': Absolute number of survivors
-                    - 'n_total': Total number of simulations
+                - **'ensemble_average'** (Dict): Ensemble statistics:
 
-                'convergence': Dict containing Monte Carlo convergence analysis:
-                    - 'converged': Boolean indicating if results have converged
-                    - 'standard_error': Current standard error of the estimates
-                    - 'threshold': Convergence threshold used
+                  - 'mean': Ensemble average growth rate
+                  - 'std': Standard deviation of ensemble
+                  - 'median': Median of ensemble
+                  - 'survival_rate': Fraction avoiding bankruptcy
+                  - 'n_survived': Absolute number of survivors
+                  - 'n_total': Total number of simulations
 
-                'survival_analysis': Dict containing survival metrics:
-                    - 'survival_rate': Fraction avoiding bankruptcy (duplicate)
-                    - 'mean_survival_time': Average time to insolvency or end
+                - **'convergence'** (Dict): Monte Carlo convergence analysis:
 
-                'ergodic_divergence': float - Difference between time-average
-                    and ensemble-average growth rates
+                  - 'converged': Boolean indicating if results have converged
+                  - 'standard_error': Current standard error of the estimates
+                  - 'threshold': Convergence threshold used
+
+                - **'survival_analysis'** (Dict): Survival metrics:
+
+                  - 'survival_rate': Fraction avoiding bankruptcy (duplicate)
+                  - 'mean_survival_time': Average time to insolvency or end
+
+                - **'ergodic_divergence'** (float): Difference between time-average
+                  and ensemble-average growth rates
 
         Examples:
-            Analyze a batch of insured simulations::
+            Analyze a batch of insured simulations:
+
+            .. code-block:: python
 
                 # Run Monte Carlo simulations
                 insured_results = []
@@ -1766,7 +1791,9 @@ class ErgodicAnalyzer:
                 print(f"Survival rate: {analysis['survival_analysis']['survival_rate']:.1%}")
                 print(f"Ergodic divergence: {analysis['ergodic_divergence']:.3f}")
 
-            Check Monte Carlo convergence::
+            Check Monte Carlo convergence:
+
+            .. code-block:: python
 
                 if analysis['convergence']['converged']:
                     print(f"✓ Results have converged (SE: {analysis['convergence']['standard_error']:.4f})")
@@ -1785,7 +1812,9 @@ class ErgodicAnalyzer:
 
                     print(f"Recommend ~{additional_needed} additional simulations")
 
-            Compare growth rate distributions::
+            Compare growth rate distributions:
+
+            .. code-block:: python
 
                 # Analyze distribution characteristics
                 time_avg = analysis['time_average']
@@ -1804,7 +1833,9 @@ class ErgodicAnalyzer:
                 else:
                     print("Distribution appears roughly symmetric")
 
-            Survival analysis insights::
+            Survival analysis insights:
+
+            .. code-block:: python
 
                 survival = analysis['survival_analysis']
                 ensemble = analysis['ensemble_average']
@@ -1822,7 +1853,9 @@ class ErgodicAnalyzer:
                 else:
                     print("✓ Moderate bankruptcy risk - acceptable for most businesses")
 
-            Ergodic divergence interpretation::
+            Ergodic divergence interpretation:
+
+            .. code-block:: python
 
                 divergence = analysis['ergodic_divergence']
 
@@ -1924,7 +1957,7 @@ class ErgodicAnalyzer:
 
         return analysis
 
-    def integrate_loss_ergodic_analysis(
+    def integrate_loss_ergodic_analysis(  # pylint: disable=too-many-locals
         self,
         loss_data: "LossData",
         insurance_program: Optional["InsuranceProgram"],
@@ -1961,18 +1994,23 @@ class ErgodicAnalyzer:
                 and financial parameters. Must support claim processing and annual
                 step operations.
             time_horizon (int): Analysis time horizon in years. Typical values:
+
                 - 10-20 years: Standard analysis period
                 - 50+ years: Long-term ergodic behavior
                 - 5-10 years: Quick analysis for parameter exploration
+
             n_simulations (int): Number of Monte Carlo simulations to run.
                 More simulations provide better statistical reliability:
+
                 - 100: Quick analysis for development/testing
                 - 1000: Standard analysis for decision making
                 - 5000+: High-precision analysis for final recommendations
+
                 Defaults to 100 for reasonable performance.
 
         Returns:
             ErgodicAnalysisResults: Comprehensive analysis results containing:
+
                 - Time-average and ensemble-average growth rates
                 - Survival rates and ergodic divergence
                 - Insurance impact metrics (premiums, recoveries, net benefit)
@@ -1980,7 +2018,9 @@ class ErgodicAnalyzer:
                 - All necessary information for decision making
 
         Examples:
-            Basic integrated analysis::
+            Basic integrated analysis:
+
+            .. code-block:: python
 
                 from ergodic_insurance.src.loss_distributions import LossData
                 from ergodic_insurance.src.insurance_program import InsuranceProgram
@@ -2035,7 +2075,9 @@ class ErgodicAnalyzer:
                 else:
                     print("⚠ Analysis validation failed - check inputs")
 
-            Compare insured vs uninsured scenarios::
+            Compare insured vs uninsured scenarios:
+
+            .. code-block:: python
 
                 # Run analysis with insurance
                 insured_results = analyzer.integrate_loss_ergodic_analysis(
@@ -2066,7 +2108,9 @@ class ErgodicAnalyzer:
                     else:
                         print("? Insurance benefits unclear - review parameters")
 
-            Parameter sensitivity analysis::
+            Parameter sensitivity analysis:
+
+            .. code-block:: python
 
                 # Test different loss frequencies
                 frequencies = [1.0, 2.0, 3.0, 4.0, 5.0]
@@ -2092,7 +2136,9 @@ class ErgodicAnalyzer:
                         print(f"Frequency {freq}: Growth={result.time_average_growth:.2%}, "
                               f"Survival={result.survival_rate:.1%}")
 
-            Detailed insurance impact analysis::
+            Detailed insurance impact analysis:
+
+            .. code-block:: python
 
                 if results.validation_passed:
                     impact = results.insurance_impact
@@ -2250,7 +2296,7 @@ class ErgodicAnalyzer:
             },
         )
 
-    def validate_insurance_ergodic_impact(
+    def validate_insurance_ergodic_impact(  # pylint: disable=too-many-locals
         self,
         base_scenario: SimulationResults,
         insurance_scenario: SimulationResults,
@@ -2292,6 +2338,7 @@ class ErgodicAnalyzer:
 
         Returns:
             ValidationResults: Comprehensive validation results containing:
+
                 - premium_deductions_correct: Boolean indicating premium validation
                 - recoveries_credited: Boolean indicating recovery validation
                 - collateral_impacts_included: Boolean indicating collateral validation
@@ -2300,7 +2347,9 @@ class ErgodicAnalyzer:
                 - details: Dict with detailed validation information and metrics
 
         Examples:
-            Basic validation after scenario comparison::
+            Basic validation after scenario comparison:
+
+            .. code-block:: python
 
                 # Run paired simulations
                 base_sim = run_simulation(insurance_enabled=False, seed=12345)
@@ -2323,7 +2372,9 @@ class ErgodicAnalyzer:
                     print("⚠ Validation issues detected")
                     print("Review modeling implementation")
 
-            Detailed validation diagnostics::
+            Detailed validation diagnostics:
+
+            .. code-block:: python
 
                 validation = analyzer.validate_insurance_ergodic_impact(
                     base_scenario, insurance_scenario, insurance_program
@@ -2365,7 +2416,9 @@ class ErgodicAnalyzer:
                     elif np.isfinite(growth_info['insured_growth']) and not np.isfinite(growth_info['base_growth']):
                         print("✓ Insurance prevents bankruptcy (infinite improvement)")
 
-            Validation in Monte Carlo context::
+            Validation in Monte Carlo context:
+
+            .. code-block:: python
 
                 # Validate across multiple random seeds
                 validation_results = []
@@ -2388,7 +2441,9 @@ class ErgodicAnalyzer:
                 else:
                     print("✓ Consistent validation across scenarios")
 
-            Integration with scenario comparison::
+            Integration with scenario comparison:
+
+            .. code-block:: python
 
                 # Run comparison analysis
                 comparison = analyzer.compare_scenarios(

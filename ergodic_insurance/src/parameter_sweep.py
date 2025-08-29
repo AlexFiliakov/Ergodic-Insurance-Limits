@@ -158,7 +158,8 @@ class SweepConfig:
         for values in self.parameters.values():
             total_runs *= len(values)
 
-        total_seconds = total_runs * seconds_per_run / self.n_workers
+        workers = self.n_workers if self.n_workers is not None else 1
+        total_seconds = total_runs * seconds_per_run / workers
 
         hours = int(total_seconds // 3600)
         minutes = int((total_seconds % 3600) // 60)
@@ -166,10 +167,9 @@ class SweepConfig:
 
         if hours > 0:
             return f"{hours}h {minutes}m {seconds}s"
-        elif minutes > 0:
+        if minutes > 0:
             return f"{minutes}m {seconds}s"
-        else:
-            return f"{seconds}s"
+        return f"{seconds}s"
 
 
 class ParameterSweeper:
@@ -201,11 +201,11 @@ class ParameterSweeper:
         self.optimizer = optimizer
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.results_cache = {}
+        self.results_cache: Dict[str, Dict[str, Any]] = {}
         self.use_parallel = use_parallel
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def sweep(
+    def sweep(  # pylint: disable=too-many-branches
         self, config: SweepConfig, progress_callback: Optional[Callable] = None
     ) -> pd.DataFrame:
         """Execute parameter sweep with parallel processing.
@@ -236,12 +236,14 @@ class ParameterSweeper:
 
         if cache_file.exists() and not config.adaptive_refinement:
             self.logger.info(f"Loading cached results from {cache_file}")
-            return pd.read_hdf(cache_file, key="results")
+            result = pd.read_hdf(cache_file, key="results")
+            assert isinstance(result, pd.DataFrame), "Expected DataFrame from cache"
+            return result
 
         # Prepare result storage
-        results = []
+        results: List[Dict[str, Any]] = []
 
-        if self.use_parallel and config.n_workers > 1:
+        if self.use_parallel and config.n_workers is not None and config.n_workers > 1:
             # Execute in parallel batches
             with ProcessPoolExecutor(max_workers=config.n_workers) as executor:
                 # Submit jobs in batches
@@ -256,8 +258,10 @@ class ParameterSweeper:
                 with tqdm(total=total_runs, desc="Parameter sweep") as pbar:
                     for future in as_completed(futures):
                         try:
-                            result = future.result(timeout=300)  # 5 minute timeout
-                            results.append(result)
+                            single_result: Dict[str, Any] = future.result(
+                                timeout=300
+                            )  # 5 minute timeout
+                            results.append(single_result)
                             pbar.update(1)
 
                             if progress_callback:
@@ -267,20 +271,20 @@ class ParameterSweeper:
                             if config.save_intermediate and len(results) % 100 == 0:
                                 self._save_intermediate_results(results, sweep_hash)
 
-                        except Exception as e:
+                        except (TimeoutError, ValueError, RuntimeError) as e:
                             self.logger.error(f"Error in parameter sweep: {e}")
                             # Continue with other configurations
         else:
             # Sequential execution
             for params in tqdm(param_grid, desc="Parameter sweep"):
                 try:
-                    result = self._run_single(params, config.metrics_to_track)
-                    results.append(result)
+                    single_result = self._run_single(params, config.metrics_to_track)
+                    results.append(single_result)
 
                     if progress_callback:
                         progress_callback(len(results) / total_runs)
 
-                except Exception as e:
+                except (ValueError, RuntimeError, AttributeError) as e:
                     self.logger.error(f"Error running configuration: {e}")
 
         # Convert to DataFrame
@@ -358,7 +362,7 @@ class ParameterSweeper:
                 }
             )
 
-        except Exception as e:
+        except (ValueError, RuntimeError, AttributeError) as e:
             self.logger.warning(f"Optimization failed for params {params}: {e}")
             # Return NaN values for failed optimization
             output = params.copy()
@@ -382,17 +386,12 @@ class ParameterSweeper:
         from .config import ManufacturerConfig
         from .manufacturer import WidgetManufacturer
 
-        # Create config object with parameters
+        # Create config object with parameters - only use fields that exist in ManufacturerConfig
         config = ManufacturerConfig(
             initial_assets=params.get("initial_assets", 10e6),
-            working_capital_pct=params.get("working_capital_pct", 0.2),
             asset_turnover_ratio=params.get("asset_turnover", 1.0),
             operating_margin=params.get("operating_margin", 0.08),
             tax_rate=params.get("tax_rate", 0.25),
-            fixed_cost_ratio=params.get("fixed_cost_ratio", 0.08),
-            variable_cost_ratio=params.get("variable_cost_ratio", 0.70),
-            production_capacity=params.get("production_capacity", 100000),
-            max_leverage_ratio=params.get("max_leverage_ratio", 2.0),
             retention_ratio=params.get("retention_ratio", 0.6),
         )
 
@@ -577,7 +576,7 @@ class ParameterSweeper:
         # Determine metrics to compare
         if metrics is None:
             # Find common metrics across all scenarios
-            all_cols = set()
+            all_cols: set[str] = set()
             for df in results.values():
                 all_cols.update(df.columns)
 
@@ -594,7 +593,7 @@ class ParameterSweeper:
         # Build comparison DataFrame
         comparison_data = []
         for scenario_name, df in results.items():
-            scenario_stats = {"scenario": scenario_name}
+            scenario_stats: Dict[str, Any] = {"scenario": scenario_name}
 
             for metric in metrics:
                 if metric in df.columns:
@@ -654,12 +653,17 @@ class ParameterSweeper:
                 # Generate more points in optimal range
                 if isinstance(config.parameters[param][0], (int, float)):
                     # Numeric parameter - create refined grid
-                    refined_values = np.linspace(
-                        param_min * 0.9,  # Slightly expand range
-                        param_max * 1.1,
-                        num=len(config.parameters[param]) * 2,  # Double resolution
-                    )
-                    refined_params[param] = list(refined_values)
+                    # Ensure param_min and param_max are numeric for multiplication
+                    if isinstance(param_min, (int, float)) and isinstance(param_max, (int, float)):
+                        refined_values = np.linspace(
+                            float(param_min) * 0.9,  # Slightly expand range
+                            float(param_max) * 1.1,
+                            num=len(config.parameters[param]) * 2,  # Double resolution
+                        )
+                        refined_params[param] = list(refined_values)
+                    else:
+                        # If not numeric, keep original values
+                        refined_params[param] = config.parameters[param]
                 else:
                     # Categorical parameter - keep original values
                     refined_params[param] = config.parameters[param]
@@ -682,7 +686,7 @@ class ParameterSweeper:
         combined = pd.concat([initial_results, refined_results], ignore_index=True)
 
         # Remove duplicates based on parameter columns
-        param_cols = [col for col in config.parameters.keys()]
+        param_cols = list(config.parameters.keys())
         combined = combined.drop_duplicates(subset=param_cols, keep="last")
 
         return combined
@@ -780,7 +784,9 @@ class ParameterSweeper:
 
         self.logger.debug(f"Saved {len(results)} intermediate results")
 
-    def load_results(self, sweep_hash: str) -> Optional[pd.DataFrame]:
+    def load_results(  # pylint: disable=too-many-return-statements
+        self, sweep_hash: str
+    ) -> Optional[pd.DataFrame]:
         """Load cached sweep results.
 
         Args:
@@ -793,7 +799,10 @@ class ParameterSweeper:
         h5_file = self.cache_dir / f"sweep_{sweep_hash}.h5"
         if h5_file.exists():
             try:
-                return pd.read_hdf(h5_file, key="results")
+                result = pd.read_hdf(h5_file, key="results")
+                if isinstance(result, pd.DataFrame):
+                    return result
+                return None
             except ImportError:
                 pass
 
@@ -807,7 +816,10 @@ class ParameterSweeper:
         if temp_h5_file.exists():
             try:
                 self.logger.info("Loading partial results from interrupted sweep")
-                return pd.read_hdf(temp_h5_file, key="results")
+                result = pd.read_hdf(temp_h5_file, key="results")
+                if isinstance(result, pd.DataFrame):
+                    return result
+                return None
             except ImportError:
                 pass
 
@@ -819,24 +831,24 @@ class ParameterSweeper:
         return None
 
     def export_results(
-        self, results: pd.DataFrame, output_file: str, format: str = "parquet"
+        self, results: pd.DataFrame, output_file: str, file_format: str = "parquet"
     ) -> None:
         """Export results to specified format.
 
         Args:
             results: Results DataFrame
             output_file: Output file path
-            format: Export format ('parquet', 'csv', 'excel', 'hdf5')
+            file_format: Export format ('parquet', 'csv', 'excel', 'hdf5')
         """
         output_path = Path(output_file)
 
-        if format == "parquet":
+        if file_format == "parquet":
             results.to_parquet(output_path, compression="snappy")
-        elif format == "csv":
+        elif file_format == "csv":
             results.to_csv(output_path, index=False)
-        elif format == "excel":
+        elif file_format == "excel":
             results.to_excel(output_path, index=False)
-        elif format == "hdf5":
+        elif file_format == "hdf5":
             try:
                 results.to_hdf(output_path, key="results", mode="w", complevel=5)
             except ImportError:
@@ -846,6 +858,6 @@ class ParameterSweeper:
                 output_path = output_path.with_suffix(".parquet")
                 results.to_parquet(output_path, compression="snappy")
         else:
-            raise ValueError(f"Unsupported format: {format}")
+            raise ValueError(f"Unsupported format: {file_format}")
 
-        self.logger.info(f"Exported results to {output_path} ({format})")
+        self.logger.info(f"Exported results to {output_path} ({file_format})")
