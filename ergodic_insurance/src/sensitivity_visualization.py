@@ -21,7 +21,7 @@ Author: Alex Filiakov
 Date: 2025-01-29
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
@@ -30,12 +30,19 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+if TYPE_CHECKING:
+    from ergodic_insurance.src.sensitivity import (
+        SensitivityAnalyzer,
+        SensitivityResult,
+        TwoWaySensitivityResult,
+    )
+
 # Set default style for publication-ready plots
 plt.style.use("seaborn-v0_8-darkgrid")
 sns.set_palette("husl")
 
 
-def plot_tornado_diagram(
+def plot_tornado_diagram(  # pylint: disable=too-many-locals
     tornado_data: pd.DataFrame,
     title: str = "Sensitivity Analysis - Tornado Diagram",
     metric_label: str = "Impact on Objective",
@@ -78,8 +85,13 @@ def plot_tornado_diagram(
     high_values = tornado_data["high_value"].values
 
     # Normalize to percentage change from baseline
-    low_change = (low_values - baseline_values) / np.abs(baseline_values) * 100
-    high_change = (high_values - baseline_values) / np.abs(baseline_values) * 100
+    # Convert to numpy arrays to ensure proper operations
+    low_values_arr = np.asarray(low_values)
+    high_values_arr = np.asarray(high_values)
+    baseline_values_arr = np.asarray(baseline_values)
+
+    low_change = (low_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
+    high_change = (high_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
 
     # Create bars
     for i, (idx, row) in enumerate(tornado_data.iterrows()):
@@ -89,35 +101,50 @@ def plot_tornado_diagram(
         left = low_change[i]
         width = high_change[i] - low_change[i]
 
-        bar = ax.barh(
+        rect = ax.barh(
             i, width, left=left, height=0.6, color=color, alpha=0.7, edgecolor="black", linewidth=1
         )
 
         # Add value labels if requested
         if show_values:
-            # Low value
-            ax.text(left - 0.5, i, f"{low_values[i]:.2g}", ha="right", va="center", fontsize=9)
-            # High value
+            # Low value - increased padding to prevent overlap
+            ax.text(left - 2.0, i, f"{low_values[i]:.2g}", ha="right", va="center", fontsize=8)
+            # High value - increased padding to prevent overlap
             ax.text(
-                left + width + 0.5, i, f"{high_values[i]:.2g}", ha="left", va="center", fontsize=9
+                left + width + 2.0, i, f"{high_values[i]:.2g}", ha="left", va="center", fontsize=8
             )
 
     # Add baseline line
     ax.axvline(x=0, color="black", linestyle="--", linewidth=1.5, alpha=0.7)
-    ax.text(0, n + 0.1, "Baseline", ha="center", fontsize=10, style="italic")
+    # Move baseline label to avoid title overlap - place it inside the plot area
+    ax.text(
+        0,
+        -0.7,
+        "Baseline",
+        ha="center",
+        fontsize=10,
+        style="italic",
+        transform=ax.get_xaxis_transform(),
+    )
 
     # Customize axes
     ax.set_yticks(y_pos)
     ax.set_yticklabels(tornado_data["parameter"].values)
     ax.set_xlabel(f"{metric_label} (% change from baseline)", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=25)  # Increased padding for title
 
     # Add grid
     ax.grid(True, axis="x", alpha=0.3)
     ax.set_axisbelow(True)
 
-    # Adjust layout
-    plt.tight_layout()
+    # Set x-axis limits with extra padding for value labels
+    x_min = min(low_change.min(), -40)
+    x_max = max(high_change.max(), 40)
+    x_padding = (x_max - x_min) * 0.15  # 15% padding on each side
+    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+
+    # Adjust layout with specific margins
+    plt.tight_layout(rect=(0.05, 0.02, 0.95, 0.98))  # left, bottom, right, top
 
     return fig
 
@@ -142,12 +169,14 @@ def plot_two_way_sensitivity(
         show_contours: Whether to show contour lines
         contour_levels: Number of contour levels
         optimal_point: Optional (param1_value, param2_value) to mark
-        fmt: Format string for value annotations
+        fmt: Format string for contour labels. Can be:
+            - New-style format like '.2f' or '.2%'
+            - Old-style format like '%.2f'
+            - Callable that takes a number and returns a string
 
     Returns:
         Matplotlib Figure object
     """
-    from ergodic_insurance.src.sensitivity import TwoWaySensitivityResult
 
     if title is None:
         title = f"{result.metric_name} Sensitivity: {result.parameter1} vs {result.parameter2}"
@@ -174,7 +203,30 @@ def plot_two_way_sensitivity(
             linewidths=0.5,
             alpha=0.5,
         )
-        ax.clabel(contours, inline=True, fontsize=8, fmt=fmt)
+
+        # Handle format string - convert new-style to old-style or use callable
+        formatter: Union[str, Callable[[float], str]]
+        if fmt and fmt.startswith("."):
+            # New-style format string like '.2f' or '.2%'
+            if "%" in fmt:
+                # For percentage format, create a formatter function
+                decimal_places = int(fmt[1]) if fmt[1].isdigit() else 1
+
+                def format_pct(x: float) -> str:
+                    """Format value as percentage."""
+                    return f"{x:.{decimal_places}%}"
+
+                formatter = format_pct
+            else:
+                # For regular float format, convert to old-style
+                formatter = f"%{fmt[1:]}f"  # Convert '.2f' to '%.2f'
+        elif callable(fmt):
+            formatter = fmt
+        else:
+            # Assume it's already an old-style format string or callable
+            formatter = fmt if fmt else "%.2f"
+
+        ax.clabel(contours, inline=True, fontsize=8, fmt=formatter)
 
     # Mark optimal point if provided
     if optimal_point is not None:
@@ -215,7 +267,6 @@ def plot_parameter_sweep(
     Returns:
         Matplotlib Figure object
     """
-    from ergodic_insurance.src.sensitivity import SensitivityResult
 
     if metrics is None:
         metrics = list(result.metrics.keys())
@@ -287,10 +338,10 @@ def plot_parameter_sweep(
 
 def create_sensitivity_report(
     analyzer: "SensitivityAnalyzer",
-    parameters: List[str],
+    parameters: List[Union[str, Tuple[str, str]]],
     output_dir: Optional[str] = None,
     metric: str = "optimal_roe",
-    formats: List[str] = ["png", "pdf"],
+    formats: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Generate a complete sensitivity analysis report.
 
@@ -306,7 +357,10 @@ def create_sensitivity_report(
     """
     from pathlib import Path
 
-    report = {"figures": {}, "summary": {}, "data": {}}
+    if formats is None:
+        formats = ["png", "pdf"]
+
+    report: Dict[str, Any] = {"figures": {}, "summary": {}, "data": {}}
 
     # Generate tornado diagram
     print("Generating tornado diagram...")
@@ -370,7 +424,7 @@ def create_sensitivity_report(
     return report
 
 
-def plot_sensitivity_matrix(
+def plot_sensitivity_matrix(  # pylint: disable=too-many-locals
     results: Dict[str, "SensitivityResult"],
     metric: str = "optimal_roe",
     figsize: Tuple[float, float] = (12, 10),

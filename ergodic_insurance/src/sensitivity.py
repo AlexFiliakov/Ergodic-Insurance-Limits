@@ -99,7 +99,9 @@ class SensitivityResult:
             return 0.0
 
         # Standardized sensitivity (elasticity)
-        return (metric_range / abs(baseline_metric)) / (param_range / abs(self.baseline_value))
+        return float(
+            (metric_range / abs(baseline_metric)) / (param_range / abs(self.baseline_value))
+        )
 
     def get_metric_bounds(self, metric: str) -> Tuple[float, float]:
         """Get the minimum and maximum values for a metric.
@@ -249,7 +251,7 @@ class SensitivityAnalyzer:
                         result = pickle.load(f)
                         self.results_cache[cache_key] = result
                         return result
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     # If cache loading fails, continue without it
                     pass
 
@@ -271,7 +273,7 @@ class SensitivityAnalyzer:
             try:
                 with open(cache_file, "wb") as f:
                     pickle.dump(result, f)
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 # If caching fails, continue without it
                 pass
 
@@ -307,7 +309,7 @@ class SensitivityAnalyzer:
         current[parts[-1]] = value
         return config_copy
 
-    def analyze_parameter(
+    def analyze_parameter(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         self,
         param_name: str,
         param_range: Optional[Tuple[float, float]] = None,
@@ -335,6 +337,7 @@ class SensitivityAnalyzer:
             param_path = param_name
 
         # Get baseline value
+        baseline: Any
         if "." in param_path:
             # Handle nested parameters
             parts = param_path.split(".")
@@ -350,15 +353,22 @@ class SensitivityAnalyzer:
 
         # Determine parameter range
         if param_range is None:
-            min_val = baseline * (1 - relative_range)
-            max_val = baseline * (1 + relative_range)
+            # Ensure baseline is numeric
+            try:
+                baseline_float = float(baseline)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Parameter '{param_name}' has non-numeric baseline value: {baseline}"
+                ) from exc
+            min_val = baseline_float * (1 - relative_range)
+            max_val = baseline_float * (1 + relative_range)
             param_range = (min_val, max_val)
 
         min_val, max_val = param_range
         variations = np.linspace(min_val, max_val, n_points)
 
         # Initialize metrics storage
-        metrics = {
+        metrics: Dict[str, List[float]] = {
             "optimal_roe": [],
             "bankruptcy_risk": [],
             "optimal_retention": [],
@@ -415,14 +425,17 @@ class SensitivityAnalyzer:
                 metrics["capital_efficiency"].append(getattr(result, "capital_efficiency", 0.0))
 
         # Convert metrics to arrays
-        for key in metrics:
-            metrics[key] = np.array(metrics[key])
+        metrics_arrays: Dict[str, np.ndarray] = {}
+        for key, values in metrics.items():
+            metrics_arrays[key] = np.array(values)
 
         return SensitivityResult(
             parameter=param_name,
-            baseline_value=baseline,
+            baseline_value=float(
+                baseline
+            ),  # baseline is guaranteed to be numeric from earlier check
             variations=variations,
-            metrics=metrics,
+            metrics=metrics_arrays,
             parameter_path=param_path,
         )
 
@@ -492,7 +505,7 @@ class SensitivityAnalyzer:
                     }
                 )
 
-            except (KeyError, Exception) as e:
+            except (KeyError, Exception) as e:  # pylint: disable=broad-exception-caught
                 # Skip parameters that cause errors
                 print(f"Warning: Could not analyze parameter '{param_name}': {e}")
                 continue
@@ -504,7 +517,7 @@ class SensitivityAnalyzer:
 
         return df
 
-    def analyze_two_way(
+    def analyze_two_way(  # pylint: disable=too-many-locals,too-many-branches
         self,
         param1: Union[str, Tuple[str, str]],
         param2: Union[str, Tuple[str, str]],
@@ -615,10 +628,9 @@ class SensitivityAnalyzer:
                     raise KeyError(f"Parameter '{param_path}' not found")
                 value = value[part]
             return value
-        else:
-            if param_path not in self.base_config:
-                raise KeyError(f"Parameter '{param_path}' not found")
-            return self.base_config[param_path]
+        if param_path not in self.base_config:
+            raise KeyError(f"Parameter '{param_path}' not found")
+        return self.base_config[param_path]
 
     def _extract_metric(self, result: Any, metric: str) -> float:
         """Extract metric value from optimization result.
@@ -633,18 +645,19 @@ class SensitivityAnalyzer:
         # Try different result structures
         if hasattr(result, "optimal_strategy"):
             strategy = result.optimal_strategy
-            if metric == "optimal_roe":
-                return strategy.expected_roe
-            elif metric == "bankruptcy_risk":
-                return strategy.bankruptcy_risk
-            elif metric == "growth_rate":
-                return strategy.growth_rate
-            elif metric == "capital_efficiency":
-                return strategy.capital_efficiency
-            elif metric == "optimal_retention":
-                return getattr(strategy, "deductible", 0.0)
-            elif metric == "total_premium":
-                return getattr(strategy, "premium_rate", 0.0)
+
+            # Map metrics to strategy attributes
+            strategy_metric_map = {
+                "optimal_roe": lambda s: float(s.expected_roe),
+                "bankruptcy_risk": lambda s: float(s.bankruptcy_risk),
+                "growth_rate": lambda s: float(s.growth_rate),
+                "capital_efficiency": lambda s: float(s.capital_efficiency),
+                "optimal_retention": lambda s: getattr(s, "deductible", 0.0),
+                "total_premium": lambda s: getattr(s, "premium_rate", 0.0),
+            }
+
+            if metric in strategy_metric_map:
+                return strategy_metric_map[metric](strategy)
 
         # Fallback to direct attribute access
         metric_map = {
@@ -668,7 +681,7 @@ class SensitivityAnalyzer:
             for cache_file in self.cache_dir.glob("*.pkl"):
                 try:
                     cache_file.unlink()
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     pass
 
     def analyze_parameter_group(
@@ -695,7 +708,7 @@ class SensitivityAnalyzer:
                     param_name, param_range=param_range, n_points=n_points
                 )
                 results[param_name] = result
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print(f"Warning: Could not analyze '{param_name}': {e}")
 
         return results

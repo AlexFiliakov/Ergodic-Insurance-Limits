@@ -5,7 +5,7 @@ including loss distributions, return period curves, and insurance layer diagrams
 """
 # pylint: disable=too-many-lines
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -1817,8 +1817,9 @@ def plot_robustness_heatmap(  # pylint: disable=too-many-locals,too-many-stateme
         robustness_data = np.exp(-2 * distance_from_baseline)
 
         # Add some structure/noise
-        robustness_data += 0.1 * np.sin(5 * F) * np.cos(5 * S)
-        robustness_data = np.clip(robustness_data, 0, 1)  # type: ignore[arg-type]
+        robustness_data = robustness_data + 0.1 * np.sin(5 * F) * np.cos(5 * S)
+        robustness_data = cast(np.ndarray, robustness_data)  # Guaranteed not None after assignment
+        robustness_data = np.clip(robustness_data, 0, 1)
     else:
         n_points = robustness_data.shape[0]
         freq_values = np.linspace(frequency_range[0], frequency_range[1], n_points)
