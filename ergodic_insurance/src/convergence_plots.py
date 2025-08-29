@@ -71,6 +71,9 @@ class RealTimeConvergencePlotter:
         self.is_running = False
         self.iteration_count = 0
 
+        # Parameter names (initialized in setup_figure)
+        self.parameter_names: Optional[List[str]] = None
+
     def setup_figure(
         self, parameter_names: Optional[List[str]] = None, show_diagnostics: bool = True
     ) -> Figure:
@@ -86,7 +89,7 @@ class RealTimeConvergencePlotter:
         if parameter_names is None:
             parameter_names = [f"Parameter {i+1}" for i in range(self.n_parameters)]
 
-        self.parameter_names: List[str] = parameter_names  # pylint: disable=attribute-defined-outside-init
+        self.parameter_names = parameter_names
 
         # Create figure with custom layout
         self.fig = plt.figure(figsize=self.figsize)

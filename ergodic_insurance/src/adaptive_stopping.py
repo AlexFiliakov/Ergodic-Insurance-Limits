@@ -247,7 +247,7 @@ class AdaptiveStoppingMonitor:
                 return int(np.median(burn_in_estimates))
             return int(n_iterations // 10)  # Default fallback
 
-        elif method == "variance":  # pylint: disable=no-else-return
+        if method == "variance":
             # Detect when variance stabilizes
             window_size = max(10, n_iterations // 100)
             variances = []
@@ -267,8 +267,7 @@ class AdaptiveStoppingMonitor:
 
             return int(n_iterations // 10)  # Default fallback
 
-        else:
-            raise ValueError(f"Unknown burn-in detection method: {method}")
+        raise ValueError(f"Unknown burn-in detection method: {method}")
 
     def estimate_convergence_rate(
         self, diagnostic_history: List[float], target_value: float = 1.0
@@ -499,7 +498,9 @@ class AdaptiveStoppingMonitor:
             self.burn_in_detected = True
             self.burn_in_iteration = burn_in
 
-    def _check_stopping_rule(self, diagnostics: Dict[str, float]) -> Tuple[bool, str]:  # pylint: disable=too-many-branches
+    def _check_stopping_rule(  # pylint: disable=too-many-branches
+        self, diagnostics: Dict[str, float]
+    ) -> Tuple[bool, str]:
         """Check if stopping rule is satisfied."""
         if self.criteria.rule == StoppingRule.R_HAT:
             r_hat = diagnostics.get("r_hat", np.inf)
