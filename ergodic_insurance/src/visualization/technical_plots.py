@@ -4,6 +4,7 @@ This module provides detailed technical visualization functions for
 convergence diagnostics, Pareto frontier analysis, loss distribution validation,
 and Monte Carlo convergence analysis.
 """
+# pylint: disable=too-many-lines
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
@@ -1382,7 +1383,7 @@ $g_{time}^{ins} > g_{time}^{no\ ins}$ for high $\sigma$
         )
 
     plt.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.03, 1, 0.95))
 
     return fig
 
@@ -1643,7 +1644,6 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
         ... }
         >>> fig = plot_correlation_structure(data)
     """
-    from scipy import stats as scipy_stats
     from scipy.stats import gaussian_kde
     import seaborn as sns
 
@@ -1709,10 +1709,6 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
         else:
             ax_corr = fig.add_subplot(gs[0, idx])
 
-        # Ensure corr_matrix is a proper numpy array
-        if not isinstance(corr_matrix, np.ndarray):
-            corr_matrix = np.array(corr_matrix)
-        
         # Handle edge case where corr_matrix might be 0-dimensional
         if corr_matrix.ndim == 0:
             corr_matrix = corr_matrix.reshape(1, 1)
@@ -1754,8 +1750,8 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
             y_data = risk_data[:, 1]
 
             # Transform to uniform marginals for copula
-            x_uniform = scipy_stats.rankdata(x_data) / (len(x_data) + 1)
-            y_uniform = scipy_stats.rankdata(y_data) / (len(y_data) + 1)
+            x_uniform = stats.rankdata(x_data) / (len(x_data) + 1)
+            y_uniform = stats.rankdata(y_data) / (len(y_data) + 1)
 
             # Create scatter plot
             ax_scatter.scatter(x_uniform, y_uniform, alpha=0.3, s=10, color=WSJ_COLORS["blue"])
@@ -1784,10 +1780,10 @@ def plot_correlation_structure(  # pylint: disable=too-many-locals,too-many-bran
 
             x_data = risk_data[:, 0]
             y_data = risk_data[:, 1]
-            
+
             # Transform to uniform marginals for tail dependence calculation
-            x_uniform = scipy_stats.rankdata(x_data) / (len(x_data) + 1)
-            y_uniform = scipy_stats.rankdata(y_data) / (len(y_data) + 1)
+            x_uniform = stats.rankdata(x_data) / (len(x_data) + 1)
+            y_uniform = stats.rankdata(y_data) / (len(y_data) + 1)
 
             # Transform to normal scores for Gaussian copula
             from scipy.stats import norm
@@ -1846,7 +1842,7 @@ Variables: {risk_data.shape[1]}
             # Single variable case - show info only
             ax_info = fig.add_subplot(gs[1, 0])
             ax_info.axis("off")
-            
+
             info_text = f"""
 Single Variable Analysis:
 • Variable: {risk_types[0]}
@@ -1872,14 +1868,44 @@ at least 2 variables.
         warnings.simplefilter("ignore", UserWarning)
         try:
             plt.tight_layout(rect=(0, 0.03, 1, 0.95))
-        except Exception:
+        except (ValueError, TypeError, RuntimeError):
             # Ignore layout errors for complex subplot arrangements
             pass
 
     return fig
 
 
-def plot_premium_decomposition(  # pylint: disable=too-many-locals
+def _add_percentage_labels(ax, group_labels, component_data, component_names):
+    """Helper function to add percentage labels to stacked bars."""
+    for i in range(len(group_labels)):
+        total = sum(component_data[comp][i] for comp in component_names)
+        if total <= 0:
+            continue
+
+        cumulative = 0
+        for component in component_names:
+            value = component_data[component][i]
+            if value <= 0:
+                cumulative += value
+                continue
+
+            percentage = (value / total) * 100
+            if percentage >= 5:  # Only show label if segment is large enough
+                y_pos = cumulative + value / 2
+                ax.text(
+                    i,
+                    y_pos,
+                    f"{percentage:.1f}%",
+                    ha="center",
+                    va="center",
+                    color="white",
+                    fontweight="bold",
+                    fontsize=9,
+                )
+            cumulative += value
+
+
+def plot_premium_decomposition(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     premium_components: Dict[str, Dict[str, Dict[str, float]]],
     company_sizes: Optional[List[str]] = None,
     layers: Optional[List[str]] = None,
@@ -1989,27 +2015,7 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals
 
     # Add percentage labels if requested
     if show_percentages:
-        for i in range(len(group_labels)):
-            total = sum(component_data[comp][i] for comp in component_names)
-            if total > 0:
-                cumulative = 0
-                for component in component_names:
-                    value = component_data[component][i]
-                    if value > 0:
-                        percentage = (value / total) * 100
-                        if percentage >= 5:  # Only show label if segment is large enough
-                            y_pos = cumulative + value / 2
-                            ax.text(
-                                i,
-                                y_pos,
-                                f"{percentage:.1f}%",
-                                ha="center",
-                                va="center",
-                                color="white",
-                                fontweight="bold",
-                                fontsize=9,
-                            )
-                    cumulative += value  # type: ignore[assignment]
+        _add_percentage_labels(ax, group_labels, component_data, component_names)
 
     # Add total premium values on top of bars
     for i, (label, total_height) in enumerate(zip(group_labels, bottom)):
@@ -2069,8 +2075,8 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals
         warnings.simplefilter("ignore", UserWarning)
         try:
             plt.tight_layout()
-        except Exception:
-            # Ignore layout errors for complex subplot arrangements  
+        except (ValueError, TypeError, RuntimeError):
+            # Ignore layout errors for complex subplot arrangements
             pass
     return fig
 
@@ -2230,9 +2236,10 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
     ax.grid(True, alpha=0.3)
 
     # Add legend (create proxy artists for surfaces)
+    from matplotlib.artist import Artist
     from matplotlib.patches import Patch
 
-    legend_elements = []
+    legend_elements: List[Artist] = []
     for company_size in company_sizes:
         if company_size in efficiency_data:
             color = size_colors.get(company_size, "viridis")
@@ -2284,7 +2291,7 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
                 X, Y = np.meshgrid(ruin_probs, insurance_spends)
                 Z = roe_surface.T
 
-                cmap_name = size_colors.get(company_size, f"viridis")
+                cmap_name = size_colors.get(company_size, "viridis")
                 cmap = plt.colormaps[cmap_name]
 
                 ax_view.plot_surface(

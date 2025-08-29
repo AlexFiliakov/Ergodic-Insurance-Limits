@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
+from matplotlib import transforms
 from matplotlib.axes import Axes
 from matplotlib.patches import FancyBboxPatch, PathPatch
 from matplotlib.path import Path
 import matplotlib.pyplot as plt
-import matplotlib.transforms as transforms
 import numpy as np
 from scipy.spatial.distance import cdist
 
@@ -456,7 +456,7 @@ class SmartAnnotationPlacer:
 
         return positions
 
-    def find_best_position(
+    def find_best_position(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         self,
         target_point: Tuple[float, float],
         text: str,
@@ -563,7 +563,7 @@ class SmartAnnotationPlacer:
             # Distance penalty (prefer closer positions but not too close)
             distance = np.linalg.norm(np.array(pos) - np.array(target_axes))
             if distance < 0.05:  # Too close
-                distance_penalty = 100
+                distance_penalty = 100.0
             else:
                 distance_penalty = float(distance * 20)
 
@@ -645,7 +645,7 @@ class SmartAnnotationPlacer:
             self.ax,
             text,
             xy=target_point,
-            xytext=text_pos,
+            xytext=tuple(text_pos),
             fontsize=fontsize,
             color=color,
             arrow_color=arrow_color,
@@ -710,25 +710,25 @@ class SmartAnnotationPlacer:
                 xytext=(text_x, text_y),
                 fontsize=fontsize,
                 color=ann.get("color", "black"),
-                bbox=dict(
-                    boxstyle="round,pad=0.3",
-                    facecolor="white",
-                    edgecolor=ann.get("color", "gray"),
-                    alpha=0.9,
-                    linewidth=0.5,
-                ),
-                arrowprops=dict(
-                    arrowstyle="->",
-                    connectionstyle="arc3,rad=0.2",
-                    color=ann.get("arrow_color", ann.get("color", "gray")),
-                    linewidth=1,
-                    alpha=0.7,
-                ),
+                bbox={
+                    "boxstyle": "round,pad=0.3",
+                    "facecolor": "white",
+                    "edgecolor": ann.get("color", "gray"),
+                    "alpha": 0.9,
+                    "linewidth": 0.5,
+                },
+                arrowprops={
+                    "arrowstyle": "->",
+                    "connectionstyle": "arc3,rad=0.2",
+                    "color": ann.get("arrow_color", ann.get("color", "gray")),
+                    "linewidth": 1,
+                    "alpha": 0.7,
+                },
                 zorder=100,  # Ensure annotations are on top
             )
 
 
-def create_leader_line(
+def create_leader_line(  # pylint: disable=too-many-locals
     ax: Axes,
     start: Tuple[float, float],
     end: Tuple[float, float],
@@ -809,7 +809,7 @@ def create_leader_line(
         )
 
 
-def auto_annotate_peaks_valleys(
+def auto_annotate_peaks_valleys(  # pylint: disable=too-many-locals
     ax: Axes,
     x_data: np.ndarray,
     y_data: np.ndarray,
