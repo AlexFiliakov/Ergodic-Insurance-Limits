@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from typing import Any, Dict
-from unittest.mock import MagicMock, Mock, patch
 
 import matplotlib
 import matplotlib.pyplot as plt

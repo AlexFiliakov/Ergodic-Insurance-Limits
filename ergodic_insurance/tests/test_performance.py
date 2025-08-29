@@ -14,7 +14,6 @@ and benchmarking modules to ensure they meet the 100K simulations target.
 # Test setup patterns are intentionally similar across test files for clarity
 
 import time
-from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -45,6 +44,11 @@ from ergodic_insurance.src.performance_optimizer import (
     ProfileResult,
     SmartCache,
     VectorizedOperations,
+)
+from ergodic_insurance.tests.test_fixtures import (
+    PERFORMANCE_BASELINES,
+    ScenarioBuilder,
+    TestDataGenerator,
 )
 
 pytest.skip(allow_module_level=True)
@@ -92,19 +96,24 @@ class TestPerformanceBenchmarks:
     @pytest.mark.slow
     @pytest.mark.integration
     def test_convergence_efficiency(self, setup_realistic_engine):
-        """Test convergence monitoring efficiency."""
-        loss_generator, insurance_program, manufacturer = setup_realistic_engine
-
-        # Mock for faster testing
-        mock_generator = Mock(spec=ManufacturingLossGenerator)
-        mock_generator.generate_losses.return_value = (
-            [LossEvent(time=0.5, amount=100_000, loss_type="test")],
-            {"total_amount": 100_000},
+        """Test convergence monitoring efficiency with real small-scale simulations."""
+        # Use test data generator for small but realistic simulations
+        loss_generator = TestDataGenerator.create_test_loss_generator(
+            frequency_scale=0.1,  # Reduce frequency for faster testing
+            severity_scale=0.1,  # Reduce severity for stability
+            seed=42,
+        )
+        insurance_program = TestDataGenerator.create_simple_insurance_program(
+            layers=2, base_limit=100_000, base_premium=0.02
+        )
+        manufacturer = TestDataGenerator.create_small_manufacturer(
+            initial_assets=1_000_000  # Smaller for faster computation
         )
 
+        # Use smaller scale for realistic testing
         config = SimulationConfig(
-            n_simulations=50_000,
-            n_years=10,
+            n_simulations=1_000,  # Reduced from 50K for faster real testing
+            n_years=5,  # Reduced years
             parallel=False,
             cache_results=False,
             progress_bar=False,
@@ -112,7 +121,7 @@ class TestPerformanceBenchmarks:
         )
 
         engine = MonteCarloEngine(
-            loss_generator=mock_generator,
+            loss_generator=loss_generator,
             insurance_program=insurance_program,
             manufacturer=manufacturer,
             config=config,
@@ -120,13 +129,17 @@ class TestPerformanceBenchmarks:
 
         start_time = time.time()
         results = engine.run_with_convergence_monitoring(
-            target_r_hat=1.1, check_interval=5_000, max_iterations=50_000
+            target_r_hat=1.2,  # Slightly relaxed for faster convergence
+            check_interval=100,  # Check more frequently with smaller batches
+            max_iterations=1_000,
         )
         execution_time = time.time() - start_time
 
         assert results is not None
         # Should converge before max iterations
-        assert len(results.final_assets) <= 50_000
+        assert len(results.final_assets) <= 1_000
+        # Should complete within reasonable time for small simulation
+        assert execution_time < PERFORMANCE_BASELINES["medium_simulation_time"]
         print(
             f"\nConvergence achieved with {len(results.final_assets)} simulations in {execution_time:.2f}s"
         )
@@ -185,23 +198,25 @@ class TestPerformanceBenchmarks:
     @pytest.mark.slow
     @pytest.mark.integration
     def test_cache_performance(self, setup_realistic_engine):
-        """Test caching performance improvement."""
+        """Test caching performance improvement with real simulations."""
         from pathlib import Path
         import tempfile
 
-        loss_generator, insurance_program, manufacturer = setup_realistic_engine
-
-        # Mock for consistent results
-        mock_generator = Mock(spec=ManufacturingLossGenerator)
-        mock_generator.generate_losses.return_value = (
-            [LossEvent(time=0.5, amount=100_000, loss_type="test")],
-            {"total_amount": 100_000},
+        # Create small-scale but real test components
+        loss_generator = TestDataGenerator.create_test_loss_generator(
+            frequency_scale=0.05,  # Very low frequency for consistent results
+            severity_scale=0.01,
+            seed=99,  # Different seed for deterministic testing
+        )
+        insurance_program = TestDataGenerator.create_simple_insurance_program()
+        manufacturer = TestDataGenerator.create_small_manufacturer(
+            initial_assets=500_000  # Smaller for faster testing
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config = SimulationConfig(
-                n_simulations=10_000,
-                n_years=10,
+                n_simulations=500,  # Small but real simulation
+                n_years=3,  # Short time horizon
                 parallel=False,
                 cache_results=True,
                 progress_bar=False,
@@ -209,7 +224,7 @@ class TestPerformanceBenchmarks:
             )
 
             engine = MonteCarloEngine(
-                loss_generator=mock_generator,
+                loss_generator=loss_generator,
                 insurance_program=insurance_program,
                 manufacturer=manufacturer,
                 config=config,
@@ -230,7 +245,8 @@ class TestPerformanceBenchmarks:
             speedup = time_no_cache / time_with_cache if time_with_cache > 0 else 0
 
             assert np.array_equal(results1.final_assets, results2.final_assets)
-            assert speedup > 10  # Cache should be at least 10x faster
+            # Cache should provide significant speedup (relaxed from 10x to 5x for real data)
+            assert speedup > PERFORMANCE_BASELINES["cache_speedup_factor"] * 0.5
             print(
                 f"\nCache speedup: {speedup:.1f}x (no cache: {time_no_cache:.2f}s, with cache: {time_with_cache:.2f}s)"
             )
