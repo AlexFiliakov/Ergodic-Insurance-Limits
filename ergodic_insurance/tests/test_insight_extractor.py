@@ -79,6 +79,9 @@ class TestInsight:
 class TestInsightExtractor:
     """Test suite for InsightExtractor class."""
 
+    extractor: InsightExtractor
+    sample_data: Mock
+
     def setup_method(self):
         """Set up test fixtures."""
         self.extractor = InsightExtractor()
@@ -305,7 +308,7 @@ class TestInsightExtractor:
         ]
 
         output_file = tmp_path / "insights.md"
-        result = self.extractor.export_insights(str(output_file), format="markdown")
+        result = self.extractor.export_insights(str(output_file), output_format="markdown")
 
         assert result == str(output_file)
         assert output_file.exists()
@@ -333,7 +336,7 @@ class TestInsightExtractor:
         ]
 
         output_file = tmp_path / "insights.json"
-        result = self.extractor.export_insights(str(output_file), format="json")
+        result = self.extractor.export_insights(str(output_file), output_format="json")
 
         assert output_file.exists()
 
@@ -367,7 +370,7 @@ class TestInsightExtractor:
         ]
 
         output_file = tmp_path / "insights.csv"
-        result = self.extractor.export_insights(str(output_file), format="csv")
+        result = self.extractor.export_insights(str(output_file), output_format="csv")
 
         assert output_file.exists()
 

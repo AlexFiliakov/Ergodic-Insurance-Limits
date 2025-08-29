@@ -48,6 +48,23 @@ def _bootstrap_worker(args: Tuple[np.ndarray, Any, int, int, Optional[int]]) -> 
         List of bootstrap statistics.
     """
     data, statistic, start_idx, n_samples, seed = args
+
+    # Handle common statistics as strings for better pickling support
+    statistic_func: Callable[[np.ndarray], float]
+    if isinstance(statistic, str):
+        if statistic == "mean":
+            statistic_func = np.mean
+        elif statistic == "median":
+            statistic_func = np.median
+        elif statistic == "std":
+            statistic_func = np.std
+        elif statistic == "var":
+            statistic_func = np.var
+        else:
+            raise ValueError(f"Unknown statistic string: {statistic}")
+    else:
+        statistic_func = statistic
+
     worker_rng = np.random.RandomState(seed)
     n = len(data)
     results = []
@@ -55,7 +72,7 @@ def _bootstrap_worker(args: Tuple[np.ndarray, Any, int, int, Optional[int]]) -> 
     for _ in range(n_samples):
         indices = worker_rng.choice(n, size=n, replace=True)
         bootstrap_sample = data[indices]
-        results.append(statistic(bootstrap_sample))
+        results.append(statistic_func(bootstrap_sample))
 
     return results
 
@@ -212,7 +229,13 @@ class BootstrapAnalyzer:
 
         # Generate bootstrap distribution
         if parallel and self.n_workers > 1:
-            bootstrap_dist = self._parallel_bootstrap(data, statistic)
+            try:
+                bootstrap_dist = self._parallel_bootstrap(data, statistic)
+            except (ValueError, RuntimeError, TypeError) as e:
+                # Fall back to sequential if parallel fails
+                if self.show_progress:
+                    print(f"Parallel bootstrap failed: {e}. Falling back to sequential.")
+                bootstrap_dist = self._sequential_bootstrap(data, statistic)
         else:
             bootstrap_dist = self._sequential_bootstrap(data, statistic)
 
@@ -287,11 +310,22 @@ class BootstrapAnalyzer:
         Returns:
             List of (start_index, future) tuples
         """
+        # Check if statistic is a common numpy function and convert to string
+        statistic_to_pass: Union[str, Callable[[np.ndarray], float]] = statistic
+        if statistic is np.mean:
+            statistic_to_pass = "mean"
+        elif statistic is np.median:
+            statistic_to_pass = "median"
+        elif statistic is np.std:
+            statistic_to_pass = "std"
+        elif statistic is np.var:
+            statistic_to_pass = "var"
+
         futures = []
         for i, chunk in enumerate(chunks):
             if len(chunk) > 0:
                 worker_seed = self.seed + i if self.seed else None
-                args = (data, statistic, chunk[0], len(chunk), worker_seed)
+                args = (data, statistic_to_pass, chunk[0], len(chunk), worker_seed)
                 future = executor.submit(_bootstrap_worker, args)
                 futures.append((chunk[0], future))
         return futures
