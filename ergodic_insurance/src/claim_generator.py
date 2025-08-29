@@ -109,6 +109,35 @@ class ClaimGenerator:
 
         return claims
 
+    def generate_year(self, year: int = 0) -> List[ClaimEvent]:
+        """Generate claims for a single year.
+
+        Args:
+            year: Year number for the claims (default 0).
+
+        Returns:
+            List of claim events for the year.
+        """
+        # Generate number of claims for the year
+        n_claims = self.rng.poisson(self.frequency)
+
+        claims = []
+        for _ in range(n_claims):
+            # Generate claim amount
+            variance = self.severity_std**2
+            mean = self.severity_mean
+
+            if mean > 0:
+                sigma = np.sqrt(np.log(1 + variance / mean**2))
+                mu = np.log(mean) - sigma**2 / 2
+                amount = self.rng.lognormal(mu, sigma)
+            else:
+                amount = 0.0
+
+            claims.append(ClaimEvent(year=year, amount=amount))
+
+        return claims
+
     def generate_catastrophic_claims(
         self,
         years: int,

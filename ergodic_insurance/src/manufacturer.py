@@ -232,6 +232,16 @@ class WidgetManufacturer:
         """
         return sum(claim.remaining_amount for claim in self.claim_liabilities)
 
+    @property
+    def cash(self) -> float:
+        """Cash available (alias for assets for backward compatibility)."""
+        return self.assets
+
+    @cash.setter
+    def cash(self, value: float):
+        """Set cash (alias for assets for backward compatibility)."""
+        self.assets = value
+
     def calculate_revenue(
         self, working_capital_pct: float = 0.0, apply_stochastic: bool = False
     ) -> float:
@@ -349,30 +359,46 @@ class WidgetManufacturer:
             logger.debug(f"Dividends paid: ${dividends:,.2f}")
 
     def process_insurance_claim(
-        self, claim_amount: float, deductible: float = 0.0, insurance_limit: float = float("inf")
+        self,
+        claim_amount: float,
+        deductible: float = 0.0,
+        insurance_limit: float = float("inf"),
+        insurance_recovery: Optional[float] = None,
+        deductible_amount: Optional[float] = None,
     ) -> tuple[float, float]:
         """Process an insurance claim with deductible and limit, setting up collateral.
 
         Args:
             claim_amount: Total amount of the loss/claim.
-            deductible: Amount company must pay before insurance kicks in.
-            insurance_limit: Maximum amount insurance will pay.
+            deductible: Amount company must pay before insurance kicks in (legacy).
+            insurance_limit: Maximum amount insurance will pay (legacy).
+            insurance_recovery: Pre-calculated insurance recovery amount (preferred).
+            deductible_amount: Deductible amount (preferred over deductible).
 
         Returns:
             Tuple of (company_payment, insurance_payment).
         """
-        # Calculate insurance coverage
-        if claim_amount <= deductible:
-            # Below deductible, company pays all
-            company_payment = claim_amount
-            insurance_payment = 0
+        # Handle new style parameters if provided
+        if insurance_recovery is not None:
+            # Use pre-calculated recovery
+            insurance_payment = insurance_recovery
+            actual_deductible = deductible_amount if deductible_amount is not None else deductible
+            company_payment = claim_amount - insurance_payment
         else:
-            # Above deductible
-            company_payment = deductible
-            insurance_payment = int(min(claim_amount - deductible, insurance_limit))
-            # Company also pays any amount above the limit
-            if claim_amount > deductible + insurance_limit:
-                company_payment += claim_amount - deductible - insurance_limit
+            # Legacy calculation
+            actual_deductible = deductible_amount if deductible_amount is not None else deductible
+            # Calculate insurance coverage
+            if claim_amount <= actual_deductible:
+                # Below deductible, company pays all
+                company_payment = claim_amount
+                insurance_payment = 0
+            else:
+                # Above deductible
+                company_payment = actual_deductible
+                insurance_payment = int(min(claim_amount - actual_deductible, insurance_limit))
+                # Company also pays any amount above the limit
+                if claim_amount > actual_deductible + insurance_limit:
+                    company_payment += claim_amount - actual_deductible - insurance_limit
 
         # Company must immediately pay its portion
         if company_payment > 0:

@@ -434,7 +434,12 @@ class ParallelExecutor:
 
         # Update metrics
         self.performance_metrics.total_time = time.time() - start_time
-        self.performance_metrics.items_per_second = n_items / self.performance_metrics.total_time
+        if self.performance_metrics.total_time > 0:
+            self.performance_metrics.items_per_second = (
+                n_items / self.performance_metrics.total_time
+            )
+        else:
+            self.performance_metrics.items_per_second = 0.0
 
         # Monitor memory
         if self.monitor_performance:

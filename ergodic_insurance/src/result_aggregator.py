@@ -107,6 +107,23 @@ class ResultAggregator(BaseAggregator):
         """
         results: Dict[str, Any] = {}
 
+        # Handle empty data
+        if len(data) == 0:
+            return {
+                "count": 0,
+                "mean": np.nan,
+                "std": np.nan,
+                "min": np.nan,
+                "max": np.nan,
+                "percentiles": {},
+                "moments": {
+                    "variance": np.nan,
+                    "skewness": np.nan,
+                    "kurtosis": np.nan,
+                    "coefficient_variation": np.nan,
+                },
+            }
+
         # Basic statistics
         results["count"] = len(data)
         results["mean"] = self._round_value(np.mean(data))
@@ -231,6 +248,17 @@ class TimeSeriesAggregator(BaseAggregator):
 
         n_periods, n_simulations = data.shape
         results: Dict[str, Any] = {}
+
+        # Handle empty data
+        if data.size == 0 or n_periods == 0 or n_simulations == 0:
+            return {
+                "period_mean": np.array([]),
+                "period_std": np.array([]),
+                "period_min": np.array([]),
+                "period_max": np.array([]),
+                "cumulative_mean": np.array([]),
+                "cumulative_std": np.array([]),
+            }
 
         # Period-wise statistics
         results["period_mean"] = self._round_value(np.mean(data, axis=1))

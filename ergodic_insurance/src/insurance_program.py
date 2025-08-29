@@ -74,6 +74,7 @@ class EnhancedInsuranceLayer:
     reinstatement_premium: float = 1.0  # % of original premium per reinstatement
     reinstatement_type: ReinstatementType = ReinstatementType.PRO_RATA
     aggregate_limit: Optional[float] = None  # Annual aggregate limit if applicable
+    participation_rate: float = 1.0  # % of loss covered by this layer (default 100%)
 
     def __post_init__(self):
         """Validate layer parameters."""
@@ -81,6 +82,8 @@ class EnhancedInsuranceLayer:
             raise ValueError(f"Attachment point must be non-negative, got {self.attachment_point}")
         if self.limit <= 0:
             raise ValueError(f"Limit must be positive, got {self.limit}")
+        # Initialize exhausted tracking
+        self.exhausted = 0.0
         if self.premium_rate < 0:
             raise ValueError(f"Premium rate must be non-negative, got {self.premium_rate}")
         if self.reinstatements < 0:

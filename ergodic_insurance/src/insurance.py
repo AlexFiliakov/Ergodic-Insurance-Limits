@@ -116,6 +116,31 @@ class InsurancePolicy:
 
         return company_payment, insurance_recovery
 
+    def calculate_recovery(self, claim_amount: float) -> float:
+        """Calculate total insurance recovery for a claim.
+
+        Args:
+            claim_amount: Total claim amount.
+
+        Returns:
+            Total insurance recovery amount.
+        """
+        if claim_amount <= 0:
+            return 0.0
+
+        # Amount available for insurance after deductible
+        if claim_amount <= self.deductible:
+            return 0.0
+
+        # Process through insurance layers
+        insurance_recovery = 0.0
+        for layer in self.layers:
+            # Calculate recovery from this layer
+            layer_recovery = layer.calculate_recovery(claim_amount)
+            insurance_recovery += layer_recovery
+
+        return insurance_recovery
+
     def calculate_premium(self) -> float:
         """Calculate total premium across all layers.
 

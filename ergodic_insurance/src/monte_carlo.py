@@ -656,9 +656,12 @@ class MonteCarloEngine:
                 manufacturer.process_insurance_claim(event.amount)
 
             # Update manufacturer state with annual step
+            # Apply stochastic if the manufacturer has a stochastic process
+            apply_stochastic = manufacturer.stochastic_process is not None
             manufacturer.step(
                 working_capital_pct=0.2,
-                growth_rate=0.0,  # No growth rate for now
+                growth_rate=0.05,  # Use a base growth rate
+                apply_stochastic=apply_stochastic,
             )
 
             # Check for ruin
@@ -703,6 +706,22 @@ class MonteCarloEngine:
         Returns:
             Combined SimulationResults
         """
+        # Handle empty chunk results
+        if not chunk_results:
+            return SimulationResults(
+                final_assets=np.array([]),
+                annual_losses=np.array([]).reshape(0, self.config.n_years),
+                insurance_recoveries=np.array([]).reshape(0, self.config.n_years),
+                retained_losses=np.array([]).reshape(0, self.config.n_years),
+                growth_rates=np.array([]),
+                ruin_probability=0.0,
+                metrics={},  # Empty metrics for empty simulation
+                convergence={},  # Empty convergence for empty simulation
+                execution_time=0.0,
+                config=self.config,
+                time_series_aggregation=None,
+            )
+
         # Concatenate arrays
         final_assets = np.concatenate([r["final_assets"] for r in chunk_results])
         annual_losses = np.vstack([r["annual_losses"] for r in chunk_results])
@@ -756,6 +775,32 @@ class MonteCarloEngine:
         Returns:
             Dictionary of risk metrics
         """
+        # Handle empty results gracefully
+        if (
+            len(results.final_assets) == 0
+            or results.annual_losses is None
+            or results.annual_losses.size == 0
+        ):
+            # Return default metrics for empty simulations
+            return {
+                "mean_loss": 0.0,
+                "median_loss": 0.0,
+                "std_loss": 0.0,
+                "var_95": 0.0,
+                "var_99": 0.0,
+                "var_995": 0.0,
+                "tvar_95": 0.0,
+                "tvar_99": 0.0,
+                "tvar_995": 0.0,
+                "expected_shortfall_99": 0.0,
+                "max_loss": 0.0,
+                "mean_recovery": 0.0,
+                "mean_retained": 0.0,
+                "mean_growth_rate": 0.0,
+                "survival_rate": 1.0,
+                "ruin_probability": 0.0,
+            }
+
         # Total losses across all years
         total_losses = np.sum(results.annual_losses, axis=1)
 
@@ -871,14 +916,14 @@ class MonteCarloEngine:
         return results
 
     def export_results(
-        self, results: SimulationResults, filepath: Path, format: str = "csv"
+        self, results: SimulationResults, filepath: Path, file_format: str = "csv"
     ) -> None:
         """Export simulation results to file.
 
         Args:
             results: Simulation results to export
             filepath: Output file path
-            format: Export format ('csv', 'json', 'hdf5')
+            file_format: Export format ('csv', 'json', 'hdf5')
         """
         if not results.aggregated_results:
             # Perform aggregation if not already done
@@ -891,14 +936,14 @@ class MonteCarloEngine:
                 results.aggregated_results = aggregator.aggregate(results.final_assets)
 
         # Export based on format
-        if format.lower() == "csv":
+        if file_format.lower() == "csv":
             ResultExporter.to_csv(results.aggregated_results, filepath)
-        elif format.lower() == "json":
+        elif file_format.lower() == "json":
             ResultExporter.to_json(results.aggregated_results, filepath)
-        elif format.lower() == "hdf5":
+        elif file_format.lower() == "hdf5":
             ResultExporter.to_hdf5(results.aggregated_results, filepath)
         else:
-            raise ValueError(f"Unsupported export format: {format}")
+            raise ValueError(f"Unsupported export format: {file_format}")
 
     def compute_bootstrap_confidence_intervals(
         self,
