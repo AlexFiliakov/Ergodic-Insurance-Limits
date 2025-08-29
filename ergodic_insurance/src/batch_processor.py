@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from .excel_reporter import ExcelReportConfig, ExcelReporter
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
@@ -664,3 +665,48 @@ class BatchProcessor:
                     )
                 for name, df in aggregated.comparison_metrics.items():
                     df.to_excel(writer, sheet_name=name[:31])  # Excel sheet name limit
+        elif export_format == "excel_financial":
+            # Use the comprehensive Excel reporter for financial statements
+            self.export_financial_statements(path)
+
+    def export_financial_statements(self, path: Union[str, Path]) -> None:
+        """Export comprehensive financial statements to Excel.
+
+        Generates detailed financial statements including balance sheets,
+        income statements, cash flow statements, reconciliation reports,
+        and metrics dashboards for each scenario.
+
+        Args:
+            path: Output directory path for Excel files
+        """
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+
+        # Configure Excel reporter
+        excel_config = ExcelReportConfig(
+            output_path=path,
+            include_balance_sheet=True,
+            include_income_statement=True,
+            include_cash_flow=True,
+            include_reconciliation=True,
+            include_metrics_dashboard=True,
+            include_pivot_data=True,
+        )
+
+        reporter = ExcelReporter(excel_config)
+
+        # Generate reports for each completed scenario
+        for result in self.batch_results:
+            if result.status == ProcessingStatus.COMPLETED and result.simulation_results:
+                output_file = f"financial_report_{result.scenario_name}.xlsx"
+                try:
+                    # For now, generate Monte Carlo report since we have MC results
+                    # TODO: Add support for extracting individual trajectories
+                    reporter.generate_monte_carlo_report(
+                        result.simulation_results,
+                        output_file,
+                        title=f"Financial Report - {result.scenario_name}",
+                    )
+                    print(f"Generated financial report: {path / output_file}")
+                except Exception as e:
+                    print(f"Error generating report for {result.scenario_name}: {e}")

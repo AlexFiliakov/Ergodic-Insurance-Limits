@@ -264,6 +264,42 @@ class PresetConfig(BaseModel):
         return v
 
 
+class ExcelReportConfig(BaseModel):
+    """Configuration for Excel report generation."""
+
+    enabled: bool = Field(default=True, description="Whether Excel reporting is enabled")
+    output_path: str = Field(default="./reports", description="Directory for Excel reports")
+    include_balance_sheet: bool = Field(default=True, description="Include balance sheet")
+    include_income_statement: bool = Field(default=True, description="Include income statement")
+    include_cash_flow: bool = Field(default=True, description="Include cash flow statement")
+    include_reconciliation: bool = Field(default=True, description="Include reconciliation report")
+    include_metrics_dashboard: bool = Field(default=True, description="Include metrics dashboard")
+    include_pivot_data: bool = Field(default=True, description="Include pivot-ready data")
+    engine: str = Field(default="auto", description="Excel engine: xlsxwriter, openpyxl, or auto")
+    currency_format: str = Field(default="$#,##0", description="Currency format string")
+    decimal_places: int = Field(default=0, ge=0, le=10, description="Number of decimal places")
+    date_format: str = Field(default="yyyy-mm-dd", description="Date format string")
+
+    @field_validator("engine")
+    @classmethod
+    def validate_engine(cls, v: str) -> str:
+        """Validate Excel engine selection.
+
+        Args:
+            v: Engine name to validate.
+
+        Returns:
+            Validated engine name.
+
+        Raises:
+            ValueError: If engine is not valid.
+        """
+        valid_engines = ["xlsxwriter", "openpyxl", "auto", "pandas"]
+        if v not in valid_engines:
+            raise ValueError(f"Invalid Excel engine: {v}. Must be one of {valid_engines}")
+        return v
+
+
 class ConfigV2(BaseModel):
     """Enhanced unified configuration model for the 3-tier system."""
 
@@ -277,6 +313,7 @@ class ConfigV2(BaseModel):
     logging: LoggingConfig
     insurance: Optional[InsuranceConfig] = None
     losses: Optional[LossDistributionConfig] = None
+    excel_reporting: Optional[ExcelReportConfig] = None
 
     # Additional fields for extensibility
     custom_modules: Dict[str, ModuleConfig] = Field(
