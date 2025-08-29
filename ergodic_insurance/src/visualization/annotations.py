@@ -433,14 +433,26 @@ class SmartAnnotationPlacer:
         """
         positions = []
 
-        # Grid positions
-        for x in np.linspace(0.1, 0.9, 5):
-            for y in np.linspace(0.1, 0.9, 4):
+        # Grid positions - more evenly distributed
+        for x in np.linspace(0.05, 0.95, 6):
+            for y in np.linspace(0.05, 0.95, 5):
                 positions.append((x, y))
 
-        # Corner positions (preferred)
-        corners = [(0.05, 0.95), (0.95, 0.95), (0.05, 0.05), (0.95, 0.05)]
-        positions = corners + positions
+        # Add extra positions around typical annotation areas
+        # Upper area for peaks
+        for x in np.linspace(0.1, 0.9, 5):
+            positions.append((x, 0.85))
+            positions.append((x, 0.75))
+
+        # Middle area for general annotations
+        for x in np.linspace(0.1, 0.9, 5):
+            positions.append((x, 0.5))
+            positions.append((x, 0.4))
+
+        # Lower area for valleys
+        for x in np.linspace(0.1, 0.9, 5):
+            positions.append((x, 0.25))
+            positions.append((x, 0.15))
 
         return positions
 
@@ -463,12 +475,64 @@ class SmartAnnotationPlacer:
             Best position in axes fraction coordinates
         """
         # Convert target point to axes fraction
-        trans = self.ax.transData + self.ax.transAxes.inverted()
-        target_axes = trans.transform(target_point)
+        trans = self.ax.transData.transform
+        inv_trans = self.ax.transAxes.inverted().transform
 
-        # Filter positions by quadrant if specified
-        candidates = self.candidate_positions.copy()
+        # Transform to display coordinates then to axes fraction
+        display_point = trans(np.array(target_point))
+        target_axes = inv_trans(display_point)
 
+        # Ensure target_axes is in valid range
+        target_axes = np.clip(target_axes, 0.0, 1.0)
+
+        # Generate dynamic candidate positions around target
+        dynamic_positions = []
+
+        # Create positions in a circle around the target point
+        n_angles = 8
+        for i, angle in enumerate(np.linspace(0, 2 * np.pi, n_angles, endpoint=False)):
+            # Vary radius based on position in plot
+            if target_axes[1] > 0.7:  # Upper part - annotations below
+                if angle > np.pi:  # Lower half of circle preferred
+                    radius = 0.15
+                else:
+                    radius = 0.25
+            elif target_axes[1] < 0.3:  # Lower part - annotations above
+                if angle < np.pi:  # Upper half of circle preferred
+                    radius = 0.15
+                else:
+                    radius = 0.25
+            else:  # Middle part - flexible
+                radius = 0.2
+
+            x = target_axes[0] + radius * np.cos(angle)
+            y = target_axes[1] + radius * np.sin(angle)
+
+            # Keep within plot bounds
+            x = np.clip(x, 0.05, 0.95)
+            y = np.clip(y, 0.05, 0.95)
+
+            dynamic_positions.append((x, y))
+
+        # Add some offset positions
+        offsets = [
+            (0.12, 0.08),
+            (-0.12, 0.08),  # Above
+            (0.12, -0.08),
+            (-0.12, -0.08),  # Below
+            (0.15, 0.0),
+            (-0.15, 0.0),  # Sides
+        ]
+
+        for dx, dy in offsets:
+            x = np.clip(target_axes[0] + dx, 0.05, 0.95)
+            y = np.clip(target_axes[1] + dy, 0.05, 0.95)
+            dynamic_positions.append((x, y))
+
+        # Combine dynamic and static positions
+        candidates = dynamic_positions + self.candidate_positions
+
+        # Filter by preferred quadrant if specified
         if preferred_quadrant:
             quadrant_filters = {
                 "NE": lambda p: p[0] > target_axes[0] and p[1] > target_axes[1],
@@ -493,34 +557,54 @@ class SmartAnnotationPlacer:
 
             # Check for overlaps
             overlap_penalty = sum(
-                100 if test_box.overlaps(existing) else 0 for existing in self.placed_annotations
+                200 if test_box.overlaps(existing) else 0 for existing in self.placed_annotations
             )
 
-            # Distance penalty (prefer closer positions)
+            # Distance penalty (prefer closer positions but not too close)
             distance = np.linalg.norm(np.array(pos) - np.array(target_axes))
-            distance_penalty = distance * 10
+            if distance < 0.05:  # Too close
+                distance_penalty = 100
+            else:
+                distance_penalty = float(distance * 20)
 
-            # Edge penalty (avoid edges)
+            # Edge penalty (avoid edges but less harsh)
             edge_penalty = 0
-            if pos[0] < 0.1 or pos[0] > 0.9:
-                edge_penalty += 20
-            if pos[1] < 0.1 or pos[1] > 0.9:
-                edge_penalty += 20
+            if pos[0] < 0.05 or pos[0] > 0.95:
+                edge_penalty += 30
+            if pos[1] < 0.05 or pos[1] > 0.95:
+                edge_penalty += 30
+
+            # Prefer positions that maintain readability
+            readability_penalty = 0
+            # Prefer annotations above for lower targets
+            if target_axes[1] < 0.3 and pos[1] < target_axes[1]:
+                readability_penalty += 50
+            # Prefer annotations below for upper targets
+            elif target_axes[1] > 0.7 and pos[1] > target_axes[1]:
+                readability_penalty += 50
 
             # Total score
-            score = overlap_penalty + distance_penalty + edge_penalty
+            score = overlap_penalty + distance_penalty + edge_penalty + readability_penalty
 
             if score < best_score:
                 best_score = score
                 best_position = pos
 
-        # If no good position found, use offset from target
-        if best_position is None or best_score > 200:
+        # If no good position found, use smart offset from target
+        if best_position is None or best_score > 300:
+            # Determine best offset based on target position
+            if target_axes[1] > 0.7:  # High target - put annotation below
+                offset_y = -0.12
+            elif target_axes[1] < 0.3:  # Low target - put annotation above
+                offset_y = 0.12
+            else:  # Middle target - offset based on crowding
+                offset_y = 0.1 if target_axes[1] < 0.5 else -0.1
+
             offset_x = 0.1 if target_axes[0] < 0.5 else -0.1
-            offset_y = 0.1 if target_axes[1] < 0.5 else -0.1
+
             best_position = (
-                max(0.05, min(0.95, target_axes[0] + offset_x)),
-                max(0.05, min(0.95, target_axes[1] + offset_y)),
+                np.clip(target_axes[0] + offset_x, 0.05, 0.95),
+                np.clip(target_axes[1] + offset_y, 0.05, 0.95),
             )
 
         # Record placed annotation
@@ -549,12 +633,12 @@ class SmartAnnotationPlacer:
             color: Text color
             arrow_color: Arrow color
         """
-        # Find best position
+        # Find best position (returns axes fraction coordinates)
         best_pos = self.find_best_position(target_point, text, priority, preferred_quadrant)
 
-        # Convert back to data coordinates
-        trans = self.ax.transAxes + self.ax.transData.inverted()
-        text_pos = trans.transform(best_pos)
+        # Convert axes fraction to display coordinates then to data coordinates
+        display_pos = self.ax.transAxes.transform(best_pos)
+        text_pos = self.ax.transData.inverted().transform(display_pos)
 
         # Add the callout
         add_callout(
@@ -585,15 +669,62 @@ class SmartAnnotationPlacer:
         # Sort by priority (highest first)
         sorted_annotations = sorted(annotations, key=lambda x: x.get("priority", 50), reverse=True)
 
+        # Get plot limits for smarter positioning
+        xlims = self.ax.get_xlim()
+        ylims = self.ax.get_ylim()
+        y_range = ylims[1] - ylims[0]
+        x_range = xlims[1] - xlims[0]
+
         for ann in sorted_annotations:
-            self.add_smart_callout(
-                text=ann["text"],
-                target_point=ann["point"],
+            target = ann["point"]
+
+            # Calculate a good offset position in data coordinates
+            # Determine vertical offset based on position in plot
+            y_pos_ratio = (target[1] - ylims[0]) / y_range
+            if y_pos_ratio > 0.7:  # Upper third
+                text_y = target[1] - y_range * 0.1  # Place below
+            elif y_pos_ratio < 0.3:  # Lower third
+                text_y = target[1] + y_range * 0.1  # Place above
+            else:  # Middle third
+                text_y = (
+                    target[1] + y_range * 0.08 if y_pos_ratio < 0.5 else target[1] - y_range * 0.08
+                )
+
+            # Determine horizontal offset
+            x_pos_ratio = (target[0] - xlims[0]) / x_range
+            if x_pos_ratio < 0.33:
+                text_x = target[0] + x_range * 0.1
+            elif x_pos_ratio > 0.67:
+                text_x = target[0] - x_range * 0.1
+            else:
+                text_x = target[0] + x_range * 0.05
+
+            # Ensure text stays within bounds
+            text_x = np.clip(text_x, xlims[0] + x_range * 0.05, xlims[1] - x_range * 0.05)
+            text_y = np.clip(text_y, ylims[0] + y_range * 0.05, ylims[1] - y_range * 0.05)
+
+            # Add the annotation directly with better positioning
+            self.ax.annotate(
+                ann["text"],
+                xy=target,
+                xytext=(text_x, text_y),
                 fontsize=fontsize,
-                priority=ann.get("priority", 50),
-                preferred_quadrant=ann.get("quadrant"),
-                color=ann.get("color"),
-                arrow_color=ann.get("arrow_color"),
+                color=ann.get("color", "black"),
+                bbox=dict(
+                    boxstyle="round,pad=0.3",
+                    facecolor="white",
+                    edgecolor=ann.get("color", "gray"),
+                    alpha=0.9,
+                    linewidth=0.5,
+                ),
+                arrowprops=dict(
+                    arrowstyle="->",
+                    connectionstyle="arc3,rad=0.2",
+                    color=ann.get("arrow_color", ann.get("color", "gray")),
+                    linewidth=1,
+                    alpha=0.7,
+                ),
+                zorder=100,  # Ensure annotations are on top
             )
 
 
