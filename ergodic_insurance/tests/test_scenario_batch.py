@@ -337,9 +337,15 @@ class TestBatchProcessor:
         assert processor.n_workers == 4
         assert processor.checkpoint_dir.exists()
 
+    @patch("ergodic_insurance.src.batch_processor.time")
     @patch("ergodic_insurance.src.batch_processor.MonteCarloEngine")
     def test_process_single_scenario(
-        self, mock_engine_class, mock_components, sample_scenario, mock_simulation_results
+        self,
+        mock_engine_class,
+        mock_time,
+        mock_components,
+        sample_scenario,
+        mock_simulation_results,
     ):
         """Test processing a single scenario."""
         loss_gen, insurance, manufacturer = mock_components
@@ -348,6 +354,9 @@ class TestBatchProcessor:
         mock_engine = Mock()
         mock_engine.run.return_value = mock_simulation_results
         mock_engine_class.return_value = mock_engine
+
+        # Mock time.time() to return different values
+        mock_time.time.side_effect = [100.0, 101.5]  # Start time, end time
 
         processor = BatchProcessor(
             loss_generator=loss_gen,
@@ -362,7 +371,7 @@ class TestBatchProcessor:
         assert result.scenario_id == sample_scenario.scenario_id
         assert result.status == ProcessingStatus.COMPLETED
         assert result.simulation_results == mock_simulation_results
-        assert result.execution_time > 0
+        assert result.execution_time == 1.5  # 101.5 - 100.0
 
     @patch("ergodic_insurance.src.batch_processor.MonteCarloEngine")
     def test_process_batch_serial(

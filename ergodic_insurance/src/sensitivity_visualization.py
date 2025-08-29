@@ -79,19 +79,26 @@ def plot_tornado_diagram(  # pylint: disable=too-many-locals
     n = len(tornado_data)
     y_pos = np.arange(n)
 
-    # Calculate bar widths (centered on baseline)
-    baseline_values = tornado_data["baseline"].values
-    low_values = tornado_data["low_value"].values
-    high_values = tornado_data["high_value"].values
+    # Handle empty data case
+    if n == 0:
+        low_change = np.array([])
+        high_change = np.array([])
+        low_values = np.array([])
+        high_values = np.array([])
+    else:
+        # Calculate bar widths (centered on baseline)
+        baseline_values = tornado_data["baseline"].values
+        low_values = np.asarray(tornado_data["low_value"].values)
+        high_values = np.asarray(tornado_data["high_value"].values)
 
-    # Normalize to percentage change from baseline
-    # Convert to numpy arrays to ensure proper operations
-    low_values_arr = np.asarray(low_values)
-    high_values_arr = np.asarray(high_values)
-    baseline_values_arr = np.asarray(baseline_values)
+        # Normalize to percentage change from baseline
+        # Convert to numpy arrays to ensure proper operations
+        low_values_arr = low_values
+        high_values_arr = high_values
+        baseline_values_arr = np.asarray(baseline_values)
 
-    low_change = (low_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
-    high_change = (high_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
+        low_change = (low_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
+        high_change = (high_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
 
     # Create bars
     for i, (idx, row) in enumerate(tornado_data.iterrows()):
@@ -138,10 +145,14 @@ def plot_tornado_diagram(  # pylint: disable=too-many-locals
     ax.set_axisbelow(True)
 
     # Set x-axis limits with extra padding for value labels
-    x_min = min(low_change.min(), -40)
-    x_max = max(high_change.max(), 40)
-    x_padding = (x_max - x_min) * 0.15  # 15% padding on each side
-    ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    if len(tornado_data) > 0:
+        x_min = min(low_change.min(), -40)
+        x_max = max(high_change.max(), 40)
+        x_padding = (x_max - x_min) * 0.15  # 15% padding on each side
+        ax.set_xlim(x_min - x_padding, x_max + x_padding)
+    else:
+        # Default limits for empty data
+        ax.set_xlim(-50, 50)
 
     # Adjust layout with specific margins
     plt.tight_layout(rect=(0.05, 0.02, 0.95, 0.98))  # left, bottom, right, top
