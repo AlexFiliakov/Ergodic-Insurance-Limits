@@ -50,6 +50,9 @@ __all__ = [
     "StyleManager",
     "Theme",
     "FigureFactory",
+    "SensitivityAnalyzer",
+    "SensitivityResult",
+    "TwoWaySensitivityResult",
 ]
 
 
@@ -185,6 +188,14 @@ def __getattr__(name):
             FigureFactory,
             StyleManager,
             Theme,
+        )
+
+        return locals()[name]
+    if name in ("SensitivityAnalyzer", "SensitivityResult", "TwoWaySensitivityResult"):
+        from .sensitivity import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            SensitivityAnalyzer,
+            SensitivityResult,
+            TwoWaySensitivityResult,
         )
 
         return locals()[name]

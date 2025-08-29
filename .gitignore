@@ -407,7 +407,7 @@ nul
 ergodic_insurance/docs/_build/
 ergodic_insurance/docs/build/
 
-# Monte Carlo checkpoints
+# Cache
 ergodic_insurance/checkpoints/
 *.parquet
 *.checkpoint
@@ -416,11 +416,12 @@ assets/repo_banner.png
 ergodic_insurance/notebooks/cache
 checkpoints
 cache
-ergodic_insurance/notebooks/premium_analysis_exports
 results/figures
-ergodic_insurance/notebooks/reports
-ergodic_insurance/notebooks/table_exports
 ergodic_insurance/notebooks/excel_reports
+ergodic_insurance/notebooks/premium_analysis_exports
+ergodic_insurance/notebooks/reports
+ergodic_insurance/notebooks/results
+ergodic_insurance/notebooks/table_exports
+ergodic_insurance/.hypothesis
 # Hypothesis testing cache
 .hypothesis/
-ergodic_insurance/.hypothesis/
