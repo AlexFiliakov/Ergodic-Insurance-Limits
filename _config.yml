@@ -51,7 +51,6 @@ exclude:
   - "*.pkl"
   - "*.parquet"
   - Gemfile
-  - Gemfile.lock
   - LICENSE
   - "*.md~"
   - ".git/"
