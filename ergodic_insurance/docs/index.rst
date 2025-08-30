@@ -6,8 +6,8 @@
 Ergodic Insurance Limits Documentation
 =======================================
 
-Welcome to the documentation for Ergodic Insurance Limits, a revolutionary framework for optimizing
-insurance limits using ergodic (time-average) theory rather than traditional ensemble approaches.
+Welcome to the documentation for Ergodic Insurance Limits, a framework for optimizing insurance
+limits using ergodic (time-average) theory rather than traditional ensemble approaches.
 
 The framework demonstrates how insurance transforms from a cost center to a growth enabler when
 analyzed through time averages, with potential for 30-50% better long-term performance.

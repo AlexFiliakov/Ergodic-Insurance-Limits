@@ -5,8 +5,8 @@ Ergodic Insurance Limits Documentation
    :alt: Ergodic Insurance Limits
    :align: center
 
-Welcome to the Ergodic Insurance Limits documentation! This project implements a revolutionary framework
-for optimizing insurance limits using ergodic (time-average) theory rather than traditional ensemble approaches.
+Welcome to the Ergodic Insurance Limits documentation! This project implements a framework for optimizing
+insurance limits using ergodic (time-average) theory rather than traditional ensemble approaches.
 
 .. note::
    **Version 2.0 Update**: The project now features a modern 3-tier configuration system with profiles,

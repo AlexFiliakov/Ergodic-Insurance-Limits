@@ -4,8 +4,8 @@ Overview
 Project Vision
 --------------
 
-The Ergodic Insurance Limits project implements a revolutionary framework for optimizing insurance
-limits using ergodic (time-average) theory rather than traditional ensemble approaches. This represents
+The Ergodic Insurance Limits project implements a framework for optimizing insurance limits
+using ergodic (time-average) theory rather than traditional ensemble approaches. This represents
 a paradigm shift in how we think about insurance optimization for businesses.
 
 Key Innovation

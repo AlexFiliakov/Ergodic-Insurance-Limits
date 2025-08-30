@@ -10,7 +10,7 @@ Here's the uncomfortable truth every actuary knows but rarely articulates: **We'
 
 The entire edifice of traditional actuarial science, from credibility theory to Bühlmann-Straub models, from collective risk theory to copula-based dependencies, optimizes for ensemble averages. We calculate what happens across thousands of parallel companies, then prescribe that average as optimal for each individual company. It's like prescribing the average shoe size to everyone and wondering why so many companies stumble.
 
-Enter **ergodic economics**: a framework that asks not "what's the expected value across all possible worlds?" but rather "what actually happens to this specific company over time?" The distinction seems subtle. The implications are revolutionary.
+Enter **ergodic economics**: a framework that asks not "what's the expected value across all possible worlds?" but rather "what actually happens to this specific company over time?" The distinction seems subtle. The implications are staggering.
 
 ## What is Ergodic Economics?
 
