@@ -17,8 +17,8 @@ businesses experiencing multiplicative growth processes, what matters is the
 
 For multiplicative processes, these two averages can diverge dramatically:
 
-* **Ensemble Average**: :math:`\\langle X(t) \\rangle = E[X(t)]` across many realizations
-* **Time Average**: :math:`\\bar{X} = \\lim_{T \\to \\infty} \\frac{1}{T} \\int_0^T X(t) dt` for a single realization
+* **Ensemble Average**: :math:`\langle X(t) \rangle = E[X(t)]` across many realizations
+* **Time Average**: :math:`\bar{X} = \lim_{T \to \infty} \frac{1}{T} \int_0^T X(t) dt` for a single realization
 
 When Ergodicity Breaks Down
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,19 +33,19 @@ where :math:`R_{t+1}` is a random return factor.
 The **ensemble average** grows as:
 
 .. math::
-   \\langle W_t \\rangle = W_0 \\cdot E[R]^t
+   \langle W_t \rangle = W_0 \cdot E[R]^t
 
 But the **time-averaged growth rate** is:
 
 .. math::
-   g = E[\\ln(R)]
+   g = E[\ln(R)]
 
 For non-degenerate random variables, Jensen's inequality ensures:
 
 .. math::
-   E[\\ln(R)] < \\ln(E[R])
+   E[\ln(R)] < \ln(E[R])
 
-This means :math:`g < \\ln(E[R])`, so typical realizations grow slower than the ensemble average.
+This means :math:`g < \ln(E[R])`, so typical realizations grow slower than the ensemble average.
 
 Insurance as Growth Enabler
 ----------------------------
@@ -61,12 +61,12 @@ Consider a manufacturer facing potential losses :math:`L` with probability :math
 Without insurance, the growth factor in a loss year is:
 
 .. math::
-   R_{\\text{loss}} = \\frac{W - L}{W} = 1 - \\frac{L}{W}
+   R_{\text{loss}} = \frac{W - L}{W} = 1 - \frac{L}{W}
 
 With insurance costing premium :math:`P` but covering losses, the growth factor becomes:
 
 .. math::
-   R_{\\text{insured}} = \\frac{W - P}{W} = 1 - \\frac{P}{W}
+   R_{\text{insured}} = \frac{W - P}{W} = 1 - \frac{P}{W}
 
 Optimal Premium Level
 ~~~~~~~~~~~~~~~~~~~~~
@@ -74,14 +74,14 @@ Optimal Premium Level
 The time-averaged growth rate with insurance is:
 
 .. math::
-   g_{\\text{insured}} = (1-p) \\ln(1 - P/W) + p \\ln(1 - P/W)
+   g_{\text{insured}} = (1-p) \ln(1 - P/W) + p \ln(1 - P/W)
 
 Without insurance:
 
 .. math::
-   g_{\\text{uninsured}} = (1-p) \\ln(1) + p \\ln(1 - L/W)
+   g_{\text{uninsured}} = (1-p) \ln(1) + p \ln(1 - L/W)
 
-Insurance is beneficial when :math:`g_{\\text{insured}} > g_{\\text{uninsured}}`, which can occur
+Insurance is beneficial when :math:`g_{\text{insured}} > g_{\text{uninsured}}`, which can occur
 even when :math:`P > pL` (premium exceeds expected loss).
 
 The Kelly Criterion Extension
@@ -95,7 +95,7 @@ For a wealth process :math:`W_t` facing multiplicative risks, the optimal insura
 coverage maximizes:
 
 .. math::
-   E[\\ln(W_{t+1}/W_t)]
+   E[\ln(W_{t+1}/W_t)]
 
 This leads to insurance demand that can be much higher than traditional expected
 utility approaches would suggest.
@@ -152,9 +152,9 @@ Growth Rate Calculation
 For a discrete-time wealth process, the time-averaged growth rate is:
 
 .. math::
-   \\hat{g}_T = \\frac{1}{T} \\ln\\left(\\frac{W_T}{W_0}\\right) = \\frac{1}{T} \\sum_{t=1}^T \\ln\\left(\\frac{W_t}{W_{t-1}}\\right)
+   \hat{g}_T = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right) = \frac{1}{T} \sum_{t=1}^T \ln\left(\frac{W_t}{W_{t-1}}\right)
 
-As :math:`T \\to \\infty`, this converges to the theoretical ergodic growth rate :math:`g`.
+As :math:`T \to \infty`, this converges to the theoretical ergodic growth rate :math:`g`.
 
 Optimization Problem
 ~~~~~~~~~~~~~~~~~~~~
@@ -162,14 +162,14 @@ Optimization Problem
 The insurance optimization problem becomes:
 
 .. math::
-   \\max_{\\text{coverage}} \\quad g(\\text{coverage})
+   \max_{\text{coverage}} \quad g(\text{coverage})
 
 subject to:
 
 .. math::
-   P(\\text{ruin}) < \\text{threshold}
+   P(\text{ruin}) < \text{threshold}
 
-where ruin occurs when :math:`W_t \\leq 0` for any :math:`t`.
+where ruin occurs when :math:`W_t \leq 0` for any :math:`t`.
 
 Simulation Methodology
 ~~~~~~~~~~~~~~~~~~~~~~
