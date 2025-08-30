@@ -17,7 +17,8 @@ from scipy.optimize import OptimizeResult
 import yaml
 
 if TYPE_CHECKING:
-    from .loss_distributions import LossEvent
+    from .insurance_pricing import InsurancePricer, MarketCycle
+    from .loss_distributions import LossEvent, ManufacturingLossGenerator
     from .manufacturer import WidgetManufacturer
 
 
@@ -278,6 +279,8 @@ class InsuranceProgram:
         layers: List[EnhancedInsuranceLayer],
         deductible: float = 0.0,
         name: str = "Manufacturing Insurance Program",
+        pricing_enabled: bool = False,
+        pricer: Optional["InsurancePricer"] = None,
     ):
         """Initialize insurance program.
 
@@ -285,6 +288,8 @@ class InsuranceProgram:
             layers: List of insurance layers (will be sorted by attachment).
             deductible: Self-insured retention before insurance.
             name: Program identifier.
+            pricing_enabled: Whether to use dynamic pricing.
+            pricer: Optional InsurancePricer for dynamic pricing.
         """
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
         self.deductible = deductible
@@ -292,6 +297,9 @@ class InsuranceProgram:
         self.layer_states = [LayerState(layer) for layer in self.layers]
         self.total_premiums_paid = 0.0
         self.total_claims = 0
+        self.pricing_enabled = pricing_enabled
+        self.pricer = pricer
+        self.pricing_results: List[Any] = []
 
     def calculate_annual_premium(self) -> float:
         """Calculate total annual premium for the program.
@@ -970,6 +978,137 @@ class InsuranceProgram:
         ]
 
         return cls(layers=layers, deductible=deductible, name="Standard Manufacturing Program")
+
+    def apply_pricing(
+        self,
+        expected_revenue: float,
+        market_cycle: Optional["MarketCycle"] = None,
+        loss_generator: Optional["ManufacturingLossGenerator"] = None,
+    ) -> None:
+        """Apply dynamic pricing to all layers in the program.
+
+        Updates layer premium rates based on frequency/severity calculations.
+
+        Args:
+            expected_revenue: Expected annual revenue for scaling
+            market_cycle: Optional market cycle state
+            loss_generator: Optional loss generator (uses pricer's if not provided)
+
+        Raises:
+            ValueError: If pricing not enabled or pricer not configured
+        """
+        if not self.pricing_enabled:
+            raise ValueError("Pricing not enabled for this program")
+
+        if self.pricer is None:
+            if loss_generator is None:
+                raise ValueError("Either pricer or loss_generator must be provided")
+
+            # Create a default pricer
+            from .insurance_pricing import InsurancePricer, MarketCycle
+
+            self.pricer = InsurancePricer(
+                loss_generator=loss_generator,
+                market_cycle=market_cycle or MarketCycle.NORMAL,
+            )
+
+        # Apply pricing to the program
+        self.pricer.price_insurance_program(
+            program=self,
+            expected_revenue=expected_revenue,
+            market_cycle=market_cycle,
+            update_program=True,
+        )
+
+    def get_pricing_summary(self) -> Dict[str, Any]:
+        """Get summary of current pricing.
+
+        Returns:
+            Dictionary with pricing details for each layer
+        """
+        summary: Dict[str, Any] = {
+            "program_name": self.name,
+            "pricing_enabled": self.pricing_enabled,
+            "total_premium": self.calculate_annual_premium(),
+            "layers": [],
+        }
+
+        if self.pricing_results:
+            for i, (layer, pricing) in enumerate(zip(self.layers, self.pricing_results)):
+                summary["layers"].append(
+                    {
+                        "index": i,
+                        "attachment_point": layer.attachment_point,
+                        "limit": layer.limit,
+                        "premium_rate": layer.premium_rate,
+                        "market_premium": pricing.market_premium
+                        if pricing
+                        else layer.limit * layer.premium_rate,
+                        "pure_premium": pricing.pure_premium if pricing else None,
+                        "expected_frequency": pricing.expected_frequency if pricing else None,
+                        "expected_severity": pricing.expected_severity if pricing else None,
+                    }
+                )
+        else:
+            for i, layer in enumerate(self.layers):
+                summary["layers"].append(
+                    {
+                        "index": i,
+                        "attachment_point": layer.attachment_point,
+                        "limit": layer.limit,
+                        "premium_rate": layer.premium_rate,
+                        "premium": layer.calculate_base_premium(),
+                    }
+                )
+
+        return summary
+
+    @classmethod
+    def create_with_pricing(
+        cls,
+        layers: List[EnhancedInsuranceLayer],
+        loss_generator: "ManufacturingLossGenerator",
+        expected_revenue: float,
+        market_cycle: Optional["MarketCycle"] = None,
+        deductible: float = 0.0,
+        name: str = "Priced Insurance Program",
+    ) -> "InsuranceProgram":
+        """Create insurance program with dynamic pricing.
+
+        Factory method that creates a program with pricing already applied.
+
+        Args:
+            layers: Initial layer structure
+            loss_generator: Loss generator for pricing
+            expected_revenue: Expected annual revenue
+            market_cycle: Market cycle state
+            deductible: Self-insured retention
+            name: Program name
+
+        Returns:
+            InsuranceProgram with pricing applied
+        """
+        from .insurance_pricing import InsurancePricer, MarketCycle
+
+        # Create pricer
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=market_cycle or MarketCycle.NORMAL,
+        )
+
+        # Create program with pricing enabled
+        program = cls(
+            layers=layers,
+            deductible=deductible,
+            name=name,
+            pricing_enabled=True,
+            pricer=pricer,
+        )
+
+        # Apply pricing
+        program.apply_pricing(expected_revenue, market_cycle)
+
+        return program
 
 
 @dataclass

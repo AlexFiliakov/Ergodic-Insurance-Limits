@@ -9,13 +9,15 @@ InsuranceProgram classes.
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 import warnings
 
 import yaml
 
 if TYPE_CHECKING:
+    from .insurance_pricing import InsurancePricer, MarketCycle
     from .insurance_program import InsuranceProgram
+    from .loss_distributions import ManufacturingLossGenerator
 
 
 @dataclass
@@ -72,15 +74,26 @@ class InsurancePolicy:
     Manages multiple insurance layers and processes claims across them.
     """
 
-    def __init__(self, layers: List[InsuranceLayer], deductible: float = 0.0):
+    def __init__(
+        self,
+        layers: List[InsuranceLayer],
+        deductible: float = 0.0,
+        pricing_enabled: bool = False,
+        pricer: Optional["InsurancePricer"] = None,
+    ):
         """Initialize insurance policy.
 
         Args:
             layers: List of insurance layers in order of attachment.
             deductible: Amount paid by insured before insurance kicks in.
+            pricing_enabled: Whether to use dynamic pricing.
+            pricer: Optional InsurancePricer for dynamic pricing.
         """
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
         self.deductible = deductible
+        self.pricing_enabled = pricing_enabled
+        self.pricer = pricer
+        self.pricing_results: List[Any] = []
 
     def process_claim(self, claim_amount: float) -> Tuple[float, float]:
         """Process a claim through the insurance structure.
@@ -225,3 +238,88 @@ class InsurancePolicy:
                 UserWarning,
             )
             return None
+
+    def apply_pricing(
+        self,
+        expected_revenue: float,
+        market_cycle: Optional["MarketCycle"] = None,
+        loss_generator: Optional["ManufacturingLossGenerator"] = None,
+    ) -> None:
+        """Apply dynamic pricing to all layers in the policy.
+
+        Updates layer rates based on frequency/severity calculations.
+
+        Args:
+            expected_revenue: Expected annual revenue for scaling
+            market_cycle: Optional market cycle state
+            loss_generator: Optional loss generator (uses pricer's if not provided)
+
+        Raises:
+            ValueError: If pricing not enabled or pricer not configured
+        """
+        if not self.pricing_enabled:
+            raise ValueError("Pricing not enabled for this policy")
+
+        if self.pricer is None:
+            if loss_generator is None:
+                raise ValueError("Either pricer or loss_generator must be provided")
+
+            # Create a default pricer
+            from .insurance_pricing import InsurancePricer, MarketCycle
+
+            self.pricer = InsurancePricer(
+                loss_generator=loss_generator,
+                market_cycle=market_cycle or MarketCycle.NORMAL,
+            )
+
+        # Apply pricing to the policy
+        self.pricer.price_insurance_policy(
+            policy=self,
+            expected_revenue=expected_revenue,
+            market_cycle=market_cycle,
+            update_policy=True,
+        )
+
+    @classmethod
+    def create_with_pricing(
+        cls,
+        layers: List[InsuranceLayer],
+        loss_generator: "ManufacturingLossGenerator",
+        expected_revenue: float,
+        market_cycle: Optional["MarketCycle"] = None,
+        deductible: float = 0.0,
+    ) -> "InsurancePolicy":
+        """Create insurance policy with dynamic pricing.
+
+        Factory method that creates a policy with pricing already applied.
+
+        Args:
+            layers: Initial layer structure
+            loss_generator: Loss generator for pricing
+            expected_revenue: Expected annual revenue
+            market_cycle: Market cycle state
+            deductible: Self-insured retention
+
+        Returns:
+            InsurancePolicy with pricing applied
+        """
+        from .insurance_pricing import InsurancePricer, MarketCycle
+
+        # Create pricer
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=market_cycle or MarketCycle.NORMAL,
+        )
+
+        # Create policy with pricing enabled
+        policy = cls(
+            layers=layers,
+            deductible=deductible,
+            pricing_enabled=True,
+            pricer=pricer,
+        )
+
+        # Apply pricing
+        policy.apply_pricing(expected_revenue, market_cycle)
+
+        return policy
