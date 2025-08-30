@@ -140,7 +140,7 @@ For those who prefer learning by example, check out our :doc:`../examples` secti
    **Time Investment:** Each tutorial takes approximately 30-45 minutes to complete. The entire series can be completed in about 4 hours.
 
 Happy Learning!
---------------
+---------------
 
 We're excited to help you master insurance optimization using ergodic theory. These tutorials represent the culmination of extensive research and real-world application.
 

@@ -4,15 +4,16 @@ This guide helps you resolve common issues when using the Ergodic Insurance Fram
 
 ## Table of Contents
 
-1. [Installation Issues](#installation-issues)
-2. [Import Errors](#import-errors)
-3. [Simulation Problems](#simulation-problems)
-4. [Performance Issues](#performance-issues)
-5. [Memory Problems](#memory-problems)
-6. [Numerical Issues](#numerical-issues)
-7. [Visualization Problems](#visualization-problems)
-8. [Configuration Errors](#configuration-errors)
+1. {ref}`installation-issues`
+2. {ref}`import-errors`
+3. {ref}`simulation-problems`
+4. {ref}`performance-issues`
+5. {ref}`memory-problems`
+6. {ref}`numerical-issues`
+7. {ref}`visualization-problems`
+8. {ref}`configuration-errors`
 
+(installation-issues)=
 ## Installation Issues
 
 ### Issue: Package won't install with pip
@@ -66,6 +67,7 @@ pip install --only-binary :all: numpy scipy
 pip install numpy scipy --platform macosx_11_0_arm64
 ```
 
+(import-errors)=
 ## Import Errors
 
 ### Issue: ModuleNotFoundError
@@ -107,6 +109,7 @@ import ergodic_insurance.src
 print(dir(ergodic_insurance.src))
 ```
 
+(simulation-problems)=
 ## Simulation Problems
 
 ### Issue: All simulations result in bankruptcy
@@ -220,6 +223,7 @@ if base_roe < 0.05:
     )
 ```
 
+(performance-issues)=
 ## Performance Issues
 
 ### Issue: Simulations run too slowly
@@ -298,6 +302,7 @@ result = minimize(
 )
 ```
 
+(memory-problems)=
 ## Memory Problems
 
 ### Issue: Out of memory errors
@@ -374,6 +379,7 @@ for sim_result in generate_simulations(10000):
     process(sim_result)
 ```
 
+(numerical-issues)=
 ## Numerical Issues
 
 ### Issue: NaN or Inf values in results
@@ -443,6 +449,7 @@ def clip_losses(losses, max_loss):
 large_values = np.array([1e15, 1e16], dtype=np.float64)
 ```
 
+(visualization-problems)=
 ## Visualization Problems
 
 ### Issue: Plots don't display in Jupyter
@@ -493,6 +500,7 @@ plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.subplots_adjust(bottom=0.15, right=0.85)
 ```
 
+(configuration-errors)=
 ## Configuration Errors
 
 ### Issue: YAML configuration won't load
