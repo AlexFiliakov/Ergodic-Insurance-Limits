@@ -69,6 +69,13 @@ language = "en"
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
+# Additional theme options for GitHub Pages
+html_theme_options = {
+    "canonical_url": "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/",
+    "analytics_id": "",
+    "style_external_links": False,
+}
+
 # -- Extension configuration -------------------------------------------------
 
 # -- Options for autodoc extension ------------------------------------------
@@ -135,7 +142,7 @@ todo_include_todos = True
 # -- GitHub Pages Configuration ----------------------------------------------
 
 # For standard GitHub Pages (update with your username and repo name)
-html_baseurl = "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/"
+html_baseurl = "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/"
 
 
 # Function to create .nojekyll file for GitHub Pages
