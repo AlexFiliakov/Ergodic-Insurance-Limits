@@ -252,7 +252,7 @@ simulations: 1000
 
 Here's a typical simulation result comparing wealth trajectories with and without insurance:
 
-![Insurance vs No Insurance Simulation](assets/results/getting_started/output.png)
+![Insurance vs No Insurance Simulation](/Ergodic-Insurance-Limits/assets/results/getting_started/output.png)
 
 The graph demonstrates how insurance protects against catastrophic losses (orange vertical lines) that could bankrupt the company, enabling steady long-term growth despite paying annual premiums.
 

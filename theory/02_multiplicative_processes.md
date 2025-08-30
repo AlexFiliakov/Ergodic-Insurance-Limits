@@ -356,7 +356,7 @@ for key, value in results.items():
 
 ## The Kelly Criterion
 
-![Kelly Criterion](figures/kelly_criterion.png)
+![Kelly Criterion](/Ergodic-Insurance-Limits/theory/figures/kelly_criterion.png)
 *Figure 2: Kelly criterion visualization showing optimal bet sizing (left) and growth rate vs fraction bet (right) for different odds and probabilities.*
 
 ### Original Formulation
@@ -464,7 +464,7 @@ print(f"Kelly-optimal retention: ${optimal_retention:,.0f}")
 
 ## Volatility Drag
 
-![Volatility Drag](figures/volatility_drag.png)
+![Volatility Drag](/Ergodic-Insurance-Limits/theory/figures/volatility_drag.png)
 *Figure 3: The impact of volatility on growth rates, showing how geometric mean decreases with volatility even when arithmetic mean is constant.*
 
 ### Mathematical Definition
