@@ -12,6 +12,9 @@
 
 ## Monte Carlo Methods
 
+![Monte Carlo Convergence](figures/monte_carlo_convergence.png)
+*Figure 1: Monte Carlo convergence comparison showing standard MC, antithetic variates, and control variates techniques with their variance reduction properties.*
+
 ### Basic Monte Carlo Simulation
 
 Monte Carlo methods estimate expectations through random sampling:
@@ -256,6 +259,9 @@ comparison = mc_engine.compare_methods(n_sims=10000)
 ```
 
 ## Convergence Diagnostics
+
+![Convergence Diagnostics](figures/convergence_diagnostics.png)
+*Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
 
 ### Gelman-Rubin Statistic
 
@@ -926,6 +932,9 @@ print(f"Permutation: p={perm['p_value']:.4f}, Observed diff={perm['observed']:.4
 
 ## Bootstrap Methods
 
+![Bootstrap Analysis](figures/bootstrap_analysis.png)
+*Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*
+
 ### Bootstrap Algorithm
 
 1. Draw $B$ samples of size $n$ with replacement
@@ -1075,6 +1084,9 @@ for name, dist in methods.items():
 ```
 
 ## Walk-Forward Validation
+
+![Validation Methods](figures/validation_methods.png)
+*Figure 4: Walk-forward validation and backtesting visualization showing rolling windows, performance tracking, and model comparison for insurance pricing strategies.*
 
 ### Methodology
 

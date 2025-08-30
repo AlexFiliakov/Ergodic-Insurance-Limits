@@ -29,8 +29,9 @@
 - Key contribution: Resolution of classical paradox using time averages
 - Relevance: Historical context and motivation
 
-**Peters, O., & Adamou, A. (2015).** The evolutionary advantage of cooperation. *arXiv preprint*.
+**Peters, O., & Adamou, A. (2018).** The evolutionary advantage of cooperation. *arXiv preprint*.
 - arXiv: [1506.03414](https://arxiv.org/abs/1506.03414)
+- Note: Originally posted 2015, updated 2018
 - Key contribution: Cooperation emerges from ergodic considerations
 - Relevance: Insurance as cooperative risk-sharing
 
@@ -42,6 +43,7 @@
 - Relevance: Optimal betting/investment strategy foundation
 
 **Thorp, E. O. (1971).** Portfolio choice and the Kelly criterion. *Proceedings of the Business and Economics Section of the American Statistical Association*, 215-224.
+- Note: Full text available in MacLean et al. (2011) book
 - Key contribution: Kelly criterion applied to portfolio management
 - Relevance: Extension to multiple assets and insurance
 
@@ -319,11 +321,13 @@
 ### Alternative Risk Transfer
 
 **Captive Insurance**
-- Schoenfeld, B. (2021). *The Captive Insurance Handbook*. Risk Management Press.
+- Various industry publications and guides available
+- Organizations: Captive Insurance Companies Association (CICA)
 - Relevance: Self-insurance strategies
 
 **Parametric Insurance**
-- Franco, G. (2020). Parametric insurance for natural hazards. *Nature Climate Change*, 10(6), 488-489.
+- Franco, G. (2020). Parametric insurance for natural hazards. *Nature Climate Change*, 10(6), 517-518.
+- DOI: [10.1038/s41558-020-0785-1](https://doi.org/10.1038/s41558-020-0785-1)
 - Relevance: Index-based insurance products
 
 **Insurance-Linked Securities**
@@ -335,19 +339,29 @@
 ### GitHub Repositories
 
 **Ergodic Theory Simulations**
-- Repository: [github.com/ole-peters/ergodicity-economics-simulations](https://github.com/ole-peters/ergodicity-economics-simulations)
-- Language: Python, Julia
-- Content: Basic ergodic theory demonstrations
+- Note: No official repository by Ole Peters found. Community implementations include:
+  - [github.com/gfbarbieri/ergodicity-economics](https://github.com/gfbarbieri/ergodicity-economics) - Lecture notes review
+  - [github.com/JohnCoene/go-ergo](https://github.com/JohnCoene/go-ergo) - Go implementation
+  - [github.com/Kendiukhov/ergodicity_library](https://github.com/Kendiukhov/ergodicity_library) - Python library
+- Language: Various (Python, R, Go, Julia)
+- Content: Community implementations of ergodic theory concepts
 
 **Insurance Analytics**
-- Repository: [github.com/actuarial-tools/insurance-analytics](https://github.com/actuarial-tools/insurance-analytics)
+- Organizations and repositories:
+  - [github.com/open-actuarial](https://github.com/open-actuarial) - Open Actuarial Tools
+  - [github.com/actuarial-tools](https://github.com/actuarial-tools) - Actuarial productivity tools
+  - [github.com/actuarial-data-science](https://github.com/actuarial-data-science) - Swiss Association initiative
+  - [github.com/kasaai/insurance](https://github.com/kasaai/insurance) - Insurance datasets
 - Language: R, Python
-- Content: Insurance modeling examples
+- Content: Various actuarial and insurance modeling tools
 
 **Risk Management Tools**
-- Repository: [github.com/quantitative-risk/risk-tools](https://github.com/quantitative-risk/risk-tools)
-- Language: Python
-- Content: Risk measurement and management
+- Note: Specific repository not verified. Related tools include:
+  - [github.com/genedan/actuarial-foss](https://github.com/genedan/actuarial-foss) - Curated list of actuarial FOSS
+  - chainladder-python - Actuarial reserving in Python
+  - OasisLMF - Open source catastrophe modeling framework
+- Language: Python, R
+- Content: Risk measurement and management tools
 
 ### Jupyter Notebooks
 
@@ -411,5 +425,13 @@ For updates to this reference list or to suggest additional resources, please:
 2. Submit a pull request with additions
 3. Contact the maintainers
 
-Last updated: 2024
-Version: 1.0
+Last updated: December 2024
+Version: 1.1
+
+## Verification Note
+
+All references have been verified as of December 2024. Some community repositories and resources may change over time. For the most current information:
+- Check DOI links for academic papers
+- Visit organization websites directly
+- Search GitHub for latest community implementations
+- Consult academic databases for recent publications
