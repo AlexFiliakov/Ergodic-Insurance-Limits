@@ -490,7 +490,7 @@ def plot_pareto_frontier():
     ax.scatter(
         costs_array[idx_low_cost],
         risks_array[idx_low_cost],
-        color="green",
+        color="teal",
         s=200,
         marker="*",
         label="Low Cost",
@@ -508,7 +508,7 @@ def plot_pareto_frontier():
     ax.scatter(
         costs_array[idx_low_risk],
         risks_array[idx_low_risk],
-        color="red",
+        color="purple",
         s=200,
         marker="*",
         label="Low Risk",
@@ -521,10 +521,10 @@ def plot_pareto_frontier():
         xy=(costs_array[idx_low_cost], risks_array[idx_low_cost]),
         xytext=(costs_array[idx_low_cost] - 0.08, risks_array[idx_low_cost] + 0.08),
         fontsize=10,
-        color="green",
+        color="teal",
         fontweight="bold",
         ha="center",
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="green", alpha=0.8),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="teal", alpha=0.8),
     )
     ax.annotate(
         "Balanced",
@@ -541,23 +541,23 @@ def plot_pareto_frontier():
         xy=(costs_array[idx_low_risk], risks_array[idx_low_risk]),
         xytext=(costs_array[idx_low_risk] + 0.08, risks_array[idx_low_risk] - 0.08),
         fontsize=10,
-        color="red",
+        color="purple",
         fontweight="bold",
         ha="center",
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="red", alpha=0.8),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="purple", alpha=0.8),
     )
 
     ax.set_xlabel("Cost (Premium as % of Assets)")
     ax.set_ylabel("Risk (Probability of Ruin)")
     ax.set_title("Pareto Frontier: Cost vs Risk Trade-off")
-    ax.legend()
+    ax.legend(loc="upper right")  # Move legend to upper right to avoid "Better" annotation
     ax.grid(True, alpha=0.3)
 
-    # Add annotations
+    # Add annotations - adjust "Better" position to avoid legend
     ax.annotate(
         "Better",
         xy=(0.5, 0.3),
-        xytext=(0.4, 0.2),
+        xytext=(0.35, 0.15),
         arrowprops=dict(arrowstyle="->", color="green", lw=2),
         fontsize=12,
         color="green",
@@ -565,8 +565,8 @@ def plot_pareto_frontier():
     )
     ax.annotate(
         "Worse",
-        xy=(1.0, 1.0),
-        xytext=(1.1, 1.1),
+        xy=(0.85, 0.85),
+        xytext=(0.75, 0.95),
         arrowprops=dict(arrowstyle="->", color="red", lw=2),
         fontsize=12,
         color="red",
