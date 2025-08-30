@@ -238,6 +238,9 @@ This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
 
 ## Visual Examples
 
+![Ensemble vs Time Average](figures/ensemble_vs_time.png)
+*Figure 1: Divergence between ensemble average (blue) and typical path (red) in multiplicative processes. Individual trajectories shown in gray.*
+
 ### Ensemble vs Time Average Divergence
 
 ```python
@@ -287,6 +290,9 @@ plt.show()
 ```
 
 ### Insurance Impact on Growth
+
+![Insurance Impact](figures/insurance_impact.png)
+*Figure 2: Comparison of wealth trajectories with and without insurance over 50 years, showing improved survival rates and growth consistency with insurance.*
 
 ```python
 def simulate_with_insurance(W0, n_years, premium_rate, retention, n_sims=1000):
