@@ -338,11 +338,12 @@ class InsurancePricer:
         cycle = market_cycle or self.market_cycle
         loss_ratio = cycle.value
 
-        # Market premium = Pure premium / Loss ratio
-        # But we're starting from technical, so we need to adjust
-        # Technical already includes expense/profit, so we scale by market factor
-        market_factor = self.parameters.loss_ratio / loss_ratio
-        market_premium = technical_premium * market_factor
+        # Market premium = Technical premium / Loss ratio
+        # Lower loss ratio (HARD market) means higher premiums
+        # Higher loss ratio (SOFT market) means lower premiums
+        # Example: HARD (0.6) -> premium/0.6 = 1.67x premium
+        # Example: SOFT (0.8) -> premium/0.8 = 1.25x premium
+        market_premium = technical_premium / loss_ratio
 
         return market_premium
 
@@ -508,16 +509,31 @@ class InsurancePricer:
         Returns:
             Dictionary mapping market cycle names to pricing results
         """
+        # Calculate pure premium ONCE (it doesn't change by market cycle)
+        pure_premium, stats = self.calculate_pure_premium(attachment_point, limit, expected_revenue)
+
+        # Calculate technical premium ONCE (also doesn't change by market cycle)
+        technical_premium = self.calculate_technical_premium(pure_premium, limit)
+
         results = {}
 
+        # Apply different market cycle adjustments to the same technical premium
         for cycle in MarketCycle:
-            pricing = self.price_layer(
+            # Only the market adjustment changes
+            market_premium = self.calculate_market_premium(technical_premium, market_cycle=cycle)
+            rate_on_line = market_premium / limit if limit > 0 else 0.0
+
+            results[cycle.name] = LayerPricing(
                 attachment_point=attachment_point,
                 limit=limit,
-                expected_revenue=expected_revenue,
-                market_cycle=cycle,
+                expected_frequency=stats["expected_frequency"],
+                expected_severity=stats["expected_severity"],
+                pure_premium=pure_premium,
+                technical_premium=technical_premium,
+                market_premium=market_premium,
+                rate_on_line=rate_on_line,
+                confidence_interval=stats["confidence_interval"],
             )
-            results[cycle.name] = pricing
 
         return results
 
@@ -564,8 +580,12 @@ class InsurancePricer:
                 update_program=False,
             )
 
-            # Calculate total premium
-            total_premium = sum(layer.premium_rate * layer.limit for layer in priced_program.layers)
+            # Calculate total premium from actual pricing results
+            if hasattr(priced_program, "pricing_results") and priced_program.pricing_results:
+                total_premium = sum(pr.market_premium for pr in priced_program.pricing_results)
+            else:
+                # Fallback to calculating from layers
+                total_premium = priced_program.calculate_annual_premium()
 
             # Store results
             results.append(
