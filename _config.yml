@@ -1,9 +1,11 @@
 # Jekyll configuration for GitHub Pages
 title: Ergodic Insurance Limits
-description: Revolutionary framework for optimizing insurance limits using ergodic theory
+description: A framework for optimizing insurance limits using ergodic theory
 theme: jekyll-theme-cayman
 baseurl: "/Ergodic-Insurance-Limits"
 url: "https://alexfiliakov.github.io"
+source: .
+destination: _site
 
 # Markdown configuration
 markdown: kramdown
@@ -28,6 +30,22 @@ defaults:
       path: ""
     values:
       layout: "default"
+
+# Include/Exclude
+include:
+  - docs
+  - _layouts
+  - _includes
+exclude:
+  - ergodic_insurance/docs/_build
+  - "*.pyc"
+  - __pycache__
+  - node_modules
+  - cache
+  - htmlcov
+  - checkpoints
+  - test_trajectory_storage
+  - simone/node_modules
 
 # Plugins
 plugins:
