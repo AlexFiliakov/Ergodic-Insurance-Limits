@@ -106,7 +106,7 @@ With Optimal Insurance:
 
 The following graph shows a typical 20-year simulation comparing performance with and without insurance:
 
-![Insurance Impact Visualization](../assets/results/getting_started/output.png)
+![Insurance Impact Visualization](/Ergodic-Insurance-Limits/assets/results/getting_started/output.png)
 
 Key observations from the visualization:
 - **Orange lines** mark years with catastrophic losses (>$1M)
