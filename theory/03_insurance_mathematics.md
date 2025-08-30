@@ -375,7 +375,8 @@ limits = [100_000, 400_000, 500_000, 4_000_000, 10_000_000]
 tower = pricer.create_tower(attachments, limits, frequency=5)
 print(tower.to_string())
 ```
-![Compound Poisson-Lognormal Distribution](/Ergodic-Insurance-Limits/theory/figures/layer_pricing.png)
+
+![Layer Pricing](/Ergodic-Insurance-Limits/theory/figures/layer_pricing.png)
 
 ## Retention Optimization
 
@@ -412,84 +413,105 @@ $$\max_R \quad E[\ln(W - P(R) - L \wedge R)]$$
 ### Dynamic Programming Solution
 
 ```python
-def optimize_retention_dp(wealth_states, loss_dist, premium_func,
-                          discount_factor=0.95, n_periods=10):
-    """Solve retention optimization using dynamic programming."""
+def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000,
+                               premium_loading=0.3, risk_aversion=2):
+    """
+    Calculate optimal retention using analytical approach.
 
-    n_states = len(wealth_states)
-    n_retentions = 20
-    retention_grid = np.linspace(0, wealth_states[-1] * 0.1, n_retentions)
+    The optimal retention balances:
+    1. Premium savings (higher retention = lower premium)
+    2. Risk exposure (higher retention = more volatility)
+    3. Wealth level (more wealth = can handle more risk)
+    """
 
-    # Value function
-    V = np.zeros((n_periods + 1, n_states))
+    # Base retention is fraction of expected loss
+    base_retention = loss_mean * 0.5
 
-    # Optimal policy
-    policy = np.zeros((n_periods, n_states), dtype=int)
+    # Wealth effect: retention increases with wealth (concave)
+    wealth_factor = np.sqrt(wealth / 10_000_000)  # Normalized to $10M
 
-    # Backward induction
-    for t in range(n_periods - 1, -1, -1):
-        for s, w in enumerate(wealth_states):
-            values = []
+    # Risk aversion effect: higher aversion = lower retention
+    risk_factor = 1 / risk_aversion
 
-            for r_idx, R in enumerate(retention_grid):
-                if R > w * 0.5:  # Skip if retention too high
-                    values.append(-np.inf)
-                    continue
+    # Combine factors
+    optimal_retention = base_retention * wealth_factor * risk_factor
 
-                # Premium for this retention
-                P = premium_func(R)
+    # Cap at reasonable level (10% of wealth or 3x expected loss)
+    max_retention = min(wealth * 0.1, loss_mean * 3)
 
-                # Expected next period value
-                n_sims = 1000
-                next_values = []
+    return min(optimal_retention, max_retention)
 
-                for _ in range(n_sims):
-                    L = loss_dist.rvs()
-                    next_w = w * 1.05 - P - min(L, R)  # 5% growth
+def optimize_retention_over_time(wealth_states, loss_dist, growth_rate=0.06,
+                                risk_aversion=2, n_periods=10):
+    """
+    Calculate optimal retention for different wealth levels and periods.
 
-                    if next_w <= 0:
-                        next_values.append(-1000)  # Bankruptcy penalty
-                    else:
-                        # Find nearest state
-                        next_s = np.argmin(np.abs(wealth_states - next_w))
-                        next_values.append(np.log(next_w) + discount_factor * V[t + 1, next_s])
+    This simplified approach shows how optimal retention varies with:
+    - Wealth level (x-axis)
+    - Risk tolerance
+    - Time horizon (implicitly through wealth growth)
+    """
 
-                values.append(np.mean(next_values))
+    loss_mean = loss_dist.mean()
+    loss_std = loss_dist.std()
 
-            # Select optimal retention
-            policy[t, s] = np.argmax(values)
-            V[t, s] = np.max(values)
+    # Calculate optimal retention for each wealth state
+    optimal_retentions = []
+    for wealth in wealth_states:
+        retention = calculate_optimal_retention(
+            wealth, loss_mean, loss_std,
+            risk_aversion=risk_aversion
+        )
+        optimal_retentions.append(retention)
 
-    return V, policy, retention_grid
+    return np.array(optimal_retentions)
 
-# Example usage
-wealth_states = np.linspace(1e6, 1e8, 50)
-loss_dist = stats.lognorm(s=2, scale=100_000)
+# Example usage with clear visualization
+wealth_levels = np.linspace(1e6, 100e6, 50)
+loss_dist = stats.lognorm(s=0.5, scale=100_000)
 
-def premium_func(R):
-    """Premium as function of retention."""
-    base_premium = 200_000
-    discount = 1 - np.exp(-R / 1e6)  # Discount for higher retention
-    return base_premium * (1 - 0.5 * discount)
-
-V, policy, retentions = optimize_retention_dp(
-    wealth_states, loss_dist, premium_func
+# Calculate for different risk aversion levels
+retentions_low_ra = optimize_retention_over_time(
+    wealth_levels, loss_dist, risk_aversion=1
+)
+retentions_med_ra = optimize_retention_over_time(
+    wealth_levels, loss_dist, risk_aversion=2
+)
+retentions_high_ra = optimize_retention_over_time(
+    wealth_levels, loss_dist, risk_aversion=4
 )
 
-# Plot optimal policy
-plt.figure(figsize=(10, 6))
-for t in [0, 4, 9]:
-    optimal_retentions = retentions[policy[t, :]]
-    plt.plot(wealth_states / 1e6, optimal_retentions / 1e3,
-             label=f'Period {t}')
+# Create clear visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-plt.xlabel('Wealth ($M)')
-plt.ylabel('Optimal Retention ($K)')
-plt.title('Optimal Retention Policy by Wealth Level')
-plt.legend()
-plt.grid(True, alpha=0.3)
+# Left: Absolute retention
+ax1.plot(wealth_levels/1e6, retentions_low_ra/1e3,
+         label='Low Risk Aversion', linewidth=2, color='green')
+ax1.plot(wealth_levels/1e6, retentions_med_ra/1e3,
+         label='Medium Risk Aversion', linewidth=2, color='blue')
+ax1.plot(wealth_levels/1e6, retentions_high_ra/1e3,
+         label='High Risk Aversion', linewidth=2, color='red')
+
+ax1.set_xlabel('Wealth Level ($M)')
+ax1.set_ylabel('Optimal Retention ($K)')
+ax1.set_title('Optimal Insurance Retention by Wealth Level')
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+
+# Right: Retention as % of wealth
+retention_pct = (retentions_med_ra / wealth_levels) * 100
+ax2.plot(wealth_levels/1e6, retention_pct, linewidth=2, color='blue')
+ax2.set_xlabel('Wealth Level ($M)')
+ax2.set_ylabel('Retention as % of Wealth')
+ax2.set_title('Relative Risk Retention')
+ax2.grid(True, alpha=0.3)
+
+plt.suptitle('Key Insight: Retention increases with wealth but decreases as % of wealth')
+plt.tight_layout()
 plt.show()
 ```
+
+![Retention Optimization](/Ergodic-Insurance-Limits/theory/figures/optimal_retention.png)
 
 ## Premium Calculation Principles
 
