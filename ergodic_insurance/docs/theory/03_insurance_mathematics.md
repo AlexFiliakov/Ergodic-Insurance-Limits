@@ -20,7 +20,11 @@ Insurance losses are modeled as a two-stage process:
 2. **Severity**: Size of each claim
 
 Total loss:
-$$S = \sum_{i=1}^{N} X_i$$
+<div align="center">
+
+$S = \sum_{i=1}^{N} X_i$
+
+</div>
 
 where:
 - $N$ = Number of claims (random)
@@ -31,7 +35,11 @@ where:
 #### Poisson Distribution
 
 Most common for claim counts:
-$$P(N = n) = \frac{\lambda^n e^{-\lambda}}{n!}$$
+<div align="center">
+
+$P(N = n) = \frac{\lambda^n e^{-\lambda}}{n!}$
+
+</div>
 
 Properties:
 - Mean = Variance = $\lambda$
@@ -41,7 +49,11 @@ Properties:
 #### Negative Binomial
 
 For overdispersed counts (variance > mean):
-$$P(N = n) = \binom{n + r - 1}{n} p^r (1-p)^n$$
+<div align="center">
+
+$P(N = n) = \binom{n + r - 1}{n} p^r (1-p)^n$
+
+</div>
 
 Properties:
 - Mean = $r(1-p)/p$
@@ -51,15 +63,28 @@ Properties:
 #### Zero-Inflated Models
 
 When many policies have no claims:
-$$P(N = 0) = \pi + (1-\pi)P_0(N = 0)$$
-$$P(N = n) = (1-\pi)P_0(N = n), \quad n \geq 1$$
+<div align="center">
+
+$P(N = 0) = \pi + (1-\pi)P_0(N = 0)$
+
+</div>
+
+<div align="center">
+
+$P(N = n) = (1-\pi)P_0(N = n), \quad n \geq 1$
+
+</div>
 
 ### Severity Distributions
 
 #### Log-Normal
 
 For moderate to large claims:
-$$f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right]$$
+<div align="center">
+
+$f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right]$
+
+</div>
 
 Properties:
 - Right-skewed
@@ -69,7 +94,11 @@ Properties:
 #### Pareto
 
 For extreme losses (heavy-tailed):
-$$f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m$$
+<div align="center">
+
+$f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m$
+
+</div>
 
 Properties:
 - Power-law tail
@@ -79,7 +108,11 @@ Properties:
 #### Generalized Pareto (GPD)
 
 For excess losses above threshold:
-$$F(x) = 1 - \left(1 + \xi \frac{x}{\sigma}\right)^{-1/\xi}$$
+<div align="center">
+
+$F(x) = 1 - \left(1 + \xi \frac{x}{\sigma}\right)^{-1/\xi}$
+
+</div>
 
 where:
 - $\xi$ = Shape parameter (tail index)
@@ -184,7 +217,11 @@ for key, value in statistics.items():
 The compound distribution of total losses $S = \sum_{i=1}^N X_i$ has:
 
 **Characteristic function**:
-$$\phi_S(t) = G_N(\phi_X(t))$$
+<div align="center">
+
+$\phi_S(t) = G_N(\phi_X(t))$
+
+</div>
 
 where $G_N$ is the probability generating function of $N$.
 
@@ -202,7 +239,11 @@ When $N \sim \text{Poisson}(\lambda)$:
 
 For discrete severities, recursive calculation:
 
-$$p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j}$$
+<div align="center">
+
+$p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j}$
+
+</div>
 
 where:
 - $p_k = P(S = k)$
@@ -269,16 +310,28 @@ Insurance coverage is structured in layers:
 
 For layer $[a, b]$, the loss is:
 
-$$Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a)$$
+<div align="center">
+
+$Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a)$
+
+</div>
 
 Expected layer loss:
-$$E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx$$
+<div align="center">
+
+$E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx$
+
+</div>
 
 ### Increased Limits Factors (ILFs)
 
 Ratio of expected loss at different limits:
 
-$$\text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]}$$
+<div align="center">
+
+$\text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]}$
+
+</div>
 
 where $L_0$ is the base limit.
 
@@ -286,7 +339,11 @@ where $L_0$ is the base limit.
 
 Proportion of loss in layer:
 
-$$\text{G}(r) = \frac{E[X \wedge rM]}{E[X]}$$
+<div align="center">
+
+$\text{G}(r) = \frac{E[X \wedge rM]}{E[X]}$
+
+</div>
 
 where $M$ is the maximum possible loss.
 
@@ -374,7 +431,11 @@ print(tower.to_string())
 
 Maximize utility or growth:
 
-$$\max_R \quad U(W - P(R) - L \wedge R)$$
+<div align="center">
+
+$\max_R \quad U(W - P(R) - L \wedge R)$
+
+</div>
 
 where:
 - $R$ = Retention level
@@ -386,13 +447,21 @@ where:
 
 For differentiable utility:
 
-$$P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}]$$
+<div align="center">
+
+$P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}]$
+
+</div>
 
 ### Ergodic Optimization
 
 Maximize time-average growth:
 
-$$\max_R \quad E[\ln(W - P(R) - L \wedge R)]$$
+<div align="center">
+
+$\max_R \quad E[\ln(W - P(R) - L \wedge R)]$
+
+</div>
 
 ### Constraints
 
@@ -487,33 +556,57 @@ plt.show()
 ### Pure Premium
 
 Expected loss only:
-$$P_0 = E[L]$$
+<div align="center">
+
+$P_0 = E[L]$
+
+</div>
 
 ### Expected Value Principle
 
 Add proportional loading:
-$$P = (1 + \theta) E[L]$$
+<div align="center">
+
+$P = (1 + \theta) E[L]$
+
+</div>
 
 where $\theta$ is the safety loading.
 
 ### Variance Principle
 
 Account for risk:
-$$P = E[L] + \alpha \cdot \text{Var}(L)$$
+<div align="center">
+
+$P = E[L] + \alpha \cdot \text{Var}(L)$
+
+</div>
 
 ### Standard Deviation Principle
 
-$$P = E[L] + \beta \cdot \text{SD}(L)$$
+<div align="center">
+
+$P = E[L] + \beta \cdot \text{SD}(L)$
+
+</div>
 
 ### Exponential Principle
 
 Based on exponential utility:
-$$P = \frac{1}{\alpha} \ln(E[e^{\alpha L}])$$
+<div align="center">
+
+$P = \frac{1}{\alpha} \ln(E[e^{\alpha L}])$
+
+</div>
 
 ### Wang Transform
 
 Distort probability measure:
-$$P = \int_0^\infty g(S_L(x)) dx$$
+<div align="center">
+
+$P = \int_0^\infty g(S_L(x)) dx$
+
+</div>
 
 where $g$ is the distortion function.
 
@@ -605,15 +698,27 @@ Claims develop over time:
 ### Chain Ladder Method
 
 Development factors:
-$$f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}}$$
+<div align="center">
+
+$f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}}$
+
+</div>
 
 Ultimate loss:
-$$\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j$$
+<div align="center">
+
+$\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j$
+
+</div>
 
 ### Bornhuetter-Ferguson Method
 
 Combines prior estimate with actual:
-$$\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - \text{DevPattern}_k)$$
+<div align="center">
+
+$\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - \text{DevPattern}_k)$
+
+</div>
 
 ### Implementation
 
@@ -721,7 +826,11 @@ where $S$ is sum insured.
 
 Annual aggregate deductible $D$ and limit $L$:
 
-$$\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))$$
+<div align="center">
+
+$\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))$
+
+</div>
 
 ### Optimization Example
 

@@ -38,13 +38,25 @@ Option A, despite its higher ensemble average, produces wealth decay. The time-a
 
 For a multiplicative wealth process where $W_{t+1} = W_t \cdot X_t$ with random growth factor $X_t$:
 
-$$\text{Ensemble Average Growth} = \mathbb{E}[X_t] - 1$$
+<div align="center">
 
-$$\text{Time Average Growth} = e^{\mathbb{E}[\ln X_t]} - 1$$
+$\text{Ensemble Average Growth} = \mathbb{E}[X_t] - 1$
+
+</div>
+
+<div align="center">
+
+$\text{Time Average Growth} = e^{\mathbb{E}[\ln X_t]} - 1$
+
+</div>
 
 These two quantities diverge whenever $X_t$ has non-zero variance. The relationship, exact for log-normal distributions and approximate for others, is:
 
-$$g_{\text{time}} \approx g_{\text{ensemble}} - \frac{\sigma^2}{2(1 + g_{\text{ensemble}})^2}$$
+<div align="center">
+
+$g_{\text{time}} \approx g_{\text{ensemble}} - \frac{\sigma^2}{2(1 + g_{\text{ensemble}})^2}$
+
+</div>
 
 
 This seemingly innocuous formula contains the key to understanding why insurance that appears expensive by ensemble standards can be optimal by time-average standards.
@@ -118,10 +130,20 @@ The distinction between time and ensemble averages transforms how we evaluate in
 For a company with return on assets $r$ and multiplicative growth dynamics:
 
 Without insurance, the time-average growth rate is:
-$$g_{\text{no insurance}} = p \ln(1 + r - L/A) + (1-p) \ln(1 + r)$$
+
+<div align="center">
+
+$g_{\text{no insurance}} = p \ln(1 + r - L/A) + (1-p) \ln(1 + r)$
+
+</div>
 
 With insurance at premium $P$:
-$$g_{\text{with insurance}} = \ln(1 + r - P/A)$$
+
+<div align="center">
+
+$g_{\text{with insurance}} = \ln(1 + r - P/A)$
+
+</div>
 
 Insurance is optimal when $g_{\text{with insurance}} > g_{\text{no insurance}}$, which can justify premiums several times the expected loss.
 
@@ -144,10 +166,19 @@ Same aggregate losses. Completely different outcomes. This path dependency means
 
 The ergodic framework shifts our objective function from minimizing total cost of risk to maximizing geometric growth rate:
 
-$$\max_{\text{insurance}} \bar{g} = \lim_{T \to \infty} \frac{1}{T} \sum_{t=1}^T \ln\left(\frac{W_t}{W_{t-1}}\right)$$
+<div align="center">
+
+$\max_{\text{insurance}} \bar{g} = \lim_{T \to \infty} \frac{1}{T} \sum_{t=1}^T \ln\left(\frac{W_t}{W_{t-1}}\right)$
+
+</div>
 
 subject to:
-$$P(\text{Ruin before time } T) < \epsilon$$
+
+<div align="center">
+
+$P(\text{Ruin before time } T) < \epsilon$
+
+</div>
 
 This optimization naturally balances premium costs against volatility reduction benefits, producing attachment points and limits that traditional analysis would deem excessive.
 
@@ -155,13 +186,27 @@ This optimization naturally balances premium costs against volatility reduction 
 
 Insurance creates value not by reducing expected losses but by reducing return volatility in multiplicative processes. For log-normally distributed returns with volatility $\sigma$, the exact relationship between arithmetic and geometric means is:
 
-$$r_{\text{geometric}} = r_{\text{arithmetic}} - \frac{\sigma^2}{2}$$
+<div align="center">
+
+$r_{\text{geometric}} = r_{\text{arithmetic}} - \frac{\sigma^2}{2}$
+
+</div>
 
 This variance drag compounds over time. A company with 15% expected returns and 10% volatility actually grows at:
-$$r_{\text{geometric}} = 0.15 - \frac{0.10^2}{2} = 0.145 = 14.5\%$$
+
+<div align="center">
+
+$r_{\text{geometric}} = 0.15 - \frac{0.10^2}{2} = 0.145 = 14.5\%$
+
+</div>
 
 Reducing volatility from 10% to 7% through insurance increases the geometric growth rate by:
-$$\Delta r = \frac{0.10^2 - 0.07^2}{2} = 0.00255 = 25.5 \text{ basis points}$$
+
+<div align="center">
+
+$\Delta r = \frac{0.10^2 - 0.07^2}{2} = 0.00255 = 25.5 \text{ basis points}$
+
+</div>
 
 Over 100 years, this seemingly small improvement compounds to a 29% wealth difference, often justifying substantial premium costs.
 
@@ -317,16 +362,36 @@ For completeness, we derive the relationship between arithmetic and geometric me
 Let $X_t$ be a log-normally distributed random variable with $\ln X_t \sim N(\mu, \sigma^2)$.
 
 The arithmetic mean is:
-$$\mathbb{E}[X_t] = e^{\mu + \sigma^2/2}$$
+
+<div align="center">
+
+$\mathbb{E}[X_t] = e^{\mu + \sigma^2/2}$
+
+</div>
 
 The geometric mean is:
-$$\exp(\mathbb{E}[\ln X_t]) = e^{\mu}$$
+
+<div align="center">
+
+$\exp(\mathbb{E}[\ln X_t]) = e^{\mu}$
+
+</div>
 
 Therefore:
-$$\frac{\text{Geometric Mean}}{\text{Arithmetic Mean}} = \frac{e^{\mu}}{e^{\mu + \sigma^2/2}} = e^{-\sigma^2/2}$$
+
+<div align="center">
+
+$\frac{\text{Geometric Mean}}{\text{Arithmetic Mean}} = \frac{e^{\mu}}{e^{\mu + \sigma^2/2}} = e^{-\sigma^2/2}$
+
+</div>
 
 Taking logarithms and using the approximation $\ln(1 + x) \approx x$ for small $x$:
-$$r_{\text{geometric}} \approx r_{\text{arithmetic}} - \frac{\sigma^2}{2}$$
+
+<div align="center">
+
+$r_{\text{geometric}} \approx r_{\text{arithmetic}} - \frac{\sigma^2}{2}$
+
+</div>
 
 The error in this approximation is $O(\sigma^4)$ for $\sigma < 0.3$.
 
@@ -334,16 +399,35 @@ The error in this approximation is $O(\sigma^4)$ for $\sigma < 0.3$.
 
 Consider a company with wealth $W_t$ facing potential loss $L$ with probability $p$. The time-average growth rate without insurance is:
 
-$$g_0 = p \ln\left(1 - \frac{L}{W_t}\right) + (1-p) \ln(1)$$
+<div align="center">
+
+$g_0 = p \ln\left(1 - \frac{L}{W_t}\right) + (1-p) \ln(1)$
+
+</div>
 
 With insurance at premium $P$:
-$$g_I = \ln\left(1 - \frac{P}{W_t}\right)$$
+
+<div align="center">
+
+$g_I = \ln\left(1 - \frac{P}{W_t}\right)$
+
+</div>
 
 Insurance is optimal when $g_I > g_0$, which yields:
-$$P < W_t \left[1 - (1 - L/W_t)^p\right]$$
+
+<div align="center">
+
+$P < W_t \left[1 - (1 - L/W_t)^p\right]$
+
+</div>
 
 For small $p$, this approximates to:
-$$P < p \cdot L \cdot \left[1 + \frac{p(L/W_t)}{2} + O(p^2)\right]$$
+
+<div align="center">
+
+$P < p \cdot L \cdot \left[1 + \frac{p(L/W_t)}{2} + O(p^2)\right]$
+
+</div>
 
 This shows the ergodically optimal premium exceeds the actuarially fair premium by a factor that increases with the loss-to-wealth ratio.
 

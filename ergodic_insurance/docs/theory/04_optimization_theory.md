@@ -16,11 +16,15 @@
 
 The insurance optimization problem:
 
-$$\begin{align}
+<div align="center">
+
+$\begin{align}
 \max_{x \in \mathcal{X}} &\quad f(x) \\
 \text{subject to} &\quad g_i(x) \leq 0, \quad i = 1, ..., m \\
 &\quad h_j(x) = 0, \quad j = 1, ..., p
-\end{align}$$
+\end{align}$
+
+</div>
 
 where:
 - $x$ = Decision variables (retention, limits, premiums)
@@ -31,7 +35,11 @@ where:
 ### Lagrangian Method
 
 Form the Lagrangian:
-$$\mathcal{L}(x, \lambda, \mu) = f(x) - \sum_{i=1}^m \lambda_i g_i(x) - \sum_{j=1}^p \mu_j h_j(x)$$
+<div align="center">
+
+$\mathcal{L}(x, \lambda, \mu) = f(x) - \sum_{i=1}^m \lambda_i g_i(x) - \sum_{j=1}^p \mu_j h_j(x)$
+
+</div>
 
 ### Karush-Kuhn-Tucker (KKT) Conditions
 
@@ -194,22 +202,34 @@ A solution is **Pareto efficient** if no objective can be improved without worse
 ### Pareto Frontier
 
 Set of all Pareto efficient solutions:
-$$\mathcal{P} = \{x^* \in \mathcal{X} : \nexists x \in \mathcal{X}, f_i(x) \geq f_i(x^*) \forall i, f_j(x) > f_j(x^*) \text{ for some } j\}$$
+<div align="center">
+
+$\mathcal{P} = \{x^* \in \mathcal{X} : \nexists x \in \mathcal{X}, f_i(x) \geq f_i(x^*) \forall i, f_j(x) > f_j(x^*) \text{ for some } j\}$
+
+</div>
 
 ### Scalarization Methods
 
 #### Weighted Sum
 
-$$\min_{x} \sum_{i=1}^k w_i f_i(x)$$
+<div align="center">
+
+$\min_{x} \sum_{i=1}^k w_i f_i(x)$
+
+</div>
 
 where $\sum w_i = 1$, $w_i \geq 0$.
 
 #### Epsilon-Constraint
 
-$$\begin{align}
+<div align="center">
+
+$\begin{align}
 \min_{x} &\quad f_1(x) \\
 \text{s.t.} &\quad f_i(x) \leq \epsilon_i, \quad i = 2, ..., k
-\end{align}$$
+\end{align}$
+
+</div>
 
 ### Insurance Trade-offs
 
@@ -354,7 +374,11 @@ pareto.plot_frontier(frontier, ['Negative Growth', 'Risk'])
 
 ### Problem Formulation
 
-$$\min_{x \in \mathcal{X}} F(x) = [f_1(x), f_2(x), ..., f_k(x)]^T$$
+<div align="center">
+
+$\min_{x \in \mathcal{X}} F(x) = [f_1(x), f_2(x), ..., f_k(x)]^T$
+
+</div>
 
 ### Dominance Relations
 
@@ -625,11 +649,19 @@ plt.show()
 
 ### Optimal Control Problem
 
-$$V(t, x) = \max_{u \in U} \left\{ \int_t^T L(s, x(s), u(s)) ds + \Phi(x(T)) \right\}$$
+<div align="center">
+
+$V(t, x) = \max_{u \in U} \left\{ \int_t^T L(s, x(s), u(s)) ds + \Phi(x(T)) \right\}$
+
+</div>
 
 ### HJB Equation
 
-$$\frac{\partial V}{\partial t} + \max_{u \in U} \left\{ L(t, x, u) + \nabla V \cdot f(t, x, u) + \frac{1}{2} \text{tr}(\sigma \sigma^T \nabla^2 V) \right\} = 0$$
+<div align="center">
+
+$\frac{\partial V}{\partial t} + \max_{u \in U} \left\{ L(t, x, u) + \nabla V \cdot f(t, x, u) + \frac{1}{2} \text{tr}(\sigma \sigma^T \nabla^2 V) \right\} = 0$
+
+</div>
 
 with boundary condition: $V(T, x) = \Phi(x)$
 
@@ -782,15 +814,27 @@ hjb.plot_solution(V, policy, x, u, t)
 
 #### Gradient Descent
 
-$$x_{k+1} = x_k - \alpha_k \nabla f(x_k)$$
+<div align="center">
+
+$x_{k+1} = x_k - \alpha_k \nabla f(x_k)$
+
+</div>
 
 #### Newton's Method
 
-$$x_{k+1} = x_k - H_f(x_k)^{-1} \nabla f(x_k)$$
+<div align="center">
+
+$x_{k+1} = x_k - H_f(x_k)^{-1} \nabla f(x_k)$
+
+</div>
 
 #### Quasi-Newton (BFGS)
 
-$$x_{k+1} = x_k - \alpha_k B_k^{-1} \nabla f(x_k)$$
+<div align="center">
+
+$x_{k+1} = x_k - \alpha_k B_k^{-1} \nabla f(x_k)$
+
+</div>
 
 where $B_k$ approximates the Hessian.
 
@@ -1009,11 +1053,19 @@ for name, result in results.items():
 ### Stochastic Differential Equation
 
 State dynamics:
-$$dx_t = f(t, x_t, u_t)dt + \sigma(t, x_t, u_t)dW_t$$
+<div align="center">
+
+$dx_t = f(t, x_t, u_t)dt + \sigma(t, x_t, u_t)dW_t$
+
+</div>
 
 ### Dynamic Programming Principle
 
-$$V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right]$$
+<div align="center">
+
+$V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right]$
+
+</div>
 
 ### Implementation
 

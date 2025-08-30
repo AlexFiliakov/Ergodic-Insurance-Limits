@@ -19,7 +19,11 @@
 
 Monte Carlo methods estimate expectations through random sampling:
 
-$$E[f(X)] \approx \frac{1}{N} \sum_{i=1}^N f(X_i)$$
+<div align="center">
+
+$E[f(X)] \approx \frac{1}{N} \sum_{i=1}^N f(X_i)$
+
+</div>
 
 where $X_i$ are independent samples from the distribution of $X$.
 
@@ -28,19 +32,31 @@ where $X_i$ are independent samples from the distribution of $X$.
 #### Antithetic Variates
 
 Use negatively correlated pairs:
-$$\hat{\mu}_{\text{AV}} = \frac{1}{2N} \sum_{i=1}^N [f(X_i) + f(X_i')]$$
+<div align="center">
+
+$\hat{\mu}_{\text{AV}} = \frac{1}{2N} \sum_{i=1}^N [f(X_i) + f(X_i')]$
+
+</div>
 
 where $X_i'$ is antithetic to $X_i$.
 
 #### Control Variates
 
 Reduce variance using correlated variable with known mean:
-$$\hat{\mu}_{\text{CV}} = \hat{\mu} - c(\hat{\mu}_Y - \mu_Y)$$
+<div align="center">
+
+$\hat{\mu}_{\text{CV}} = \hat{\mu} - c(\hat{\mu}_Y - \mu_Y)$
+
+</div>
 
 #### Importance Sampling
 
 Sample from alternative distribution:
-$$E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]$$
+<div align="center">
+
+$E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]$
+
+</div>
 
 ### Implementation
 
@@ -267,7 +283,11 @@ comparison = mc_engine.compare_methods(n_sims=10000)
 
 For multiple chains, assess convergence:
 
-$$\hat{R} = \sqrt{\frac{\hat{V}}{W}}$$
+<div align="center">
+
+$\hat{R} = \sqrt{\frac{\hat{V}}{W}}$
+
+</div>
 
 where:
 - $W$ = Within-chain variance
@@ -277,7 +297,11 @@ where:
 
 Account for autocorrelation:
 
-$$\text{ESS} = \frac{N}{1 + 2\sum_{k=1}^K \rho_k}$$
+<div align="center">
+
+$\text{ESS} = \frac{N}{1 + 2\sum_{k=1}^K \rho_k}$
+
+</div>
 
 where $\rho_k$ is lag-$k$ autocorrelation.
 
@@ -557,17 +581,29 @@ diagnostics.plot_diagnostics()
 
 For large samples, use Central Limit Theorem:
 
-$$\bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}$$
+<div align="center">
+
+$\bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}$
+
+</div>
 
 ### Bootstrap Confidence Intervals
 
 #### Percentile Method
 Use quantiles of bootstrap distribution:
-$$[\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]$$
+<div align="center">
+
+$[\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]$
+
+</div>
 
 #### BCa (Bias-Corrected and Accelerated)
 Adjust for bias and skewness:
-$$[\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]$$
+<div align="center">
+
+$[\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]$
+
+</div>
 
 where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.
 
