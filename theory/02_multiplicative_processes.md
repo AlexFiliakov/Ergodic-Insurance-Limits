@@ -192,6 +192,8 @@ plt.grid(True, alpha=0.3)
 plt.show()
 ```
 
+![Insurance Loss Modeling](/Ergodic-Insurance-Limits/theory/figures/insurance_loss_modeling.png)
+
 ## Path Dependence and History
 
 ### Definition of Path Dependence

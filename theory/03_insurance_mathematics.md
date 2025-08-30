@@ -262,6 +262,8 @@ plt.grid(True, alpha=0.3)
 plt.show()
 ```
 
+![Compound Poisson-Lognormal Distribution](/Ergodic-Insurance-Limits/theory/figures/compound_poi_lognormal_dist.png)
+
 ## Layer Pricing Theory
 
 ### Excess of Loss Layers
@@ -373,6 +375,7 @@ limits = [100_000, 400_000, 500_000, 4_000_000, 10_000_000]
 tower = pricer.create_tower(attachments, limits, frequency=5)
 print(tower.to_string())
 ```
+![Compound Poisson-Lognormal Distribution](/Ergodic-Insurance-Limits/theory/figures/layer_pricing.png)
 
 ## Retention Optimization
 

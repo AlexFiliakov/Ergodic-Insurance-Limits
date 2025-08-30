@@ -322,6 +322,8 @@ plt.tight_layout()
 plt.show()
 ```
 
+![Wealth Trajectories](/Ergodic-Insurance-Limits/theory/figures/wealth_trajectories.png)
+
 ### Growth Rate Distribution
 
 ```python
@@ -340,6 +342,8 @@ plt.title('Distribution of Realized Growth Rates')
 plt.legend()
 plt.show()
 ```
+
+![Growth Rate Distribution](/Ergodic-Insurance-Limits/theory/figures/growth_rate_distribution.png)
 
 ## Summary
 
