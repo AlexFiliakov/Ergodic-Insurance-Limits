@@ -380,3 +380,42 @@ validation:
   transition_sum: 1.0
   min_cycle_years: 5
   max_cycle_years: 12
+pricing:
+  mode: fixed  # 'fixed' for backward compatibility or 'calculated' for dynamic pricing
+  loss_ratio: 0.70  # Default target loss ratio (claims/premium)
+  expense_ratio: 0.25  # Operating expenses as percentage of premium
+  profit_margin: 0.05  # Target profit margin
+  risk_loading: 0.10  # Additional loading for uncertainty
+  confidence_level: 0.95  # Confidence level for pricing calculations
+  simulation_years: 10  # Years to simulate for pricing
+  min_premium: 1000.0  # Minimum premium floor per layer
+  max_rate_on_line: 0.50  # Maximum rate on line cap
+  market_cycles:
+    hard:
+      loss_ratio: 0.60
+      description: Seller's market with limited capacity
+    normal:
+      loss_ratio: 0.70
+      description: Balanced market conditions
+    soft:
+      loss_ratio: 0.80
+      description: Buyer's market with excess capacity
+  cycle_transition_probabilities:
+    hard_to_normal: 0.40
+    hard_to_soft: 0.10
+    hard_to_hard: 0.50
+    normal_to_hard: 0.20
+    normal_to_soft: 0.20
+    normal_to_normal: 0.60
+    soft_to_normal: 0.30
+    soft_to_hard: 0.10
+    soft_to_soft: 0.60
+  pricing_methodology:
+    description: |
+      Market Premium = Pure Premium / Loss Ratio
+
+      Where:
+      - Pure Premium = Expected Frequency × Expected Severity
+      - Loss Ratio varies by market cycle (60% hard, 70% normal, 80% soft)
+      - Technical Premium = Pure Premium × (1 + Expenses + Profit + Risk Loading)
+      - Final Premium = max(Technical Premium / Loss Ratio, Minimum Premium)
