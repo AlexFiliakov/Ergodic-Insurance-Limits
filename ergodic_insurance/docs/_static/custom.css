@@ -300,3 +300,66 @@ dl.field-list > dt {
     padding-bottom: 0.5rem !important;
     border-bottom: 1px solid var(--cayman-border) !important;
 }
+
+/* MathJax equation styling */
+.math, .MathJax_Display, .MathJax {
+    font-size: 1.1em !important;
+    margin: 1em 0 !important;
+}
+
+/* Inline math */
+.math.inline, span.math {
+    font-size: 1em !important;
+    margin: 0 0.2em !important;
+}
+
+/* Display math blocks */
+div.math {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    padding: 1rem;
+    background: var(--cayman-code-bg);
+    border-radius: 0.3rem;
+    margin: 1.5rem 0;
+}
+
+/* Equation numbering */
+.eqno {
+    float: right;
+    color: var(--cayman-text);
+    font-size: 0.9em;
+}
+
+/* MathJax container adjustments */
+.MathJax_Display {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    max-width: 100% !important;
+}
+
+/* Ensure MathJax doesn't break layout */
+mjx-container {
+    display: inline-block !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+}
+
+mjx-container[display="block"] {
+    display: block !important;
+    margin: 1em 0 !important;
+    text-align: center !important;
+}
+
+/* Fix for mobile responsiveness */
+@media screen and (max-width: 768px) {
+    div.math {
+        font-size: 0.9em !important;
+        padding: 0.5rem;
+    }
+
+    .MathJax_Display {
+        font-size: 0.9em !important;
+    }
+}
