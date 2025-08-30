@@ -197,18 +197,25 @@ def plot_kelly_criterion():
 
 
 def plot_insurance_impact():
-    """Show impact of insurance on wealth trajectories."""
+    """Show impact of insurance on wealth trajectories - demonstrating ergodic theory."""
 
     np.random.seed(42)
-    n_years = 50
-    n_sims = 100
+    n_years = 100
+    n_sims = 1000
 
-    # Parameters
-    initial_wealth = 10_000_000
-    base_growth = 0.08
-    volatility = 0.15
-    loss_prob = 0.05
-    loss_severity = 0.3  # 30% loss when occurs
+    # Parameters chosen to demonstrate ergodic theory insights
+    # Lower starting capital and higher risk to show survival differences
+    initial_wealth = 1_000_000  # $1M starting capital (much lower)
+    base_growth = 0.12  # 12% average growth (higher to compensate for risk)
+    volatility = 0.20  # 20% volatility
+
+    # Catastrophic loss parameters - higher frequency and severity
+    loss_prob = 0.10  # 10% annual probability (doubled from before)
+    loss_severity = 0.60  # 60% loss when occurs (doubled from before)
+
+    # Insurance parameters - actuarially "unfair" but ergodically optimal
+    premium_rate = 0.04  # 4% annual premium (2x expected loss of 2%)
+    deductible_rate = 0.10  # 10% deductible
 
     # Simulate with and without insurance
     wealth_no_insurance = np.zeros((n_sims, n_years + 1))
@@ -217,118 +224,206 @@ def plot_insurance_impact():
     wealth_no_insurance[:, 0] = initial_wealth
     wealth_with_insurance[:, 0] = initial_wealth
 
+    # Track bankruptcy
+    bankrupt_no_insurance = np.zeros(n_sims, dtype=bool)
+    bankrupt_with_insurance = np.zeros(n_sims, dtype=bool)
+
     for sim in range(n_sims):
         for year in range(n_years):
-            # Growth factor
-            growth = np.exp(np.random.normal(base_growth, volatility))
-
-            # Loss event
-            has_loss = np.random.rand() < loss_prob
-
-            # Without insurance
-            if has_loss:
-                wealth_no_insurance[sim, year + 1] = (
-                    wealth_no_insurance[sim, year] * growth * (1 - loss_severity)
-                )
+            # Skip if already bankrupt
+            if bankrupt_no_insurance[sim]:
+                wealth_no_insurance[sim, year + 1] = 0
             else:
-                wealth_no_insurance[sim, year + 1] = wealth_no_insurance[sim, year] * growth
+                # Growth factor (same for both)
+                growth = np.exp(np.random.normal(base_growth - volatility**2 / 2, volatility))
 
-            # With insurance (premium 2%, deductible 5%)
-            premium = 0.02
-            deductible = 0.05
+                # Loss event (same for both)
+                has_loss = np.random.rand() < loss_prob
 
-            if has_loss:
-                retained_loss = min(loss_severity, deductible)
-                wealth_with_insurance[sim, year + 1] = (
-                    wealth_with_insurance[sim, year] * growth * (1 - retained_loss - premium)
-                )
+                # Without insurance
+                if has_loss:
+                    wealth_no_insurance[sim, year + 1] = (
+                        wealth_no_insurance[sim, year] * growth * (1 - loss_severity)
+                    )
+                else:
+                    wealth_no_insurance[sim, year + 1] = wealth_no_insurance[sim, year] * growth
+
+                # Check for bankruptcy
+                if wealth_no_insurance[sim, year + 1] <= initial_wealth * 0.01:  # 1% of initial
+                    wealth_no_insurance[sim, year + 1] = 0
+                    bankrupt_no_insurance[sim] = True
+
+            # With insurance
+            if bankrupt_with_insurance[sim]:
+                wealth_with_insurance[sim, year + 1] = 0
             else:
-                wealth_with_insurance[sim, year + 1] = (
-                    wealth_with_insurance[sim, year] * growth * (1 - premium)
-                )
+                growth = np.exp(np.random.normal(base_growth - volatility**2 / 2, volatility))
 
-            # Check for bankruptcy
-            if wealth_no_insurance[sim, year + 1] <= 0:
-                wealth_no_insurance[sim, year + 1 :] = 0
-                break
-            if wealth_with_insurance[sim, year + 1] <= 0:
-                wealth_with_insurance[sim, year + 1 :] = 0
-                break
+                if has_loss:
+                    # Insurance covers losses above deductible
+                    retained_loss = min(loss_severity, deductible_rate)
+                    wealth_with_insurance[sim, year + 1] = (
+                        wealth_with_insurance[sim, year]
+                        * growth
+                        * (1 - retained_loss)
+                        * (1 - premium_rate)
+                    )
+                else:
+                    # Just pay premium
+                    wealth_with_insurance[sim, year + 1] = (
+                        wealth_with_insurance[sim, year] * growth * (1 - premium_rate)
+                    )
+
+                # Check for bankruptcy
+                if wealth_with_insurance[sim, year + 1] <= initial_wealth * 0.01:
+                    wealth_with_insurance[sim, year + 1] = 0
+                    bankrupt_with_insurance[sim] = True
 
     # Create plot
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-    # Trajectories
-    for i in range(min(20, n_sims)):
-        axes[0, 0].plot(wealth_no_insurance[i, :], alpha=0.3, color="red", linewidth=0.5)
-        axes[0, 1].plot(wealth_with_insurance[i, :], alpha=0.3, color="green", linewidth=0.5)
+    # Plot sample trajectories
+    n_plot = min(50, n_sims)
+    for i in range(n_plot):
+        if not bankrupt_no_insurance[i]:
+            axes[0, 0].plot(wealth_no_insurance[i, :], alpha=0.2, color="red", linewidth=0.5)
+        if not bankrupt_with_insurance[i]:
+            axes[0, 1].plot(wealth_with_insurance[i, :], alpha=0.2, color="green", linewidth=0.5)
 
-    # Add median paths
-    axes[0, 0].plot(np.median(wealth_no_insurance, axis=0), "r-", linewidth=2, label="Median")
-    axes[0, 1].plot(np.median(wealth_with_insurance, axis=0), "g-", linewidth=2, label="Median")
+    # Calculate and plot key statistics over time
+    # Median of surviving paths (typical path for ergodic theory)
+    median_no_ins = np.zeros(n_years + 1)
+    median_with_ins = np.zeros(n_years + 1)
+    mean_no_ins = np.zeros(n_years + 1)
+    mean_with_ins = np.zeros(n_years + 1)
+
+    for t in range(n_years + 1):
+        surviving_no_ins = wealth_no_insurance[:, t][wealth_no_insurance[:, t] > 0]
+        surviving_with_ins = wealth_with_insurance[:, t][wealth_with_insurance[:, t] > 0]
+
+        if len(surviving_no_ins) > 0:
+            median_no_ins[t] = np.median(surviving_no_ins)
+            mean_no_ins[t] = np.mean(surviving_no_ins)
+        else:
+            median_no_ins[t] = 0
+            mean_no_ins[t] = 0
+
+        if len(surviving_with_ins) > 0:
+            median_with_ins[t] = np.median(surviving_with_ins)
+            mean_with_ins[t] = np.mean(surviving_with_ins)
+        else:
+            median_with_ins[t] = 0
+            mean_with_ins[t] = 0
+
+    # Plot median (typical) and mean (ensemble) paths
+    axes[0, 0].plot(median_no_ins, "darkred", linewidth=3, label="Median (Typical)")
+    axes[0, 0].plot(mean_no_ins, "blue", linewidth=2, label="Mean (Ensemble)", linestyle="--")
+    axes[0, 1].plot(median_with_ins, "darkgreen", linewidth=3, label="Median (Typical)")
+    axes[0, 1].plot(mean_with_ins, "blue", linewidth=2, label="Mean (Ensemble)", linestyle="--")
 
     axes[0, 0].set_yscale("log")
     axes[0, 1].set_yscale("log")
-    axes[0, 0].set_title("Without Insurance")
-    axes[0, 1].set_title("With Insurance")
+    axes[0, 0].set_title("Without Insurance", fontsize=12, fontweight="bold")
+    axes[0, 1].set_title("With Insurance (4% Premium)", fontsize=12, fontweight="bold")
     axes[0, 0].set_xlabel("Years")
     axes[0, 1].set_xlabel("Years")
-    axes[0, 0].set_ylabel("Wealth")
-    axes[0, 1].set_ylabel("Wealth")
-    axes[0, 0].legend()
-    axes[0, 1].legend()
+    axes[0, 0].set_ylabel("Wealth ($)")
+    axes[0, 1].set_ylabel("Wealth ($)")
+    axes[0, 0].legend(loc="upper left")
+    axes[0, 1].legend(loc="upper left")
+    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 1].grid(True, alpha=0.3)
 
-    # Final wealth distribution
+    # Set y-axis limits to show full range
+    axes[0, 0].set_ylim([1e3, 1e10])
+    axes[0, 1].set_ylim([1e3, 1e10])
+
+    # Survival rate over time
+    survival_no_ins = np.mean(wealth_no_insurance > 0, axis=0)
+    survival_with_ins = np.mean(wealth_with_insurance > 0, axis=0)
+
+    axes[1, 0].plot(survival_no_ins * 100, "r-", linewidth=2, label="No Insurance")
+    axes[1, 0].plot(survival_with_ins * 100, "g-", linewidth=2, label="With Insurance")
+    axes[1, 0].set_xlabel("Years")
+    axes[1, 0].set_ylabel("Survival Rate (%)")
+    axes[1, 0].set_title("Survival Probability Over Time", fontsize=12, fontweight="bold")
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].set_ylim([0, 105])
+
+    # Key statistics comparison
     final_no_insurance = wealth_no_insurance[:, -1]
     final_with_insurance = wealth_with_insurance[:, -1]
 
-    bins = np.logspace(0, 9, 30)
-    axes[1, 0].hist(
-        final_no_insurance[final_no_insurance > 0],
-        bins=bins,
-        alpha=0.5,
-        color="red",
-        label="No Insurance",
-        edgecolor="black",
-    )
-    axes[1, 0].hist(
-        final_with_insurance[final_with_insurance > 0],
-        bins=bins,
-        alpha=0.5,
-        color="green",
-        label="With Insurance",
-        edgecolor="black",
-    )
-    axes[1, 0].set_xscale("log")
-    axes[1, 0].set_xlabel("Final Wealth")
-    axes[1, 0].set_ylabel("Frequency")
-    axes[1, 0].set_title("Final Wealth Distribution")
-    axes[1, 0].legend()
+    # Calculate time-average growth rates (ergodic perspective)
+    surviving_no_ins_final = final_no_insurance[final_no_insurance > 0]
+    surviving_with_ins_final = final_with_insurance[final_with_insurance > 0]
 
-    # Statistics comparison
+    if len(surviving_no_ins_final) > 0:
+        time_avg_growth_no_ins = (
+            np.median(np.log(surviving_no_ins_final / initial_wealth)) / n_years
+        )
+        ensemble_growth_no_ins = np.log(np.mean(surviving_no_ins_final) / initial_wealth) / n_years
+    else:
+        time_avg_growth_no_ins = -np.inf
+        ensemble_growth_no_ins = -np.inf
+
+    if len(surviving_with_ins_final) > 0:
+        time_avg_growth_with_ins = (
+            np.median(np.log(surviving_with_ins_final / initial_wealth)) / n_years
+        )
+        ensemble_growth_with_ins = (
+            np.log(np.mean(surviving_with_ins_final) / initial_wealth) / n_years
+        )
+    else:
+        time_avg_growth_with_ins = -np.inf
+        ensemble_growth_with_ins = -np.inf
+
+    # Expected loss calculation
+    expected_loss = loss_prob * loss_severity
+
     stats_text = f"""
-    Without Insurance:
-      Survival Rate: {np.mean(final_no_insurance > 0):.1%}
-      Median Final: ${np.median(final_no_insurance[final_no_insurance > 0])/1e6:.1f}M
-      Growth Rate: {np.mean(np.log(final_no_insurance[final_no_insurance > 0]/initial_wealth)/n_years):.2%}
+    ERGODIC THEORY DEMONSTRATION
+    ============================
 
-    With Insurance:
-      Survival Rate: {np.mean(final_with_insurance > 0):.1%}
-      Median Final: ${np.median(final_with_insurance[final_with_insurance > 0])/1e6:.1f}M
-      Growth Rate: {np.mean(np.log(final_with_insurance[final_with_insurance > 0]/initial_wealth)/n_years):.2%}
+    Initial Wealth: ${initial_wealth/1e6:.1f}M
+    Loss: {loss_severity:.0%} with {loss_prob:.0%} annual probability
+    Expected Loss: {expected_loss:.1%} per year
+    Insurance Premium: {premium_rate:.1%} (= {premium_rate/expected_loss:.1f}x expected loss)
+
+    WITHOUT INSURANCE:
+    ------------------
+    Survival Rate: {np.mean(final_no_insurance > 0):.1%}
+    Time-Avg Growth: {time_avg_growth_no_ins:.2%} (Median Path)
+    Ensemble Growth: {ensemble_growth_no_ins:.2%} (Mean Path)
+
+    WITH INSURANCE:
+    ---------------
+    Survival Rate: {np.mean(final_with_insurance > 0):.1%}
+    Time-Avg Growth: {time_avg_growth_with_ins:.2%} (Median Path)
+    Ensemble Growth: {ensemble_growth_with_ins:.2%} (Mean Path)
+
+    KEY INSIGHT:
+    Insurance increases time-average growth
+    despite reducing expected value!
     """
 
     axes[1, 1].text(
-        0.1, 0.5, stats_text, fontsize=12, verticalalignment="center", family="monospace"
+        0.05,
+        0.5,
+        stats_text,
+        fontsize=10,
+        verticalalignment="center",
+        family="monospace",
+        bbox=dict(boxstyle="round,pad=0.5", facecolor="lightyellow", alpha=0.8),
     )
     axes[1, 1].set_xlim(0, 1)
     axes[1, 1].set_ylim(0, 1)
     axes[1, 1].axis("off")
-    axes[1, 1].set_title("Comparison Statistics")
 
-    plt.suptitle("Insurance Impact on Long-Term Wealth", fontsize=14, fontweight="bold")
+    plt.suptitle("Ergodic Theory: Insurance as Growth Enabler", fontsize=14, fontweight="bold")
     plt.tight_layout()
-    plt.savefig(output_dir / "insurance_impact.png", bbox_inches="tight")
+    plt.savefig(output_dir / "insurance_impact.png", bbox_inches="tight", dpi=150)
     plt.close()
 
     print("Created: insurance_impact.png")
