@@ -75,6 +75,7 @@ Quick Links
    getting_started
    examples
    theory
+   theory/index
 
 .. toctree::
    :maxdepth: 2
