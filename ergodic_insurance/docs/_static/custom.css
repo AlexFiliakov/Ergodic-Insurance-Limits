@@ -1,0 +1,302 @@
+/* Custom CSS to match Jekyll Cayman theme for API documentation */
+
+/* Import Google Fonts to match main site */
+@import url('https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap');
+
+/* Override ReadTheDocs theme colors to match Cayman */
+:root {
+    --cayman-primary: #157878;
+    --cayman-secondary: #159957;
+    --cayman-text: #606c71;
+    --cayman-bg: #fff;
+    --cayman-code-bg: #f3f6fa;
+    --cayman-border: #dce6f0;
+}
+
+/* Body and main content */
+body {
+    font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+    color: var(--cayman-text) !important;
+}
+
+/* Headers styling to match Cayman */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: normal !important;
+    color: var(--cayman-secondary) !important;
+}
+
+h1 {
+    font-size: 2.25rem !important;
+}
+
+h2 {
+    font-size: 1.75rem !important;
+}
+
+h3 {
+    font-size: 1.5rem !important;
+}
+
+/* Links */
+a {
+    color: #1e6bb8 !important;
+    text-decoration: none !important;
+}
+
+a:hover {
+    text-decoration: underline !important;
+}
+
+/* Navigation sidebar - match the main site's dark sidebar */
+.wy-nav-side {
+    background: #2c3e50 !important;
+    color: #ecf0f1 !important;
+}
+
+.wy-side-nav-search {
+    background: linear-gradient(120deg, var(--cayman-secondary) 0%, var(--cayman-primary) 100%) !important;
+    padding: 1rem !important;
+}
+
+.wy-side-nav-search > a {
+    color: #fff !important;
+    font-size: 1.5rem !important;
+    font-weight: bold !important;
+}
+
+.wy-side-nav-search input[type="text"] {
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: #fff !important;
+}
+
+.wy-side-nav-search input[type="text"]::placeholder {
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Sidebar menu items */
+.wy-menu-vertical a {
+    color: #bdc3c7 !important;
+}
+
+.wy-menu-vertical a:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: #fff !important;
+}
+
+.wy-menu-vertical li.current > a {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-right: 3px solid var(--cayman-primary) !important;
+    color: #fff !important;
+}
+
+/* Section headers in sidebar */
+.wy-menu-vertical p.caption {
+    color: #3498db !important;
+    font-size: 12px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    margin: 20px 14px 10px !important;
+}
+
+/* Main content area */
+.wy-nav-content-wrap {
+    background: var(--cayman-bg) !important;
+}
+
+.wy-nav-content {
+    max-width: 1200px !important;
+}
+
+/* Add header gradient similar to main site */
+.rst-content > div:first-child {
+    position: relative;
+    padding: 2rem 2rem;
+    color: #fff;
+    text-align: center;
+    background-color: var(--cayman-secondary);
+    background-image: linear-gradient(120deg, var(--cayman-secondary), var(--cayman-primary));
+    margin: -2rem -2rem 2rem -2rem;
+}
+
+/* Code blocks styling */
+.highlight {
+    background: var(--cayman-code-bg) !important;
+    border: 1px solid var(--cayman-border) !important;
+    border-radius: 0.3rem !important;
+}
+
+.highlight pre {
+    background: transparent !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 1rem !important;
+}
+
+code, .rst-content tt, .rst-content code {
+    background: var(--cayman-code-bg) !important;
+    border: 1px solid var(--cayman-border) !important;
+    border-radius: 0.3rem !important;
+    padding: 2px 5px !important;
+    font-size: 85% !important;
+    color: #567482 !important;
+}
+
+/* Tables */
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal !important;
+}
+
+table.docutils {
+    border: 1px solid var(--cayman-border) !important;
+}
+
+table.docutils thead {
+    background: var(--cayman-code-bg) !important;
+}
+
+/* Admonitions (notes, warnings, etc.) */
+.admonition {
+    border-radius: 0.3rem !important;
+    border-left: 4px solid var(--cayman-primary) !important;
+}
+
+.admonition.note {
+    background: #e7f3ff !important;
+    border-left-color: #2196F3 !important;
+}
+
+.admonition.warning {
+    background: #fff3e0 !important;
+    border-left-color: #ff9800 !important;
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    margin-bottom: 1rem;
+    color: rgba(255, 255, 255, 0.7);
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    border-style: solid;
+    border-width: 1px;
+    border-radius: 0.3rem;
+    transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+}
+
+.btn:hover {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Footer */
+footer {
+    padding-top: 2rem;
+    margin-top: 2rem;
+    border-top: solid 1px var(--cayman-border);
+    font-size: 0.875rem;
+    color: var(--cayman-text);
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+    .wy-nav-side {
+        width: 300px !important;
+    }
+
+    .wy-nav-content-wrap {
+        margin-left: 0 !important;
+    }
+}
+
+/* API documentation specific styles */
+.class, .function, .method {
+    margin-bottom: 2rem !important;
+    padding-bottom: 1rem !important;
+    border-bottom: 1px solid var(--cayman-border) !important;
+}
+
+.sig-name {
+    color: var(--cayman-primary) !important;
+    font-weight: bold !important;
+}
+
+.sig-param {
+    color: #567482 !important;
+}
+
+/* Version selector */
+.rst-versions {
+    background: #2c3e50 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.rst-versions .rst-current-version {
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: var(--cayman-primary) !important;
+}
+
+/* Search results */
+#search-results h2 {
+    color: var(--cayman-primary) !important;
+}
+
+/* Breadcrumbs */
+.wy-breadcrumbs {
+    font-size: 0.875rem !important;
+}
+
+.wy-breadcrumbs a {
+    color: var(--cayman-primary) !important;
+}
+
+/* Module index */
+.modindex-jumpbox {
+    border: 1px solid var(--cayman-border) !important;
+    background: var(--cayman-code-bg) !important;
+}
+
+/* Python signatures */
+.py {
+    border-left: 3px solid var(--cayman-primary) !important;
+    padding-left: 1rem !important;
+    margin: 1rem 0 !important;
+}
+
+/* Make the theme more cohesive with main site */
+.wy-nav-content-wrap {
+    margin-left: 300px !important;
+}
+
+.wy-nav-top {
+    background: linear-gradient(120deg, var(--cayman-secondary), var(--cayman-primary)) !important;
+}
+
+/* Ensure proper spacing */
+.rst-content .section {
+    margin-bottom: 2rem !important;
+}
+
+.rst-content p {
+    margin-bottom: 1rem !important;
+    line-height: 1.6 !important;
+}
+
+/* Style definition lists */
+dl.field-list > dt {
+    font-weight: bold !important;
+    color: var(--cayman-primary) !important;
+}
+
+/* Page title header - similar to main site */
+.rst-content h1:first-of-type {
+    color: var(--cayman-primary) !important;
+    font-size: 2.5rem !important;
+    margin-bottom: 1.5rem !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 1px solid var(--cayman-border) !important;
+}

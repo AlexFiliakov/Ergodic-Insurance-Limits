@@ -436,3 +436,6 @@ _site/
 .jekyll-cache/
 .jekyll-metadata
 vendor/
+
+# Generated API documentation (built by GitHub Actions)
+api/

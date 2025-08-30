@@ -36,6 +36,8 @@ jobs:
     - name: Build Sphinx documentation
       run: |
         cd ergodic_insurance/docs
+        # Ensure the custom CSS exists
+        mkdir -p _static
         # Use sphinx-build directly without -W flag (which treats warnings as errors)
         sphinx-build -b html . _build/html
         # Add .nojekyll to prevent Jekyll processing of Sphinx output

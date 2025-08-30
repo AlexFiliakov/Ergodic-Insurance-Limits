@@ -69,6 +69,11 @@ language = "en"
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
+# Custom CSS to match main site's Cayman theme
+html_css_files = [
+    "custom.css",
+]
+
 # Additional theme options for GitHub Pages
 html_theme_options = {
     "canonical_url": "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/",
