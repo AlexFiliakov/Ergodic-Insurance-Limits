@@ -45,14 +45,17 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.1'
-        bundler-cache: true
+        bundler-cache: false
 
     - name: Build Jekyll site
       env:
         JEKYLL_ENV: production
       run: |
+        gem install bundler
+        bundle config set --local path 'vendor/bundle'
+        bundle config set --local deployment 'true'
         bundle install
-        bundle exec jekyll build
+        bundle exec jekyll build --trace
         # Copy Sphinx docs into Jekyll site
         cp -r ergodic_insurance/docs/_build/html _site/api
 

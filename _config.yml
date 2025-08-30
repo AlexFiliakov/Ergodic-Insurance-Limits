@@ -38,17 +38,37 @@ include:
   - _layouts
   - _includes
 exclude:
-  - ergodic_insurance
-  - simone
+  - vendor/
+  - ergodic_insurance/
+  - simone/
   - "*.pyc"
-  - __pycache__
-  - node_modules
-  - cache
-  - htmlcov
-  - checkpoints
-  - test_trajectory_storage
+  - __pycache__/
+  - node_modules/
+  - cache/
+  - htmlcov/
+  - checkpoints/
+  - test_trajectory_storage/
   - "*.pkl"
   - "*.parquet"
+  - Gemfile
+  - Gemfile.lock
+  - LICENSE
+  - "*.md~"
+  - ".git/"
+  - ".github/"
+  - "*.log"
+  - results/figures/
+  - reports/
+  - issues/
+  - mypy.ini
+  - pytest.ini
+  - setup.py
+  - pyproject.toml
+  - uv.lock
+  - main.py
+  - "test_*.py"
+  - "*.ipynb"
+  - "*.json"
 
 # Plugins
 plugins:
