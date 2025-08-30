@@ -33,11 +33,13 @@ defaults:
 
 # Include/Exclude
 include:
+  - theory
   - docs
   - _layouts
   - _includes
 exclude:
-  - ergodic_insurance/docs/_build
+  - ergodic_insurance
+  - simone
   - "*.pyc"
   - __pycache__
   - node_modules
@@ -45,7 +47,8 @@ exclude:
   - htmlcov
   - checkpoints
   - test_trajectory_storage
-  - simone/node_modules
+  - "*.pkl"
+  - "*.parquet"
 
 # Plugins
 plugins:

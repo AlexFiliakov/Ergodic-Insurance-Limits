@@ -429,3 +429,10 @@ ergodic_insurance/test_trajectory_storage
 test_trajectory_storage
 # Hypothesis testing cache
 .hypothesis/
+
+# Jekyll
+_site/
+.sass-cache/
+.jekyll-cache/
+.jekyll-metadata
+vendor/
