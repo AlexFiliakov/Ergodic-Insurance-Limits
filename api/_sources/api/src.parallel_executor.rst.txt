@@ -1,7 +1,0 @@
-src.parallel\_executor module
-=============================
-
-.. automodule:: src.parallel_executor
-   :members:
-   :show-inheritance:
-   :undoc-members:

@@ -1,7 +1,0 @@
-src.hjb\_solver module
-======================
-
-.. automodule:: src.hjb_solver
-   :members:
-   :show-inheritance:
-   :undoc-members:

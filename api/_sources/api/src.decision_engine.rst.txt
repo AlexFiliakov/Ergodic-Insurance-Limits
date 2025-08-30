@@ -1,7 +1,0 @@
-src.decision\_engine module
-===========================
-
-.. automodule:: src.decision_engine
-   :members:
-   :show-inheritance:
-   :undoc-members:

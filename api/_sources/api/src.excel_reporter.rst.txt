@@ -1,7 +1,0 @@
-src.excel\_reporter module
-==========================
-
-.. automodule:: src.excel_reporter
-   :members:
-   :show-inheritance:
-   :undoc-members:

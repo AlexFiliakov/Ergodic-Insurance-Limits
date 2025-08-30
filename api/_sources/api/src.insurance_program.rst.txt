@@ -1,7 +1,0 @@
-src.insurance\_program module
-=============================
-
-.. automodule:: src.insurance_program
-   :members:
-   :show-inheritance:
-   :undoc-members:

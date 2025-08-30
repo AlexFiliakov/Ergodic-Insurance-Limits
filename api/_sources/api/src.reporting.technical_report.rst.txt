@@ -1,7 +1,0 @@
-src.reporting.technical\_report module
-======================================
-
-.. automodule:: src.reporting.technical_report
-   :members:
-   :show-inheritance:
-   :undoc-members:

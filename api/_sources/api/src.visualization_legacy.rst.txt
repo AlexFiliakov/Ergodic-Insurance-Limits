@@ -1,7 +1,0 @@
-src.visualization\_legacy module
-================================
-
-.. automodule:: src.visualization_legacy
-   :members:
-   :show-inheritance:
-   :undoc-members:

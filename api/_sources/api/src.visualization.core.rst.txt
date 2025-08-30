@@ -1,7 +1,0 @@
-src.visualization.core module
-=============================
-
-.. automodule:: src.visualization.core
-   :members:
-   :show-inheritance:
-   :undoc-members:

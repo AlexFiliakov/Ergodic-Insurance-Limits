@@ -1,7 +1,0 @@
-src.visualization.executive\_plots module
-=========================================
-
-.. automodule:: src.visualization.executive_plots
-   :members:
-   :show-inheritance:
-   :undoc-members:

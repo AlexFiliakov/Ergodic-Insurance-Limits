@@ -1,7 +1,0 @@
-src.visualization\_infra.figure\_factory module
-===============================================
-
-.. automodule:: src.visualization_infra.figure_factory
-   :members:
-   :show-inheritance:
-   :undoc-members:

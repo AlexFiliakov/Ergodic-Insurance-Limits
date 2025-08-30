@@ -1,7 +1,0 @@
-src.convergence module
-======================
-
-.. automodule:: src.convergence
-   :members:
-   :show-inheritance:
-   :undoc-members:

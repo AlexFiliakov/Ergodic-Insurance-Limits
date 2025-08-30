@@ -1,7 +1,0 @@
-src.convergence\_plots module
-=============================
-
-.. automodule:: src.convergence_plots
-   :members:
-   :show-inheritance:
-   :undoc-members:

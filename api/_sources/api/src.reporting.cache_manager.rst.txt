@@ -1,7 +1,0 @@
-src.reporting.cache\_manager module
-===================================
-
-.. automodule:: src.reporting.cache_manager
-   :members:
-   :show-inheritance:
-   :undoc-members:

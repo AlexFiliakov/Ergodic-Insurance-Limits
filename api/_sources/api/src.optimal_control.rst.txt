@@ -1,7 +1,0 @@
-src.optimal\_control module
-===========================
-
-.. automodule:: src.optimal_control
-   :members:
-   :show-inheritance:
-   :undoc-members:

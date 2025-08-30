@@ -1,7 +1,0 @@
-src.config\_v2 module
-=====================
-
-.. automodule:: src.config_v2
-   :members:
-   :show-inheritance:
-   :undoc-members:

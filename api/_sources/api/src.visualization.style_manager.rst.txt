@@ -1,7 +1,0 @@
-src.visualization.style\_manager module
-=======================================
-
-.. automodule:: src.visualization.style_manager
-   :members:
-   :show-inheritance:
-   :undoc-members:

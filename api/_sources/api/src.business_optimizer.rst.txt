@@ -1,7 +1,0 @@
-src.business\_optimizer module
-==============================
-
-.. automodule:: src.business_optimizer
-   :members:
-   :show-inheritance:
-   :undoc-members:

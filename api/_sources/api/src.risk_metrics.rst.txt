@@ -1,7 +1,0 @@
-src.risk\_metrics module
-========================
-
-.. automodule:: src.risk_metrics
-   :members:
-   :show-inheritance:
-   :undoc-members:

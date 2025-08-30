@@ -1,7 +1,0 @@
-src.reporting.executive\_report module
-======================================
-
-.. automodule:: src.reporting.executive_report
-   :members:
-   :show-inheritance:
-   :undoc-members:

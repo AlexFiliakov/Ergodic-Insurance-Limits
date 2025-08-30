@@ -1,7 +1,0 @@
-src.sensitivity module
-======================
-
-.. automodule:: src.sensitivity
-   :members:
-   :show-inheritance:
-   :undoc-members:

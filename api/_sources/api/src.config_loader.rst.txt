@@ -1,7 +1,0 @@
-src.config\_loader module
-=========================
-
-.. automodule:: src.config_loader
-   :members:
-   :show-inheritance:
-   :undoc-members:

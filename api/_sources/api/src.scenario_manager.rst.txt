@@ -1,7 +1,0 @@
-src.scenario\_manager module
-============================
-
-.. automodule:: src.scenario_manager
-   :members:
-   :show-inheritance:
-   :undoc-members:

@@ -1,7 +1,0 @@
-src.reporting.config module
-===========================
-
-.. automodule:: src.reporting.config
-   :members:
-   :show-inheritance:
-   :undoc-members:

@@ -1,7 +1,0 @@
-src.reporting.validator module
-==============================
-
-.. automodule:: src.reporting.validator
-   :members:
-   :show-inheritance:
-   :undoc-members:

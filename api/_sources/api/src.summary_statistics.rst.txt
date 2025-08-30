@@ -1,7 +1,0 @@
-src.summary\_statistics module
-==============================
-
-.. automodule:: src.summary_statistics
-   :members:
-   :show-inheritance:
-   :undoc-members:

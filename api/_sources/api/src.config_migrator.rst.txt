@@ -1,7 +1,0 @@
-src.config\_migrator module
-===========================
-
-.. automodule:: src.config_migrator
-   :members:
-   :show-inheritance:
-   :undoc-members:

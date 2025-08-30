@@ -1,7 +1,0 @@
-src.optimization module
-=======================
-
-.. automodule:: src.optimization
-   :members:
-   :show-inheritance:
-   :undoc-members:

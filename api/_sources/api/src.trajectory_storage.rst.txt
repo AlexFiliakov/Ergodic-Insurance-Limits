@@ -1,7 +1,0 @@
-src.trajectory\_storage module
-==============================
-
-.. automodule:: src.trajectory_storage
-   :members:
-   :show-inheritance:
-   :undoc-members:

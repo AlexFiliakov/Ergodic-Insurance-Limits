@@ -1,7 +1,0 @@
-src.manufacturer module
-=======================
-
-.. automodule:: src.manufacturer
-   :members:
-   :show-inheritance:
-   :undoc-members:
