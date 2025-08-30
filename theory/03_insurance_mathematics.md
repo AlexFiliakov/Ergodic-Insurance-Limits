@@ -821,7 +821,7 @@ for key, value in optimal.items():
 
 ### Application 1: Manufacturing Company
 
-![Factory Floor](/assets/photos/factory_floor_1_small.jpg)
+![Factory Floor](/Ergodic-Insurance-Limits/assets/photos/factory_floor_1_small.jpg)
 
 ```python
 def manufacturing_insurance_analysis():
@@ -914,7 +914,7 @@ for risk_type, limits in recommendations.items():
 
 ### Application 2: Portfolio Insurance
 
-![Office Space](/assets/photos/conference_room_1_small.jpg)
+![Office Space](/Ergodic-Insurance-Limits/assets/photos/conference_room_1_small.jpg)
 
 ```python
 def portfolio_tail_risk_hedging(portfolio_value=100_000_000):
