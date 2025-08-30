@@ -78,7 +78,7 @@ growth_rate = analyzer.calculate_growth_rate()
 
 print(f"Time-average growth rate: {growth_rate:.2%}")
 print(f"Probability of ruin: {analyzer.ruin_probability():.2%}")
-print(f"Expected terminal wealth: ${analyzer.expected_wealth():,.0f}")
+print(f"Expected terminal wealth: \${analyzer.expected_wealth():,.0f}")
 ```
 
 ## Understanding the Output
@@ -109,10 +109,10 @@ The following graph shows a typical 20-year simulation comparing performance wit
 ![Insurance Impact Visualization](/Ergodic-Insurance-Limits/assets/results/getting_started/output.png)
 
 Key observations from the visualization:
-- **Orange lines** mark years with catastrophic losses (>$1M)
+- **Orange lines** mark years with catastrophic losses (>\$1M)
 - **Without insurance** (blue) shows sharp drops during catastrophic events
 - **With insurance** (orange) maintains smoother growth trajectory
-- The $100K annual premium provides protection against losses up to $5M
+- The \$100K annual premium provides protection against losses up to \$5M
 
 ## Next Steps
 
