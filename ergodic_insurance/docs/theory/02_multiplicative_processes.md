@@ -16,19 +16,11 @@
 
 A **multiplicative process** is one where changes are proportional to the current state:
 
-<div align="center">
-
-$X_{t+1} = X_t \cdot R_t$
-
-</div>
+$$X_{t+1} = X_t \cdot R_t$$
 
 where $R_t$ is a random growth factor. This contrasts with **additive processes**:
 
-<div align="center">
-
-$Y_{t+1} = Y_t + A_t$
-
-</div>
+$$Y_{t+1} = Y_t + A_t$$
 
 where $A_t$ is a random increment.
 
@@ -53,11 +45,7 @@ Most economic quantities evolve multiplicatively:
 
 Geometric Brownian Motion (GBM) is the continuous-time limit of multiplicative random walks:
 
-<div align="center">
-
-$dS_t = S_t(\mu dt + \sigma dW_t)$
-
-</div>
+$$dS_t = S_t(\mu dt + \sigma dW_t)$$
 
 where:
 - $S_t$ = Stock price or wealth at time $t$
@@ -69,11 +57,7 @@ where:
 
 The solution to the GBM stochastic differential equation is:
 
-<div align="center">
-
-$S_t = S_0 \exp\left[\left(\mu - \frac{\sigma^2}{2}\right)t + \sigma W_t\right]$
-
-</div>
+$$S_t = S_0 \exp\left[\left(\mu - \frac{\sigma^2}{2}\right)t + \sigma W_t\right]$$
 
 This shows explicitly the volatility drag term $-\sigma^2/2$.
 
@@ -127,11 +111,7 @@ If $X \sim \text{LogNormal}(\mu, \sigma^2)$, then $\ln(X) \sim \text{Normal}(\mu
 
 **Probability density function**:
 
-<div align="center">
-
-$f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right], \quad x > 0$
-
-</div>
+$$f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right], \quad x > 0$$
 
 ### Moments of Log-Normal Distribution
 
@@ -148,27 +128,15 @@ Note: Mean > Median > Mode (right-skewed distribution)
 
 If returns are multiplicative with log-normal distribution:
 
-<div align="center">
-
-$R_t \sim \text{LogNormal}(\mu_r, \sigma_r^2)$
-
-</div>
+$$R_t \sim \text{LogNormal}(\mu_r, \sigma_r^2)$$
 
 Then wealth after $n$ periods:
 
-<div align="center">
-
-$W_n = W_0 \prod_{t=1}^n R_t$
-
-</div>
+$$W_n = W_0 \prod_{t=1}^n R_t$$
 
 Taking logarithms:
 
-<div align="center">
-
-$\ln(W_n) = \ln(W_0) + \sum_{t=1}^n \ln(R_t)$
-
-</div>
+$$\ln(W_n) = \ln(W_0) + \sum_{t=1}^n \ln(R_t)$$
 
 By Central Limit Theorem, $\ln(W_n)$ approaches normal distribution.
 
@@ -235,19 +203,11 @@ A process is **path-dependent** if the outcome depends not just on the starting 
 
 For a path-dependent functional:
 
-<div align="center">
-
-$V = F(S_0, S_1, ..., S_T)$
-
-</div>
+$$V = F(S_0, S_1, ..., S_T)$$
 
 Cannot be reduced to:
 
-<div align="center">
-
-$V = G(S_0, S_T)$
-
-</div>
+$$V = G(S_0, S_T)$$
 
 ### Impact on Insurance
 
@@ -310,61 +270,33 @@ print(f"Realized volatility: {correlation_matrix[0, 3]:.3f}")
 ### Arithmetic vs Geometric Returns
 
 **Arithmetic mean return**:
-<div align="center">
-
-$r_a = \frac{1}{T} \sum_{t=1}^T r_t$
-
-</div>
+$$r_a = \frac{1}{T} \sum_{t=1}^T r_t$$
 
 **Geometric mean return**:
-<div align="center">
-
-$r_g = \left(\prod_{t=1}^T (1 + r_t)\right)^{1/T} - 1$
-
-</div>
+$$r_g = \left(\prod_{t=1}^T (1 + r_t)\right)^{1/T} - 1$$
 
 ### Relationship Between Means
 
 For small returns, approximately:
-<div align="center">
-
-$r_g \approx r_a - \frac{\sigma^2}{2}$
-
-</div>
+$$r_g \approx r_a - \frac{\sigma^2}{2}$$
 
 Exact relationship:
-<div align="center">
-
-$r_g = r_a - \frac{\sigma^2}{2(1 + r_a)}$
-
-</div>
+$$r_g = r_a - \frac{\sigma^2}{2(1 + r_a)}$$
 
 ### Time-Average Growth Rate
 
 For continuous compounding:
-<div align="center">
-
-$g = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)$
-
-</div>
+$$g = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)$$
 
 This equals:
-<div align="center">
-
-$g = E[\ln(1 + r)]$
-
-</div>
+$$g = E[\ln(1 + r)]$$
 
 where $r$ is the period return.
 
 ### Volatility Drag
 
 The difference between arithmetic and geometric means:
-<div align="center">
-
-$\text{Drag} = r_a - r_g \approx \frac{\sigma^2}{2}$
-
-</div>
+$$\text{Drag} = r_a - r_g \approx \frac{\sigma^2}{2}$$
 
 This represents the cost of volatility on compound growth.
 
@@ -425,11 +357,7 @@ for key, value in results.items():
 
 For a binary bet with probability $p$ of winning $b$ times the wager:
 
-<div align="center">
-
-$f^* = \frac{p \cdot b - q}{b} = \frac{p \cdot b - (1-p)}{b}$
-
-</div>
+$$f^* = \frac{p \cdot b - q}{b} = \frac{p \cdot b - (1-p)}{b}$$
 
 where $f^*$ is the optimal fraction of wealth to bet.
 
@@ -437,28 +365,16 @@ where $f^*$ is the optimal fraction of wealth to bet.
 
 For continuous returns $R$ with distribution $F$:
 
-<div align="center">
-
-$f^* = \arg\max_f E[\ln(1 + f \cdot R)]$
-
-</div>
+$$f^* = \arg\max_f E[\ln(1 + f \cdot R)]$$
 
 ### Insurance Application
 
 Optimal retention level:
 
-<div align="center">
-
-$R^* = \arg\max_R E[\ln(W_{\text{end}})]$
-
-</div>
+$$R^* = \arg\max_R E[\ln(W_{\text{end}})]$$
 
 where:
-<div align="center">
-
-$W_{\text{end}} = W_{\text{start}} \cdot (1 + r) - \text{Premium}(R) - \min(\text{Loss}, R)$
-
-</div>
+$$W_{\text{end}} = W_{\text{start}} \cdot (1 + r) - \text{Premium}(R) - \min(\text{Loss}, R)$$
 
 ### Properties of Kelly Betting
 
@@ -471,11 +387,7 @@ $W_{\text{end}} = W_{\text{start}} \cdot (1 + r) - \text{Premium}(R) - \min(\tex
 
 Due to estimation error and preferences, often use fractional Kelly:
 
-<div align="center">
-
-$f_{\text{used}} = \alpha \cdot f^*$
-
-</div>
+$$f_{\text{used}} = \alpha \cdot f^*$$
 
 where $\alpha \in (0, 1]$, typically $\alpha \approx 0.25$ to $0.5$.
 
@@ -553,19 +465,11 @@ print(f"Kelly-optimal retention: ${optimal_retention:,.0f}")
 
 For a process with arithmetic mean return $\mu$ and volatility $\sigma$:
 
-<div align="center">
-
-$\text{Volatility Drag} = \frac{\sigma^2}{2}$
-
-</div>
+$$\text{Volatility Drag} = \frac{\sigma^2}{2}$$
 
 This reduces the geometric growth rate:
 
-<div align="center">
-
-$g = \mu - \frac{\sigma^2}{2}$
-
-</div>
+$$g = \mu - \frac{\sigma^2}{2}$$
 
 ### Intuitive Explanation
 
