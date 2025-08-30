@@ -24,6 +24,8 @@ This distinction is not merely academic; it fundamentally changes optimal strate
 
 ## Time Averages vs Ensemble Averages
 
+![Time Average vs Ensemble Average Example](/Ergodic-Insurance-Limits/theory/assets/ergodic_distinction.png)
+
 ### Ensemble Average
 
 The **ensemble average** is the expected value across many parallel scenarios at a single point in time:
@@ -254,6 +256,9 @@ This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
 4. **Market efficiency**: Recognize rational basis for "expensive" insurance
 
 ## Visual Examples
+
+![Ensemble vs Time Average](/Ergodic-Insurance-Limits/theory/figures/ensemble_vs_time.png)
+*Figure 1: Divergence between ensemble average (blue) and typical path (red) in multiplicative processes. Individual trajectories shown in gray.*
 
 ### Wealth Trajectories
 
