@@ -23,14 +23,14 @@ Quick Links
 
    <div style="display: flex; gap: 20px; margin: 20px 0;">
      <div style="flex: 1; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
-       <h3 style="margin-top: 0;">📊 Business User Guide</h3>
-       <p>Complete guide for business decision makers</p>
-       <a href="user_guide/index.html" style="color: #4CAF50; font-weight: bold;">Get Started in 10 Minutes →</a>
+       <h3 style="margin-top: 0;">📚 Tutorials</h3>
+       <p>Step-by-step learning guides</p>
+       <a href="tutorials/index.html" style="color: #4CAF50; font-weight: bold;">Start Tutorial →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #2196F3; border-radius: 8px;">
        <h3 style="margin-top: 0;">🚀 Quick Start</h3>
        <p>Run your first simulation</p>
-       <a href="user_guide/quick_start.html" style="color: #2196F3; font-weight: bold;">Start Analysis →</a>
+       <a href="tutorials/01_getting_started.html" style="color: #2196F3; font-weight: bold;">Get Started →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #FF9800; border-radius: 8px;">
        <h3 style="margin-top: 0;">💡 Case Studies</h3>
@@ -53,6 +53,19 @@ Quick Links
    user_guide/advanced_topics
    user_guide/faq
    user_guide/glossary
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Tutorials & How-To Guides:
+
+   tutorials/index
+   tutorials/01_getting_started
+   tutorials/02_basic_simulation
+   tutorials/03_configuring_insurance
+   tutorials/04_optimization_workflow
+   tutorials/05_analyzing_results
+   tutorials/06_advanced_scenarios
+   tutorials/troubleshooting
 
 .. toctree::
    :maxdepth: 2
