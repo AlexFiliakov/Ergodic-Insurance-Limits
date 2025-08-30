@@ -26,7 +26,7 @@ When Ergodicity Breaks Down
 Consider a simple multiplicative wealth process:
 
 .. math::
-   W_{t+1} = W_t \\cdot R_{t+1}
+   W_{t+1} = W_t \cdot R_{t+1}
 
 where :math:`R_{t+1}` is a random return factor.
 
