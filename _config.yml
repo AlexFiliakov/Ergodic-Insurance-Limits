@@ -2,6 +2,7 @@
 title: Ergodic Insurance Limits
 description: A framework for optimizing insurance limits using ergodic theory
 theme: jekyll-theme-cayman
+repository: AlexFiliakov/Ergodic-Insurance-Limits
 baseurl: "/Ergodic-Insurance-Limits"
 url: "https://alexfiliakov.github.io"
 source: .
