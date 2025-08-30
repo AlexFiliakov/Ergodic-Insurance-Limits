@@ -1,0 +1,7 @@
+src.monte\_carlo module
+=======================
+
+.. automodule:: src.monte_carlo
+   :members:
+   :show-inheritance:
+   :undoc-members:

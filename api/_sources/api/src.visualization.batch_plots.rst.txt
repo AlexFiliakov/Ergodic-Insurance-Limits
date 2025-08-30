@@ -1,0 +1,7 @@
+src.visualization.batch\_plots module
+=====================================
+
+.. automodule:: src.visualization.batch_plots
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -1,0 +1,7 @@
+src.pareto\_frontier module
+===========================
+
+.. automodule:: src.pareto_frontier
+   :members:
+   :show-inheritance:
+   :undoc-members:

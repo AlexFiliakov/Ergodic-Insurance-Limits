@@ -1,0 +1,7 @@
+src.bootstrap\_analysis module
+==============================
+
+.. automodule:: src.bootstrap_analysis
+   :members:
+   :show-inheritance:
+   :undoc-members:

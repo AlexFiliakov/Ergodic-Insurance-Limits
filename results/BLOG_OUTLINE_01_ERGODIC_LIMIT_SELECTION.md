@@ -40,7 +40,7 @@
 - **Numerical Reality**: 15% average returns with high volatility < 12% with low volatility
 
 ### Path Dependency: Sequence Matters
-- **Early Loss Impact**: $15M loss in year 1 ≠ $15M loss in year 10
+- **Early Loss Impact**: \$15M loss in year 1 ≠ \$15M loss in year 10
 - **Compound Growth Effect**: Early losses destroy the base for all future compounding
 - **Claims Timing**: Long-tail development creates different impacts than immediate payments
 
@@ -51,11 +51,11 @@
 
 ## Implications for Risk Management
 
-Meet **Widget Manufacturing Inc.**, our brave volunteer for actuarial experimentation. They make widgets (obviously), have $10M in assets, and are about to embark on time travel across parallel universes.
+Meet **Widget Manufacturing Inc.**, our brave volunteer for actuarial experimentation. They make widgets (obviously), have \$10M in assets, and are about to embark on time travel across parallel universes.
 
 ### Our Model Company Profile
 - **Business**: Manufacturing widgets with predictable demand (widgets are always needed!)
-- **Size**: $10M assets generating $8M revenue (0.8x turnover)
+- **Size**: \$10M assets generating \$8M revenue (0.8x turnover)
 - **Margins**: 8% operating margin (before the inevitable losses)
 - **Growth Strategy**: Reinvest everything and hope for the best
 - **Risk Tolerance**: Conservative management (1% ruin probability maximum)
@@ -100,7 +100,7 @@ Our analysis will instead optimize:
 
 **Part 2** will reveal our Monte Carlo simulation results, including:
 - Optimal excess attachment points for different company sizes
-- Why paying $250K premiums for $50K expected losses makes perfect sense
+- Why paying \$250K premiums for \$50K expected losses makes perfect sense
 - Heat maps showing the ROE/survival tradeoff across coverage levels
 - Specific recommendations for Widget Manufacturing's optimal program
 
@@ -114,11 +114,11 @@ Our analysis will instead optimize:
 
 After 1,000 years and 10,000 simulations, what will we recommend for Widget Manufacturing Inc.?
 
-- **Option A**: Minimal coverage ($25M excess limit, $240K premium)
+- **Option A**: Minimal coverage (\$25M excess limit, \$240K premium)
   - Saves premium dollars but retains severe loss exposure
   - Expected ROE: 14.6% but ruin probability: 8.2%
 
-- **Option B**: Conservative coverage ($200M excess attachment, $380K premium)
+- **Option B**: Conservative coverage (\$200M excess attachment, \$380K premium)
   - Expensive premium but comprehensive protection
   - Expected ROE: 12.4% but ruin probability: 0.3%
 
@@ -151,7 +151,7 @@ After 1,000 years and 10,000 simulations, what will we recommend for Widget Manu
 - **Cost-Benefit Quantification**: Precise premium justification for each coverage layer
 
 ### Surprising Findings Preview
-- Why $500K premiums for $125K expected losses maximizes long-term growth
+- Why \$500K premiums for \$125K expected losses maximizes long-term growth
 - How attachment points should scale with company assets (hint: it's not linear)
 - The critical coverage threshold where ruin probability drops dramatically
 - Why traditional loss cost ratios are completely irrelevant for optimization

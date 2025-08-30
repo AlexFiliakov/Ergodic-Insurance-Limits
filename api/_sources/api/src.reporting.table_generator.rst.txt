@@ -1,0 +1,7 @@
+src.reporting.table\_generator module
+=====================================
+
+.. automodule:: src.reporting.table_generator
+   :members:
+   :show-inheritance:
+   :undoc-members:

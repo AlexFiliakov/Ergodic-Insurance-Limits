@@ -9,7 +9,7 @@ The current `ClaimGenerator` implementation uses a **fixed frequency parameter**
 frequency: float = 0.1  # Expected claims per year (fixed)
 ```
 
-This means whether the company has $1M or $100M in assets, or whether it generates $500K or $50M in revenue, the expected number of claims remains constant. This is unrealistic and fails to capture the fundamental insurance principle that **exposure drives frequency**.
+This means whether the company has \$1M or \$100M in assets, or whether it generates \$500K or \$50M in revenue, the expected number of claims remains constant. This is unrealistic and fails to capture the fundamental insurance principle that **exposure drives frequency**.
 
 ### The Problem
 1. **No Exposure Scaling**: A company with 10x the operations doesn't have 10x the loss exposure in our model
@@ -27,17 +27,17 @@ Loss frequency should be a function of **exposure bases** that reflect the compa
 - **Rationale**: More sales = more products shipped = more product liability claims
 - **Formula**: `frequency_sales = base_rate_per_million * (revenue / 1_000_000)`
 - **Example**:
-  - Base rate: 0.02 claims per $1M revenue
-  - $10M revenue → 0.2 expected claims/year
-  - $50M revenue → 1.0 expected claims/year
+  - Base rate: 0.02 claims per \$1M revenue
+  - \$10M revenue → 0.2 expected claims/year
+  - \$50M revenue → 1.0 expected claims/year
 
 #### 2. **Asset Exposure**
 - **Rationale**: More assets = more property at risk, more equipment failures
 - **Formula**: `frequency_assets = base_rate_per_million * (assets / 1_000_000)`
 - **Example**:
-  - Base rate: 0.01 claims per $1M assets
-  - $10M assets → 0.1 expected claims/year
-  - $100M assets → 1.0 expected claims/year
+  - Base rate: 0.01 claims per \$1M assets
+  - \$10M assets → 0.1 expected claims/year
+  - \$100M assets → 1.0 expected claims/year
 
 #### 3. **Production Volume Exposure** (Implicit)
 - Captured through asset turnover ratio
@@ -51,9 +51,9 @@ class ExposureBasedClaimGenerator:
     """Generate claims based on company exposure metrics."""
 
     def __init__(self,
-                 # Frequency rates per $1M exposure
-                 sales_frequency_rate: float = 0.02,      # Claims per $1M revenue
-                 asset_frequency_rate: float = 0.01,      # Claims per $1M assets
+                 # Frequency rates per \$1M exposure
+                 sales_frequency_rate: float = 0.02,      # Claims per \$1M revenue
+                 asset_frequency_rate: float = 0.01,      # Claims per \$1M assets
                  # Severity parameters (can also scale with exposure)
                  severity_pct_of_revenue: float = 0.10,   # Severity as % of revenue
                  severity_pct_of_assets: float = 0.05,    # Severity as % of assets
@@ -114,8 +114,8 @@ class ExposureBasedClaimGenerator:
 ### Calibration Guidelines
 
 #### For Widget Manufacturing:
-- **Product Liability**: 0.01-0.03 claims per $1M revenue
-- **Property Damage**: 0.005-0.015 claims per $1M assets
+- **Product Liability**: 0.01-0.03 claims per \$1M revenue
+- **Property Damage**: 0.005-0.015 claims per \$1M assets
 - **Workers Comp**: Could add employee-based frequency
 - **Cyber/Tech**: Could add IT-asset-based frequency
 

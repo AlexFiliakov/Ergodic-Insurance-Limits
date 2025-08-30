@@ -96,11 +96,11 @@ metrics = [
 ### For Manufacturing Companies
 
 ```
-Start: Annual Revenue > $50M?
-├─ Yes: Consider $25M+ limits
+Start: Annual Revenue > \$50M?
+├─ Yes: Consider \$25M+ limits
 │   ├─ Margin > 10%: Full coverage recommended
 │   └─ Margin < 10%: Focus on catastrophic only
-└─ No: Consider $5-10M limits
+└─ No: Consider \$5-10M limits
     ├─ High volatility: Layer with low attachment
     └─ Low volatility: Higher attachment acceptable
 ```
@@ -140,26 +140,26 @@ $$P(\text{Ruin}) < 0.05 \text{ over } T \text{ years}$$
 ### Scenario 1: Startup with Limited Capital
 
 **Situation:**
-- $2M assets, 40% annual growth
+- \$2M assets, 40% annual growth
 - High volatility (30-40%)
 - Limited cash for premiums
 
 **Recommended Decision:**
 - Focus on catastrophic coverage only
-- $5M limit with $500K attachment
+- \$5M limit with \$500K attachment
 - Accept higher operational risk
 - Revisit after next funding round
 
 ### Scenario 2: Mature Manufacturer
 
 **Situation:**
-- $50M assets, 5% annual growth
+- \$50M assets, 5% annual growth
 - Moderate volatility (15%)
 - Strong cash position
 
 **Recommended Decision:**
 - Comprehensive multi-layer program
-- $100M total limits
+- \$100M total limits
 - Low attachment for predictability
 - Annual premium 1-2% of assets
 

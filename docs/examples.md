@@ -81,8 +81,8 @@ manufacturer = Manufacturer(
 
 # Set constraints
 constraints = OptimizationConstraints(
-    max_total_premium=500_000,  # Max $500k annual premium
-    min_coverage=5_000_000,      # Minimum $5M coverage
+    max_total_premium=500_000,  # Max \$500k annual premium
+    min_coverage=5_000_000,      # Minimum \$5M coverage
     max_ruin_probability=0.01    # Max 1% ruin probability
 )
 

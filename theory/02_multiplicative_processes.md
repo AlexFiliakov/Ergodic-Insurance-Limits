@@ -158,7 +158,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 # Parameters for claim severity
-mu_claim = 10  # log-mean (corresponds to ~$22k median)
+mu_claim = 10  # log-mean (corresponds to ~\$22k median)
 sigma_claim = 2  # log-standard deviation
 
 # Create distribution
@@ -395,7 +395,7 @@ Due to estimation error and preferences, often use fractional Kelly:
 
 $$f_{\text{used}} = \alpha \cdot f^*$$
 
-where $\alpha \in (0, 1]$, typically $\alpha \approx 0.25$ to $0.5$.
+where $\alpha \in (0, 1]$, typically $\alpha \approx 0.25$ to \$0.5$.
 
 ### Implementation
 
@@ -537,14 +537,14 @@ benefit = calculate_volatility_drag_benefit(
 A widget manufacturer faces:
 - Revenue growth: 8% expected, 15% volatility
 - Operating leverage: 2x (costs are 50% fixed)
-- Catastrophic risk: 5% chance of $5M loss annually
+- Catastrophic risk: 5% chance of \$5M loss annually
 
 Without insurance:
 ```python
 def simulate_manufacturer(years=10, with_insurance=False):
     """Simulate manufacturer wealth evolution."""
 
-    W0 = 10_000_000  # $10M initial capital
+    W0 = 10_000_000  # \$10M initial capital
     wealth = [W0]
 
     for year in range(years):

@@ -1,0 +1,7 @@
+src.ruin\_probability module
+============================
+
+.. automodule:: src.ruin_probability
+   :members:
+   :show-inheritance:
+   :undoc-members:

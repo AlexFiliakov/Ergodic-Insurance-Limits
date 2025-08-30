@@ -1,0 +1,7 @@
+src.config\_compat module
+=========================
+
+.. automodule:: src.config_compat
+   :members:
+   :show-inheritance:
+   :undoc-members:

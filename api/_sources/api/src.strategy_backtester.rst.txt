@@ -1,0 +1,7 @@
+src.strategy\_backtester module
+===============================
+
+.. automodule:: src.strategy_backtester
+   :members:
+   :show-inheritance:
+   :undoc-members:

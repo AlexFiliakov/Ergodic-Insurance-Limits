@@ -147,7 +147,7 @@ Overall                98%
 
 ### Questions for Product Owner
 
-1. **Insurance Structure**: Current implementation uses simplified $1M deductible and $10M limit. Should we parameterize these for different insurance layers?
+1. **Insurance Structure**: Current implementation uses simplified \$1M deductible and \$10M limit. Should we parameterize these for different insurance layers?
 
 2. **Growth Model**: Currently using deterministic 3% growth. Ready for stochastic implementation in Sprint 02?
 

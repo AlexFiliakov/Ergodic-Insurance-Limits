@@ -30,13 +30,13 @@ The foundation of the system, implementing business financial dynamics:
 Generates realistic insurance loss scenarios:
 
 #### Frequency-Severity Models
-- **Attritional Losses**: High-frequency, low-severity (λ=3-8/year, $3K-$100K)
-- **Large Losses**: Low-frequency, high-severity (λ=0.1-0.5/year, $500K-$50M)
+- **Attritional Losses**: High-frequency, low-severity (λ=3-8/year, \$3K-$100K)
+- **Large Losses**: Low-frequency, high-severity (λ=0.1-0.5/year, \$500K-$50M)
 - Poisson frequency distributions
 - Lognormal severity distributions
 
 #### Correlation Structure
-- Copula-based correlation modeling (ρ=0.15-0.35)
+- Copula-based correlation modeling ($\rho=0.15-0.35$)
 - Economic cycle dependencies
 - Multi-year payout patterns for large losses
 
@@ -45,8 +45,8 @@ Structures optimal insurance programs:
 
 #### Layer Structuring
 - Multi-layer insurance tower design
-- Primary layer: $0-5M (0.5-1.5% of limit)
-- Excess layers: $5-25M, $25M+ (decreasing rates)
+- Primary layer: \$0-5M (0.5-1.5% of limit)
+- Excess layers: \$5-25M, \$25M+ (decreasing rates)
 - Attachment point optimization
 
 #### Premium Calculation
@@ -73,8 +73,8 @@ Balances growth with survival:
 #### ROE Maximization
 - Return on Equity optimization
 - Subject to ruin probability constraints (<1% over 10 years)
-- Debt-to-equity limits (≤2.0)
-- Insurance cost ceilings (≤3% of revenue)
+- Debt-to-equity limits ($\leq 2.0$)
+- Insurance cost ceilings ($\leq 3\%$ of revenue)
 
 #### Multi-Objective Analysis
 - Pareto frontier generation

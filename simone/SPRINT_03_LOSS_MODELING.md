@@ -60,14 +60,14 @@ class LossDistribution:
         """Analytical expected value if available"""
 
 class AttritionalLossGenerator:
-    # Frequency: λ = 3-8 events/year (Poisson)
-    # Severity: μ = 8-10, σ = 0.6-1.0 (Lognormal)
-    # Range: $3K-$100K per event
+$# Frequency: \lambda = 3-8 events/year (Poisson)$
+ $# Severity: \mu = 8-10, \sigma = 0.6-1.0 (Lognormal)$
+    # Range: \$3K-$100K per event
 
 class LargeLossGenerator:
-    # Frequency: λ = 0.1-0.5 events/year
-    # Severity: Pareto with α = 2.5, xm = $500K
-    # Range: $500K-$50M per event
+$# Frequency: \lambda = 0.1-0.5 events/year$
+    # Severity: Pareto with α = 2.5, xm = \$500K
+    # Range: \$500K-$50M per event
 ```
 
 **Acceptance Criteria**:
@@ -102,11 +102,11 @@ class InsuranceLayer:
 
 class InsuranceProgram:
     layers = [
-        # Primary: $0-$5M, premium 1% of limit
+        # Primary: \$0-$5M, premium 1% of limit
         InsuranceLayer(0, 5_000_000, 0.01),
-        # First excess: $5M-$25M, premium 0.5% of limit
+        # First excess: \$5M-$25M, premium 0.5% of limit
         InsuranceLayer(5_000_000, 20_000_000, 0.005, reinstatements=1),
-        # Second excess: $25M-$50M, premium 0.2% of limit
+        # Second excess: \$25M-$50M, premium 0.2% of limit
         InsuranceLayer(25_000_000, 25_000_000, 0.002, reinstatements=2)
     ]
 ```

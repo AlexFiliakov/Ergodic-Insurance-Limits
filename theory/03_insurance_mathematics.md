@@ -267,7 +267,7 @@ plt.show()
 ### Excess of Loss Layers
 
 Insurance coverage is structured in layers:
-- **Primary**: $0 to $L_1$
+- **Primary**: \$0 to $L_1$
 - **First Excess**: $L_1$ to $L_2$
 - **Second Excess**: $L_2$ to $L_3$, etc.
 
@@ -826,8 +826,8 @@ def manufacturing_insurance_analysis():
     """Analyze insurance needs for widget manufacturer."""
 
     # Company parameters
-    revenue = 50_000_000  # $50M annual revenue
-    assets = 30_000_000   # $30M total assets
+    revenue = 50_000_000  # \$50M annual revenue
+    assets = 30_000_000   # \$30M total assets
     margin = 0.08         # 8% operating margin
 
     # Risk profile

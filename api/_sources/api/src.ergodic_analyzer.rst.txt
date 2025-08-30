@@ -1,0 +1,7 @@
+src.ergodic\_analyzer module
+============================
+
+.. automodule:: src.ergodic_analyzer
+   :members:
+   :show-inheritance:
+   :undoc-members:

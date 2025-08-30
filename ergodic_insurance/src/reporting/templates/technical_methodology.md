@@ -15,7 +15,7 @@ The ergodic hypothesis states that for certain systems, time averages equal ense
 For a wealth process W(t), the distinction is:
 
 - **Ensemble Average**: E[W(t)] - Expected value across many parallel universes
-- **Time Average**: lim(T→∞) (1/T) log(W(T)/W(0)) - Growth rate experienced by a single entity
+- **Time Average**: $\lim_{T \to \infty} \frac{1}{T} \log\left(\frac{W(T)}{W(0)}\right)$ - Growth rate experienced by a single entity
 
 This distinction becomes critical when losses can be catastrophic, as the time average explicitly accounts for the possibility of ruin.
 
@@ -35,23 +35,23 @@ The net effect on time-average growth depends on the balance between variance re
 
 #### Loss Generation
 Losses are modeled as a compound Poisson process:
-- Frequency: N(t) ~ Poisson(λt)
-- Severity: Li ~ LogNormal(μ, σ²)
+- Frequency: $N(t) \sim \text{Poisson}(\lambda t)$
+- Severity: $L_i \sim \text{LogNormal}(\mu, \sigma^2)$
 - Annual aggregate: S(t) = Σ(i=1 to N(t)) Li
 
 #### Revenue Dynamics
 Revenue follows geometric Brownian motion with mean reversion:
-- dR(t) = κ(θ - R(t))dt + σR(t)dW(t)
-- κ: Mean reversion speed
-- θ: Long-term mean level
-- σ: Volatility parameter
+$- dR(t) = \kappa(\theta - R(t))dt + \sigmaR(t)dW(t)$
+- $\kappa: Mean reversion speed$
+- $\theta: Long-term mean level$
+- $\sigma: Volatility parameter$
 
 ### Numerical Implementation
 
 #### Discretization Scheme
 We employ the Euler-Maruyama method with adaptive timestep:
-- Δt = min(1/252, 0.1/σ²)
-- X(t+Δt) = X(t) + μX(t)Δt + σX(t)√Δt·Z
+$- Δt = min(1/252, 0.1/\sigma²)$
+- $X(t+Δt) = X(t) + \muX(t)Δt + \sigmaX(t)\sqrtΔt·Z$
 - Z ~ N(0,1)
 
 #### Variance Reduction Techniques
@@ -68,12 +68,12 @@ We employ the Euler-Maruyama method with adaptive timestep:
 The optimization problem is formulated as:
 
 maximize: f₁(x) = ROE(x)
-subject to: f₂(x) = P(ruin|x) < α
-           xₘᵢₙ ≤ x ≤ xₘₐₓ
+$subject to: f₂(x) = P(ruin|x) < \alpha$
+ $xₘᵢₙ \leq x \leq xₘₐₓ$
 
 Where:
 - x: Insurance limit vector
-- α: Maximum acceptable ruin probability
+$- \alpha: Maximum acceptable ruin probability$
 - ROE: Return on equity function
 
 ### Solution Methods
@@ -89,7 +89,7 @@ Where:
 - Ensures convergence to local optima
 
 #### 3. Pareto Frontier Construction
-- ε-constraint method for multi-objective problems
+$- \epsilon-constraint method for multi-objective problems$
 - Generates efficient frontier of solutions
 - Enables trade-off analysis
 

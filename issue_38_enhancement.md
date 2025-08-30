@@ -58,22 +58,22 @@ risk_profile:
 
 ##### 2.2 Understanding Your Losses
 Visual guide to loss categories:
-- **Attritional**: Daily operational hiccups ($10K-$100K)
-- **Large**: Significant disruptions ($500K-$5M)
-- **Catastrophic**: Business-threatening events ($5M+)
+- **Attritional**: Daily operational hiccups (\$10K-$100K)
+- **Large**: Significant disruptions (\$500K-$5M)
+- **Catastrophic**: Business-threatening events (\$5M+)
 
 ##### 2.3 Insurance Layer Cake
 Interactive visualization showing:
 ```
-┌─────────────────────────┐ $100M
+┌─────────────────────────┐ \$100M
 │   Excess of Excess      │ Premium: 0.2% of limit
-├─────────────────────────┤ $25M
+├─────────────────────────┤ \$25M
 │   First Excess Layer    │ Premium: 0.5% of limit
-├─────────────────────────┤ $5M
+├─────────────────────────┤ \$5M
 │   Primary Layer         │ Premium: 1.0% of limit
-├─────────────────────────┤ $100K
+├─────────────────────────┤ \$100K
 │   Retention (You Pay)   │ Your deductible
-└─────────────────────────┘ $0
+└─────────────────────────┘ \$0
 ```
 
 #### Part 3: Running Your Analysis (10 pages)
@@ -144,19 +144,19 @@ Common mistakes in insurance decisions:
 #### Part 5: Case Studies (10 pages)
 
 ##### Case 1: Widget Manufacturer
-- $10M assets, 15% volatility
-- Result: Optimal retention $100K, limit $25M
+- \$10M assets, 15% volatility
+- Result: Optimal retention \$100K, limit \$25M
 - Outcome: 35% better 10-year growth
 
 ##### Case 2: Tech Startup
-- $5M assets, 40% volatility
-- Result: Lower retention $50K, higher limit $50M
+- \$5M assets, 40% volatility
+- Result: Lower retention \$50K, higher limit \$50M
 - Outcome: Survival probability improved from 60% to 95%
 
 ##### Case 3: Stable Utility
-- $100M assets, 5% volatility
-- Result: Higher retention $1M, moderate limit $20M
-- Outcome: Premium savings of $500K/year
+- \$100M assets, 5% volatility
+- Result: Higher retention \$1M, moderate limit \$20M
+- Outcome: Premium savings of \$500K/year
 
 #### Part 6: Advanced Topics (5 pages)
 **For sophisticated users**

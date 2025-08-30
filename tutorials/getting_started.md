@@ -33,8 +33,8 @@ pip install -e .
 ### The Widget Manufacturer Scenario
 
 Imagine you run a widget manufacturing company:
-- **Assets**: $10 million in equipment and inventory
-- **Revenue**: $15 million per year
+- **Assets**: \$10 million in equipment and inventory
+- **Revenue**: \$15 million per year
 - **Profit Margin**: 8% after all costs
 - **Risk**: Subject to operational losses (equipment failure, accidents, lawsuits)
 
@@ -54,14 +54,13 @@ Traditional analysis would compare premium costs to expected losses. The ergodic
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from ergodic_insurance.src import (
-    Manufacturer,
-    ClaimGenerator,
-    InsuranceProgram,
-    MonteCarloEngine,
-    ErgodicAnalyzer,
-    visualization
-)
+from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.src.claim_generator import ClaimGenerator
+from ergodic_insurance.src.insurance_program import InsuranceProgram
+from ergodic_insurance.src.monte_carlo import MonteCarloEngine
+from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.src.config_v2 import ManufacturerConfig
+from ergodic_insurance.src import visualization
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -70,34 +69,45 @@ np.random.seed(42)
 ### Step 2: Create the Business Model
 
 ```python
-# Initialize the manufacturer
-manufacturer = Manufacturer(
-    starting_assets=10_000_000,
-    base_revenue=15_000_000,
+# Configure the manufacturer
+config = ManufacturerConfig(
+    initial_assets=10_000_000,
+    asset_turnover_ratio=1.5,  # Revenue = 1.5x assets
     operating_margin=0.08,
     tax_rate=0.25,
-    working_capital_ratio=0.20
+    retention_ratio=0.7  # Retain 70% of earnings
 )
 
-print(f"Starting assets: ${manufacturer.starting_assets:,.0f}")
-print(f"Expected annual profit: ${manufacturer.expected_profit():,.0f}")
+# Initialize the manufacturer
+manufacturer = WidgetManufacturer(config)
+
+print(f"Starting assets: ${manufacturer.assets:,.0f}")
+print(f"Expected annual revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
+print(f"Expected annual profit: ${manufacturer.assets * config.asset_turnover_ratio * config.operating_margin * (1 - config.tax_rate):,.0f}")
 ```
 
 ### Step 3: Define Loss Characteristics
 
 ```python
-# Create a claim generator for operational losses
+# Configure claim generator for operational losses
+# Loss frequency scales with revenue (more activity = more risk exposure)
+base_frequency = 3.0  # Base frequency for $10M revenue company
+revenue = manufacturer.assets * config.asset_turnover_ratio  # Current revenue
+
 claim_generator = ClaimGenerator(
-    frequency_small=5.0,      # 5 small claims per year
-    severity_small_mean=20_000,
-    severity_small_std=10_000,
-    frequency_large=0.2,      # 1 large claim every 5 years
-    severity_large_mean=2_000_000,
-    severity_large_std=1_000_000
+    frequency=base_frequency * (revenue / 10_000_000),  # Scale with revenue
+    severity_mean=100_000,      # Mean claim size
+    severity_std=200_000,       # Standard deviation
+    seed=42                     # For reproducibility
 )
 
-# Generate sample claims for one year
-sample_claims = claim_generator.generate_annual_claims()
+# Generate sample claims for one year using revenue-dependent frequency
+sample_claim_events, stats = claim_generator.generate_enhanced_claims(
+    years=1,
+    revenue=revenue,
+    use_enhanced_distributions=False
+)
+sample_claims = [claim.amount for claim in sample_claim_events]
 print(f"Sample year losses: ${sum(sample_claims):,.0f}")
 ```
 
@@ -125,7 +135,7 @@ results_no_insurance = no_insurance_sim.run()
 basic_insurance = InsuranceProgram([
     {
         "limit": 1_000_000,
-        "attachment": 100_000,  # $100k deductible
+        "attachment": 100_000,  # \$100k deductible
         "premium_rate": 0.02
     }
 ])
@@ -254,11 +264,15 @@ tech_company = Manufacturer(
 
 ```python
 # For lower frequency, higher severity risks
+# Catastrophic events are less common but scale differently with revenue
+cat_base_frequency = 0.05  # Base catastrophe frequency
+revenue = manufacturer.assets * 1.5  # Assuming 1.5x turnover
+
 catastrophic_risks = ClaimGenerator(
-    frequency_small=2.0,       # Fewer small claims
-    frequency_large=0.05,      # 1 catastrophe per 20 years
-    severity_large_mean=10_000_000,  # Massive potential losses
-    severity_large_std=5_000_000
+    frequency=cat_base_frequency * (revenue / 10_000_000)**0.5,  # Square root scaling
+    severity_mean=10_000_000,   # Massive potential losses
+    severity_std=5_000_000,
+    seed=42
 )
 ```
 

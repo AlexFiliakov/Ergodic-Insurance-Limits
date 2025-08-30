@@ -18,6 +18,8 @@ This distinction is not merely academic; it fundamentally changes optimal strate
 
 ## Time Averages vs Ensemble Averages
 
+![Time Average vs Ensemble Average Example](/assets/ergodic_distinction.png)
+
 ### Ensemble Average
 
 The **ensemble average** is the expected value across many parallel scenarios at a single point in time:
@@ -331,7 +333,7 @@ def simulate_with_insurance(W0, n_years, premium_rate, retention, n_sims=1000):
     return wealth_with, wealth_without
 
 # Run simulation
-W0 = 10_000_000  # $10M starting wealth
+W0 = 10_000_000  # \$10M starting wealth
 wealth_with, wealth_without = simulate_with_insurance(W0, 50, 0.02, 500_000)
 
 # Calculate growth rates

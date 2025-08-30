@@ -261,7 +261,7 @@ plt.show()
 ### Excess of Loss Layers
 
 Insurance coverage is structured in layers:
-- **Primary**: $0 to $L_1$
+- **Primary**: \$0 to $L_1$
 - **First Excess**: $L_1$ to $L_2$
 - **Second Excess**: $L_2$ to $L_3$, etc.
 
@@ -815,13 +815,15 @@ for key, value in optimal.items():
 
 ### Application 1: Manufacturing Company
 
+![Factory Floor](/assets/photos/factory_floor_1_small.jpg)
+
 ```python
 def manufacturing_insurance_analysis():
     """Analyze insurance needs for widget manufacturer."""
 
     # Company parameters
-    revenue = 50_000_000  # $50M annual revenue
-    assets = 30_000_000   # $30M total assets
+    revenue = 50_000_000  # \$50M annual revenue
+    assets = 30_000_000   # \$30M total assets
     margin = 0.08         # 8% operating margin
 
     # Risk profile
@@ -905,6 +907,8 @@ for risk_type, limits in recommendations.items():
 ```
 
 ### Application 2: Portfolio Insurance
+
+![Office Space](/assets/photos/conference_room_1_small.jpg)
 
 ```python
 def portfolio_tail_risk_hedging(portfolio_value=100_000_000):

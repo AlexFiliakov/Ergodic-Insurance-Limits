@@ -39,7 +39,7 @@ Let's discuss and plan a project based on the specification in `Financial Modeli
 
 1. Financial Model Specifics
 
-- Should the widget manufacturer start with fixed initial parameters (e.g., exactly $10M assets), or should these
+- Should the widget manufacturer start with fixed initial parameters (e.g., exactly \$10M assets), or should these
 be configurable from the start?
 - Do you want to model specific widget types/products, or keep it generic?
 - Should we include inventory modeling in this sprint, or just financial aggregates?
@@ -228,7 +228,7 @@ only the annual cost hitting the P&L?
  - Letters of credit are required when claims exceed available liquid
 assets?
  - Is there a minimum cash balance the company must maintain (like the
-$100k mentioned)?
+\$100k mentioned)?
 6. Title/Description: Should Story 5 be renamed to something like:
  - "Letter of Credit Collateral for Claims"
  - "Collateral Financing for Insurance Claims"
@@ -938,10 +938,10 @@ Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LI
   make room for the company introduction and problem setup?
   2. Company Introduction: When we introduce Widget Manufacturing Inc. in
    "Implications for Risk Management," how much detail should we give
-  about their financials ($10M assets, 0.8x turnover, 8% margins, loss
+  about their financials (\$10M assets, 0.8x turnover, 8% margins, loss
   distributions)? Full specifications or just the key highlights?
   3. Cliffhanger Intensity: Should the Part 1 ending tease specific
-  numbers ("Should they buy $5M excess coverage for $60K, or go higher?")
+  numbers ("Should they buy \$5M excess coverage for \$60K, or go higher?")
    or keep it more conceptual?
 
   Cross-Part Navigation:
@@ -985,7 +985,7 @@ Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LI
   conservative? Should I briefly explain the mathematical/economic
   reasoning, or keep it more conversational?
   3. Company Profile Detail: The outline mentions Widget Manufacturing
-  has $10M assets, $8M revenue (0.8x turnover), and 8% operating margins.
+  has \$10M assets, \$8M revenue (0.8x turnover), and 8% operating margins.
    Should I add any additional financial details (like working capital
   ratios, debt levels, etc.) that would be relevant for actuarial
   analysis?
@@ -1022,10 +1022,10 @@ Continue writing the blog post as per the outline in `BLOG_OUTLINE_01_ERGODIC_LI
   Resolve" should set up the cliffhanger with the three options (A, B,
   C). The current draft mentions some numbers but they're different from
   the outline. Should I use:
-    - The specific numbers from the outline (Option A: $25M excess limit,
-   $240K premium, etc.)
+    - The specific numbers from the outline (Option A: \$25M excess limit,
+   \$240K premium, etc.)
     - Or create new numbers that are consistent with the Widget
-  Manufacturing setup ($10M assets, $8M revenue, etc.)
+  Manufacturing setup (\$10M assets, \$8M revenue, etc.)
   3. Tone balance: You mentioned "light and breezy but professional" -
   the current draft has good technical depth with some humor ("widgets
   are always needed!", "make actuaries weep with joy"). Should I maintain

@@ -310,7 +310,7 @@ npm run format # format code
 - **Implication**: Insurance optimal from time-average perspective even when "expensive" by ensemble standards
 
 ### Financial Model Parameters
-- **Starting Assets**: $10M baseline
+- **Starting Assets**: \$10M baseline
 - **Asset Turnover**: 0.5-1.5x (revenue per dollar of assets)
 - **Operating Margin**: 8% baseline
 - **Tax Rate**: 25%
@@ -324,14 +324,14 @@ npm run format # format code
 - **Integration**: Seamless integration with deterministic models, backward compatible
 
 ### Loss Modeling
-- **Attritional Losses**: High frequency (3-8/year), low severity ($3K-$100K)
-- **Large Losses**: Low frequency (0.1-0.5/year), high severity ($500K-$50M)
+- **Attritional Losses**: High frequency (3-8/year), low severity (\$3K-$100K)
+- **Large Losses**: Low frequency (0.1-0.5/year), high severity (\$500K-$50M)
 - **Catastrophic Events**: Separate modeling for extreme tail risks
 - **Distributions**: Poisson frequency, Lognormal severity with variance control
 - **Correlation**: 0.15-0.35 between operational and financial risks
 
 ### Insurance Structure
-- **Multi-layer**: Primary ($0-5M), Excess ($5-25M), Higher layers ($25M+)
+- **Multi-layer**: Primary (\$0-5M), Excess (\$5-25M), Higher layers (\$25M+)
 - **Premium Rates**: Decreasing by layer (1.5% → 0.8% → 0.4%)
 - **Optimization Goal**: Maximize ROE subject to <1% ruin probability
 

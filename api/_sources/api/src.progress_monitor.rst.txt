@@ -1,0 +1,7 @@
+src.progress\_monitor module
+============================
+
+.. automodule:: src.progress_monitor
+   :members:
+   :show-inheritance:
+   :undoc-members:

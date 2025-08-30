@@ -124,7 +124,7 @@ basic_insurance = InsuranceProgram([
     {
         "name": "Primary Layer",
         "limit": 1_000_000,
-        "attachment": 100_000,  # $100k deductible
+        "attachment": 100_000,  # \$100k deductible
         "premium_rate": 0.025,  # 2.5% of limit
     }
 ])

@@ -1,0 +1,7 @@
+src.reporting.insight\_extractor module
+=======================================
+
+.. automodule:: src.reporting.insight_extractor
+   :members:
+   :show-inheritance:
+   :undoc-members:

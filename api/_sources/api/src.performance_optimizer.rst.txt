@@ -1,0 +1,7 @@
+src.performance\_optimizer module
+=================================
+
+.. automodule:: src.performance_optimizer
+   :members:
+   :show-inheritance:
+   :undoc-members:

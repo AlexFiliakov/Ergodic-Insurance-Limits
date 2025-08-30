@@ -32,15 +32,15 @@ Our analysis consistently shows:
 
 ## Business Impact
 
-### For a $10M Manufacturing Business:
+### For a \$10M Manufacturing Business:
 - **Without Optimal Insurance**: 8.2% annual growth, 15% bankruptcy risk
 - **With Optimal Insurance**: 11.3% annual growth, <1% bankruptcy risk
-- **10-Year Difference**: $8.7M additional enterprise value
+- **10-Year Difference**: \$8.7M additional enterprise value
 
 ### ROI of Insurance Programs:
-- Primary layers ($0-5M): 180% ROI through volatility reduction
-- Excess layers ($5-25M): 120% ROI through tail risk elimination
-- Catastrophic coverage ($25M+): 90% ROI through business continuity assurance
+- Primary layers (\$0-5M): 180% ROI through volatility reduction
+- Excess layers (\$5-25M): 120% ROI through tail risk elimination
+- Catastrophic coverage (\$25M+): 90% ROI through business continuity assurance
 
 ## Recommended Actions
 

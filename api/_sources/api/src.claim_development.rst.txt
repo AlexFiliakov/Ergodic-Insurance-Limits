@@ -1,0 +1,7 @@
+src.claim\_development module
+=============================
+
+.. automodule:: src.claim_development
+   :members:
+   :show-inheritance:
+   :undoc-members:

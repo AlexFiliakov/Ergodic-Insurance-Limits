@@ -528,7 +528,7 @@ class DynamicInsuranceStrategy:
             after_tax_income = operating_income * (1 - manufacturer.tax_rate)
 
             # Generate and apply losses
-            losses = claim_generator.generate_claims(n_years=1)
+            losses = claim_generator.generate_claims(years=1)
             total_loss = sum(losses)
 
             # Apply insurance

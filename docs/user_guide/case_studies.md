@@ -12,17 +12,17 @@ mathjax: true
 ### Background
 **Company Profile:**
 - Mid-size manufacturer of industrial widgets
-- $15M annual revenue, $10M total assets
+- \$15M annual revenue, \$10M total assets
 - 8% operating margin
 - 15% annual volatility
-- Previous insurance: $2M limit with $250K deductible
+- Previous insurance: \$2M limit with \$250K deductible
 
 ### Challenge
 The company experienced two major losses in five years:
-- Year 2: $1.8M equipment failure
-- Year 4: $3.2M product liability claim
+- Year 2: \$1.8M equipment failure
+- Year 4: \$3.2M product liability claim
 
-Traditional analysis suggested their insurance was adequate since average annual losses were only $400K.
+Traditional analysis suggested their insurance was adequate since average annual losses were only \$400K.
 
 ### Ergodic Analysis
 
@@ -37,22 +37,22 @@ Current Structure (Traditional):
 - Time-average growth: 6.8%
 - Ensemble-average growth: 9.2%
 - 20-year ruin probability: 18%
-- Terminal wealth (median): $31M
+- Terminal wealth (median): \$31M
 
 Optimized Structure (Ergodic):
-- Coverage: $5M xs $0, $20M xs $5M
+- Coverage: \$5M xs \$0, \$20M xs \$5M
 - Time-average growth: 10.4%
 - Ensemble-average growth: 10.8%
 - 20-year ruin probability: 0.8%
-- Terminal wealth (median): $72M
+- Terminal wealth (median): \$72M
 ```
 
 ### Implementation
 The company restructured their insurance program:
 1. Eliminated the deductible for better cash flow stability
-2. Increased primary limit to $5M
+2. Increased primary limit to \$5M
 3. Added excess layer for catastrophic protection
-4. Total premium increased from $180K to $420K annually
+4. Total premium increased from \$180K to \$420K annually
 
 ### Results (3 Years Post-Implementation)
 - Actual growth rate: 11.2% (vs 7.1% historical)
@@ -70,9 +70,9 @@ The company restructured their insurance program:
 ### Background
 **Company Profile:**
 - Series B AI startup
-- $5M ARR, growing 150% annually
-- $20M recent funding, $18M cash reserves
-- High burn rate: $1.5M/month
+- \$5M ARR, growing 150% annually
+- \$20M recent funding, \$18M cash reserves
+- High burn rate: \$1.5M/month
 - Primary risks: E&O, cyber, D&O
 
 ### Challenge
@@ -90,27 +90,27 @@ Balancing growth investment with risk protection while maintaining runway for 12
 ```
 Minimal Insurance:
 - Survival to Series C: 62%
-- Expected exit value: $180M
+- Expected exit value: \$180M
 - Catastrophic failure risk: 23%
 
 Ergodic-Optimal Insurance:
 - Survival to Series C: 84%
-- Expected exit value: $165M
+- Expected exit value: \$165M
 - Catastrophic failure risk: 4%
 ```
 
 ### Implementation
 Structured insurance program:
-1. **Tech E&O**: $10M limit (critical for enterprise sales)
-2. **Cyber**: $5M limit (data breach protection)
-3. **D&O**: $10M limit (board requirement)
-4. **Employment Practices**: $2M limit
-5. Total annual premium: $380K (7.6% of ARR)
+1. **Tech E&O**: \$10M limit (critical for enterprise sales)
+2. **Cyber**: \$5M limit (data breach protection)
+3. **D&O**: \$10M limit (board requirement)
+4. **Employment Practices**: \$2M limit
+5. Total annual premium: \$380K (7.6% of ARR)
 
 ### Results
-- Closed 3 enterprise deals requiring $10M+ insurance
+- Closed 3 enterprise deals requiring \$10M+ insurance
 - Survived a patent troll lawsuit (covered by insurance)
-- Successfully raised Series C at $250M valuation
+- Successfully raised Series C at \$250M valuation
 - Insurance certificates accelerated enterprise sales cycle by 30 days average
 
 ### Key Lessons
@@ -123,8 +123,8 @@ Structured insurance program:
 ### Background
 **Company Profile:**
 - 35 retail locations across 3 states
-- $125M annual revenue
-- $60M in real estate and inventory
+- \$125M annual revenue
+- \$60M in real estate and inventory
 - Thin margins: 3.5% EBITDA
 - Weather and theft exposure
 
@@ -151,17 +151,17 @@ catastrophic_layers = [
 
 | Strategy | Retention | Cat Limit | Growth | Ruin Risk | 10Y Value |
 |----------|-----------|-----------|--------|-----------|-----------|
-| Current | $50K | $25M | 2.1% | 12% | $78M |
-| Low Ret. | $100K | $50M | 3.8% | 3% | $91M |
-| Optimal | $250K | $100M | 4.4% | 0.5% | $97M |
-| High Ret. | $500K | $100M | 3.9% | 2.1% | $92M |
+| Current | \$50K | \$25M | 2.1% | 12% | \$78M |
+| Low Ret. | \$100K | \$50M | 3.8% | 3% | \$91M |
+| Optimal | \$250K | \$100M | 4.4% | 0.5% | \$97M |
+| High Ret. | \$500K | \$100M | 3.9% | 2.1% | \$92M |
 
 ### Implementation
 
 **Three-Tier Strategy:**
-1. **Self-insure** up to $250K per occurrence
-2. **Working layer** $5M xs $250K for operational claims
-3. **Catastrophic layer** $100M xs $5M for regional disasters
+1. **Self-insure** up to \$250K per occurrence
+2. **Working layer** \$5M xs \$250K for operational claims
+3. **Catastrophic layer** \$100M xs \$5M for regional disasters
 
 **Risk Management Improvements:**
 - Invested savings in loss prevention
@@ -171,21 +171,21 @@ catastrophic_layers = [
 ### Results
 
 **Year 1:**
-- 31 claims under $250K: Self-handled efficiently
+- 31 claims under \$250K: Self-handled efficiently
 - 2 claims in working layer: Smooth handling
 - 0 catastrophic claims
 
 **Year 2:**
-- Hurricane affected 8 stores: $12M total loss
-- Insurance response: Full coverage above $250K
+- Hurricane affected 8 stores: \$12M total loss
+- Insurance response: Full coverage above \$250K
 - No disruption to other 27 stores
 - Maintained growth trajectory
 
 **5-Year Summary:**
 - Average growth: 4.6% (vs 2.3% prior 5 years)
-- Total premiums: $8.5M
-- Total recovered claims: $19.2M
-- Enterprise value increase: $42M
+- Total premiums: \$8.5M
+- Total recovered claims: \$19.2M
+- Enterprise value increase: \$42M
 
 ### Key Lessons
 > "The ergodic approach showed us that accepting higher retentions for frequency actually improved our growth rate, as long as we had catastrophic protection. It completely changed how we think about risk." - Chief Risk Officer
@@ -197,10 +197,10 @@ catastrophic_layers = [
 ### Background
 **Company Profile:**
 - Specialty chemical manufacturer
-- $200M revenue, $150M assets
+- \$200M revenue, \$150M assets
 - High-hazard operations
 - Environmental exposure
-- Previous claim: $45M pollution event
+- Previous claim: \$45M pollution event
 
 ### Challenge
 Insurance costs were 4% of revenue, but board wanted to reduce to 2% to match industry average.
@@ -208,22 +208,22 @@ Insurance costs were 4% of revenue, but board wanted to reduce to 2% to match in
 ### Ergodic Analysis
 
 **Risk Scenarios Modeled:**
-- Operational incidents: 2-3 per year, $100K-$2M
-- Major accidents: 0.1 per year, $10M-$50M
-- Catastrophic events: 0.01 per year, $100M-$500M
+- Operational incidents: 2-3 per year, \$100K-\$2M
+- Major accidents: 0.1 per year, \$10M-\$50M
+- Catastrophic events: 0.01 per year, \$100M-\$500M
 
 **Cost-Benefit Analysis:**
 
 ```
 Premium Reduction Strategy:
-- Premium: 2% of revenue ($4M)
-- Limits: $50M
+- Premium: 2% of revenue (\$4M)
+- Limits: \$50M
 - Time-average growth: -2.1% (negative!)
 - 30-year ruin probability: 67%
 
 Ergodic Optimal Strategy:
-- Premium: 5.5% of revenue ($11M)
-- Limits: $500M with multiple layers
+- Premium: 5.5% of revenue (\$11M)
+- Limits: \$500M with multiple layers
 - Time-average growth: 6.8%
 - 30-year ruin probability: 0.3%
 ```
@@ -239,14 +239,14 @@ Despite higher costs, the board approved the ergodic-optimal strategy after seei
 ### Implementation & Results
 
 **Program Structure:**
-- Primary: $10M
-- Excess: $40M xs $10M, $50M xs $50M, $400M xs $100M
-- Environmental: Separate $100M
-- Business Interruption: $200M
+- Primary: \$10M
+- Excess: \$40M xs \$10M, \$50M xs \$50M, \$400M xs \$100M
+- Environmental: Separate \$100M
+- Business Interruption: \$200M
 
 **3-Year Outcomes:**
 - Zero major incidents (fortunate)
-- Won $300M contract due to insurance strength
+- Won \$300M contract due to insurance strength
 - Reduced cost of capital by 0.75%
 - Stock price outperformed peers by 23%
 

@@ -1,0 +1,7 @@
+src.benchmarking module
+=======================
+
+.. automodule:: src.benchmarking
+   :members:
+   :show-inheritance:
+   :undoc-members:

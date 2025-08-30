@@ -23,7 +23,7 @@ import numpy as np
 
 # Create a medium-sized manufacturer
 manufacturer = Manufacturer(
-    initial_assets=10_000_000,     # $10M starting assets
+    initial_assets=10_000_000,     # \$10M starting assets
     asset_turnover=1.0,             # Revenue = 1x assets
     operating_margin=0.08,          # 8% operating margin
     tax_rate=0.25,                  # 25% corporate tax
@@ -94,7 +94,7 @@ from ergodic_insurance.src.claim_generator import ClaimGenerator
 # Standard loss generator
 standard_losses = ClaimGenerator(
     frequency=5,           # 5 losses per year on average
-    severity_mu=10.0,      # Log-mean (median ~$22K)
+    severity_mu=10.0,      # Log-mean (median ~\$22K)
     severity_sigma=1.5     # Log-std (high variability)
 )
 
@@ -102,7 +102,7 @@ standard_losses = ClaimGenerator(
 np.random.seed(42)
 losses_by_year = []
 for year in range(5):
-    annual_losses = standard_losses.generate_claims(n_years=1)
+    annual_losses = standard_losses.generate_claims(years=1)
     losses_by_year.append(annual_losses)
     total = sum(annual_losses) if annual_losses else 0
     print(f"Year {year+1}: {len(annual_losses)} losses, Total: ${total:,.0f}")
@@ -137,7 +137,7 @@ risk_profiles = {
 for name, generator in risk_profiles.items():
     all_losses = []
     for _ in range(years):
-        annual = generator.generate_claims(n_years=1)
+        annual = generator.generate_claims(years=1)
         all_losses.extend(annual)
 
     if all_losses:
@@ -167,8 +167,8 @@ sim = Simulation(
 np.random.seed(42)
 result = sim.run(
     n_years=20,
-    retention=1_000_000,    # $1M deductible
-    limit=10_000_000,       # $10M coverage
+    retention=1_000_000,    # \$1M deductible
+    limit=10_000_000,       # \$10M coverage
     premium_rate=0.02       # 2% of limit
 )
 

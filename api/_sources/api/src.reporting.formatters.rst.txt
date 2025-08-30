@@ -1,0 +1,7 @@
+src.reporting.formatters module
+===============================
+
+.. automodule:: src.reporting.formatters
+   :members:
+   :show-inheritance:
+   :undoc-members:

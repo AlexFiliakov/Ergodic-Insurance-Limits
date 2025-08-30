@@ -18,7 +18,7 @@
 ## Technical Decisions
 
 ### Stochastic Model Architecture
-- **Sales volatility**: Lognormal distribution (μ = 12-16, σ = 0.8-1.5) applied to baseline revenue
+$- **Sales volatility**: Lognormal distribution (\mu = 12-16, \sigma = 0.8-1.5) applied to baseline revenue$
 - **Growth rates**: Stochastic variations around deterministic baseline using geometric Brownian motion
 - **Claim events**: Dual-frequency model (attritional + large losses) with Poisson-Lognormal structure
 - **Time resolution**: Monthly stochastic events, annual aggregation for ergodic calculations
@@ -30,10 +30,10 @@
 - **Performance target**: 100,000 scenarios × 1000 years completed in reasonable time
 
 ### Insurance Layer Structure
-- **Primary retention**: $100K (industry standard for attritional losses)
-- **Primary layer**: $100K - $5M (0.5-1.5% premium rate, 60-80% loss ratio)
-- **First excess**: $5M - $25M (0.3-0.8% premium rate, 45% loss ratio)
-- **Higher excess**: $25M+ (0.1-0.4% premium rate, 30% loss ratio)
+- **Primary retention**: \$100K (industry standard for attritional losses)
+- **Primary layer**: \$100K - $5M (0.5-1.5% premium rate, 60-80% loss ratio)
+- **First excess**: \$5M - $25M (0.3-0.8% premium rate, 45% loss ratio)
+- **Higher excess**: \$25M+ (0.1-0.4% premium rate, 30% loss ratio)
 
 ## User Stories & Tasks
 
@@ -84,7 +84,7 @@ correlation_matrix:
 #### Tasks:
 - [ ] Implement dual-frequency Poisson claim generation (attritional + large)
 - [ ] Create lognormal severity distributions with configurable parameters
-- [ ] Add correlation structure between frequency and severity (ρ = 0.15-0.35)
+$- [ ] Add correlation structure between frequency and severity (\rho = 0.15-0.35)$
 - [ ] Implement 10-year payout schedules for large claims
 - [ ] Create claim tracking system (open claims, paid claims, IBNR estimates)
 - [ ] Write validation tests against actuarial benchmarks
@@ -97,10 +97,10 @@ class ClaimGenerator:
         self.large_claim_freq = PoissonProcess(lambda_=0.3)   # 0.1-0.5 events/year
 
     def generate_attritional_claims(self, year: int) -> List[Claim]:
-        """Generate immediate-payment attritional losses ($3K-$100K)"""
+        """Generate immediate-payment attritional losses (\$3K-$100K)"""
 
     def generate_large_claims(self, year: int) -> List[Claim]:
-        """Generate long-tail large losses ($500K-$50M)"""
+        """Generate long-tail large losses (\$500K-$50M)"""
 
     def get_annual_payments(self, year: int) -> Dict[str, float]:
         """Return paid/incurred/outstanding by claim type"""
@@ -112,14 +112,14 @@ claims:
   attritional:
     frequency_lambda: 5.5
     severity_lognormal:
-      mu: 9.0        # ~$8K mean severity
+      mu: 9.0        # ~\$8K mean severity
       sigma: 0.8     # moderate variability
     payment_pattern: "immediate"
 
   large_claims:
     frequency_lambda: 0.3
     severity_lognormal:
-      mu: 15.5       # ~$5M mean severity
+      mu: 15.5       # ~\$5M mean severity
       sigma: 1.6     # high variability
     payment_pattern:
       year_1: 0.50   # 50% paid in first year
@@ -179,7 +179,7 @@ class InsurancePolicy:
 insurance:
   enabled: true
   policy_structure:
-    deductible: 100_000  # $100K retention
+    deductible: 100_000  # \$100K retention
     layers:
       - attachment: 100_000
         limit: 5_000_000

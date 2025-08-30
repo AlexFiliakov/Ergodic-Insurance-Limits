@@ -1,0 +1,7 @@
+src.reporting.scenario\_comparator module
+=========================================
+
+.. automodule:: src.reporting.scenario_comparator
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -11,7 +11,7 @@ Executives often view insurance as a necessary cost. In Part 1, we showed how er
   - Nonlinear scaling of attachment points with company size.
   - Critical coverage thresholds reveal "ruin cliffs".
 - **Figure 1**: ROE-Ruin Efficient Frontier (executive summary view)
-- **Table 1**: Optimal Insurance Limits by Company Size ($1M, $10M, $100M assets)
+- **Table 1**: Optimal Insurance Limits by Company Size (\$1M, \$10M, \$100M assets)
 
 ### Section Draft:
 (Generally make each bullet a miniheadline. This structure gives senior leaders something memorable to quote. For example:)
@@ -30,13 +30,13 @@ Executives often view insurance as a necessary cost. In Part 1, we showed how er
 - **Figure 3**: Sample Path Visualization (5 trajectories, 10-year and 100-year views)
 
 ### Section Draft:
-To make this real, I modeled fictional manufacturers at three scales—Small ($1M assets), Medium ($10M), and Large ($100M)—and watched them evolve across 10,000 simulated universes over 1,000 years. The first decade matters to CFOs; the century validates the theory (detailed simulation parameters are available in the Appendix, as well as the GitHub repo).
+To make this real, I modeled fictional manufacturers at three scales—Small (\$1M assets), Medium (\$10M), and Large (\$100M)—and watched them evolve across 10,000 simulated universes over 1,000 years. The first decade matters to CFOs; the century validates the theory (detailed simulation parameters are available in the Appendix, as well as the GitHub repo).
 
 ## Findings and Discoveries
 (Each subsection features 1-2 primary visualizations with executive insights)
 
 ### Where growth peaks: Optimal limits by business size
-- **Figure 4**: Optimal Coverage Heatmap ($1M, $10M, $100M companies)
+- **Figure 4**: Optimal Coverage Heatmap (\$1M, \$10M, \$100M companies)
   - X-axis: Retention/deductible levels
   - Y-axis: Policy limits
   - Color: Time-average growth rate

@@ -170,10 +170,10 @@ ergodic_insurance/
 - [ ] Implement Poisson frequency model
 - [ ] Create Lognormal severity distributions
 - [ ] Build two-tier loss structure:
-  - Attritional losses (λ=3-8/year, μ=8-10, σ=0.6-1.0)
-  - Large losses (λ=0.1-0.5/year, μ=14-17, σ=1.2-2.0)
+$- Attritional losses (\lambda=3-8/year, \mu=8-10, \sigma=0.6-1.0)$
+ $- Large losses (\lambda=0.1-0.5/year, \mu=14-17, \sigma=1.2-2.0)$
 - [ ] Implement 10-year payout patterns for large losses
-- [ ] Add correlation modeling (ρ=0.15-0.35) via copulas
+$- [ ] Add correlation modeling (\rho=0.15-0.35) via copulas$
 - [ ] Create synthetic data generation pipeline
 - [ ] Validate statistical properties of generated losses
 
@@ -188,9 +188,9 @@ ergodic_insurance/
 #### Tasks
 - [ ] Implement multi-layer insurance structure
 - [ ] Create premium pricing models by layer:
-  - Primary ($0-5M): 0.5-1.5% of limit
-  - First excess ($5-25M): 0.3-0.8% of limit
-  - Higher excess ($25M+): 0.1-0.4% of limit
+  - Primary (\$0-5M): 0.5-1.5% of limit
+  - First excess (\$5-25M): 0.3-0.8% of limit
+  - Higher excess (\$25M+): 0.1-0.4% of limit
 - [ ] Build attachment point optimization algorithm
 - [ ] Implement layer width optimization
 - [ ] Create premium vs retention trade-off analysis
@@ -210,8 +210,8 @@ ergodic_insurance/
 - [ ] Create ruin probability estimation (Monte Carlo)
 - [ ] Build constrained optimization solver:
   - Objective: Maximize E[ROE(T)]
-  - Constraint: P(Ruin) ≤ 1% over 10 years
-- [ ] Add debt-to-equity constraints (≤2.0)
+$- Constraint: P(Ruin) \leq 1% over 10 years$
+- $[ ] Add debt-to-equity constraints (\leq2.0)$
 - [ ] Implement insurance cost ceiling (3% of revenue)
 - [ ] Create Pareto frontier visualization
 - [ ] Add Hamilton-Jacobi-Bellman solver (optional)
@@ -261,7 +261,7 @@ ergodic_insurance/
 - [ ] **Figure 1**: ROE-Ruin Efficient Frontier
   - 2D plot with ROE on X-axis, Ruin Probability on Y-axis
   - Show Pareto frontier with "sweet spots" highlighted
-  - Separate curves for $1M, $10M, $100M companies
+  - Separate curves for \$1M, \$10M, \$100M companies
   - Annotations for key decision points
 - [ ] **Figure 2**: Simulation Architecture Flow
   - Simplified flowchart for non-technical readers
@@ -369,7 +369,7 @@ ergodic_insurance/
   - All simulation parameters with ranges
   - Baseline, conservative, aggressive scenarios
 - [ ] **Table A2**: Loss Distribution Parameters
-  - Frequency (Poisson λ) and Severity (μ, σ) by loss type
+$- Frequency (Poisson \lambda) and Severity (\mu, \sigma) by loss type$
   - Correlation coefficients
   - Development patterns
 - [ ] **Table A3**: Insurance Pricing Grid
@@ -423,10 +423,10 @@ ergodic_insurance/
 #### The Ruin Cliff (Figure 6)
 ```python
 # Implementation approach
-# 1. Run simulations with retention levels from $10K to $10M (log scale)
+# 1. Run simulations with retention levels from \$10K to \$10M (log scale)
 # 2. Calculate 10-year ruin probability for each retention
 # 3. Identify "cliff edge" where derivative is steepest
-# 4. Use matplotlib's contourf with custom colormap (blue→yellow→red)
+$# 4. Use matplotlib's contourf with custom colormap (blue\rightarrowyellow\rightarrowred)$
 # 5. Add dramatic shading and 3D effect with mplot3d
 # 6. Annotate with warning callouts at critical thresholds
 ```
@@ -475,7 +475,7 @@ cache/
 ## Key Parameters & Configurations
 
 ### Manufacturing Business Parameters
-- **Starting Assets**: $10M
+- **Starting Assets**: \$10M
 - **Asset Turnover**: 0.5-1.5x
 - **Operating Margin**: 8%
 - **Tax Rate**: 25%
@@ -484,32 +484,32 @@ cache/
 
 ### Loss Model Parameters
 #### Attritional Losses
-- **Frequency**: λ = 3-8 events/year (Poisson)
-- **Severity**: μ = 8-10, σ = 0.6-1.0 (Lognormal)
-- **Range**: $3K-$100K per event
+- **Frequency**: $\lambda = 3-8 events/year (Poisson)$
+- - **Severity**: $\mu = 8-10$, $\sigma = 0.6-1.0 (Lognormal)$
+- **Range**: \$3K-$100K per event
 - **Payment**: Immediate
 
 #### Large Losses
-- **Frequency**: λ = 0.1-0.5 events/year
-- **Severity**: μ = 14-17, σ = 1.2-2.0 (Lognormal)
-- **Range**: $500K-$50M per event
+- **Frequency**: $\lambda = 0.1-0.5 events/year$
+- - **Severity**: $\mu = 14-17$, $\sigma = 1.2-2.0 (Lognormal)$
+- **Range**: \$500K-$50M per event
 - **Payment Pattern**:
   - Year 1: 40-60%
   - Years 2-3: 25-35%
   - Years 4-10: Remainder
 
 ### Insurance Structure
-- **Deductible**: $100K (optimized)
-- **Primary Layer**: $0-5M
-- **First Excess**: $5-25M
-- **Higher Excess**: $25M+
+- **Deductible**: \$100K (optimized)
+- **Primary Layer**: \$0-5M
+- **First Excess**: \$5-25M
+- **Higher Excess**: \$25M+
 - **Letter of Credit Cost**: 1.5%
 
 ### Optimization Constraints
 - **ROE Target**: 15-20%
-- **Ruin Probability**: ≤1% over 10 years
-- **Insurance Cost**: ≤3% of revenue
-- **Debt-to-Equity**: ≤2.0
+- **Ruin Probability**: $\leq 1\%$ over 10 years
+- **Insurance Cost**: $\leq 3\%$ of revenue
+- **Debt-to-Equity**: $\leq 2.0$
 
 ### Simulation Parameters
 - **Monte Carlo Iterations**: 100,000-1,000,000

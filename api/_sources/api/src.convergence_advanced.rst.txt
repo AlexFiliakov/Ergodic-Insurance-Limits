@@ -1,0 +1,7 @@
+src.convergence\_advanced module
+================================
+
+.. automodule:: src.convergence_advanced
+   :members:
+   :show-inheritance:
+   :undoc-members:

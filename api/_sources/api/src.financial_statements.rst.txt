@@ -1,0 +1,7 @@
+src.financial\_statements module
+================================
+
+.. automodule:: src.financial_statements
+   :members:
+   :show-inheritance:
+   :undoc-members:

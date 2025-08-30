@@ -1,0 +1,7 @@
+src.claim\_generator module
+===========================
+
+.. automodule:: src.claim_generator
+   :members:
+   :show-inheritance:
+   :undoc-members:

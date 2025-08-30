@@ -36,6 +36,7 @@ defaults:
 include:
   - theory
   - docs
+  - api
   - _layouts
   - _includes
 exclude:

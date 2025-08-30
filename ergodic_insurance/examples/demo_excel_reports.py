@@ -18,7 +18,7 @@ import numpy as np
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.src.claim_generator import ClaimGenerator, ClaimGeneratorConfig
+from ergodic_insurance.src.claim_generator import ClaimGenerator
 from ergodic_insurance.src.config import ManufacturerConfig
 from ergodic_insurance.src.excel_reporter import ExcelReportConfig, ExcelReporter
 from ergodic_insurance.src.financial_statements import (
@@ -44,25 +44,26 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
 
     # Configure manufacturer
     manufacturer_config = ManufacturerConfig(
-        initial_assets=10_000_000, asset_turnover_ratio=0.5, operating_margin=0.08, tax_rate=0.25
+        initial_assets=10_000_000,
+        asset_turnover_ratio=0.5,
+        operating_margin=0.08,
+        tax_rate=0.25,
+        retention_ratio=0.7,  # Added missing required field
     )
 
     manufacturer = WidgetManufacturer(manufacturer_config)
 
     # Configure claim generator
-    claim_config = ClaimGeneratorConfig(
-        attritional_frequency=5.0,  # 5 small claims per year
-        attritional_severity_mean=50_000,
-        attritional_severity_std=25_000,
-        large_frequency=0.3,  # 0.3 large claims per year
-        large_severity_mean=2_000_000,
-        large_severity_std=1_000_000,
-        catastrophic_frequency=0.05,  # 0.05 catastrophic claims per year
-        catastrophic_severity_mean=10_000_000,
-        catastrophic_severity_std=5_000_000,
-    )
+    # Loss frequency scales with revenue (more activity = more risk exposure)
+    base_frequency = 3.0  # Base frequency for $10M revenue company
+    initial_revenue = manufacturer_config.initial_assets * manufacturer_config.asset_turnover_ratio
 
-    claim_generator = ClaimGenerator(claim_config)
+    claim_generator = ClaimGenerator(
+        frequency=base_frequency * (initial_revenue / 10_000_000),  # Scale with revenue
+        severity_mean=500_000,  # Average severity
+        severity_std=1_000_000,  # Standard deviation
+        seed=seed,
+    )
 
     # Configure insurance
     insurance = InsurancePolicy(
@@ -71,8 +72,14 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
 
     # Run simulation
     for year in range(years):
-        # Generate claims for the year
-        claims = claim_generator.generate_annual_claims()
+        # Get current revenue for frequency scaling
+        current_revenue = manufacturer.assets * manufacturer_config.asset_turnover_ratio
+
+        # Generate claims for the year based on current revenue
+        claim_events, _ = claim_generator.generate_enhanced_claims(
+            years=1, revenue=current_revenue, use_enhanced_distributions=False
+        )
+        claims = [claim.amount for claim in claim_events]
 
         # Process claims through insurance
         total_claims = sum(claims)

@@ -91,10 +91,18 @@ import ergodic_insurance
 print(f"Version: {ergodic_insurance.__version__}")
 
 # Test basic functionality
-from ergodic_insurance.src import Manufacturer
+from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.src.config_v2 import ManufacturerConfig
 
-manufacturer = Manufacturer(starting_assets=10_000_000)
-print(f"Manufacturer created with ${manufacturer.starting_assets:,.0f} assets")
+config = ManufacturerConfig(
+    initial_assets=10_000_000,
+    asset_turnover_ratio=1.0,
+    operating_margin=0.08,
+    tax_rate=0.25,
+    retention_ratio=0.7
+)
+manufacturer = WidgetManufacturer(config)
+print(f"Manufacturer created with ${manufacturer.assets:,.0f} assets")
 ```
 
 ### Run Test Suite
@@ -240,7 +248,15 @@ insurance_limit: 5_000_000
 simulations: 1000
 ```
 
-### Example 3: Command Line Interface
+### Example 3: Visualizing Insurance Impact
+
+Here's a typical simulation result comparing wealth trajectories with and without insurance:
+
+![Insurance vs No Insurance Simulation](assets/results/getting_started/output.png)
+
+The graph demonstrates how insurance protects against catastrophic losses (orange vertical lines) that could bankrupt the company, enabling steady long-term growth despite paying annual premiums.
+
+### Example 4: Command Line Interface
 
 ```bash
 # Run analysis from command line

@@ -1,0 +1,7 @@
+src.accuracy\_validator module
+==============================
+
+.. automodule:: src.accuracy_validator
+   :members:
+   :show-inheritance:
+   :undoc-members:

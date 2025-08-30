@@ -1,0 +1,7 @@
+src.result\_aggregator module
+=============================
+
+.. automodule:: src.result_aggregator
+   :members:
+   :show-inheritance:
+   :undoc-members:

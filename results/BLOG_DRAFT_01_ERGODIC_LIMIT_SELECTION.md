@@ -133,7 +133,7 @@ Consider two loss sequences with identical aggregate losses of \$20M:
 - **Sequence A**: \$15M loss in year 1, \$5M loss in year 10
 - **Sequence B**: \$5M loss in year 1, \$15M loss in year 10
 
-For a company starting with $10M assets and 15% annual growth:
+For a company starting with \$10M assets and 15% annual growth:
 
 **Sequence A**: Company fails immediately (cannot survive \$15M loss)
 **Sequence B**: Company survives, growing to ~\$11M by year 10 before the large loss
@@ -193,17 +193,17 @@ The 100-year horizon isn't arbitrary. It reflects management's vision of buildin
 Widget Manufacturing faces a realistic loss distribution that will resonate with any casualty actuary:
 
 **Attritional Losses** (High Frequency, Low Severity):
-- Frequency: Poisson with λ = 5 claims/year
+- Frequency: Poisson with $\lambda = 5$ claims/year
 - Severity: Log-normal, mean \$25K, CV = 1.5
 - Examples: Worker injuries, quality defects, minor property damage
 
 **Large Losses** (Medium Frequency, Medium Severity):
-- Frequency: Poisson with λ = 0.5 claims/year
+- Frequency: Poisson with $\lambda = 0.5$ claims/year
 - Severity: Log-normal, mean \$1.5M, CV = 2.0
 - Examples: Product recalls, major equipment failures, litigation
 
 **Catastrophic Events** (Low Frequency, High Severity):
-- Frequency: Poisson with λ = 0.02 claims/year (1-in-50 year events)
+- Frequency: Poisson with $\lambda = 0.02$ claims/year (1-in-50 year events)
 - Severity: Pareto distribution with α = 1.5, minimum \$5M
 - Examples: Environmental disasters, systemic product liability, cyber events
 

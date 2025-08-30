@@ -34,34 +34,98 @@ Here's a simple example to get you started:
 
 .. code-block:: python
 
-    from ergodic_insurance import WidgetManufacturer, ClaimGenerator, Simulation
-    from ergodic_insurance.config_loader import load_config
+    from ergodic_insurance.src.manufacturer import WidgetManufacturer
+    from ergodic_insurance.src.claim_generator import ClaimGenerator
+    from ergodic_insurance.src.config_v2 import ManufacturerConfig
 
-    # Load baseline configuration
-    config = load_config("baseline")
-
-    # Create manufacturer and claim generator
-    manufacturer = WidgetManufacturer(config.manufacturer)
-    claim_generator = ClaimGenerator(
-        attritional_frequency=5.0,
-        attritional_severity_params=(50000, 0.8),
-        large_loss_frequency=0.3,
-        large_loss_severity_params=(5000000, 1.2)
+    # Create configuration
+    manufacturer_config = ManufacturerConfig(
+        initial_assets=10_000_000,
+        asset_turnover_ratio=1.0,
+        operating_margin=0.08,
+        tax_rate=0.25
     )
 
-    # Run simulation
-    sim = Simulation(
-        manufacturer=manufacturer,
-        claim_generator=claim_generator,
-        time_horizon=100
+    # Create manufacturer
+    manufacturer = WidgetManufacturer(manufacturer_config)
+    revenue = manufacturer.assets * manufacturer_config.asset_turnover_ratio
+
+    # Two-tier loss structure to demonstrate insurance value:
+    # 1. Regular operational losses (frequent, manageable)
+    regular_generator = ClaimGenerator(
+        frequency=5.0 * (revenue / 10_000_000),  # ~5 per year, scales with revenue
+        severity_mean=80_000,     # Mean $80K
+        severity_std=50_000,      # Moderate variation
+        seed=42
     )
 
-    results = sim.run()
+    # 2. Catastrophic losses (rare but potentially ruinous)
+    catastrophic_generator = ClaimGenerator(
+        frequency=0.3 * (revenue / 10_000_000),  # ~0.3 per year (once every 3 years)
+        severity_mean=2_000_000,  # Mean $2M
+        severity_std=1_500_000,   # Can reach $5M+
+        seed=43
+    )
 
-    # Analyze results
-    summary = results.summary_statistics()
-    print(f"Final ROE: {summary['final_roe']:.2%}")
-    print(f"Ruin probability: {summary['ruin_probability']:.2%}")
+    # Generate both regular and catastrophic claims
+    regular_claims, _ = regular_generator.generate_enhanced_claims(
+        years=1,
+        revenue=revenue,
+        use_enhanced_distributions=False
+    )
+    catastrophic_claims, _ = catastrophic_generator.generate_enhanced_claims(
+        years=1,
+        revenue=revenue,
+        use_enhanced_distributions=False
+    )
+
+    # Combine all claims
+    all_claims = regular_claims + catastrophic_claims
+
+    # Calculate company's net loss after insurance
+    total_company_payment = 0
+    annual_premium = 100_000  # Annual insurance premium
+
+    for claim in all_claims:
+        claim_amount = claim.amount
+        if claim_amount <= 100_000:
+            # Below deductible, company pays all
+            company_payment = claim_amount
+        else:
+            # Above deductible, insurance covers rest up to limit
+            company_payment = 100_000  # Deductible
+            if claim_amount > 5_000_000:
+                company_payment += claim_amount - 5_000_000  # Excess over limit
+
+        total_company_payment += company_payment
+
+    # Apply losses to manufacturer
+    if total_company_payment > 0:
+        manufacturer.assets -= min(total_company_payment, manufacturer.assets)
+        manufacturer.equity -= min(total_company_payment, manufacturer.equity)
+
+    # Deduct premium
+    manufacturer.assets -= annual_premium
+    manufacturer.equity -= annual_premium
+
+    # Update manufacturer's financial position
+    manufacturer.step()
+
+    # Check results
+    print(f"Final assets: ${manufacturer.assets:,.0f}")
+    print(f"Survived: {manufacturer.assets > 0}")
+
+Simulation Results
+------------------
+
+.. image:: ../assets/results/getting_started/output.png
+   :alt: Insurance vs No Insurance Simulation Results
+   :align: center
+   :width: 100%
+
+The graph above shows a 20-year simulation comparing wealth trajectories with and without insurance.
+Notice how insurance provides protection during catastrophic loss years (marked with orange lines),
+preventing bankruptcy and enabling steady long-term growth.
 
 Configuration
 -------------
@@ -81,11 +145,15 @@ You can override any parameter programmatically:
 
 .. code-block:: python
 
-    # Override specific parameters
-    config = load_config(
-        "baseline",
-        manufacturer__operating_margin=0.12,
-        simulation__time_horizon_years=200
+    # Create configuration with custom parameters
+    from ergodic_insurance.src.config_v2 import ManufacturerConfig
+
+    config = ManufacturerConfig(
+        initial_assets=10_000_000,
+        operating_margin=0.12,  # Override default margin
+        asset_turnover_ratio=1.5,
+        tax_rate=0.25,
+        retention_ratio=0.7  # Retain 70% of earnings
     )
 
 Running Tests

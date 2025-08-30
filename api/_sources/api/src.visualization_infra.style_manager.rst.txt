@@ -1,0 +1,7 @@
+src.visualization\_infra.style\_manager module
+==============================================
+
+.. automodule:: src.visualization_infra.style_manager
+   :members:
+   :show-inheritance:
+   :undoc-members:

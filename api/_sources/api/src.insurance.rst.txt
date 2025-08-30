@@ -1,0 +1,7 @@
+src.insurance module
+====================
+
+.. automodule:: src.insurance
+   :members:
+   :show-inheritance:
+   :undoc-members:

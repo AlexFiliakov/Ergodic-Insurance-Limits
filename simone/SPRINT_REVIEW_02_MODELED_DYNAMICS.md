@@ -45,13 +45,13 @@ growth_dynamics:
 ```
 
 #### 2. Loss Distribution System (`loss_distributions.py`)
-- **Attritional Losses**: Poisson frequency (5.0/year), lognormal severity ($50K mean)
-- **Large Losses**: Low frequency (0.5/year), high severity ($2M mean)
+- **Attritional Losses**: Poisson frequency (5.0/year), lognormal severity (\$50K mean)
+- **Large Losses**: Low frequency (0.5/year), high severity (\$2M mean)
 - **Catastrophic Events**: Extreme tail modeling with Pareto distribution
 - **Payment Patterns**: 10-year development for large claims with actuarial triangles
 
 #### 3. Insurance Program Structure (`insurance_program.py`)
-- **Multi-Layer Architecture**: Primary ($0-5M), Excess ($5-25M), High Excess ($25M+)
+- **Multi-Layer Architecture**: Primary (\$0-5M), Excess (\$5-25M), High Excess (\$25M+)
 - **Premium Optimization**: Layer-specific rates with loss ratio targets
 - **Coverage Analysis**: Effective limit calculation and gap analysis
 - **Claim Recovery**: Cascading logic across policy layers

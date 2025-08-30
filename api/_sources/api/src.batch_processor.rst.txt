@@ -1,0 +1,7 @@
+src.batch\_processor module
+===========================
+
+.. automodule:: src.batch_processor
+   :members:
+   :show-inheritance:
+   :undoc-members:

@@ -1,0 +1,7 @@
+src.adaptive\_stopping module
+=============================
+
+.. automodule:: src.adaptive_stopping
+   :members:
+   :show-inheritance:
+   :undoc-members:

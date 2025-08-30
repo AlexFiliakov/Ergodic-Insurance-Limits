@@ -1,0 +1,7 @@
+src.stochastic\_processes module
+================================
+
+.. automodule:: src.stochastic_processes
+   :members:
+   :show-inheritance:
+   :undoc-members:

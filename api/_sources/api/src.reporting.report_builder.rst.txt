@@ -1,0 +1,7 @@
+src.reporting.report\_builder module
+====================================
+
+.. automodule:: src.reporting.report_builder
+   :members:
+   :show-inheritance:
+   :undoc-members:

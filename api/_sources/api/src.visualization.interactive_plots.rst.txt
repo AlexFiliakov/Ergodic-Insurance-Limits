@@ -1,0 +1,7 @@
+src.visualization.interactive\_plots module
+===========================================
+
+.. automodule:: src.visualization.interactive_plots
+   :members:
+   :show-inheritance:
+   :undoc-members:

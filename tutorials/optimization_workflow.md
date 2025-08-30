@@ -71,7 +71,7 @@ print(f"Total combinations to test: {np.prod([len(v) for v in search_space.value
 # Define constraints
 constraints = OptimizationConstraints(
     max_total_premium=750_000,  # Maximum 5% of revenue
-    min_total_coverage=5_000_000,  # Minimum $5M coverage
+    min_total_coverage=5_000_000,  # Minimum \$5M coverage
     max_ruin_probability=0.01,  # Maximum 1% ruin probability over 20 years
     min_growth_rate=0.05,  # Minimum 5% annual growth
     time_horizon=20

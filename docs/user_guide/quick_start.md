@@ -39,10 +39,10 @@ from ergodic_insurance.src import (
 
 ### Step 2: Define Your Business
 ```python
-# Create a widget manufacturer with $10M in assets
+# Create a widget manufacturer with \$10M in assets
 business = Manufacturer(
     starting_assets=10_000_000,
-    base_revenue=15_000_000,  # $15M annual revenue
+    base_revenue=15_000_000,  # \$15M annual revenue
     operating_margin=0.08,      # 8% margin
     tax_rate=0.25              # 25% tax rate
 )
@@ -94,13 +94,25 @@ print(f"Expected terminal wealth: ${analyzer.expected_wealth():,.0f}")
 Without Insurance:
 - Growth Rate: 8.2%
 - Ruin Probability: 15%
-- 20-Year Wealth: $47M ± $35M
+- 20-Year Wealth: \$47M ± \$35M
 
 With Optimal Insurance:
 - Growth Rate: 11.3%
 - Ruin Probability: <1%
-- 20-Year Wealth: $89M ± $12M
+- 20-Year Wealth: \$89M ± \$12M
 ```
+
+## Visualization of Results
+
+The following graph shows a typical 20-year simulation comparing performance with and without insurance:
+
+![Insurance Impact Visualization](../assets/results/getting_started/output.png)
+
+Key observations from the visualization:
+- **Orange lines** mark years with catastrophic losses (>$1M)
+- **Without insurance** (blue) shows sharp drops during catastrophic events
+- **With insurance** (orange) maintains smoother growth trajectory
+- The $100K annual premium provides protection against losses up to $5M
 
 ## Next Steps
 

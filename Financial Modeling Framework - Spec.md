@@ -6,7 +6,7 @@ The research reveals that **traditional expected value approaches systematically
 
 $g = \lim_{T\to\infty}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$
 
-This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For your widget manufacturing model with $10M starting assets and 8% operating margin, **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
+This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For your widget manufacturing model with \$10M starting assets and 8% operating margin, **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
 
 ## Value Proposition
 
@@ -23,26 +23,26 @@ This comprehensive research provides a framework for optimizing insurance limits
 Based on actuarial best practices and Basel III frameworks, the Poisson-Lognormal frequency-severity model should use these specific parameters:
 
 **Attritional losses** (immediate payment):
-- Frequency: λ = 3-8 events/year (Poisson)
-- Severity: μ = 8-10, σ = 0.6-1.0 (Lognormal)
-- Typical range: $3K-$100K per event
-- Deductible optimization: $100K aligns with industry standards
+- Frequency: $\lambda = 3-8$ events/year (Poisson)
+- Severity: $\mu = 8-10$, $\sigma = 0.6-1.0$ (Lognormal)
+- Typical range: \$3K-$100K per event
+- Deductible optimization: \$100K aligns with industry standards
 
 **Large losses** (10-year payout):
-- Frequency: λ = 0.1-0.5 events/year
-- Severity: μ = 14-17, σ = 1.2-2.0 (Lognormal)
-- Range: $500K-$50M per event
+- Frequency: $\lambda = 0.1-0.5$ events/year
+- Severity: $\mu = 14-17$, $\sigma = 1.2-2.0$ (Lognormal)
+- Range: \$500K-$50M per event
 - Payout pattern: 40-60% Year 1, 25-35% Years 2-3, remainder Years 4-10
 
 For revenue and cost modeling with Lognormal distributions:
-- **Sales volatility**: μ = 12-16, σ = 0.8-1.5
-- **Operating costs**: μ = 8-12, σ = 0.6-1.2
+- **Sales volatility**: $\mu = 12-16$, $\sigma = 0.8-1.5$
+- **Operating costs**: $\mu = 8-12$, $\sigma = 0.6-1.2$
 
-The correlation between frequency and severity typically ranges ρ = 0.15-0.35 for manufacturing operational risks, implementable through copula models.
+The correlation between frequency and severity typically ranges $\rho = 0.15-0.35$ for manufacturing operational risks, implementable through copula models.
 
 ## Asset-driven growth mechanics optimize capital deployment
 
-Manufacturing businesses exhibit **asset turnover ratios of 0.5-1.5x**, meaning each dollar of assets generates $0.50-$1.50 in sales capacity. The mathematical relationship:
+Manufacturing businesses exhibit **asset turnover ratios of 0.5-1.5x**, meaning each dollar of assets generates \$0.50-$1.50 in sales capacity. The mathematical relationship:
 
 **Revenue = Assets × Asset Turnover × Efficiency Factor**
 
@@ -57,9 +57,9 @@ The 1.5% Letter of Credit cost represents standard pricing for investment-grade 
 
 Optimal insurance structuring follows a multi-layer approach with **declining premium rates and loss ratios by layer**:
 
-- **Primary layer** ($0-$5M): Premium 0.5-1.5% of limit, loss ratio 60-80%
-- **First excess** ($5-25M): Premium 0.3-0.8% of limit, loss ratio 45%
-- **Higher excess** ($25M+): Premium 0.1-0.4% of limit, loss ratio 30%
+- **Primary layer** (\$0-$5M): Premium 0.5-1.5% of limit, loss ratio 60-80%
+- **First excess** (\$5-25M): Premium 0.3-0.8% of limit, loss ratio 45%
+- **Higher excess** (\$25M+): Premium 0.1-0.4% of limit, loss ratio 30%
 
 Break-even analysis is needed for optimal attachment points for primary retention, and the width of each subsequent layer.
 
@@ -68,12 +68,10 @@ Break-even analysis is needed for optimal attachment points for primary retentio
 The mathematical framework for constrained optimization:
 
 **Maximize: $E[\text{ROE}(T)]$**
-**Subject to: $P(\text{Ruin}) ≤ 1\%$ over 10 years**
+**Subject to:** $P(\text{Ruin}) \leq 1\%$ over 10 years
 
 Using Hamilton-Jacobi-Bellman equations and viscosity solutions, the optimal strategy emerges from solving:
-
-**∂V/∂t + sup_u [L^u V(x,t)] = 0**
-
+$$\frac{\partial V}{\partial t} + \sup_u [L^u V(x,t)] = 0$$
 For widget manufacturing with 8% operating margin and 25% tax rate, target metrics include:
 - **ROE target**: 15-20%
 - **Maximum ruin probability**: 1% over 10 years
@@ -122,7 +120,7 @@ The research identifies several enhancements required for comprehensive implemen
 
 1. **Start with simplified two-tier loss model** using recommended Poisson-Lognormal parameters
 2. **Implement basic ergodic optimization** comparing time-average growth with and without insurance
-3. **Layer insurance program** with $100K retention, $5M primary, $20M excess structure
+3. **Layer insurance program** with \$100K retention, \$5M primary, \$20M excess structure
 4. **Monitor convergence** using 500,000+ Monte Carlo iterations
 5. **Validate quarterly** using walk-forward backtesting
 6. **Adjust parameters** based on emerging loss experience

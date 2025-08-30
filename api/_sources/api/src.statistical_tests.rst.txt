@@ -1,0 +1,7 @@
+src.statistical\_tests module
+=============================
+
+.. automodule:: src.statistical_tests
+   :members:
+   :show-inheritance:
+   :undoc-members:

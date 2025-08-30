@@ -1,0 +1,7 @@
+src.parameter\_sweep module
+===========================
+
+.. automodule:: src.parameter_sweep
+   :members:
+   :show-inheritance:
+   :undoc-members:

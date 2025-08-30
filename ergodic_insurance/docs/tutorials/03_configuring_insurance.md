@@ -21,12 +21,12 @@ By the end of this tutorial, you will understand:
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Example loss of $3M
+# Example loss of \$3M
 loss_amount = 3_000_000
 
 # Insurance structure
-retention = 500_000      # Company pays first $500K (deductible)
-limit = 5_000_000        # Insurance covers up to $5M
+retention = 500_000      # Company pays first \$500K (deductible)
+limit = 5_000_000        # Insurance covers up to \$5M
 premium_rate = 0.02      # 2% of limit
 
 # Calculate who pays what
@@ -86,8 +86,8 @@ claim_generator = ClaimGenerator(
 
 # Configure single insurance layer
 insurance = InsuranceLayer(
-    retention=1_000_000,     # $1M deductible
-    limit=10_000_000,        # $10M coverage
+    retention=1_000_000,     # \$1M deductible
+    limit=10_000_000,        # \$10M coverage
     premium_rate=0.018       # 1.8% rate
 )
 
@@ -107,7 +107,7 @@ print(f"  Premium as % of limit: {insurance.premium_rate:.2%}")
 np.random.seed(42)
 sample_losses = []
 for _ in range(1000):
-    annual_losses = claim_generator.generate_claims(n_years=1)
+    annual_losses = claim_generator.generate_claims(years=1)
     sample_losses.extend(annual_losses)
 
 # Analyze how insurance responds
@@ -314,7 +314,7 @@ np.random.seed(42)
 historical_years = 10
 historical_losses = []
 for _ in range(historical_years):
-    annual = claim_generator.generate_claims(n_years=1)
+    annual = claim_generator.generate_claims(years=1)
     historical_losses.extend(annual)
 
 # Calculate experience-based premiums
@@ -596,16 +596,16 @@ for i, loss in enumerate(losses):
 ```python
 # Recommended layer structure by company size
 layer_guidelines = {
-    "Small ($1-10M assets)": [
+    "Small (\$1-10M assets)": [
         {"name": "Primary", "retention": "5-10% of assets", "limit": "20-50% of assets"},
         {"name": "Excess", "retention": "25% of assets", "limit": "50-100% of assets"}
     ],
-    "Medium ($10-50M assets)": [
+    "Medium (\$10-50M assets)": [
         {"name": "Primary", "retention": "2-5% of assets", "limit": "10-20% of assets"},
         {"name": "Excess 1", "retention": "15% of assets", "limit": "20-40% of assets"},
         {"name": "Excess 2", "retention": "35% of assets", "limit": "50-100% of assets"}
     ],
-    "Large ($50M+ assets)": [
+    "Large (\$50M+ assets)": [
         {"name": "Primary", "retention": "1-2% of assets", "limit": "5-10% of assets"},
         {"name": "Multiple Excess Layers", "retention": "Staggered", "limit": "Total 200%+ of assets"}
     ]

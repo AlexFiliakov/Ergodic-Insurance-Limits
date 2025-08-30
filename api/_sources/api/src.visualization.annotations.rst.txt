@@ -1,0 +1,7 @@
+src.visualization.annotations module
+====================================
+
+.. automodule:: src.visualization.annotations
+   :members:
+   :show-inheritance:
+   :undoc-members:

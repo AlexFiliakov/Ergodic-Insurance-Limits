@@ -1,0 +1,7 @@
+src.visualization.technical\_plots module
+=========================================
+
+.. automodule:: src.visualization.technical_plots
+   :members:
+   :show-inheritance:
+   :undoc-members:
