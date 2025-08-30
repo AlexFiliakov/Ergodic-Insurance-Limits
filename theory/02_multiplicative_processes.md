@@ -534,6 +534,8 @@ benefit = calculate_volatility_drag_benefit(
 
 ### Example 1: Widget Manufacturer
 
+![Widget Factory](/assets/photos/factory_1_small.jpg)
+
 A widget manufacturer faces:
 - Revenue growth: 8% expected, 15% volatility
 - Operating leverage: 2x (costs are 50% fixed)
@@ -600,6 +602,8 @@ print(f"  Growth rate: {np.mean(np.log(np.array(final_without)[np.array(final_wi
 ```
 
 ### Example 2: Investment Portfolio
+
+![Office Building](/assets/photos/office_building_1_small.jpg)
 
 Portfolio with tail risk:
 ```python
