@@ -96,27 +96,29 @@ a:hover {
 
 /* Nested menu items - better hierarchy visibility */
 .wy-menu-vertical li.toctree-l2 a {
-    color: #dfe3e6 !important;  /* Slightly dimmer than parent */
+    color: #95a5a6 !important;  /* Darker gray for better contrast */
     padding-left: 2.5em !important;  /* Better indentation */
 }
 
 .wy-menu-vertical li.toctree-l3 a {
-    color: #d0d4d8 !important;  /* Progressive dimming */
+    color: #7f8c8d !important;  /* Even darker for deeper nesting */
     padding-left: 3.5em !important;
 }
 
 .wy-menu-vertical li.toctree-l4 a {
-    color: #c1c5c9 !important;
+    color: #6c7a7b !important;  /* Darkest for deepest level */
     padding-left: 4.5em !important;
 }
 
 /* Active/current nested items */
-.wy-menu-vertical li.current li.toctree-l2 > a {
-    color: #fff !important;  /* Bright when current */
+.wy-menu-vertical li.current li.toctree-l2.current > a {
+    color: #ecf0f1 !important;  /* Bright only when current */
+    font-weight: 500 !important;
 }
 
-.wy-menu-vertical li.current li.toctree-l3 > a {
-    color: #f8f9fa !important;
+.wy-menu-vertical li.current li.toctree-l3.current > a {
+    color: #ecf0f1 !important;  /* Bright only when current */
+    font-weight: 500 !important;
 }
 
 /* Section headers in sidebar - MORE VISIBLE */
