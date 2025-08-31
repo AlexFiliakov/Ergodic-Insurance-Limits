@@ -24,7 +24,7 @@ This distinction is not merely academic; it fundamentally changes optimal strate
 
 ## Time Averages vs Ensemble Averages
 
-![Time Average vs Ensemble Average Example](/Ergodic-Insurance-Limits/theory/assets/ergodic_distinction.png)
+![Time Average vs Ensemble Average Example](/Ergodic-Insurance-Limits/assets/ergodic_distinction.png)
 
 ### Ensemble Average
 
