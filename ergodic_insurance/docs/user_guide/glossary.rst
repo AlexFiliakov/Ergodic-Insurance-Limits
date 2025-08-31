@@ -5,7 +5,7 @@ Insurance Terms
 ---------------
 
 **Attachment Point**
-   The loss level at which an insurance layer begins to pay. For example, a layer with a $1M attachment point starts paying after the first $1M of loss.
+   The loss level at which an insurance layer begins to pay. For example, a layer with a \$1M attachment point starts paying after the first \$1M of loss.
 
 **Burning Cost**
    Historical average losses as a percentage of limit. Used as a baseline for pricing.

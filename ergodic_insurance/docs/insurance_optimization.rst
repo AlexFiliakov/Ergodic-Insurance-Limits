@@ -272,8 +272,8 @@ Optimization Process
 Results
 ~~~~~~~
 
-* **Optimal limit**: $15M (1.5x annual revenue)
-* **Optimal retention**: $1M (10% of assets)
+* **Optimal limit**: \$15M (1.5x annual revenue)
+* **Optimal retention**: \$1M (10% of assets)
 * **Premium rate**: 1.8% of limit
 * **Time-average growth improvement**: +3.2% annually
 * **Bankruptcy reduction**: 15% → 0.8%

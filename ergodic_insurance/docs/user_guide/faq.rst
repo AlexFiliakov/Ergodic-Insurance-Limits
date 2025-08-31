@@ -31,8 +31,8 @@ What's the minimum company size to benefit from this analysis?
 
 **Answer:** Any company with:
 
-* At least $1M in assets
-* Annual revenues > $500K
+* At least \$1M in assets
+* Annual revenues > \$500K
 * Exposure to losses > 5% of assets
 
 Can benefit from ergodic optimization. Smaller companies often benefit MORE because they have less ability to absorb large losses.
@@ -204,7 +204,7 @@ Always model tail risks, even if they haven't happened yet.
 * One bad event can end the business
 * Growth depends on consistent reinvestment
 
-The framework works especially well for companies under $50M in assets.
+The framework works especially well for companies under \$50M in assets.
 
 "Insurance is too expensive in hard markets"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

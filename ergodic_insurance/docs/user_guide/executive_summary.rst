@@ -55,20 +55,20 @@ Our simulations demonstrate that companies using ergodic optimization achieve:
 Real Numbers Example
 --------------------
 
-Consider a $10M manufacturing company:
+Consider a \$10M manufacturing company:
 
 **Without Ergodic Optimization:**
-   * Buys minimal insurance ($5M limit)
-   * Saves $150K/year in premiums
+   * Buys minimal insurance (\$5M limit)
+   * Saves \$150K/year in premiums
    * 10-year survival probability: 68%
    * Average annual growth (if survives): 6%
 
 **With Ergodic Optimization:**
-   * Optimal structure: $100K retention, $25M limit
-   * Pays $400K/year in premiums
+   * Optimal structure: \$100K retention, \$25M limit
+   * Pays \$400K/year in premiums
    * 10-year survival probability: 95%
    * Average annual growth: 8.5%
-   * **Net benefit: $4.2M higher terminal value**
+   * **Net benefit: \$4.2M higher terminal value**
 
 Why Traditional Analysis Fails
 -------------------------------

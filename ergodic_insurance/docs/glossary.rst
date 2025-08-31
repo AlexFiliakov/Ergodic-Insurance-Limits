@@ -15,7 +15,7 @@ A
    An annual deductible that applies to all losses in aggregate rather than per occurrence.
 
 **Attachment Point**
-   The dollar amount at which an insurance layer begins to pay claims. Also called the retention or deductible for that layer. For example, a layer with $5M attachment covers losses above $5M.
+   The dollar amount at which an insurance layer begins to pay claims. Also called the retention or deductible for that layer. For example, a layer with \$5M attachment covers losses above \$5M.
 
 **Attritional Losses**
    High-frequency, low-severity losses that occur regularly in business operations. Typically handled by primary insurance layers and modeled with Poisson frequency.

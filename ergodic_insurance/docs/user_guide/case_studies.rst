@@ -12,8 +12,8 @@ Company Profile
 **MidTech Manufacturing Inc.**
 
 * **Industry**: Electronic components manufacturing
-* **Assets**: $10 million
-* **Revenue**: $15 million annually
+* **Assets**: \$10 million
+* **Revenue**: \$15 million annually
 * **Operating Margin**: 8%
 * **Growth Rate**: 6% baseline
 * **Volatility**: 15% annual revenue volatility
@@ -23,16 +23,16 @@ Risk Profile
 
 Based on 5 years of historical data:
 
-* **Attritional losses**: 4-6 events/year, $30K-$100K each
-* **Large losses**: 1 every 3 years, $1M-$5M range
-* **Catastrophic risk**: Major fire/explosion risk, potential $20M loss
+* **Attritional losses**: 4-6 events/year, \$30K-\$100K each
+* **Large losses**: 1 every 3 years, \$1M-\$5M range
+* **Catastrophic risk**: Major fire/explosion risk, potential \$20M loss
 
 Current Insurance Program
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* **Retention**: $500,000
-* **Limit**: $5,000,000
-* **Annual Premium**: $125,000
+* **Retention**: \$500,000
+* **Limit**: \$5,000,000
+* **Annual Premium**: \$125,000
 * **Historical Performance**: 2 limits breached in past 10 years
 
 Analysis Process
@@ -65,46 +65,46 @@ Analysis Process
 
 * 10-year survival probability: 71.2%
 * Average annual growth (survivors): 5.3%
-* 5% VaR: -$2.8M (ruin)
+* 5% VaR: -\$2.8M (ruin)
 * Maximum drawdown: 68%
 
-*Current Program ($500K retention, $5M limit):*
+*Current Program (\$500K retention, \$5M limit):*
 
 * 10-year survival probability: 83.5%
 * Average annual growth: 6.1%
-* 5% VaR: $3.2M
-* Total premiums paid: $1.25M
-* Benefit vs no insurance: +$1.8M terminal value
+* 5% VaR: \$3.2M
+* Total premiums paid: \$1.25M
+* Benefit vs no insurance: +\$1.8M terminal value
 
-*Optimized Program ($100K retention, $25M limit):*
+*Optimized Program (\$100K retention, \$25M limit):*
 
 * 10-year survival probability: 96.8%
 * Average annual growth: 7.4%
-* 5% VaR: $8.7M
-* Total premiums paid: $3.85M
-* Benefit vs current: +$4.1M terminal value
+* 5% VaR: \$8.7M
+* Total premiums paid: \$3.85M
+* Benefit vs current: +\$4.1M terminal value
 
 Recommendation
 ~~~~~~~~~~~~~~
 
 **Optimal Structure:**
 
-1. **Reduce retention** from $500K to $100K
-2. **Increase limit** from $5M to $25M
+1. **Reduce retention** from \$500K to \$100K
+2. **Increase limit** from \$5M to \$25M
 3. **Layer structure**:
 
-   * Primary: $100K-$5M at 1.5% rate
-   * First Excess: $5M-$25M at 0.7% rate
-   * Catastrophe: $25M-$50M at 0.3% rate
+   * Primary: \$100K-\$5M at 1.5% rate
+   * First Excess: \$5M-\$25M at 0.7% rate
+   * Catastrophe: \$25M-\$50M at 0.3% rate
 
 **Financial Impact:**
 
-* Additional premium cost: $260K/year
+* Additional premium cost: \$260K/year
 * Improved survival probability: +13.3%
 * Enhanced growth rate: +1.3%/year
-* 10-year NPV of change: +$4.1M
+* 10-year NPV of change: +\$4.1M
 
-**Key Insight:** The $500K retention was creating cash flow stress during loss years, impeding growth investments. Lower retention enables consistent reinvestment.
+**Key Insight:** The \$500K retention was creating cash flow stress during loss years, impeding growth investments. Lower retention enables consistent reinvestment.
 
 Case Study 2: High-Growth Technology Startup
 ---------------------------------------------
@@ -115,17 +115,17 @@ Company Profile
 **CloudScale Solutions**
 
 * **Industry**: SaaS platform provider
-* **Assets**: $5 million
-* **Revenue**: $8 million (100% YoY growth)
+* **Assets**: \$5 million
+* **Revenue**: \$8 million (100% YoY growth)
 * **Operating Margin**: -10% (investing for growth)
-* **Burn Rate**: $2 million/year
+* **Burn Rate**: \$2 million/year
 * **Volatility**: 40% revenue volatility
 
 Risk Profile
 ~~~~~~~~~~~~
 
-* **Cyber incidents**: 0.8 events/year, $500K-$5M severity
-* **Business interruption**: Platform outages, $100K-$10M impact
+* **Cyber incidents**: 0.8 events/year, \$500K-\$5M severity
+* **Business interruption**: Platform outages, \$100K-\$10M impact
 * **D&O liability**: High given rapid growth and VC backing
 * **Key person risk**: Critical dependency on technical founders
 
@@ -133,7 +133,7 @@ Current Situation
 ~~~~~~~~~~~~~~~~~
 
 * **No insurance** (trying to minimize burn)
-* **Recent incident**: $800K cyber loss absorbed
+* **Recent incident**: \$800K cyber loss absorbed
 * **Board concern**: Requesting risk mitigation
 
 Analysis Process
@@ -169,18 +169,18 @@ Analysis Process
 * Risk of running out of cash: 45% in year 2
 * Expected runway reduction: 8 months per incident
 
-*Minimal Coverage ($50K retention, $5M limit):*
+*Minimal Coverage (\$50K retention, \$5M limit):*
 
 * 2-year survival probability: 89%
 * 5-year survival probability: 62%
-* Annual premium: $180K
+* Annual premium: \$180K
 * Runway impact: -1 month
 
-*Recommended Coverage ($25K retention, $50M limit):*
+*Recommended Coverage (\$25K retention, \$50M limit):*
 
 * 2-year survival probability: 95%
 * 5-year survival probability: 78%
-* Annual premium: $425K
+* Annual premium: \$425K
 * Runway impact: -2.5 months
 * **Critical benefit**: Enables next funding round
 
@@ -189,21 +189,21 @@ Recommendation
 
 **Immediate Actions:**
 
-1. **Implement cyber insurance** immediately ($25K retention)
+1. **Implement cyber insurance** immediately (\$25K retention)
 2. **D&O coverage** essential for board protection
 3. **Business interruption** coverage with 12-month indemnity period
 
 **Staged Approach:**
 
-* **Year 1**: Essential coverage only ($425K premium)
+* **Year 1**: Essential coverage only (\$425K premium)
 * **Year 2**: Expand as revenue grows
-* **Year 3**: Full program at projected $50M revenue
+* **Year 3**: Full program at projected \$50M revenue
 
 **Board Presentation Points:**
 
 * Insurance cost < 6% of revenue (industry standard)
 * Survival probability improvement: +47% over 5 years
-* Protects $50M post-money valuation
+* Protects \$50M post-money valuation
 * Required by most Series B investors
 
 Case Study 3: Stable Utility Company
@@ -215,8 +215,8 @@ Company Profile
 **Regional Power Corp**
 
 * **Industry**: Electric utility
-* **Assets**: $100 million
-* **Revenue**: $80 million
+* **Assets**: \$100 million
+* **Revenue**: \$80 million
 * **Operating Margin**: 12% (regulated)
 * **Growth**: 2% annual (population-based)
 * **Volatility**: 5% (weather-driven)
@@ -224,18 +224,18 @@ Company Profile
 Risk Profile
 ~~~~~~~~~~~~
 
-* **Routine claims**: 20-30/year, $10K-$50K each
-* **Storm damage**: 2-3/year, $500K-$5M each
-* **Catastrophic events**: Ice storms, hurricanes ($50M-$200M)
+* **Routine claims**: 20-30/year, \$10K-\$50K each
+* **Storm damage**: 2-3/year, \$500K-\$5M each
+* **Catastrophic events**: Ice storms, hurricanes (\$50M-\$200M)
 * **Regulatory**: Penalties for extended outages
 
 Current Insurance Program
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* **Retention**: $250,000
-* **Primary limit**: $10,000,000
-* **Excess limit**: $100,000,000
-* **Annual premium**: $2,800,000
+* **Retention**: \$250,000
+* **Primary limit**: \$10,000,000
+* **Excess limit**: \$100,000,000
+* **Annual premium**: \$2,800,000
 
 Analysis Results
 ~~~~~~~~~~~~~~~~
@@ -248,10 +248,10 @@ Analysis Results
 * Paying for unnecessary frequency coverage
 * Premium efficiency: 42% (low)
 
-*Optimized Structure ($2M retention, same limits):*
+*Optimized Structure (\$2M retention, same limits):*
 
 * Maintains 100% survival probability
-* Premium savings: $1.1M/year
+* Premium savings: \$1.1M/year
 * Self-insures predictable losses
 * Focuses on catastrophe protection
 
@@ -260,15 +260,15 @@ Recommendation
 
 **Restructure to:**
 
-1. **Increase retention** to $2M (2% of assets)
-2. **Maintain catastrophe limits** at $100M+
+1. **Increase retention** to \$2M (2% of assets)
+2. **Maintain catastrophe limits** at \$100M+
 3. **Add parametric coverage** for named storms
 4. **Establish loss fund** with premium savings
 
 **10-Year Impact:**
 
-* Premium savings: $11M
-* Loss fund accumulation: $8M (after claims)
+* Premium savings: \$11M
+* Loss fund accumulation: \$8M (after claims)
 * Improved regulatory standing
 * Maintains AAA credit rating
 
@@ -307,13 +307,13 @@ Implementation Lessons
 Lesson 1: Gradual Transition
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** Moving from $1M to $100K retention seems risky
+**Problem:** Moving from \$1M to \$100K retention seems risky
 
 **Solution:** Phase over 2 years:
 
-* Year 1: Reduce to $500K, monitor results
-* Year 2: Further reduce to $250K if comfortable
-* Year 3: Reach optimal $100K
+* Year 1: Reduce to \$500K, monitor results
+* Year 2: Further reduce to \$250K if comfortable
+* Year 3: Reach optimal \$100K
 
 Lesson 2: Premium Sticker Shock
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -339,13 +339,13 @@ Lesson 2: Premium Sticker Shock
 Lesson 3: Market Capacity
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** Insurers reluctant to provide $50M limit to $5M company
+**Problem:** Insurers reluctant to provide \$50M limit to \$5M company
 
 **Solution:** Structure with multiple carriers:
 
-* Primary: Admitted carrier ($5M)
-* Excess: Bermuda markets ($20M)
-* Cat: ILS/Alternative capital ($25M)
+* Primary: Admitted carrier (\$5M)
+* Excess: Bermuda markets (\$20M)
+* Cat: ILS/Alternative capital (\$25M)
 
 Real-World Validation
 ---------------------
@@ -369,7 +369,7 @@ We validated our models against actual loss events:
 
 **Natural Catastrophe Events:**
 
-* Hurricane exposure (Florida manufacturer): Model correctly predicted need for $30M limit
+* Hurricane exposure (Florida manufacturer): Model correctly predicted need for \$30M limit
 * Earthquake exposure (California tech): Model matched industry losses within 15%
 
 Your Next Steps

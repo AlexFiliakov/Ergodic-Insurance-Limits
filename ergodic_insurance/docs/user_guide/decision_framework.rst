@@ -151,9 +151,9 @@ Common Mistakes in Insurance Decisions
 
 **1. The Expected Value Trap**
 
-❌ **Wrong:** "Expected losses are $500K/year, so I won't pay $750K in premium"
+❌ **Wrong:** "Expected losses are \$500K/year, so I won't pay \$750K in premium"
 
-✅ **Right:** "The $750K premium increases my time-average growth from 4% to 7%"
+✅ **Right:** "The \$750K premium increases my time-average growth from 4% to 7%"
 
 .. code-block:: python
 
@@ -205,9 +205,9 @@ Common Mistakes in Insurance Decisions
 
 **4. Over-Retention**
 
-❌ **Wrong:** "We're a $50M company, we can handle $5M losses"
+❌ **Wrong:** "We're a \$50M company, we can handle \$5M losses"
 
-✅ **Right:** "A $5M loss would impair growth for years"
+✅ **Right:** "A \$5M loss would impair growth for years"
 
 .. code-block:: python
 
