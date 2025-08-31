@@ -3,9 +3,19 @@ layout: default
 title: Glossary
 ---
 
-# Glossary of Terms
+# Glossary
 
-## A
+## Quick Navigation
+- [Glossary of Terms](#glossary-of-terms)
+- [Mathematical Notation](#mathematical-notation)
+- [Numerical Terms](#numerical-terms)
+- [Acronyms](#acronyms)
+
+---
+
+## Glossary of Terms
+
+### A
 
 **Aggregate Deductible**
 An annual deductible that applies to all losses in aggregate rather than per occurrence.
@@ -19,7 +29,7 @@ High-frequency, low-severity losses that occur regularly in business operations.
 **Asset Turnover**
 The ratio of revenue to assets, measuring how efficiently a company uses its assets to generate sales.
 
-## B
+### B
 
 **Bankruptcy Probability**
 The likelihood that assets fall below zero (or a threshold) within a given time horizon. See also Ruin Probability.
@@ -33,7 +43,7 @@ Initial simulation period excluded from analysis to eliminate dependency on star
 **Burning Cost**
 Historical average losses as a percentage of exposure, used as a baseline for insurance pricing.
 
-## C
+### C
 
 **Captive Insurance**
 A wholly-owned subsidiary created to provide insurance to its parent company, allowing for risk retention with tax benefits.
@@ -62,7 +72,7 @@ In ergodic theory, when time averages approach ensemble averages as the time per
 **Correlation**
 Statistical relationship between variables, important for modeling dependent risks.
 
-## D
+### D
 
 **Deductible**
 The amount of loss retained by the insured before insurance coverage begins. See also Retention.
@@ -70,7 +80,7 @@ The amount of loss retained by the insured before insurance coverage begins. See
 **Development Triangle**
 Triangular array showing how claims develop over time, used in actuarial reserving.
 
-## E
+### E
 
 **Ensemble Average**
 The expected value calculated across all possible outcomes at a single point in time. Traditional basis for insurance pricing. Distinguished from time average in ergodic theory.
@@ -93,12 +103,12 @@ See Conditional Value at Risk (CVaR).
 **Exposure**
 The amount of potential loss faced by an insured entity, used as basis for premium calculation.
 
-## F
+### F
 
 **Frequency**
 The number of loss events occurring in a given time period, often modeled with Poisson distribution.
 
-## G
+### G
 
 **Geometric Brownian Motion (GBM)**
 A stochastic process where the logarithm follows Brownian motion with drift. Used to model asset prices and company growth with random volatility.
@@ -106,7 +116,7 @@ A stochastic process where the logarithm follows Brownian motion with drift. Use
 **Growth Rate**
 In ergodic analysis, the time-average rate of change in wealth or assets, accounting for volatility effects.
 
-## H
+### H
 
 **Hamilton-Jacobi-Bellman (HJB) Equation**
 A partial differential equation providing necessary conditions for optimality in continuous-time optimal control problems.
@@ -114,7 +124,7 @@ A partial differential equation providing necessary conditions for optimality in
 **Heavy-Tailed Distribution**
 Probability distribution with tails decreasing slower than exponential, important for catastrophic loss modeling.
 
-## I
+### I
 
 **IBNR (Incurred But Not Reported)**
 Losses that have occurred but haven't yet been reported to the insurer.
@@ -128,7 +138,7 @@ The maximum amount an insurer will pay for covered losses during the policy peri
 **Insurance Premium**
 The cost paid for insurance coverage, typically expressed as an annual amount.
 
-## L
+### L
 
 **Large Loss**
 A significant loss event that is infrequent but severe when it occurs.
@@ -151,7 +161,7 @@ The probability distribution describing the frequency and severity of losses.
 **Loss Ratio**
 Claims paid divided by premiums earned. Primary metric of insurance profitability.
 
-## M
+### M
 
 **Maximum Drawdown**
 Largest peak-to-trough decline in wealth or asset value. Measures worst-case historical scenario.
@@ -168,12 +178,12 @@ An insurance structure with multiple layers of coverage at different attachment 
 **Multiplicative Process**
 A process where changes are proportional to current values, leading to compound effects over time.
 
-## N
+### N
 
 **Non-ergodic**
 A system where time averages differ from ensemble averages, common in finance and economics.
 
-## O
+### O
 
 **Operating Margin**
 The percentage of revenue remaining after operating expenses but before interest and taxes.
@@ -187,7 +197,7 @@ Objective function being maximized or minimized. Common choices: time-average gr
 **Ornstein-Uhlenbeck Process**
 A mean-reverting stochastic process used to model variables that tend toward a long-term average.
 
-## P
+### P
 
 **Parametric Insurance**
 Insurance that pays out based on predefined parameters rather than actual losses.
@@ -213,7 +223,7 @@ Cost of insurance expressed as percentage of limit or exposure. Varies by layer 
 **Primary Insurance**
 The first layer of insurance coverage, typically handling frequent, smaller losses.
 
-## R
+### R
 
 **Rate on Line**
 Premium divided by limit, expressing the cost of coverage as a percentage.
@@ -245,7 +255,7 @@ Net income divided by shareholder equity, measuring returns to owners.
 **Ruin Probability**
 The probability that assets will fall below a critical threshold during a specified time period.
 
-## S
+### S
 
 **Self-Insured Retention (SIR)**
 The amount of loss retained by the insured before insurance responds. Similar to a deductible.
@@ -271,7 +281,7 @@ A mathematical model for random phenomena evolving over time. Examples: Brownian
 **Stress Testing**
 Evaluating system performance under extreme but plausible adverse conditions.
 
-## T
+### T
 
 **Tail Risk**
 The risk of extreme events in the tails of the probability distribution.
@@ -288,7 +298,7 @@ The time period over which analysis or optimization is performed.
 **Total Cost of Risk (TCOR)**
 The sum of retained losses, insurance premiums, and risk management costs.
 
-## U
+### U
 
 **Umbrella Coverage**
 High-level excess coverage sitting above multiple underlying policies. Provides catastrophic protection.
@@ -296,7 +306,7 @@ High-level excess coverage sitting above multiple underlying policies. Provides 
 **Utility Function**
 Mathematical representation of preferences over outcomes. Ergodic approach eliminates need for arbitrary utility.
 
-## V
+### V
 
 **Value at Risk (VaR)**
 The loss amount that will not be exceeded with a specified confidence level.
@@ -313,7 +323,7 @@ The degree of variation in a variable over time, often measured as standard devi
 **Volatility Drag**
 The reduction in long-term growth rate caused by volatility in a multiplicative process.
 
-## W
+### W
 
 **Walk-Forward Analysis**
 A validation technique using sequential time periods to test strategy robustness.
@@ -327,45 +337,206 @@ Current assets minus current liabilities, representing liquid resources for oper
 **Working Layer**
 The primary insurance layer that responds to most frequent losses.
 
+---
+
 ## Mathematical Notation
 
-**g** - Time-average growth rate
-**⟨r⟩** - Ensemble average (expected value) of returns
-**W(t)** - Wealth or asset value at time t
-**σ** - Volatility (standard deviation)
-**λ** - Rate parameter for Poisson process (claim frequency)
-**μ** - Mean or drift parameter
-**T** - Time horizon for analysis
-**α** - Confidence level (e.g., 95% for VaR)
-**L** - Insurance limit
-**D** - Deductible or retention
-**p** - Premium rate
-**ρ** - Correlation coefficient
+### Basic Variables
+- **W(t)** or **W_t** - Wealth or asset value at time t
+- **L** - Loss amount or insurance limit
+- **D** or **R** - Deductible or retention amount
+- **P** - Premium or probability
+- **S** - Severity of loss
+- **N** - Number of events or sample size
+- **T** - Time horizon for analysis
+- **X** - Random variable (general)
+- **Y** - Aggregate loss or output variable
+
+### Greek Letters
+- **α** (alpha) - Confidence level (e.g., 95% for VaR), learning rate, or scaling parameter
+- **β** (beta) - Coefficient, systematic risk, or shape parameter
+- **γ** (gamma) - Risk aversion parameter or Euler's constant
+- **δ** (delta) - Small change or difference
+- **ε** (epsilon) - Small positive value or error term
+- **θ** (theta) - Parameter vector or angle
+- **λ** (lambda) - Rate parameter for Poisson process (claim frequency), eigenvalue, or Lagrange multiplier
+- **μ** (mu) - Mean or drift parameter
+- **ν** (nu) - Degrees of freedom
+- **ρ** (rho) - Correlation coefficient
+- **σ** (sigma) - Volatility (standard deviation)
+- **τ** (tau) - Time step or stopping time
+- **φ** (phi) - Standard normal PDF or characteristic function
+- **Φ** (Phi) - Standard normal CDF
+- **ψ** (psi) - Digamma function or general function
+- **ω** (omega) - Angular frequency or outcome in sample space
+- **Ω** (Omega) - Sample space or domain
+
+### Calculus and Analysis
+- **∂/∂x** or **∂_x** - Partial derivative with respect to x
+- **∇** (nabla) - Gradient operator
+- **∇²** - Laplacian operator
+- **∆** (Delta) - Difference operator or Laplacian
+- **d/dt** - Ordinary derivative with respect to time
+- **∫** - Integral
+- **∑** - Summation
+- **∏** - Product
+- **lim** - Limit
+- **sup** - Supremum (least upper bound)
+- **inf** - Infimum (greatest lower bound)
+- **arg max** - Argument that maximizes
+- **arg min** - Argument that minimizes
+
+### Probability and Statistics
+- **E[X]** or **⟨X⟩** - Expected value (ensemble average)
+- **Var(X)** - Variance of X
+- **Cov(X,Y)** - Covariance between X and Y
+- **Corr(X,Y)** - Correlation between X and Y
+- **P(A)** or **Pr(A)** - Probability of event A
+- **P(A|B)** - Conditional probability of A given B
+- **f(x)** - Probability density function (PDF)
+- **F(x)** - Cumulative distribution function (CDF)
+- **𝟙_A** or **1_A** - Indicator function (1 if in A, 0 otherwise)
+- **∼** - Distributed as (e.g., X ∼ N(μ,σ²))
+- **⊥** - Independent
+- **a.s.** - Almost surely
+- **i.i.d.** - Independent and identically distributed
+
+### Stochastic Processes
+- **dW_t** - Brownian motion increment
+- **dX_t** - Stochastic differential
+- **B_t** - Standard Brownian motion
+- **N_t** - Counting process (e.g., Poisson)
+- **M_t** - Martingale process
+- **𝔼_t[·]** - Conditional expectation given information up to time t
+- **ℱ_t** - Filtration (information) at time t
+
+### Ergodic Theory Specific
+- **g** - Time-average growth rate
+- **g_T** - Finite-time growth rate over period T
+- **⟨r⟩** - Ensemble average of returns
+- **⟨·⟩_T** - Time average over period T
+- **ln** - Natural logarithm
+- **log** - Logarithm (base 10 or general)
+- **exp** - Exponential function
+
+### Insurance Mathematics
+- **L ∧ R** - Minimum of L and R (min(L,R))
+- **L ∨ R** - Maximum of L and R (max(L,R))
+- **(L - D)₊** - Max(L - D, 0) (excess loss)
+- **S_N** - Aggregate loss (sum of N losses)
+- **π** - Premium rate or profit
+- **ρ(X)** - Risk measure applied to X
+- **VaR_α(X)** - Value at Risk at level α
+- **CVaR_α(X)** - Conditional Value at Risk at level α
+- **ES_α(X)** - Expected Shortfall at level α
+
+### Optimization
+- **ℒ** - Lagrangian or loss function
+- **J(·)** - Objective or cost function
+- **V(·)** - Value function
+- **U(·)** - Utility function
+- **H** - Hamiltonian or Hessian matrix
+- **∇f** - Gradient of function f
+- **∇²f** - Hessian of function f
+- **x*** - Optimal value of x
+- **𝒳** - Feasible set or state space
+- **𝒰** - Control set
+- **s.t.** - Subject to (constraints)
+
+### Special Functions and Sets
+- **ℝ** - Real numbers
+- **ℝ₊** - Positive real numbers
+- **ℤ** - Integers
+- **ℕ** - Natural numbers
+- **ℂ** - Complex numbers
+- **𝔹** - Bernoulli distribution
+- **𝒩** - Normal (Gaussian) distribution
+- **𝒫** - Poisson distribution or power set
+- **𝒰** - Uniform distribution
+- **Γ** - Gamma function or distribution
+- **B** - Beta function or distribution
+
+### Matrix Notation
+- **A** - Matrix (bold or capital)
+- **A^T** - Matrix transpose
+- **A^{-1}** - Matrix inverse
+- **I** - Identity matrix
+- **tr(A)** - Trace of matrix A
+- **det(A)** - Determinant of matrix A
+- **||x||** - Norm of vector x
+- **⟨x,y⟩** - Inner product
+
+### Asymptotic Notation
+- **O(·)** - Big O notation (upper bound)
+- **o(·)** - Little o notation (strict upper bound)
+- **Θ(·)** - Theta notation (tight bound)
+- **∼** - Asymptotically equivalent
+- **→** - Converges to
+- **⇒** - Implies
+- **⟺** - If and only if
+
+---
 
 ## Numerical Terms
 
 **95% VaR** - The loss level that will not be exceeded 95% of the time
+
 **99% VaR** - The loss level that will not be exceeded 99% of the time
+
 **99.5% CVaR** - The average loss in the worst 0.5% of outcomes
+
+**1-in-100 Year Event** - Event with 1% annual probability of occurrence
+
+**1-in-200 Year Event** - Event with 0.5% annual probability of occurrence
+
+---
 
 ## Acronyms
 
 **CLT** - Central Limit Theorem
+
 **CV** - Coefficient of Variation
+
 **CVaR** - Conditional Value at Risk
+
 **EV** - Expected Value
+
 **GBM** - Geometric Brownian Motion
+
 **HJB** - Hamilton-Jacobi-Bellman
+
 **IBNR** - Incurred But Not Reported
+
 **IID** - Independent and Identically Distributed
+
+**KKT** - Karush-Kuhn-Tucker (optimality conditions)
+
+**LLN** - Law of Large Numbers
+
 **MLE** - Maximum Likelihood Estimation
+
 **OU** - Ornstein-Uhlenbeck (mean-reverting process)
+
+**PDF** - Probability Density Function
+
+**CDF** - Cumulative Distribution Function
+
+**PDE** - Partial Differential Equation
+
 **PV** - Present Value
+
 **ROA** - Return on Assets
+
 **ROE** - Return on Equity
+
+**SDE** - Stochastic Differential Equation
+
 **SIR** - Self-Insured Retention
+
 **TCOR** - Total Cost of Risk
+
 **TVaR** - Tail Value at Risk
+
 **VaR** - Value at Risk
 
 ---
