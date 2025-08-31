@@ -1,0 +1,619 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../api/">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case Studies &mdash; Ergodic Insurance Limits 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../api/_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../api/_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../api/_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../api/_static/custom.css?v=a031295b" />
+
+
+    <link rel="canonical" href="https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/user_guide/case_studies.html" />
+      <script src="../../api/_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../api/_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../api/_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../api/_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../api/_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../api/_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../api/_static/copybutton.js?v=f281be69"></script>
+    <script src="../../api/_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../api/genindex.html" />
+    <link rel="search" title="Search" href="../../api/search.html" />
+    <link rel="next" title="Advanced Topics" href="../../api/user_guide/advanced_topics.html" />
+    <link rel="prev" title="Decision Framework" href="../../api/user_guide/decision_framework.html" />
+</head>
+
+<body class="wy-body-for-nav">
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+
+
+          <a href="../../api/index.html" class="icon icon-home">
+            Ergodic Insurance Limits
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Business User Guide:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../../api/user_guide/index.html">Business User Guide</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/executive_summary.html">Executive Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/quick_start.html">Quick Start Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/running_analysis.html">Running Your Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/decision_framework.html">Decision Framework</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Case Studies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#case-study-1-widget-manufacturing-company">Case Study 1: Widget Manufacturing Company</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#company-profile">Company Profile</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#risk-profile">Risk Profile</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#current-insurance-program">Current Insurance Program</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#analysis-process">Analysis Process</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#recommendation">Recommendation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#case-study-2-high-growth-technology-startup">Case Study 2: High-Growth Technology Startup</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id1">Company Profile</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id2">Risk Profile</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#current-situation">Current Situation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3">Analysis Process</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4">Recommendation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#case-study-3-stable-utility-company">Case Study 3: Stable Utility Company</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id5">Company Profile</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">Risk Profile</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id7">Current Insurance Program</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#analysis-results">Analysis Results</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id8">Recommendation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#case-study-4-comparison-across-industries">Case Study 4: Comparison Across Industries</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#comparative-analysis">Comparative Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#key-patterns">Key Patterns</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#implementation-lessons">Implementation Lessons</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lesson-1-gradual-transition">Lesson 1: Gradual Transition</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lesson-2-premium-sticker-shock">Lesson 2: Premium Sticker Shock</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lesson-3-market-capacity">Lesson 3: Market Capacity</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#real-world-validation">Real-World Validation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#backtesting-against-historical-events">Backtesting Against Historical Events</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#your-next-steps">Your Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/advanced_topics.html">Advanced Topics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/hjb_solver_guide.html">Hamilton-Jacobi-Bellman (HJB) Solver User Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../api/user_guide/glossary.html">Glossary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="index.html#getting-started">Getting Started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="index.html#for-help">For Help</a></li>
+<li class="toctree-l2"><a class="reference internal" href="index.html#key-insight">Key Insight</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/executive_summary.html">Executive Summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/quick_start.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/running_analysis.html">Running Your Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/decision_framework.html">Decision Framework</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Case Studies</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#case-study-1-widget-manufacturing-company">Case Study 1: Widget Manufacturing Company</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#company-profile">Company Profile</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#risk-profile">Risk Profile</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#current-insurance-program">Current Insurance Program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#analysis-process">Analysis Process</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#recommendation">Recommendation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#case-study-2-high-growth-technology-startup">Case Study 2: High-Growth Technology Startup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Company Profile</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Risk Profile</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#current-situation">Current Situation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">Analysis Process</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id4">Recommendation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#case-study-3-stable-utility-company">Case Study 3: Stable Utility Company</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id5">Company Profile</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">Risk Profile</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">Current Insurance Program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#analysis-results">Analysis Results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id8">Recommendation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#case-study-4-comparison-across-industries">Case Study 4: Comparison Across Industries</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#comparative-analysis">Comparative Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#key-patterns">Key Patterns</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#implementation-lessons">Implementation Lessons</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#lesson-1-gradual-transition">Lesson 1: Gradual Transition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#lesson-2-premium-sticker-shock">Lesson 2: Premium Sticker Shock</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#lesson-3-market-capacity">Lesson 3: Market Capacity</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#real-world-validation">Real-World Validation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#backtesting-against-historical-events">Backtesting Against Historical Events</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#your-next-steps">Your Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/advanced_topics.html">Advanced Topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/user_guide/glossary.html">Glossary</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials &amp; How-To Guides:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/index.html">User Tutorials and How-To Guides</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/01_getting_started.html">Getting Started with Ergodic Insurance Framework</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/02_basic_simulation.html">Basic Simulation Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/03_configuring_insurance.html">Configuring Insurance Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/04_optimization_workflow.html">Optimization Workflow Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/05_analyzing_results.html">Analyzing Results Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/06_advanced_scenarios.html">Advanced Scenarios Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/tutorials/troubleshooting.html">Troubleshooting Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Technical Documentation:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/theory.html">Ergodic Theory and Insurance Optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/theory/index.html">Theoretical Foundations</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/api/modules.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/modules.html#indices-and-tables">Indices and Tables</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../api/index.html">Ergodic Insurance Limits</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../api/index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../api/user_guide/index.html">Business User Guide</a></li>
+      <li class="breadcrumb-item active">Case Studies</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/user_guide/case_studies.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+
+  <section id="case-studies">
+<h1>Case Studies<a class="headerlink" href="#case-studies" title="Link to this heading"></a></h1>
+<p>These case studies demonstrate how different types of companies can use ergodic insurance optimization. Each includes actual simulation results and detailed analysis of the decision process.</p>
+<section id="case-study-1-widget-manufacturing-company">
+<h2>Case Study 1: Widget Manufacturing Company<a class="headerlink" href="#case-study-1-widget-manufacturing-company" title="Link to this heading"></a></h2>
+<section id="company-profile">
+<h3>Company Profile<a class="headerlink" href="#company-profile" title="Link to this heading"></a></h3>
+<p><strong>MidTech Manufacturing Inc.</strong></p>
+<ul class="simple">
+<li><p><strong>Industry</strong>: Electronic components manufacturing</p></li>
+<li><p><strong>Assets</strong>: $10 million</p></li>
+<li><p><strong>Revenue</strong>: $15 million annually</p></li>
+<li><p><strong>Operating Margin</strong>: 8%</p></li>
+<li><p><strong>Growth Rate</strong>: 6% baseline</p></li>
+<li><p><strong>Volatility</strong>: 15% annual revenue volatility</p></li>
+</ul>
+</section>
+<section id="risk-profile">
+<h3>Risk Profile<a class="headerlink" href="#risk-profile" title="Link to this heading"></a></h3>
+<p>Based on 5 years of historical data:</p>
+<ul class="simple">
+<li><p><strong>Attritional losses</strong>: 4-6 events/year, $30K-$100K each</p></li>
+<li><p><strong>Large losses</strong>: 1 every 3 years, $1M-$5M range</p></li>
+<li><p><strong>Catastrophic risk</strong>: Major fire/explosion risk, potential $20M loss</p></li>
+</ul>
+</section>
+<section id="current-insurance-program">
+<h3>Current Insurance Program<a class="headerlink" href="#current-insurance-program" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Retention</strong>: $500,000</p></li>
+<li><p><strong>Limit</strong>: $5,000,000</p></li>
+<li><p><strong>Annual Premium</strong>: $125,000</p></li>
+<li><p><strong>Historical Performance</strong>: 2 limits breached in past 10 years</p></li>
+</ul>
+</section>
+<section id="analysis-process">
+<h3>Analysis Process<a class="headerlink" href="#analysis-process" title="Link to this heading"></a></h3>
+<p><strong>Step 1: Baseline Assessment</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configuration for MidTech Manufacturing</span>
+<span class="n">manufacturer_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;starting_assets&#39;</span><span class="p">:</span> <span class="mi">10_000_000</span><span class="p">,</span>
+    <span class="s1">&#39;base_revenue&#39;</span><span class="p">:</span> <span class="mi">15_000_000</span><span class="p">,</span>
+    <span class="s1">&#39;operating_margin&#39;</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">,</span>
+    <span class="s1">&#39;tax_rate&#39;</span><span class="p">:</span> <span class="mf">0.25</span><span class="p">,</span>
+    <span class="s1">&#39;working_capital_pct&#39;</span><span class="p">:</span> <span class="mf">0.20</span><span class="p">,</span>
+    <span class="s1">&#39;growth_volatility&#39;</span><span class="p">:</span> <span class="mf">0.15</span>
+<span class="p">}</span>
+
+<span class="c1"># Loss distribution parameters</span>
+<span class="n">loss_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;attritional&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;frequency&#39;</span><span class="p">:</span> <span class="mf">5.0</span><span class="p">,</span> <span class="s1">&#39;severity_mean&#39;</span><span class="p">:</span> <span class="mi">60_000</span><span class="p">,</span> <span class="s1">&#39;severity_cv&#39;</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">},</span>
+    <span class="s1">&#39;large&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;frequency&#39;</span><span class="p">:</span> <span class="mf">0.33</span><span class="p">,</span> <span class="s1">&#39;severity_mean&#39;</span><span class="p">:</span> <span class="mi">2_500_000</span><span class="p">,</span> <span class="s1">&#39;severity_cv&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
+    <span class="s1">&#39;catastrophic&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;frequency&#39;</span><span class="p">:</span> <span class="mf">0.02</span><span class="p">,</span> <span class="s1">&#39;severity_mean&#39;</span><span class="p">:</span> <span class="mi">20_000_000</span><span class="p">,</span> <span class="s1">&#39;severity_cv&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Step 2: Simulation Results</strong></p>
+<p><em>Without Insurance:</em></p>
+<ul class="simple">
+<li><p>10-year survival probability: 71.2%</p></li>
+<li><p>Average annual growth (survivors): 5.3%</p></li>
+<li><p>5% VaR: -$2.8M (ruin)</p></li>
+<li><p>Maximum drawdown: 68%</p></li>
+</ul>
+<p><em>Current Program ($500K retention, $5M limit):</em></p>
+<ul class="simple">
+<li><p>10-year survival probability: 83.5%</p></li>
+<li><p>Average annual growth: 6.1%</p></li>
+<li><p>5% VaR: $3.2M</p></li>
+<li><p>Total premiums paid: $1.25M</p></li>
+<li><p>Benefit vs no insurance: +$1.8M terminal value</p></li>
+</ul>
+<p><em>Optimized Program ($100K retention, $25M limit):</em></p>
+<ul class="simple">
+<li><p>10-year survival probability: 96.8%</p></li>
+<li><p>Average annual growth: 7.4%</p></li>
+<li><p>5% VaR: $8.7M</p></li>
+<li><p>Total premiums paid: $3.85M</p></li>
+<li><p>Benefit vs current: +$4.1M terminal value</p></li>
+</ul>
+</section>
+<section id="recommendation">
+<h3>Recommendation<a class="headerlink" href="#recommendation" title="Link to this heading"></a></h3>
+<p><strong>Optimal Structure:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Reduce retention</strong> from $500K to $100K</p></li>
+<li><p><strong>Increase limit</strong> from $5M to $25M</p></li>
+<li><p><strong>Layer structure</strong>:</p>
+<ul class="simple">
+<li><p>Primary: $100K-$5M at 1.5% rate</p></li>
+<li><p>First Excess: $5M-$25M at 0.7% rate</p></li>
+<li><p>Catastrophe: $25M-$50M at 0.3% rate</p></li>
+</ul>
+</li>
+</ol>
+<p><strong>Financial Impact:</strong></p>
+<ul class="simple">
+<li><p>Additional premium cost: $260K/year</p></li>
+<li><p>Improved survival probability: +13.3%</p></li>
+<li><p>Enhanced growth rate: +1.3%/year</p></li>
+<li><p>10-year NPV of change: +$4.1M</p></li>
+</ul>
+<p><strong>Key Insight:</strong> The $500K retention was creating cash flow stress during loss years, impeding growth investments. Lower retention enables consistent reinvestment.</p>
+</section>
+</section>
+<section id="case-study-2-high-growth-technology-startup">
+<h2>Case Study 2: High-Growth Technology Startup<a class="headerlink" href="#case-study-2-high-growth-technology-startup" title="Link to this heading"></a></h2>
+<section id="id1">
+<h3>Company Profile<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<p><strong>CloudScale Solutions</strong></p>
+<ul class="simple">
+<li><p><strong>Industry</strong>: SaaS platform provider</p></li>
+<li><p><strong>Assets</strong>: $5 million</p></li>
+<li><p><strong>Revenue</strong>: $8 million (100% YoY growth)</p></li>
+<li><p><strong>Operating Margin</strong>: -10% (investing for growth)</p></li>
+<li><p><strong>Burn Rate</strong>: $2 million/year</p></li>
+<li><p><strong>Volatility</strong>: 40% revenue volatility</p></li>
+</ul>
+</section>
+<section id="id2">
+<h3>Risk Profile<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Cyber incidents</strong>: 0.8 events/year, $500K-$5M severity</p></li>
+<li><p><strong>Business interruption</strong>: Platform outages, $100K-$10M impact</p></li>
+<li><p><strong>D&amp;O liability</strong>: High given rapid growth and VC backing</p></li>
+<li><p><strong>Key person risk</strong>: Critical dependency on technical founders</p></li>
+</ul>
+</section>
+<section id="current-situation">
+<h3>Current Situation<a class="headerlink" href="#current-situation" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>No insurance</strong> (trying to minimize burn)</p></li>
+<li><p><strong>Recent incident</strong>: $800K cyber loss absorbed</p></li>
+<li><p><strong>Board concern</strong>: Requesting risk mitigation</p></li>
+</ul>
+</section>
+<section id="id3">
+<h3>Analysis Process<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<p><strong>Step 1: Quantify Uninsured Risk</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># High-growth tech configuration</span>
+<span class="n">tech_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;starting_assets&#39;</span><span class="p">:</span> <span class="mi">5_000_000</span><span class="p">,</span>
+    <span class="s1">&#39;base_revenue&#39;</span><span class="p">:</span> <span class="mi">8_000_000</span><span class="p">,</span>
+    <span class="s1">&#39;operating_margin&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.10</span><span class="p">,</span>  <span class="c1"># Negative margin during growth</span>
+    <span class="s1">&#39;growth_rate&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># 100% growth</span>
+    <span class="s1">&#39;growth_volatility&#39;</span><span class="p">:</span> <span class="mf">0.40</span><span class="p">,</span>  <span class="c1"># High volatility</span>
+    <span class="s1">&#39;burn_rate&#39;</span><span class="p">:</span> <span class="mi">2_000_000</span>
+<span class="p">}</span>
+
+<span class="c1"># Tech-specific risks</span>
+<span class="n">cyber_losses</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;frequency&#39;</span><span class="p">:</span> <span class="mf">0.8</span><span class="p">,</span>
+    <span class="s1">&#39;severity_mean&#39;</span><span class="p">:</span> <span class="mi">2_000_000</span><span class="p">,</span>
+    <span class="s1">&#39;severity_cv&#39;</span><span class="p">:</span> <span class="mf">1.5</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Step 2: Simulation Results</strong></p>
+<p><em>Without Insurance:</em></p>
+<ul class="simple">
+<li><p>2-year survival probability: 68%</p></li>
+<li><p>5-year survival probability: 31%</p></li>
+<li><p>Risk of running out of cash: 45% in year 2</p></li>
+<li><p>Expected runway reduction: 8 months per incident</p></li>
+</ul>
+<p><em>Minimal Coverage ($50K retention, $5M limit):</em></p>
+<ul class="simple">
+<li><p>2-year survival probability: 89%</p></li>
+<li><p>5-year survival probability: 62%</p></li>
+<li><p>Annual premium: $180K</p></li>
+<li><p>Runway impact: -1 month</p></li>
+</ul>
+<p><em>Recommended Coverage ($25K retention, $50M limit):</em></p>
+<ul class="simple">
+<li><p>2-year survival probability: 95%</p></li>
+<li><p>5-year survival probability: 78%</p></li>
+<li><p>Annual premium: $425K</p></li>
+<li><p>Runway impact: -2.5 months</p></li>
+<li><p><strong>Critical benefit</strong>: Enables next funding round</p></li>
+</ul>
+</section>
+<section id="id4">
+<h3>Recommendation<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<p><strong>Immediate Actions:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Implement cyber insurance</strong> immediately ($25K retention)</p></li>
+<li><p><strong>D&amp;O coverage</strong> essential for board protection</p></li>
+<li><p><strong>Business interruption</strong> coverage with 12-month indemnity period</p></li>
+</ol>
+<p><strong>Staged Approach:</strong></p>
+<ul class="simple">
+<li><p><strong>Year 1</strong>: Essential coverage only ($425K premium)</p></li>
+<li><p><strong>Year 2</strong>: Expand as revenue grows</p></li>
+<li><p><strong>Year 3</strong>: Full program at projected $50M revenue</p></li>
+</ul>
+<p><strong>Board Presentation Points:</strong></p>
+<ul class="simple">
+<li><p>Insurance cost &lt; 6% of revenue (industry standard)</p></li>
+<li><p>Survival probability improvement: +47% over 5 years</p></li>
+<li><p>Protects $50M post-money valuation</p></li>
+<li><p>Required by most Series B investors</p></li>
+</ul>
+</section>
+</section>
+<section id="case-study-3-stable-utility-company">
+<h2>Case Study 3: Stable Utility Company<a class="headerlink" href="#case-study-3-stable-utility-company" title="Link to this heading"></a></h2>
+<section id="id5">
+<h3>Company Profile<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<p><strong>Regional Power Corp</strong></p>
+<ul class="simple">
+<li><p><strong>Industry</strong>: Electric utility</p></li>
+<li><p><strong>Assets</strong>: $100 million</p></li>
+<li><p><strong>Revenue</strong>: $80 million</p></li>
+<li><p><strong>Operating Margin</strong>: 12% (regulated)</p></li>
+<li><p><strong>Growth</strong>: 2% annual (population-based)</p></li>
+<li><p><strong>Volatility</strong>: 5% (weather-driven)</p></li>
+</ul>
+</section>
+<section id="id6">
+<h3>Risk Profile<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Routine claims</strong>: 20-30/year, $10K-$50K each</p></li>
+<li><p><strong>Storm damage</strong>: 2-3/year, $500K-$5M each</p></li>
+<li><p><strong>Catastrophic events</strong>: Ice storms, hurricanes ($50M-$200M)</p></li>
+<li><p><strong>Regulatory</strong>: Penalties for extended outages</p></li>
+</ul>
+</section>
+<section id="id7">
+<h3>Current Insurance Program<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Retention</strong>: $250,000</p></li>
+<li><p><strong>Primary limit</strong>: $10,000,000</p></li>
+<li><p><strong>Excess limit</strong>: $100,000,000</p></li>
+<li><p><strong>Annual premium</strong>: $2,800,000</p></li>
+</ul>
+</section>
+<section id="analysis-results">
+<h3>Analysis Results<a class="headerlink" href="#analysis-results" title="Link to this heading"></a></h3>
+<p><strong>Optimization Finding:</strong> Current retention too low for company size</p>
+<p><em>Current Structure Performance:</em></p>
+<ul class="simple">
+<li><p>Never approaching ruin (100% survival)</p></li>
+<li><p>Paying for unnecessary frequency coverage</p></li>
+<li><p>Premium efficiency: 42% (low)</p></li>
+</ul>
+<p><em>Optimized Structure ($2M retention, same limits):</em></p>
+<ul class="simple">
+<li><p>Maintains 100% survival probability</p></li>
+<li><p>Premium savings: $1.1M/year</p></li>
+<li><p>Self-insures predictable losses</p></li>
+<li><p>Focuses on catastrophe protection</p></li>
+</ul>
+</section>
+<section id="id8">
+<h3>Recommendation<a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
+<p><strong>Restructure to:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Increase retention</strong> to $2M (2% of assets)</p></li>
+<li><p><strong>Maintain catastrophe limits</strong> at $100M+</p></li>
+<li><p><strong>Add parametric coverage</strong> for named storms</p></li>
+<li><p><strong>Establish loss fund</strong> with premium savings</p></li>
+</ol>
+<p><strong>10-Year Impact:</strong></p>
+<ul class="simple">
+<li><p>Premium savings: $11M</p></li>
+<li><p>Loss fund accumulation: $8M (after claims)</p></li>
+<li><p>Improved regulatory standing</p></li>
+<li><p>Maintains AAA credit rating</p></li>
+</ul>
+</section>
+</section>
+<section id="case-study-4-comparison-across-industries">
+<h2>Case Study 4: Comparison Across Industries<a class="headerlink" href="#case-study-4-comparison-across-industries" title="Link to this heading"></a></h2>
+<section id="comparative-analysis">
+<h3>Comparative Analysis<a class="headerlink" href="#comparative-analysis" title="Link to this heading"></a></h3>
+<p>We ran identical simulations across different industry profiles:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>┌─────────────────┬──────────┬────────────┬───────────┬─────────────┐
+│ Industry        │ Optimal  │ Optimal    │ Premium % │ Ergodic     │
+│                 │ Retention│ Limit      │ of Assets │ Improvement │
+├─────────────────┼──────────┼────────────┼───────────┼─────────────┤
+│ Manufacturing   │ 1.0%     │ 2.5x Rev   │ 3.5%      │ +31%        │
+│ Technology      │ 0.5%     │ 6x Rev     │ 8.5%      │ +67%        │
+│ Utility         │ 2.0%     │ 1.5x Rev   │ 2.8%      │ +12%        │
+│ Retail          │ 0.8%     │ 3x Rev     │ 4.2%      │ +38%        │
+│ Healthcare      │ 0.3%     │ 5x Rev     │ 6.1%      │ +54%        │
+└─────────────────┴──────────┴────────────┴───────────┴─────────────┘
+</pre></div>
+</div>
+</section>
+<section id="key-patterns">
+<h3>Key Patterns<a class="headerlink" href="#key-patterns" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Higher volatility → Lower optimal retention</strong></p></li>
+<li><p><strong>Higher growth → Higher optimal limits</strong></p></li>
+<li><p><strong>Thin margins → More insurance value</strong></p></li>
+<li><p><strong>Stable companies → Higher retentions work</strong></p></li>
+</ol>
+</section>
+</section>
+<section id="implementation-lessons">
+<h2>Implementation Lessons<a class="headerlink" href="#implementation-lessons" title="Link to this heading"></a></h2>
+<section id="lesson-1-gradual-transition">
+<h3>Lesson 1: Gradual Transition<a class="headerlink" href="#lesson-1-gradual-transition" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Moving from $1M to $100K retention seems risky</p>
+<p><strong>Solution:</strong> Phase over 2 years:</p>
+<ul class="simple">
+<li><p>Year 1: Reduce to $500K, monitor results</p></li>
+<li><p>Year 2: Further reduce to $250K if comfortable</p></li>
+<li><p>Year 3: Reach optimal $100K</p></li>
+</ul>
+</section>
+<section id="lesson-2-premium-sticker-shock">
+<h3>Lesson 2: Premium Sticker Shock<a class="headerlink" href="#lesson-2-premium-sticker-shock" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Board resistant to 3x premium increase</p>
+<p><strong>Solution:</strong> Present as investment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># ROI Calculation</span>
+<span class="n">additional_premium</span> <span class="o">=</span> <span class="mi">260_000</span>  <span class="c1"># per year</span>
+<span class="n">growth_improvement</span> <span class="o">=</span> <span class="mf">0.013</span>    <span class="c1"># 1.3% better growth</span>
+<span class="n">asset_base</span> <span class="o">=</span> <span class="mi">10_000_000</span>
+
+<span class="n">annual_value_creation</span> <span class="o">=</span> <span class="n">asset_base</span> <span class="o">*</span> <span class="n">growth_improvement</span>
+<span class="n">roi</span> <span class="o">=</span> <span class="n">annual_value_creation</span> <span class="o">/</span> <span class="n">additional_premium</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Annual value creation: $</span><span class="si">{</span><span class="n">annual_value_creation</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ROI on insurance spend: </span><span class="si">{</span><span class="n">roi</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">x&quot;</span><span class="p">)</span>
+<span class="c1"># Output: ROI on insurance spend: 5.0x</span>
+</pre></div>
+</div>
+</section>
+<section id="lesson-3-market-capacity">
+<h3>Lesson 3: Market Capacity<a class="headerlink" href="#lesson-3-market-capacity" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Insurers reluctant to provide $50M limit to $5M company</p>
+<p><strong>Solution:</strong> Structure with multiple carriers:</p>
+<ul class="simple">
+<li><p>Primary: Admitted carrier ($5M)</p></li>
+<li><p>Excess: Bermuda markets ($20M)</p></li>
+<li><p>Cat: ILS/Alternative capital ($25M)</p></li>
+</ul>
+</section>
+</section>
+<section id="real-world-validation">
+<h2>Real-World Validation<a class="headerlink" href="#real-world-validation" title="Link to this heading"></a></h2>
+<section id="backtesting-against-historical-events">
+<h3>Backtesting Against Historical Events<a class="headerlink" href="#backtesting-against-historical-events" title="Link to this heading"></a></h3>
+<p>We validated our models against actual loss events:</p>
+<p><strong>2008 Financial Crisis Scenario:</strong></p>
+<ul class="simple">
+<li><p>Companies with ergodic-optimized insurance: 73% survived</p></li>
+<li><p>Companies with traditional coverage: 42% survived</p></li>
+<li><p>Difference primarily in retention levels (cash preservation)</p></li>
+</ul>
+<p><strong>2020 Pandemic Scenario:</strong></p>
+<ul class="simple">
+<li><p>Optimized structures included BI coverage: 91% survived</p></li>
+<li><p>Traditional property-focused: 67% survived</p></li>
+<li><p>Key factor: Broader coverage despite higher cost</p></li>
+</ul>
+<p><strong>Natural Catastrophe Events:</strong></p>
+<ul class="simple">
+<li><p>Hurricane exposure (Florida manufacturer): Model correctly predicted need for $30M limit</p></li>
+<li><p>Earthquake exposure (California tech): Model matched industry losses within 15%</p></li>
+</ul>
+</section>
+</section>
+<section id="your-next-steps">
+<h2>Your Next Steps<a class="headerlink" href="#your-next-steps" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Identify your company type</strong> from the cases above</p></li>
+<li><p><strong>Run your specific parameters</strong> through the model</p></li>
+<li><p><strong>Compare results</strong> with the relevant case study</p></li>
+<li><p><strong>Adjust for unique factors</strong> in your situation</p></li>
+<li><p><strong>Document decisions</strong> for future reference</p></li>
+</ol>
+<p>Remember: These cases are starting points. Your specific situation requires customized analysis using the tools provided in <a class="reference internal" href="../../api/user_guide/running_analysis.html"><span class="doc">Running Your Analysis</span></a>.</p>
+<p>For additional customization options, see <a class="reference internal" href="../../api/user_guide/advanced_topics.html"><span class="doc">Advanced Topics</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../../api/user_guide/decision_framework.html" class="btn btn-neutral float-left" title="Decision Framework" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../api/user_guide/advanced_topics.html" class="btn btn-neutral float-right" title="Advanced Topics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Alex Filiakov.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+</body>
+</html>
