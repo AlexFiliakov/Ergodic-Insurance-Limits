@@ -7,16 +7,28 @@ title: Glossary
 
 ## A
 
+**Aggregate Deductible**
+An annual deductible that applies to all losses in aggregate rather than per occurrence.
+
 **Attachment Point**
-The dollar amount at which an insurance layer begins to pay claims. Also called the retention or deductible for that layer.
+The dollar amount at which an insurance layer begins to pay claims. Also called the retention or deductible for that layer. For example, a layer with $5M attachment covers losses above $5M.
 
 **Attritional Losses**
-High-frequency, low-severity losses that occur regularly in business operations. Typically handled by primary insurance layers.
+High-frequency, low-severity losses that occur regularly in business operations. Typically handled by primary insurance layers and modeled with Poisson frequency.
 
 **Asset Turnover**
 The ratio of revenue to assets, measuring how efficiently a company uses its assets to generate sales.
 
 ## B
+
+**Bankruptcy Probability**
+The likelihood that assets fall below zero (or a threshold) within a given time horizon. See also Ruin Probability.
+
+**Black Swan Event**
+Extremely rare but highly impactful event that is difficult to predict using standard models.
+
+**Burn-in Period**
+Initial simulation period excluded from analysis to eliminate dependency on starting conditions.
 
 **Burning Cost**
 Historical average losses as a percentage of exposure, used as a baseline for insurance pricing.
@@ -30,32 +42,44 @@ A wholly-owned subsidiary created to provide insurance to its parent company, al
 An extremely large, rare loss event that could threaten company solvency without insurance.
 
 **Claim Development**
-The pattern by which insurance claims are reported and paid over time after a loss event occurs.
+The pattern by which insurance claims are reported and paid over time after a loss event occurs. Modeled using development triangles.
+
+**Coefficient of Variation (CV)**
+Ratio of standard deviation to mean, measuring relative variability.
 
 **Coherent Risk Measure**
 A risk measure satisfying mathematical properties including monotonicity, sub-additivity, homogeneity, and translation invariance.
 
+**Combined Ratio**
+Sum of loss ratio and expense ratio. Values below 100% indicate underwriting profit.
+
 **Conditional Value at Risk (CVaR)**
-The expected loss given that the loss exceeds the Value at Risk threshold. Also called Expected Shortfall.
+The expected loss given that the loss exceeds the Value at Risk threshold. Also called Expected Shortfall or Tail VaR.
 
 **Convergence**
-In ergodic theory, when time averages approach ensemble averages as the time period extends to infinity.
+In ergodic theory, when time averages approach ensemble averages as the time period extends to infinity. Also refers to stabilization of simulation results.
+
+**Correlation**
+Statistical relationship between variables, important for modeling dependent risks.
 
 ## D
 
 **Deductible**
 The amount of loss retained by the insured before insurance coverage begins. See also Retention.
 
+**Development Triangle**
+Triangular array showing how claims develop over time, used in actuarial reserving.
+
 ## E
 
 **Ensemble Average**
-The expected value calculated across all possible outcomes at a single point in time. Traditional basis for insurance pricing.
+The expected value calculated across all possible outcomes at a single point in time. Traditional basis for insurance pricing. Distinguished from time average in ergodic theory.
 
 **Ergodic**
 A system property where time averages equal ensemble averages in the limit. Most financial systems are non-ergodic.
 
 **Ergodic Theory**
-Mathematical framework studying the long-term average behavior of systems evolving over time.
+Mathematical framework studying the long-term average behavior of systems evolving over time, distinguishing between time and ensemble averages.
 
 **Excess Insurance**
 Insurance coverage that applies above a specified attachment point, typically after primary insurance is exhausted.
@@ -66,6 +90,9 @@ The probability-weighted average of all possible loss amounts. The traditional b
 **Expected Shortfall**
 See Conditional Value at Risk (CVaR).
 
+**Exposure**
+The amount of potential loss faced by an insured entity, used as basis for premium calculation.
+
 ## F
 
 **Frequency**
@@ -74,7 +101,7 @@ The number of loss events occurring in a given time period, often modeled with P
 ## G
 
 **Geometric Brownian Motion (GBM)**
-A stochastic process used to model asset prices and company growth with random volatility.
+A stochastic process where the logarithm follows Brownian motion with drift. Used to model asset prices and company growth with random volatility.
 
 **Growth Rate**
 In ergodic analysis, the time-average rate of change in wealth or assets, accounting for volatility effects.
@@ -83,6 +110,9 @@ In ergodic analysis, the time-average rate of change in wealth or assets, accoun
 
 **Hamilton-Jacobi-Bellman (HJB) Equation**
 A partial differential equation providing necessary conditions for optimality in continuous-time optimal control problems.
+
+**Heavy-Tailed Distribution**
+Probability distribution with tails decreasing slower than exponential, important for catastrophic loss modeling.
 
 ## I
 
@@ -109,13 +139,22 @@ See Insurance Layer.
 **Limit**
 See Insurance Limit.
 
+**Loading Factor**
+The multiplier applied to expected losses to determine premium, covering expenses and profit.
+
 **Lognormal Distribution**
 A probability distribution where the logarithm is normally distributed, commonly used for modeling loss severities.
 
 **Loss Distribution**
 The probability distribution describing the frequency and severity of losses.
 
+**Loss Ratio**
+Claims paid divided by premiums earned. Primary metric of insurance profitability.
+
 ## M
+
+**Maximum Drawdown**
+Largest peak-to-trough decline in wealth or asset value. Measures worst-case historical scenario.
 
 **Mean Reversion**
 The tendency of a variable to return to its long-term average over time.
@@ -142,16 +181,22 @@ The percentage of revenue remaining after operating expenses but before interest
 **Optimal Control**
 Mathematical optimization method for finding the best control strategy over time.
 
+**Optimization Metric**
+Objective function being maximized or minimized. Common choices: time-average growth, Sharpe ratio, utility.
+
 **Ornstein-Uhlenbeck Process**
 A mean-reverting stochastic process used to model variables that tend toward a long-term average.
 
 ## P
 
+**Parametric Insurance**
+Insurance that pays out based on predefined parameters rather than actual losses.
+
 **Pareto Distribution**
 A heavy-tailed distribution often used for modeling large losses.
 
 **Pareto Frontier**
-The set of optimal solutions when optimizing multiple objectives simultaneously.
+The set of optimal solutions when optimizing multiple objectives simultaneously. No solution dominates another on all objectives.
 
 **Path Dependence**
 When outcomes depend on the specific sequence of events, not just the final state.
@@ -162,19 +207,31 @@ A stochastic process modeling the occurrence of random events over time, used fo
 **Premium Loading**
 The amount by which insurance premium exceeds expected losses to cover expenses and profit.
 
+**Premium Rate**
+Cost of insurance expressed as percentage of limit or exposure. Varies by layer and market conditions.
+
 **Primary Insurance**
 The first layer of insurance coverage, typically handling frequent, smaller losses.
 
 ## R
 
+**Rate on Line**
+Premium divided by limit, expressing the cost of coverage as a percentage.
+
 **Reinsurance**
 Insurance purchased by insurance companies to transfer risk.
+
+**Reinstatement**
+Restoration of insurance limit after it has been partially or fully exhausted by claims.
 
 **Retention**
 The amount of risk kept by the insured. Also called deductible or self-insured retention (SIR).
 
 **Return Period**
 The average time between occurrences of a loss exceeding a given size.
+
+**Risk-Adjusted Return**
+Return metric that accounts for volatility or downside risk. Examples: Sharpe ratio, Sortino ratio.
 
 **Risk Metrics**
 Quantitative measures of risk exposure, including VaR, CVaR, standard deviation, etc.
@@ -194,13 +251,22 @@ The probability that assets will fall below a critical threshold during a specif
 The amount of loss retained by the insured before insurance responds. Similar to a deductible.
 
 **Severity**
-The dollar amount of an individual loss event.
+The dollar amount of an individual loss event. Often modeled with lognormal or Pareto distributions.
+
+**Sharpe Ratio**
+Excess return per unit of volatility. Adapted for ergodic context as growth rate divided by growth volatility. Measures risk-adjusted performance.
 
 **Simulation**
 Computational modeling of system behavior over time using mathematical models.
 
+**Solvency Ratio**
+Available capital divided by required capital. Regulatory measure of financial strength.
+
+**Sortino Ratio**
+Similar to Sharpe ratio but only considers downside volatility.
+
 **Stochastic Process**
-A mathematical model for random phenomena evolving over time.
+A mathematical model for random phenomena evolving over time. Examples: Brownian motion, Poisson process, jump diffusion.
 
 **Stress Testing**
 Evaluating system performance under extreme but plausible adverse conditions.
@@ -209,6 +275,9 @@ Evaluating system performance under extreme but plausible adverse conditions.
 
 **Tail Risk**
 The risk of extreme events in the tails of the probability distribution.
+
+**Tail Value at Risk (TVaR)**
+Another term for Conditional Value at Risk (CVaR).
 
 **Time Average**
 The average value experienced by a single entity over time, central to ergodic theory.
@@ -219,6 +288,14 @@ The time period over which analysis or optimization is performed.
 **Total Cost of Risk (TCOR)**
 The sum of retained losses, insurance premiums, and risk management costs.
 
+## U
+
+**Umbrella Coverage**
+High-level excess coverage sitting above multiple underlying policies. Provides catastrophic protection.
+
+**Utility Function**
+Mathematical representation of preferences over outcomes. Ergodic approach eliminates need for arbitrary utility.
+
 ## V
 
 **Value at Risk (VaR)**
@@ -226,6 +303,9 @@ The loss amount that will not be exceeded with a specified confidence level.
 
 **Variance**
 A measure of variability or dispersion in outcomes.
+
+**Variance Reduction**
+Techniques to reduce statistical variance in Monte Carlo simulations. Examples: antithetic variates, control variates.
 
 **Volatility**
 The degree of variation in a variable over time, often measured as standard deviation.
@@ -238,30 +318,54 @@ The reduction in long-term growth rate caused by volatility in a multiplicative 
 **Walk-Forward Analysis**
 A validation technique using sequential time periods to test strategy robustness.
 
+**Widget Manufacturer**
+Archetypal business model used throughout the framework. Represents typical manufacturing operations.
+
 **Working Capital**
 Current assets minus current liabilities, representing liquid resources for operations.
 
 **Working Layer**
 The primary insurance layer that responds to most frequent losses.
 
+## Mathematical Notation
+
+**g** - Time-average growth rate
+**⟨r⟩** - Ensemble average (expected value) of returns
+**W(t)** - Wealth or asset value at time t
+**σ** - Volatility (standard deviation)
+**λ** - Rate parameter for Poisson process (claim frequency)
+**μ** - Mean or drift parameter
+**T** - Time horizon for analysis
+**α** - Confidence level (e.g., 95% for VaR)
+**L** - Insurance limit
+**D** - Deductible or retention
+**p** - Premium rate
+**ρ** - Correlation coefficient
+
 ## Numerical Terms
 
-**95% VaR**
-The loss level that will not be exceeded 95% of the time.
-
-**99.5% CVaR**
-The average loss in the worst 0.5% of outcomes.
+**95% VaR** - The loss level that will not be exceeded 95% of the time
+**99% VaR** - The loss level that will not be exceeded 99% of the time
+**99.5% CVaR** - The average loss in the worst 0.5% of outcomes
 
 ## Acronyms
 
+**CLT** - Central Limit Theorem
+**CV** - Coefficient of Variation
 **CVaR** - Conditional Value at Risk
+**EV** - Expected Value
 **GBM** - Geometric Brownian Motion
 **HJB** - Hamilton-Jacobi-Bellman
 **IBNR** - Incurred But Not Reported
+**IID** - Independent and Identically Distributed
+**MLE** - Maximum Likelihood Estimation
+**OU** - Ornstein-Uhlenbeck (mean-reverting process)
+**PV** - Present Value
 **ROA** - Return on Assets
 **ROE** - Return on Equity
 **SIR** - Self-Insured Retention
 **TCOR** - Total Cost of Risk
+**TVaR** - Tail Value at Risk
 **VaR** - Value at Risk
 
 ---
