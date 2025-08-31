@@ -82,6 +82,10 @@ html_theme_options = {
     "style_external_links": False,
 }
 
+# Ensure HTML files use .html extension for GitHub Pages compatibility
+html_file_suffix = ".html"
+html_link_suffix = ".html"
+
 # -- Extension configuration -------------------------------------------------
 
 # -- Options for MathJax extension -------------------------------------------
