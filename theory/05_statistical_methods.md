@@ -264,6 +264,16 @@ mc_engine = MonteCarloEngine(insurance_loss_simulator)
 comparison = mc_engine.compare_methods(n_sims=10000)
 ```
 
+#### Sample Output
+
+```
+Basic        Mean: 54612.877866, SE: 325.263503
+Antithetic   Mean: 55128.179291, SE: 324.461365
+Stratified   Mean: 55034.214910, SE: 324.692728
+```
+
+---
+
 ## Convergence Diagnostics
 
 ![Convergence Diagnostics](/Ergodic-Insurance-Limits/theory/figures/convergence_diagnostics.png)
@@ -557,6 +567,21 @@ print(f"Stationary: {hw['stationary']}, Halfwidth test: {hw['halfwidth_test_pass
 diagnostics.plot_diagnostics()
 ```
 
+#### Sample Output
+
+![Convergence Diagnostics Example](/Ergodic-Insurance-Limits/theory/figures/convergence_diagnostics_example.png)
+
+```
+Convergence Diagnostics:
+----------------------------------------
+Gelman-Rubin R-hat: 1.001 (Converged: True)
+Effective Sample Size: 994 (5.0% efficiency)
+Geweke z-score: -9.717 (p-value: 0.000)
+Stationary: False, Halfwidth test: False
+```
+
+---
+
 ## Confidence Intervals
 
 ### Classical Confidence Intervals
@@ -580,6 +605,8 @@ where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.
 ### Implementation
 
 ```python
+import pandas as pd
+
 class ConfidenceIntervals:
     """Calculate various types of confidence intervals."""
 
@@ -779,6 +806,22 @@ print("\nConfidence Interval Comparison:")
 print(comparison.to_string())
 ```
 
+#### Sample Output
+
+![Bootstrap Confidence Interval](/Ergodic-Insurance-Limits/theory/figures/bootstrap_ci.png)
+
+```
+Confidence Interval Comparison:
+                   Method     Lower     Upper     Width
+0               Classical  0.344443  0.430019  0.085576
+1             Student's t  0.343914  0.430549  0.086635
+2  Bootstrap (percentile)  0.344961  0.430498  0.085537
+3         Bootstrap (BCa)  0.347206  0.432543  0.085337
+4       Bootstrap (basic)  0.344356  0.428684  0.084327
+```
+
+---
+
 ## Hypothesis Testing
 
 ### Framework
@@ -936,6 +979,18 @@ perm = tester.permutation_test()
 print(f"Permutation: p={perm['p_value']:.4f}, Observed diff={perm['observed']:.4f}")
 ```
 
+#### Sample Output
+
+```
+Strategy Comparison Tests:
+----------------------------------------
+Mann-Whitney: p=0.0006, Effect size=0.088
+K-S Test: p=0.0000
+Permutation: p=0.0008, Observed diff=-0.0187
+```
+
+---
+
 ## Bootstrap Methods
 
 ![Bootstrap Analysis](/Ergodic-Insurance-Limits/theory/figures/bootstrap_analysis.png)
@@ -1088,6 +1143,21 @@ for name, dist in methods.items():
     print(f"{name:12} Mean: {np.mean(dist):.3f}, Std: {np.std(dist):.3f}, "
           f"95% CI: [{np.percentile(dist, 2.5):.3f}, {np.percentile(dist, 97.5):.3f}]")
 ```
+
+#### Sample Output
+
+![Comparison of Bootstrap Methods](/Ergodic-Insurance-Limits/theory/figures/bootstrap_methods_comparison.png)
+
+```
+Bootstrap Comparison:
+--------------------------------------------------
+Standard     Mean: 0.553, Std: 0.065, 95% CI: [0.431, 0.682]
+Parametric   Mean: 0.552, Std: 0.067, 95% CI: [0.426, 0.691]
+Block        Mean: 0.554, Std: 0.061, 95% CI: [0.437, 0.675]
+Wild         Mean: 0.552, Std: 0.063, 95% CI: [0.432, 0.681]
+```
+
+---
 
 ## Walk-Forward Validation
 
@@ -1292,6 +1362,24 @@ for key, value in analysis.items():
 # Visualize
 validator.plot_validation(results)
 ```
+
+#### Sample Output
+
+![Walk-Forward Validation](/Ergodic-Insurance-Limits/theory/figures/walk_forward_validation.png)
+
+```
+Walk-Forward Validation Results:
+----------------------------------------
+mean_performance: 0.0757
+std_performance: 0.0214
+min_performance: 0.0354
+max_performance: 0.1136
+sharpe_ratio: 3.5398
+win_rate: 1.0000
+n_folds: 16
+```
+
+---
 
 ## Backtesting
 
@@ -1563,64 +1651,594 @@ for key, value in results.items():
 backtester.plot_backtest()
 ```
 
+#### Sample Output
+
+![Walk-Forward Validation](/Ergodic-Insurance-Limits/theory/figures/backtesting_example.png)
+
+```
+Backtest Results:
+----------------------------------------
+total_return_%: -24.80
+annual_return_%: -6.93
+volatility_%: 18.12
+sharpe_ratio: -0.38
+sortino_ratio: -0.48
+max_drawdown_%: 49.10
+total_premiums: 568714.83
+total_claims: 567571.65
+total_retained: 282088.83
+loss_ratio: 0.50
+final_capital: 7520085.91
+survival: True
+```
+
+---
+
 ## Model Validation
 
 ### Cross-Validation for Time Series
 
+#### Critical Points for Insurance Model Validation
+
+1. **Standard K-Fold is WRONG for Time Series**
+   - Randomly shuffles data, breaking temporal order
+   - Uses future data to predict past (data leakage)
+   - Gives overly optimistic performance estimates
+
+2. **Time Series Split (Expanding Window)**
+   - Respects temporal order
+   - Training set grows with each fold
+   - Good for limited data
+
+3. **Walk-Forward Analysis (Fixed Window)**
+   - Maintains consistent training size
+   - Better mimics production deployment
+   - Ideal for parameter stability testing
+
+4. **Blocked CV with Gap**
+   - Prevents immediate lookahead bias
+   - Gap ensures no information leakage
+   - Good for high-frequency data
+
+5. **Purged K-Fold**
+   - Removes data around test set
+   - Prevents temporal leakage in financial data
+   - Best for data with strong autocorrelation
+
+#### Best Practices:
+✓ Always respect temporal order
+✓ Include gap/purge for autocorrelated data
+✓ Use multiple CV strategies to validate robustness
+✓ Monitor parameter stability across folds
+✓ Check for distribution shift between folds
+
 ```python
-class TimeSeriesCrossValidator:
-    """Cross-validation for time series insurance models."""
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import sklearn
 
-    def __init__(self, data, model_class):
-        self.data = data
-        self.model_class = model_class
 
-    def time_series_cv(self, n_splits=5, gap=0):
-        """Time series cross-validation with optional gap."""
+class TimeSeriesCrossValidation:
+    """Comprehensive demonstration of time series cross-validation for insurance models."""
 
-        n = len(self.data)
-        test_size = n // (n_splits + 1)
+    def __init__(self, n_periods=1000, seed=42):
+        np.random.seed(seed)
+        self.n_periods = n_periods
 
-        results = []
+        # Generate realistic time series data with autocorrelation
+        self.generate_time_series_data()
 
-        for i in range(n_splits):
-            # Training set: all data up to split point
-            train_end = (i + 1) * test_size
-            train_data = self.data[:train_end]
+    def generate_time_series_data(self):
+        """Generate correlated time series data typical of insurance metrics."""
 
-            # Test set: next chunk after optional gap
-            test_start = train_end + gap
-            test_end = test_start + test_size
+        # Create dates
+        self.dates = pd.date_range('2020-01-01', periods=self.n_periods, freq='D')
 
-            if test_end > n:
-                break
+        # Generate autocorrelated returns using AR(1) process
+        phi = 0.3  # Autocorrelation coefficient
+        sigma = 0.02
+        returns = [np.random.normal(0.0005, sigma)]
 
-            test_data = self.data[test_start:test_end]
+        for t in range(1, self.n_periods):
+            # AR(1) process with trend
+            innovation = np.random.normal(0, sigma)
+            new_return = 0.0005 + phi * (returns[-1] - 0.0005) + innovation
+            returns.append(new_return)
 
+        # Generate loss frequency (Poisson with time-varying rate)
+        base_rate = 3
+        seasonal_pattern = 1 + 0.3 * np.sin(2 * np.pi * np.arange(self.n_periods) / 365)
+        loss_counts = np.random.poisson(base_rate * seasonal_pattern)
+
+        # Generate loss severities (lognormal with trend)
+        severities = []
+        for t in range(self.n_periods):
+            trend_factor = 1 + 0.0002 * t  # Inflation trend
+            if loss_counts[t] > 0:
+                losses = np.random.lognormal(10, 2, loss_counts[t]) * trend_factor
+                severities.append(np.sum(losses))
+            else:
+                severities.append(0)
+
+        # Create DataFrame
+        self.data = pd.DataFrame({
+            'date': self.dates,
+            'return': returns,
+            'loss_count': loss_counts,
+            'total_loss': severities,
+            'volatility': pd.Series(returns).rolling(20).std().fillna(sigma)
+        })
+
+        # Add features for modeling
+        self.data['month'] = self.data['date'].dt.month
+        self.data['day_of_year'] = self.data['date'].dt.dayofyear
+        self.data['rolling_mean_return'] = self.data['return'].rolling(10).mean().fillna(0.0005)
+        self.data['rolling_loss_rate'] = self.data['total_loss'].rolling(30).mean().fillna(10000)
+
+    def standard_kfold_cv(self, n_splits=5):
+        """Standard K-Fold (WRONG for time series) - for comparison."""
+        print("1. STANDARD K-FOLD CROSS-VALIDATION (Incorrect for Time Series)")
+        print("-" * 60)
+
+        from sklearn.model_selection import KFold
+        from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import mean_squared_error, r2_score
+
+        # Prepare features and target
+        X = self.data[['volatility', 'rolling_mean_return', 'rolling_loss_rate']].values
+        y = self.data['total_loss'].values
+
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+        scores = []
+        for fold, (train_idx, test_idx) in enumerate(kf.split(X), 1):
             # Train model
-            model = self.model_class()
-            model.fit(train_data)
+            model = LinearRegression()
+            model.fit(X[train_idx], y[train_idx])
 
-            # Evaluate
-            predictions = model.predict(test_data)
-            score = model.score(test_data, predictions)
+            # Predict
+            y_pred = model.predict(X[test_idx])
 
-            results.append({
-                'fold': i,
-                'train_size': len(train_data),
-                'test_size': len(test_data),
-                'score': score,
-                'model': model
+            # Score
+            mse = mean_squared_error(y[test_idx], y_pred)
+            r2 = r2_score(y[test_idx], y_pred)
+            scores.append({'fold': fold, 'mse': mse, 'r2': r2})
+
+        print(f"Average MSE: {np.mean([s['mse'] for s in scores]):,.0f}")
+        print(f"Average R²: {np.mean([s['r2'] for s in scores]):.4f}")
+        print("⚠️ WARNING: This method uses future data to predict past - invalid for time series!")
+
+        return scores
+
+    def time_series_split_cv(self, n_splits=5):
+        """Time Series Split (CORRECT) - expanding window."""
+        print("\n2. TIME SERIES SPLIT (Expanding Window)")
+        print("-" * 60)
+
+        from sklearn.model_selection import TimeSeriesSplit
+        from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import mean_squared_error, r2_score
+
+        X = self.data[['volatility', 'rolling_mean_return', 'rolling_loss_rate']].values
+        y = self.data['total_loss'].values
+
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+
+        scores = []
+        train_sizes = []
+        test_sizes = []
+
+        for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
+            # Train model
+            model = LinearRegression()
+            model.fit(X[train_idx], y[train_idx])
+
+            # Predict
+            y_pred = model.predict(X[test_idx])
+
+            # Score
+            mse = mean_squared_error(y[test_idx], y_pred)
+            r2 = r2_score(y[test_idx], y_pred)
+
+            scores.append({'fold': fold, 'mse': mse, 'r2': r2})
+            train_sizes.append(len(train_idx))
+            test_sizes.append(len(test_idx))
+
+            print(f"Fold {fold}: Train size: {len(train_idx):4d}, Test size: {len(test_idx):3d}, "
+                  f"MSE: {mse:12,.0f}, R²: {r2:.4f}")
+
+        print(f"\nAverage MSE: {np.mean([s['mse'] for s in scores]):,.0f}")
+        print(f"Average R²: {np.mean([s['r2'] for s in scores]):.4f}")
+        print("✓ Each fold only uses past data to predict future")
+
+        return scores, train_sizes, test_sizes
+
+    def walk_forward_cv(self, window_size=200, step_size=50):
+        """Walk-Forward Analysis with fixed window size."""
+        print("\n3. WALK-FORWARD ANALYSIS (Fixed Window)")
+        print("-" * 60)
+
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+
+        X = self.data[['volatility', 'rolling_mean_return', 'rolling_loss_rate', 'month']].values
+        y = self.data['total_loss'].values
+
+        n_windows = (len(X) - window_size - step_size) // step_size
+
+        scores = []
+        predictions = []
+        actuals = []
+
+        for i in range(n_windows):
+            # Define window
+            train_start = i * step_size
+            train_end = train_start + window_size
+            test_start = train_end
+            test_end = test_start + step_size
+
+            # Train
+            model = RandomForestRegressor(n_estimators=50, max_depth=5, random_state=42)
+            model.fit(X[train_start:train_end], y[train_start:train_end])
+
+            # Test
+            y_pred = model.predict(X[test_start:test_end])
+            y_true = y[test_start:test_end]
+
+            # Metrics
+            mse = mean_squared_error(y_true, y_pred)
+            mape = mean_absolute_percentage_error(y_true + 1, y_pred + 1)  # Add 1 to avoid division by zero
+
+            scores.append({
+                'window': i + 1,
+                'train_period': (train_start, train_end),
+                'test_period': (test_start, test_end),
+                'mse': mse,
+                'mape': mape
             })
 
-        return results
+            predictions.extend(y_pred)
+            actuals.extend(y_true)
 
-# Final summary
-print("\n" + "="*60)
-print("STATISTICAL METHODS SUMMARY")
+        print(f"Number of windows: {n_windows}")
+        print(f"Window size: {window_size}, Step size: {step_size}")
+        print(f"Average MSE: {np.mean([s['mse'] for s in scores]):,.0f}")
+        print(f"Average MAPE: {np.mean([s['mape'] for s in scores]):.2%}")
+        print("✓ Fixed window maintains consistent training size")
+
+        return scores, predictions, actuals
+
+    def blocked_cv(self, n_splits=5, gap=10):
+        """Blocked Time Series CV with gap between train and test."""
+        print("\n4. BLOCKED TIME SERIES CV (With Gap)")
+        print("-" * 60)
+
+        from sklearn.linear_model import Ridge
+        from sklearn.metrics import mean_squared_error
+
+        X = self.data[['volatility', 'rolling_mean_return', 'rolling_loss_rate']].values
+        y = self.data['total_loss'].values
+
+        block_size = len(X) // (n_splits + 1)
+
+        scores = []
+
+        for fold in range(n_splits):
+            # Training: all blocks before current
+            train_end = (fold + 1) * block_size
+
+            # Gap to prevent lookahead bias
+            test_start = train_end + gap
+            test_end = min(test_start + block_size, len(X))
+
+            if test_end > len(X):
+                break
+
+            # Train
+            model = Ridge(alpha=1.0)
+            model.fit(X[:train_end], y[:train_end])
+
+            # Test
+            y_pred = model.predict(X[test_start:test_end])
+            y_true = y[test_start:test_end]
+
+            mse = mean_squared_error(y_true, y_pred)
+
+            scores.append({
+                'fold': fold + 1,
+                'train_size': train_end,
+                'test_size': test_end - test_start,
+                'gap': gap,
+                'mse': mse
+            })
+
+            print(f"Fold {fold+1}: Train: 0-{train_end:3d}, "
+                  f"Gap: {gap}, Test: {test_start:3d}-{test_end:3d}, "
+                  f"MSE: {mse:12,.0f}")
+
+        print(f"\nAverage MSE: {np.mean([s['mse'] for s in scores]):,.0f}")
+        print(f"✓ Gap of {gap} periods prevents information leakage")
+
+        return scores
+
+    def purged_cv(self, n_splits=5, purge_window=10):
+        """Purged K-Fold for financial time series."""
+        print("\n5. PURGED K-FOLD CV (For Financial Data)")
+        print("-" * 60)
+
+        from sklearn.ensemble import GradientBoostingRegressor
+        from sklearn.metrics import mean_squared_error
+
+        X = self.data[['volatility', 'rolling_mean_return', 'rolling_loss_rate']].values
+        y = self.data['total_loss'].values
+        n = len(X)
+
+        # Create fold indices
+        fold_size = n // n_splits
+        scores = []
+
+        for fold in range(n_splits):
+            # Test fold
+            test_start = fold * fold_size
+            test_end = min((fold + 1) * fold_size, n)
+
+            # Training indices (exclude test fold and purge window around it)
+            train_indices = []
+            for i in range(n):
+                if i < test_start - purge_window or i >= test_end + purge_window:
+                    train_indices.append(i)
+
+            if len(train_indices) < 100:  # Skip if too few training samples
+                continue
+
+            # Train
+            model = GradientBoostingRegressor(n_estimators=50, max_depth=3, random_state=42)
+            model.fit(X[train_indices], y[train_indices])
+
+            # Test
+            y_pred = model.predict(X[test_start:test_end])
+            y_true = y[test_start:test_end]
+
+            mse = mean_squared_error(y_true, y_pred)
+
+            scores.append({
+                'fold': fold + 1,
+                'train_size': len(train_indices),
+                'test_size': test_end - test_start,
+                'mse': mse
+            })
+
+            print(f"Fold {fold+1}: Train size: {len(train_indices):3d}, "
+                  f"Test: {test_start:3d}-{test_end:3d}, "
+                  f"Purge: ±{purge_window}, MSE: {mse:12,.0f}")
+
+        print(f"\nAverage MSE: {np.mean([s['mse'] for s in scores]):,.0f}")
+        print(f"✓ Purge window of {purge_window} prevents temporal leakage")
+
+        return scores
+
+    def plot_cv_comparison(self):
+        """Visualize different CV strategies."""
+
+        fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+
+        # 1. Show the time series data
+        axes[0, 0].plot(self.data['date'], self.data['total_loss'], alpha=0.7, linewidth=0.5)
+        axes[0, 0].set_title('Insurance Loss Time Series')
+        axes[0, 0].set_xlabel('Date')
+        axes[0, 0].set_ylabel('Total Loss')
+        axes[0, 0].grid(True, alpha=0.3)
+
+        # 2. Autocorrelation plot
+        from pandas.plotting import autocorrelation_plot
+        autocorrelation_plot(self.data['total_loss'], ax=axes[0, 1])
+        axes[0, 1].set_title('Autocorrelation of Losses')
+        axes[0, 1].set_xlabel('Lag')
+        axes[0, 1].set_ylabel('Autocorrelation')
+
+        # 3. Time Series Split visualization
+        from sklearn.model_selection import TimeSeriesSplit
+        tscv = TimeSeriesSplit(n_splits=5)
+
+        for fold, (train_idx, test_idx) in enumerate(tscv.split(self.data)):
+            # Plot train/test splits
+            axes[1, 0].scatter(train_idx, [fold]*len(train_idx), c='blue', s=1, alpha=0.5)
+            axes[1, 0].scatter(test_idx, [fold]*len(test_idx), c='red', s=1, alpha=0.5)
+
+        axes[1, 0].set_title('Time Series Split Strategy')
+        axes[1, 0].set_xlabel('Time Index')
+        axes[1, 0].set_ylabel('Fold')
+        axes[1, 0].legend(['Train', 'Test'])
+        axes[1, 0].grid(True, alpha=0.3)
+
+        # 4. Walk-Forward visualization
+        window_size = 200
+        step_size = 50
+        n_windows = min(8, (len(self.data) - window_size - step_size) // step_size)
+
+        for i in range(n_windows):
+            train_start = i * step_size
+            train_end = train_start + window_size
+            test_start = train_end
+            test_end = test_start + step_size
+
+            axes[1, 1].barh(i, window_size, left=train_start, height=0.8,
+                           color='blue', alpha=0.6, label='Train' if i == 0 else '')
+            axes[1, 1].barh(i, step_size, left=test_start, height=0.8,
+                           color='red', alpha=0.6, label='Test' if i == 0 else '')
+
+        axes[1, 1].set_title('Walk-Forward Analysis')
+        axes[1, 1].set_xlabel('Time Index')
+        axes[1, 1].set_ylabel('Window')
+        axes[1, 1].legend()
+        axes[1, 1].grid(True, alpha=0.3)
+
+        # 5. Purged K-Fold visualization
+        n_splits = 5
+        purge_window = 20
+        fold_size = len(self.data) // n_splits
+
+        for fold in range(n_splits):
+            test_start = fold * fold_size
+            test_end = min((fold + 1) * fold_size, len(self.data))
+
+            # Test region
+            axes[2, 0].barh(fold, test_end - test_start, left=test_start,
+                           height=0.8, color='red', alpha=0.6)
+
+            # Purge regions
+            if test_start - purge_window >= 0:
+                axes[2, 0].barh(fold, purge_window, left=test_start - purge_window,
+                               height=0.8, color='yellow', alpha=0.6)
+            if test_end + purge_window <= len(self.data):
+                axes[2, 0].barh(fold, purge_window, left=test_end,
+                               height=0.8, color='yellow', alpha=0.6)
+
+            # Training regions (simplified visualization)
+            if test_start - purge_window > 0:
+                axes[2, 0].barh(fold, test_start - purge_window, left=0,
+                               height=0.8, color='blue', alpha=0.3)
+            if test_end + purge_window < len(self.data):
+                axes[2, 0].barh(fold, len(self.data) - test_end - purge_window,
+                               left=test_end + purge_window, height=0.8, color='blue', alpha=0.3)
+
+        axes[2, 0].set_title('Purged K-Fold with Gap')
+        axes[2, 0].set_xlabel('Time Index')
+        axes[2, 0].set_ylabel('Fold')
+        axes[2, 0].legend(['Test', 'Purge', 'Train'])
+        axes[2, 0].grid(True, alpha=0.3)
+
+        # 6. Performance comparison
+        methods = ['Standard\nK-Fold', 'Time Series\nSplit', 'Walk\nForward',
+                  'Blocked\nCV', 'Purged\nK-Fold']
+        # These would be actual MSE values from the methods
+        mse_values = [250000, 180000, 160000, 170000, 165000]  # Example values
+        colors = ['red', 'green', 'green', 'green', 'green']
+
+        bars = axes[2, 1].bar(methods, mse_values, color=colors, alpha=0.7)
+        axes[2, 1].set_title('CV Method Performance Comparison')
+        axes[2, 1].set_ylabel('Average MSE')
+        axes[2, 1].set_xlabel('CV Method')
+        axes[2, 1].tick_params(axis='x', rotation=45)
+
+        # Add warning for standard K-Fold
+        axes[2, 1].text(0, mse_values[0] + 10000, '⚠️ Invalid\nfor TS',
+                       ha='center', fontsize=10, color='red')
+
+        plt.tight_layout()
+        plt.show()
+
+# Run comprehensive demonstration
 print("="*60)
-print("""
-Key Statistical Methods for Insurance Analysis:
+print("TIME SERIES CROSS-VALIDATION DEMONSTRATION")
+print("="*60)
+print("\nGenerating correlated time series data with 1000 periods...\n")
+
+# Initialize and run demonstrations
+cv_demo = TimeSeriesCrossValidation(n_periods=1000, seed=42)
+
+# Run all CV methods
+standard_scores = cv_demo.standard_kfold_cv(n_splits=5)
+ts_scores, train_sizes, test_sizes = cv_demo.time_series_split_cv(n_splits=5)
+wf_scores, predictions, actuals = cv_demo.walk_forward_cv(window_size=200, step_size=50)
+blocked_scores = cv_demo.blocked_cv(n_splits=5, gap=10)
+purged_scores = cv_demo.purged_cv(n_splits=5, purge_window=10)
+
+# Visualize
+print("\n" + "="*60)
+print("VISUALIZATION OF CV STRATEGIES")
+print("="*60)
+cv_demo.plot_cv_comparison()
+```
+
+#### Sample Output
+
+![Walk-Forward Validation](/Ergodic-Insurance-Limits/theory/figures/cv_examples.png)
+
+```
+Walk-Forward Validation Results:
+----------------------------------------
+mean_performance: 0.0757
+std_performance: 0.0214
+min_performance: 0.0354
+max_performance: 0.1136
+sharpe_ratio: 3.5398
+win_rate: 1.0000
+n_folds: 16
+
+Backtest Results:
+----------------------------------------
+total_return_%: -24.80
+annual_return_%: -6.93
+volatility_%: 18.12
+sharpe_ratio: -0.38
+sortino_ratio: -0.48
+max_drawdown_%: 49.10
+total_premiums: 568714.83
+total_claims: 567571.65
+total_retained: 282088.83
+loss_ratio: 0.50
+final_capital: 7520085.91
+survival: True
+============================================================
+TIME SERIES CROSS-VALIDATION DEMONSTRATION
+============================================================
+
+Generating correlated time series data with 1000 periods...
+
+1. STANDARD K-FOLD CROSS-VALIDATION (Incorrect for Time Series)
+------------------------------------------------------------
+Average MSE: 2,384,621,964,008
+Average R²: -0.0014
+⚠️ WARNING: This method uses future data to predict past - invalid for time series!
+
+2. TIME SERIES SPLIT (Expanding Window)
+------------------------------------------------------------
+Fold 1: Train size:  170, Test size: 166, MSE: 2,567,880,070,435, R²: 0.0060
+Fold 2: Train size:  336, Test size: 166, MSE: 1,766,387,331,946, R²: 0.0230
+Fold 3: Train size:  502, Test size: 166, MSE: 1,157,698,242,406, R²: -0.0073
+Fold 4: Train size:  668, Test size: 166, MSE: 1,228,997,308,765, R²: 0.0401
+Fold 5: Train size:  834, Test size: 166, MSE: 7,091,176,011,971, R²: 0.0284
+
+Average MSE: 2,762,427,793,105
+Average R²: 0.0180
+✓ Each fold only uses past data to predict future
+
+3. WALK-FORWARD ANALYSIS (Fixed Window)
+------------------------------------------------------------
+Number of windows: 15
+Window size: 200, Step size: 50
+Average MSE: 5,236,986,571,393
+Average MAPE: 7332236.65%
+✓ Fixed window maintains consistent training size
+
+4. BLOCKED TIME SERIES CV (With Gap)
+------------------------------------------------------------
+Fold 1: Train: 0-166, Gap: 10, Test: 176-342, MSE: 2,478,133,892,977
+Fold 2: Train: 0-332, Gap: 10, Test: 342-508, MSE: 1,999,680,046,316
+Fold 3: Train: 0-498, Gap: 10, Test: 508-674, MSE: 879,386,307,408
+Fold 4: Train: 0-664, Gap: 10, Test: 674-840, MSE: 1,237,952,734,707
+Fold 5: Train: 0-830, Gap: 10, Test: 840-1000, MSE: 7,329,263,519,493
+
+Average MSE: 2,784,883,300,180
+✓ Gap of 10 periods prevents information leakage
+
+5. PURGED K-FOLD CV (For Financial Data)
+------------------------------------------------------------
+Fold 1: Train size: 790, Test:   0-200, Purge: ±10, MSE: 931,398,609,705
+Fold 2: Train size: 780, Test: 200-400, Purge: ±10, MSE: 1,773,539,840,096
+Fold 3: Train size: 780, Test: 400-600, Purge: ±10, MSE: 7,021,802,954,931
+Fold 4: Train size: 780, Test: 600-800, Purge: ±10, MSE: 808,735,067,736
+Fold 5: Train size: 790, Test: 800-1000, Purge: ±10, MSE: 7,457,208,690,945
+
+Average MSE: 3,598,537,032,683
+✓ Purge window of 10 prevents temporal leakage
+```
+
+---
+
+## Key Statistical Methods for Insurance Analysis:
 
 1. Monte Carlo Methods
    - Basic simulation for complex systems
@@ -1661,8 +2279,6 @@ Key Statistical Methods for Insurance Analysis:
    - Cross-validation for time series
    - Multiple scoring metrics
    - Robustness checks
-""")
-```
 
 ## Key Takeaways
 
