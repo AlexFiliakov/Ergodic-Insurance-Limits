@@ -76,29 +76,59 @@ a:hover {
     color: rgba(255, 255, 255, 0.6) !important;
 }
 
-/* Sidebar menu items */
+/* Sidebar menu items - IMPROVED VISIBILITY */
 .wy-menu-vertical a {
-    color: #bdc3c7 !important;
+    color: #ecf0f1 !important;  /* Changed from #bdc3c7 to much brighter */
+    font-size: 14px !important;
 }
 
 .wy-menu-vertical a:hover {
-    background: rgba(255, 255, 255, 0.05) !important;
+    background: rgba(255, 255, 255, 0.1) !important;  /* Increased from 0.05 */
     color: #fff !important;
 }
 
 .wy-menu-vertical li.current > a {
-    background: rgba(255, 255, 255, 0.1) !important;
+    background: rgba(255, 255, 255, 0.15) !important;  /* Increased from 0.1 */
     border-right: 3px solid var(--cayman-primary) !important;
     color: #fff !important;
+    font-weight: 600 !important;
 }
 
-/* Section headers in sidebar */
+/* Nested menu items - better hierarchy visibility */
+.wy-menu-vertical li.toctree-l2 a {
+    color: #dfe3e6 !important;  /* Slightly dimmer than parent */
+    padding-left: 2.5em !important;  /* Better indentation */
+}
+
+.wy-menu-vertical li.toctree-l3 a {
+    color: #d0d4d8 !important;  /* Progressive dimming */
+    padding-left: 3.5em !important;
+}
+
+.wy-menu-vertical li.toctree-l4 a {
+    color: #c1c5c9 !important;
+    padding-left: 4.5em !important;
+}
+
+/* Active/current nested items */
+.wy-menu-vertical li.current li.toctree-l2 > a {
+    color: #fff !important;  /* Bright when current */
+}
+
+.wy-menu-vertical li.current li.toctree-l3 > a {
+    color: #f8f9fa !important;
+}
+
+/* Section headers in sidebar - MORE VISIBLE */
 .wy-menu-vertical p.caption {
-    color: #3498db !important;
-    font-size: 12px !important;
+    color: #5dade2 !important;  /* Brighter blue from #3498db */
+    font-size: 13px !important;  /* Slightly larger */
     text-transform: uppercase !important;
-    letter-spacing: 1px !important;
-    margin: 20px 14px 10px !important;
+    letter-spacing: 0.5px !important;  /* Less spacing for readability */
+    margin: 25px 14px 12px !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding-bottom: 5px !important;
 }
 
 /* Main content area */
@@ -248,10 +278,17 @@ footer {
 /* Breadcrumbs */
 .wy-breadcrumbs {
     font-size: 0.875rem !important;
+    color: #606c71 !important;  /* Gray color for separators */
 }
 
 .wy-breadcrumbs a {
-    color: var(--cayman-primary) !important;
+    color: #606c71 !important;  /* Changed from primary green to gray for better visibility */
+    font-weight: 500 !important;  /* Slightly bolder for better readability */
+}
+
+.wy-breadcrumbs a:hover {
+    color: var(--cayman-primary) !important;  /* Show green on hover */
+    text-decoration: underline !important;
 }
 
 /* Module index */
@@ -299,6 +336,61 @@ dl.field-list > dt {
     margin-bottom: 1.5rem !important;
     padding-bottom: 0.5rem !important;
     border-bottom: 1px solid var(--cayman-border) !important;
+}
+
+/* Sidebar expand/collapse indicators - MORE VISIBLE */
+.wy-menu-vertical li.toctree-l1 > a:before,
+.wy-menu-vertical li.toctree-l2 > a:before,
+.wy-menu-vertical li.toctree-l3 > a:before {
+    font-family: "FontAwesome";
+    display: inline-block;
+    margin-right: 0.5em;
+    color: #ecf0f1 !important;
+    opacity: 0.8 !important;
+}
+
+/* Closed folder icon */
+.wy-menu-vertical li.toctree-l1.has-children:not(.current) > a:before,
+.wy-menu-vertical li.toctree-l2.has-children:not(.current) > a:before {
+    content: "\f0da" !important;  /* Right arrow */
+}
+
+/* Open folder icon */
+.wy-menu-vertical li.toctree-l1.current.has-children > a:before,
+.wy-menu-vertical li.toctree-l2.current.has-children > a:before {
+    content: "\f0d7" !important;  /* Down arrow */
+}
+
+/* Hide duplicate toctree entries if they exist */
+.wy-menu-vertical li.toctree-l1 ul li.toctree-l1 {
+    display: none !important;  /* Hide nested duplicate entries */
+}
+
+/* Better visual separation between sections */
+.wy-menu-vertical > ul > li {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.wy-menu-vertical > ul > li:last-child {
+    border-bottom: none !important;
+}
+
+/* Improve visibility of hidden items */
+.wy-menu-vertical li ul {
+    margin-left: 0 !important;
+}
+
+/* Make current page more prominent */
+.wy-menu-vertical li.current > a {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+}
+
+/* Better hover effects for all levels */
+.wy-menu-vertical li a:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    transition: background 0.2s ease !important;
 }
 
 /* MathJax equation styling */

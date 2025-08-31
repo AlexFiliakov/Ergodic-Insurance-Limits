@@ -42,30 +42,14 @@ Quick Links
 .. toctree::
    :maxdepth: 2
    :caption: Business User Guide:
-   :hidden:
 
    user_guide/index
-   user_guide/executive_summary
-   user_guide/quick_start
-   user_guide/running_analysis
-   user_guide/decision_framework
-   user_guide/case_studies
-   user_guide/advanced_topics
-   user_guide/faq
-   user_guide/glossary
 
 .. toctree::
    :maxdepth: 2
    :caption: Tutorials & How-To Guides:
 
    tutorials/index
-   tutorials/01_getting_started
-   tutorials/02_basic_simulation
-   tutorials/03_configuring_insurance
-   tutorials/04_optimization_workflow
-   tutorials/05_analyzing_results
-   tutorials/06_advanced_scenarios
-   tutorials/troubleshooting
 
 .. toctree::
    :maxdepth: 2
@@ -74,7 +58,6 @@ Quick Links
    overview
    getting_started
    examples
-   theory
    theory/index
 
 .. toctree::
