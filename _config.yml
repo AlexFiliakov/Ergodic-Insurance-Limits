@@ -14,17 +14,20 @@ kramdown:
   math_engine: mathjax
   syntax_highlighter: rouge
 
-# Collections
-collections:
-  docs:
-    output: true
-    permalink: /:collection/:path/
-
 # Defaults
 defaults:
   - scope:
-      path: ""
-      type: "docs"
+      path: "docs/tutorials"
+    values:
+      layout: "default"
+      permalink: /tutorials/:basename/
+  - scope:
+      path: "docs/user_guide"
+    values:
+      layout: "default"
+      permalink: /user_guide/:basename/
+  - scope:
+      path: "docs"
     values:
       layout: "default"
   - scope:
@@ -36,6 +39,8 @@ defaults:
 include:
   - theory
   - docs
+  - docs/tutorials
+  - docs/user_guide
   - api
   - _layouts
   - _includes
