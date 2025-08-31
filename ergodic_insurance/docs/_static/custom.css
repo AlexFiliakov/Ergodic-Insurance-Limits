@@ -280,16 +280,16 @@ footer {
 /* Breadcrumbs */
 .wy-breadcrumbs {
     font-size: 0.875rem !important;
-    color: #606c71 !important;  /* Gray color for separators */
+    color: rgba(255, 255, 255, 0.7) !important;  /* Light color for separators on green background */
 }
 
 .wy-breadcrumbs a {
-    color: #606c71 !important;  /* Changed from primary green to gray for better visibility */
+    color: rgba(255, 255, 255, 0.9) !important;  /* White with slight transparency for links */
     font-weight: 500 !important;  /* Slightly bolder for better readability */
 }
 
 .wy-breadcrumbs a:hover {
-    color: var(--cayman-primary) !important;  /* Show green on hover */
+    color: #fff !important;  /* Pure white on hover */
     text-decoration: underline !important;
 }
 
