@@ -41,6 +41,7 @@ include:
   - docs
   - docs/tutorials
   - docs/user_guide
+  - tutorials
   - api
   - _layouts
   - _includes
