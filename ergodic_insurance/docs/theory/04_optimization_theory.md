@@ -1,6 +1,7 @@
 # Optimization Theory for Insurance
 
 ![Pareto Frontier](figures/pareto_frontier.png)
+
 *Figure 1: Pareto frontier showing the trade-off between cost and risk in insurance optimization. Points on the frontier represent non-dominated solutions.*
 
 ## Table of Contents
