@@ -169,6 +169,7 @@ class TestParameterSweeper:
         """Test handling of optimization failure."""
         with patch.object(sweeper, "_create_manufacturer") as mock_create:
             mock_manufacturer = MagicMock()
+            mock_manufacturer.assets = 10e6  # Add assets attribute for BusinessOptimizer
             mock_create.return_value = mock_manufacturer
 
             with patch("ergodic_insurance.src.parameter_sweep.BusinessOptimizer") as MockOptimizer:
@@ -421,23 +422,23 @@ class TestParameterSweeper:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Test CSV export
             csv_file = Path(tmpdir) / "results.csv"
-            sweeper.export_results(results, str(csv_file), format="csv")
+            sweeper.export_results(results, str(csv_file), file_format="csv")
             assert csv_file.exists()
 
             # Test Parquet export
             parquet_file = Path(tmpdir) / "results.parquet"
-            sweeper.export_results(results, str(parquet_file), format="parquet")
+            sweeper.export_results(results, str(parquet_file), file_format="parquet")
             assert parquet_file.exists()
 
             # Test HDF5 export (may fall back to parquet if tables not available)
             h5_file = Path(tmpdir) / "results.h5"
-            sweeper.export_results(results, str(h5_file), format="hdf5")
+            sweeper.export_results(results, str(h5_file), file_format="hdf5")
             # Check if either h5 or parquet file exists (fallback behavior)
             assert h5_file.exists() or h5_file.with_suffix(".parquet").exists()
 
             # Test invalid format
             with pytest.raises(ValueError, match="Unsupported format"):
-                sweeper.export_results(results, "output.txt", format="invalid")
+                sweeper.export_results(results, "output.txt", file_format="invalid")
 
     def test_adaptive_refinement(self, sweeper):
         """Test adaptive refinement functionality."""
@@ -533,6 +534,7 @@ class TestParameterSweeper:
         assert temp_h5_file.exists() or temp_parquet_file.exists()
 
         # Load and verify contents
+        loaded = None
         if temp_h5_file.exists():
             try:
                 loaded = pd.read_hdf(temp_h5_file, key="results")
@@ -547,5 +549,6 @@ class TestParameterSweeper:
         else:
             pytest.skip("No temporary file found")
 
+        assert loaded is not None
         assert len(loaded) == 3
         assert loaded["param1"].tolist() == [1, 2, 3]
