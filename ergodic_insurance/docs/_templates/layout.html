@@ -2,54 +2,16 @@
 
 {% block extrahead %}
 {{ super() }}
-<!-- MathJax Configuration for LaTeX rendering -->
+<!-- Additional MathJax Configuration for better LaTeX rendering -->
 <script>
   window.MathJax = {
     tex: {
       inlineMath: [['$', '$'], ['\\(', '\\)']],
       displayMath: [['$$', '$$'], ['\\[', '\\]']],
       processEscapes: true,
-      processEnvironments: true,
-      tags: 'ams',
-      tagSide: 'right',
-      tagIndent: '0.8em',
-      multlineWidth: '85%',
-      useLabelIds: true,
-      packages: {'[+]': ['ams', 'newcommand', 'configmacros']},
-      macros: {
-        RR: '{\\mathbb{R}}',
-        EE: '{\\mathbb{E}}',
-        PP: '{\\mathbb{P}}',
-        argmax: '{\\operatorname{arg\\,max}}',
-        argmin: '{\\operatorname{arg\\,min}}',
-        Var: '{\\operatorname{Var}}',
-        Cov: '{\\operatorname{Cov}}',
-        VaR: '{\\operatorname{VaR}}',
-        CVaR: '{\\operatorname{CVaR}}',
-        ES: '{\\operatorname{ES}}'
-      }
-    },
-    options: {
-      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-      ignoreHtmlClass: 'tex2jax_ignore',
-      processHtmlClass: 'tex2jax_process|mathjax_process|math|output_area'
-    },
-    svg: {
-      fontCache: 'global'
-    },
-    startup: {
-      pageReady: () => {
-        return MathJax.startup.defaultPageReady().then(() => {
-          console.log('MathJax loaded successfully');
-        });
-      }
+      processEnvironments: true
     }
   };
-</script>
-<!-- Load MathJax -->
-<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-<script type="text/javascript" id="MathJax-script" async
-  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
 </script>
 {% endblock %}
 

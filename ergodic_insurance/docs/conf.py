@@ -85,33 +85,16 @@ html_theme_options = {
 # -- Extension configuration -------------------------------------------------
 
 # -- Options for MathJax extension -------------------------------------------
+# Use default MathJax configuration for better compatibility
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
-mathjax3_config = {
-    "tex": {
-        "inlineMath": [["$", "$"], ["\\(", "\\)"]],
-        "displayMath": [["$$", "$$"], ["\\[", "\\]"]],
-        "processEscapes": True,
-        "processEnvironments": True,
-    },
-    "options": {
-        "skipHtmlTags": ["script", "noscript", "style", "textarea", "pre"],
-    },
-}
 
 # -- Options for MyST parser -------------------------------------------------
 myst_enable_extensions = [
-    "amsmath",
-    "colon_fence",
-    "deflist",
-    "dollarmath",
-    "html_image",
-    "linkify",
-    "replacements",
-    "smartquotes",
-    "substitution",
-    "tasklist",
+    "dollarmath",  # Enable dollar math syntax
+    "amsmath",  # Enable AMS math environments
+    "deflist",  # Enable definition lists
+    "colon_fence",  # Enable ::: fences
 ]
-myst_dmath_double_inline = True
 
 # -- Options for autodoc extension ------------------------------------------
 autodoc_default_options = {
