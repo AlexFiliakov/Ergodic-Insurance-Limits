@@ -221,4 +221,4 @@ Getting Help
 * Check the :doc:`user_guide/faq`
 * Review :doc:`examples`
 * See API documentation: :doc:`api/modules`
-* Report issues on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`_
+* Report issues on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`__

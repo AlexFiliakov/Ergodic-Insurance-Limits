@@ -114,7 +114,7 @@ If you encounter issues:
 1. Check the :doc:`troubleshooting` guide for common problems
 2. Review the example notebooks in ``ergodic_insurance/notebooks/``
 3. Consult the :doc:`../api/modules` for detailed function documentation
-4. File an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`_
+4. File an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`__
 
 Tutorial Notebooks
 ------------------
@@ -138,6 +138,15 @@ For those who prefer learning by example, check out our :doc:`../examples` secti
 
 .. note::
    **Time Investment:** Each tutorial takes approximately 30-45 minutes to complete. The entire series can be completed in about 4 hours.
+
+For Help
+--------
+
+* Check the :doc:`faq` for common questions
+* Consult the :doc:`glossary` for term definitions
+* Review example notebooks in ``ergodic_insurance/notebooks/``
+* Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`__
+* Contact: Alex Filiakov (alexfiliakov@gmail.com)
 
 Happy Learning!
 ---------------
