@@ -21,47 +21,29 @@
 Monte Carlo methods estimate expectations through random sampling:
 
 $$
-
 E[f(X)] \approx \frac{1}{N} \sum_{i=1}^N f(X_i)
-
 $$
 
-where $X_i$ are independent samples from the distribution of $X$.
+where $X_i$ are independent samples from the distribution of $X$.  ### Variance Reduction Techniques  #### Antithetic Variates  Use negatively correlated pairs:
 
-### Variance Reduction Techniques
-
-#### Antithetic Variates
-
-Use negatively correlated pairs:
 $$
-
 \hat{\mu}_{\text{AV}} = \frac{1}{2N} \sum_{i=1}^N [f(X_i) + f(X_i')]
-
 $$
 
-where $X_i'$ is antithetic to $X_i$.
+where $X_i'$ is antithetic to $X_i$.  #### Control Variates  Reduce variance using correlated variable with known mean:
 
-#### Control Variates
-
-Reduce variance using correlated variable with known mean:
 $$
-
 \hat{\mu}_{\text{CV}} = \hat{\mu} - c(\hat{\mu}_Y - \mu_Y)
-
 $$
 
-#### Importance Sampling
+#### Importance Sampling  Sample from alternative distribution:
 
-Sample from alternative distribution:
 $$
 
 E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]
-
 $$
 
-### Implementation
-
-```python
+### Implementation  ```python
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -273,53 +255,26 @@ insurance_loss_simulator.original_pdf = lambda x: stats.lognorm.pdf(x, s=2, scal
 # Run comparison
 mc_engine = MonteCarloEngine(insurance_loss_simulator)
 comparison = mc_engine.compare_methods(n_sims=10000)
-```
 
-#### Sample Output
+```   #### Sample Output  ```
 
-```
 Basic        Mean: 54612.877866, SE: 325.263503
 Antithetic   Mean: 55128.179291, SE: 324.461365
 Stratified   Mean: 55034.214910, SE: 324.692728
-```
 
----
-
-(convergence-diagnostics)=
-## Convergence Diagnostics
-
-![Convergence Diagnostics](figures/convergence_diagnostics.png)
-*Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
-
-### Gelman-Rubin Statistic
-
-For multiple chains, assess convergence:
+```   ---  (convergence-diagnostics)= ## Convergence Diagnostics  ![Convergence Diagnostics](figures/convergence_diagnostics.png) *Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*  ### Gelman-Rubin Statistic  For multiple chains, assess convergence:
 
 $$
-
 \hat{R} = \sqrt{\frac{\hat{V}}{W}}
-
 $$
 
-where:
-- $W$ = Within-chain variance
-- $\hat{V}$ = Estimated variance
-
-### Effective Sample Size
-
-Account for autocorrelation:
+where: - $W$ = Within-chain variance - $\hat{V}$ = Estimated variance  ### Effective Sample Size  Account for autocorrelation:
 
 $$
-
 \text{ESS} = \frac{N}{1 + 2\sum_{k=1}^K \rho_k}
-
 $$
 
-where $\rho_k$ is lag-$k$ autocorrelation.
-
-### Implementation
-
-```python
+where $\rho_k$ is lag-$k$ autocorrelation.  ### Implementation  ```python
 class ConvergenceDiagnostics:
     """Diagnose Monte Carlo convergence."""
 
@@ -585,59 +540,35 @@ print(f"Stationary: {hw['stationary']}, Halfwidth test: {hw['halfwidth_test_pass
 
 # Visualize
 diagnostics.plot_diagnostics()
-```
 
-#### Sample Output
+```   #### Sample Output  ![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)  ```
 
-![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
-
-```
 Convergence Diagnostics:
 ----------------------------------------
 Gelman-Rubin R-hat: 1.001 (Converged: True)
 Effective Sample Size: 994 (5.0% efficiency)
 Geweke z-score: -9.717 (p-value: 0.000)
 Stationary: False, Halfwidth test: False
-```
 
----
-
-(confidence-intervals)=
-## Confidence Intervals
-
-### Classical Confidence Intervals
-
-For large samples, use Central Limit Theorem:
+```   ---  (confidence-intervals)= ## Confidence Intervals  ### Classical Confidence Intervals  For large samples, use Central Limit Theorem:
 
 $$
-
 \bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}
-
 $$
 
-### Bootstrap Confidence Intervals
+### Bootstrap Confidence Intervals  #### Percentile Method Use quantiles of bootstrap distribution:
 
-#### Percentile Method
-Use quantiles of bootstrap distribution:
 $$
-
 [\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]
-
 $$
 
-#### BCa (Bias-Corrected and Accelerated)
-Adjust for bias and skewness:
-$$
+#### BCa (Bias-Corrected and Accelerated) Adjust for bias and skewness:
 
+$$
 [\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]
-
 $$
 
-where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.
-
-### Implementation
-
-```python
+where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.  ### Implementation  ```python
 import pandas as pd
 
 class ConfidenceIntervals:
@@ -837,13 +768,9 @@ comparison = ci_analyzer.plot_intervals(confidence=0.95)
 
 print("\nConfidence Interval Comparison:")
 print(comparison.to_string())
-```
 
-#### Sample Output
+```   #### Sample Output  ![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)  ```
 
-![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)
-
-```
 Confidence Interval Comparison:
                    Method     Lower     Upper     Width
 0               Classical  0.344443  0.430019  0.085576
@@ -851,24 +778,8 @@ Confidence Interval Comparison:
 2  Bootstrap (percentile)  0.344961  0.430498  0.085537
 3         Bootstrap (BCa)  0.347206  0.432543  0.085337
 4       Bootstrap (basic)  0.344356  0.428684  0.084327
-```
 
----
-
-(hypothesis-testing)=
-## Hypothesis Testing
-
-### Framework
-
-Test null hypothesis $H_0$ against alternative $H_1$:
-
-1. **Test statistic**: $T = T(X_1, ..., X_n)$
-2. **P-value**: $P(T \geq T_{\text{obs}} | H_0)$
-3. **Decision**: Reject $H_0$ if p-value < $\alpha$
-
-### Tests for Ergodic Advantage
-
-```python
+```   ---  (hypothesis-testing)= ## Hypothesis Testing  ### Framework  Test null hypothesis $H_0$ against alternative $H_1$:  1. **Test statistic**: $T = T(X_1, ..., X_n)$ 2. **P-value**: $P(T \geq T_{\text{obs}} | H_0)$ 3. **Decision**: Reject $H_0$ if p-value < $\alpha$  ### Tests for Ergodic Advantage  ```python
 class HypothesisTesting:
     """Statistical tests for insurance optimization."""
 
@@ -1011,31 +922,16 @@ print(f"K-S Test: p={ks['p_value']:.4f}")
 # Permutation test
 perm = tester.permutation_test()
 print(f"Permutation: p={perm['p_value']:.4f}, Observed diff={perm['observed']:.4f}")
-```
 
-#### Sample Output
+```   #### Sample Output  ```
 
-```
 Strategy Comparison Tests:
 ----------------------------------------
 Mann-Whitney: p=0.0006, Effect size=0.088
 K-S Test: p=0.0000
 Permutation: p=0.0008, Observed diff=-0.0187
-```
 
----
-
-(bootstrap-methods)=
-## Bootstrap Methods
-
-![Bootstrap Analysis](figures/bootstrap_analysis.png)
-*Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*
-
-### Bootstrap Algorithm
-
-1. Draw $B$ samples of size $n$ with replacement
-2. Calculate statistic $\hat{\theta}^*_b$ for each sample
-3. Use distribution of $\hat{\theta}^*$ for inference
+```   ---  (bootstrap-methods)= ## Bootstrap Methods  ![Bootstrap Analysis](figures/bootstrap_analysis.png) *Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*  ### Bootstrap Algorithm  1. Draw $B$ samples of size $n$ with replacement 2. Calculate statistic $\hat{\theta}^*_b$ for each sample 3. Use distribution of $\hat{\theta}^*$ for inference
 
 ### Advanced Bootstrap
 
@@ -1177,20 +1073,25 @@ print("-" * 50)
 for name, dist in methods.items():
     print(f"{name:12} Mean: {np.mean(dist):.3f}, Std: {np.std(dist):.3f}, "
           f"95% CI: [{np.percentile(dist, 2.5):.3f}, {np.percentile(dist, 97.5):.3f}]")
+
 ```
+
 
 #### Sample Output
 
 ![Comparison of Bootstrap Methods](../../../theory/figures/bootstrap_methods_comparison.png)
 
 ```
+
 Bootstrap Comparison:
 --------------------------------------------------
 Standard     Mean: 0.553, Std: 0.065, 95% CI: [0.431, 0.682]
 Parametric   Mean: 0.552, Std: 0.067, 95% CI: [0.426, 0.691]
 Block        Mean: 0.554, Std: 0.061, 95% CI: [0.437, 0.675]
 Wild         Mean: 0.552, Std: 0.063, 95% CI: [0.432, 0.681]
+
 ```
+
 
 ---
 
@@ -1397,12 +1298,15 @@ for key, value in analysis.items():
 
 # Visualize
 validator.plot_validation(results)
+
 ```
+
 #### Sample Output
 
 ![Walk-Forward Validation](../../../theory/figures/walk_forward_validation.png)
 
 ```
+
 Walk-Forward Validation Results:
 ----------------------------------------
 mean_performance: 0.0757
@@ -1412,7 +1316,9 @@ max_performance: 0.1136
 sharpe_ratio: 3.5398
 win_rate: 1.0000
 n_folds: 16
+
 ```
+
 
 ---
 
@@ -1685,13 +1591,16 @@ for key, value in results.items():
 
 # Visualize
 backtester.plot_backtest()
+
 ```
+
 
 #### Sample Output
 
 ![Backtesting Example](../../../theory/figures/backtesting_example.png)
 
 ```
+
 Backtest Results:
 ----------------------------------------
 total_return_%: -24.80
@@ -1706,7 +1615,9 @@ total_retained: 282088.83
 loss_ratio: 0.50
 final_capital: 7520085.91
 survival: True
+
 ```
+
 
 ---
 
@@ -2187,13 +2098,16 @@ print("\n" + "="*60)
 print("VISUALIZATION OF CV STRATEGIES")
 print("="*60)
 cv_demo.plot_cv_comparison()
+
 ```
+
 
 #### Sample Output
 
 ![Cross-Validation Examples](../../../theory/figures/cv_examples.png)
 
 ```
+
 Walk-Forward Validation Results:
 ----------------------------------------
 mean_performance: 0.0757
@@ -2271,7 +2185,9 @@ Fold 5: Train size: 790, Test: 800-1000, Purge: ±10, MSE: 7,457,208,690,945
 
 Average MSE: 3,598,537,032,683
 ✓ Purge window of 10 prevents temporal leakage
+
 ```
+
 
 ---
 

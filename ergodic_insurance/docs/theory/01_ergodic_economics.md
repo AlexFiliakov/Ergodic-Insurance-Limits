@@ -27,269 +27,135 @@ This distinction is not merely academic; it fundamentally changes optimal strate
 The **ensemble average** is the expected value across many parallel scenarios at a single point in time:
 
 $$
-
 \langle W \rangle = E[W_t] = \frac{1}{N} \sum_{i=1}^{N} W_i(t)
-
 $$
 
-where $W_i(t)$ represents the wealth of individual $i$ at time $t$.
-
-For a multiplicative process with growth factor $R_t$:
+where $W_i(t)$ represents the wealth of individual $i$ at time $t$.  For a multiplicative process with growth factor $R_t$:
 
 $$
-
 \langle W_t \rangle = W_0 \cdot E[R]^t
-
 $$
 
-### Time Average
-
-The **time average** is the growth rate experienced by a single entity over time:
+### Time Average  The **time average** is the growth rate experienced by a single entity over time:
 
 $$
 
 g_T = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right) = \frac{1}{T} \sum_{t=1}^{T} \ln(R_t)
-
 $$
 
 As $T \to \infty$, this converges to:
 
 $$
-
 g = E[\ln(R)]
-
 $$
 
-### The Critical Difference
-
-For any non-degenerate random variable $R > 0$, Jensen's inequality ensures:
+### The Critical Difference  For any non-degenerate random variable $R > 0$, Jensen's inequality ensures:
 
 $$
-
 E[\ln(R)] < \ln(E[R])
-
 $$
 
-This means the time-average growth rate is **always less than** the growth rate of the ensemble average for processes with uncertainty.
+This means the time-average growth rate is **always less than** the growth rate of the ensemble average for processes with uncertainty.  #### Example: Coin Flip Investment  Consider a simple investment that with equal probability either: - Increases wealth by 50% (multiply by 1.5) - Decreases wealth by 40% (multiply by 0.6)  **Ensemble average** growth factor:
 
-#### Example: Coin Flip Investment
-
-Consider a simple investment that with equal probability either:
-- Increases wealth by 50% (multiply by 1.5)
-- Decreases wealth by 40% (multiply by 0.6)
-
-**Ensemble average** growth factor:
 $$
-
 E[R] = 0.5 \times 1.5 + 0.5 \times 0.6 = 1.05
-
 $$
 
-This suggests a 5% expected gain per round.
+This suggests a 5% expected gain per round.  **Time average** growth rate:
 
-**Time average** growth rate:
 $$
-
 g = E[\ln(R)] = 0.5 \times \ln(1.5) + 0.5 \times \ln(0.6) = -0.0527
-
 $$
 
-This reveals a 5.27% **loss** per round for a typical individual trajectory!
-
-(the-ergodicity-problem)=
-## The Ergodicity Problem
-
-### Definition of Ergodicity
-
-A system is **ergodic** if its time average equals its ensemble average:
+This reveals a 5.27% **loss** per round for a typical individual trajectory!  (the-ergodicity-problem)= ## The Ergodicity Problem  ### Definition of Ergodicity  A system is **ergodic** if its time average equals its ensemble average:
 
 $$
-
 \lim_{T \to \infty} \frac{1}{T} \int_0^T f(X_t) dt = E[f(X)]
-
 $$
 
-This equality holds for many physical systems (e.g., ideal gases) but **fails** for multiplicative economic processes.
-
-### When Ergodicity Breaks Down
-
-Ergodicity breaks down when:
-
-1. **Multiplicative dynamics**: Changes are proportional to current state
-2. **Absorbing barriers**: Bankruptcy or ruin states that cannot be escaped
-3. **Path dependence**: History matters for future evolution
-4. **Heterogeneous agents**: Different individuals face different constraints
-
-### Mathematical Conditions
-
-For a stochastic process $X_t$ to be ergodic, it must satisfy:
-
-1. **Stationarity**: Statistical properties don't change over time
-2. **Mixing**: Past and future become independent given sufficient time
-3. **Finite variance**: Fluctuations are bounded
-4. **No absorbing states**: System can explore entire state space
-
-Wealth processes violate multiple conditions, particularly due to the absorbing barrier at zero (bankruptcy).
-
-(non-ergodic-observables)=
-## Non-Ergodic Observables
-
-### Wealth and Income
-
-**Wealth** accumulation is fundamentally non-ergodic:
+This equality holds for many physical systems (e.g., ideal gases) but **fails** for multiplicative economic processes.  ### When Ergodicity Breaks Down  Ergodicity breaks down when:  1. **Multiplicative dynamics**: Changes are proportional to current state 2. **Absorbing barriers**: Bankruptcy or ruin states that cannot be escaped 3. **Path dependence**: History matters for future evolution 4. **Heterogeneous agents**: Different individuals face different constraints  ### Mathematical Conditions  For a stochastic process $X_t$ to be ergodic, it must satisfy:  1. **Stationarity**: Statistical properties don't change over time 2. **Mixing**: Past and future become independent given sufficient time 3. **Finite variance**: Fluctuations are bounded 4. **No absorbing states**: System can explore entire state space  Wealth processes violate multiple conditions, particularly due to the absorbing barrier at zero (bankruptcy).  (non-ergodic-observables)= ## Non-Ergodic Observables  ### Wealth and Income  **Wealth** accumulation is fundamentally non-ergodic:
 - Multiplicative growth: $W_{t+1} = W_t \cdot (1 + r_t)$
-- Bankruptcy is absorbing: $W_t = 0 \Rightarrow W_{t+k} = 0$ for all $k > 0$
-- Path-dependent: Current wealth depends on entire history
-
-**Income** processes may be closer to ergodic if:
+- - Bankruptcy is absorbing: $W_t = 0 \Rightarrow W_{t+k} = 0$ for all $k > 0$
+- Path-dependent: Current wealth depends on entire history  **Income** processes may be closer to ergodic if:
 - Additive rather than multiplicative
 - Mean-reverting
-- Independent of wealth level
-
-### Growth Rates
-
-While wealth itself is non-ergodic, the **logarithmic growth rate** can be ergodic under certain conditions:
+- Independent of wealth level  ### Growth Rates  While wealth itself is non-ergodic, the **logarithmic growth rate** can be ergodic under certain conditions:
 
 $$
-
 g_t = \ln(W_t/W_{t-1})
-
 $$
 
-If $g_t$ is stationary and mixing, long-term growth rates converge to a stable distribution.
-
-### Risk Preferences
-
-Traditional utility theory assumes ergodic averaging. In reality:
+If $g_t$ is stationary and mixing, long-term growth rates converge to a stable distribution.  ### Risk Preferences  Traditional utility theory assumes ergodic averaging. In reality:
 - Risk aversion emerges naturally from time averaging
 - No arbitrary utility function needed
-- Optimal strategies maximize time-average growth
-
-(application-to-wealth-dynamics)=
-## Application to Wealth Dynamics
-
-### Geometric Brownian Motion
-
-Consider wealth following geometric Brownian motion:
+- Optimal strategies maximize time-average growth  (application-to-wealth-dynamics)= ## Application to Wealth Dynamics  ### Geometric Brownian Motion  Consider wealth following geometric Brownian motion:
 
 $$
-
 dW = W(\mu dt + \sigma dB_t)
-
 $$
 
 where:
 - $\mu$ = drift (expected return)
 - $\sigma$ = volatility
-- $B_t$ = Brownian motion
+- $B_t$ = Brownian motion  **Ensemble average** wealth:
 
-**Ensemble average** wealth:
 $$
-
 E[W_t] = W_0 \cdot e^{(\mu + \sigma^2/2)t}
-
 $$
 
 **Time average** growth rate:
+
 $$
 
 g = \mu - \frac{\sigma^2}{2}
-
 $$
 
-The volatility drag $\sigma^2/2$ reduces time-average growth but not ensemble-average growth.
-
-### With Catastrophic Losses
-
-Adding jump risk from insurance claims:
+The volatility drag $\sigma^2/2$ reduces time-average growth but not ensemble-average growth.  ### With Catastrophic Losses  Adding jump risk from insurance claims:
 
 $$
-
 dW = W(\mu dt + \sigma dB_t) - dN_t \cdot L_t
-
 $$
 
-where:
-- $N_t$ = Poisson process (claim arrivals)
-- $L_t$ = Loss severity
-
-The time-average growth becomes:
+where: - $N_t$ = Poisson process (claim arrivals) - $L_t$ = Loss severity  The time-average growth becomes:
 
 $$
-
 g = \mu - \frac{\sigma^2}{2} - \lambda \cdot E\left[\frac{L}{W}\right]
-
 $$
 
-where $\lambda$ is the claim frequency.
-
-### Optimal Growth Strategy
-
-The Kelly criterion emerges naturally from maximizing time-average growth:
+where $\lambda$ is the claim frequency.  ### Optimal Growth Strategy  The Kelly criterion emerges naturally from maximizing time-average growth:
 
 $$
-
 f^* = \arg\max_f E[\ln(1 + f \cdot R)]
-
 $$
 
-where $f$ is the fraction of wealth invested.
+where $f$ is the fraction of wealth invested.  For insurance, this translates to:
 
-For insurance, this translates to:
 $$
-
 \text{Retention}^* = \arg\max_{R} E[\ln(W_{\text{after losses and premiums}})]
-
 $$
 
-(insurance-through-an-ergodic-lens)=
-## Insurance Through an Ergodic Lens
-
-### Traditional View: Expected Value
-
-Classical insurance theory focuses on expected values:
+(insurance-through-an-ergodic-lens)= ## Insurance Through an Ergodic Lens  ### Traditional View: Expected Value  Classical insurance theory focuses on expected values:
 - Insurance is "unfair" if premium > expected loss
 - Risk-neutral agents shouldn't buy insurance
-- Utility functions needed to explain insurance demand
-
-### Ergodic View: Time Averages
-
-Ergodic theory reveals insurance as growth optimization:
+- Utility functions needed to explain insurance demand  ### Ergodic View: Time Averages  Ergodic theory reveals insurance as growth optimization:
 - Insurance reduces volatility drag
 - Premiums 2-5× expected losses can be optimal
-- No utility function needed—just time averaging
-
-### The Insurance Paradox Resolution
-
-**Paradox**: Why do people pay premiums exceeding expected losses?
-
-**Traditional answer**: Risk aversion via concave utility
-
-**Ergodic answer**: Maximizing time-average growth naturally leads to insurance demand
-
-### Mathematical Justification
-
-Without insurance, facing loss $L$ with probability $p$:
+- No utility function needed—just time averaging  ### The Insurance Paradox Resolution  **Paradox**: Why do people pay premiums exceeding expected losses?  **Traditional answer**: Risk aversion via concave utility  **Ergodic answer**: Maximizing time-average growth naturally leads to insurance demand  ### Mathematical Justification  Without insurance, facing loss $L$ with probability $p$:
 
 $$
-
 g_{\text{uninsured}} = (1-p) \cdot 0 + p \cdot \ln(1 - L/W) = p \cdot \ln(1 - L/W)
-
 $$
 
 With insurance costing premium $P$:
 
 $$
-
 g_{\text{insured}} = \ln(1 - P/W)
-
 $$
 
 Insurance is beneficial when:
+
 $$
-
 \ln(1 - P/W) > p \cdot \ln(1 - L/W)
-
 $$
 
 This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
@@ -373,7 +239,9 @@ plt.title('Distribution of Individual Growth Rates')
 
 plt.tight_layout()
 plt.show()
+
 ```
+
 
 ### Insurance Impact on Growth
 
@@ -428,7 +296,9 @@ print(f"Average growth WITH insurance: {np.mean(growth_with[wealth_with[:, -1] >
 print(f"Average growth WITHOUT insurance: {np.mean(growth_without[wealth_without[:, -1] > 0]):.3f}")
 print(f"Bankruptcy rate WITH insurance: {np.mean(wealth_with[:, -1] == 0):.1%}")
 print(f"Bankruptcy rate WITHOUT insurance: {np.mean(wealth_without[:, -1] == 0):.1%}")
+
 ```
+
 
 ## Key Takeaways
 

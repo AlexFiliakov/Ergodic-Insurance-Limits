@@ -22,42 +22,20 @@
 The insurance optimization problem:
 
 $$
-
-\begin{align}
-\max_{x \in \mathcal{X}} &\quad f(x) \\
-\text{subject to} &\quad g_i(x) \leq 0, \quad i = 1, ..., m \\
-&\quad h_j(x) = 0, \quad j = 1, ..., p
-\end{align}
-
+\begin{align} \max_{x \in \mathcal{X}} &\quad f(x) \\ \text{subject to} &\quad g_i(x) \leq 0, \quad i = 1, ..., m \\ &\quad h_j(x) = 0, \quad j = 1, ..., p \end{align}
 $$
 
 where:
 - $x$ = Decision variables (retention, limits, premiums)
 - $f(x)$ = Objective (growth rate, utility, profit)
 - $g_i(x)$ = Inequality constraints (budget, ruin probability)
-- $h_j(x)$ = Equality constraints (regulatory requirements)
+- $h_j(x)$ = Equality constraints (regulatory requirements)  ### Lagrangian Method  Form the Lagrangian:
 
-### Lagrangian Method
-
-Form the Lagrangian:
 $$
-
 \mathcal{L}(x, \lambda, \mu) = f(x) - \sum_{i=1}^m \lambda_i g_i(x) - \sum_{j=1}^p \mu_j h_j(x)
-
 $$
 
-### Karush-Kuhn-Tucker (KKT) Conditions
-
-Necessary conditions for optimality:
-
-1. **Stationarity**: $\nabla_x \mathcal{L} = 0$
-2. **Primal feasibility**: $g_i(x) \leq 0$, $h_j(x) = 0$
-3. **Dual feasibility**: $\lambda_i \geq 0$
-4. **Complementary slackness**: $\lambda_i g_i(x) = 0$
-
-### Insurance Application
-
-```python
+### Karush-Kuhn-Tucker (KKT) Conditions  Necessary conditions for optimality:  1. **Stationarity**: $\nabla_x \mathcal{L} = 0$ 2. **Primal feasibility**: $g_i(x) \leq 0$, $h_j(x) = 0$ 3. **Dual feasibility**: $\lambda_i \geq 0$ 4. **Complementary slackness**: $\lambda_i g_i(x) = 0$  ### Insurance Application  ```python
 import numpy as np
 from scipy.optimize import minimize, NonlinearConstraint
 import matplotlib.pyplot as plt
@@ -193,60 +171,32 @@ result = optimizer.optimize(ruin_threshold=0.01)
 print(f"Optimal retention: ${result.x[0]:,.0f}")
 print(f"Optimal limit: ${result.x[1]:,.0f}")
 print(f"Expected growth: {-result.fun:.4f}")
-```
 
-#### Sample Output
+```   #### Sample Output  ```
 
-```
 Optimal retention: $499,470
 Optimal limit: $2,001,013
 Expected growth: 16.1544
-```
 
----
+```   ---  (pareto-efficiency)= ## Pareto Efficiency  ### Definition  A solution is **Pareto efficient** if no objective can be improved without worsening another.  ### Pareto Frontier  Set of all Pareto efficient solutions:
 
-(pareto-efficiency)=
-## Pareto Efficiency
-
-### Definition
-
-A solution is **Pareto efficient** if no objective can be improved without worsening another.
-
-### Pareto Frontier
-
-Set of all Pareto efficient solutions:
 $$
-
 \mathcal{P} = \{x^* \in \mathcal{X} : \nexists x \in \mathcal{X}, f_i(x) \geq f_i(x^*) \forall i, f_j(x) > f_j(x^*) \text{ for some } j\}
-
 $$
 
-### Scalarization Methods
-
-#### Weighted Sum
+### Scalarization Methods  #### Weighted Sum
 
 $$
-
 \min_{x} \sum_{i=1}^k w_i f_i(x)
-
 $$
 
-where $\sum w_i = 1$, $w_i \geq 0$.
-
-#### Epsilon-Constraint
+where $\sum w_i = 1$, $w_i \geq 0$.  #### Epsilon-Constraint
 
 $$
-
-\begin{align}
-\min_{x} &\quad f_1(x) \\
-\text{s.t.} &\quad f_i(x) \leq \epsilon_i, \quad i = 2, ..., k
-\end{align}
-
+\begin{align} \min_{x} &\quad f_1(x) \\ \text{s.t.} &\quad f_i(x) \leq \epsilon_i, \quad i = 2, ..., k \end{align}
 $$
 
-### Insurance Trade-offs
-
-```python
+### Insurance Trade-offs  ```python
 class ParetoFrontier:
     """Compute Pareto frontier for insurance decisions."""
 
@@ -436,34 +386,14 @@ frontier = pareto.weighted_sum_method(weights_grid)
 
 # Visualize
 pareto.plot_frontier(frontier, ['Negative Growth', 'Risk (CVaR)'])
-```
 
-#### Sample Output
-
-![Pareto Frontier 2D](../../../theory/figures/pareto_frontier_2d.png)
-
----
-
-(multi-objective-optimization)=
-## Multi-Objective Optimization
-
-### Problem Formulation
+```   #### Sample Output  ![Pareto Frontier 2D](../../../theory/figures/pareto_frontier_2d.png)  ---  (multi-objective-optimization)= ## Multi-Objective Optimization  ### Problem Formulation
 
 $$
-
 \min_{x \in \mathcal{X}} F(x) = [f_1(x), f_2(x), ..., f_k(x)]^T
-
 $$
 
-### Dominance Relations
-
-Solution $x$ **dominates** $y$ if:
-- $f_i(x) \leq f_i(y)$ for all $i$
-- $f_j(x) < f_j(y)$ for at least one $j$
-
-### Evolutionary Algorithms
-
-```python
+### Dominance Relations  Solution $x$ **dominates** $y$ if: - $f_i(x) \leq f_i(y)$ for all $i$ - $f_j(x) < f_j(y)$ for at least one $j$  ### Evolutionary Algorithms  ```python
 class NSGA2:
     """Non-dominated Sorting Genetic Algorithm II for multi-objective optimization."""
 
@@ -718,38 +648,20 @@ ax.set_ylabel('Retained Risk')
 ax.set_zlabel('Volatility')
 ax.set_title('3D Pareto Frontier - Insurance Optimization')
 plt.show()
-```
 
-#### Sample Output
-
-![Pareto Frontier 3D](../../../theory/figures/pareto_frontier_3d.png)
-
----
-
-(hamilton-jacobi-bellman-equations)=
-## Hamilton-Jacobi-Bellman Equations
-
-### Optimal Control Problem
+```   #### Sample Output  ![Pareto Frontier 3D](../../../theory/figures/pareto_frontier_3d.png)  ---  (hamilton-jacobi-bellman-equations)= ## Hamilton-Jacobi-Bellman Equations  ### Optimal Control Problem
 
 $$
-
 V(t, x) = \max_{u \in U} \left\{ \int_t^T L(s, x(s), u(s)) ds + \Phi(x(T)) \right\}
-
 $$
 
 ### HJB Equation
 
 $$
-
 \frac{\partial V}{\partial t} + \max_{u \in U} \left\{ L(t, x, u) + \nabla V \cdot f(t, x, u) + \frac{1}{2} \text{tr}(\sigma \sigma^T \nabla^2 V) \right\} = 0
-
 $$
 
-with boundary condition: $V(T, x) = \Phi(x)$
-
-### Insurance Application
-
-```python
+with boundary condition: $V(T, x) = \Phi(x)$  ### Insurance Application  ```python
 # Simplified HJB Solver for Insurance Control
 # This demonstrates the key concepts without the full complexity
 
@@ -1026,13 +938,9 @@ print("1. Dynamic programming backward iteration")
 print("2. Wealth-dependent optimal insurance")
 print("3. Time evolution of value and policy")
 print("4. Ergodic growth considerations")
-```
 
-#### Sample Output
+```   #### Sample Output  ![HJB Solver Result](../../../theory/figures/hjb_solver_result.png)  ```
 
-![HJB Solver Result](../../../theory/figures/hjb_solver_result.png)
-
-```
 ============================================================
 HJB SOLUTION SUMMARY
 ============================================================
@@ -1058,21 +966,11 @@ This simplified HJB solution demonstrates:
 2. Wealth-dependent optimal insurance
 3. Time evolution of value and policy
 4. Ergodic growth considerations
-```
 
----
-
-(numerical-methods)=
-## Numerical Methods
-
-### Gradient-Based Methods
-
-#### Gradient Descent
+```   ---  (numerical-methods)= ## Numerical Methods  ### Gradient-Based Methods  #### Gradient Descent
 
 $$
-
 x_{k+1} = x_k - \alpha_k \nabla f(x_k)
-
 $$
 
 #### Newton's Method
@@ -1080,7 +978,6 @@ $$
 $$
 
 x_{k+1} = x_k - H_f(x_k)^{-1} \nabla f(x_k)
-
 $$
 
 #### Quasi-Newton (BFGS)
@@ -1088,14 +985,9 @@ $$
 $$
 
 x_{k+1} = x_k - \alpha_k B_k^{-1} \nabla f(x_k)
-
 $$
 
-where $B_k$ approximates the Hessian.
-
-### Derivative-Free Methods
-
-```python
+where $B_k$ approximates the Hessian.  ### Derivative-Free Methods  ```python
 class OptimizationMethods:
     """Compare different optimization methods for insurance problems."""
 
@@ -1329,13 +1221,9 @@ for name, result in results.items():
     print(f"  Solution: {result['solution']}")
     print(f"  Final Value: {result['value']:.6f}")
     print(f"  Converged to: {insurance_objective(result['solution']):.6f}")
-```
 
-#### Sample Output
+```   #### Sample Output  ![Convergence Comparison](../../../assets/convergence_comparison.png)  ```
 
-![Convergence Comparison](../../../assets/convergence_comparison.png)
-
-```
 Optimization Results:
 ==================================================
 
@@ -1353,20 +1241,11 @@ Particle Swarm:
   Solution: [ 2. 10.  0.]
   Final Value: 0.650479
   Converged to: 0.650479
-```
 
----
+```   ---  (stochastic-control)= ## Stochastic Control  ### Stochastic Differential Equation  State dynamics:
 
-(stochastic-control)=
-## Stochastic Control
-
-### Stochastic Differential Equation
-
-State dynamics:
 $$
-
 dx_t = f(t, x_t, u_t)dt + \sigma(t, x_t, u_t)dW_t
-
 $$
 
 ### Dynamic Programming Principle
@@ -1374,12 +1253,9 @@ $$
 $$
 
 V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right]
-
 $$
 
-### Implementation
-
-```python
+### Implementation  ```python
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d, interp2d
@@ -1988,13 +1864,9 @@ print(f"Number of Paths: {n_paths}")
 print(f"Wealth Range: ${controller.wealth_min/1e6:.1f}M - ${controller.wealth_max/1e6:.1f}M")
 print(f"Market Cycle Period: {controller.market_cycle_period} years")
 print("="*60)
-```
 
-#### Sample Output
+```   #### Sample Output  ![Stochastic Control](../../../theory/figures/stochastic_control.png)  ```
 
-![Stochastic Control](../../../theory/figures/stochastic_control.png)
-
-```
 ============================================================
 STOCHASTIC CONTROL RESULTS
 ============================================================
@@ -2004,19 +1876,11 @@ Number of Paths: 250
 Wealth Range: $0.5M - $20.0M
 Market Cycle Period: 2.5 years
 ============================================================
-```
 
----
-
-(convergence-criteria)=
-## Convergence Criteria
-
-### Numerical Convergence
-
-1. **Gradient norm**: $\|\nabla f(x_k)\| < \epsilon$
-2. **Step size**: $\|x_{k+1} - x_k\| < \epsilon$
-3. **Function value**: $|f(x_{k+1}) - f(x_k)| < \epsilon$
-4. **Relative change**: $\frac{|f(x_{k+1}) - f(x_k)|}{|f(x_k)|} < \epsilon$
+```   ---  (convergence-criteria)= ## Convergence Criteria  ### Numerical Convergence  1. **Gradient norm**: $\|\nabla f(x_k)\| < \epsilon$ 2. **Step size**: $\|x_{k+1}
+- x_k\| < \epsilon$ 3. **Function value**: $|f(x_{k+1})
+- f(x_k)| < \epsilon$ 4. **Relative change**: $\frac{|f(x_{k+1})
+- f(x_k)|}{|f(x_k)|} < \epsilon$
 
 ### Statistical Convergence
 
@@ -2045,7 +1909,9 @@ def check_convergence(history, window=10, threshold=1e-4):
     converged = all(criteria.values())
 
     return converged, criteria
+
 ```
+
 
 (practical-implementation)=
 ## Practical Implementation
@@ -2401,13 +2267,16 @@ if results['validation']['growth_rate'] >= 0:
     print(f"Expected Growth: {results['validation']['growth_rate']*100:.1f}%")
 else:
     print("Expected Growth: BANKRUPTCY")
+
 ```
+
 
 #### Sample Output
 
 ![Complete Insurance Optimizer](../../../theory/figures/complete_insurance_optimizer.png)
 
 ```
+
 ==================================================
 OPTIMIZATION COMPLETE
 ==================================================
@@ -2416,7 +2285,9 @@ Optimal Limit: $25,000,000
 Annual Cost: $375,000
 Survival Rate: 100.0%
 Expected Growth: 9.2%
+
 ```
+
 
 ---
 

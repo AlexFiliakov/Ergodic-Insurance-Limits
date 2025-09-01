@@ -21,65 +21,42 @@ Insurance losses are modeled as a two-stage process:
 2. **Severity**: Size of each claim
 
 Total loss:
-$$
 
+$$
 S = \sum_{i=1}^{N} X_i
-
 $$
 
-where:
-- $N$ = Number of claims (random)
-- $X_i$ = Size of $i$-th claim (random)
+where: - $N$ = Number of claims (random) - $X_i$ = Size of $i$-th claim (random)  ### Frequency Distributions  #### Poisson Distribution  Most common for claim counts:
 
-### Frequency Distributions
-
-#### Poisson Distribution
-
-Most common for claim counts:
 $$
-
 P(N = n) = \frac{\lambda^n e^{-\lambda}}{n!}
-
 $$
 
 Properties:
 - Mean = Variance = $\lambda$
-- Memoryless inter-arrival times
-- Suitable for homogeneous risks
+- Memoryless inter-arrival times - Suitable for homogeneous risks  #### Negative Binomial  For overdispersed counts (variance > mean):
 
-#### Negative Binomial
-
-For overdispersed counts (variance > mean):
 $$
-
 P(N = n) = \binom{n + r - 1}{n} p^r (1-p)^n
-
 $$
 
 Properties:
 - Mean = $r(1-p)/p$
-- Variance = $r(1-p)/p^2$ > Mean
-- Captures heterogeneity via mixing
+- Variance = $r(1-p)/p^2$ > Mean - Captures heterogeneity via mixing  #### Zero-Inflated Models  When many policies have no claims:
 
-#### Zero-Inflated Models
-
-When many policies have no claims:
 $$
-
 P(N = 0) = \pi + (1-\pi)P_0(N = 0)
-
 $$
+
+
 $$
 
 P(N = n) = (1-\pi)P_0(N = n), \quad n \geq 1
 
 $$
 
-### Severity Distributions
+### Severity Distributions  #### Log-Normal  For moderate to large claims:
 
-#### Log-Normal
-
-For moderate to large claims:
 $$
 
 f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right]
@@ -89,11 +66,8 @@ $$
 Properties:
 - Right-skewed
 - Multiplicative effects
-- No upper bound
+- No upper bound  #### Pareto  For extreme losses (heavy-tailed):
 
-#### Pareto
-
-For extreme losses (heavy-tailed):
 $$
 
 f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m
@@ -101,26 +75,14 @@ f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m
 $$
 
 Properties:
-- Power-law tail
-- Infinite variance if $\alpha \leq 2$
-- Scale-invariant
+- Power-law tail - Infinite variance if $\alpha \leq 2$
+- Scale-invariant  #### Generalized Pareto (GPD)  For excess losses above threshold:
 
-#### Generalized Pareto (GPD)
-
-For excess losses above threshold:
 $$
-
 F(x) = 1 - \left(1 + \xi \frac{x}{\sigma}\right)^{-1/\xi}
-
 $$
 
-where:
-- $\xi$ = Shape parameter (tail index)
-- $\sigma$ = Scale parameter
-
-### Implementation Example
-
-```python
+where: - $\xi$ = Shape parameter (tail index) - $\sigma$ = Scale parameter  ### Implementation Example  ```python
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -208,54 +170,22 @@ for key, value in statistics.items():
         print(f"{key}: {value:.1%}")
     else:
         print(f"{key}: ${value:,.0f}")
-```
 
-(compound-distributions)=
-## Compound Distributions
+```   (compound-distributions)= ## Compound Distributions  ### Definition  The compound distribution of total losses $S = \sum_{i=1}^N X_i$ has:  **Characteristic function**:
 
-### Definition
-
-The compound distribution of total losses $S = \sum_{i=1}^N X_i$ has:
-
-**Characteristic function**:
 $$
-
 \phi_S(t) = G_N(\phi_X(t))
-
 $$
 
-where $G_N$ is the probability generating function of $N$.
-
-### Compound Poisson
-
-When $N \sim \text{Poisson}(\lambda)$:
-
-**Mean**: $E[S] = \lambda \cdot E[X]$
-
-**Variance**: $\text{Var}(S) = \lambda \cdot E[X^2]$
-
-**Skewness**: $\text{Skew}(S) = \frac{E[X^3]}{\lambda^{1/2} \cdot E[X^2]^{3/2}}$
-
-### Panjer Recursion
-
-For discrete severities, recursive calculation:
+where $G_N$ is the probability generating function of $N$.  ### Compound Poisson  When $N \sim \text{Poisson}(\lambda)$:  **Mean**: $E[S] = \lambda \cdot E[X]$  **Variance**: $\text{Var}(S) = \lambda \cdot E[X^2]$  **Skewness**: $\text{Skew}(S) = \frac{E[X^3]}{\lambda^{1/2} \cdot E[X^2]^{3/2}}$  ### Panjer Recursion  For discrete severities, recursive calculation:
 
 $$
-
 p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j}
-
 $$
 
 where:
-- $p_k = P(S = k)$
-- $f_j = P(X = j)$
-- $(a, b)$ depend on frequency distribution
-
-### Fast Fourier Transform Method
-
-For continuous distributions:
-
-```python
+-  $p_k = P(S = k)$
+- $f_j = P(X = j)$ - $(a, b)$ depend on frequency distribution  ### Fast Fourier Transform Method  For continuous distributions:  ```python
 def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14):
     """Calculate compound distribution using FFT."""
 
@@ -296,64 +226,37 @@ plt.ylabel('Probability Density (log scale)')
 plt.title('Compound Poisson-Lognormal Distribution')
 plt.grid(True, alpha=0.3)
 plt.show()
-```
 
-![Compound Poisson-Lognormal Distribution](../../../theory/figures/compound_poi_lognormal_dist.png)
-
-(layer-pricing-theory)=
-## Layer Pricing Theory
-
-### Excess of Loss Layers
-
-Insurance coverage is structured in layers:
+```   ![Compound Poisson-Lognormal Distribution](../../../theory/figures/compound_poi_lognormal_dist.png)  (layer-pricing-theory)= ## Layer Pricing Theory  ### Excess of Loss Layers  Insurance coverage is structured in layers:
 - **Primary**: \$0 to \$L_1
 - **First Excess**: \$L_1 to \$L_2
-- **Second Excess**: \$L_2 to \$L_3, etc.
-
-### Layer Loss Calculation
-
-For layer $[a, b]$, the loss is:
+- **Second Excess**: \$L_2 to \$L_3, etc.  ### Layer Loss Calculation  For layer $[a, b]$, the loss is:
 
 $$
-
 Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a)
-
 $$
 
 Expected layer loss:
+
 $$
 
 E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx
 
 $$
 
-### Increased Limits Factors (ILFs)
-
-Ratio of expected loss at different limits:
+### Increased Limits Factors (ILFs)  Ratio of expected loss at different limits:
 
 $$
-
 \text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]}
-
 $$
 
-where $L_0$ is the base limit.
-
-### Exposure Curves
-
-Proportion of loss in layer:
+where $L_0$ is the base limit.  ### Exposure Curves  Proportion of loss in layer:
 
 $$
-
 \text{G}(r) = \frac{E[X \wedge rM]}{E[X]}
-
 $$
 
-where $M$ is the maximum possible loss.
-
-### Layer Pricing Implementation
-
-```python
+where $M$ is the maximum possible loss.  ### Layer Pricing Implementation  ```python
 class LayerPricing:
     """Price excess of loss layers."""
 
@@ -427,32 +330,18 @@ limits = [100_000, 400_000, 500_000, 4_000_000, 10_000_000]
 
 tower = pricer.create_tower(attachments, limits, frequency=5)
 print(tower.to_string())
-```
 
-![Layer Pricing](../../../theory/figures/layer_pricing.png)
-
-(retention-optimization)=
-## Retention Optimization
-
-### Objective Function
-
-Maximize utility or growth:
+```   ![Layer Pricing](../../../theory/figures/layer_pricing.png)  (retention-optimization)= ## Retention Optimization  ### Objective Function  Maximize utility or growth:
 
 $$
-
 \max_R \quad U(W - P(R) - L \wedge R)
-
 $$
 
 where:
 - $R$ = Retention level
 - $P(R)$ = Premium function
 - $L$ = Random loss
-- $W$ = Initial wealth
-
-### First-Order Condition
-
-For differentiable utility:
+- $W$ = Initial wealth  ### First-Order Condition  For differentiable utility:
 
 $$
 
@@ -460,9 +349,7 @@ P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}]
 
 $$
 
-### Ergodic Optimization
-
-Maximize time-average growth:
+### Ergodic Optimization  Maximize time-average growth:
 
 $$
 
@@ -470,15 +357,7 @@ $$
 
 $$
 
-### Constraints
-
-1. **Budget constraint**: $P(R) \leq B$
-2. **Ruin constraint**: $P(\text{ruin}) \leq \alpha$
-3. **Regulatory minimum**: $R \geq R_{\text{min}}$
-
-### Dynamic Programming Solution
-
-```python
+### Constraints  1. **Budget constraint**: $P(R) \leq B$ 2. **Ruin constraint**: $P(\text{ruin}) \leq \alpha$ 3. **Regulatory minimum**: $R \geq R_{\text{min}}$  ### Dynamic Programming Solution  ```python
 def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000,
                                premium_loading=0.3, risk_aversion=2):
     """
@@ -575,36 +454,25 @@ ax2.grid(True, alpha=0.3)
 plt.suptitle('Key Insight: Retention increases with wealth but decreases as % of wealth')
 plt.tight_layout()
 plt.show()
-```
 
-![Retention Optimization](../../../theory/figures/optimal_retention.png)
+```   ![Retention Optimization](../../../theory/figures/optimal_retention.png)  (premium-calculation-principles)= ## Premium Calculation Principles  ### Pure Premium  Expected loss only:
 
-(premium-calculation-principles)=
-## Premium Calculation Principles
-
-### Pure Premium
-
-Expected loss only:
 $$
 
 P_0 = E[L]
 
 $$
 
-### Expected Value Principle
+### Expected Value Principle  Add proportional loading:
 
-Add proportional loading:
 $$
 
 P = (1 + \theta) E[L]
 
 $$
 
-where $\theta$ is the safety loading.
+where $\theta$ is the safety loading.  ### Variance Principle  Account for risk:
 
-### Variance Principle
-
-Account for risk:
 $$
 
 P = E[L] + \alpha \cdot \text{Var}(L)
@@ -619,29 +487,23 @@ P = E[L] + \beta \cdot \text{SD}(L)
 
 $$
 
-### Exponential Principle
+### Exponential Principle  Based on exponential utility:
 
-Based on exponential utility:
 $$
 
 P = \frac{1}{\alpha} \ln(E[e^{\alpha L}])
 
 $$
 
-### Wang Transform
+### Wang Transform  Distort probability measure:
 
-Distort probability measure:
 $$
 
 P = \int_0^\infty g(S_L(x)) dx
 
 $$
 
-where $g$ is the distortion function.
-
-### Implementation Comparison
-
-```python
+where $g$ is the distortion function.  ### Implementation Comparison  ```python
 class PremiumPrinciples:
     """Compare different premium calculation methods."""
 
@@ -709,50 +571,30 @@ class PremiumPrinciples:
 loss_dist = stats.pareto(b=2, scale=50000)
 principles = PremiumPrinciples(loss_dist)
 premiums = principles.compare_all()
-```
 
-(claims-development)=
-## Claims Development
+```   (claims-development)= ## Claims Development  ### Development Triangles  Claims develop over time:  | Year | Dev 0 | Dev 1 | Dev 2 | Dev 3 | Ultimate | |------|-------|-------|-------|-------|----------| | 2020 | 100   | 150   | 170   | 175   | 175      | | 2021 | 110   | 165   | 187   | ?     | ?        | | 2022 | 120   | 180   | ?     | ?     | ?        | | 2023 | 130   | ?     | ?     | ?     | ?        |  ### Chain Ladder Method  Development factors:
 
-### Development Triangles
-
-Claims develop over time:
-
-| Year | Dev 0 | Dev 1 | Dev 2 | Dev 3 | Ultimate |
-|------|-------|-------|-------|-------|----------|
-| 2020 | 100   | 150   | 170   | 175   | 175      |
-| 2021 | 110   | 165   | 187   | ?     | ?        |
-| 2022 | 120   | 180   | ?     | ?     | ?        |
-| 2023 | 130   | ?     | ?     | ?     | ?        |
-
-### Chain Ladder Method
-
-Development factors:
 $$
-
 f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}}
-
 $$
 
 Ultimate loss:
+
 $$
 
 \hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j
 
 $$
 
-### Bornhuetter-Ferguson Method
+### Bornhuetter-Ferguson Method  Combines prior estimate with actual:
 
-Combines prior estimate with actual:
 $$
 
 \hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - \text{DevPattern}_k)
 
 $$
 
-### Implementation
-
-```python
+### Implementation  ```python
 class ClaimsDevelopment:
     """Model claims development patterns."""
 
@@ -820,48 +662,23 @@ completed, factors = dev_model.chain_ladder()
 print("Development Factors:", factors)
 print("\nCompleted Triangle:")
 print(completed)
-```
 
-(reinsurance-structures)=
-## Reinsurance Structures
-
-### Types of Reinsurance
-
-1. **Proportional (Pro-Rata)**
-   - Quota Share: Fixed percentage
-   - Surplus: Variable percentage by risk
-
-2. **Non-Proportional (Excess of Loss)**
-   - Per Risk: Each individual loss
-   - Per Occurrence: Each event
-   - Aggregate: Annual total
-
-### Quota Share
-
-Cede fixed percentage $q$:
+```   (reinsurance-structures)= ## Reinsurance Structures  ### Types of Reinsurance  1. **Proportional (Pro-Rata)**
+- Quota Share: Fixed percentage
+- Surplus: Variable percentage by risk  2. **Non-Proportional (Excess of Loss)**
+- Per Risk: Each individual loss
+- Per Occurrence: Each event
+- Aggregate: Annual total  ### Quota Share  Cede fixed percentage $q$:
 - Retained loss: $(1-q) \cdot L$
 - Ceded loss: $q \cdot L$
-- Premium: $q \cdot P \cdot (1 + c)$
-
-where $c$ is ceding commission.
-
-### Surplus Treaty
-
-Cede above retention line $R$:
+- Premium: $q \cdot P \cdot (1 + c)$  where $c$ is ceding commission.  ### Surplus Treaty  Cede above retention line $R$:
 - Retention: $\min(S, R)$
-- Cession: $\max(0, S - R)$
-
-where $S$ is sum insured.
-
-### Aggregate Excess
-
-Annual aggregate deductible $D$ and limit $L$:
+- Cession: $\max(0, S
+- R)$  where $S$ is sum insured.  ### Aggregate Excess  Annual aggregate deductible $D$ and limit $L$:
 
 $$
 
-\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))
-
-$$
+\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))  $$
 
 ### Optimization Example
 
@@ -949,7 +766,9 @@ for key, value in optimal.items():
         print(f"{key}: ${value:,.0f}")
     else:
         print(f"{key}: {value:.1%}")
+
 ```
+
 
 (practical-applications)=
 ## Practical Applications
@@ -1045,7 +864,9 @@ for risk_type, limits in recommendations.items():
     print(f"  Primary (0 - ${limits['primary']:,.0f})")
     print(f"  Excess (${limits['primary']:,.0f} - ${limits['primary'] + limits['excess']:,.0f})")
     print(f"  Cat (${limits['primary'] + limits['excess']:,.0f} - ${limits['total_limit']:,.0f})")
+
 ```
+
 
 ### Application 2: Portfolio Insurance
 
@@ -1122,7 +943,9 @@ def portfolio_tail_risk_hedging(portfolio_value=100_000_000):
 # Analyze hedging strategies
 hedging_analysis = portfolio_tail_risk_hedging()
 print(hedging_analysis.to_string())
+
 ```
+
 
 ## Key Takeaways
 
