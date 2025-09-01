@@ -603,6 +603,7 @@ Stationary: False, Halfwidth test: False
 ```
 ---
 (confidence-intervals)= ## Confidence Intervals
+(confidence-intervals)=
 ### Classical Confidence Intervals
 
 For large samples, use Central Limit Theorem:
@@ -611,6 +612,7 @@ $$
 \bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}
 $$
 
+(confidence-intervals)=
 ### Bootstrap Confidence Intervals  #### Percentile Method Use quantiles of bootstrap distribution:
 
 $$

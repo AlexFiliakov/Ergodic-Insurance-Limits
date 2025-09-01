@@ -250,6 +250,7 @@ flowchart TB
 - **Insurance Pricing**: Sophisticated premium modeling and rate calculation
 
 (data-flow-patterns)=
+(data-flow-patterns)=
 ## Data Flow Patterns
 
 1. **Configuration Pipeline**: External configs → Manager → V2 models → Component initialization

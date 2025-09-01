@@ -1,6 +1,7 @@
 # Data Models and Configuration Classes
 
 (configuration-data-models)=
+(configuration-data-models)=
 ## Configuration Data Models
 
 ```mermaid
@@ -155,6 +156,7 @@ classDiagram
 ```
 
 (result-data-models)=
+(result-data-models)=
 ## Result Data Models
 
 ```mermaid
@@ -302,6 +304,7 @@ classDiagram
     HJBSolution --> OptimalStrategy : informs
 ```
 
+(state-and-progress-models)=
 (state-and-progress-models)=
 ## State and Progress Models
 

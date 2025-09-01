@@ -529,7 +529,8 @@ principles = PremiumPrinciples(loss_dist)
 premiums = principles.compare_all()
 
 ```
-(claims-development)= ## Claims Development
+(claims-development)=
+## Claims Development
 ### Development Triangles
 
 Claims develop over time:
@@ -646,7 +647,9 @@ print("\nCompleted Triangle:")
 print(completed)
 
 ```
-(reinsurance-structures)= ## Reinsurance Structures
+(reinsurance-structures)=
+## Reinsurance Structures
+
 ### Types of Reinsurance
 1. **Proportional (Pro-Rata)**
 - Quota Share: Fixed percentage

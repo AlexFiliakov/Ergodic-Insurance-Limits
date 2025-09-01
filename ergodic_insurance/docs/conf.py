@@ -97,6 +97,17 @@ html_link_suffix = ".html"
 # It prevents MathJax from searching for math and only renders what MyST parses
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 
+# Configure MathJax 3 to work with MyST's output
+mathjax3_config = {
+    "tex": {
+        "inlineMath": [["\\(", "\\)"]],
+        "displayMath": [["\\[", "\\]"]],
+        "processEscapes": True,
+        "processEnvironments": True,
+    },
+    "options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"},
+}
+
 # -- Options for MyST parser -------------------------------------------------
 myst_enable_extensions = [
     "dollarmath",  # Enable dollar math syntax (REQUIRED for $ and $$ math)
@@ -109,7 +120,7 @@ myst_enable_extensions = [
 # Allow labels in display math (e.g., $$...$$ (label))
 myst_dmath_allow_labels = True
 
-# Let MyST update MathJax configuration automatically
+# Let MyST update MathJax configuration (it will merge with our mathjax3_config)
 myst_update_mathjax = True
 
 # -- Options for autodoc extension ------------------------------------------
