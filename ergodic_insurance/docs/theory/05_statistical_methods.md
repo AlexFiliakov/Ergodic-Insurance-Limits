@@ -565,7 +565,7 @@ diagnostics.plot_diagnostics()
 
 #### Sample Output
 
-![Convergence Diagnostics Example](../../../../theory/figures/convergence_diagnostics_example.png)
+![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
 
 ```
 Convergence Diagnostics:
@@ -805,7 +805,7 @@ print(comparison.to_string())
 
 #### Sample Output
 
-![Bootstrap Confidence Interval](../../../../theory/figures/bootstrap_ci.png)
+![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)
 
 ```
 Confidence Interval Comparison:
@@ -1145,7 +1145,7 @@ for name, dist in methods.items():
 
 #### Sample Output
 
-![Comparison of Bootstrap Methods](../../../../theory/figures/bootstrap_methods_comparison.png)
+![Comparison of Bootstrap Methods](../../../theory/figures/bootstrap_methods_comparison.png)
 
 ```
 Bootstrap Comparison:
@@ -1364,7 +1364,7 @@ validator.plot_validation(results)
 ```
 #### Sample Output
 
-![Walk-Forward Validation](../../../../theory/figures/walk_forward_validation.png)
+![Walk-Forward Validation](../../../theory/figures/walk_forward_validation.png)
 
 ```
 Walk-Forward Validation Results:
@@ -1653,7 +1653,7 @@ backtester.plot_backtest()
 
 #### Sample Output
 
-![Backtesting Example](../../../../theory/figures/backtesting_example.png)
+![Backtesting Example](../../../theory/figures/backtesting_example.png)
 
 ```
 Backtest Results:
@@ -2155,7 +2155,7 @@ cv_demo.plot_cv_comparison()
 
 #### Sample Output
 
-![Cross-Validation Examples](../../../../theory/figures/cv_examples.png)
+![Cross-Validation Examples](../../../theory/figures/cv_examples.png)
 
 ```
 Walk-Forward Validation Results:
