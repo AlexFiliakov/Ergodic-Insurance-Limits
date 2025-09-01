@@ -13,8 +13,9 @@ from ergodic_insurance.src.visualization.executive_plots import plot_optimal_cov
 print("Testing plot_optimal_coverage_heatmap with consistent percentage axes...")
 print("\nCreating heatmap for company sizes: $1M, $10M, $100M")
 print("All plots should have:")
-print("  - X-axis: Same percentage range starting from 0%")
-print("  - Y-axis: Same percentage range starting from 0%")
+print("  - X-axis: Same percentage range focused on optimal region")
+print("  - Y-axis: Same percentage range focused on optimal region")
+print("  - Tighter ranges around useful configurations")
 print("  - Consistent tick marks across all plots")
 
 fig = plot_optimal_coverage_heatmap(
@@ -55,8 +56,9 @@ else:
     print("[ERROR] Y-axes have different ranges!")
 
 print("\n[COMPLETE] Test complete! The heatmap now uses consistent percentage axes across all company sizes.")
-print("   - All plots start at 0% for both axes")
-print("   - All plots extend to the same maximum percentage")
-print("   - This makes it easy to compare optimal configurations across company sizes")
+print("   - Axes are focused on the optimal configuration region")
+print("   - Data-driven ranges (not arbitrary 0-500%)")
+print("   - All plots use the same tighter percentage ranges")
+print("   - This makes optimal configurations much clearer")
 
 plt.show()

@@ -1568,10 +1568,61 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
         all_limit_pcts.extend(limit_pcts)
 
     # Determine global ranges for consistent axes
-    min_retention_pct = 0  # Start at 0%
-    max_retention_pct = max(all_retention_pcts)
-    min_limit_pct = 0  # Start at 0%
-    max_limit_pct = max(all_limit_pcts)
+    # Focus on the useful range around optimal configurations
+    # Find the range that contains the high-growth regions (top 80% of growth rates)
+
+    # Collect optimal regions for each company size
+    optimal_retention_pcts = []
+    optimal_limit_pcts = []
+
+    for idx, plot_data in enumerate(data_for_plots):
+        growth_rates = plot_data["growth_rates"]
+        retention_pcts = plot_data["retention_pcts"]
+        limit_pcts = plot_data["limit_pcts"]
+
+        # Find the threshold for "good" growth (e.g., top 25% of growth rates for tighter focus)
+        growth_threshold = np.percentile(growth_rates, 75)
+
+        # Find retention and limit ranges where growth is above threshold
+        R, L = np.meshgrid(retention_pcts, limit_pcts)
+        good_growth_mask = growth_rates >= growth_threshold
+
+        if np.any(good_growth_mask):
+            optimal_retention_pcts.extend(R[good_growth_mask])
+            optimal_limit_pcts.extend(L[good_growth_mask])
+
+    # Set ranges to cover the optimal regions with some padding
+    # Use percentiles to avoid outliers
+    if optimal_retention_pcts:
+        min_retention_pct = max(0, np.percentile(optimal_retention_pcts, 10) * 0.7)
+        max_retention_pct = min(100, np.percentile(optimal_retention_pcts, 90) * 1.3)
+    else:
+        # Fallback to reasonable defaults if no optimal region found
+        min_retention_pct = 0.1  # 0.1%
+        max_retention_pct = 20  # 20%
+
+    if optimal_limit_pcts:
+        min_limit_pct = max(0, np.percentile(optimal_limit_pcts, 10) * 0.7)
+        max_limit_pct = min(1000, np.percentile(optimal_limit_pcts, 90) * 1.3)
+    else:
+        # Fallback to reasonable defaults
+        min_limit_pct = 10  # 10%
+        max_limit_pct = 200  # 200%
+
+    # Ensure we have reasonable minimum ranges
+    if max_retention_pct - min_retention_pct < 5:
+        # Ensure at least 5% range
+        max_retention_pct = min_retention_pct + 5
+
+    if max_limit_pct - min_limit_pct < 50:
+        # Ensure at least 50% range
+        max_limit_pct = min_limit_pct + 50
+
+    # Round to nice numbers for cleaner axes
+    min_retention_pct = np.floor(min_retention_pct * 2) / 2  # Round down to nearest 0.5%
+    max_retention_pct = np.ceil(max_retention_pct * 2) / 2  # Round up to nearest 0.5%
+    min_limit_pct = np.floor(min_limit_pct / 10) * 10  # Round down to nearest 10%
+    max_limit_pct = np.ceil(max_limit_pct / 10) * 10  # Round up to nearest 10%
 
     # Determine global min and max for unified color scale
     vmin = min(np.min(rates) for rates in all_growth_rates)
