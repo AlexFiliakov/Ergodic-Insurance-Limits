@@ -35,10 +35,10 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
-    "myst_parser.sphinx_ext.mathjax",  # Use MyST's MathJax extension for proper integration
+    "sphinx.ext.mathjax",  # Standard MathJax extension
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
-    "myst_parser",
+    "myst_parser",  # MyST parser will automatically override MathJax when myst_update_mathjax=True
     "sphinxcontrib.mermaid",  # Add Mermaid diagram support
 ]
 
