@@ -3,45 +3,73 @@
 /* Import Google Fonts to match main site */
 @import url('https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap');
 
-/* Fix inline math vertical alignment */
+/* ========================================
+   Fix inline math vertical alignment
+   ======================================== */
+
 /* Target inline math spans created by MyST */
 span.math.notranslate.nohighlight {
     vertical-align: baseline !important;
-    position: relative;
+    position: relative !important;
     top: 0 !important;
 }
 
-/* Fix MathJax container alignment */
+/* Fix MathJax container alignment - MORE SPECIFIC */
 /* Inline math containers */
-mjx-container[jax="CHTML"][display="false"] {
+mjx-container[jax="CHTML"][display="false"],
+mjx-container[jax="CHTML"]:not([display="true"]),
+mjx-container.MathJax {
     display: inline-block !important;
-    vertical-align: baseline !important;
-    margin: 0 0.1em !important;
-    position: relative;
-    top: 0 !important;
+    vertical-align: middle !important;
+    position: relative !important;
+    top: -0.1em !important; /* Slightly lower to align with text baseline */
+    margin: 0 0.15em !important;
 }
 
-/* Additional selector for inline math */
-mjx-container:not([display="true"]) {
-    vertical-align: baseline !important;
-    position: relative;
-    top: 0 !important;
+/* Even more specific for inline math */
+p mjx-container[display="false"],
+li mjx-container[display="false"],
+td mjx-container[display="false"],
+.rst-content mjx-container[display="false"] {
+    vertical-align: middle !important;
+    position: relative !important;
+    top: -0.1em !important;
 }
 
 /* Display math containers (keep centered) */
-mjx-container[jax="CHTML"][display="true"] {
+mjx-container[jax="CHTML"][display="true"],
+div.math mjx-container {
     display: block !important;
     margin: 1em auto !important;
-    text-align: center;
+    text-align: center !important;
+    position: static !important;
+    top: auto !important;
 }
 
-/* Fix for math inside paragraphs */
-p > span.math {
-    vertical-align: baseline !important;
+/* Fix for math spans inside paragraphs */
+p > span.math,
+li > span.math,
+td > span.math {
+    vertical-align: middle !important;
+    position: relative !important;
+    top: 0 !important;
+}
+
+/* Fix MathJax output specifically */
+.MathJax_Display {
+    margin: 1em 0 !important;
+}
+
+.MathJax {
+    vertical-align: middle !important;
+    display: inline-block !important;
+    position: relative !important;
+    top: -0.1em !important;
 }
 
 /* Ensure proper line height for paragraphs with math */
-p:has(span.math) {
+p:has(span.math),
+p:has(mjx-container) {
     line-height: 1.6;
 }
 
