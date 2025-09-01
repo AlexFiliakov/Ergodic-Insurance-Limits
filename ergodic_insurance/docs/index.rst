@@ -22,33 +22,33 @@ Quick Links
 .. raw:: html
 
    <div style="display: flex; gap: 20px; margin: 20px 0;">
-     <div style="flex: 1; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
-       <h3 style="margin-top: 0;">📚 Tutorials</h3>
-       <p>Step-by-step learning guides</p>
-       <a href="tutorials/index.html" style="color: #4CAF50; font-weight: bold;">Start Tutorial →</a>
-     </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #2196F3; border-radius: 8px;">
        <h3 style="margin-top: 0;">🚀 Quick Start</h3>
        <p>Run your first simulation</p>
        <a href="tutorials/01_getting_started.html" style="color: #2196F3; font-weight: bold;">Get Started →</a>
      </div>
+     <div style="flex: 1; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
+       <h3 style="margin-top: 0;">📚 Tutorials</h3>
+       <p>Step-by-step learning guides</p>
+       <a href="tutorials/index.html" style="color: #4CAF50; font-weight: bold;">Start Tutorial →</a>
+     </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #FF9800; border-radius: 8px;">
-       <h3 style="margin-top: 0;">💡 Case Studies</h3>
-       <p>Real-world examples</p>
+       <h3 style="margin-top: 0;">💡 Model Cases</h3>
+       <p>Realistic examples</p>
        <a href="user_guide/case_studies.html" style="color: #FF9800; font-weight: bold;">View Cases →</a>
      </div>
    </div>
 
    <div style="display: flex; gap: 20px; margin: 20px 0;">
-     <div style="flex: 1; padding: 15px; border: 2px solid #9C27B0; border-radius: 8px;">
-       <h3 style="margin-top: 0;">🏗️ Architecture</h3>
-       <p>System design diagrams</p>
-       <a href="architecture/index.html" style="color: #9C27B0; font-weight: bold;">View Architecture →</a>
-     </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #E91E63; border-radius: 8px;">
        <h3 style="margin-top: 0;">📖 Theory</h3>
        <p>Mathematical foundations</p>
        <a href="theory/index.html" style="color: #E91E63; font-weight: bold;">Learn Theory →</a>
+     </div>
+     <div style="flex: 1; padding: 15px; border: 2px solid #9C27B0; border-radius: 8px;">
+       <h3 style="margin-top: 0;">🏗️ Architecture</h3>
+       <p>System design diagrams</p>
+       <a href="architecture/index.html" style="color: #9C27B0; font-weight: bold;">View Architecture →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #795548; border-radius: 8px;">
        <h3 style="margin-top: 0;">📋 API Reference</h3>

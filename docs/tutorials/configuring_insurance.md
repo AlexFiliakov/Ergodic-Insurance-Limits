@@ -258,7 +258,7 @@ selected = optimizer.select_solution(
 )
 ```
 
-## Real-World Examples
+## Model Cases
 
 ### Example 1: Manufacturing Company
 

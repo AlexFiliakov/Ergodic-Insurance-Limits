@@ -35,7 +35,7 @@ If you're new to ergodic insurance optimization, we recommend reading the sectio
 2. Follow the :doc:`quick_start` to set up your first analysis
 3. Use :doc:`running_analysis` to perform your own company assessment
 4. Apply the :doc:`decision_framework` to make optimal choices
-5. Review :doc:`case_studies` for real-world examples
+5. Review :doc:`case_studies` for realistic examples
 
 For Help
 --------

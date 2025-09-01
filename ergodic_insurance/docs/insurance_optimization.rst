@@ -222,7 +222,7 @@ Business Constraints
        "max_collateral_requirements": 5e6
    }
 
-Case Study: Widget Manufacturer
+Model Case: Widget Manufacturer
 --------------------------------
 
 Optimization Process

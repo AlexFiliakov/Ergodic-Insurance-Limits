@@ -1,9 +1,9 @@
-Case Studies
+Model Cases
 ============
 
 These case studies demonstrate how different types of companies can use ergodic insurance optimization. Each includes actual simulation results and detailed analysis of the decision process.
 
-Case Study 1: Widget Manufacturing Company
+Model Case 1: Widget Manufacturing Company
 -------------------------------------------
 
 Company Profile
@@ -106,7 +106,7 @@ Recommendation
 
 **Key Insight:** The \$500K retention was creating cash flow stress during loss years, impeding growth investments. Lower retention enables consistent reinvestment.
 
-Case Study 2: High-Growth Technology Startup
+Model Case 2: High-Growth Technology Startup
 ---------------------------------------------
 
 Company Profile
@@ -206,7 +206,7 @@ Recommendation
 * Protects \$50M post-money valuation
 * Required by most Series B investors
 
-Case Study 3: Stable Utility Company
+Model Case 3: Stable Utility Company
 -------------------------------------
 
 Company Profile
@@ -272,7 +272,7 @@ Recommendation
 * Improved regulatory standing
 * Maintains AAA credit rating
 
-Case Study 4: Comparison Across Industries
+Model Case 4: Comparison Across Industries
 -------------------------------------------
 
 Comparative Analysis
@@ -347,30 +347,19 @@ Lesson 3: Market Capacity
 * Excess: Bermuda markets (\$20M)
 * Cat: ILS/Alternative capital (\$25M)
 
-Real-World Validation
----------------------
+TODO: Real-World Validation
+---------------------------
 
 Backtesting Against Historical Events
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We validated our models against actual loss events:
+We need to validate our models against actual loss events:
 
-**2008 Financial Crisis Scenario:**
-
-* Companies with ergodic-optimized insurance: 73% survived
-* Companies with traditional coverage: 42% survived
-* Difference primarily in retention levels (cash preservation)
-
-**2020 Pandemic Scenario:**
-
-* Optimized structures included BI coverage: 91% survived
-* Traditional property-focused: 67% survived
-* Key factor: Broader coverage despite higher cost
-
-**Natural Catastrophe Events:**
-
-* Hurricane exposure (Florida manufacturer): Model correctly predicted need for \$30M limit
-* Earthquake exposure (California tech): Model matched industry losses within 15%
+* **2008 Financial Crisis Scenario:**
+* **2020 Pandemic Scenario:**
+* **Natural Catastrophe Events:**
+   * Hurricane exposure (Florida manufacturer)
+   * Earthquake exposure (California tech)
 
 Your Next Steps
 ---------------
