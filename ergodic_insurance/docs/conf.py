@@ -163,20 +163,9 @@ todo_include_todos = True
 # -- Options for mermaid extension -------------------------------------------
 # https://github.com/mgaitan/sphinxcontrib-mermaid
 
+# For now, use default settings to avoid timeout issues
+# We'll pre-render diagrams separately for GitHub Pages
 mermaid_version = "10.9.0"
-mermaid_init_js = """
-mermaid.initialize({
-    startOnLoad: true,
-    theme: 'default',
-    themeVariables: {
-        fontSize: '14px'
-    },
-    flowchart: {
-        useMaxWidth: true,
-        htmlLabels: true
-    }
-});
-"""
 
 # -- Options for MyST parser -------------------------------------------------
 # Enable mermaid code blocks in markdown
@@ -184,7 +173,12 @@ myst_enable_extensions = [
     "deflist",
     "html_image",
     "colon_fence",
+    "dollarmath",
+    "amsmath",
 ]
+
+# Tell MyST to treat mermaid code blocks as directives
+myst_fence_as_directive = ["mermaid"]
 
 # Support for markdown files
 source_suffix = {
