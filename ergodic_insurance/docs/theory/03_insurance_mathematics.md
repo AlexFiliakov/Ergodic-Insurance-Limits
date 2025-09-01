@@ -10,6 +10,7 @@
 7. [Reinsurance Structures](#reinsurance-structures)
 8. [Practical Applications](#practical-applications)
 
+(frequency-severity-models)=
 ## Frequency-Severity Models
 
 ### Classical Framework
@@ -177,6 +178,7 @@ for key, value in statistics.items():
         print(f"{key}: ${value:,.0f}")
 ```
 
+(compound-distributions)=
 ## Compound Distributions
 
 ### Definition
@@ -258,6 +260,7 @@ plt.show()
 
 ![Compound Poisson-Lognormal Distribution](/theory/figures/compound_poi_lognormal_dist.png)
 
+(layer-pricing-theory)=
 ## Layer Pricing Theory
 
 ### Excess of Loss Layers
@@ -372,6 +375,7 @@ print(tower.to_string())
 
 ![Layer Pricing](/theory/figures/layer_pricing.png)
 
+(retention-optimization)=
 ## Retention Optimization
 
 ### Objective Function
@@ -507,6 +511,7 @@ plt.show()
 
 ![Retention Optimization](/theory/figures/optimal_retention.png)
 
+(premium-calculation-principles)=
 ## Premium Calculation Principles
 
 ### Pure Premium
@@ -614,6 +619,7 @@ principles = PremiumPrinciples(loss_dist)
 premiums = principles.compare_all()
 ```
 
+(claims-development)=
 ## Claims Development
 
 ### Development Triangles
@@ -712,6 +718,7 @@ print("\nCompleted Triangle:")
 print(completed)
 ```
 
+(reinsurance-structures)=
 ## Reinsurance Structures
 
 ### Types of Reinsurance
@@ -836,6 +843,7 @@ for key, value in optimal.items():
         print(f"{key}: {value:.1%}")
 ```
 
+(practical-applications)=
 ## Practical Applications
 
 ### Application 1: Manufacturing Company

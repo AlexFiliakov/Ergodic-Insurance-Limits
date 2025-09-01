@@ -14,6 +14,7 @@
 7. [Convergence Criteria](#convergence-criteria)
 8. [Practical Implementation](#practical-implementation)
 
+(constrained-optimization)=
 ## Constrained Optimization
 
 ### General Formulation
@@ -196,6 +197,7 @@ Expected growth: 16.1544
 
 ---
 
+(pareto-efficiency)=
 ## Pareto Efficiency
 
 ### Definition
@@ -422,6 +424,7 @@ pareto.plot_frontier(frontier, ['Negative Growth', 'Risk (CVaR)'])
 
 ---
 
+(multi-objective-optimization)=
 ## Multi-Objective Optimization
 
 ### Problem Formulation
@@ -699,6 +702,7 @@ plt.show()
 
 ---
 
+(hamilton-jacobi-bellman-equations)=
 ## Hamilton-Jacobi-Bellman Equations
 
 ### Optimal Control Problem
@@ -1026,6 +1030,7 @@ This simplified HJB solution demonstrates:
 
 ---
 
+(numerical-methods)=
 ## Numerical Methods
 
 ### Gradient-Based Methods
@@ -1308,6 +1313,7 @@ Particle Swarm:
 
 ---
 
+(stochastic-control)=
 ## Stochastic Control
 
 ### Stochastic Differential Equation
@@ -1950,6 +1956,7 @@ Market Cycle Period: 2.5 years
 
 ---
 
+(convergence-criteria)=
 ## Convergence Criteria
 
 ### Numerical Convergence
@@ -1988,6 +1995,7 @@ def check_convergence(history, window=10, threshold=1e-4):
     return converged, criteria
 ```
 
+(practical-implementation)=
 ## Practical Implementation
 
 ### Complete Insurance Optimizer

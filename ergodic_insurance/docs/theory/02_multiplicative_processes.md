@@ -103,6 +103,7 @@ print(f"Median final value: {np.median(final_values):.2f}")
 print(f"Probability of loss: {np.mean(final_values < 100):.1%}")
 ```
 
+(log-normal-distributions)=
 ## Log-Normal Distributions
 
 ### Definition and Properties
@@ -186,6 +187,7 @@ plt.grid(True, alpha=0.3)
 plt.show()
 ```
 
+(path-dependence-and-history)=
 ## Path Dependence and History
 
 ### Definition of Path Dependence
@@ -265,6 +267,7 @@ print(f"Max drawdown: {correlation_matrix[0, 2]:.3f}")
 print(f"Realized volatility: {correlation_matrix[0, 3]:.3f}")
 ```
 
+(growth-rate-calculations)=
 ## Growth Rate Calculations
 
 ### Arithmetic vs Geometric Returns
@@ -456,6 +459,7 @@ optimal_retention = kelly_optimal_insurance(
 print(f"Kelly-optimal retention: ${optimal_retention:,.0f}")
 ```
 
+(volatility-drag)=
 ## Volatility Drag
 
 ![Volatility Drag](figures/volatility_drag.png)
@@ -524,6 +528,7 @@ benefit = calculate_volatility_drag_benefit(
 )
 ```
 
+(practical-examples)=
 ## Practical Examples
 
 ### Example 1: Widget Manufacturer

@@ -6,6 +6,14 @@ This section provides comprehensive architectural visualizations of the Ergodic 
 .. note::
    The diagrams are interactive - you can zoom, pan, and click on elements for better viewing. If diagrams don't render properly, try refreshing the page or viewing in a modern browser.
 
+Understanding the Notation
+--------------------------
+
+- **Boxes**: Represent classes, modules, or components
+- **Arrows**: Show dependencies, data flow, or relationships
+- **Colors**: Group related components (consistent across diagrams)
+- **Labels**: Describe the nature of relationships
+
 Overview
 --------
 
@@ -203,38 +211,4 @@ Key Architectural Decisions
 3. **Parallel Processing**: CPU-optimized execution for large-scale simulations
 4. **Ergodic Theory Integration**: Core differentiation through time vs ensemble analysis
 5. **Extensible Plugin Architecture**: New components without modifying core
-6. **100% Test Coverage**: Comprehensive testing across all modules
-
-Using the Diagrams
-------------------
-
-**Navigation Tips:**
-
-- Click on diagram elements to see details (where supported)
-- Use browser zoom (Ctrl/Cmd + Mouse wheel) for better viewing
-- Diagrams are responsive and will adjust to screen size
-- For printing, use browser print preview with landscape orientation
-
-**Understanding the Notation:**
-
-- **Boxes**: Represent classes, modules, or components
-- **Arrows**: Show dependencies, data flow, or relationships
-- **Colors**: Group related components (consistent across diagrams)
-- **Labels**: Describe the nature of relationships
-
-Further Resources
------------------
-
-- :doc:`README` - Complete architecture documentation index
-- :doc:`configuration_v2` - Detailed configuration system documentation
-- :doc:`../api/modules` - Auto-generated API documentation
-- :doc:`../theory/index` - Theoretical foundations
-- `GitHub Repository <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits>`_ - Source code
-
-Contact
--------
-
-For questions about the architecture or to suggest improvements:
-
-- Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`_
-- Contact: Alex Filiakov (alexfiliakov@gmail.com)
+6. **85+% Test Coverage**: Comprehensive testing across all modules

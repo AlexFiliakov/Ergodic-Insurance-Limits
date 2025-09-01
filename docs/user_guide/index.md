@@ -41,6 +41,8 @@ No advanced mathematics or programming knowledge is required. We'll walk you thr
 * Check the [FAQ](faq.md) for common questions
 * Consult the [Glossary](glossary.md) for term definitions
 * Review example notebooks in the project repository
-* Contact support for additional assistance
+*  Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`
+* Contact: Alex Filiakov (alexfiliakov@gmail.com)
+
 
 Ready to transform insurance from a cost center to a growth enabler? Let's begin with the [Executive Summary](executive_summary.md)!

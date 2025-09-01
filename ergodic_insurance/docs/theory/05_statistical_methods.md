@@ -10,6 +10,7 @@
 7. [Backtesting](#backtesting)
 8. [Model Validation](#model-validation)
 
+(monte-carlo-methods)=
 ## Monte Carlo Methods
 
 ![Monte Carlo Convergence](figures/monte_carlo_convergence.png)
@@ -268,6 +269,7 @@ Stratified   Mean: 55034.214910, SE: 324.692728
 
 ---
 
+(convergence-diagnostics)=
 ## Convergence Diagnostics
 
 ![Convergence Diagnostics](figures/convergence_diagnostics.png)
@@ -576,6 +578,7 @@ Stationary: False, Halfwidth test: False
 
 ---
 
+(confidence-intervals)=
 ## Confidence Intervals
 
 ### Classical Confidence Intervals
@@ -816,6 +819,7 @@ Confidence Interval Comparison:
 
 ---
 
+(hypothesis-testing)=
 ## Hypothesis Testing
 
 ### Framework
@@ -985,6 +989,7 @@ Permutation: p=0.0008, Observed diff=-0.0187
 
 ---
 
+(bootstrap-methods)=
 ## Bootstrap Methods
 
 ![Bootstrap Analysis](figures/bootstrap_analysis.png)
@@ -1153,6 +1158,7 @@ Wild         Mean: 0.552, Std: 0.063, 95% CI: [0.432, 0.681]
 
 ---
 
+(walk-forward-validation)=
 ## Walk-Forward Validation
 
 ![Validation Methods](figures/validation_methods.png)
@@ -1374,6 +1380,7 @@ n_folds: 16
 
 ---
 
+(backtesting)=
 ## Backtesting
 
 ### Backtesting Framework
@@ -1667,6 +1674,7 @@ survival: True
 
 ---
 
+(model-validation)=
 ## Model Validation
 
 ### Cross-Validation for Time Series

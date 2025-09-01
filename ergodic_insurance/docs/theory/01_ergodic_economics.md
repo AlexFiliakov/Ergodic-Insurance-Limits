@@ -10,12 +10,14 @@
 7. [Practical Implications](#practical-implications)
 8. [Visual Examples](#visual-examples)
 
+(the-core-insight)=
 ## The Core Insight
 
 Ergodic economics, pioneered by Ole Peters and collaborators, challenges the fundamental assumption that expected values (ensemble averages) are appropriate for individual decision-making. The key insight is that for multiplicative processes—which characterize most economic phenomena including wealth dynamics—the time average experienced by an individual differs systematically from the ensemble average across many individuals.
 
 This distinction is not merely academic; it fundamentally changes optimal strategies for insurance, investment, and risk management.
 
+(time-averages-vs-ensemble-averages)=
 ## Time Averages vs Ensemble Averages
 
 ![Time Average vs Ensemble Average Example](/assets/ergodic_distinction.png)
@@ -66,6 +68,7 @@ $$g = E[\ln(R)] = 0.5 \times \ln(1.5) + 0.5 \times \ln(0.6) = -0.0527$$
 
 This reveals a 5.27% **loss** per round for a typical individual trajectory!
 
+(the-ergodicity-problem)=
 ## The Ergodicity Problem
 
 ### Definition of Ergodicity
@@ -96,6 +99,7 @@ For a stochastic process $X_t$ to be ergodic, it must satisfy:
 
 Wealth processes violate multiple conditions, particularly due to the absorbing barrier at zero (bankruptcy).
 
+(non-ergodic-observables)=
 ## Non-Ergodic Observables
 
 ### Wealth and Income
@@ -125,6 +129,7 @@ Traditional utility theory assumes ergodic averaging. In reality:
 - No arbitrary utility function needed
 - Optimal strategies maximize time-average growth
 
+(application-to-wealth-dynamics)=
 ## Application to Wealth Dynamics
 
 ### Geometric Brownian Motion
@@ -173,6 +178,7 @@ where $f$ is the fraction of wealth invested.
 For insurance, this translates to:
 $$\text{Retention}^* = \arg\max_{R} E[\ln(W_{\text{after losses and premiums}})]$$
 
+(insurance-through-an-ergodic-lens)=
 ## Insurance Through an Ergodic Lens
 
 ### Traditional View: Expected Value
@@ -212,6 +218,7 @@ $$\ln(1 - P/W) > p \cdot \ln(1 - L/W)$$
 
 This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
 
+(practical-implications)=
 ## Practical Implications
 
 ### For Insurance Buyers
@@ -238,6 +245,7 @@ This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
 2. **Parameter estimation**: Focus on growth rates, not just moments
 3. **Validation**: Test strategies over long horizons
 
+(visual-examples)=
 ## Visual Examples
 
 ![Ensemble vs Time Average](figures/ensemble_vs_time.png)
