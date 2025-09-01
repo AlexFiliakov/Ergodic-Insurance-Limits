@@ -10,6 +10,7 @@
 7. [Volatility Drag](#volatility-drag)
 8. [Practical Examples](#practical-examples)
 
+(introduction-to-multiplicative-dynamics)=
 ## Introduction to Multiplicative Dynamics
 
 ### Definition
@@ -39,6 +40,7 @@ Most economic quantities evolve multiplicatively:
 3. **Compound effects**: Small differences accumulate exponentially
 4. **Log-additivity**: Logarithms transform to additive process
 
+(geometric-brownian-motion)=
 ## Geometric Brownian Motion
 
 ### Mathematical Definition
@@ -351,6 +353,7 @@ for key, value in results.items():
         print(f"{key}: {value:.2%}")
 ```
 
+(the-kelly-criterion)=
 ## The Kelly Criterion
 
 ![Kelly Criterion](figures/kelly_criterion.png)

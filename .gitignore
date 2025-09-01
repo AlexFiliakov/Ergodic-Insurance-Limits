@@ -406,6 +406,7 @@ nul
 # Sphinx
 ergodic_insurance/docs/_build/
 ergodic_insurance/docs/build/
+ergodic_insurance/docs/_static/
 
 # Cache
 ergodic_insurance/checkpoints/

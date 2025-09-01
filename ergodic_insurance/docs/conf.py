@@ -59,6 +59,8 @@ exclude_patterns = [
     "migration_guide.md",
     "quick_start.rst",
     "risk_metrics.rst",
+    "theory.rst",  # Excluded - content moved to theory/ folder
+    "**/*_processed.md",  # Exclude any processed mermaid files
 ]
 
 language = "en"
