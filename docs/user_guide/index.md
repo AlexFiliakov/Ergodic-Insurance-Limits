@@ -41,7 +41,7 @@ No advanced mathematics or programming knowledge is required. We'll walk you thr
 * Check the [FAQ](faq.md) for common questions
 * Consult the [Glossary](glossary.md) for term definitions
 * Review example notebooks in the project repository
-*  Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`
+*  Open an issue on [GitHub](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues)
 * Contact: Alex Filiakov (alexfiliakov@gmail.com)
 
 

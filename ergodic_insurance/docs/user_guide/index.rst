@@ -43,7 +43,7 @@ For Help
 * Check the :doc:`faq` for common questions
 * Consult the :doc:`glossary` for term definitions
 * Review example notebooks in ``ergodic_insurance/notebooks/``
-*  Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`
+*  Open an issue on ``GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>``
 * Contact: Alex Filiakov (alexfiliakov@gmail.com)
 
 Key Insight
