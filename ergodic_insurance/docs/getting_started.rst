@@ -118,7 +118,7 @@ Here's a simple example to get you started:
 Simulation Results
 ------------------
 
-.. image:: ../assets/results/getting_started/output.png
+.. image:: ../../assets/results/getting_started/output.png
    :alt: Insurance vs No Insurance Simulation Results
    :align: center
    :width: 100%
@@ -194,7 +194,7 @@ The project includes comprehensive code quality tools:
 Next Steps
 ----------
 
-* Read the :doc:`theory` section to understand the ergodic framework
+* Read the :doc:`theory/index` section to understand the ergodic framework
 * Explore the :doc:`examples` for more complex usage patterns
 * Check the :doc:`api/modules` for detailed API documentation
 * Run the Jupyter notebooks in ``notebooks/`` for interactive exploration

@@ -420,7 +420,7 @@ pareto.plot_frontier(frontier, ['Negative Growth', 'Risk (CVaR)'])
 
 #### Sample Output
 
-![Pareto Frontier 2D](/Ergodic-Insurance-Limits/theory/figures/pareto_frontier_2d.png)
+![Pareto Frontier 2D](../../../../theory/figures/pareto_frontier_2d.png)
 
 ---
 
@@ -698,7 +698,7 @@ plt.show()
 
 #### Sample Output
 
-![Pareto Frontier 3D](/Ergodic-Insurance-Limits/theory/figures/pareto_frontier_3d.png)
+![Pareto Frontier 3D](../../../../theory/figures/pareto_frontier_3d.png)
 
 ---
 
@@ -998,7 +998,7 @@ print("4. Ergodic growth considerations")
 
 #### Sample Output
 
-![HJB Solver Result](/Ergodic-Insurance-Limits/theory/figures/hjb_solver_result.png)
+![HJB Solver Result](../../../../theory/figures/hjb_solver_result.png)
 
 ```
 ============================================================
@@ -1289,7 +1289,7 @@ for name, result in results.items():
 
 #### Sample Output
 
-![Convergence Comparison](/Ergodic-Insurance-Limits/theory/figures/convergence_comparison.png)
+![Convergence Comparison](../../../assets/convergence_comparison.png)
 
 ```
 Optimization Results:
@@ -1940,7 +1940,7 @@ print("="*60)
 
 #### Sample Output
 
-![Stochastic Control](/Ergodic-Insurance-Limits/theory/figures/stochastic_control.png)
+![Stochastic Control](../../../../theory/figures/stochastic_control.png)
 
 ```
 ============================================================
@@ -2353,7 +2353,7 @@ else:
 
 #### Sample Output
 
-![Complete Insurance Optimizer](Ergodic-Insurance-Limits//theory/figures/complete_insurance_optimizer.png)
+![Complete Insurance Optimizer](../../../../theory/figures/complete_insurance_optimizer.png)
 
 ```
 ==================================================

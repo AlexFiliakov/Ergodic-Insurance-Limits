@@ -1,5 +1,6 @@
 # Core Classes Diagram
 
+(financial-core-classes)=
 ## Financial Core Classes
 
 ```mermaid
@@ -113,6 +114,7 @@ classDiagram
     WidgetManufacturer ..> StochasticProcess : uses for shocks
 ```
 
+(insurance-classes)=
 ## Insurance Classes
 
 ```mermaid
@@ -197,6 +199,7 @@ classDiagram
     LayerState --> EnhancedInsuranceLayer : references
 ```
 
+(loss-distribution-classes)=
 ## Loss Distribution Classes
 
 ```mermaid
@@ -283,6 +286,7 @@ classDiagram
     LossData ..> LossDistribution : fits
 ```
 
+(simulation-engine-classes)=
 ## Simulation Engine Classes
 
 ```mermaid

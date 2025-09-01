@@ -10,6 +10,7 @@
 7. [Online Resources](#online-resources)
 8. [Related Frameworks](#related-frameworks)
 
+(foundational-papers)=
 ## Foundational Papers
 
 ### Ergodic Economics
@@ -64,6 +65,7 @@
 - Key contribution: Empirical evidence for multiplicative wealth dynamics
 - Relevance: Real-world validation of theoretical models
 
+(books-and-textbooks)=
 ## Books and Textbooks
 
 ### Insurance and Actuarial Science
@@ -107,6 +109,7 @@
 - Topics: Markov chains, Poisson processes, queuing theory
 - Relevance: Probabilistic foundations
 
+(insurance-and-risk-management)=
 ## Insurance and Risk Management
 
 ### Reinsurance and Layering
@@ -145,6 +148,7 @@
 - Topics: Compound Poisson processes, ruin probabilities
 - Relevance: Classical risk theory
 
+(mathematical-finance)=
 ## Mathematical Finance
 
 ### Optimal Control
@@ -171,6 +175,7 @@
 - Topics: Portfolio optimization, asset pricing
 - Relevance: Investment theory foundations
 
+(statistical-methods)=
 ## Statistical Methods
 
 ### Monte Carlo Methods
@@ -209,6 +214,7 @@
 - Topics: State space models, filtering, forecasting
 - Relevance: Comprehensive time series theory
 
+(software-and-tools)=
 ## Software and Tools
 
 ### Python Libraries
@@ -247,6 +253,7 @@
 - **Prophet**: Actuarial modeling software
 - **ResQ**: Reinsurance optimization
 
+(online-resources)=
 ## Online Resources
 
 ### Educational Websites
@@ -292,6 +299,7 @@
 - URL: [quant.stackexchange.com](https://quant.stackexchange.com/)
 - Content: Q&A for quantitative finance professionals
 
+(related-frameworks)=
 ## Related Frameworks
 
 ### Enterprise Risk Management

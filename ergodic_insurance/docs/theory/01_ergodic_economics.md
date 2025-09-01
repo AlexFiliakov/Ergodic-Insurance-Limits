@@ -20,7 +20,7 @@ This distinction is not merely academic; it fundamentally changes optimal strate
 (time-averages-vs-ensemble-averages)=
 ## Time Averages vs Ensemble Averages
 
-![Time Average vs Ensemble Average Example](/assets/ergodic_distinction.png)
+![Time Average vs Ensemble Average Example](../../../assets/ergodic_distinction.png)
 
 ### Ensemble Average
 

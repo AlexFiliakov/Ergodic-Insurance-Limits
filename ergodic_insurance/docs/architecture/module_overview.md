@@ -1,5 +1,6 @@
 # Module Overview and Dependencies
 
+(module-dependency-graph)=
 ## Module Dependency Graph
 
 This diagram shows the detailed module dependencies and import relationships in the ergodic insurance system.
@@ -264,6 +265,7 @@ sequenceDiagram
 - **loss_distributions.py**: Statistical distributions for losses
 - **ruin_probability.py**: Bankruptcy risk assessment
 
+(simulation-infrastructure)=
 ### Simulation Infrastructure (5 modules)
 - **simulation.py**: Main orchestrator for running simulations
 - **monte_carlo.py**: Ensemble simulation engine
@@ -271,6 +273,7 @@ sequenceDiagram
 - **batch_processor.py**: Efficient batch scenario processing
 - **trajectory_storage.py**: Memory-efficient result storage
 
+(analytics--metrics)=
 ### Analytics & Metrics (10 modules)
 - **ergodic_analyzer.py**: Time vs ensemble average comparison
 - **risk_metrics.py**: Comprehensive risk measure calculations

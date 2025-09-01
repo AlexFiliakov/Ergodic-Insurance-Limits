@@ -1,5 +1,6 @@
 # Service Layer Architecture
 
+(analytics-and-optimization-services)=
 ## Analytics and Optimization Services
 
 ```mermaid
@@ -76,6 +77,7 @@ classDiagram
     InsuranceDecisionEngine --> RiskMetrics : uses
 ```
 
+(simulation-orchestration-services)=
 ## Simulation Orchestration Services
 
 ```mermaid
@@ -159,6 +161,7 @@ classDiagram
     BatchProcessor --> ResultAggregator : uses
 ```
 
+(statistical-analysis-services)=
 ## Statistical Analysis Services
 
 ```mermaid
@@ -223,6 +226,7 @@ classDiagram
     BootstrapAnalyzer --> StatisticalTests : may use
 ```
 
+(validation-framework-services)=
 ## Validation Framework Services
 
 ```mermaid
@@ -311,6 +315,7 @@ classDiagram
     AccuracyValidator --> ReferenceImplementation : validates against
 ```
 
+(control-and-optimization-services)=
 ## Control and Optimization Services
 
 ```mermaid
@@ -379,6 +384,7 @@ classDiagram
     HJBFeedbackControl --> HJBSolution : uses
 ```
 
+(service-integration-layer)=
 ## Service Integration Layer
 
 ```mermaid

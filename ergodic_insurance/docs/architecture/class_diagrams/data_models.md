@@ -1,5 +1,6 @@
 # Data Models and Configuration Classes
 
+(configuration-data-models)=
 ## Configuration Data Models
 
 ```mermaid
@@ -153,6 +154,7 @@ classDiagram
     InsuranceConfig --> InsuranceLayerConfig : contains many
 ```
 
+(result-data-models)=
 ## Result Data Models
 
 ```mermaid
@@ -300,6 +302,7 @@ classDiagram
     HJBSolution --> OptimalStrategy : informs
 ```
 
+(state-and-progress-models)=
 ## State and Progress Models
 
 ```mermaid

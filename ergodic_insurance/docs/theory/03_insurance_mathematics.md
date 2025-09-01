@@ -258,7 +258,7 @@ plt.grid(True, alpha=0.3)
 plt.show()
 ```
 
-![Compound Poisson-Lognormal Distribution](/theory/figures/compound_poi_lognormal_dist.png)
+![Compound Poisson-Lognormal Distribution](../../../../theory/figures/compound_poi_lognormal_dist.png)
 
 (layer-pricing-theory)=
 ## Layer Pricing Theory
@@ -373,7 +373,7 @@ tower = pricer.create_tower(attachments, limits, frequency=5)
 print(tower.to_string())
 ```
 
-![Layer Pricing](/theory/figures/layer_pricing.png)
+![Layer Pricing](../../../../theory/figures/layer_pricing.png)
 
 (retention-optimization)=
 ## Retention Optimization
@@ -509,7 +509,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-![Retention Optimization](/theory/figures/optimal_retention.png)
+![Retention Optimization](../../../../theory/figures/optimal_retention.png)
 
 (premium-calculation-principles)=
 ## Premium Calculation Principles
@@ -848,7 +848,7 @@ for key, value in optimal.items():
 
 ### Application 1: Manufacturing Company
 
-![Factory Floor](/assets/photos/factory_floor_1_small.jpg)
+![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)
 
 ```python
 def manufacturing_insurance_analysis():
@@ -941,7 +941,7 @@ for risk_type, limits in recommendations.items():
 
 ### Application 2: Portfolio Insurance
 
-![Office Space](/assets/photos/conference_room_1_small.jpg)
+![Office Space](../../../assets/photos/conference_room_1_small.jpg)
 
 ```python
 def portfolio_tail_risk_hedging(portfolio_value=100_000_000):
