@@ -47,7 +47,6 @@ $$
 The **time average** is the growth rate experienced by a single entity over time:
 
 $$
-
 g_T = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right) = \frac{1}{T} \sum_{t=1}^{T} \ln(R_t)
 $$
 
@@ -162,7 +161,6 @@ $$
 **Time average** growth rate:
 
 $$
-
 g = \mu - \frac{\sigma^2}{2}
 $$
 

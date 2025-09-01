@@ -190,16 +190,14 @@ loss_dist=stats.lognorm(s=2, scale=100_000)
 
 result = optimizer.optimize(ruin_threshold=0.01)
 
-print(f"Optimal retention: ${result.x[0]:,.0f}")
-print(f"Optimal limit: ${result.x[1]:,.0f}")
+print(f"Optimal retention: ${result.x[0]:,.0f}") print(f"Optimal limit:${result.x[1]:,.0f}")
 print(f"Expected growth: {-result.fun:.4f}")
 
 ```
 #### Sample Output
 ```
 
-Optimal retention: $499,470
-Optimal limit: $2,001,013
+Optimal retention: $499,470 Optimal limit:$2,001,013
 Expected growth: 16.1544
 
 ```
@@ -883,19 +881,7 @@ colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(time_indices)))
 ax1 = axes[0, 0]
 for idx, label, color in zip(time_indices, time_labels, colors):
 ax1.plot(self.wealth_grid / 1e6, V[idx, :], label=label, color=color, linewidth=2)
-ax1.set_xlabel('Wealth ($ Millions)')
-ax1.set_ylabel('Value Function')
-ax1.set_title('Value Function Evolution')
-ax1.set_xscale('log')
-ax1.legend(loc='best')
-ax1.grid(True, alpha=0.3)
-
-        # 2. Optimal Coverage Evolution
-ax2 = axes[0, 1]
-for idx, label, color in zip(time_indices, time_labels, colors):
-ax2.plot(self.wealth_grid / 1e6, optimal_coverage[idx, :],
-label=label, color=color, linewidth=2)
-ax2.set_xlabel('Wealth ($ Millions)')
+ax1.set_xlabel('Wealth ($Millions)') ax1.set_ylabel('Value Function') ax1.set_title('Value Function Evolution') ax1.set_xscale('log') ax1.legend(loc='best') ax1.grid(True, alpha=0.3)          # 2. Optimal Coverage Evolution ax2 = axes[0, 1] for idx, label, color in zip(time_indices, time_labels, colors): ax2.plot(self.wealth_grid / 1e6, optimal_coverage[idx, :], label=label, color=color, linewidth=2) ax2.set_xlabel('Wealth ($ Millions)')
 ax2.set_ylabel('Optimal Coverage Level')
 ax2.set_title('Optimal Insurance Coverage')
 ax2.set_xscale('log')
@@ -907,15 +893,7 @@ ax2.grid(True, alpha=0.3)
 ax3 = axes[0, 2]
 W, T = np.meshgrid(self.wealth_grid / 1e6, self.time_grid)
 contour = ax3.contourf(np.log10(W), T, V, levels=20, cmap='viridis')
-ax3.set_xlabel('Log10(Wealth $ Millions)')
-ax3.set_ylabel('Time (years)')
-ax3.set_title('Value Function Surface')
-plt.colorbar(contour, ax=ax3)
-
-        # 4. Optimal Coverage Surface
-ax4 = axes[1, 0]
-contour2 = ax4.contourf(np.log10(W), T, optimal_coverage, levels=20, cmap='RdYlBu_r')
-ax4.set_xlabel('Log10(Wealth $ Millions)')
+ax3.set_xlabel('Log10(Wealth $Millions)') ax3.set_ylabel('Time (years)') ax3.set_title('Value Function Surface') plt.colorbar(contour, ax=ax3)          # 4. Optimal Coverage Surface ax4 = axes[1, 0] contour2 = ax4.contourf(np.log10(W), T, optimal_coverage, levels=20, cmap='RdYlBu_r') ax4.set_xlabel('Log10(Wealth$ Millions)')
 ax4.set_ylabel('Time (years)')
 ax4.set_title('Optimal Coverage Surface')
 plt.colorbar(contour2, ax=ax4)
@@ -932,13 +910,9 @@ expected_protection = self.loss_frequency
 ax5.plot(self.wealth_grid / 1e6, coverage_t0 * 100, 'b-', label='Coverage %', linewidth=2)
 ax5_twin = ax5.twinx()
 ax5_twin.plot(self.wealth_grid / 1e6, premium_cost / 1e3, 'r--',
-label='Annual Premium ($1000s)', linewidth=2)
-ax5_twin.plot(self.wealth_grid / 1e6, expected_protection / 1e3, 'g--',
-label='Expected Protection ($1000s)', linewidth=2)
+label='Annual Premium ($1000s)', linewidth=2) ax5_twin.plot(self.wealth_grid / 1e6, expected_protection / 1e3, 'g--', label='Expected Protection ($1000s)', linewidth=2)
 
-ax5.set_xlabel('Wealth ($ Millions)')
-ax5.set_ylabel('Coverage (%)', color='b')
-ax5_twin.set_ylabel('Annual Amount ($1000s)', color='r')
+ax5.set_xlabel('Wealth ($Millions)') ax5.set_ylabel('Coverage (%)', color='b') ax5_twin.set_ylabel('Annual Amount ($1000s)', color='r')
 ax5.set_xscale('log')
 ax5.set_title('Insurance Economics (t=0)')
 ax5.grid(True, alpha=0.3)
@@ -960,74 +934,7 @@ insights_text = f"""
 KEY INSIGHTS:
 
 1. Optimal Coverage Pattern:
-• Peak at ${peak_coverage_wealth/1e6:.1f}M wealth
-• Mean coverage: {mean_coverage:.1%}
-
-2. Wealth Effects:
-• Low wealth: Limited insurance
-(cannot afford premiums)
-• Mid wealth: Maximum insurance
-(vulnerable to losses)
-• High wealth: Self-insurance
-(can absorb losses)
-
-
-3. Time Effects:
-• Coverage increases near
-terminal time
-• Value function converges
-to terminal utility
-
-4. Economic Trade-off:
-• Premium cost vs protection
-• Ergodic growth optimization
-"""
-
-ax6.text(0.1, 0.9, insights_text, transform=ax6.transAxes,
-fontsize=10, verticalalignment='top', fontfamily='monospace')
-ax6.set_title('Key Insights', fontweight='bold')
-
-plt.tight_layout()
-plt.savefig('../../theory/figures/hjb_solver_result_clear.png', dpi=150, bbox_inches='tight')
-plt.show()
-
-return fig
-
-# Create and solve the HJB problem
-print("Solving simplified HJB equation for insurance control...")
-solver = SimplifiedHJBSolver()
-V, optimal_coverage = solver.solve()
-
-# Create visualizations
-fig = solver.plot_results(V, optimal_coverage)
-
-# Print numerical results
-print("\n" + "="*60)
-print("HJB SOLUTION SUMMARY")
-print("="*60)
-
-# Analyze coverage at t=0
-coverage_t0 = optimal_coverage[0, :]
-wealth_grid = solver.wealth_grid
-
-# Find transition points
-low_coverage_idx = np.where(coverage_t0 < 0.2)[0]
-high_coverage_idx = np.where(coverage_t0 > 0.8)[0]
-mid_coverage_idx = np.where((coverage_t0 >= 0.2) & (coverage_t0 <= 0.8))[0]
-
-print(f"\nWealth Segments (at t=0):")
-if len(low_coverage_idx) > 0:
-print(f"• Low coverage (<20%): ${wealth_grid[low_coverage_idx].min()/1e6:.1f}M - ${wealth_grid[low_coverage_idx].max()/1e6:.1f}M")
-if len(mid_coverage_idx) > 0:
-print(f"• Moderate coverage (20-80%): ${wealth_grid[mid_coverage_idx].min()/1e6:.1f}M - ${wealth_grid[mid_coverage_idx].max()/1e6:.1f}M")
-if len(high_coverage_idx) > 0:
-print(f"• High coverage (>80%): ${wealth_grid[high_coverage_idx].min()/1e6:.1f}M - ${wealth_grid[high_coverage_idx].max()/1e6:.1f}M")
-
-print(f"\nOptimal Coverage Statistics:")
-print(f"• Mean: {np.mean(coverage_t0):.1%}")
-print(f"• Max: {np.max(coverage_t0):.1%}")
-print(f"• Min: {np.min(coverage_t0):.1%}")
-print(f"• Peak at: ${wealth_grid[np.argmax(coverage_t0)]/1e6:.2f}M")
+• Peak at ${peak_coverage_wealth/1e6:.1f}M wealth • Mean coverage: {mean_coverage:.1%}  2. Wealth Effects: • Low wealth: Limited insurance (cannot afford premiums) • Mid wealth: Maximum insurance (vulnerable to losses) • High wealth: Self-insurance (can absorb losses)   3. Time Effects: • Coverage increases near terminal time • Value function converges to terminal utility  4. Economic Trade-off: • Premium cost vs protection • Ergodic growth optimization """  ax6.text(0.1, 0.9, insights_text, transform=ax6.transAxes, fontsize=10, verticalalignment='top', fontfamily='monospace') ax6.set_title('Key Insights', fontweight='bold')  plt.tight_layout() plt.savefig('../../theory/figures/hjb_solver_result_clear.png', dpi=150, bbox_inches='tight') plt.show()  return fig  # Create and solve the HJB problem print("Solving simplified HJB equation for insurance control...") solver = SimplifiedHJBSolver() V, optimal_coverage = solver.solve()  # Create visualizations fig = solver.plot_results(V, optimal_coverage)  # Print numerical results print("\n" + "="*60) print("HJB SOLUTION SUMMARY") print("="*60)  # Analyze coverage at t=0 coverage_t0 = optimal_coverage[0, :] wealth_grid = solver.wealth_grid  # Find transition points low_coverage_idx = np.where(coverage_t0 < 0.2)[0] high_coverage_idx = np.where(coverage_t0 > 0.8)[0] mid_coverage_idx = np.where((coverage_t0 >= 0.2) & (coverage_t0 <= 0.8))[0]  print(f"\nWealth Segments (at t=0):") if len(low_coverage_idx) > 0: print(f"• Low coverage (<20%):${wealth_grid[low_coverage_idx].min()/1e6:.1f}M - ${wealth_grid[low_coverage_idx].max()/1e6:.1f}M") if len(mid_coverage_idx) > 0: print(f"• Moderate coverage (20-80%):${wealth_grid[mid_coverage_idx].min()/1e6:.1f}M - ${wealth_grid[mid_coverage_idx].max()/1e6:.1f}M") if len(high_coverage_idx) > 0: print(f"• High coverage (>80%):${wealth_grid[high_coverage_idx].min()/1e6:.1f}M - ${wealth_grid[high_coverage_idx].max()/1e6:.1f}M")  print(f"\nOptimal Coverage Statistics:") print(f"• Mean: {np.mean(coverage_t0):.1%}") print(f"• Max: {np.max(coverage_t0):.1%}") print(f"• Min: {np.min(coverage_t0):.1%}") print(f"• Peak at:${wealth_grid[np.argmax(coverage_t0)]/1e6:.2f}M")
 
 print(f"\nValue Function Properties:")
 print(f"• Initial value range: [{V[0, :].min():.2f}, {V[0, :].max():.2f}]")
@@ -1052,734 +959,15 @@ HJB SOLUTION SUMMARY
 ============================================================
 
 Wealth Segments (at t=0):
-• Low coverage (<20%): $0.1M - $10.0M
-• Moderate coverage (20-80%): $0.2M - $6.3M
-• High coverage (>80%): $0.5M - $1.8M
+• Low coverage (<20%): $0.1M -$10.0M
+• Moderate coverage (20-80%): $0.2M -$6.3M
+• High coverage (>80%): $0.5M -$1.8M
 
 Optimal Coverage Statistics:
 • Mean: 53.7%
 • Max: 99.9%
 • Min: 8.2%
-• Peak at: $0.95M
-
-Value Function Properties:
-• Initial value range: [97.13, 135.96]
-• Terminal value range: [11.51, 16.12]
-• Value increase: 102.97
-
-This simplified HJB solution demonstrates:
-1. Dynamic programming backward iteration
-
-2. Wealth-dependent optimal insurance
-3. Time evolution of value and policy
-
-4. Ergodic growth considerations
-
-```
----
-(numerical-methods)= ## Numerical Methods
-### Gradient-Based Methods
-#### Gradient Descent
-
-$$
-x_{k+1} = x_k - \alpha_k \nabla f(x_k)
-$$
-
-#### Newton's Method
-
-$$
-
-x_{k+1} = x_k
-- H_f(x_k)^{-1} \nabla f(x_k)
-$$
-
-#### Quasi-Newton (BFGS)
-
-$$
-
-x_{k+1} = x_k - \alpha_k B_k^{-1} \nabla f(x_k)
-$$
-
-where $B_k$ approximates the Hessian.
-
-### Derivative-Free Methods  ```python
-class OptimizationMethods:
-"""Compare different optimization methods for insurance problems."""
-
-def __init__(self, objective, bounds):
-self.objective = objective
-self.bounds = bounds
-
-def gradient_descent(self, x0, learning_rate=0.01, max_iter=500):
-"""Basic gradient descent with numerical gradients."""
-
-x = x0.copy()
-history = [x.copy()]
-
-for _ in range(max_iter):
-            # Numerical gradient
-grad = self.numerical_gradient(x)
-
-            # Update
-x = x - learning_rate * grad
-
-            # Project onto bounds
-x = np.clip(x, self.bounds[:, 0], self.bounds[:, 1])
-
-history.append(x.copy())
-
-            # Check convergence
-if np.linalg.norm(grad) < 1e-6:
-                # Continue recording the converged value
-for _ in range(max_iter - len(history) + 1):
-history.append(x.copy())
-break
-
-return x, history
-
-def numerical_gradient(self, x, eps=1e-6):
-"""Compute gradient using finite differences."""
-
-grad = np.zeros_like(x)
-
-for i in range(len(x)):
-x_plus = x.copy()
-x_minus = x.copy()
-x_plus[i] += eps
-x_minus[i] -= eps
-
-grad[i] = (self.objective(x_plus) - self.objective(x_minus)) / (2
-* eps)
-
-return grad
-
-def simulated_annealing(self, x0, temp=1.0, cooling=0.99, max_iter=500):
-"""Simulated annealing for global optimization."""
-
-x = x0.copy()
-best_x = x.copy()
-best_f = self.objective(x)
-
-history = [x.copy()]
-
-for i in range(max_iter):
-            # Generate neighbor
-neighbor = x + np.random.randn(len(x)) * temp
-neighbor = np.clip(neighbor, self.bounds[:, 0], self.bounds[:, 1])
-
-            # Evaluate
-f_neighbor = self.objective(neighbor)
-f_current = self.objective(x)
-
-            # Accept or reject
-delta = f_neighbor - f_current
-if delta < 0 or np.random.rand() < np.exp(-delta / max(temp, 1e-10)):
-x = neighbor
-
-if f_neighbor < best_f:
-best_x = neighbor.copy()
-best_f = f_neighbor
-
-            # Cool down more gradually
-temp *= cooling
-
-history.append(best_x.copy())
-# Track best found so far
-
-return best_x, history
-
-def particle_swarm(self, n_particles=30, max_iter=500):
-"""Particle swarm optimization with improved convergence."""
-
-        # Initialize swarm
-particles = np.random.uniform(
-self.bounds[:, 0],
-self.bounds[:, 1],
-(n_particles, len(self.bounds))
-)
-velocities = np.random.randn(n_particles, len(self.bounds)) * 0.1
-
-        # Best positions
-p_best = particles.copy()
-p_best_scores = np.array([self.objective(p) for p in particles])
-
-g_best_idx = np.argmin(p_best_scores)
-g_best = p_best[g_best_idx].copy()
-g_best_score = p_best_scores[g_best_idx]
-
-history = [g_best.copy()]
-
-        # PSO parameters with better convergence
-w_start = 0.9
-# Higher initial inertia
-w_end = 0.4
-# Lower final inertia
-c1 = 2.0
-# Cognitive parameter
-c2 = 2.0
-# Social parameter
-
-for iteration in range(max_iter):
-            # Linear inertia weight decay
-w = w_start - (w_start - w_end)
-* iteration / max_iter
-
-            # Update all particles
-for i in range(n_particles):
-                # Update velocity
-r1, r2 = np.random.rand(), np.random.rand()
-velocities[i] = (w * velocities[i] +
-c1
-* r1 * (p_best[i] - particles[i]) +
-c2
-* r2 * (g_best - particles[i]))
-
-                # Limit velocity to prevent divergence
-max_vel = (self.bounds[:, 1] - self.bounds[:, 0])
-* 0.1
-velocities[i] = np.clip(velocities[i], -max_vel, max_vel)
-
-                # Update position
-particles[i] = particles[i] + velocities[i]
-particles[i] = np.clip(particles[i],
-self.bounds[:, 0],
-self.bounds[:, 1])
-
-                # Update best positions
-score = self.objective(particles[i])
-if score < p_best_scores[i]:
-p_best[i] = particles[i].copy()
-p_best_scores[i] = score
-
-if score < g_best_score:
-g_best = particles[i].copy()
-g_best_score = score
-
-history.append(g_best.copy())
-
-return g_best, history
-
-def compare_methods(self, x0):
-"""Compare convergence of different methods."""
-
-        # Set random seed for reproducibility
-np.random.seed(42)
-
-methods = {
-'Gradient Descent': lambda: self.gradient_descent(x0, max_iter=500),
-'Simulated Annealing': lambda: self.simulated_annealing(x0, max_iter=500),
-'Particle Swarm': lambda: self.particle_swarm(max_iter=500)
-}
-
-results = {}
-
-for name, method in methods.items():
-np.random.seed(42)
-# Reset seed for each method
-solution, history = method()
-results[name] = {
-'solution': solution,
-'value': self.objective(solution),
-'history': history
-}
-
-return results
-
-def plot_convergence(self, results):
-"""Visualize convergence of different methods."""
-
-plt.figure(figsize=(12, 6))
-
-for name, result in results.items():
-history = result['history']
-values = [self.objective(x) for x in history]
-plt.plot(values, label=name, linewidth=2)
-
-plt.xlabel('Iteration')
-plt.ylabel('Objective Value')
-plt.title('Convergence Comparison')
-plt.legend()
-
-        # Use regular number formatting instead of scientific notation
-ax = plt.gca()
-ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
-
-plt.grid(True, alpha=0.3)
-plt.xlim(0, 500)
-# Set x-axis limit to 500
-
-        # Save the figure
-plt.savefig('../../assets/convergence_comparison.png', dpi=100, bbox_inches='tight')
-plt.show()
-
-# Test optimization methods
-def insurance_objective(x):
-"""Complex insurance optimization objective."""
-retention, limit, deductible = x
-
-    # Expected cost
-cost = 0.02 * limit + 0.01
-* deductible + 0.005 / (1 + retention)
-
-    # Risk penalty
-risk = np.exp(-retention) + np.exp(-limit/10)
-
-    # Non-convex component
-complexity = np.sin(retention * 5)
-* 0.1
-
-return cost + risk + complexity
-
-bounds = np.array([
-[0, 2],
-# retention
-[0, 10],
-# limit
-[0, 1]
-# deductible
-])
-
-opt_methods = OptimizationMethods(insurance_objective, bounds)
-x0 = np.array([1, 5, 0.5])
-
-results = opt_methods.compare_methods(x0)
-opt_methods.plot_convergence(results)
-
-# Print results
-print("\nOptimization Results:")
-print("=" * 50)
-for name, result in results.items():
-print(f"\n{name}:")
-print(f"
-Solution: {result['solution']}")
-print(f"
-Final Value: {result['value']:.6f}")
-print(f"
-Converged to: {insurance_objective(result['solution']):.6f}")
-
-```
-#### Sample Output
-![Convergence Comparison](../../../assets/convergence_comparison.png)
-```
-
-Optimization Results:
-==================================================
-
-Gradient Descent:
-Solution: [1.09050224 5.20024017 0.45
-]
-Final Value: 0.967612
-Converged to: 0.967612
-
-Simulated Annealing:
-Solution: [ 2. 10.
-0.]
-Final Value: 0.650479
-Converged to: 0.650479
-
-Particle Swarm:
-Solution: [ 2. 10.
-0.]
-Final Value: 0.650479
-Converged to: 0.650479
-
-```
----
-(stochastic-control)= ## Stochastic Control
-### Stochastic Differential Equation
-
-State dynamics:
-
-$$
-dx_t = f(t, x_t, u_t)dt + \sigma(t, x_t, u_t)dW_t
-$$
-
-### Dynamic Programming Principle
-
-$$
-
-V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right]
-$$
-
-### Implementation  ```python
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d, interp2d
-from scipy.optimize import minimize_scalar
-from scipy.ndimage import gaussian_filter
-from mpl_toolkits.mplot3d import Axes3D
-
-class StochasticControl:
-"""
-Stochastic control for dynamic insurance decisions using dynamic programming.
-
-This implementation demonstrates the core concepts of stochastic optimal control
-in the context of insurance purchasing decisions with market cycles.
-"""
-
-def __init__(self, T=5.0, dt=0.1, n_wealth=35, n_control=20):
-"""
-Initialize the stochastic control problem with smoother dynamics.
-"""
-self.T = T
-self.dt = dt
-self.n_steps = int(T / dt)
-self.times = np.linspace(0, T, self.n_steps + 1)
-
-        # Wealth grid (log-spaced for better resolution)
-self.wealth_min = 5e5
-self.wealth_max = 2e7
-self.wealth_grid = np.logspace(
-np.log10(self.wealth_min),
-np.log10(self.wealth_max),
-n_wealth
-)
-self.n_wealth = n_wealth
-
-        # Control grid (insurance coverage level from 0 to 1)
-self.control_grid = np.linspace(0, 1, n_control)
-self.n_control = n_control
-
-        # Economic parameters with smoother market cycles
-self.r_base = 0.07
-# Base risk-free rate
-self.sigma_base = 0.18
-# Base volatility
-self.rho = 0.045
-# Discount rate
-
-        # Smoother market cycle parameters
-self.market_cycle_period = 2.5
-# 2.5-year market cycles
-self.market_cycle_amplitude = 0.5
-# Higher amplitude for more variation
-
-        # Insurance parameters that vary smoothly with market conditions
-self.lambda_loss_base = 0.25
-# Base loss frequency
-self.mu_loss = 0.12
-# Mean loss size (fraction of wealth)
-self.sigma_loss = 0.06
-# Loss size volatility
-self.premium_base = 0.018
-# Base premium rate
-self.premium_loading = 1.3
-# Premium loading factor
-
-        # Risk aversion that changes smoothly over time
-self.gamma_base = 0.3
-# Lower base risk aversion for more variation
-self.gamma_time_variation = 0.7
-# Higher variation over time
-
-def get_market_condition(self, t):
-"""
-Get smooth market condition at time t using combined cycles.
-
-Returns a factor between 0 (bear market) and 1 (bull market).
-"""
-        # Main cycle
-cycle_phase = 2
-* np.pi * t / self.market_cycle_period
-        # Add smaller secondary cycle for realism
-secondary_phase = 2
-* np.pi * t / (self.market_cycle_period / 2.5)
-        # Combine cycles for more dynamic pattern
-market_condition = 0.5 + 0.4
-* np.sin(cycle_phase) + 0.1 * np.sin(secondary_phase)
-return np.clip(market_condition, 0, 1)
-
-def get_risk_aversion(self, t):
-"""
-Risk aversion increases smoothly as we approach terminal time.
-"""
-time_factor = t / self.T
-# 0 at start, 1 at end
-        # Smooth increase using sigmoid-like function
-smooth_factor = 3
-* time_factor**2 - 2 * time_factor**3
-gamma = self.gamma_base * (1 + self.gamma_time_variation
-* smooth_factor)
-return gamma
-
-def utility(self, wealth, t=0):
-"""CRRA utility function with time-varying risk aversion."""
-wealth = np.maximum(wealth, 1e-6)
-gamma = self.get_risk_aversion(t)
-if abs(gamma - 1) < 1e-6:
-return np.log(wealth)
-else:
-return (wealth ** (1 - gamma) - 1) / (1 - gamma)
-
-def premium(self, coverage_level, wealth, t):
-"""
-Insurance premium varies smoothly with market conditions.
-"""
-wealth = np.maximum(wealth, 1e-6)
-market_condition = self.get_market_condition(t)
-
-        # Stronger premium adjustment based on market
-market_factor = 1 + 0.4
-* (1 - market_condition)
-
-        # Wealth-dependent premium adjustment
-wealth_factor = np.log10(wealth / self.wealth_min) / np.log10(self.wealth_max / self.wealth_min)
-wealth_discount = 1 - 0.1 * wealth_factor
-# Wealthy get small discount
-
-base_premium = self.premium_base
-* coverage_level * wealth
-* market_factor * wealth_discount
-        # Non-linear loading function
-loading = 1 + self.premium_loading
-* (coverage_level ** 1.5)
-* 0.15
-return base_premium * loading
-
-def expected_loss(self, wealth, t):
-"""
-Expected loss varies smoothly with market conditions.
-"""
-wealth = np.maximum(wealth, 1e-6)
-market_condition = self.get_market_condition(t)
-
-        # Stronger loss frequency adjustment
-lambda_loss = self.lambda_loss_base
-* (1 + 0.4 * (1 - market_condition))
-
-return lambda_loss
-* self.mu_loss * wealth
-
-def drift(self, wealth, control, t):
-"""
-Drift term with smooth market-dependent growth rate.
-"""
-wealth = np.maximum(wealth, 1e-6)
-control = np.clip(control, 0, 1)
-
-market_condition = self.get_market_condition(t)
-
-        # More dynamic growth rate variation
-r = self.r_base
-* (0.6 + 0.8 * market_condition)
-
-growth = r
-* wealth
-premium_cost = self.premium(control, wealth, t)
-expected_loss_retained = self.expected_loss(wealth, t) * (1 - control)
-
-return growth - premium_cost - expected_loss_retained
-
-def diffusion(self, wealth, control, t):
-"""
-Diffusion term with smooth market-dependent volatility.
-"""
-wealth = np.maximum(wealth, 1e-6)
-control = np.clip(control, 0, 1)
-
-market_condition = self.get_market_condition(t)
-
-        # More dynamic volatility adjustment
-sigma = self.sigma_base
-* (1 + 0.4 * (1 - market_condition))
-
-market_vol = sigma
-* wealth
-loss_vol = self.sigma_loss * wealth
-* np.sqrt(self.lambda_loss_base)
-
-        # Dynamic insurance effectiveness
-insurance_effectiveness = 0.2 + 0.25 * (1 - market_condition)
-effective_vol = market_vol
-* (1 - insurance_effectiveness * control) + loss_vol
-* (1 - control)
-
-return effective_vol
-
-def solve_hjb(self):
-"""
-Solve the Hamilton-Jacobi-Bellman equation with smooth market dynamics.
-"""
-        # Initialize value function
-
-V = np.zeros((self.n_steps + 1, self.n_wealth))
-optimal_control = np.zeros((self.n_steps + 1, self.n_wealth))
-
-        # Terminal condition
-
-V[-1, :] = self.utility(self.wealth_grid, self.T)
-
-        # Backward iteration
-for t_idx in range(self.n_steps - 1, -1, -1):
-t = self.times[t_idx]
-
-for w_idx, wealth in enumerate(self.wealth_grid):
-
-best_value = -np.inf
-best_control = 0.5
-# Start with middle value
-
-for control in self.control_grid:
-                    # Calculate drift and diffusion with current market conditions
-mu = self.drift(wealth, control, t)
-sigma = self.diffusion(wealth, control, t)
-
-                    # Expected next wealth
-wealth_next = wealth + mu * self.dt
-wealth_next = np.maximum(wealth_next, self.wealth_min
-* 0.5)
-
-                    # Consider uncertainty scenarios
-n_scenarios = 9
-scenarios = np.linspace(-3, 3, n_scenarios)
-scenario_probs = np.exp(-0.5 * scenarios**2) / np.sqrt(2 * np.pi)
-scenario_probs /= scenario_probs.sum()
-
-expected_value = 0
-for scenario, prob in zip(scenarios, scenario_probs):
-w_next = wealth_next + sigma
-* np.sqrt(self.dt) * scenario
-w_next = np.clip(w_next, self.wealth_min
-* 0.8, self.wealth_max * 1.2)
-
-if t_idx < self.n_steps - 1:
-v_next = np.interp(w_next, self.wealth_grid, V[t_idx + 1, :])
-else:
-v_next = self.utility(w_next, self.times[t_idx + 1])
-
-expected_value += prob
-* v_next
-
-                    # Bellman equation with time-dependent utility
-instant_utility = self.utility(wealth, t) * self.dt
-continuation_value = np.exp(-self.rho
-* self.dt) * expected_value
-total_value = instant_utility + continuation_value
-
-if total_value > best_value:
-best_value = total_value
-best_control = control
-
-V[t_idx, w_idx] = best_value
-optimal_control[t_idx, w_idx] = best_control
-
-        # Create more interesting patterns based on wealth and time
-for t_idx in range(self.n_steps + 1):
-t = self.times[t_idx]
-market_condition = self.get_market_condition(t)
-
-for w_idx, wealth in enumerate(self.wealth_grid):
-wealth_factor = np.log10(wealth / self.wealth_min) / np.log10(self.wealth_max / self.wealth_min)
-
-                # Different patterns for different wealth levels
-if wealth_factor < 0.3:
-# Poor: limited coverage
-target_coverage = 0.2 + 0.3
-* market_condition
-elif wealth_factor < 0.7:
-# Middle: high coverage
-bell_factor = np.exp(-8 * (wealth_factor - 0.5)**2)
-target_coverage = 0.4 + 0.5 * bell_factor + 0.1
-* (1 - market_condition)
-else:
-# Rich: self-insurance
-target_coverage = 0.3 - 0.2 * wealth_factor + 0.2
-* (1 - market_condition)
-
-                # Blend with optimal control
-optimal_control[t_idx, w_idx] = 0.7 * optimal_control[t_idx, w_idx] + 0.3
-* target_coverage
-optimal_control[t_idx, w_idx] = np.clip(optimal_control[t_idx, w_idx], 0, 1)
-
-        # Smooth the surface for visualization
-optimal_control = gaussian_filter(optimal_control, sigma=[0.3, 0.8])
-
-return V, optimal_control
-
-def simulate_path(self, w0, control_policy, n_paths=100):
-"""
-Simulate wealth paths under the optimal control policy with smooth dynamics.
-"""
-paths = np.zeros((n_paths, self.n_steps + 1))
-controls_used = np.zeros((n_paths, self.n_steps))
-market_conditions = np.zeros(self.n_steps + 1)
-
-        # Record market conditions
-for t_idx in range(self.n_steps + 1):
-market_conditions[t_idx] = self.get_market_condition(self.times[t_idx])
-
-for i in range(n_paths):
-wealth = w0
-paths[i, 0] = wealth
-
-for t_idx in range(self.n_steps):
-t = self.times[t_idx]
-wealth = np.maximum(wealth, 1000)
-
-                # Get optimal control with interpolation
-control = np.interp(wealth, self.wealth_grid, control_policy[t_idx, :])
-control = np.clip(control, 0, 1)
-controls_used[i, t_idx] = control
-
-                # Simulate with market-dependent dynamics
-mu = self.drift(wealth, control, t)
-sigma = self.diffusion(wealth, control, t)
-
-if np.isnan(mu) or np.isnan(sigma):
-mu = 0
-sigma = wealth * 0.01
-
-                # Euler-Maruyama step
-dW = np.random.randn()
-* np.sqrt(self.dt)
-wealth_next = wealth + mu * self.dt + sigma
-* dW
-
-                # Market-dependent loss events
-market_condition = self.get_market_condition(t)
-lambda_loss = self.lambda_loss_base * (1 + 0.4
-* (1 - market_condition))
-
-if np.random.rand() < lambda_loss * self.dt:
-loss_fraction = np.random.lognormal(
-np.log(self.mu_loss),
-self.sigma_loss
-)
-loss_fraction = np.clip(loss_fraction, 0, 0.35)
-loss_size = loss_fraction
-* wealth
-retained_loss = loss_size * np.maximum(0, 1 - control)
-wealth_next -= retained_loss
-
-wealth = np.maximum(wealth_next, 1000)
-paths[i, t_idx + 1] = wealth
-
-return paths, controls_used, market_conditions
-
-def plot_results(self, V, optimal_control, paths, controls_used, market_conditions):
-"""Create comprehensive visualization with improved layout and clarity."""
-fig = plt.figure(figsize=(17, 12))
-fig.suptitle('Stochastic Optimal Control: Dynamic Insurance Strategy with Market Cycles',
-fontsize=16, fontweight='bold')
-
-        # Create grid with more spacing between columns
-gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.35, bottom=0.12, top=0.94)
-
-        # 1. Smooth Optimal Control Policy Surface with Colorbar
-ax1 = fig.add_subplot(gs[0, 0], projection='3d')
-
-        # Create mesh for visualization
-
-T_mesh, W_mesh = np.meshgrid(self.times, self.wealth_grid / 1e6)
-
-        # Color map showing coverage levels
-surf = ax1.plot_surface(T_mesh, W_mesh, optimal_control.T,
-cmap='coolwarm', alpha=0.95,
-linewidth=0.1, edgecolor='gray',
-vmin=0, vmax=1, rstride=1, cstride=2)
-
-ax1.set_xlabel('Time (years)', fontsize=9)
-ax1.set_ylabel('Wealth ($M)', fontsize=9)
+• Peak at: $0.95M  Value Function Properties: • Initial value range: [97.13, 135.96] • Terminal value range: [11.51, 16.12] • Value increase: 102.97  This simplified HJB solution demonstrates: 1. Dynamic programming backward iteration  2. Wealth-dependent optimal insurance 3. Time evolution of value and policy  4. Ergodic growth considerations  ``` --- (numerical-methods)= ## Numerical Methods ### Gradient-Based Methods #### Gradient Descent  $$ x_{k+1} = x_k - \alpha_k \nabla f(x_k) $$  #### Newton's Method  $$ x_{k+1} = x_k - H_f(x_k)^{-1} \nabla f(x_k) $$  #### Quasi-Newton (BFGS)  $$ x_{k+1} = x_k - \alpha_k B_k^{-1} \nabla f(x_k) $$  where$B_k$approximates the Hessian.  ### Derivative-Free Methods  ```python class OptimizationMethods: """Compare different optimization methods for insurance problems."""  def __init__(self, objective, bounds): self.objective = objective self.bounds = bounds  def gradient_descent(self, x0, learning_rate=0.01, max_iter=500): """Basic gradient descent with numerical gradients."""  x = x0.copy() history = [x.copy()]  for _ in range(max_iter):             # Numerical gradient grad = self.numerical_gradient(x)              # Update x = x - learning_rate * grad              # Project onto bounds x = np.clip(x, self.bounds[:, 0], self.bounds[:, 1])  history.append(x.copy())              # Check convergence if np.linalg.norm(grad) < 1e-6:                 # Continue recording the converged value for _ in range(max_iter - len(history) + 1): history.append(x.copy()) break  return x, history  def numerical_gradient(self, x, eps=1e-6): """Compute gradient using finite differences."""  grad = np.zeros_like(x)  for i in range(len(x)): x_plus = x.copy() x_minus = x.copy() x_plus[i] += eps x_minus[i] -= eps  grad[i] = (self.objective(x_plus) - self.objective(x_minus)) / (2 * eps)  return grad  def simulated_annealing(self, x0, temp=1.0, cooling=0.99, max_iter=500): """Simulated annealing for global optimization."""  x = x0.copy() best_x = x.copy() best_f = self.objective(x)  history = [x.copy()]  for i in range(max_iter):             # Generate neighbor neighbor = x + np.random.randn(len(x)) * temp neighbor = np.clip(neighbor, self.bounds[:, 0], self.bounds[:, 1])              # Evaluate f_neighbor = self.objective(neighbor) f_current = self.objective(x)              # Accept or reject delta = f_neighbor - f_current if delta < 0 or np.random.rand() < np.exp(-delta / max(temp, 1e-10)): x = neighbor  if f_neighbor < best_f: best_x = neighbor.copy() best_f = f_neighbor              # Cool down more gradually temp *= cooling  history.append(best_x.copy()) # Track best found so far  return best_x, history  def particle_swarm(self, n_particles=30, max_iter=500): """Particle swarm optimization with improved convergence."""          # Initialize swarm particles = np.random.uniform( self.bounds[:, 0], self.bounds[:, 1], (n_particles, len(self.bounds)) ) velocities = np.random.randn(n_particles, len(self.bounds)) * 0.1          # Best positions p_best = particles.copy() p_best_scores = np.array([self.objective(p) for p in particles])  g_best_idx = np.argmin(p_best_scores) g_best = p_best[g_best_idx].copy() g_best_score = p_best_scores[g_best_idx]  history = [g_best.copy()]          # PSO parameters with better convergence w_start = 0.9 # Higher initial inertia w_end = 0.4 # Lower final inertia c1 = 2.0 # Cognitive parameter c2 = 2.0 # Social parameter  for iteration in range(max_iter):             # Linear inertia weight decay w = w_start - (w_start - w_end) * iteration / max_iter              # Update all particles for i in range(n_particles):                 # Update velocity r1, r2 = np.random.rand(), np.random.rand() velocities[i] = (w * velocities[i] + c1 * r1 * (p_best[i] - particles[i]) + c2 * r2 * (g_best - particles[i]))                  # Limit velocity to prevent divergence max_vel = (self.bounds[:, 1] - self.bounds[:, 0]) * 0.1 velocities[i] = np.clip(velocities[i], -max_vel, max_vel)                  # Update position particles[i] = particles[i] + velocities[i] particles[i] = np.clip(particles[i], self.bounds[:, 0], self.bounds[:, 1])                  # Update best positions score = self.objective(particles[i]) if score < p_best_scores[i]: p_best[i] = particles[i].copy() p_best_scores[i] = score  if score < g_best_score: g_best = particles[i].copy() g_best_score = score  history.append(g_best.copy())  return g_best, history  def compare_methods(self, x0): """Compare convergence of different methods."""          # Set random seed for reproducibility np.random.seed(42)  methods = { 'Gradient Descent': lambda: self.gradient_descent(x0, max_iter=500), 'Simulated Annealing': lambda: self.simulated_annealing(x0, max_iter=500), 'Particle Swarm': lambda: self.particle_swarm(max_iter=500) }  results = {}  for name, method in methods.items(): np.random.seed(42) # Reset seed for each method solution, history = method() results[name] = { 'solution': solution, 'value': self.objective(solution), 'history': history }  return results  def plot_convergence(self, results): """Visualize convergence of different methods."""  plt.figure(figsize=(12, 6))  for name, result in results.items(): history = result['history'] values = [self.objective(x) for x in history] plt.plot(values, label=name, linewidth=2)  plt.xlabel('Iteration') plt.ylabel('Objective Value') plt.title('Convergence Comparison') plt.legend()          # Use regular number formatting instead of scientific notation ax = plt.gca() ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))  plt.grid(True, alpha=0.3) plt.xlim(0, 500) # Set x-axis limit to 500          # Save the figure plt.savefig('../../assets/convergence_comparison.png', dpi=100, bbox_inches='tight') plt.show()  # Test optimization methods def insurance_objective(x): """Complex insurance optimization objective.""" retention, limit, deductible = x      # Expected cost cost = 0.02 * limit + 0.01 * deductible + 0.005 / (1 + retention)      # Risk penalty risk = np.exp(-retention) + np.exp(-limit/10)      # Non-convex component complexity = np.sin(retention * 5) * 0.1  return cost + risk + complexity  bounds = np.array([ [0, 2], # retention [0, 10], # limit [0, 1] # deductible ])  opt_methods = OptimizationMethods(insurance_objective, bounds) x0 = np.array([1, 5, 0.5])  results = opt_methods.compare_methods(x0) opt_methods.plot_convergence(results)  # Print results print("\nOptimization Results:") print("=" * 50) for name, result in results.items(): print(f"\n{name}:") print(f" Solution: {result['solution']}") print(f" Final Value: {result['value']:.6f}") print(f" Converged to: {insurance_objective(result['solution']):.6f}")  ``` #### Sample Output ![Convergence Comparison](../../../assets/convergence_comparison.png) ```  Optimization Results: ==================================================  Gradient Descent: Solution: [1.09050224 5.20024017 0.45 ] Final Value: 0.967612 Converged to: 0.967612  Simulated Annealing: Solution: [ 2. 10. 0.] Final Value: 0.650479 Converged to: 0.650479  Particle Swarm: Solution: [ 2. 10. 0.] Final Value: 0.650479 Converged to: 0.650479  ``` --- (stochastic-control)= ## Stochastic Control ### Stochastic Differential Equation  State dynamics:  $$ dx_t = f(t, x_t, u_t)dt + \sigma(t, x_t, u_t)dW_t $$  ### Dynamic Programming Principle  $$ V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right] $$  ### Implementation  ```python import numpy as np import matplotlib.pyplot as plt from scipy.interpolate import interp1d, interp2d from scipy.optimize import minimize_scalar from scipy.ndimage import gaussian_filter from mpl_toolkits.mplot3d import Axes3D  class StochasticControl: """ Stochastic control for dynamic insurance decisions using dynamic programming.  This implementation demonstrates the core concepts of stochastic optimal control in the context of insurance purchasing decisions with market cycles. """  def __init__(self, T=5.0, dt=0.1, n_wealth=35, n_control=20): """ Initialize the stochastic control problem with smoother dynamics. """ self.T = T self.dt = dt self.n_steps = int(T / dt) self.times = np.linspace(0, T, self.n_steps + 1)          # Wealth grid (log-spaced for better resolution) self.wealth_min = 5e5 self.wealth_max = 2e7 self.wealth_grid = np.logspace( np.log10(self.wealth_min), np.log10(self.wealth_max), n_wealth ) self.n_wealth = n_wealth          # Control grid (insurance coverage level from 0 to 1) self.control_grid = np.linspace(0, 1, n_control) self.n_control = n_control          # Economic parameters with smoother market cycles self.r_base = 0.07 # Base risk-free rate self.sigma_base = 0.18 # Base volatility self.rho = 0.045 # Discount rate          # Smoother market cycle parameters self.market_cycle_period = 2.5 # 2.5-year market cycles self.market_cycle_amplitude = 0.5 # Higher amplitude for more variation          # Insurance parameters that vary smoothly with market conditions self.lambda_loss_base = 0.25 # Base loss frequency self.mu_loss = 0.12 # Mean loss size (fraction of wealth) self.sigma_loss = 0.06 # Loss size volatility self.premium_base = 0.018 # Base premium rate self.premium_loading = 1.3 # Premium loading factor          # Risk aversion that changes smoothly over time self.gamma_base = 0.3 # Lower base risk aversion for more variation self.gamma_time_variation = 0.7 # Higher variation over time  def get_market_condition(self, t): """ Get smooth market condition at time t using combined cycles.  Returns a factor between 0 (bear market) and 1 (bull market). """         # Main cycle cycle_phase = 2 * np.pi * t / self.market_cycle_period         # Add smaller secondary cycle for realism secondary_phase = 2 * np.pi * t / (self.market_cycle_period / 2.5)         # Combine cycles for more dynamic pattern market_condition = 0.5 + 0.4 * np.sin(cycle_phase) + 0.1 * np.sin(secondary_phase) return np.clip(market_condition, 0, 1)  def get_risk_aversion(self, t): """ Risk aversion increases smoothly as we approach terminal time. """ time_factor = t / self.T # 0 at start, 1 at end         # Smooth increase using sigmoid-like function smooth_factor = 3 * time_factor**2 - 2 * time_factor**3 gamma = self.gamma_base * (1 + self.gamma_time_variation * smooth_factor) return gamma  def utility(self, wealth, t=0): """CRRA utility function with time-varying risk aversion.""" wealth = np.maximum(wealth, 1e-6) gamma = self.get_risk_aversion(t) if abs(gamma - 1) < 1e-6: return np.log(wealth) else: return (wealth ** (1 - gamma) - 1) / (1 - gamma)  def premium(self, coverage_level, wealth, t): """ Insurance premium varies smoothly with market conditions. """ wealth = np.maximum(wealth, 1e-6) market_condition = self.get_market_condition(t)          # Stronger premium adjustment based on market market_factor = 1 + 0.4 * (1 - market_condition)          # Wealth-dependent premium adjustment wealth_factor = np.log10(wealth / self.wealth_min) / np.log10(self.wealth_max / self.wealth_min) wealth_discount = 1 - 0.1 * wealth_factor # Wealthy get small discount  base_premium = self.premium_base * coverage_level * wealth * market_factor * wealth_discount         # Non-linear loading function loading = 1 + self.premium_loading * (coverage_level ** 1.5) * 0.15 return base_premium * loading  def expected_loss(self, wealth, t): """ Expected loss varies smoothly with market conditions. """ wealth = np.maximum(wealth, 1e-6) market_condition = self.get_market_condition(t)          # Stronger loss frequency adjustment lambda_loss = self.lambda_loss_base * (1 + 0.4 * (1 - market_condition))  return lambda_loss * self.mu_loss * wealth  def drift(self, wealth, control, t): """ Drift term with smooth market-dependent growth rate. """ wealth = np.maximum(wealth, 1e-6) control = np.clip(control, 0, 1)  market_condition = self.get_market_condition(t)          # More dynamic growth rate variation r = self.r_base * (0.6 + 0.8 * market_condition)  growth = r * wealth premium_cost = self.premium(control, wealth, t) expected_loss_retained = self.expected_loss(wealth, t) * (1 - control)  return growth - premium_cost - expected_loss_retained  def diffusion(self, wealth, control, t): """ Diffusion term with smooth market-dependent volatility. """ wealth = np.maximum(wealth, 1e-6) control = np.clip(control, 0, 1)  market_condition = self.get_market_condition(t)          # More dynamic volatility adjustment sigma = self.sigma_base * (1 + 0.4 * (1 - market_condition))  market_vol = sigma * wealth loss_vol = self.sigma_loss * wealth * np.sqrt(self.lambda_loss_base)          # Dynamic insurance effectiveness insurance_effectiveness = 0.2 + 0.25 * (1 - market_condition) effective_vol = market_vol * (1 - insurance_effectiveness * control) + loss_vol * (1 - control)  return effective_vol  def solve_hjb(self): """ Solve the Hamilton-Jacobi-Bellman equation with smooth market dynamics. """         # Initialize value function  V = np.zeros((self.n_steps + 1, self.n_wealth)) optimal_control = np.zeros((self.n_steps + 1, self.n_wealth))          # Terminal condition  V[-1, :] = self.utility(self.wealth_grid, self.T)          # Backward iteration for t_idx in range(self.n_steps - 1, -1, -1): t = self.times[t_idx]  for w_idx, wealth in enumerate(self.wealth_grid):  best_value = -np.inf best_control = 0.5 # Start with middle value  for control in self.control_grid:                     # Calculate drift and diffusion with current market conditions mu = self.drift(wealth, control, t) sigma = self.diffusion(wealth, control, t)                      # Expected next wealth wealth_next = wealth + mu * self.dt wealth_next = np.maximum(wealth_next, self.wealth_min * 0.5)                      # Consider uncertainty scenarios n_scenarios = 9 scenarios = np.linspace(-3, 3, n_scenarios) scenario_probs = np.exp(-0.5 * scenarios**2) / np.sqrt(2 * np.pi) scenario_probs /= scenario_probs.sum()  expected_value = 0 for scenario, prob in zip(scenarios, scenario_probs): w_next = wealth_next + sigma * np.sqrt(self.dt) * scenario w_next = np.clip(w_next, self.wealth_min * 0.8, self.wealth_max * 1.2)  if t_idx < self.n_steps - 1: v_next = np.interp(w_next, self.wealth_grid, V[t_idx + 1, :]) else: v_next = self.utility(w_next, self.times[t_idx + 1])  expected_value += prob * v_next                      # Bellman equation with time-dependent utility instant_utility = self.utility(wealth, t) * self.dt continuation_value = np.exp(-self.rho * self.dt) * expected_value total_value = instant_utility + continuation_value  if total_value > best_value: best_value = total_value best_control = control  V[t_idx, w_idx] = best_value optimal_control[t_idx, w_idx] = best_control          # Create more interesting patterns based on wealth and time for t_idx in range(self.n_steps + 1): t = self.times[t_idx] market_condition = self.get_market_condition(t)  for w_idx, wealth in enumerate(self.wealth_grid): wealth_factor = np.log10(wealth / self.wealth_min) / np.log10(self.wealth_max / self.wealth_min)                  # Different patterns for different wealth levels if wealth_factor < 0.3: # Poor: limited coverage target_coverage = 0.2 + 0.3 * market_condition elif wealth_factor < 0.7: # Middle: high coverage bell_factor = np.exp(-8 * (wealth_factor - 0.5)**2) target_coverage = 0.4 + 0.5 * bell_factor + 0.1 * (1 - market_condition) else: # Rich: self-insurance target_coverage = 0.3 - 0.2 * wealth_factor + 0.2 * (1 - market_condition)                  # Blend with optimal control optimal_control[t_idx, w_idx] = 0.7 * optimal_control[t_idx, w_idx] + 0.3 * target_coverage optimal_control[t_idx, w_idx] = np.clip(optimal_control[t_idx, w_idx], 0, 1)          # Smooth the surface for visualization optimal_control = gaussian_filter(optimal_control, sigma=[0.3, 0.8])  return V, optimal_control  def simulate_path(self, w0, control_policy, n_paths=100): """ Simulate wealth paths under the optimal control policy with smooth dynamics. """ paths = np.zeros((n_paths, self.n_steps + 1)) controls_used = np.zeros((n_paths, self.n_steps)) market_conditions = np.zeros(self.n_steps + 1)          # Record market conditions for t_idx in range(self.n_steps + 1): market_conditions[t_idx] = self.get_market_condition(self.times[t_idx])  for i in range(n_paths): wealth = w0 paths[i, 0] = wealth  for t_idx in range(self.n_steps): t = self.times[t_idx] wealth = np.maximum(wealth, 1000)                  # Get optimal control with interpolation control = np.interp(wealth, self.wealth_grid, control_policy[t_idx, :]) control = np.clip(control, 0, 1) controls_used[i, t_idx] = control                  # Simulate with market-dependent dynamics mu = self.drift(wealth, control, t) sigma = self.diffusion(wealth, control, t)  if np.isnan(mu) or np.isnan(sigma): mu = 0 sigma = wealth * 0.01                  # Euler-Maruyama step dW = np.random.randn() * np.sqrt(self.dt) wealth_next = wealth + mu * self.dt + sigma * dW                  # Market-dependent loss events market_condition = self.get_market_condition(t) lambda_loss = self.lambda_loss_base * (1 + 0.4 * (1 - market_condition))  if np.random.rand() < lambda_loss * self.dt: loss_fraction = np.random.lognormal( np.log(self.mu_loss), self.sigma_loss ) loss_fraction = np.clip(loss_fraction, 0, 0.35) loss_size = loss_fraction * wealth retained_loss = loss_size * np.maximum(0, 1 - control) wealth_next -= retained_loss  wealth = np.maximum(wealth_next, 1000) paths[i, t_idx + 1] = wealth  return paths, controls_used, market_conditions  def plot_results(self, V, optimal_control, paths, controls_used, market_conditions): """Create comprehensive visualization with improved layout and clarity.""" fig = plt.figure(figsize=(17, 12)) fig.suptitle('Stochastic Optimal Control: Dynamic Insurance Strategy with Market Cycles', fontsize=16, fontweight='bold')          # Create grid with more spacing between columns gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.35, bottom=0.12, top=0.94)          # 1. Smooth Optimal Control Policy Surface with Colorbar ax1 = fig.add_subplot(gs[0, 0], projection='3d')          # Create mesh for visualization  T_mesh, W_mesh = np.meshgrid(self.times, self.wealth_grid / 1e6)          # Color map showing coverage levels surf = ax1.plot_surface(T_mesh, W_mesh, optimal_control.T, cmap='coolwarm', alpha=0.95, linewidth=0.1, edgecolor='gray', vmin=0, vmax=1, rstride=1, cstride=2)  ax1.set_xlabel('Time (years)', fontsize=9) ax1.set_ylabel('Wealth ($M)', fontsize=9)
 ax1.set_zlabel('Coverage Level', fontsize=9)
 ax1.set_title('Optimal Insurance Coverage Surface', fontsize=10)
 ax1.view_init(elev=20, azim=-50)
@@ -1806,39 +994,7 @@ market = self.get_market_condition(self.times[idx])
 ax2.plot(self.wealth_grid / 1e6, optimal_control[idx, :],
 label=time_label, color=color, linewidth=2.5, alpha=0.9)
 
-ax2.set_xlabel('Wealth ($M)', fontsize=10)
-ax2.set_ylabel('Optimal Coverage', fontsize=10)
-ax2.set_title('Coverage Evolution Over Time', fontsize=11)
-ax2.legend(loc='best', fontsize=8, ncol=2)
-ax2.grid(True, alpha=0.3)
-ax2.set_xscale('log')
-ax2.set_ylim([0, 1])
-ax2.set_xlim([self.wealth_min/1e6, self.wealth_max/1e6])
-
-        # Format x-axis to show actual values not powers of 10
-ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}'))
-
-        # 3. Value Function with Clear Wealth Labels
-ax3 = fig.add_subplot(gs[0, 2])
-
-        # Create contour plot with wealth in millions (not log)
-wealth_millions = self.wealth_grid / 1e6
-T_grid, W_grid = np.meshgrid(self.times, wealth_millions)
-
-        # Use log scale for colors but linear for axes
-contour = ax3.contourf(T_grid, np.log10(W_grid), V.T,
-levels=20, cmap='viridis', alpha=0.9)
-
-        # Add market cycle indicators
-for t in np.linspace(0, self.T, 6):
-market = self.get_market_condition(t)
-if market < 0.35:
-ax3.axvline(t, color='red', alpha=0.15, linestyle='--', linewidth=1)
-elif market > 0.65:
-ax3.axvline(t, color='green', alpha=0.15, linestyle='--', linewidth=1)
-
-ax3.set_xlabel('Time (years)', fontsize=10)
-ax3.set_ylabel('Wealth ($M, log scale)', fontsize=10)
+ax2.set_xlabel('Wealth ($M)', fontsize=10) ax2.set_ylabel('Optimal Coverage', fontsize=10) ax2.set_title('Coverage Evolution Over Time', fontsize=11) ax2.legend(loc='best', fontsize=8, ncol=2) ax2.grid(True, alpha=0.3) ax2.set_xscale('log') ax2.set_ylim([0, 1]) ax2.set_xlim([self.wealth_min/1e6, self.wealth_max/1e6])          # Format x-axis to show actual values not powers of 10 ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}'))          # 3. Value Function with Clear Wealth Labels ax3 = fig.add_subplot(gs[0, 2])          # Create contour plot with wealth in millions (not log) wealth_millions = self.wealth_grid / 1e6 T_grid, W_grid = np.meshgrid(self.times, wealth_millions)          # Use log scale for colors but linear for axes contour = ax3.contourf(T_grid, np.log10(W_grid), V.T, levels=20, cmap='viridis', alpha=0.9)          # Add market cycle indicators for t in np.linspace(0, self.T, 6): market = self.get_market_condition(t) if market < 0.35: ax3.axvline(t, color='red', alpha=0.15, linestyle='--', linewidth=1) elif market > 0.65: ax3.axvline(t, color='green', alpha=0.15, linestyle='--', linewidth=1)  ax3.set_xlabel('Time (years)', fontsize=10) ax3.set_ylabel('Wealth ($M, log scale)', fontsize=10)
 ax3.set_title('Value Function V(t,w)', fontsize=11)
 
         # Set y-axis to show actual wealth values
@@ -1876,70 +1032,9 @@ ax4.fill_between(self.times, percentile_10, percentile_90,
 alpha=0.2, color='blue', label='10-90% Range', zorder=1)
 
 ax4.set_xlabel('Time (years)', fontsize=10)
-ax4.set_ylabel('Wealth ($M)', fontsize=10)
-ax4.set_title('Wealth Trajectories', fontsize=11)
-ax4.legend(loc='upper left', fontsize=9)
-ax4.grid(True, alpha=0.3)
-ax4.set_ylim(bottom=0)
-
-        # 5. Fixed Control Usage with Clear Variation Bands
-ax5 = fig.add_subplot(gs[1, 1])
-
-        # Calculate control statistics
-valid_controls = controls_used[~np.isnan(controls_used).any(axis=1)]
-if len(valid_controls) > 0:
-control_mean = np.mean(valid_controls, axis=0)
-control_25 = np.percentile(valid_controls, 25, axis=0)
-control_75 = np.percentile(valid_controls, 75, axis=0)
-control_10 = np.percentile(valid_controls, 10, axis=0)
-control_90 = np.percentile(valid_controls, 90, axis=0)
-
-            # Plot mean line prominently
-ax5.plot(self.times[:-1], control_mean, 'black', linewidth=3,
-label='Mean Coverage', zorder=5)
-
-            # Add blue variation bands (fixed from tan)
-ax5.fill_between(self.times[:-1], control_25, control_75,
-alpha=0.3, color='blue', label='25-75% Range', zorder=2)
-ax5.fill_between(self.times[:-1], control_10, control_90,
-alpha=0.15, color='blue', label='10-90% Range', zorder=1)
-
-            # Add market condition indicators as vertical bands
-for t_idx in range(len(self.times) - 1):
-market = market_conditions[t_idx]
-if market < 0.35:
-ax5.axvspan(self.times[t_idx], self.times[min(t_idx+1, len(self.times)-1)],
-alpha=0.1, color='red', zorder=0)
-elif market > 0.65:
-ax5.axvspan(self.times[t_idx], self.times[min(t_idx+1, len(self.times)-1)],
-alpha=0.1, color='green', zorder=0)
-
-ax5.set_xlabel('Time (years)', fontsize=10)
-ax5.set_ylabel('Insurance Coverage', fontsize=10)
-ax5.set_title('Coverage Usage Distribution', fontsize=11)
-ax5.legend(loc='upper right', fontsize=9)
-ax5.grid(True, alpha=0.3)
-ax5.set_ylim([0, 1])
-
-        # 6. Terminal Wealth Distribution
-ax6 = fig.add_subplot(gs[1, 2])
-
-terminal_wealth = paths[:, -1] / 1e6
-surviving_wealth = terminal_wealth[terminal_wealth > 0.001]
-
-if len(surviving_wealth) > 0:
-ax6.hist(surviving_wealth, bins=35, alpha=0.7, color='green',
-edgecolor='black', density=True)
-
-mean_terminal = np.mean(surviving_wealth)
-median_terminal = np.median(surviving_wealth)
-
-ax6.axvline(mean_terminal, color='red',
-linestyle='--', linewidth=2.5, label=f'Mean: ${mean_terminal:.1f}M')
+ax4.set_ylabel('Wealth ($M)', fontsize=10) ax4.set_title('Wealth Trajectories', fontsize=11) ax4.legend(loc='upper left', fontsize=9) ax4.grid(True, alpha=0.3) ax4.set_ylim(bottom=0)          # 5. Fixed Control Usage with Clear Variation Bands ax5 = fig.add_subplot(gs[1, 1])          # Calculate control statistics valid_controls = controls_used[~np.isnan(controls_used).any(axis=1)] if len(valid_controls) > 0: control_mean = np.mean(valid_controls, axis=0) control_25 = np.percentile(valid_controls, 25, axis=0) control_75 = np.percentile(valid_controls, 75, axis=0) control_10 = np.percentile(valid_controls, 10, axis=0) control_90 = np.percentile(valid_controls, 90, axis=0)              # Plot mean line prominently ax5.plot(self.times[:-1], control_mean, 'black', linewidth=3, label='Mean Coverage', zorder=5)              # Add blue variation bands (fixed from tan) ax5.fill_between(self.times[:-1], control_25, control_75, alpha=0.3, color='blue', label='25-75% Range', zorder=2) ax5.fill_between(self.times[:-1], control_10, control_90, alpha=0.15, color='blue', label='10-90% Range', zorder=1)              # Add market condition indicators as vertical bands for t_idx in range(len(self.times) - 1): market = market_conditions[t_idx] if market < 0.35: ax5.axvspan(self.times[t_idx], self.times[min(t_idx+1, len(self.times)-1)], alpha=0.1, color='red', zorder=0) elif market > 0.65: ax5.axvspan(self.times[t_idx], self.times[min(t_idx+1, len(self.times)-1)], alpha=0.1, color='green', zorder=0)  ax5.set_xlabel('Time (years)', fontsize=10) ax5.set_ylabel('Insurance Coverage', fontsize=10) ax5.set_title('Coverage Usage Distribution', fontsize=11) ax5.legend(loc='upper right', fontsize=9) ax5.grid(True, alpha=0.3) ax5.set_ylim([0, 1])          # 6. Terminal Wealth Distribution ax6 = fig.add_subplot(gs[1, 2])  terminal_wealth = paths[:, -1] / 1e6 surviving_wealth = terminal_wealth[terminal_wealth > 0.001]  if len(surviving_wealth) > 0: ax6.hist(surviving_wealth, bins=35, alpha=0.7, color='green', edgecolor='black', density=True)  mean_terminal = np.mean(surviving_wealth) median_terminal = np.median(surviving_wealth)  ax6.axvline(mean_terminal, color='red', linestyle='--', linewidth=2.5, label=f'Mean:${mean_terminal:.1f}M')
 ax6.axvline(median_terminal, color='blue',
-linestyle='--', linewidth=2.5, label=f'Median: ${median_terminal:.1f}M')
-
-ax6.set_xlabel('Terminal Wealth ($M)', fontsize=10)
+linestyle='--', linewidth=2.5, label=f'Median: ${median_terminal:.1f}M')  ax6.set_xlabel('Terminal Wealth ($M)', fontsize=10)
 ax6.set_ylabel('Density', fontsize=10)
 ax6.set_title('Terminal Wealth Distribution', fontsize=11)
 ax6.legend(loc='upper right', fontsize=9)
@@ -2017,8 +1112,7 @@ final_mean = final_std = growth_rate = 0
 summary_text = f"""SUMMARY STATISTICS:
 
 Survival Rate: {survival_rate:.1f}%
-Final Wealth (Mean): ${final_mean:.2f}M
-Final Wealth (Std): ${final_std:.2f}M
+Final Wealth (Mean): ${final_mean:.2f}M Final Wealth (Std):${final_std:.2f}M
 Avg Growth Rate: {growth_rate*100:.1f}%/year
 
 Market Cycles: {int(self.T / self.market_cycle_period * 2)} phases
@@ -2035,25 +1129,7 @@ bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         # Add Performance Metrics Summary at bottom
 fig.text(0.5, 0.05,
-f'Performance Metrics | Initial: ${w0/1e6:.1f}M | Time: {self.T}y | Simulations: {n_paths} | Market Cycles: {self.market_cycle_period}y periods',
-ha='center', fontsize=10, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
-
-plt.savefig('../../theory/figures/stochastic_control.png', dpi=150, bbox_inches='tight')
-plt.show()
-
-return fig
-
-# Create and solve the stochastic control problem
-print("Solving stochastic optimal control problem with enhanced dynamics...")
-np.random.seed(42)
-# For reproducibility
-
-controller = StochasticControl()
-V, optimal_control = controller.solve_hjb()
-
-# Initial wealth
-w0 = 3e6
-# $3M initial wealth
+f'Performance Metrics | Initial: ${w0/1e6:.1f}M | Time: {self.T}y | Simulations: {n_paths} | Market Cycles: {self.market_cycle_period}y periods', ha='center', fontsize=10, bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))  plt.savefig('../../theory/figures/stochastic_control.png', dpi=150, bbox_inches='tight') plt.show()  return fig  # Create and solve the stochastic control problem print("Solving stochastic optimal control problem with enhanced dynamics...") np.random.seed(42) # For reproducibility  controller = StochasticControl() V, optimal_control = controller.solve_hjb()  # Initial wealth w0 = 3e6 #$3M initial wealth
 
 # Simulate paths
 n_paths = 250
@@ -2065,25 +1141,10 @@ fig = controller.plot_results(V, optimal_control, paths, controls_used, market_c
 print("\n" + "="*60)
 print("STOCHASTIC CONTROL RESULTS")
 print("="*60)
-print(f"Initial Wealth: ${w0/1e6:.1f}M")
-print(f"Time Horizon: {controller.T} years")
-print(f"Number of Paths: {n_paths}")
-print(f"Wealth Range: ${controller.wealth_min/1e6:.1f}M - ${controller.wealth_max/1e6:.1f}M")
-print(f"Market Cycle Period: {controller.market_cycle_period} years")
-print("="*60)
-
-```
-#### Sample Output
-![Stochastic Control](../../../theory/figures/stochastic_control.png)
-```
-
-============================================================
-STOCHASTIC CONTROL RESULTS
-============================================================
-Initial Wealth: $3.0M
+print(f"Initial Wealth: ${w0/1e6:.1f}M") print(f"Time Horizon: {controller.T} years") print(f"Number of Paths: {n_paths}") print(f"Wealth Range:${controller.wealth_min/1e6:.1f}M - ${controller.wealth_max/1e6:.1f}M") print(f"Market Cycle Period: {controller.market_cycle_period} years") print("="*60)  ``` #### Sample Output ![Stochastic Control](../../../theory/figures/stochastic_control.png) ```  ============================================================ STOCHASTIC CONTROL RESULTS ============================================================ Initial Wealth:$3.0M
 Time Horizon: 5.0 years
 Number of Paths: 250
-Wealth Range: $0.5M - $20.0M
+Wealth Range: $0.5M -$20.0M
 Market Cycle Period: 2.5 years
 ============================================================
 
@@ -2092,10 +1153,7 @@ Market Cycle Period: 2.5 years
 (convergence-criteria)= ## Convergence Criteria
 ### Numerical Convergence
 1. **Gradient norm**: $\|\nabla f(x_k)\| < \epsilon$
-2. **Step size**: $\|x_{k+1}
-- x_k\| < \epsilon$ 3. **Function value**: $|f(x_{k+1})
-- f(x_k)| < \epsilon$ 4. **Relative change**: $\frac{|f(x_{k+1})
-- f(x_k)|}{|f(x_k)|} < \epsilon$
+2. **Step size**: $\|x_{k+1} - x_k\| < \epsilon$ 3. **Function value**: $|f(x_{k+1}) - f(x_k)| < \epsilon$ 4. **Relative change**: $\frac{|f(x_{k+1}) - f(x_k)|}{|f(x_k)|} < \epsilon$
 
 ### Statistical Convergence
 
@@ -2349,13 +1407,7 @@ if validation['survival_rate'] > 0.5:
             # Primary recommendation
 recommendations.append({
 'priority': 'HIGH',
-'action': f"Set retention at ${optimal['retention']:,.0f}",
-'rationale': 'Optimal balance of cost and risk'
-})
-
-recommendations.append({
-'priority': 'HIGH',
-'action': f"Purchase coverage up to ${optimal['limit']:,.0f}",
+'action': f"Set retention at ${optimal['retention']:,.0f}", 'rationale': 'Optimal balance of cost and risk' })  recommendations.append({ 'priority': 'HIGH', 'action': f"Purchase coverage up to${optimal['limit']:,.0f}",
 'rationale': f"Ensures {validation['survival_rate']:.1%} survival probability"
 })
 
@@ -2489,30 +1541,9 @@ optimizer.plot_results()
 print("\n" + "="*50)
 print("OPTIMIZATION COMPLETE")
 print("="*50)
-print(f"Optimal Retention: ${results['optimal_solution']['retention']:,.0f}")
-print(f"Optimal Limit: ${results['optimal_solution']['limit']:,.0f}")
-print(f"Annual Cost: ${results['optimal_solution']['cost']:,.0f}")
-print(f"Survival Rate: {results['validation']['survival_rate']:.1%}")
-if results['validation']['growth_rate'] >= 0:
-print(f"Expected Growth: {results['validation']['growth_rate']*100:.1f}%")
-else:
-print("Expected Growth: BANKRUPTCY")
-
-```
-
-
-#### Sample Output
-
-![Complete Insurance Optimizer](../../../theory/figures/complete_insurance_optimizer.png)
-
-```
-
-==================================================
-OPTIMIZATION COMPLETE
-==================================================
-Optimal Retention: $0
-Optimal Limit: $25,000,000
-Annual Cost: $375,000
+print(f"Optimal Retention: ${results['optimal_solution']['retention']:,.0f}") print(f"Optimal Limit:${results['optimal_solution']['limit']:,.0f}")
+print(f"Annual Cost: ${results['optimal_solution']['cost']:,.0f}") print(f"Survival Rate: {results['validation']['survival_rate']:.1%}") if results['validation']['growth_rate'] >= 0: print(f"Expected Growth: {results['validation']['growth_rate']*100:.1f}%") else: print("Expected Growth: BANKRUPTCY")  ```   #### Sample Output  ![Complete Insurance Optimizer](../../../theory/figures/complete_insurance_optimizer.png)  ```  ================================================== OPTIMIZATION COMPLETE ================================================== Optimal Retention:$0
+Optimal Limit: $25,000,000 Annual Cost:$375,000
 Survival Rate: 100.0%
 Expected Growth: 9.2%
 

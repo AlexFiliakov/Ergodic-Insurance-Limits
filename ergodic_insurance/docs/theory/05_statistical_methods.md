@@ -53,7 +53,6 @@ $$
 Sample from alternative distribution:
 
 $$
-
 E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]
 $$
 
