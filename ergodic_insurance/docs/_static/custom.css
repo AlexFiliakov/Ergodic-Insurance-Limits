@@ -3,6 +3,48 @@
 /* Import Google Fonts to match main site */
 @import url('https://fonts.googleapis.com/css?family=Open+Sans:400,700&display=swap');
 
+/* Fix inline math vertical alignment */
+/* Target inline math spans created by MyST */
+span.math.notranslate.nohighlight {
+    vertical-align: baseline !important;
+    position: relative;
+    top: 0 !important;
+}
+
+/* Fix MathJax container alignment */
+/* Inline math containers */
+mjx-container[jax="CHTML"][display="false"] {
+    display: inline-block !important;
+    vertical-align: baseline !important;
+    margin: 0 0.1em !important;
+    position: relative;
+    top: 0 !important;
+}
+
+/* Additional selector for inline math */
+mjx-container:not([display="true"]) {
+    vertical-align: baseline !important;
+    position: relative;
+    top: 0 !important;
+}
+
+/* Display math containers (keep centered) */
+mjx-container[jax="CHTML"][display="true"] {
+    display: block !important;
+    margin: 1em auto !important;
+    text-align: center;
+}
+
+/* Fix for math inside paragraphs */
+p > span.math {
+    vertical-align: baseline !important;
+}
+
+/* Ensure proper line height for paragraphs with math */
+p:has(span.math) {
+    line-height: 1.6;
+}
+
 /* Override ReadTheDocs theme colors to match Cayman */
 :root {
     --cayman-primary: #157878;

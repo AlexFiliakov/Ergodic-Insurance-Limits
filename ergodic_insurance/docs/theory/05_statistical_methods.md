@@ -289,7 +289,8 @@ Mean: 55034.214910, SE: 324.692728
 
 ```
 ---
-(convergence-diagnostics)= ## Convergence Diagnostics
+(convergence-diagnostics)=
+## Convergence Diagnostics
 ![Convergence Diagnostics](figures/convergence_diagnostics.png) *Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
 ### Gelman-Rubin Statistic
 
@@ -589,7 +590,7 @@ print(f"Stationary: {hw['stationary']}, Halfwidth test: {hw['halfwidth_test_pass
 diagnostics.plot_diagnostics()
 
 ```
-#### Sample Output
+### Sample Output
 ![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
 ```
 
@@ -612,14 +613,18 @@ $$
 \bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}
 $$
 
-(confidence-intervals)=
-### Bootstrap Confidence Intervals  #### Percentile Method Use quantiles of bootstrap distribution:
+### Bootstrap Confidence Intervals
+
+### Percentile Method
+
 
 $$
 [\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]
 $$
 
-#### BCa (Bias-Corrected and Accelerated) Adjust for bias and skewness:
+### BCa (Bias-Corrected and Accelerated)
+
+Adjust for bias and skewness:
 
 $$
 [\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]
@@ -835,7 +840,7 @@ print("\nConfidence Interval Comparison:")
 print(comparison.to_string())
 
 ```
-#### Sample Output
+### Sample Output
 ![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)
 ```
 
@@ -872,7 +877,8 @@ Bootstrap (basic)
 
 ```
 ---
-(hypothesis-testing)= ## Hypothesis Testing
+(hypothesis-testing)=
+## Hypothesis Testing
 ### Framework
 
 Test null hypothesis $H_0$ against alternative $H_1$:
@@ -1035,7 +1041,8 @@ Permutation: p=0.0008, Observed diff=-0.0187
 
 ```
 ---
-(bootstrap-methods)= ## Bootstrap Methods
+(bootstrap-methods)=
+## Bootstrap Methods
 ![Bootstrap Analysis](figures/bootstrap_analysis.png) *Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*
 ### Bootstrap Algorithm
 1. Draw $B$ samples of size $n$ with replacement

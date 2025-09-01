@@ -115,7 +115,6 @@ classDiagram
 ```
 
 (insurance-classes)=
-(insurance-classes)=
 ## Insurance Classes
 
 ```mermaid
@@ -200,7 +199,6 @@ classDiagram
     LayerState --> EnhancedInsuranceLayer : references
 ```
 
-(loss-distribution-classes)=
 (loss-distribution-classes)=
 ## Loss Distribution Classes
 

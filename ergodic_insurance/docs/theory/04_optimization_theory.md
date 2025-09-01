@@ -722,7 +722,7 @@ ax.set_title('3D Pareto Frontier
 plt.show()
 
 ```
-#### Sample Output
+### Sample Output
 ![Pareto Frontier 3D](../../../theory/figures/pareto_frontier_3d.png)
 ---
 (hamilton-jacobi-bellman-equations)= ## Hamilton-Jacobi-Bellman Equations

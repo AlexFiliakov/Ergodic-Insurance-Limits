@@ -689,85 +689,76 @@ $$
 
 ```python
 def optimize_reinsurance_program(base_losses, budget, risk_tolerance):
-"""Optimize multi-layer reinsurance program."""
+    """Optimize multi-layer reinsurance program."""
 
-from scipy.optimize import differential_evolution
+    from scipy.optimize import differential_evolution
 
-def objective(params):
+    def objective(params):
         # Unpack parameters
-xs_retention = params[0]
-xs_limit = params[1]
-agg_deductible = params[2]
-agg_limit = params[3]
-quota_share = params[4]
+        xs_retention = params[0]
+        xs_limit = params[1]
+        agg_deductible = params[2]
+        agg_limit = params[3]
+        quota_share = params[4]
 
         # Simulate net losses
-net_losses = []
-total_premium = 0
+        net_losses = []
+        total_premium = 0
 
-for gross_loss in base_losses:
+        for gross_loss in base_losses:
             # Apply quota share first
-after_qs = gross_loss
-* (1 - quota_share)
+            after_qs = gross_loss * (1 - quota_share)
 
             # Apply per-occurrence excess
-if after_qs > xs_retention:
-xs_recovery = min(xs_limit, after_qs - xs_retention)
-after_xs = after_qs - xs_recovery
-else:
-after_xs = after_qs
+            if after_qs > xs_retention:
+                xs_recovery = min(xs_limit, after_qs - xs_retention)
+                after_xs = after_qs - xs_recovery
+            else:
+                after_xs = after_qs
 
-net_losses.append(after_xs)
+            net_losses.append(after_xs)
 
         # Apply aggregate excess
-annual_total = sum(net_losses)
-if annual_total > agg_deductible:
-agg_recovery = min(agg_limit, annual_total - agg_deductible)
-final_net = annual_total - agg_recovery
-else:
-final_net = annual_total
+        annual_total = sum(net_losses)
+        if annual_total > agg_deductible:
+            agg_recovery = min(agg_limit, annual_total - agg_deductible)
+            final_net = annual_total - agg_recovery
+        else:
+            final_net = annual_total
 
         # Calculate premiums (simplified)
-xs_premium = xs_limit * 0.05
-* (1 - xs_retention / 1e6)
-agg_premium = agg_limit * 0.03
-qs_premium = quota_share
-* np.mean(base_losses) * len(base_losses)
-* 1.2
-total_premium = xs_premium + agg_premium + qs_premium
+        xs_premium = xs_limit * 0.05 * (1 - xs_retention / 1e6)
+        agg_premium = agg_limit * 0.03
+        qs_premium = quota_share * np.mean(base_losses) * len(base_losses) * 1.2
+        total_premium = xs_premium + agg_premium + qs_premium
 
         # Check constraints
-if total_premium > budget:
-return 1e10
+        if total_premium > budget:
+            return 1e10
 
         # Objective: minimize VaR subject to premium constraint
-return np.percentile(net_losses, 99)
+        return np.percentile(net_losses, 99)
 
     # Optimization bounds
-bounds = [
-(0, 1e6),
-# xs_retention
-(0, 5e6),
-# xs_limit
-(0, 10e6),
-# agg_deductible
-(0, 20e6),
-# agg_limit
-(0, 0.5)
-# quota_share
-]
+    bounds = [
+        (0, 1e6),      # xs_retention
+        (0, 5e6),      # xs_limit
+        (0, 10e6),     # agg_deductible
+        (0, 20e6),     # agg_limit
+        (0, 0.5)       # quota_share
+    ]
 
-result = differential_evolution(objective, bounds, maxiter=100)
+    result = differential_evolution(objective, bounds, maxiter=100)
 
-optimal_params = {
-'xs_retention': result.x[0],
-'xs_limit': result.x[1],
-'agg_deductible': result.x[2],
-'agg_limit': result.x[3],
-'quota_share': result.x[4]
-}
+    optimal_params = {
+        'xs_retention': result.x[0],
+        'xs_limit': result.x[1],
+        'agg_deductible': result.x[2],
+        'agg_limit': result.x[3],
+        'quota_share': result.x[4]
+    }
 
-return optimal_params
+    return optimal_params
 
 # Example optimization
 np.random.seed(42)
@@ -776,8 +767,11 @@ optimal = optimize_reinsurance_program(base_losses, budget=1e6, risk_tolerance=0
 
 print("Optimal Reinsurance Program:")
 for key, value in optimal.items():
-if 'retention' in key or 'limit' in key or 'deductible' in key:
-print(f"{key}: ${value:,.0f}") else: print(f"{key}: {value:.1%}")  ```
+    if 'retention' in key or 'limit' in key or 'deductible' in key:
+        print(f"{key}: ${value:,.0f}")
+    else:
+        print(f"{key}: {value:.1%}")
+```
 ```
 
 (practical-applications)=
@@ -788,16 +782,92 @@ print(f"{key}: ${value:,.0f}") else: print(f"{key}: {value:.1%}")  ```
 ![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)
 
 ```python
-def manufacturing_insurance_analysis(): """Analyze insurance needs for widget manufacturer."""      # Company parameters revenue = 50_000_000 # \$50M annual revenue
-assets = 30_000_000
-# \$30M total assets margin = 0.08 # 8% operating margin      # Risk profile risks = { 'property': { 'frequency': stats.poisson(mu=2), 'severity': stats.lognorm(s=1.5, scale=200_000), 'max_loss': assets * 0.5 }, 'liability': { 'frequency': stats.poisson(mu=5), 'severity': stats.lognorm(s=2, scale=50_000), 'max_loss': revenue * 2 }, 'business_interruption': { 'frequency': stats.poisson(mu=0.5), 'severity': stats.uniform(loc=revenue*0.1, scale=revenue*0.4), 'max_loss': revenue } }      # Simulate annual losses n_sims = 10000 results = {}  for risk_type, risk_params in risks.items(): annual_losses = []  for _ in range(n_sims): n_claims = risk_params['frequency'].rvs() if n_claims > 0: claims = risk_params['severity'].rvs(n_claims) total = min(sum(claims), risk_params['max_loss']) else: total = 0 annual_losses.append(total)  results[risk_type] = { 'mean': np.mean(annual_losses), 'p95': np.percentile(annual_losses, 95), 'p99': np.percentile(annual_losses, 99), 'max': np.max(annual_losses) }      # Recommend limits recommendations = {} for risk_type, stats in results.items():         # Primary layer at 95th percentile primary = stats['p95']          # Excess layer to 99.5th percentile excess = stats['p99'] - primary          # Catastrophic layer cat = stats['max'] - stats['p99']  recommendations[risk_type] = { 'primary': primary, 'excess': excess, 'catastrophic': cat, 'total_limit': primary + excess + cat }  return results, recommendations  # Run analysis loss_stats, recommendations = manufacturing_insurance_analysis()  print("Loss Statistics by Risk Type:") for risk_type, stats in loss_stats.items(): print(f"\n{risk_type.upper()}:") for metric, value in stats.items(): print(f" {metric}:${value:,.0f}")
+def manufacturing_insurance_analysis():
+    """Analyze insurance needs for widget manufacturer."""
+
+    # Company parameters
+    revenue = 50_000_000  # $50M annual revenue
+    assets = 30_000_000   # $30M total assets
+    margin = 0.08         # 8% operating margin
+
+    # Risk profile
+    risks = {
+        'property': {
+            'frequency': stats.poisson(mu=2),
+            'severity': stats.lognorm(s=1.5, scale=200_000),
+            'max_loss': assets * 0.5
+        },
+        'liability': {
+            'frequency': stats.poisson(mu=5),
+            'severity': stats.lognorm(s=2, scale=50_000),
+            'max_loss': revenue * 2
+        },
+        'business_interruption': {
+            'frequency': stats.poisson(mu=0.5),
+            'severity': stats.uniform(loc=revenue*0.1, scale=revenue*0.4),
+            'max_loss': revenue
+        }
+    }
+
+    # Simulate annual losses
+    n_sims = 10000
+    results = {}
+
+    for risk_type, risk_params in risks.items():
+        annual_losses = []
+
+        for _ in range(n_sims):
+            n_claims = risk_params['frequency'].rvs()
+            if n_claims > 0:
+                claims = risk_params['severity'].rvs(n_claims)
+                total = min(sum(claims), risk_params['max_loss'])
+            else:
+                total = 0
+            annual_losses.append(total)
+
+        results[risk_type] = {
+            'mean': np.mean(annual_losses),
+            'p95': np.percentile(annual_losses, 95),
+            'p99': np.percentile(annual_losses, 99),
+            'max': np.max(annual_losses)
+        }
+
+    # Recommend limits
+    recommendations = {}
+    for risk_type, stats in results.items():
+        # Primary layer at 95th percentile
+        primary = stats['p95']
+
+        # Excess layer to 99.5th percentile
+        excess = stats['p99'] - primary
+
+        # Catastrophic layer
+        cat = stats['max'] - stats['p99']
+
+        recommendations[risk_type] = {
+            'primary': primary,
+            'excess': excess,
+            'catastrophic': cat,
+            'total_limit': primary + excess + cat
+        }
+
+    return results, recommendations
+
+# Run analysis
+loss_stats, recommendations = manufacturing_insurance_analysis()
+
+print("Loss Statistics by Risk Type:")
+for risk_type, stats in loss_stats.items():
+    print(f"\n{risk_type.upper()}:")
+    for metric, value in stats.items():
+        print(f"  {metric}: ${value:,.0f}")
 
 print("\n\nRecommended Insurance Structure:")
 for risk_type, limits in recommendations.items():
-print(f"\n{risk_type.upper()}:")
-print(f"
-Primary (0 - ${limits['primary']:,.0f})") print(f" Excess (${limits['primary']:,.0f} - ${limits['primary'] + limits['excess']:,.0f})") print(f" Cat (${limits['primary'] + limits['excess']:,.0f} - ${limits['total_limit']:,.0f})")
-
+    print(f"\n{risk_type.upper()}:")
+    print(f"  Primary (0 - ${limits['primary']:,.0f})")
+    print(f"  Excess (${limits['primary']:,.0f} - ${limits['primary'] + limits['excess']:,.0f})")
+    print(f"  Cat (${limits['primary'] + limits['excess']:,.0f} - ${limits['total_limit']:,.0f})")
 ```
 
 
