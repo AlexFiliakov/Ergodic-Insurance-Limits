@@ -37,6 +37,7 @@ defaults:
 
 # Include/Exclude
 include:
+  - index.html
   - theory
   - docs
   - docs/tutorials
