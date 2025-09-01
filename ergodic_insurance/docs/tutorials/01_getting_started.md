@@ -505,7 +505,7 @@ Now that you've run your first simulation, explore these topics:
 - Review the [FAQ](../user_guide/faq.rst) for conceptual questions
 - Explore the [API Documentation](../api/modules.rst) for detailed function references
 - Open an issue on [GitHub](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues)
-- Contact: [Alex Filiakov](alexfiliakov@gmail.com)
+- Contact: [Alex Filiakov](mailto:alexfiliakov@gmail.com)
 
 ## Summary
 

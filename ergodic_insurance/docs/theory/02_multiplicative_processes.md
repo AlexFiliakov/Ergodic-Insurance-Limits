@@ -2,17 +2,8 @@
 
 ## Table of Contents
 1. [Introduction to Multiplicative Dynamics](#introduction-to-multiplicative-dynamics)
-
-2. [Geometric Brownian Motion](#geometric-brownian-motion)
-3. [Log-Normal Distributions](#log-normal-distributions)
-
-4. [Path Dependence and History](#path-dependence-and-history)
-5. [Growth Rate Calculations](#growth-rate-calculations)
-
-6. [The Kelly Criterion](#the-kelly-criterion)
-7. [Volatility Drag](#volatility-drag)
-
-8. [Practical Examples](#practical-examples)
+2. [Key Takeaways](#key-takeaways)
+3. [Next Steps](#next-steps)
 
 (introduction-to-multiplicative-dynamics)=
 ## Introduction to Multiplicative Dynamics
@@ -478,6 +469,7 @@ print(f"With hedge
 ```
 
 
+(key-takeaways)=
 ## Key Takeaways
 
 1. **Multiplicative processes dominate economics**: Most financial quantities compound
@@ -491,6 +483,7 @@ print(f"With hedge
 6. **Kelly criterion optimizes growth**: Natural framework for insurance decisions
 7. **Volatility reduction enhances growth**: Insurance benefit beyond loss coverage
 
+(next-steps)=
 ## Next Steps
 
 - [Chapter 1: Ergodic Economics](01_ergodic_economics.md)

@@ -1504,9 +1504,8 @@ axes[1, 0].grid(True, alpha=0.3, axis='y')
 
         # Recommendations
 recs = self.results['recommendations']
-rec_text = '\n\n'.join([f"{r['priority']}: {r['action']}\n
-→ {r['rationale']}"
-for r in recs[:3]])
+rec_text = '\n\n'.join([f"{r['priority']}: {r['action']}\n    -> {r['rationale']}"
+                         for r in recs[:3]])
 
         # Color code text based on priority
 text_color = 'red' if recs[0]['priority'] == 'CRITICAL' else 'darkgreen' if val['growth_rate'] > 0.08 else 'black'

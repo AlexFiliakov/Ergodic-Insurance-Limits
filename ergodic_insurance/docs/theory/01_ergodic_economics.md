@@ -8,7 +8,6 @@
 
 4. [Non-Ergodic Observables](#non-ergodic-observables)
 5. [Application to Wealth Dynamics](#application-to-wealth-dynamics)
-
 6. [Insurance Through an Ergodic Lens](#insurance-through-an-ergodic-lens)
 7. [Practical Implications](#practical-implications)
 
@@ -140,7 +139,8 @@ Traditional utility theory assumes ergodic averaging. In reality:
 
 - No arbitrary utility function needed
 - Optimal strategies maximize time-average growth
-(application-to-wealth-dynamics)= ## Application to Wealth Dynamics
+(application-to-wealth-dynamics)=
+## Application to Wealth Dynamics
 ### Geometric Brownian Motion
 
 Consider wealth following geometric Brownian motion:
@@ -200,7 +200,8 @@ $$
 \text{Retention}^* = \arg\max_{R} E[\ln(W_{\text{after losses and premiums}})]
 $$
 
-(insurance-through-an-ergodic-lens)= ## Insurance Through an Ergodic Lens
+(insurance-through-an-ergodic-lens)=
+## Insurance Through an Ergodic Lens
 ### Traditional View: Expected Value
 
 Classical insurance theory focuses on expected values:

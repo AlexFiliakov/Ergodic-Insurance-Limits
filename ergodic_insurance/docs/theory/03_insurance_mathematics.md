@@ -193,7 +193,74 @@ for key, value in statistics.items():
 if key == 'prob_zero':
 print(f"{key}: {value:.1%}")
 else:
-print(f"{key}: ${value:,.0f}")  ``` (compound-distributions)= ## Compound Distributions ### Definition  The compound distribution of total losses$S = \sum_{i=1}^N X_i$has: **Characteristic function**:  $$ \phi_S(t) = G_N(\phi_X(t)) $$  where$G_N$is the probability generating function of$N$.  ### Compound Poisson  When$N \sim \text{Poisson}(\lambda)$: **Mean**:$E[S] = \lambda \cdot E[X]$**Variance**:$\text{Var}(S) = \lambda \cdot E[X^2]$**Skewness**:$\text{Skew}(S) = \frac{E[X^3]}{\lambda^{1/2} \cdot E[X^2]^{3/2}}$### Panjer Recursion  For discrete severities, recursive calculation:  $$ p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j} $$  -$p_k = P(S = k)$-$f_j = P(X = j)$-$(a, b)$depend on frequency distribution ### Fast Fourier Transform Method  For continuous distributions: ```python def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14): """Calculate compound distribution using FFT."""      # Discretize severity distribution dx = x_max / n_points x = np.arange(n_points) * dx      # Severity probabilities sev_pmf = stats.lognorm.pdf(x, s=sev_params['s'], scale=sev_params['scale']) * dx sev_pmf[0] = 0 # No zero claims      # Characteristic function of severity sev_cf = np.fft.fft(sev_pmf)      # Compound distribution via generating function lambda_param = freq_params['lambda'] compound_cf = np.exp(lambda_param * (sev_cf - 1))      # Inverse transform compound_pmf = np.real(np.fft.ifft(compound_cf))      # Add point mass at zero prob_zero = np.exp(-lambda_param) compound_pmf[0] = prob_zero  return x, compound_pmf / dx  # Calculate and plot x, pdf = compound_distribution_fft( freq_params={'lambda': 3}, sev_params={'s': 2, 'scale': 50000} )  plt.figure(figsize=(10, 6)) plt.semilogy(x[:1000], pdf[:1000]) plt.xlabel('Total Annual Loss') plt.ylabel('Probability Density (log scale)') plt.title('Compound Poisson-Lognormal Distribution') plt.grid(True, alpha=0.3) plt.show()  ``` ![Compound Poisson-Lognormal Distribution](../../../theory/figures/compound_poi_lognormal_dist.png) (layer-pricing-theory)= ## Layer Pricing Theory ### Excess of Loss Layers  Insurance coverage is structured in layers: - **Primary**: \$0 to \$L_1 - **First Excess**: \$L_1 to \$L_2 - **Second Excess**: \$L_2 to \$L_3, etc.  ### Layer Loss Calculation  For layer$[a, b]$, the loss is:  $$ Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a) $$  Expected layer loss:  $$ E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx $$  ### Increased Limits Factors (ILFs)  Ratio of expected loss at different limits:  $$ \text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]} $$  where$L_0$is the base limit.  ### Exposure Curves  Proportion of loss in layer:  $$ \text{G}(r) = \frac{E[X \wedge rM]}{E[X]} $$  where$M$is the maximum possible loss.  ### Layer Pricing Implementation  ```python class LayerPricing: """Price excess of loss layers."""  def __init__(self, severity_dist): self.severity_dist = severity_dist  def layer_expected_loss(self, attachment, limit): """Calculate expected loss in layer."""  def limited_expected_value(x): """E[X ^ x] = integral from 0 to x of (1 - F(t)) dt""" if x == np.inf: return self.severity_dist.mean()              # Numerical integration from scipy.integrate import quad  def survival(t): return 1 - self.severity_dist.cdf(t)  result, _ = quad(survival, 0, x) return result  exhaustion = attachment + limit return limited_expected_value(exhaustion) - limited_expected_value(attachment)  def price_layer(self, attachment, limit, frequency, expense_loading=1.3): """Price an excess layer."""          # Expected loss in layer layer_severity = self.layer_expected_loss(attachment, limit)          # Annual expected loss annual_loss = frequency * layer_severity          # Add expense loading premium = annual_loss * expense_loading          # Calculate burning cost burning_cost = annual_loss / limit  return { 'premium': premium, 'expected_loss': annual_loss, 'rate_on_line': premium / limit, 'burning_cost': burning_cost, 'loss_ratio': annual_loss / premium }  def create_tower(self, attachments, limits, frequency): """Price a tower of layers."""  tower = [] for att, lim in zip(attachments, limits): layer_info = self.price_layer(att, lim, frequency) layer_info['attachment'] = att layer_info['limit'] = lim tower.append(layer_info)  return pd.DataFrame(tower)  # Example: Price a tower import pandas as pd  sev_dist = stats.pareto(b=2.5, scale=10000) # Pareto severity pricer = LayerPricing(sev_dist)  # Define tower structure attachments = [0, 100_000, 500_000, 1_000_000, 5_000_000] limits = [100_000, 400_000, 500_000, 4_000_000, 10_000_000]  tower = pricer.create_tower(attachments, limits, frequency=5) print(tower.to_string())  ``` ![Layer Pricing](../../../theory/figures/layer_pricing.png) (retention-optimization)= ## Retention Optimization ### Objective Function  Maximize utility or growth:  $$ \max_R \quad U(W - P(R) - L \wedge R) $$  -$R$= Retention level -$P(R)$= Premium function -$L$= Random loss -$W$= Initial wealth ### First-Order Condition  For differentiable utility:  $$ P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}] $$  ### Ergodic Optimization  Maximize time-average growth:  $$ \max_R \quad E[\ln(W - P(R) - L \wedge R)] $$  ### Constraints  1. **Budget constraint**:$P(R) \leq B$2. **Ruin constraint**:$P(\text{ruin}) \leq \alpha$3. **Regulatory minimum**:$R \geq R_{\text{min}}$### Dynamic Programming Solution ```python def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000, premium_loading=0.3, risk_aversion=2): """ Calculate optimal retention using analytical approach.  The optimal retention balances: 1. Premium savings (higher retention = lower premium) 2. Risk exposure (higher retention = more volatility) 3. Wealth level (more wealth = can handle more risk) """      # Base retention is fraction of expected loss base_retention = loss_mean * 0.5      # Wealth effect: retention increases with wealth (concave) wealth_factor = np.sqrt(wealth / 10_000_000) # Normalized to$10M
+print(f"{key}: ${value:,.0f}")
+```
+
+(compound-distributions)=
+## Compound Distributions
+
+### Definition  The compound distribution of total losses$S = \sum_{i=1}^N X_i$has:
+
+**Characteristic function**:  $$ \phi_S(t) = G_N(\phi_X(t)) $$  where$G_N$is the probability generating function of$N$.
+
+### Compound Poisson  When$N \sim \text{Poisson}(\lambda)$:
+
+**Mean**: $E[S] = \lambda \cdot E[X]$
+**Variance**: $\text{Var}(S) = \lambda \cdot E[X^2]$
+**Skewness**: $\text{Skew}(S) = \frac{E[X^3]}{\lambda^{1/2} \cdot E[X^2]^{3/2}}$
+
+### Panjer Recursion  For discrete severities, recursive calculation:  $$ p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j} $$  -$p_k = P(S = k)$-$f_j = P(X = j)$-$(a, b)$depend on frequency distribution
+
+### Fast Fourier Transform Method  For continuous distributions:
+```python
+def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14): """Calculate compound distribution using FFT."""
+
+    # Discretize severity distribution dx = x_max / n_points x = np.arange(n_points) * dx      # Severity probabilities sev_pmf = stats.lognorm.pdf(x, s=sev_params['s'], scale=sev_params['scale']) * dx sev_pmf[0] = 0 # No zero claims      # Characteristic function of severity sev_cf = np.fft.fft(sev_pmf)      # Compound distribution via generating function lambda_param = freq_params['lambda'] compound_cf = np.exp(lambda_param * (sev_cf - 1))      # Inverse transform compound_pmf = np.real(np.fft.ifft(compound_cf))      # Add point mass at zero prob_zero = np.exp(-lambda_param) compound_pmf[0] = prob_zero  return x, compound_pmf / dx  # Calculate and plot x, pdf = compound_distribution_fft( freq_params={'lambda': 3}, sev_params={'s': 2, 'scale': 50000} )  plt.figure(figsize=(10, 6)) plt.semilogy(x[:1000], pdf[:1000]) plt.xlabel('Total Annual Loss') plt.ylabel('Probability Density (log scale)') plt.title('Compound Poisson-Lognormal Distribution') plt.grid(True, alpha=0.3) plt.show()
+```
+
+![Compound Poisson-Lognormal Distribution](../../../theory/figures/compound_poi_lognormal_dist.png)
+
+(layer-pricing-theory)=
+## Layer Pricing Theory
+
+### Excess of Loss Layers  Insurance coverage is structured in layers: -
+
+**Primary**: \$0 to \$L_1
+- **First Excess**: \$L_1 to \$L_2
+- **Second Excess**: \$L_2 to \$L_3, etc.
+
+### Layer Loss Calculation  For layer$[a, b]$, the loss is:  $$ Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a) $$  Expected layer loss:  $$ E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx $$
+
+### Increased Limits Factors (ILFs)  Ratio of expected loss at different limits:  $$ \text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]} $$  where$L_0$is the base limit.
+
+### Exposure Curves  Proportion of loss in layer:  $$ \text{G}(r) = \frac{E[X \wedge rM]}{E[X]} $$  where$M$is the maximum possible loss.
+
+### Layer Pricing Implementation
+```python class LayerPricing: """Price excess of loss layers."""  def __init__(self, severity_dist): self.severity_dist = severity_dist  def layer_expected_loss(self, attachment, limit): """Calculate expected loss in layer."""  def limited_expected_value(x): """E[X ^ x] = integral from 0 to x of (1 - F(t)) dt""" if x == np.inf: return self.severity_dist.mean()              # Numerical integration from scipy.integrate import quad  def survival(t): return 1 - self.severity_dist.cdf(t)  result, _ = quad(survival, 0, x) return result  exhaustion = attachment + limit return limited_expected_value(exhaustion) - limited_expected_value(attachment)  def price_layer(self, attachment, limit, frequency, expense_loading=1.3): """Price an excess layer."""          # Expected loss in layer layer_severity = self.layer_expected_loss(attachment, limit)          # Annual expected loss annual_loss = frequency * layer_severity          # Add expense loading premium = annual_loss * expense_loading          # Calculate burning cost burning_cost = annual_loss / limit  return { 'premium': premium, 'expected_loss': annual_loss, 'rate_on_line': premium / limit, 'burning_cost': burning_cost, 'loss_ratio': annual_loss / premium }  def create_tower(self, attachments, limits, frequency): """Price a tower of layers."""  tower = [] for att, lim in zip(attachments, limits): layer_info = self.price_layer(att, lim, frequency) layer_info['attachment'] = att layer_info['limit'] = lim tower.append(layer_info)  return pd.DataFrame(tower)  # Example: Price a tower import pandas as pd  sev_dist = stats.pareto(b=2.5, scale=10000) # Pareto severity pricer = LayerPricing(sev_dist)  # Define tower structure attachments = [0, 100_000, 500_000, 1_000_000, 5_000_000] limits = [100_000, 400_000, 500_000, 4_000_000, 10_000_000]  tower = pricer.create_tower(attachments, limits, frequency=5) print(tower.to_string())
+```
+
+![Layer Pricing](../../../theory/figures/layer_pricing.png)
+
+(retention-optimization)=
+## Retention Optimization
+
+### Objective Function  Maximize utility or growth:  $$ \max_R \quad U(W - P(R) - L \wedge R) $$  - $R$ = Retention level
+- $P(R)$ = Premium function
+- $L$ = Random loss
+- $W$ = Initial wealth
+
+###
+ First-Order Condition  For differentiable utility:  $$ P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}] $$
+
+### Ergodic Optimization  Maximize time-average growth:  $$ \max_R \quad E[\ln(W - P(R) - L \wedge R)] $$
+
+### Constraints  1. **Budget constraint**:$P(R) \leq B$
+2. **Ruin constraint**:$P(\text{ruin}) \leq \alpha$
+3.
+
+**Regulatory minimum**:$R \geq R_{\text{min}}$### Dynamic Programming Solution
+```python
+def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000, premium_loading=0.3, risk_aversion=2): """ Calculate optimal retention using analytical approach.  The optimal retention balances: 1. Premium savings (higher retention = lower premium) 2. Risk exposure (higher retention = more volatility) 3. Wealth level (more wealth = can handle more risk) """      # Base retention is fraction of expected loss base_retention = loss_mean * 0.5      # Wealth effect: retention increases with wealth (concave) wealth_factor = np.sqrt(wealth / 10_000_000) # Normalized to$10M
 
     # Risk aversion effect: higher aversion = lower retention
 risk_factor = 1 / risk_aversion
@@ -522,7 +589,8 @@ optimal = optimize_reinsurance_program(base_losses, budget=1e6, risk_tolerance=0
 print("Optimal Reinsurance Program:")
 for key, value in optimal.items():
 if 'retention' in key or 'limit' in key or 'deductible' in key:
-print(f"{key}: ${value:,.0f}") else: print(f"{key}: {value:.1%}")  ```   (practical-applications)= ## Practical Applications  ### Application 1: Manufacturing Company  ![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)  ```python def manufacturing_insurance_analysis(): """Analyze insurance needs for widget manufacturer."""      # Company parameters revenue = 50_000_000 # \$50M annual revenue
+print(f"{key}: ${value:,.0f}") else: print(f"{key}: {value:.1%}")  ```   (practical-applications)= ## Practical Applications  ### Application 1: Manufacturing Company  ![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)  ```python
+def manufacturing_insurance_analysis(): """Analyze insurance needs for widget manufacturer."""      # Company parameters revenue = 50_000_000 # \$50M annual revenue
 assets = 30_000_000
 # \$30M total assets margin = 0.08 # 8% operating margin      # Risk profile risks = { 'property': { 'frequency': stats.poisson(mu=2), 'severity': stats.lognorm(s=1.5, scale=200_000), 'max_loss': assets * 0.5 }, 'liability': { 'frequency': stats.poisson(mu=5), 'severity': stats.lognorm(s=2, scale=50_000), 'max_loss': revenue * 2 }, 'business_interruption': { 'frequency': stats.poisson(mu=0.5), 'severity': stats.uniform(loc=revenue*0.1, scale=revenue*0.4), 'max_loss': revenue } }      # Simulate annual losses n_sims = 10000 results = {}  for risk_type, risk_params in risks.items(): annual_losses = []  for _ in range(n_sims): n_claims = risk_params['frequency'].rvs() if n_claims > 0: claims = risk_params['severity'].rvs(n_claims) total = min(sum(claims), risk_params['max_loss']) else: total = 0 annual_losses.append(total)  results[risk_type] = { 'mean': np.mean(annual_losses), 'p95': np.percentile(annual_losses, 95), 'p99': np.percentile(annual_losses, 99), 'max': np.max(annual_losses) }      # Recommend limits recommendations = {} for risk_type, stats in results.items():         # Primary layer at 95th percentile primary = stats['p95']          # Excess layer to 99.5th percentile excess = stats['p99'] - primary          # Catastrophic layer cat = stats['max'] - stats['p99']  recommendations[risk_type] = { 'primary': primary, 'excess': excess, 'catastrophic': cat, 'total_limit': primary + excess + cat }  return results, recommendations  # Run analysis loss_stats, recommendations = manufacturing_insurance_analysis()  print("Loss Statistics by Risk Type:") for risk_type, stats in loss_stats.items(): print(f"\n{risk_type.upper()}:") for metric, value in stats.items(): print(f" {metric}:${value:,.0f}")
 

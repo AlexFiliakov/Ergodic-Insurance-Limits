@@ -36,7 +36,7 @@ This directory contains comprehensive architectural documentation for the Ergodi
 - Monte Carlo Engine ([Service Layer](./class_diagrams/service_layer.md#simulation-orchestration-services))
 - Ergodic Analysis ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
 - Statistical Testing ([Service Layer](./class_diagrams/service_layer.md#statistical-analysis-services))
-- Sensitivity Analysis ([Module Overview](./module_overview.md#analytics--metrics))
+- Sensitivity Analysis ([Module Overview](./module_overview.md#analytics-metrics))
 - Convergence Diagnostics ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
 
 #### Optimization & Control

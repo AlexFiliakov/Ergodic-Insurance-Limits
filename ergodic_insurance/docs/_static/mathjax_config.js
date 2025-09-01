@@ -3,6 +3,11 @@
  * This ensures proper LaTeX rendering in theory pages
  */
 
+// First, clear any existing MathJax configuration
+if (window.MathJax) {
+  window.MathJax = undefined;
+}
+
 window.MathJax = {
   tex: {
     inlineMath: [['$', '$'], ['\\(', '\\)']],
@@ -19,8 +24,8 @@ window.MathJax = {
   },
   options: {
     skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-    ignoreHtmlClass: 'tex2jax_ignore',
-    processHtmlClass: 'tex2jax_process'
+    ignoreHtmlClass: 'tex2jax_ignore|mathjax_ignore',
+    processHtmlClass: 'tex2jax_process|mathjax_process|math|output_area'
   },
   chtml: {
     scale: 1,
@@ -36,6 +41,16 @@ window.MathJax = {
     pageReady: () => {
       return MathJax.startup.defaultPageReady().then(() => {
         console.log('MathJax loaded and configured for Ergodic Insurance documentation');
+        // Process any math divs that MyST created
+        const mathDivs = document.querySelectorAll('div.math');
+        mathDivs.forEach(div => {
+          const mathText = div.textContent || div.innerText;
+          if (mathText && !div.classList.contains('MathJax_Preview')) {
+            // Replace the content with properly formatted math
+            div.innerHTML = '\\[' + mathText.replace(/^\\\[/, '').replace(/\\\]$/, '') + '\\]';
+            MathJax.typesetPromise([div]).catch((e) => console.error(e));
+          }
+        });
       });
     }
   }

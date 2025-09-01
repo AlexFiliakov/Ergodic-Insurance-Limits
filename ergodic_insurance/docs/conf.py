@@ -106,6 +106,10 @@ mathjax3_config = {
     },
     "options": {
         "skipHtmlTags": ["script", "noscript", "style", "textarea", "pre"],
+        "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area",
+    },
+    "startup": {
+        "pageReady": "() => { MathJax.startup.document.updateDocument(); }",
     },
 }
 
@@ -118,6 +122,11 @@ myst_enable_extensions = [
     "html_image",  # Enable HTML images
 ]
 myst_dmath_double_inline = True  # Treat $$ as display math
+myst_dmath_allow_labels = True
+myst_dmath_allow_space = True
+myst_dmath_allow_digits = True
+myst_update_mathjax = True  # Ensure MathJax configuration is updated
+myst_mathjax_classes = "tex2jax_process|mathjax_process|math|output_area"
 
 # -- Options for autodoc extension ------------------------------------------
 autodoc_default_options = {
