@@ -87,6 +87,8 @@ The theoretical concepts documented here are implemented in the codebase:
 - :mod:`ergodic_insurance.src.optimization` - Optimization algorithms
 - :mod:`ergodic_insurance.src.monte_carlo` - Statistical methods
 
+For visual representations of the system architecture and how these theoretical concepts are implemented, see the :doc:`Architectural Diagrams </architecture/index>` section.
+
 Further Resources
 -----------------
 

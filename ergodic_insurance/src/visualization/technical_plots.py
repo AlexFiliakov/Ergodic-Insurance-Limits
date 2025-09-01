@@ -1309,11 +1309,11 @@ def plot_ergodic_divergence(  # pylint: disable=too-many-locals
         ax1.axvspan(
             divergence_start,
             time_horizons[-1],
-            alpha=0.1,
-            color=WSJ_COLORS["light_gray"],
+            alpha=0.15,  # Increased alpha for better visibility
+            color=WSJ_COLORS["red"],  # Changed to red for better visibility
             label="Divergence Region",
         )
-        ax1.axvline(x=divergence_start, color="gray", linestyle=":", linewidth=1, alpha=0.5)
+        ax1.axvline(x=divergence_start, color="red", linestyle=":", linewidth=1.5, alpha=0.5)
         ax1.text(
             divergence_start,
             ax1.get_ylim()[0] + 0.01,
@@ -1332,7 +1332,9 @@ def plot_ergodic_divergence(  # pylint: disable=too-many-locals
 
     # Mathematical formulas (right panel)
     ax2.axis("off")
-    ax2.set_title("Mathematical Framework", fontsize=13, fontweight="bold")
+    ax2.set_title(
+        "Mathematical Framework", fontsize=13, fontweight="bold", loc="center", y=1.0
+    )  # Aligned with left title
 
     if add_formulas:
         formula_text = r"""
@@ -1354,31 +1356,35 @@ Premium $p$ reduces both averages equally
 But insurance caps losses at $L$:
 $g_{time}^{ins} > g_{time}^{no\ ins}$ for high $\sigma$
 """
+        # Center-align formulas horizontally and position below title
         ax2.text(
-            0.1,
-            0.9,
+            0.5,  # Horizontal centering
+            0.92,  # Move formulas up to follow the title position
             formula_text,
             transform=ax2.transAxes,
             fontsize=11,
             verticalalignment="top",
+            horizontalalignment="center",  # Center alignment
             bbox={"boxstyle": "round,pad=0.5", "facecolor": "wheat", "alpha": 0.3},
         )
 
-        # Add interpretation box
-        interpretation = """
-        Key Insights:
-        • Time and ensemble averages diverge for multiplicative processes
-        • Volatility creates a "drag" on time-average growth
-        • Insurance reduces effective volatility, improving time-average growth
-        • This justifies higher premiums than expected loss alone
+        # Add interpretation box with bold header and better spacing
+        interpretation = r"""
+$\mathbf{Key\ Insights:}$
+• Time and ensemble averages diverge for multiplicative processes
+• Volatility creates a "drag" on time-average growth
+• Insurance reduces effective volatility, improving time-average growth
+• This justifies higher premiums than expected loss alone
         """
+        # Center-align Key Insights horizontally with more space below formulas
         ax2.text(
-            0.1,
-            0.3,
-            interpretation,
+            0.5,  # Changed from 0.1 to 0.5 for horizontal centering
+            0.15,  # Changed from 0.3 to 0.15 to create more space below formulas
+            interpretation.strip(),  # Remove leading/trailing whitespace
             transform=ax2.transAxes,
             fontsize=10,
             verticalalignment="top",
+            horizontalalignment="center",  # Added horizontal center alignment
             bbox={"boxstyle": "round,pad=0.5", "facecolor": WSJ_COLORS["light_gray"], "alpha": 0.2},
         )
 

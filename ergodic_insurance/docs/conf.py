@@ -39,6 +39,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "myst_parser",
+    "sphinxcontrib.mermaid",  # Add Mermaid diagram support
 ]
 
 templates_path = ["_templates"]
@@ -46,8 +47,6 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "architecture/class_diagrams/*.md",
-    "architecture/*.md",
     "index_v2.rst",
     "README.md",
     "changelog.rst",
@@ -160,6 +159,38 @@ intersphinx_mapping = {
 # https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#configuration
 
 todo_include_todos = True
+
+# -- Options for mermaid extension -------------------------------------------
+# https://github.com/mgaitan/sphinxcontrib-mermaid
+
+mermaid_version = "10.9.0"
+mermaid_init_js = """
+mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    themeVariables: {
+        fontSize: '14px'
+    },
+    flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true
+    }
+});
+"""
+
+# -- Options for MyST parser -------------------------------------------------
+# Enable mermaid code blocks in markdown
+myst_enable_extensions = [
+    "deflist",
+    "html_image",
+    "colon_fence",
+]
+
+# Support for markdown files
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
 
 # -- GitHub Pages Configuration ----------------------------------------------
 

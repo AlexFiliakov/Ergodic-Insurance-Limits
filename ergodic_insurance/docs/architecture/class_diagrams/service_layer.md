@@ -223,6 +223,94 @@ classDiagram
     BootstrapAnalyzer --> StatisticalTests : may use
 ```
 
+## Validation Framework Services
+
+```mermaid
+classDiagram
+    class WalkForwardValidator {
+        -int window_size
+        -int step_size
+        -float validation_split
+        -ValidationConfig config
+        +__init__(window_size, step_size, config)
+        +validate(data, strategy) ValidationResult
+        +create_windows(data) List~ValidationWindow~
+        +train_strategy(window) Strategy
+        +test_strategy(window, strategy) WindowResult
+        +aggregate_results(results) ValidationResult
+    }
+
+    class StrategyBacktester {
+        -BacktestConfig config
+        -MetricCalculator calculator
+        +__init__(config)
+        +backtest(strategy, historical_data) BacktestResults
+        +calculate_returns(strategy, data) ndarray
+        +calculate_drawdown(returns) float
+        +calculate_risk_metrics(returns) Dict
+        +generate_report(results) Report
+    }
+
+    class ValidationMetrics {
+        -List~str~ metric_names
+        -Dict thresholds
+        +__init__(metrics)
+        +calculate(actual, predicted) Dict
+        +calculate_rmse(actual, predicted) float
+        +calculate_mae(actual, predicted) float
+        +calculate_sharpe(returns) float
+        +check_performance(metrics) bool
+    }
+
+    class AccuracyValidator {
+        -float tolerance
+        -ReferenceImplementation reference
+        +__init__(tolerance)
+        +validate_calculation(func, inputs) bool
+        +compare_results(actual, expected) float
+        +test_edge_cases(func) List~TestResult~
+        +validate_numerical_stability(func) bool
+    }
+
+    class PerformanceOptimizer {
+        -ProfileConfig config
+        -SystemProfiler profiler
+        +__init__(config)
+        +profile(func) ProfileResult
+        +optimize_bottlenecks(profile) OptimizedFunc
+        +cache_optimization(func) CachedFunc
+        +parallelize(func) ParallelFunc
+        +benchmark(original, optimized) ComparisonResult
+    }
+
+    class BenchmarkSuite {
+        -List~Benchmark~ benchmarks
+        -BenchmarkConfig config
+        +__init__(config)
+        +add_benchmark(name, func)
+        +run_all() BenchmarkResults
+        +compare_versions(v1, v2) Comparison
+        +generate_report() Report
+        +detect_regression(results) bool
+    }
+
+    class AdaptiveStopper {
+        -ConvergenceMonitor monitor
+        -StoppingCriteria criteria
+        +__init__(criteria)
+        +should_stop(metrics) bool
+        +update_state(iteration, value)
+        +estimate_completion(current) int
+        +adjust_criteria(performance)
+    }
+
+    WalkForwardValidator --> ValidationMetrics : uses
+    StrategyBacktester --> ValidationMetrics : uses
+    PerformanceOptimizer --> BenchmarkSuite : uses
+    AdaptiveStopper --> ConvergenceMonitor : contains
+    AccuracyValidator --> ReferenceImplementation : validates against
+```
+
 ## Control and Optimization Services
 
 ```mermaid
@@ -363,6 +451,18 @@ sequenceDiagram
 | **OptimalController** | Implement control strategies | compute_control(), update_feedback() |
 | **ScenarioManager** | Manage simulation scenarios | create_scenario(), generate_grid() |
 | **BatchProcessor** | Process simulation batches | process_batch(), merge_results() |
+
+### Validation Services
+
+| Service | Primary Responsibility | Key Operations |
+|---------|----------------------|----------------|
+| **WalkForwardValidator** | Out-of-sample validation | validate(), create_windows() |
+| **StrategyBacktester** | Historical strategy testing | backtest(), calculate_returns() |
+| **ValidationMetrics** | Performance metric calculation | calculate(), check_performance() |
+| **AccuracyValidator** | Numerical accuracy testing | validate_calculation(), test_edge_cases() |
+| **PerformanceOptimizer** | Speed optimization | profile(), optimize_bottlenecks() |
+| **BenchmarkSuite** | Performance benchmarking | run_all(), detect_regression() |
+| **AdaptiveStopper** | Early stopping logic | should_stop(), estimate_completion() |
 
 ## Key Service Patterns
 

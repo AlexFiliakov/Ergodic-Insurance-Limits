@@ -36,11 +36,19 @@ This directory contains comprehensive architectural documentation for the Ergodi
 - Monte Carlo Engine ([Service Layer](./class_diagrams/service_layer.md#simulation-orchestration-services))
 - Ergodic Analysis ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
 - Statistical Testing ([Service Layer](./class_diagrams/service_layer.md#statistical-analysis-services))
+- Sensitivity Analysis ([Module Overview](./module_overview.md#analytics--metrics))
+- Convergence Diagnostics ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
 
 #### Optimization & Control
 - Business Optimization ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
 - HJB Solver ([Service Layer](./class_diagrams/service_layer.md#control-and-optimization-services))
 - Pareto Frontier ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
+
+#### Validation & Testing
+- Walk-Forward Validation ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
+- Strategy Backtesting ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
+- Performance Benchmarking ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
+- Accuracy Validation ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
 
 ### By Technical Layer
 
@@ -96,13 +104,14 @@ New components can be added without modifying core:
 | Category | Module Count | Key Modules |
 |----------|--------------|-------------|
 | Core Financial | 4 | manufacturer, claim_generator, claim_development, stochastic_processes |
-| Insurance & Risk | 4 | insurance, insurance_program, loss_distributions, ruin_probability |
+| Insurance & Risk | 5 | insurance, insurance_program, insurance_pricing, loss_distributions, ruin_probability |
 | Simulation | 5 | simulation, monte_carlo, parallel_executor, batch_processor, trajectory_storage |
-| Analytics | 5 | ergodic_analyzer, risk_metrics, convergence, bootstrap_analysis, statistical_tests |
+| Analytics | 10 | ergodic_analyzer, risk_metrics, convergence*, bootstrap_analysis, statistical_tests, sensitivity* |
 | Optimization | 6 | business_optimizer, decision_engine, pareto_frontier, hjb_solver, optimal_control, optimization |
-| Results | 5 | result_aggregator, summary_statistics, scenario_manager, progress_monitor, visualization |
+| Results | 7 | result_aggregator, summary_statistics, scenario_manager, progress_monitor, excel_reporter, financial_statements, visualization_legacy |
+| Validation | 7 | walk_forward_validator, strategy_backtester, validation_metrics, accuracy_validator, performance_optimizer, benchmarking, adaptive_stopping |
 | Configuration | 6 | config_v2, config_manager, config_compat, config_migrator, config, config_loader |
-| **Total** | **36** | |
+| **Total** | **50** | |
 
 ## Design Patterns Used
 
@@ -161,4 +170,4 @@ When adding new components:
 5. Add to appropriate module category
 
 ## Last Updated
-2025-08-27 | Version 0.1.0
+2025-09-01 | Version 0.1.0 | Comprehensive architecture update with 50 modules documented

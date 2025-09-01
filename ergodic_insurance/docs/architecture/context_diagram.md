@@ -54,8 +54,12 @@ flowchart TB
         ERGODIC["Ergodic Analyzer<br/>(Time vs Ensemble)"]
         RISK_METRICS["Risk Metrics<br/>(VaR, CVaR, TVaR)"]
         CONVERGENCE["Convergence Tools<br/>(Diagnostics)"]
+        CONVERGENCE_ADV["Advanced Convergence<br/>(Multi-Metric)"]
+        CONVERGENCE_PLOT["Convergence Plots<br/>(Visualization)"]
         BOOTSTRAP["Bootstrap Analysis<br/>(Confidence Intervals)"]
         STATS_TESTS["Statistical Tests<br/>(Hypothesis Testing)"]
+        SENSITIVITY["Sensitivity Analysis<br/>(Parameter Impact)"]
+        PARAMETER_SWEEP["Parameter Sweep<br/>(Grid Search)"]
     end
 
     subgraph ResultsProcessing["Results & Reporting"]
@@ -64,6 +68,23 @@ flowchart TB
         SCENARIO_MGR["Scenario Manager<br/>(Parameter Grids)"]
         PROGRESS_MON["Progress Monitor<br/>(Real-time Tracking)"]
         VISUALIZATION["Visualization<br/>(WSJ-Style Charts)"]
+        SENSITIVITY_VIZ["Sensitivity Viz<br/>(Tornado Charts)"]
+        EXCEL_REPORTER["Excel Reporter<br/>(Business Reports)"]
+        FINANCIAL_STMT["Financial Statements<br/>(P&L, Balance Sheet)"]
+    end
+
+    subgraph ValidationFramework["Validation & Testing"]
+        WALK_FORWARD["Walk-Forward Validator<br/>(Out-of-Sample)"]
+        STRATEGY_BACKTEST["Strategy Backtester<br/>(Historical Validation)"]
+        VALIDATION_METRICS["Validation Metrics<br/>(Performance KPIs)"]
+        ACCURACY_VAL["Accuracy Validator<br/>(Numerical Precision)"]
+        PERFORMANCE_OPT["Performance Optimizer<br/>(Speed Tuning)"]
+        BENCHMARKING["Benchmarking Suite<br/>(Performance Tests)"]
+        ADAPTIVE_STOP["Adaptive Stopping<br/>(Early Termination)"]
+    end
+
+    subgraph InsuranceAdvanced["Advanced Insurance Features"]
+        INSURANCE_PRICING["Insurance Pricing<br/>(Premium Models)"]
     end
 
     %% Configuration Flow
@@ -96,8 +117,12 @@ flowchart TB
     TRAJECTORY -->|Time Series| ERGODIC
     TRAJECTORY -->|Paths| RISK_METRICS
     RISK_METRICS -->|Metrics| CONVERGENCE
+    CONVERGENCE -->|Advanced| CONVERGENCE_ADV
+    CONVERGENCE_ADV -->|Visualize| CONVERGENCE_PLOT
     CONVERGENCE -->|Tests| STATS_TESTS
     STATS_TESTS -->|Bootstrap| BOOTSTRAP
+    RISK_METRICS -->|Parameters| SENSITIVITY
+    SENSITIVITY -->|Grid| PARAMETER_SWEEP
 
     %% Optimization Flow
     RISK_METRICS -->|Objectives| OPTIMIZER
@@ -113,20 +138,40 @@ flowchart TB
     SUMMARY_STATS -->|Reports| SCENARIO_MGR
     SCENARIO_MGR -->|Monitor| PROGRESS_MON
     SUMMARY_STATS -->|Visualize| VISUALIZATION
+    SENSITIVITY -->|Charts| SENSITIVITY_VIZ
+    SUMMARY_STATS -->|Business| EXCEL_REPORTER
+    MANUFACTURER -->|Financials| FINANCIAL_STMT
+
+    %% Validation Flow
+    TRAJECTORY -->|Historical| WALK_FORWARD
+    WALK_FORWARD -->|Backtest| STRATEGY_BACKTEST
+    STRATEGY_BACKTEST -->|Metrics| VALIDATION_METRICS
+    VALIDATION_METRICS -->|Accuracy| ACCURACY_VAL
+    MONTE_CARLO -->|Performance| PERFORMANCE_OPT
+    PERFORMANCE_OPT -->|Benchmark| BENCHMARKING
+    CONVERGENCE -->|Early Stop| ADAPTIVE_STOP
+
+    %% Insurance Advanced Flow
+    LOSS_DIST -->|Pricing| INSURANCE_PRICING
+    INSURANCE_PRICING -->|Premium| INSURANCE_PROG
 
     %% Output Flow
     VISUALIZATION -->|Export| CSV
     AGGREGATOR -->|Save| CHECKPOINT
     VISUALIZATION -->|Interactive| JUPYTER
     CONFIG_V2 -->|Document| SPHINX
+    EXCEL_REPORTER -->|Export| CSV
+    FINANCIAL_STMT -->|Export| CSV
 
     style ConfigLayer fill:#e3f2fd
     style FinancialCore fill:#e8f5e9
     style InsuranceLayer fill:#fff3e0
+    style InsuranceAdvanced fill:#ffe0b2
     style OptimizationEngine fill:#fce4ec
     style SimulationFramework fill:#f3e5f5
     style AnalyticsLayer fill:#e0f2f1
     style ResultsProcessing fill:#fff9c4
+    style ValidationFramework fill:#e8eaf6
     style External fill:#efebe9
 ```
 
@@ -175,8 +220,12 @@ flowchart TB
 - **Ergodic Analyzer**: Time average vs ensemble average comparison
 - **Risk Metrics**: Comprehensive risk measures (VaR, CVaR, TVaR, Sharpe, etc.)
 - **Convergence Tools**: Statistical convergence diagnostics
+- **Advanced Convergence**: Multi-metric convergence analysis with sophisticated tests
+- **Convergence Plots**: Visualization of convergence diagnostics
 - **Bootstrap Analysis**: Confidence interval estimation
 - **Statistical Tests**: Hypothesis testing framework
+- **Sensitivity Analysis**: Parameter impact assessment and tornado diagrams
+- **Parameter Sweep**: Grid search across parameter spaces
 
 ### Results Processing
 - **Result Aggregator**: Hierarchical aggregation of simulation results
@@ -184,6 +233,21 @@ flowchart TB
 - **Scenario Manager**: Parameter grid management and scenario generation
 - **Progress Monitor**: Real-time simulation progress tracking
 - **Visualization**: WSJ-style professional charting
+- **Sensitivity Visualization**: Tornado charts and sensitivity heat maps
+- **Excel Reporter**: Automated business reports in Excel format
+- **Financial Statements**: P&L and balance sheet generation
+
+### Validation & Testing Framework
+- **Walk-Forward Validator**: Out-of-sample validation for strategy robustness
+- **Strategy Backtester**: Historical validation of insurance strategies
+- **Validation Metrics**: Comprehensive performance KPIs and metrics
+- **Accuracy Validator**: Numerical precision and correctness testing
+- **Performance Optimizer**: Speed tuning and computational optimization
+- **Benchmarking Suite**: Performance testing and regression detection
+- **Adaptive Stopping**: Early termination based on convergence criteria
+
+### Advanced Insurance Features
+- **Insurance Pricing**: Sophisticated premium modeling and rate calculation
 
 ## Data Flow Patterns
 
@@ -191,6 +255,9 @@ flowchart TB
 2. **Simulation Pipeline**: Financial model + Stochastic + Insurance → Simulation engine → Parallel execution
 3. **Analytics Pipeline**: Raw trajectories → Metrics calculation → Statistical analysis → Optimization
 4. **Results Pipeline**: Aggregation → Summary stats → Visualization → Export
+5. **Validation Pipeline**: Historical data → Walk-forward → Backtesting → Performance metrics
+6. **Sensitivity Pipeline**: Base scenario → Parameter variations → Impact analysis → Visualization
+7. **Reporting Pipeline**: Results → Financial statements → Excel reports → Business insights
 
 ## Key Architectural Decisions
 

@@ -1510,7 +1510,13 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
 
     fig, axes = plt.subplots(1, 3, figsize=figsize)
 
-    for idx, (ax, company_size) in enumerate(zip(axes, company_sizes)):
+    # First pass: collect all data and determine global percentage ranges
+    all_growth_rates = []
+    all_retention_pcts = []
+    all_limit_pcts = []
+    data_for_plots = []
+
+    for idx, company_size in enumerate(company_sizes):
         # Generate or use provided data
         if optimization_results is not None:
             data = optimization_results.get(f"company_{company_size}", None)
@@ -1542,22 +1548,85 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
             # Add some noise
             growth_rates += np.random.RandomState(42 + idx).normal(0, 0.005, growth_rates.shape)
 
-        # Create heatmap
+        # Convert to percentages
+        retention_pcts = retention_values / company_size * 100  # As percentage
+        limit_pcts = limit_values / company_size * 100  # As percentage
+
+        # Store data for second pass
+        data_for_plots.append(
+            {
+                "retention_pcts": retention_pcts,
+                "limit_pcts": limit_pcts,
+                "growth_rates": growth_rates,
+                "company_size": company_size,
+            }
+        )
+
+        # Collect all data for unified scales
+        all_growth_rates.append(growth_rates * 100)  # Convert to percentage
+        all_retention_pcts.extend(retention_pcts)
+        all_limit_pcts.extend(limit_pcts)
+
+    # Determine global ranges for consistent axes
+    min_retention_pct = 0  # Start at 0%
+    max_retention_pct = max(all_retention_pcts)
+    min_limit_pct = 0  # Start at 0%
+    max_limit_pct = max(all_limit_pcts)
+
+    # Determine global min and max for unified color scale
+    vmin = min(np.min(rates) for rates in all_growth_rates)
+    vmax = max(np.max(rates) for rates in all_growth_rates)
+
+    # Create unified levels for all plots
+    levels = np.linspace(vmin, vmax, 20)
+
+    # Define consistent percentage grid for interpolation
+    # Use linear scale for percentages (not log) for clearer interpretation
+    common_retention_pcts = np.linspace(min_retention_pct, max_retention_pct, 50)
+    common_limit_pcts = np.linspace(min_limit_pct, max_limit_pct, 50)
+
+    # Second pass: create plots with unified scale and axes
+    for idx, (ax, plot_data) in enumerate(zip(axes, data_for_plots)):
+        retention_pcts = plot_data["retention_pcts"]
+        limit_pcts = plot_data["limit_pcts"]
+        growth_rates = plot_data["growth_rates"]
+        company_size = plot_data["company_size"]
+
+        # Create common mesh grid
+        R_common, L_common = np.meshgrid(common_retention_pcts, common_limit_pcts)
+
+        # Interpolate growth rates to common grid
+        from scipy.interpolate import griddata
+
+        # Create points from original data
+        R_orig, L_orig = np.meshgrid(retention_pcts, limit_pcts)
+        points = np.column_stack((R_orig.ravel(), L_orig.ravel()))
+        values = (growth_rates * 100).ravel()  # Convert to percentage
+
+        # Interpolate to common grid
+        growth_interp = griddata(
+            points, values, (R_common, L_common), method="cubic", fill_value=np.nan
+        )
+
+        # Create heatmap with unified scale and axes
         im = ax.contourf(
-            retention_values / company_size,  # As percentage of company size
-            limit_values / company_size,
-            growth_rates * 100,  # Convert to percentage
-            levels=20,
+            R_common,
+            L_common,
+            growth_interp,
+            levels=levels,
             cmap="RdYlGn",
             alpha=0.8,
+            vmin=vmin,
+            vmax=vmax,
+            extend="both",
         )
 
         # Add contour lines if requested
         if show_contours:
             contours = ax.contour(
-                retention_values / company_size,
-                limit_values / company_size,
-                growth_rates * 100,
+                R_common,
+                L_common,
+                growth_interp,
                 levels=5,
                 colors="black",
                 alpha=0.3,
@@ -1565,11 +1634,11 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
             )
             ax.clabel(contours, inline=True, fontsize=8, fmt="%.1f%%")
 
-        # Find and mark optimal point
+        # Find and mark optimal point in original data
         max_idx = np.unravel_index(growth_rates.argmax(), growth_rates.shape)
         ax.scatter(
-            retention_values[max_idx[1]] / company_size,
-            limit_values[max_idx[0]] / company_size,
+            retention_pcts[max_idx[1]],
+            limit_pcts[max_idx[0]],
             s=200,
             color="white",
             marker="*",
@@ -1579,16 +1648,24 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
             label="Optimal",
         )
 
-        # Format axes
-        ax.set_xscale("log")
-        ax.set_yscale("log")
+        # Set consistent axes limits for all plots
+        ax.set_xlim(min_retention_pct, max_retention_pct)
+        ax.set_ylim(min_limit_pct, max_limit_pct)
+
+        # Format axes labels
         ax.set_xlabel("Retention (% of Company Size)", fontsize=10)
         if idx == 0:
             ax.set_ylabel("Coverage Limit (% of Company Size)", fontsize=10)
 
-        # Format tick labels
-        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x*100:.0f}%"))
-        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x*100:.0f}%"))
+        # Format tick labels as percentages
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.0f}%"))
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, p: f"{x:.0f}%"))
+
+        # Set consistent tick locations
+        x_ticks = np.linspace(0, max_retention_pct, 6)
+        y_ticks = np.linspace(0, max_limit_pct, 6)
+        ax.set_xticks(x_ticks)
+        ax.set_yticks(y_ticks)
 
         # Add company size label
         ax.set_title(
@@ -1597,9 +1674,10 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
             fontweight="bold",
         )
 
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-        cbar.set_label("Growth Rate (%)", fontsize=9)
+        # Add colorbar only to the rightmost plot
+        if idx == 2:  # Only for the last (rightmost) plot
+            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label("Growth Rate (%)", fontsize=9)
 
         ax.grid(True, alpha=0.2, which="both")
         ax.legend(loc="upper left", fontsize=8)

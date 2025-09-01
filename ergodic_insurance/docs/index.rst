@@ -39,6 +39,24 @@ Quick Links
      </div>
    </div>
 
+   <div style="display: flex; gap: 20px; margin: 20px 0;">
+     <div style="flex: 1; padding: 15px; border: 2px solid #9C27B0; border-radius: 8px;">
+       <h3 style="margin-top: 0;">🏗️ Architecture</h3>
+       <p>System design diagrams</p>
+       <a href="architecture/index.html" style="color: #9C27B0; font-weight: bold;">View Architecture →</a>
+     </div>
+     <div style="flex: 1; padding: 15px; border: 2px solid #E91E63; border-radius: 8px;">
+       <h3 style="margin-top: 0;">📖 Theory</h3>
+       <p>Mathematical foundations</p>
+       <a href="theory/index.html" style="color: #E91E63; font-weight: bold;">Learn Theory →</a>
+     </div>
+     <div style="flex: 1; padding: 15px; border: 2px solid #795548; border-radius: 8px;">
+       <h3 style="margin-top: 0;">📋 API Reference</h3>
+       <p>Complete API documentation</p>
+       <a href="api/modules.html" style="color: #795548; font-weight: bold;">Browse API →</a>
+     </div>
+   </div>
+
 .. toctree::
    :maxdepth: 2
    :caption: Business User Guide:
@@ -59,6 +77,7 @@ Quick Links
    getting_started
    examples
    theory/index
+   architecture/index
 
 .. toctree::
    :maxdepth: 2
