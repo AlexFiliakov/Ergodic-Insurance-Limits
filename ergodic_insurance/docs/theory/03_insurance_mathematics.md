@@ -21,7 +21,11 @@ Insurance losses are modeled as a two-stage process:
 2. **Severity**: Size of each claim
 
 Total loss:
-$$S = \sum_{i=1}^{N} X_i$$
+$$
+
+S = \sum_{i=1}^{N} X_i
+
+$$
 
 where:
 - $N$ = Number of claims (random)
@@ -32,7 +36,11 @@ where:
 #### Poisson Distribution
 
 Most common for claim counts:
-$$P(N = n) = \frac{\lambda^n e^{-\lambda}}{n!}$$
+$$
+
+P(N = n) = \frac{\lambda^n e^{-\lambda}}{n!}
+
+$$
 
 Properties:
 - Mean = Variance = $\lambda$
@@ -42,7 +50,11 @@ Properties:
 #### Negative Binomial
 
 For overdispersed counts (variance > mean):
-$$P(N = n) = \binom{n + r - 1}{n} p^r (1-p)^n$$
+$$
+
+P(N = n) = \binom{n + r - 1}{n} p^r (1-p)^n
+
+$$
 
 Properties:
 - Mean = $r(1-p)/p$
@@ -52,15 +64,27 @@ Properties:
 #### Zero-Inflated Models
 
 When many policies have no claims:
-$$P(N = 0) = \pi + (1-\pi)P_0(N = 0)$$
-$$P(N = n) = (1-\pi)P_0(N = n), \quad n \geq 1$$
+$$
+
+P(N = 0) = \pi + (1-\pi)P_0(N = 0)
+
+$$
+$$
+
+P(N = n) = (1-\pi)P_0(N = n), \quad n \geq 1
+
+$$
 
 ### Severity Distributions
 
 #### Log-Normal
 
 For moderate to large claims:
-$$f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right]$$
+$$
+
+f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}\right]
+
+$$
 
 Properties:
 - Right-skewed
@@ -70,7 +94,11 @@ Properties:
 #### Pareto
 
 For extreme losses (heavy-tailed):
-$$f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m$$
+$$
+
+f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m
+
+$$
 
 Properties:
 - Power-law tail
@@ -80,7 +108,11 @@ Properties:
 #### Generalized Pareto (GPD)
 
 For excess losses above threshold:
-$$F(x) = 1 - \left(1 + \xi \frac{x}{\sigma}\right)^{-1/\xi}$$
+$$
+
+F(x) = 1 - \left(1 + \xi \frac{x}{\sigma}\right)^{-1/\xi}
+
+$$
 
 where:
 - $\xi$ = Shape parameter (tail index)
@@ -186,7 +218,11 @@ for key, value in statistics.items():
 The compound distribution of total losses $S = \sum_{i=1}^N X_i$ has:
 
 **Characteristic function**:
-$$\phi_S(t) = G_N(\phi_X(t))$$
+$$
+
+\phi_S(t) = G_N(\phi_X(t))
+
+$$
 
 where $G_N$ is the probability generating function of $N$.
 
@@ -204,7 +240,11 @@ When $N \sim \text{Poisson}(\lambda)$:
 
 For discrete severities, recursive calculation:
 
-$$p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j}$$
+$$
+
+p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j}
+
+$$
 
 where:
 - $p_k = P(S = k)$
@@ -266,24 +306,36 @@ plt.show()
 ### Excess of Loss Layers
 
 Insurance coverage is structured in layers:
-- **Primary**: \$0 to $L_1$
-- **First Excess**: $L_1$ to $L_2$
-- **Second Excess**: $L_2$ to $L_3$, etc.
+- **Primary**: \$0 to \$L_1
+- **First Excess**: \$L_1 to \$L_2
+- **Second Excess**: \$L_2 to \$L_3, etc.
 
 ### Layer Loss Calculation
 
 For layer $[a, b]$, the loss is:
 
-$$Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a)$$
+$$
+
+Y_{[a,b]} = \min(X, b) - \min(X, a) = (X \wedge b) - (X \wedge a)
+
+$$
 
 Expected layer loss:
-$$E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx$$
+$$
+
+E[Y_{[a,b]}] = \int_a^b [1 - F_X(x)] dx
+
+$$
 
 ### Increased Limits Factors (ILFs)
 
 Ratio of expected loss at different limits:
 
-$$\text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]}$$
+$$
+
+\text{ILF}(L) = \frac{E[X \wedge L]}{E[X \wedge L_0]}
+
+$$
 
 where $L_0$ is the base limit.
 
@@ -291,7 +343,11 @@ where $L_0$ is the base limit.
 
 Proportion of loss in layer:
 
-$$\text{G}(r) = \frac{E[X \wedge rM]}{E[X]}$$
+$$
+
+\text{G}(r) = \frac{E[X \wedge rM]}{E[X]}
+
+$$
 
 where $M$ is the maximum possible loss.
 
@@ -382,7 +438,11 @@ print(tower.to_string())
 
 Maximize utility or growth:
 
-$$\max_R \quad U(W - P(R) - L \wedge R)$$
+$$
+
+\max_R \quad U(W - P(R) - L \wedge R)
+
+$$
 
 where:
 - $R$ = Retention level
@@ -394,13 +454,21 @@ where:
 
 For differentiable utility:
 
-$$P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}]$$
+$$
+
+P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}]
+
+$$
 
 ### Ergodic Optimization
 
 Maximize time-average growth:
 
-$$\max_R \quad E[\ln(W - P(R) - L \wedge R)]$$
+$$
+
+\max_R \quad E[\ln(W - P(R) - L \wedge R)]
+
+$$
 
 ### Constraints
 
@@ -517,33 +585,57 @@ plt.show()
 ### Pure Premium
 
 Expected loss only:
-$$P_0 = E[L]$$
+$$
+
+P_0 = E[L]
+
+$$
 
 ### Expected Value Principle
 
 Add proportional loading:
-$$P = (1 + \theta) E[L]$$
+$$
+
+P = (1 + \theta) E[L]
+
+$$
 
 where $\theta$ is the safety loading.
 
 ### Variance Principle
 
 Account for risk:
-$$P = E[L] + \alpha \cdot \text{Var}(L)$$
+$$
+
+P = E[L] + \alpha \cdot \text{Var}(L)
+
+$$
 
 ### Standard Deviation Principle
 
-$$P = E[L] + \beta \cdot \text{SD}(L)$$
+$$
+
+P = E[L] + \beta \cdot \text{SD}(L)
+
+$$
 
 ### Exponential Principle
 
 Based on exponential utility:
-$$P = \frac{1}{\alpha} \ln(E[e^{\alpha L}])$$
+$$
+
+P = \frac{1}{\alpha} \ln(E[e^{\alpha L}])
+
+$$
 
 ### Wang Transform
 
 Distort probability measure:
-$$P = \int_0^\infty g(S_L(x)) dx$$
+$$
+
+P = \int_0^\infty g(S_L(x)) dx
+
+$$
 
 where $g$ is the distortion function.
 
@@ -636,15 +728,27 @@ Claims develop over time:
 ### Chain Ladder Method
 
 Development factors:
-$$f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}}$$
+$$
+
+f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}}
+
+$$
 
 Ultimate loss:
-$$\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j$$
+$$
+
+\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j
+
+$$
 
 ### Bornhuetter-Ferguson Method
 
 Combines prior estimate with actual:
-$$\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - \text{DevPattern}_k)$$
+$$
+
+\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - \text{DevPattern}_k)
+
+$$
 
 ### Implementation
 
@@ -753,7 +857,11 @@ where $S$ is sum insured.
 
 Annual aggregate deductible $D$ and limit $L$:
 
-$$\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))$$
+$$
+
+\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))
+
+$$
 
 ### Optimization Example
 

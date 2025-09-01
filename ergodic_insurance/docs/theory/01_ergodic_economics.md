@@ -26,29 +26,49 @@ This distinction is not merely academic; it fundamentally changes optimal strate
 
 The **ensemble average** is the expected value across many parallel scenarios at a single point in time:
 
-$$\langle W \rangle = E[W_t] = \frac{1}{N} \sum_{i=1}^{N} W_i(t)$$
+$$
+
+\langle W \rangle = E[W_t] = \frac{1}{N} \sum_{i=1}^{N} W_i(t)
+
+$$
 
 where $W_i(t)$ represents the wealth of individual $i$ at time $t$.
 
 For a multiplicative process with growth factor $R_t$:
 
-$$\langle W_t \rangle = W_0 \cdot E[R]^t$$
+$$
+
+\langle W_t \rangle = W_0 \cdot E[R]^t
+
+$$
 
 ### Time Average
 
 The **time average** is the growth rate experienced by a single entity over time:
 
-$$g_T = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right) = \frac{1}{T} \sum_{t=1}^{T} \ln(R_t)$$
+$$
+
+g_T = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right) = \frac{1}{T} \sum_{t=1}^{T} \ln(R_t)
+
+$$
 
 As $T \to \infty$, this converges to:
 
-$$g = E[\ln(R)]$$
+$$
+
+g = E[\ln(R)]
+
+$$
 
 ### The Critical Difference
 
 For any non-degenerate random variable $R > 0$, Jensen's inequality ensures:
 
-$$E[\ln(R)] < \ln(E[R])$$
+$$
+
+E[\ln(R)] < \ln(E[R])
+
+$$
 
 This means the time-average growth rate is **always less than** the growth rate of the ensemble average for processes with uncertainty.
 
@@ -59,12 +79,20 @@ Consider a simple investment that with equal probability either:
 - Decreases wealth by 40% (multiply by 0.6)
 
 **Ensemble average** growth factor:
-$$E[R] = 0.5 \times 1.5 + 0.5 \times 0.6 = 1.05$$
+$$
+
+E[R] = 0.5 \times 1.5 + 0.5 \times 0.6 = 1.05
+
+$$
 
 This suggests a 5% expected gain per round.
 
 **Time average** growth rate:
-$$g = E[\ln(R)] = 0.5 \times \ln(1.5) + 0.5 \times \ln(0.6) = -0.0527$$
+$$
+
+g = E[\ln(R)] = 0.5 \times \ln(1.5) + 0.5 \times \ln(0.6) = -0.0527
+
+$$
 
 This reveals a 5.27% **loss** per round for a typical individual trajectory!
 
@@ -75,7 +103,11 @@ This reveals a 5.27% **loss** per round for a typical individual trajectory!
 
 A system is **ergodic** if its time average equals its ensemble average:
 
-$$\lim_{T \to \infty} \frac{1}{T} \int_0^T f(X_t) dt = E[f(X)]$$
+$$
+
+\lim_{T \to \infty} \frac{1}{T} \int_0^T f(X_t) dt = E[f(X)]
+
+$$
 
 This equality holds for many physical systems (e.g., ideal gases) but **fails** for multiplicative economic processes.
 
@@ -118,7 +150,11 @@ Wealth processes violate multiple conditions, particularly due to the absorbing 
 
 While wealth itself is non-ergodic, the **logarithmic growth rate** can be ergodic under certain conditions:
 
-$$g_t = \ln(W_t/W_{t-1})$$
+$$
+
+g_t = \ln(W_t/W_{t-1})
+
+$$
 
 If $g_t$ is stationary and mixing, long-term growth rates converge to a stable distribution.
 
@@ -136,7 +172,11 @@ Traditional utility theory assumes ergodic averaging. In reality:
 
 Consider wealth following geometric Brownian motion:
 
-$$dW = W(\mu dt + \sigma dB_t)$$
+$$
+
+dW = W(\mu dt + \sigma dB_t)
+
+$$
 
 where:
 - $\mu$ = drift (expected return)
@@ -144,10 +184,18 @@ where:
 - $B_t$ = Brownian motion
 
 **Ensemble average** wealth:
-$$E[W_t] = W_0 \cdot e^{(\mu + \sigma^2/2)t}$$
+$$
+
+E[W_t] = W_0 \cdot e^{(\mu + \sigma^2/2)t}
+
+$$
 
 **Time average** growth rate:
-$$g = \mu - \frac{\sigma^2}{2}$$
+$$
+
+g = \mu - \frac{\sigma^2}{2}
+
+$$
 
 The volatility drag $\sigma^2/2$ reduces time-average growth but not ensemble-average growth.
 
@@ -155,7 +203,11 @@ The volatility drag $\sigma^2/2$ reduces time-average growth but not ensemble-av
 
 Adding jump risk from insurance claims:
 
-$$dW = W(\mu dt + \sigma dB_t) - dN_t \cdot L_t$$
+$$
+
+dW = W(\mu dt + \sigma dB_t) - dN_t \cdot L_t
+
+$$
 
 where:
 - $N_t$ = Poisson process (claim arrivals)
@@ -163,7 +215,11 @@ where:
 
 The time-average growth becomes:
 
-$$g = \mu - \frac{\sigma^2}{2} - \lambda \cdot E\left[\frac{L}{W}\right]$$
+$$
+
+g = \mu - \frac{\sigma^2}{2} - \lambda \cdot E\left[\frac{L}{W}\right]
+
+$$
 
 where $\lambda$ is the claim frequency.
 
@@ -171,12 +227,20 @@ where $\lambda$ is the claim frequency.
 
 The Kelly criterion emerges naturally from maximizing time-average growth:
 
-$$f^* = \arg\max_f E[\ln(1 + f \cdot R)]$$
+$$
+
+f^* = \arg\max_f E[\ln(1 + f \cdot R)]
+
+$$
 
 where $f$ is the fraction of wealth invested.
 
 For insurance, this translates to:
-$$\text{Retention}^* = \arg\max_{R} E[\ln(W_{\text{after losses and premiums}})]$$
+$$
+
+\text{Retention}^* = \arg\max_{R} E[\ln(W_{\text{after losses and premiums}})]
+
+$$
 
 (insurance-through-an-ergodic-lens)=
 ## Insurance Through an Ergodic Lens
@@ -207,14 +271,26 @@ Ergodic theory reveals insurance as growth optimization:
 
 Without insurance, facing loss $L$ with probability $p$:
 
-$$g_{\text{uninsured}} = (1-p) \cdot 0 + p \cdot \ln(1 - L/W) = p \cdot \ln(1 - L/W)$$
+$$
+
+g_{\text{uninsured}} = (1-p) \cdot 0 + p \cdot \ln(1 - L/W) = p \cdot \ln(1 - L/W)
+
+$$
 
 With insurance costing premium $P$:
 
-$$g_{\text{insured}} = \ln(1 - P/W)$$
+$$
+
+g_{\text{insured}} = \ln(1 - P/W)
+
+$$
 
 Insurance is beneficial when:
-$$\ln(1 - P/W) > p \cdot \ln(1 - L/W)$$
+$$
+
+\ln(1 - P/W) > p \cdot \ln(1 - L/W)
+
+$$
 
 This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
 
@@ -341,7 +417,7 @@ def simulate_with_insurance(W0, n_years, premium_rate, retention, n_sims=1000):
     return wealth_with, wealth_without
 
 # Run simulation
-W0 = 10_000_000  # \$10M starting wealth
+W0 = 10_000_000  # $10M starting wealth
 wealth_with, wealth_without = simulate_with_insurance(W0, 50, 0.02, 500_000)
 
 # Calculate growth rates

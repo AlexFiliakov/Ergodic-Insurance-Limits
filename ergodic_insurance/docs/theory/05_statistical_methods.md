@@ -20,7 +20,11 @@
 
 Monte Carlo methods estimate expectations through random sampling:
 
-$$E[f(X)] \approx \frac{1}{N} \sum_{i=1}^N f(X_i)$$
+$$
+
+E[f(X)] \approx \frac{1}{N} \sum_{i=1}^N f(X_i)
+
+$$
 
 where $X_i$ are independent samples from the distribution of $X$.
 
@@ -29,19 +33,31 @@ where $X_i$ are independent samples from the distribution of $X$.
 #### Antithetic Variates
 
 Use negatively correlated pairs:
-$$\hat{\mu}_{\text{AV}} = \frac{1}{2N} \sum_{i=1}^N [f(X_i) + f(X_i')]$$
+$$
+
+\hat{\mu}_{\text{AV}} = \frac{1}{2N} \sum_{i=1}^N [f(X_i) + f(X_i')]
+
+$$
 
 where $X_i'$ is antithetic to $X_i$.
 
 #### Control Variates
 
 Reduce variance using correlated variable with known mean:
-$$\hat{\mu}_{\text{CV}} = \hat{\mu} - c(\hat{\mu}_Y - \mu_Y)$$
+$$
+
+\hat{\mu}_{\text{CV}} = \hat{\mu} - c(\hat{\mu}_Y - \mu_Y)
+
+$$
 
 #### Importance Sampling
 
 Sample from alternative distribution:
-$$E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]$$
+$$
+
+E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]
+
+$$
 
 ### Implementation
 
@@ -279,7 +295,11 @@ Stratified   Mean: 55034.214910, SE: 324.692728
 
 For multiple chains, assess convergence:
 
-$$\hat{R} = \sqrt{\frac{\hat{V}}{W}}$$
+$$
+
+\hat{R} = \sqrt{\frac{\hat{V}}{W}}
+
+$$
 
 where:
 - $W$ = Within-chain variance
@@ -289,7 +309,11 @@ where:
 
 Account for autocorrelation:
 
-$$\text{ESS} = \frac{N}{1 + 2\sum_{k=1}^K \rho_k}$$
+$$
+
+\text{ESS} = \frac{N}{1 + 2\sum_{k=1}^K \rho_k}
+
+$$
 
 where $\rho_k$ is lag-$k$ autocorrelation.
 
@@ -585,17 +609,29 @@ Stationary: False, Halfwidth test: False
 
 For large samples, use Central Limit Theorem:
 
-$$\bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}$$
+$$
+
+\bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}
+
+$$
 
 ### Bootstrap Confidence Intervals
 
 #### Percentile Method
 Use quantiles of bootstrap distribution:
-$$[\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]$$
+$$
+
+[\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]
+
+$$
 
 #### BCa (Bias-Corrected and Accelerated)
 Adjust for bias and skewness:
-$$[\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]$$
+$$
+
+[\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]
+
+$$
 
 where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.
 
