@@ -25,7 +25,7 @@ work on issue #48 "Design and Implement Enhanced Parallel Simulation Architectur
 
 ---
 
-work to complete GitHub issue #78 "Create User Tutorials and How-To Guides" and patch tests and jupyter notebooks as you go along, making sure all tests pass with high quality validation (avoiding things like always-true tests, or excessive mocks). Provide solid documentation using Google style docstrings. Ask me clarifying questions, ultrathink to make a plan, review the plan for completeness, then execute.
+work to complete GitHub issue #122 "Add Insurance Pricing Module with Market Cycle Support" and patch tests and jupyter notebooks as you go along, making sure all tests pass with high quality validation (avoiding things like always-true tests, or excessive mocks). Provide solid documentation using Google style docstrings. Ask me clarifying questions, ultrathink to make a plan, review the plan for completeness, then execute.
 
 ---
 
@@ -37,6 +37,9 @@ or npm i -g @anthropic-ai/claude-code
 improve the test coverage of the following files to at least 90%, writing high quality tests that don't overly rely on mocks or have always-true condition, and other cheat tests:
 ...
 
+---
+
+Add some visuals to "docs/theory/05_statistical_methods.md" by creating these new visuals through "docs/theory/generate_visuals.py". I think each major section should have a relevant visual, preferably using the visuals we developed previously in earlier issues, such as the convergence diagnostics.
 
 ---
 
@@ -152,19 +155,6 @@ Fix the following mypy issues so I can commit, or suppress them if you think a f
 
 
 Fix the following mypy issues so I can commit, or suppress them if you think a fix will reduce readability:
-
-
-
-
-
-Fix the following mypy issues so I can commit, or suppress them if you think a fix will reduce readability:
-
-
-
-
-
-
-
 
 
 

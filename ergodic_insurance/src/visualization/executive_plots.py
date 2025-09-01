@@ -3,6 +3,7 @@
 This module provides high-level visualization functions for executive reporting
 including loss distributions, return period curves, and insurance layer diagrams.
 """
+
 # pylint: disable=too-many-lines
 
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
@@ -1226,39 +1227,51 @@ def plot_simulation_architecture(  # pylint: disable=too-many-locals
     # Draw connecting arrows from sub-components
     thin_arrow_props = {
         "arrowstyle": "->",
-        "connectionstyle": "arc3,rad=0.2",
+        "connectionstyle": "arc3,rad=0",  # Straight arrows, no curve
         "color": WSJ_COLORS["gray"],
         "linewidth": 1,
-        "alpha": 0.4,
+        "alpha": 0.5,
     }
 
-    # Connect sub-boxes to main boxes
-    connections = [
-        (0.1, 0.75, 0.35, 0.5),  # Company Profile -> Monte Carlo
-        (0.1, 0.25, 0.35, 0.5),  # Insurance Program -> Monte Carlo
-        (0.35, 0.75, 0.6, 0.5),  # Loss Generation -> Analysis
-        (0.35, 0.25, 0.6, 0.5),  # Financial Dynamics -> Analysis
+    # Connect sub-boxes to their parent main boxes (downward arrows)
+    sub_connections = [
+        (0.1, 0.75, 0.1, 0.5 + box_height / 2),  # Company Profile -> Parameters
+        (0.1, 0.25, 0.1, 0.5 - box_height / 2),  # Insurance Program -> Parameters
+        (0.35, 0.75, 0.35, 0.5 + box_height / 2),  # Loss Generation -> Monte Carlo
+        (0.35, 0.25, 0.35, 0.5 - box_height / 2),  # Financial Dynamics -> Monte Carlo
+        (0.6, 0.75, 0.6, 0.5 + box_height / 2),  # Ergodic Calculations -> Analysis
+        (0.6, 0.25, 0.6, 0.5 - box_height / 2),  # Risk Metrics -> Analysis
     ]
 
-    for x1, y1, x2, y2 in connections:
-        ax.annotate(
-            "",
-            xy=(x2 - box_width / 2 - 0.01, y2),
-            xytext=(x1 + box_width * 0.4 + 0.01, y1),
-            arrowprops=thin_arrow_props,
-        )
+    for x1, y1, x2, y2 in sub_connections:
+        # Adjust arrow direction based on position
+        if y1 > 0.5:  # Box is above main box
+            ax.annotate(
+                "",
+                xy=(x2, y2),
+                xytext=(x1, y1 - box_height * 0.32),
+                arrowprops=thin_arrow_props,
+            )
+        else:  # Box is below main box
+            ax.annotate(
+                "",
+                xy=(x2, y2),
+                xytext=(x1, y1 + box_height * 0.32),
+                arrowprops=thin_arrow_props,
+            )
 
-    # Add annotations
+    # Add title at the top
     ax.text(
         0.5,
-        0.9,
-        "Data Flow: Parameters → Simulation → Analysis → Insights",
+        0.95,
+        title,
         ha="center",
-        fontsize=10,
-        style="italic",
-        color=WSJ_COLORS["gray"],
+        fontsize=14,
+        fontweight="bold",
+        color=WSJ_COLORS["black"],
     )
 
+    # Add annotation at the bottom
     ax.text(
         0.5,
         0.05,
@@ -1387,9 +1400,11 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
                 label = "Survivor" if i == 0 else None
 
             ax1.plot(
-                time_short
-                if "time_short" in locals()
-                else np.linspace(0, short_horizon, len(path)),
+                (
+                    time_short
+                    if "time_short" in locals()
+                    else np.linspace(0, short_horizon, len(path))
+                ),
                 path / 1e6,  # Convert to millions
                 color=color,
                 alpha=alpha,

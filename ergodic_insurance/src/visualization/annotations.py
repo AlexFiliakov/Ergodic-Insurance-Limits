@@ -5,7 +5,7 @@ labels, and callouts to plots with smart placement and leader line routing.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import warnings
 
 from matplotlib import transforms
@@ -421,6 +421,10 @@ class SmartAnnotationPlacer:
         self.ax = ax
         self.placed_annotations: List[AnnotationBox] = []
         self.candidate_positions = self._generate_candidate_positions()
+        self.used_colors: Set[str] = set()  # Track colors to avoid conflicts
+        self.annotation_cache: Dict[
+            str, Tuple[float, float]
+        ] = {}  # Cache positions for consistency
 
     def _generate_candidate_positions(self, n_positions: int = 20) -> List[Tuple[float, float]]:
         """Generate candidate positions for annotations.
@@ -433,28 +437,42 @@ class SmartAnnotationPlacer:
         """
         positions = []
 
-        # Grid positions - more evenly distributed
-        for x in np.linspace(0.05, 0.95, 6):
-            for y in np.linspace(0.05, 0.95, 5):
+        # Create a denser, more uniform grid with safe margins
+        # Stay well within bounds to avoid off-screen annotations
+        x_margins = [0.08, 0.92]  # Increased margins from edges
+        y_margins = [0.08, 0.92]
+
+        # Primary grid - denser for better coverage
+        for x in np.linspace(x_margins[0], x_margins[1], 8):
+            for y in np.linspace(y_margins[0], y_margins[1], 6):
                 positions.append((x, y))
 
-        # Add extra positions around typical annotation areas
-        # Upper area for peaks
-        for x in np.linspace(0.1, 0.9, 5):
-            positions.append((x, 0.85))
-            positions.append((x, 0.75))
+        # Secondary strategic positions for common annotation areas
+        # Upper region (for peaks) - spread out horizontally
+        for x in np.linspace(0.15, 0.85, 6):
+            positions.append((x, 0.82))
+            positions.append((x, 0.72))
 
-        # Middle area for general annotations
-        for x in np.linspace(0.1, 0.9, 5):
-            positions.append((x, 0.5))
-            positions.append((x, 0.4))
+        # Middle region (general annotations)
+        for x in np.linspace(0.12, 0.88, 7):
+            positions.append((x, 0.55))
+            positions.append((x, 0.45))
 
-        # Lower area for valleys
-        for x in np.linspace(0.1, 0.9, 5):
-            positions.append((x, 0.25))
-            positions.append((x, 0.15))
+        # Lower region (for valleys)
+        for x in np.linspace(0.15, 0.85, 6):
+            positions.append((x, 0.28))
+            positions.append((x, 0.18))
 
-        return positions
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_positions = []
+        for pos in positions:
+            pos_tuple = (round(pos[0], 3), round(pos[1], 3))
+            if pos_tuple not in seen:
+                seen.add(pos_tuple)
+                unique_positions.append(pos)
+
+        return unique_positions
 
     def find_best_position(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         self,
@@ -655,77 +673,164 @@ class SmartAnnotationPlacer:
         """Add multiple annotations with smart placement.
 
         Args:
-            annotations: List of annotation dicts with 'text', 'point', 'priority'
+            annotations: List of annotation dicts with 'text', 'point', 'priority', 'color'
             fontsize: Font size for all annotations
 
         Examples:
             >>> placer = SmartAnnotationPlacer(ax)
             >>> annotations = [
-            ...     {'text': 'Peak', 'point': (2, 4), 'priority': 80},
-            ...     {'text': 'Valley', 'point': (5, 1), 'priority': 60}
+            ...     {'text': 'Peak', 'point': (2, 4), 'priority': 80, 'color': 'green'},
+            ...     {'text': 'Valley', 'point': (5, 1), 'priority': 60, 'color': 'red'}
             ... ]
             >>> placer.add_smart_annotations(annotations)
         """
         # Sort by priority (highest first)
         sorted_annotations = sorted(annotations, key=lambda x: x.get("priority", 50), reverse=True)
 
-        # Get plot limits for smarter positioning
+        # Get plot limits
         xlims = self.ax.get_xlim()
         ylims = self.ax.get_ylim()
-        y_range = ylims[1] - ylims[0]
-        x_range = xlims[1] - xlims[0]
 
+        # Process each annotation using the smart placement system
         for ann in sorted_annotations:
             target = ann["point"]
+            text = ann["text"]
+            priority = ann.get("priority", 50)
+            color = ann.get("color", "black")
 
-            # Calculate a good offset position in data coordinates
-            # Determine vertical offset based on position in plot
-            y_pos_ratio = (target[1] - ylims[0]) / y_range
-            if y_pos_ratio > 0.7:  # Upper third
-                text_y = target[1] - y_range * 0.1  # Place below
-            elif y_pos_ratio < 0.3:  # Lower third
-                text_y = target[1] + y_range * 0.1  # Place above
-            else:  # Middle third
-                text_y = (
-                    target[1] + y_range * 0.08 if y_pos_ratio < 0.5 else target[1] - y_range * 0.08
-                )
+            # Ensure color doesn't conflict with line colors
+            color = self._get_non_conflicting_color(color)
 
-            # Determine horizontal offset
-            x_pos_ratio = (target[0] - xlims[0]) / x_range
-            if x_pos_ratio < 0.33:
-                text_x = target[0] + x_range * 0.1
-            elif x_pos_ratio > 0.67:
-                text_x = target[0] - x_range * 0.1
+            # Find best position using the overlap detection system
+            best_pos_axes = self.find_best_position(
+                target, text, priority, preferred_quadrant=self._get_preferred_quadrant(target)
+            )
+
+            # Convert axes fraction to data coordinates for text position
+            display_pos = self.ax.transAxes.transform(best_pos_axes)
+            text_pos = self.ax.transData.inverted().transform(display_pos)
+
+            # Ensure the text position is within reasonable bounds
+            text_x = np.clip(
+                text_pos[0],
+                xlims[0] + (xlims[1] - xlims[0]) * 0.05,
+                xlims[1] - (xlims[1] - xlims[0]) * 0.05,
+            )
+            text_y = np.clip(
+                text_pos[1],
+                ylims[0] + (ylims[1] - ylims[0]) * 0.05,
+                ylims[1] - (ylims[1] - ylims[0]) * 0.05,
+            )
+
+            # Choose arrow style based on distance
+            distance = np.sqrt((text_x - target[0]) ** 2 + (text_y - target[1]) ** 2)
+            x_range = xlims[1] - xlims[0]
+            y_range = ylims[1] - ylims[0]
+            normalized_dist = distance / np.sqrt(x_range**2 + y_range**2)
+
+            if normalized_dist < 0.1:
+                connection_style = "arc3,rad=0.1"
+            elif normalized_dist < 0.2:
+                connection_style = "arc3,rad=0.2"
             else:
-                text_x = target[0] + x_range * 0.05
+                connection_style = "arc3,rad=0.3"
 
-            # Ensure text stays within bounds
-            text_x = np.clip(text_x, xlims[0] + x_range * 0.05, xlims[1] - x_range * 0.05)
-            text_y = np.clip(text_y, ylims[0] + y_range * 0.05, ylims[1] - y_range * 0.05)
-
-            # Add the annotation directly with better positioning
+            # Add the annotation with improved styling
             self.ax.annotate(
-                ann["text"],
+                text,
                 xy=target,
                 xytext=(text_x, text_y),
                 fontsize=fontsize,
-                color=ann.get("color", "black"),
+                color=color,
                 bbox={
-                    "boxstyle": "round,pad=0.3",
+                    "boxstyle": "round,pad=0.4",
                     "facecolor": "white",
-                    "edgecolor": ann.get("color", "gray"),
-                    "alpha": 0.9,
-                    "linewidth": 0.5,
+                    "edgecolor": color,
+                    "alpha": 0.95,
+                    "linewidth": 1.0,
                 },
                 arrowprops={
                     "arrowstyle": "->",
-                    "connectionstyle": "arc3,rad=0.2",
-                    "color": ann.get("arrow_color", ann.get("color", "gray")),
-                    "linewidth": 1,
-                    "alpha": 0.7,
+                    "connectionstyle": connection_style,
+                    "color": ann.get("arrow_color", color),
+                    "linewidth": 1.2,
+                    "alpha": 0.8,
+                    "shrinkA": 5,  # Shrink arrow from point
+                    "shrinkB": 5,  # Shrink arrow from text
                 },
-                zorder=100,  # Ensure annotations are on top
+                zorder=1000 + priority,  # Layer by priority
+                ha="center",
+                va="center",
             )
+
+            # Track the color as used
+            self.used_colors.add(color)
+
+    def _get_preferred_quadrant(self, point: Tuple[float, float]) -> Optional[str]:
+        """Determine preferred quadrant for annotation based on point location."""
+        xlims = self.ax.get_xlim()
+        ylims = self.ax.get_ylim()
+
+        x_ratio = (point[0] - xlims[0]) / (xlims[1] - xlims[0])
+        y_ratio = (point[1] - ylims[0]) / (ylims[1] - ylims[0])
+
+        # Prefer opposite quadrant for better visibility
+        if x_ratio < 0.3 and y_ratio < 0.3:
+            return "NE"  # Point in SW, annotate in NE
+        elif x_ratio > 0.7 and y_ratio < 0.3:
+            return "NW"  # Point in SE, annotate in NW
+        elif x_ratio < 0.3 and y_ratio > 0.7:
+            return "SE"  # Point in NW, annotate in SE
+        elif x_ratio > 0.7 and y_ratio > 0.7:
+            return "SW"  # Point in NE, annotate in SW
+
+        return None  # Let algorithm decide for middle points
+
+    def _get_non_conflicting_color(self, requested_color: str) -> str:
+        """Get a color that doesn't conflict with line colors or used annotation colors."""
+        # Get line colors from the plot
+        line_colors = set()
+        for line in self.ax.get_lines():
+            line_color = line.get_color()
+            if line_color:
+                line_colors.add(line_color)
+
+        # Define color alternatives
+        color_alternatives = {
+            "green": ["#2ca02c", "#006400", "#228B22", "#32CD32"],
+            "red": ["#d62728", "#8B0000", "#DC143C", "#FF6347"],
+            "blue": ["#1f77b4", "#000080", "#4169E1", "#6495ED"],
+            "orange": ["#ff7f0e", "#FF8C00", "#FFA500", "#FFB347"],
+            "purple": ["#9467bd", "#800080", "#8B008B", "#9370DB"],
+            "brown": ["#8c564b", "#8B4513", "#A0522D", "#D2691E"],
+            "pink": ["#e377c2", "#FF69B4", "#FFB6C1", "#FFC0CB"],
+            "gray": ["#7f7f7f", "#696969", "#808080", "#A9A9A9"],
+            "olive": ["#bcbd22", "#808000", "#6B8E23", "#556B2F"],
+            "cyan": ["#17becf", "#00CED1", "#40E0D0", "#48D1CC"],
+        }
+
+        # Try to find a non-conflicting variant
+        base_color = requested_color.lower()
+        if base_color in color_alternatives:
+            for alt_color in color_alternatives[base_color]:
+                if alt_color not in line_colors and alt_color not in self.used_colors:
+                    return alt_color
+
+        # If requested color doesn't conflict, use it
+        if requested_color not in line_colors:
+            return requested_color
+
+        # Find any available color
+        all_colors = []
+        for colors in color_alternatives.values():
+            all_colors.extend(colors)
+
+        for color in all_colors:
+            if color not in line_colors and color not in self.used_colors:
+                return color
+
+        # Fallback to the requested color with modification
+        return requested_color
 
 
 def create_leader_line(  # pylint: disable=too-many-locals
@@ -818,7 +923,8 @@ def auto_annotate_peaks_valleys(  # pylint: disable=too-many-locals
     peak_color: Optional[str] = None,
     valley_color: Optional[str] = None,
     fontsize: int = 9,
-) -> None:
+    placer: Optional[SmartAnnotationPlacer] = None,
+) -> SmartAnnotationPlacer:
     """Automatically annotate peaks and valleys in data.
 
     Args:
@@ -830,9 +936,14 @@ def auto_annotate_peaks_valleys(  # pylint: disable=too-many-locals
         peak_color: Color for peak annotations
         valley_color: Color for valley annotations
         fontsize: Font size
+        placer: Existing SmartAnnotationPlacer to use (creates new if None)
+
+    Returns:
+        The SmartAnnotationPlacer instance used
     """
-    peak_color = peak_color or WSJ_COLORS["green"]
-    valley_color = valley_color or WSJ_COLORS["red"]
+    # Use distinct colors that won't conflict with typical line colors
+    peak_color = peak_color or "#2ca02c"  # Distinct green
+    valley_color = valley_color or "#d62728"  # Distinct red
 
     # Find peaks (local maxima)
     from scipy.signal import find_peaks
@@ -840,38 +951,49 @@ def auto_annotate_peaks_valleys(  # pylint: disable=too-many-locals
     peaks, peak_props = find_peaks(y_data, prominence=np.std(y_data) * 0.5)
     valleys, valley_props = find_peaks(-y_data, prominence=np.std(y_data) * 0.5)
 
-    # Sort by prominence
+    # Use existing placer or create new one
+    if placer is None:
+        placer = SmartAnnotationPlacer(ax)
+
+    # Collect all peak/valley annotations
+    peak_valley_annotations = []
+
+    # Process peaks
     if len(peaks) > 0:
         peak_prominences = peak_props["prominences"]
         top_peaks = peaks[np.argsort(peak_prominences)[-n_peaks:]]
 
-        placer = SmartAnnotationPlacer(ax)
-
-        for idx in top_peaks:
+        for i, idx in enumerate(top_peaks):
             value = y_data[idx]
-            placer.add_smart_callout(
-                text=f"Peak: {value:.2f}",
-                target_point=(x_data[idx], value),
-                fontsize=fontsize,
-                priority=80,
-                color=peak_color,
-                arrow_color=peak_color,
+            peak_valley_annotations.append(
+                {
+                    "text": f"Peak: {value:.2f}",
+                    "point": (x_data[idx], value),
+                    "priority": 90 - i,  # Highest prominence gets highest priority
+                    "color": peak_color,
+                    "arrow_color": peak_color,
+                }
             )
 
+    # Process valleys
     if len(valleys) > 0:
         valley_prominences = valley_props["prominences"]
         top_valleys = valleys[np.argsort(valley_prominences)[-n_valleys:]]
 
-        if len(peaks) == 0:
-            placer = SmartAnnotationPlacer(ax)
-
-        for idx in top_valleys:
+        for i, idx in enumerate(top_valleys):
             value = y_data[idx]
-            placer.add_smart_callout(
-                text=f"Valley: {value:.2f}",
-                target_point=(x_data[idx], value),
-                fontsize=fontsize,
-                priority=70,
-                color=valley_color,
-                arrow_color=valley_color,
+            peak_valley_annotations.append(
+                {
+                    "text": f"Valley: {value:.2f}",
+                    "point": (x_data[idx], value),
+                    "priority": 80 - i,  # Slightly lower priority than peaks
+                    "color": valley_color,
+                    "arrow_color": valley_color,
+                }
             )
+
+    # Add all annotations using smart placement
+    if peak_valley_annotations:
+        placer.add_smart_annotations(peak_valley_annotations, fontsize=fontsize)
+
+    return placer
