@@ -76,6 +76,11 @@ html_css_files = [
     "custom.css",
 ]
 
+# Custom JavaScript for MathJax configuration
+html_js_files = [
+    "mathjax_config.js",
+]
+
 # Additional theme options for GitHub Pages
 html_theme_options = {
     "canonical_url": "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/",
@@ -90,8 +95,19 @@ html_link_suffix = ".html"
 # -- Extension configuration -------------------------------------------------
 
 # -- Options for MathJax extension -------------------------------------------
-# Use default MathJax configuration for better compatibility
+# Use MathJax 3 with proper configuration for LaTeX rendering
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+mathjax3_config = {
+    "tex": {
+        "inlineMath": [["$", "$"], ["\\(", "\\)"]],
+        "displayMath": [["$$", "$$"], ["\\[", "\\]"]],
+        "processEscapes": True,
+        "processEnvironments": True,
+    },
+    "options": {
+        "skipHtmlTags": ["script", "noscript", "style", "textarea", "pre"],
+    },
+}
 
 # -- Options for MyST parser -------------------------------------------------
 myst_enable_extensions = [
@@ -99,7 +115,9 @@ myst_enable_extensions = [
     "amsmath",  # Enable AMS math environments
     "deflist",  # Enable definition lists
     "colon_fence",  # Enable ::: fences
+    "html_image",  # Enable HTML images
 ]
+myst_dmath_double_inline = True  # Treat $$ as display math
 
 # -- Options for autodoc extension ------------------------------------------
 autodoc_default_options = {
@@ -168,16 +186,6 @@ todo_include_todos = True
 # For now, use default settings to avoid timeout issues
 # We'll pre-render diagrams separately for GitHub Pages
 mermaid_version = "10.9.0"
-
-# -- Options for MyST parser -------------------------------------------------
-# Enable mermaid code blocks in markdown
-myst_enable_extensions = [
-    "deflist",
-    "html_image",
-    "colon_fence",
-    "dollarmath",
-    "amsmath",
-]
 
 # Tell MyST to treat mermaid code blocks as directives
 myst_fence_as_directive = ["mermaid"]
