@@ -23,17 +23,17 @@ The Ergodic Insurance Framework transforms insurance from a cost center to a gro
 
 ### 📊 Business User Guide
 Start here if you're a business executive, risk manager, or insurance professional looking to understand and apply the ergodic framework:
-- [Executive Summary](/Ergodic-Insurance-Limits/docs/user_guide/executive_summary) - High-level overview for decision makers
-- [Quick Start Guide](/Ergodic-Insurance-Limits/docs/user_guide/quick_start) - Get running in minutes
-- [Decision Framework](/Ergodic-Insurance-Limits/docs/user_guide/decision_framework) - How to make optimal insurance decisions
-- [Case Studies](/Ergodic-Insurance-Limits/docs/user_guide/case_studies) - Real-world applications and results
+- [Executive Summary](/Ergodic-Insurance-Limits/api/user_guide/executive_summary.html) - High-level overview for decision makers
+- [Quick Start Guide](/Ergodic-Insurance-Limits/api/user_guide/quick_start.html) - Get running in minutes
+- [Decision Framework](/Ergodic-Insurance-Limits/api/user_guide/decision_framework.html) - How to make optimal insurance decisions
+- [Case Studies](/Ergodic-Insurance-Limits/api/user_guide/case_studies.html) - Real-world applications and results
 
 ### 🎓 Tutorials & How-To Guides
 Step-by-step guides for using the framework:
-- [Getting Started Tutorial](/Ergodic-Insurance-Limits/tutorials/getting_started) - Your first simulation
-- [Basic Simulation Tutorial](/Ergodic-Insurance-Limits/tutorials/basic_simulation) - Understanding the fundamentals
-- [Optimization Workflow](/Ergodic-Insurance-Limits/tutorials/optimization_workflow) - Finding optimal insurance limits
-- [Analyzing Results](/Ergodic-Insurance-Limits/tutorials/analyzing_results) - Interpreting simulation outputs
+- [Getting Started Tutorial](/Ergodic-Insurance-Limits/api/tutorials/01_getting_started.html) - Your first simulation
+- [Basic Simulation Tutorial](/Ergodic-Insurance-Limits/api/tutorials/02_basic_simulation.html) - Understanding the fundamentals
+- [Optimization Workflow](/Ergodic-Insurance-Limits/api/tutorials/04_optimization_workflow.html) - Finding optimal insurance limits
+- [Analyzing Results](/Ergodic-Insurance-Limits/api/tutorials/05_analyzing_results.html) - Interpreting simulation outputs
 
 ### 📚 Theory Documentation
 Deep dive into the mathematical foundations:
@@ -46,9 +46,9 @@ Deep dive into the mathematical foundations:
 ### 🔧 Technical Documentation
 For developers and technical users:
 - [API Documentation](/Ergodic-Insurance-Limits/api/) - Complete API reference
-- [Installation Guide](/Ergodic-Insurance-Limits/docs/getting_started) - Setup instructions
-- [Examples](/Ergodic-Insurance-Limits/docs/examples) - Code examples and demos
-- [Architecture Overview](/Ergodic-Insurance-Limits/docs/overview) - System design and components
+- [Installation Guide](/Ergodic-Insurance-Limits/api/getting_started.html) - Setup instructions
+- [Examples](/Ergodic-Insurance-Limits/api/examples.html) - Code examples and demos
+- [Architecture Overview](/Ergodic-Insurance-Limits/api/overview.html) - System design and components
 
 ### Key Formula
 

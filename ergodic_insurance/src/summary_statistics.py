@@ -90,6 +90,16 @@ class SummaryStatistics:
         Returns:
             Complete statistical summary
         """
+        # Handle empty data
+        if len(data) == 0:
+            return StatisticalSummary(
+                basic_stats=self._calculate_basic_stats(data, weights),
+                distribution_params={},
+                confidence_intervals={},
+                hypothesis_tests={},
+                extreme_values={},
+            )
+
         # Basic statistics
         basic_stats = self._calculate_basic_stats(data, weights)
 
@@ -133,6 +143,24 @@ class SummaryStatistics:
         Returns:
             Dictionary of basic statistics
         """
+        # Handle empty data
+        if len(data) == 0:
+            return {
+                "count": 0,
+                "mean": 0.0,
+                "median": 0.0,
+                "std": 0.0,
+                "variance": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "range": 0.0,
+                "iqr": 0.0,
+                "cv": 0.0,
+                "skewness": 0.0,
+                "kurtosis": 0.0,
+                "stderr": 0.0,
+            }
+
         if weights is None:
             return {
                 "count": len(data),
@@ -148,6 +176,22 @@ class SummaryStatistics:
                 "skewness": float(self._safe_skew_kurtosis(data, "skew")),
                 "kurtosis": float(self._safe_skew_kurtosis(data, "kurtosis")),
                 "stderr": float(np.std(data) / np.sqrt(len(data))),
+            }
+
+        # Handle weighted statistics for non-empty data
+        if len(data) == 0:
+            return {
+                "count": 0,
+                "mean": 0.0,
+                "median": 0.0,
+                "std": 0.0,
+                "variance": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "range": 0.0,
+                "iqr": 0.0,
+                "cv": 0.0,
+                "effective_sample_size": 0.0,
             }
 
         mean = np.average(data, weights=weights)

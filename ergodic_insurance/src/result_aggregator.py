@@ -13,10 +13,27 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import warnings
 
-import h5py
 import numpy as np
 import pandas as pd
 from scipy import stats
+
+# Make h5py import optional - it can hang on Windows
+# We'll try to import it but skip if it fails or hangs
+HAS_H5PY = False
+h5py = None
+
+try:
+    import os
+
+    # Only try h5py import on non-Windows or if explicitly enabled
+    if os.name != "nt" or os.environ.get("ENABLE_H5PY", "").lower() == "true":
+        import h5py as h5py_module
+
+        h5py = h5py_module
+        HAS_H5PY = True
+except (ImportError, OSError, Exception):
+    HAS_H5PY = False
+    h5py = None
 
 
 @dataclass
@@ -450,6 +467,8 @@ class ResultExporter:
             filepath: Output file path
             compression: Compression algorithm to use
         """
+        if not HAS_H5PY or h5py is None:
+            raise ImportError("h5py is required for HDF5 export. Install with: pip install h5py")
         with h5py.File(filepath, "w") as hf:
             ResultExporter._write_to_hdf5(hf, results, compression=compression)
 
@@ -495,7 +514,7 @@ class ResultExporter:
         return obj
 
     @staticmethod
-    def _write_to_hdf5(group: h5py.Group, data: Dict[str, Any], compression: str = "gzip") -> None:
+    def _write_to_hdf5(group: Any, data: Dict[str, Any], compression: str = "gzip") -> None:
         """Recursively write data to HDF5 group.
 
         Args:
@@ -503,6 +522,8 @@ class ResultExporter:
             data: Data dictionary to write
             compression: Compression algorithm
         """
+        if not HAS_H5PY:
+            raise ImportError("h5py is required for HDF5 operations")
         for key, value in data.items():
             if isinstance(value, dict):
                 subgroup = group.create_group(key)

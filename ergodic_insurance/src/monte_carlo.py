@@ -39,12 +39,11 @@ from .trajectory_storage import StorageConfig, TrajectoryStorage
 
 def _create_manufacturer(config_dict: Dict[str, Any]) -> Any:
     """Create manufacturer instance from config dictionary."""
-    from ergodic_insurance.src.manufacturer import WidgetManufacturer as WM
-
+    # WidgetManufacturer is already imported at module level
     if "config" in config_dict and hasattr(config_dict["config"], "__dict__"):
-        return WM(config_dict["config"])
+        return WidgetManufacturer(config_dict["config"])
     # Create from raw values
-    manufacturer = WM.__new__(WM)
+    manufacturer = WidgetManufacturer.__new__(WidgetManufacturer)
     for key, value in config_dict.items():
         setattr(manufacturer, key, value)
     return manufacturer
@@ -271,10 +270,10 @@ class MonteCarloEngine:
     Examples:
         Basic Monte Carlo simulation::
 
-            from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
-            from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-            from ergodic_insurance.src.insurance_program import InsuranceProgram
-            from ergodic_insurance.src.manufacturer import WidgetManufacturer
+            from .monte_carlo import MonteCarloEngine, SimulationConfig
+            from .loss_distributions import ManufacturingLossGenerator
+            from .insurance_program import InsuranceProgram
+            from .manufacturer import WidgetManufacturer
 
             # Configure simulation
             config = SimulationConfig(
