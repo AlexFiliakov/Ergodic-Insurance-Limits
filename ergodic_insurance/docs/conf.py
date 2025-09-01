@@ -35,7 +35,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
-    "sphinx.ext.mathjax",  # Add MathJax support for LaTeX rendering
+    "myst_parser.sphinx_ext.mathjax",  # Use MyST's MathJax extension for proper integration
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "myst_parser",
@@ -76,10 +76,8 @@ html_css_files = [
     "custom.css",
 ]
 
-# Custom JavaScript for MathJax configuration
-html_js_files = [
-    "mathjax_config.js",
-]
+# Don't add custom MathJax config - let MyST handle it
+# html_js_files = []
 
 # Additional theme options for GitHub Pages
 html_theme_options = {
@@ -95,38 +93,24 @@ html_link_suffix = ".html"
 # -- Extension configuration -------------------------------------------------
 
 # -- Options for MathJax extension -------------------------------------------
-# Use MathJax 3 with proper configuration for LaTeX rendering
+# MyST's MathJax extension handles all configuration automatically
+# It prevents MathJax from searching for math and only renders what MyST parses
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
-mathjax3_config = {
-    "tex": {
-        "inlineMath": [["$", "$"], ["\\(", "\\)"]],
-        "displayMath": [["$$", "$$"], ["\\[", "\\]"]],
-        "processEscapes": True,
-        "processEnvironments": True,
-    },
-    "options": {
-        "skipHtmlTags": ["script", "noscript", "style", "textarea", "pre"],
-        "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area",
-    },
-    "startup": {
-        "pageReady": "() => { MathJax.startup.document.updateDocument(); }",
-    },
-}
 
 # -- Options for MyST parser -------------------------------------------------
 myst_enable_extensions = [
-    "dollarmath",  # Enable dollar math syntax
+    "dollarmath",  # Enable dollar math syntax (REQUIRED for $ and $$ math)
     "amsmath",  # Enable AMS math environments
     "deflist",  # Enable definition lists
     "colon_fence",  # Enable ::: fences
     "html_image",  # Enable HTML images
 ]
-myst_dmath_double_inline = True  # Treat $$ as display math
+
+# Allow labels in display math (e.g., $$...$$ (label))
 myst_dmath_allow_labels = True
-myst_dmath_allow_space = True
-myst_dmath_allow_digits = True
-myst_update_mathjax = True  # Ensure MathJax configuration is updated
-myst_mathjax_classes = "tex2jax_process|mathjax_process|math|output_area"
+
+# Let MyST update MathJax configuration automatically
+myst_update_mathjax = True
 
 # -- Options for autodoc extension ------------------------------------------
 autodoc_default_options = {

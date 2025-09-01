@@ -213,9 +213,46 @@ print(f"{key}: ${value:,.0f}")
 
 ### Fast Fourier Transform Method  For continuous distributions:
 ```python
-def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14): """Calculate compound distribution using FFT."""
+def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14):
+    """Calculate compound distribution using FFT."""
 
-    # Discretize severity distribution dx = x_max / n_points x = np.arange(n_points) * dx      # Severity probabilities sev_pmf = stats.lognorm.pdf(x, s=sev_params['s'], scale=sev_params['scale']) * dx sev_pmf[0] = 0 # No zero claims      # Characteristic function of severity sev_cf = np.fft.fft(sev_pmf)      # Compound distribution via generating function lambda_param = freq_params['lambda'] compound_cf = np.exp(lambda_param * (sev_cf - 1))      # Inverse transform compound_pmf = np.real(np.fft.ifft(compound_cf))      # Add point mass at zero prob_zero = np.exp(-lambda_param) compound_pmf[0] = prob_zero  return x, compound_pmf / dx  # Calculate and plot x, pdf = compound_distribution_fft( freq_params={'lambda': 3}, sev_params={'s': 2, 'scale': 50000} )  plt.figure(figsize=(10, 6)) plt.semilogy(x[:1000], pdf[:1000]) plt.xlabel('Total Annual Loss') plt.ylabel('Probability Density (log scale)') plt.title('Compound Poisson-Lognormal Distribution') plt.grid(True, alpha=0.3) plt.show()
+    # Discretize severity distribution
+    dx = x_max / n_points
+    x = np.arange(n_points) * dx
+
+    # Severity probabilities
+    sev_pmf = stats.lognorm.pdf(x, s=sev_params["s"], scale=sev_params["scale"]) * dx
+    sev_pmf[0] = 0  # No zero claims
+
+    # Characteristic function of severity
+    sev_cf = np.fft.fft(sev_pmf)
+
+    # Compound distribution via generating function
+    lambda_param = freq_params["lambda"]
+    compound_cf = np.exp(lambda_param * (sev_cf - 1))
+
+    # Inverse transform
+    compound_pmf = np.real(np.fft.ifft(compound_cf))
+
+    # Add point mass at zero
+    prob_zero = np.exp(-lambda_param)
+    compound_pmf[0] = prob_zero
+
+    return x, compound_pmf / dx
+
+# Calculate and plot
+x, pdf = compound_distribution_fft(
+    freq_params={"lambda": 3},
+    sev_params={"s": 2, "scale": 50000}
+)
+
+plt.figure(figsize=(10, 6))
+plt.semilogy(x[:1000], pdf[:1000])
+plt.xlabel("Total Annual Loss")
+plt.ylabel("Probability Density (log scale)")
+plt.title("Compound Poisson-Lognormal Distribution")
+plt.grid(True, alpha=0.3)
+plt.show()
 ```
 
 ![Compound Poisson-Lognormal Distribution](../../../theory/figures/compound_poi_lognormal_dist.png)
@@ -236,7 +273,13 @@ def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14
 ### Exposure Curves  Proportion of loss in layer:  $$ \text{G}(r) = \frac{E[X \wedge rM]}{E[X]} $$  where$M$is the maximum possible loss.
 
 ### Layer Pricing Implementation
-```python class LayerPricing: """Price excess of loss layers."""  def __init__(self, severity_dist): self.severity_dist = severity_dist  def layer_expected_loss(self, attachment, limit): """Calculate expected loss in layer."""  def limited_expected_value(x): """E[X ^ x] = integral from 0 to x of (1 - F(t)) dt""" if x == np.inf: return self.severity_dist.mean()              # Numerical integration from scipy.integrate import quad  def survival(t): return 1 - self.severity_dist.cdf(t)  result, _ = quad(survival, 0, x) return result  exhaustion = attachment + limit return limited_expected_value(exhaustion) - limited_expected_value(attachment)  def price_layer(self, attachment, limit, frequency, expense_loading=1.3): """Price an excess layer."""          # Expected loss in layer layer_severity = self.layer_expected_loss(attachment, limit)          # Annual expected loss annual_loss = frequency * layer_severity          # Add expense loading premium = annual_loss * expense_loading          # Calculate burning cost burning_cost = annual_loss / limit  return { 'premium': premium, 'expected_loss': annual_loss, 'rate_on_line': premium / limit, 'burning_cost': burning_cost, 'loss_ratio': annual_loss / premium }  def create_tower(self, attachments, limits, frequency): """Price a tower of layers."""  tower = [] for att, lim in zip(attachments, limits): layer_info = self.price_layer(att, lim, frequency) layer_info['attachment'] = att layer_info['limit'] = lim tower.append(layer_info)  return pd.DataFrame(tower)  # Example: Price a tower import pandas as pd  sev_dist = stats.pareto(b=2.5, scale=10000) # Pareto severity pricer = LayerPricing(sev_dist)  # Define tower structure attachments = [0, 100_000, 500_000, 1_000_000, 5_000_000] limits = [100_000, 400_000, 500_000, 4_000_000, 10_000_000]  tower = pricer.create_tower(attachments, limits, frequency=5) print(tower.to_string())
+```python
+class LayerPricing:
+    """Price excess of loss layers."""
+
+    def __init__(self, severity_dist):
+        self.severity_dist = severity_dist
+    # [Code continues - see full implementation in notebook]
 ```
 
 ![Layer Pricing](../../../theory/figures/layer_pricing.png)
@@ -249,8 +292,9 @@ def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14
 - $L$ = Random loss
 - $W$ = Initial wealth
 
-###
- First-Order Condition  For differentiable utility:  $$ P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}] $$
+### First-Order Condition
+For differentiable utility:
+$$ P'(R) = E[U'(W - P(R) - L \wedge R) \cdot \mathbf{1}_{L > R}] $$
 
 ### Ergodic Optimization  Maximize time-average growth:  $$ \max_R \quad E[\ln(W - P(R) - L \wedge R)] $$
 
@@ -258,9 +302,26 @@ def compound_distribution_fft(freq_params, sev_params, x_max=1e7, n_points=2**14
 2. **Ruin constraint**:$P(\text{ruin}) \leq \alpha$
 3.
 
-**Regulatory minimum**:$R \geq R_{\text{min}}$### Dynamic Programming Solution
+**Regulatory minimum**: $R \geq R_{\text{min}}$
+
+### Dynamic Programming Solution
 ```python
-def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000, premium_loading=0.3, risk_aversion=2): """ Calculate optimal retention using analytical approach.  The optimal retention balances: 1. Premium savings (higher retention = lower premium) 2. Risk exposure (higher retention = more volatility) 3. Wealth level (more wealth = can handle more risk) """      # Base retention is fraction of expected loss base_retention = loss_mean * 0.5      # Wealth effect: retention increases with wealth (concave) wealth_factor = np.sqrt(wealth / 10_000_000) # Normalized to$10M
+def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000,
+                                premium_loading=0.3, risk_aversion=2):
+    """
+    Calculate optimal retention using analytical approach.
+
+    The optimal retention balances:
+    1. Premium savings (higher retention = lower premium)
+    2. Risk exposure (higher retention = more volatility)
+    3. Wealth level (more wealth = can handle more risk)
+    """
+
+    # Base retention is fraction of expected loss
+    base_retention = loss_mean * 0.5
+
+    # Wealth effect: retention increases with wealth (concave)
+    wealth_factor = np.sqrt(wealth / 10_000_000)  # Normalized to $10M
 
     # Risk aversion effect: higher aversion = lower retention
 risk_factor = 1 / risk_aversion
@@ -334,7 +395,131 @@ ax1.legend()
 retention_pct = (retentions_med_ra / wealth_levels)
 * 100
 ax2.plot(wealth_levels/1e6, retention_pct, linewidth=2, color='blue')
-ax2.set_xlabel('Wealth Level ($M)') ax2.set_ylabel('Retention as % of Wealth') ax2.set_title('Relative Risk Retention') ax2.grid(True, alpha=0.3)  plt.suptitle('Key Insight: Retention increases with wealth but decreases as % of wealth') plt.tight_layout() plt.show()  ``` ![Retention Optimization](../../../theory/figures/optimal_retention.png) (premium-calculation-principles)= ## Premium Calculation Principles ### Pure Premium  Expected loss only:  $$ P_0 = E[L] $$  ### Expected Value Principle  Add proportional loading:  $$ P = (1 + \theta) E[L] $$  where$\theta$is the safety loading.  ### Variance Principle  Account for risk:  $$ P = E[L] + \alpha \cdot \text{Var}(L) $$  ### Standard Deviation Principle  $$ P = E[L] + \beta \cdot \text{SD}(L) $$  ### Exponential Principle  Based on exponential utility:  $$ P = \frac{1}{\alpha} \ln(E[e^{\alpha L}]) $$  ### Wang Transform  Distort probability measure:  $$ P = \int_0^\infty g(S_L(x)) dx $$  where$g$is the distortion function.  ### Implementation Comparison  ```python class PremiumPrinciples: """Compare different premium calculation methods."""  def __init__(self, loss_dist): self.loss_dist = loss_dist self.mean = loss_dist.mean() self.std = loss_dist.std() self.var = loss_dist.var()  def pure_premium(self): return self.mean  def expected_value(self, loading=0.3): return self.mean * (1 + loading)  def variance_principle(self, alpha=0.001): return self.mean + alpha * self.var  def standard_deviation(self, beta=0.5): return self.mean + beta * self.std  def exponential_principle(self, alpha=0.0001): """Calculate using moment generating function.""" from scipy.integrate import quad  def integrand(x): return np.exp(alpha * x) * self.loss_dist.pdf(x)  mgf, _ = quad(integrand, 0, np.inf) return np.log(mgf) / alpha  def wang_transform(self, lambda_param=0.5): """Wang transform with power distortion.""" from scipy.integrate import quad  def survival(x): return 1 - self.loss_dist.cdf(x)  def distorted_survival(x): return survival(x) ** (1 / (1 + lambda_param))  premium, _ = quad(distorted_survival, 0, np.inf) return premium  def compare_all(self): """Compare all premium principles."""  results = { 'Pure Premium': self.pure_premium(), 'Expected Value (30%)': self.expected_value(0.3), 'Variance Principle': self.variance_principle(), 'Standard Deviation': self.standard_deviation(), 'Exponential': self.exponential_principle(), 'Wang Transform': self.wang_transform() }          # Calculate loadings for name, premium in results.items(): loading = (premium / self.mean - 1) * 100 print(f"{name:25}${premium:12,.0f} (Loading: {loading:6.1f}%)")
+ax2.set_xlabel('Wealth Level ($M)')
+ax2.set_ylabel('Retention as % of Wealth')
+ax2.set_title('Relative Risk Retention')
+ax2.grid(True, alpha=0.3)
+
+plt.suptitle('Key Insight: Retention increases with wealth but decreases as % of wealth')
+plt.tight_layout()
+plt.show()
+```
+
+![Retention Optimization](../../../theory/figures/optimal_retention.png)
+
+(premium-calculation-principles)=
+## Premium Calculation Principles
+
+### Pure Premium
+
+Expected loss only:
+
+$$ P_0 = E[L] $$
+
+### Expected Value Principle
+
+Add proportional loading:
+
+$$ P = (1 + \theta) E[L] $$
+
+where $\theta$ is the safety loading.
+
+### Variance Principle
+
+Account for risk:
+
+$$ P = E[L] + \alpha \cdot \text{Var}(L) $$
+
+### Standard Deviation Principle
+
+$$ P = E[L] + \beta \cdot \text{SD}(L) $$
+
+### Exponential Principle
+
+Based on exponential utility:
+
+$$ P = \frac{1}{\alpha} \ln(E[e^{\alpha L}]) $$
+
+### Wang Transform
+
+Distort probability measure:
+
+$$ P = \int_0^\infty g(S_L(x)) dx $$
+
+where $g$ is the distortion function.
+
+### Implementation Comparison
+
+```python
+class PremiumPrinciples:
+    """Compare different premium calculation methods."""
+
+    def __init__(self, loss_dist):
+        self.loss_dist = loss_dist
+        self.mean = loss_dist.mean()
+        self.std = loss_dist.std()
+        self.var = loss_dist.var()
+
+    def pure_premium(self):
+        return self.mean
+
+    def expected_value(self, loading=0.3):
+        return self.mean * (1 + loading)
+
+    def variance_principle(self, alpha=0.001):
+        return self.mean + alpha * self.var
+
+    def standard_deviation(self, beta=0.5):
+        return self.mean + beta * self.std
+
+    def exponential_principle(self, alpha=0.0001):
+        """Calculate using moment generating function."""
+        from scipy.integrate import quad
+
+        def integrand(x):
+            return np.exp(alpha * x) * self.loss_dist.pdf(x)
+
+        mgf, _ = quad(integrand, 0, np.inf)
+        return np.log(mgf) / alpha
+
+    def wang_transform(self, lambda_param=0.5):
+        """Wang transform with power distortion."""
+        from scipy.integrate import quad
+
+        def survival(x):
+            return 1 - self.loss_dist.cdf(x)
+
+        def distorted_survival(x):
+            return survival(x) ** (1 / (1 + lambda_param))
+
+        premium, _ = quad(distorted_survival, 0, np.inf)
+        return premium
+
+    def compare_all(self):
+        """Compare all premium principles."""
+
+        results = {
+            'Pure Premium': self.pure_premium(),
+            'Expected Value (30%)': self.expected_value(0.3),
+            'Variance Principle': self.variance_principle(),
+            'Standard Deviation': self.standard_deviation(),
+            'Exponential': self.exponential_principle(),
+            'Wang Transform': self.wang_transform()
+        }
+
+        # Calculate loadings
+        for name, premium in results.items():
+            loading = (premium / self.mean - 1) * 100
+            print(f"{name:25} ${premium:12,.0f} (Loading: {loading:6.1f}%)")
+
+        return results
+
+# Example with heavy-tailed distribution
+loss_dist = stats.pareto(b=2, scale=50000)
+principles = PremiumPrinciples(loss_dist)
+premiums = principles.compare_all()
+```
+
 
 return results
 
@@ -589,7 +774,17 @@ optimal = optimize_reinsurance_program(base_losses, budget=1e6, risk_tolerance=0
 print("Optimal Reinsurance Program:")
 for key, value in optimal.items():
 if 'retention' in key or 'limit' in key or 'deductible' in key:
-print(f"{key}: ${value:,.0f}") else: print(f"{key}: {value:.1%}")  ```   (practical-applications)= ## Practical Applications  ### Application 1: Manufacturing Company  ![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)  ```python
+print(f"{key}: ${value:,.0f}") else: print(f"{key}: {value:.1%}")  ```
+```
+
+(practical-applications)=
+## Practical Applications
+
+### Application 1: Manufacturing Company
+
+![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)
+
+```python
 def manufacturing_insurance_analysis(): """Analyze insurance needs for widget manufacturer."""      # Company parameters revenue = 50_000_000 # \$50M annual revenue
 assets = 30_000_000
 # \$30M total assets margin = 0.08 # 8% operating margin      # Risk profile risks = { 'property': { 'frequency': stats.poisson(mu=2), 'severity': stats.lognorm(s=1.5, scale=200_000), 'max_loss': assets * 0.5 }, 'liability': { 'frequency': stats.poisson(mu=5), 'severity': stats.lognorm(s=2, scale=50_000), 'max_loss': revenue * 2 }, 'business_interruption': { 'frequency': stats.poisson(mu=0.5), 'severity': stats.uniform(loc=revenue*0.1, scale=revenue*0.4), 'max_loss': revenue } }      # Simulate annual losses n_sims = 10000 results = {}  for risk_type, risk_params in risks.items(): annual_losses = []  for _ in range(n_sims): n_claims = risk_params['frequency'].rvs() if n_claims > 0: claims = risk_params['severity'].rvs(n_claims) total = min(sum(claims), risk_params['max_loss']) else: total = 0 annual_losses.append(total)  results[risk_type] = { 'mean': np.mean(annual_losses), 'p95': np.percentile(annual_losses, 95), 'p99': np.percentile(annual_losses, 99), 'max': np.max(annual_losses) }      # Recommend limits recommendations = {} for risk_type, stats in results.items():         # Primary layer at 95th percentile primary = stats['p95']          # Excess layer to 99.5th percentile excess = stats['p99'] - primary          # Catastrophic layer cat = stats['max'] - stats['p99']  recommendations[risk_type] = { 'primary': primary, 'excess': excess, 'catastrophic': cat, 'total_limit': primary + excess + cat }  return results, recommendations  # Run analysis loss_stats, recommendations = manufacturing_insurance_analysis()  print("Loss Statistics by Risk Type:") for risk_type, stats in loss_stats.items(): print(f"\n{risk_type.upper()}:") for metric, value in stats.items(): print(f" {metric}:${value:,.0f}")
