@@ -2172,21 +2172,15 @@ Expected Growth: 9.2%
 ## Key Takeaways
 
 1. **Constrained optimization**: Balance objectives with real-world constraints
-
 2. **Pareto efficiency**: No single optimal solution for multi-objective problems
 3. **HJB equations**: Powerful framework for dynamic optimization
-
 4. **Numerical methods**: Choose appropriate method for problem structure
 5. **Stochastic control**: Account for uncertainty in dynamic decisions
-
 6. **Convergence monitoring**: Essential for reliable solutions
 7. **Practical implementation**: Combine theory with business constraints
 
 ## Next Steps
 
-- [Chapter 5: Statistical Methods](05_statistical_methods.md)
-- Validation and testing
-- [Chapter 3: Insurance Mathematics](03_insurance_mathematics.md)
-- Insurance-specific models
-- [Chapter 1: Ergodic Economics](01_ergodic_economics.md)
-- Theoretical foundation
+- [Chapter 5: Statistical Methods](05_statistical_methods.md) - Validation and testing
+- [Chapter 3: Insurance Mathematics](03_insurance_mathematics.md) - Insurance-specific models
+- [Chapter 1: Ergodic Economics](01_ergodic_economics.md) - Theoretical foundation

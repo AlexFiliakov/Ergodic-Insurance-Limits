@@ -413,9 +413,6 @@ print(f"Bankruptcy rate WITHOUT insurance: {np.mean(wealth_without[:, -1] == 0):
 
 ## Next Steps
 
-- [Chapter 2: Multiplicative Processes](02_multiplicative_processes.md)
-- Deep dive into the mathematics
-- [Chapter 3: Insurance Mathematics](03_insurance_mathematics.md)
-- Specific applications to insurance
-- [Chapter 6: References](06_references.md)
-- Academic papers and further reading
+- [Chapter 2: Multiplicative Processes](02_multiplicative_processes.md) - Deep dive into the mathematics
+- [Chapter 3: Insurance Mathematics](03_insurance_mathematics.md) - Specific applications to insurance
+- [Chapter 6: References](06_references.md) - Academic papers and further reading

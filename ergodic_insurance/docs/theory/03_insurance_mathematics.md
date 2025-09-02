@@ -207,7 +207,12 @@ When$N \sim \text{Poisson}(\lambda)$:
 
 For discrete severities, recursive calculation:
 
-$$ p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j} $$  -$p_k = P(S = k)$-$f_j = P(X = j)$-$(a, b)$depend on frequency distribution
+$$p_k = \frac{1}{1 - af_0} \sum_{j=1}^k \left(a + \frac{bj}{k}\right) f_j p_{k-j}$$
+
+where:
+- $p_k = P(S = k)$
+- $f_j = P(X = j)$
+- $(a, b)$ depend on frequency distribution
 
 ### Fast Fourier Transform Method
 
@@ -558,11 +563,10 @@ class PremiumPrinciples:
 Claims develop over time:
 | Year | Dev 0 | Dev 1 | Dev 2 | Dev 3 | Ultimate |
 |------|-------|-------|-------|-------|----------|
-| 2020 | 100 | 150 | 170 | 175 | 175 |
-| 2021 | 110 | 165 | 187 | 192 | ? |
-| 2022 | 120 | 180 | 192 | ? | ? |
-| 2023 | 130 | 195 | ? | ? | ? |
-| 2024 | 130 | ? | ? | ? | ? |
+| 2020 | 100   | 150   | 170   | 175   | 175      |
+| 2021 | 110   | 165   | 187   | ?     | ?        |
+| 2022 | 120   | 180   | ?     | ?     | ?        |
+| 2023 | 130   | ?     | ?     | ?     | ?        |
 
 ### Chain Ladder Method
 

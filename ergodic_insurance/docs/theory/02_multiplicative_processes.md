@@ -59,9 +59,13 @@ $$
 
 This shows explicitly the volatility drag term $-\sigma^2/2$.
 
-### Properties of GBM  1. **Log-normality**: $\ln(S_t/S_0)$ is normally distributed 2. **Martingale property**: Under risk-neutral measure with $\mu = r$
+### Properties of GBM
+
+1. **Log-normality**: $\ln(S_t/S_0)$ is normally distributed 2.
+2. **Martingale property**: Under risk-neutral measure with $\mu = r$
 3. **Self-similarity**: Statistical properties scale with time
 4. **Markov property**: Future depends only on present, not past
+
 ### Simulation in Discrete Time
 
 Euler-Maruyama discretization for time step $\Delta t$:
@@ -165,10 +169,13 @@ plt.show()
 
 A process is **path-dependent** if the outcome depends not just on the starting and ending points, but on the entire trajectory taken.
 
-### Examples in Finance  1. **Barrier options**: Payoff depends on whether price crossed a threshold
+### Examples in Finance
+
+1. **Barrier options**: Payoff depends on whether price crossed a threshold
 2. **Asian options**: Payoff based on average price over time
 3. **Bankruptcy**: Once wealth hits zero, it stays there
 4. **Credit ratings**: History of defaults affects future borrowing
+
 ### Mathematical Formulation
 
 For a path-dependent functional:
@@ -185,7 +192,13 @@ $$
 
 ### Impact on Insurance
 
-Path dependence affects: - **Claims development**: Past payments influence reserves - **Experience rating**: History determines future premiums - **Reputation effects**: Past performance affects market position - **Capital requirements**: Regulatory views based on history
+Path dependence affects:
+
+- **Claims development**: Past payments influence reserves
+- **Experience rating**: History determines future premiums
+- **Reputation effects**: Past performance affects market position
+- **Capital requirements**: Regulatory views based on history
+
 ### Measuring Path Dependence
 ```python
 def calculate_path_metrics(paths):
@@ -233,8 +246,12 @@ print(f"Max drawdown: {correlation_matrix[0, 2]:.3f}")
 print(f"Realized volatility: {correlation_matrix[0, 3]:.3f}")
 
 ```
-(growth-rate-calculations)= ## Growth Rate Calculations
+
+(growth-rate-calculations)=
+## Growth Rate Calculations
+
 ### Arithmetic vs Geometric Returns
+
 **Arithmetic mean return**:
 
 $$
@@ -475,51 +492,200 @@ $$ g = \mu - \frac{\sigma^2}{2} $$
 ### Intuitive Explanation
 
 Consider two scenarios:
-1. Steady 10% annual return → 1.1^10 = 2.594x after 10 years
-2. 2. Alternating +30% and -10% (average 10%) → (1.3 × 0.9)^5 = 2.373x The volatile path underperforms despite same average.  ### Impact on Insurance Decisions  Insurance reduces volatility drag by: 1. Capping downside losses 2. Smoothing cash flows 3. Enabling higher risk-taking in core business ### Quantifying the Benefit ```python def calculate_volatility_drag_benefit(base_volatility, volatility_with_insurance, time_horizon=10): """Calculate wealth improvement from volatility reduction."""      # Assume same arithmetic mean mu = 0.10      # Growth rates g_without = mu - base_volatility**2 / 2 g_with = mu - volatility_with_insurance**2 / 2      # Wealth multiples wealth_without = np.exp(g_without * time_horizon) wealth_with = np.exp(g_with * time_horizon)      # Benefit benefit = (wealth_with / wealth_without - 1) * 100  print(f"Base volatility: {base_volatility:.1%}") print(f"With insurance: {volatility_with_insurance:.1%}") print(f"Growth without insurance: {g_without:.2%}") print(f"Wealth improvement: {benefit:.1f}%")  return benefit  # Example benefit = calculate_volatility_drag_benefit( base_volatility=0.30, volatility_with_insurance=0.15, time_horizon=20 )  ``` (practical-examples)= ## Practical Examples ### Example 1: Widget Manufacturer ![Widget Factory](../../../assets/photos/factory_1_small.jpg)  A widget manufacturer faces: - Revenue growth: 8% expected, 15% volatility  - Operating leverage: 2x (costs are 50% fixed) - Catastrophic risk: 5% chance of \$5M loss annually
 
-Without insurance:
+1. Steady 10% annual return → 1.1^10 = 2.594x after 10 years
+2. Alternating +30% and -10% (average 10%) → (1.3 × 0.9)^5 = 2.373x
+
+The volatile path underperforms despite same average.
+
+### Impact on Insurance Decisions
+
+Insurance reduces volatility drag by:
+
+1. Capping downside losses
+2. Smoothing cash flows
+3. Enabling higher risk-taking in core business
+
+### Quantifying the Benefit
+
 
 ```python
-def simulate_manufacturer(years=10, with_insurance=False):
-"""Simulate manufacturer wealth evolution."""
+def calculate_volatility_drag_benefit(base_volatility,
+                                     volatility_with_insurance,
+                                     time_horizon=10):
+    """Calculate wealth improvement from volatility reduction."""
 
-W0 = 10_000_000
-# $10M initial capital wealth = [W0]  for year in range(years):         # Revenue growth revenue_shock = np.exp(0.08 - 0.5*0.15**2 + 0.15*np.random.randn())          # Operating leverage effect profit_shock = 1 + 2 * (revenue_shock - 1)          # Catastrophic loss if np.random.rand() < 0.05: loss = 5_000_000 else: loss = 0  if with_insurance: premium = 0.02 * wealth[-1] # 2% of assets retention = 500_000 covered_loss = max(0, loss - retention) net_loss = premium + min(loss, retention) else: net_loss = loss          # Update wealth new_wealth = max(0, wealth[-1] * profit_shock - net_loss) wealth.append(new_wealth)  return wealth  # Run simulations np.random.seed(42) n_sims = 1000 results_with = [] results_without = []  for _ in range(n_sims): results_with.append(simulate_manufacturer(20, True)) results_without.append(simulate_manufacturer(20, False))  # Analyze final_with = [r[-1] for r in results_with] final_without = [r[-1] for r in results_without]  print("With Insurance:") print(f" Median final wealth:${np.median(final_with):,.0f}")
-print(f"
-Bankruptcy rate: {np.mean(np.array(final_with) == 0):.1%}")
-print(f"
-Growth rate: {np.mean(np.log(np.array(final_with)[np.array(final_with) > 0] / 10_000_000) / 20):.2%}")
+    # Assume same arithmetic mean
+    mu = 0.10
 
-print("\nWithout Insurance:")
-print(f"
-Median final wealth: ${np.median(final_without):,.0f}") print(f" Bankruptcy rate: {np.mean(np.array(final_without) == 0):.1%}") print(f" Growth rate: {np.mean(np.log(np.array(final_without)[np.array(final_without) > 0] / 10_000_000) / 20):.2%}")  ```   ### Example 2: Investment Portfolio  ![Office Building](../../../assets/photos/office_building_1_small.jpg)  Portfolio with tail risk:  ```python def portfolio_with_tail_risk(leverage=1.0, tail_hedge=False): """Simulate leveraged portfolio with tail risk."""      # Parameters years = 30 base_return = 0.07 base_vol = 0.15 tail_prob = 0.02 # 2% annual chance tail_loss = 0.40 # 40% loss in tail event  wealth_paths = []  for _ in range(1000): wealth = 100 for year in range(years):             # Normal return with leverage normal_return = base_return * leverage normal_vol = base_vol * leverage  year_return = np.random.randn() * normal_vol + normal_return              # Tail event if np.random.rand() < tail_prob: year_return = -tail_loss * leverage  if tail_hedge:                 # Pay 1% for tail protection hedge_cost = 0.01 if year_return < -0.20: year_return = -0.20 # Cap losses at 20% year_return -= hedge_cost  wealth *= (1 + year_return) wealth = max(0, wealth)  wealth_paths.append(wealth)  return np.array(wealth_paths)  # Compare strategies unhedged = portfolio_with_tail_risk(leverage=1.5, tail_hedge=False) hedged = portfolio_with_tail_risk(leverage=1.5, tail_hedge=True)  print("Leveraged Portfolio (1.5x):") print(f"Without hedge - Median:${np.median(unhedged):.0f}, Ruin: {np.mean(unhedged == 0):.1%}")
-print(f"With hedge
-- Median: ${np.median(hedged):.0f}, Ruin: {np.mean(hedged == 0):.1%}")
+    # Growth rates
+    g_without = mu - base_volatility**2 / 2
+    g_with = mu - volatility_with_insurance**2 / 2
 
+    # Wealth multiples
+    wealth_without = np.exp(g_without * time_horizon)
+    wealth_with = np.exp(g_with * time_horizon)
+
+    # Benefit
+    benefit = (wealth_with / wealth_without - 1) * 100
+
+    print(f"Base volatility: {base_volatility:.1%}")
+    print(f"With insurance: {volatility_with_insurance:.1%}")
+    print(f"Growth without insurance: {g_without:.2%}")
+    print(f"Growth with insurance: {g_with:.2%}")
+    print(f"Wealth improvement: {benefit:.1f}%")
+
+    return benefit
+
+# Example
+benefit = calculate_volatility_drag_benefit(
+    base_volatility=0.30,
+    volatility_with_insurance=0.15,
+    time_horizon=20
+)
 ```
 
+(practical-examples)=
+## Practical Examples
+
+### Example 1: Widget Manufacturer
+
+![Widget Factory](../../../assets/photos/factory_1_small.jpg)
+
+A widget manufacturer faces:
+
+- Revenue growth: 8% expected, 15% volatility
+- Operating leverage: 2x (costs are 50% fixed)
+- Catastrophic risk: 5% chance of \$5M loss annually
+
+Without insurance:
+```python
+def simulate_manufacturer(years=10, with_insurance=False):
+    """Simulate manufacturer wealth evolution."""
+
+    W0 = 10_000_000  # \$10M initial capital
+    wealth = [W0]
+
+    for year in range(years):
+        # Revenue growth
+        revenue_shock = np.exp(0.08 - 0.5*0.15**2 + 0.15*np.random.randn())
+
+        # Operating leverage effect
+        profit_shock = 1 + 2 * (revenue_shock - 1)
+
+        # Catastrophic loss
+        if np.random.rand() < 0.05:
+            loss = 5_000_000
+        else:
+            loss = 0
+
+        if with_insurance:
+            premium = 0.02 * wealth[-1]  # 2% of assets
+            retention = 500_000
+            covered_loss = max(0, loss - retention)
+            net_loss = premium + min(loss, retention)
+        else:
+            net_loss = loss
+
+        # Update wealth
+        new_wealth = max(0, wealth[-1] * profit_shock - net_loss)
+        wealth.append(new_wealth)
+
+    return wealth
+
+# Run simulations
+np.random.seed(42)
+n_sims = 1000
+results_with = []
+results_without = []
+
+for _ in range(n_sims):
+    results_with.append(simulate_manufacturer(20, True))
+    results_without.append(simulate_manufacturer(20, False))
+
+# Analyze
+final_with = [r[-1] for r in results_with]
+final_without = [r[-1] for r in results_without]
+
+print("With Insurance:")
+print(f"  Median final wealth: ${np.median(final_with):,.0f}")
+print(f"  Bankruptcy rate: {np.mean(np.array(final_with) == 0):.1%}")
+print(f"  Growth rate: {np.mean(np.log(np.array(final_with)[np.array(final_with) > 0] / 10_000_000) / 20):.2%}")
+
+print("\nWithout Insurance:")
+print(f"  Median final wealth: ${np.median(final_without):,.0f}")
+print(f"  Bankruptcy rate: {np.mean(np.array(final_without) == 0):.1%}")
+print(f"  Growth rate: {np.mean(np.log(np.array(final_without)[np.array(final_without) > 0] / 10_000_000) / 20):.2%}")
+```
+
+### Example 2: Investment Portfolio
+
+![Office Building](../../../assets/photos/office_building_1_small.jpg)
+
+Portfolio with tail risk:
+```python
+def portfolio_with_tail_risk(leverage=1.0, tail_hedge=False):
+    """Simulate leveraged portfolio with tail risk."""
+
+    # Parameters
+    years = 30
+    base_return = 0.07
+    base_vol = 0.15
+    tail_prob = 0.02  # 2% annual chance
+    tail_loss = 0.40  # 40% loss in tail event
+
+    wealth_paths = []
+
+    for _ in range(1000):
+        wealth = 100
+        for year in range(years):
+            # Normal return with leverage
+            normal_return = base_return * leverage
+            normal_vol = base_vol * leverage
+
+            year_return = np.random.randn() * normal_vol + normal_return
+
+            # Tail event
+            if np.random.rand() < tail_prob:
+                year_return = -tail_loss * leverage
+
+            if tail_hedge:
+                # Pay 1% for tail protection
+                hedge_cost = 0.01
+                if year_return < -0.20:
+                    year_return = -0.20  # Cap losses at 20%
+                year_return -= hedge_cost
+
+            wealth *= (1 + year_return)
+            wealth = max(0, wealth)
+
+        wealth_paths.append(wealth)
+
+    return np.array(wealth_paths)
+
+# Compare strategies
+unhedged = portfolio_with_tail_risk(leverage=1.5, tail_hedge=False)
+hedged = portfolio_with_tail_risk(leverage=1.5, tail_hedge=True)
+
+print("Leveraged Portfolio (1.5x):")
+print(f"Without hedge - Median: ${np.median(unhedged):.0f}, Ruin: {np.mean(unhedged == 0):.1%}")
+print(f"With hedge - Median: ${np.median(hedged):.0f}, Ruin: {np.mean(hedged == 0):.1%}")
+```
 
 (key-takeaways)=
 ## Key Takeaways
 
 1. **Multiplicative processes dominate economics**: Most financial quantities compound
-
 2. **GBM captures essential features**: But real processes have jumps and fat tails
 3. **Log-normal distributions arise naturally**: From multiplicative effects
-
 4. **Path dependence matters**: History constrains future possibilities
 5. **Geometric mean < Arithmetic mean**: Volatility drag is real and substantial
-
 6. **Kelly criterion optimizes growth**: Natural framework for insurance decisions
 7. **Volatility reduction enhances growth**: Insurance benefit beyond loss coverage
 
 (next-steps)=
 ## Next Steps
 
-- [Chapter 1: Ergodic Economics](01_ergodic_economics.md)
-- Foundational concepts
-- [Chapter 3: Insurance Mathematics](03_insurance_mathematics.md)
-- Specific insurance applications
-- [Chapter 4: Optimization Theory](04_optimization_theory.md)
-- Mathematical optimization methods
+- [Chapter 1: Ergodic Economics](01_ergodic_economics.md) - Foundational concepts
+- [Chapter 3: Insurance Mathematics](03_insurance_mathematics.md) - Specific insurance applications
+- [Chapter 4: Optimization Theory](04_optimization_theory.md) - Mathematical optimization methods

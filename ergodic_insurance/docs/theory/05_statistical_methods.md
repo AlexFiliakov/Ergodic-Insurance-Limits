@@ -849,41 +849,19 @@ print(comparison.to_string())
 
 ```
 ### Sample Output
+
 ![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)
-```
 
+```
 Confidence Interval Comparison:
-Method
-Lower
-Upper
-Width
-0
-Classical
-0.344443
-0.430019
-0.085576
-1
-Student's t
-0.343914
-0.430549
-0.086635
-2
-Bootstrap (percentile)
-0.344961
-0.430498
-0.085537
-3
-Bootstrap (BCa)
-0.347206
-0.432543
-0.085337
-4
-Bootstrap (basic)
-0.344356
-0.428684
-0.084327
-
+                   Method     Lower     Upper     Width
+0               Classical  0.344443  0.430019  0.085576
+1             Student's t  0.343914  0.430549  0.086635
+2  Bootstrap (percentile)  0.344961  0.430498  0.085537
+3         Bootstrap (BCa)  0.347206  0.432543  0.085337
+4       Bootstrap (basic)  0.344356  0.428684  0.084327
 ```
+
 ---
 (hypothesis-testing)=
 
@@ -1223,9 +1201,6 @@ Mean: 0.552, Std: 0.063, 95% CI: [0.432, 0.681]
 
 ```
 
-
----
-
 (walk-forward-validation)=
 ## Walk-Forward Validation
 
@@ -1443,7 +1418,6 @@ validator.plot_validation(results)
 ![Walk-Forward Validation](../../../theory/figures/walk_forward_validation.png)
 
 ```
-
 Walk-Forward Validation Results:
 ----------------------------------------
 mean_performance: 0.0757
@@ -1455,9 +1429,6 @@ win_rate: 1.0000
 n_folds: 16
 
 ```
-
-
----
 
 (backtesting)=
 ## Backtesting
@@ -1742,13 +1713,11 @@ backtester.plot_backtest()
 
 ```
 
-
 #### Sample Output
 
 ![Backtesting Example](../../../theory/figures/backtesting_example.png)
 
 ```
-
 Backtest Results:
 ----------------------------------------
 total_return_%: -24.80
@@ -1765,9 +1734,6 @@ final_capital: 7520085.91
 survival: True
 
 ```
-
-
----
 
 (model-validation)=
 ## Model Validation
@@ -2358,9 +2324,6 @@ Average MSE: 3,598,537,032,683
 ✓ Purge window of 10 prevents temporal leakage
 
 ```
-
-
----
 
 ## Key Statistical Methods for Insurance Analysis:
 
