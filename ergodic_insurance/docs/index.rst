@@ -23,37 +23,37 @@ Quick Links
 
    <div style="display: flex; gap: 20px; margin: 20px 0;">
      <div style="flex: 1; padding: 15px; border: 2px solid #E91E63; border-radius: 8px; background-color: #FCE4EC;">
-       <h3 style="margin-top: 0; color: #E91E63;">🚀 Quick Start</h3>
+       <h3 style="margin-top: 0; color: #b8154cff !important;">🚀 Quick Start</h3>
        <p>Run your first simulation</p>
-       <a href="tutorials/01_getting_started.html" style="color: #E91E63; font-weight: bold;">Get Started →</a>
+       <a href="tutorials/01_getting_started.html" style="color: #E91E63 !important; font-weight: bold; text-decoration: none;">Get Started →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px; background-color: #E8F5E9;">
-       <h3 style="margin-top: 0;">📚 Tutorials</h3>
+       <h3 style="margin-top: 0; color: #3b933eff !important;">📚 Tutorials</h3>
        <p>Step-by-step learning guides</p>
-       <a href="tutorials/index.html" style="color: #4CAF50; font-weight: bold;">Start Tutorial →</a>
+       <a href="tutorials/index.html" style="color: #4CAF50 !important; font-weight: bold; text-decoration: none;">Start Tutorial →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #FF9800; border-radius: 8px; background-color: #FFF3E0;">
-       <h3 style="margin-top: 0; color: #FF9800;">💡 Model Cases</h3>
+       <h3 style="margin-top: 0; color: #d37f00ff !important;">💡 Model Cases</h3>
        <p>Realistic examples</p>
-       <a href="user_guide/case_studies.html" style="color: #FF9800; font-weight: bold;">View Cases →</a>
+       <a href="user_guide/case_studies.html" style="color: #FF9800 !important; font-weight: bold; text-decoration: none;">View Cases →</a>
      </div>
    </div>
 
    <div style="display: flex; gap: 20px; margin: 20px 0;">
      <div style="flex: 1; padding: 15px; border: 2px solid #2196F3; border-radius: 8px; background-color: #E3F2FD;">
-       <h3 style="margin-top: 0; color: #2196F3;">📖 Theory</h3>
+       <h3 style="margin-top: 0; color: #1e82d3ff !important;">📖 Theory</h3>
        <p>Mathematical foundations</p>
-       <a href="theory/index.html" style="color: #2196F3; font-weight: bold;">Learn Theory →</a>
+       <a href="theory/index.html" style="color: #2196F3 !important; font-weight: bold; text-decoration: none;">Learn Theory →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #9C27B0; border-radius: 8px; background-color: #F3E5F5;">
-       <h3 style="margin-top: 0; color: #9C27B0;">🏗️ Architecture</h3>
+       <h3 style="margin-top: 0; color: #7e208fff !important;">🏗️ Architecture</h3>
        <p>System design diagrams</p>
-       <a href="architecture/index.html" style="color: #9C27B0; font-weight: bold;">View Architecture →</a>
+       <a href="architecture/index.html" style="color: #9C27B0 !important; font-weight: bold; text-decoration: none;">View Architecture →</a>
      </div>
      <div style="flex: 1; padding: 15px; border: 2px solid #795548; border-radius: 8px; background-color: #EFEBE9;">
-       <h3 style="margin-top: 0; color: #795548;">📋 API Reference</h3>
+       <h3 style="margin-top: 0; color: #5b4036ff !important;">📋 API Reference</h3>
        <p>Complete API documentation</p>
-       <a href="api/modules.html" style="color: #795548; font-weight: bold;">Browse API →</a>
+       <a href="api/modules.html" style="color: #795548 !important; font-weight: bold; text-decoration: none;">Browse API →</a>
      </div>
    </div>
 

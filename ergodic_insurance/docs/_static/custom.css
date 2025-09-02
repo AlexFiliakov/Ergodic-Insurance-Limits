@@ -546,3 +546,50 @@ div.math mjx-container {
         font-size: 0.9em !important;
     }
 }
+
+/* ========================================
+   Quick Links Section - Override theme styles
+   ======================================== */
+
+/* Target Quick Links section specifically */
+.rst-content .quicklinks-section h3,
+.rst-content div[style*="border"] h3 {
+    color: inherit !important;  /* Use the inline style color */
+}
+
+.rst-content .quicklinks-section a,
+.rst-content div[style*="border"] a {
+    color: inherit !important;  /* Use the inline style color */
+    text-decoration: none !important;
+}
+
+.rst-content .quicklinks-section a:hover,
+.rst-content div[style*="border"] a:hover {
+    text-decoration: underline !important;
+    opacity: 0.8;
+}
+
+/* More specific selectors for the Quick Links boxes */
+.rst-content div[style*="border: 2px solid"] h3[style*="color"] {
+    color: inherit !important;
+}
+
+.rst-content div[style*="border: 2px solid"] a[style*="color"] {
+    color: inherit !important;
+    text-decoration: none !important;
+}
+
+/* Even more specific - target by the actual color values */
+.rst-content h3[style*="#E91E63"] { color: #E91E63 !important; }
+.rst-content h3[style*="#4CAF50"] { color: #4CAF50 !important; }
+.rst-content h3[style*="#FF9800"] { color: #FF9800 !important; }
+.rst-content h3[style*="#2196F3"] { color: #2196F3 !important; }
+.rst-content h3[style*="#9C27B0"] { color: #9C27B0 !important; }
+.rst-content h3[style*="#795548"] { color: #795548 !important; }
+
+.rst-content a[style*="#E91E63"] { color: #E91E63 !important; }
+.rst-content a[style*="#4CAF50"] { color: #4CAF50 !important; }
+.rst-content a[style*="#FF9800"] { color: #FF9800 !important; }
+.rst-content a[style*="#2196F3"] { color: #2196F3 !important; }
+.rst-content a[style*="#9C27B0"] { color: #9C27B0 !important; }
+.rst-content a[style*="#795548"] { color: #795548 !important; }
