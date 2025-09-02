@@ -2,7 +2,11 @@
 
 ![Repo Banner](assets/repo_banner_small.png)
 
-This is a brief research model of a widget manufacturing company to determine what limit of insurance they need to optimize long-term profitability.
+This research model applies Ole Peters’ ergodic economics framework to insurance optimization for a widget manufacturing company, demonstrating that traditional expected value approaches systematically mislead insurance decisions. By optimizing time-average growth rates (for a single company) rather than ensemble averages (across many companies), the model aims to demonstrate that insurance premiums can significantly exceed expected losses while still enhancing long-term growth, transforming insurance from a cost center to a growth enabler. The implementation features:
+- A comprehensive Monte Carlo simulation engine with stochastic processes (GBM, mean-reversion)
+- Multi-layer insurance programs with collateral management
+- Extensive configuration architecture
+- CPU-optimized parallel processing
 
 [![Documentation Status](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/actions/workflows/docs.yml/badge.svg)](https://alexfiliakov.github.io/Ergodic-Insurance-Limits/)
 
