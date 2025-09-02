@@ -86,7 +86,8 @@ $$
 This reveals a 5.27% **loss** per round for a typical individual trajectory!
 
 (the-ergodicity-problem)=
-## The Ergodicity Problem  ### Definition of Ergodicity
+## The Ergodicity Problem
+### Definition of Ergodicity
 
 A system is **ergodic** if its time average equals its ensemble average:
 
@@ -112,7 +113,10 @@ For a stochastic process $X_t$ to be ergodic, it must satisfy:
 Wealth processes violate multiple conditions, particularly due to the absorbing barrier at zero (bankruptcy).
 
 (non-ergodic-observables)=
-## Non-Ergodic Observables  ### Wealth and Income  **Wealth** accumulation is fundamentally non-ergodic:
+## Non-Ergodic Observables
+### Wealth and Income
+
+**Wealth** accumulation is fundamentally non-ergodic:
 - Multiplicative growth: $W_{t+1} = W_t \cdot (1 + r_t)$
 - - Bankruptcy is absorbing: $W_t = 0 \Rightarrow W_{t+k} = 0$ for all $k > 0$
 
