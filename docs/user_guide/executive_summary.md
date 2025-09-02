@@ -9,7 +9,7 @@ mathjax: true
 
 ## The Insurance Growth Paradox
 
-Traditional insurance analysis treats premiums as a pure cost—money spent to protect against losses. The ergodic framework reveals a surprising truth: **properly calibrated insurance can accelerate business growth by 30-50% over the long term**.
+Traditional insurance analysis treats premiums as a pure cost: money spent to protect against losses. The ergodic framework reveals a surprising truth: **properly calibrated insurance can accelerate business growth by 30-50% over the long term**.
 
 ## Key Insights
 

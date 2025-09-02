@@ -56,7 +56,9 @@ $$
 E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]
 $$
 
-### Implementation  ```python
+### Implementation
+
+```python
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -290,6 +292,7 @@ Mean: 55034.214910, SE: 324.692728
 ```
 ---
 (convergence-diagnostics)=
+
 ## Convergence Diagnostics
 ![Convergence Diagnostics](figures/convergence_diagnostics.png) *Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
 ### Gelman-Rubin Statistic
@@ -311,7 +314,9 @@ $$
 
 where $\rho_k$ is lag-$k$ autocorrelation.
 
-### Implementation  ```python
+### Implementation
+
+```python
 class ConvergenceDiagnostics:
 """Diagnose Monte Carlo convergence."""
 
@@ -590,7 +595,7 @@ print(f"Stationary: {hw['stationary']}, Halfwidth test: {hw['halfwidth_test_pass
 diagnostics.plot_diagnostics()
 
 ```
-### Sample Output
+#### Sample Output
 ![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
 ```
 
@@ -603,8 +608,9 @@ Stationary: False, Halfwidth test: False
 
 ```
 ---
-(confidence-intervals)= ## Confidence Intervals
 (confidence-intervals)=
+
+## Confidence Intervals
 ### Classical Confidence Intervals
 
 For large samples, use Central Limit Theorem:
@@ -615,14 +621,14 @@ $$
 
 ### Bootstrap Confidence Intervals
 
-### Percentile Method
+#### Percentile Method
 
 
 $$
 [\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]
 $$
 
-### BCa (Bias-Corrected and Accelerated)
+#### BCa (Bias-Corrected and Accelerated)
 
 Adjust for bias and skewness:
 
@@ -632,7 +638,9 @@ $$
 
 where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.
 
-### Implementation  ```python
+### Implementation
+
+```python
 import pandas as pd
 
 class ConfidenceIntervals:
@@ -878,6 +886,7 @@ Bootstrap (basic)
 ```
 ---
 (hypothesis-testing)=
+
 ## Hypothesis Testing
 ### Framework
 

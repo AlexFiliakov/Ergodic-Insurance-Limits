@@ -9,7 +9,7 @@ The Three Critical Questions
 Question 1: What's My Ruin Probability Without Insurance?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This is your most important metric. Ruin means your assets go to zero—game over.
+This is your most important metric. Ruin means your assets go to zero. Game over.
 
 **Decision Tree:**
 

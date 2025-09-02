@@ -114,7 +114,7 @@ Structured insurance program:
 - Insurance certificates accelerated enterprise sales cycle by 30 days average
 
 ### Key Lessons
-> "For startups, insurance isn't just protection—it's a sales enabler. The ergodic framework helped us see it as runway extension, not runway burn." - CEO
+> "For startups, insurance isn't just protection, it's a sales enabler. The ergodic framework helped us see it as runway extension, not runway burn." - CEO
 
 ---
 

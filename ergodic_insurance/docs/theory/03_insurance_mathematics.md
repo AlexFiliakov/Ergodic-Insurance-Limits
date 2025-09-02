@@ -1,18 +1,5 @@
 # Insurance Mathematics
 
-## Table of Contents
-1. [Frequency-Severity Models](#frequency-severity-models)
-
-2. [Compound Distributions](#compound-distributions)
-3. [Layer Pricing Theory](#layer-pricing-theory)
-
-4. [Retention Optimization](#retention-optimization)
-5. [Premium Calculation Principles](#premium-calculation-principles)
-
-6. [Claims Development](#claims-development)
-7. [Reinsurance Structures](#reinsurance-structures)
-
-8. [Practical Applications](#practical-applications)
 
 (frequency-severity-models)=
 ## Frequency-Severity Models

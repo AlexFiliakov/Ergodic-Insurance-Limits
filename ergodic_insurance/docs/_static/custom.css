@@ -479,6 +479,9 @@ dl.field-list > dt {
 .math.inline, span.math {
     font-size: 1em !important;
     margin: 0 0.2em !important;
+    overflow: visible !important;  /* Prevent scrollbars on inline math containers */
+    display: inline-block !important;
+    max-width: none !important;
 }
 
 /* Display math blocks */
@@ -506,18 +509,30 @@ div.math {
     max-width: 100% !important;
 }
 
-/* Ensure MathJax doesn't break layout */
-mjx-container {
+/* Fix inline math - NO SCROLLBARS for inline equations */
+mjx-container[display="false"],
+mjx-container[jax="CHTML"][display="false"],
+span.math mjx-container,
+p mjx-container[display="false"],
+li mjx-container[display="false"],
+td mjx-container[display="false"] {
     display: inline-block !important;
-    max-width: 100% !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
+    overflow: visible !important;  /* No scrollbars for inline math */
+    max-width: none !important;  /* Allow inline math to take the space it needs */
+    vertical-align: middle !important;
+    margin: 0 0.2em !important;
 }
 
-mjx-container[display="block"] {
+/* Block/display math can have scrollbars if needed */
+mjx-container[display="true"],
+mjx-container[display="block"],
+div.math mjx-container {
     display: block !important;
     margin: 1em 0 !important;
     text-align: center !important;
+    overflow-x: auto !important;  /* Keep scrollbars for large display equations */
+    overflow-y: hidden !important;
+    max-width: 100% !important;
 }
 
 /* Fix for mobile responsiveness */

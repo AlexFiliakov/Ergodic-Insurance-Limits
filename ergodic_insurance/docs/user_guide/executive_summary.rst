@@ -4,13 +4,13 @@ Executive Summary
 The Insurance Optimization Paradox
 -----------------------------------
 
-Every year, companies spend millions on insurance premiums, often viewing them as a necessary evil—a cost of doing business. But what if we told you that the traditional approach to evaluating insurance has been fundamentally flawed?
+Every year, companies spend millions on insurance premiums, often viewing them as a necessary evil, a cost of doing business. But what if we told you that the traditional approach to evaluating insurance has been fundamentally flawed?
 
 **The traditional view**: Insurance is worth buying when premiums are close to expected losses.
 
 **The ergodic reality**: Insurance can be optimal even when paying 200-500% of expected losses.
 
-Why? Because your company doesn't experience the average of all possible futures—it experiences one specific path through time.
+Why? Because your company doesn't experience the average of all possible futures; it experiences one specific path through time.
 
 The N=1 Problem
 ---------------
@@ -23,7 +23,7 @@ Imagine you're the CFO of a manufacturing company. Traditional actuarial models 
 
 But here's the critical insight: **You don't run 1,000 companies. You run one.**
 
-Your company will follow a single trajectory through time. If you hit that 0.5% catastrophic event in year 3, it doesn't matter that 995 other hypothetical companies did fine. Your growth is permanently impaired or worse—you're out of business.
+Your company will follow a single trajectory through time. If you hit that 0.5% catastrophic event in year 3, it doesn't matter that 995 other hypothetical companies did fine. Your growth is permanently impaired or worse: you're out of business.
 
 Time Average vs. Ensemble Average
 ----------------------------------
@@ -88,7 +88,7 @@ Our framework solves these problems by:
 2. **Incorporating survival constraints**: Can't grow if you don't survive
 3. **Respecting non-ergodicity**: Acknowledging that dead companies don't recover
 
-This isn't just theory—it's been validated through:
+This isn't just theory, it's been validated through:
    * 100,000+ Monte Carlo simulations
    * Multiple economic scenarios
    * Various industry risk profiles

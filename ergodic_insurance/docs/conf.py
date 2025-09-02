@@ -123,6 +123,9 @@ myst_dmath_allow_labels = True
 # Let MyST update MathJax configuration (it will merge with our mathjax3_config)
 myst_update_mathjax = True
 
+# Enable automatic heading anchors for internal links
+myst_heading_anchors = 3  # Generate anchors for h1, h2, and h3
+
 # -- Options for autodoc extension ------------------------------------------
 autodoc_default_options = {
     "members": True,

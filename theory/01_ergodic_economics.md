@@ -18,7 +18,7 @@ mathjax: true
 
 ## The Core Insight
 
-Ergodic economics, pioneered by Ole Peters and collaborators, challenges the fundamental assumption that expected values (ensemble averages) are appropriate for individual decision-making. The key insight is that for multiplicative processes—which characterize most economic phenomena including wealth dynamics—the time average experienced by an individual differs systematically from the ensemble average across many individuals.
+Ergodic economics, pioneered by Ole Peters and collaborators, challenges the fundamental assumption that expected values (ensemble averages) are appropriate for individual decision-making. The key insight is that for multiplicative processes, which characterize most economic phenomena including wealth dynamics, the time average experienced by an individual differs systematically from the ensemble average across many individuals.
 
 This distinction is not merely academic; it fundamentally changes optimal strategies for insurance, investment, and risk management.
 
@@ -186,7 +186,7 @@ Classical insurance theory focuses on expected values:
 The ergodic perspective reveals:
 - Insurance enhances time-average growth even with "unfair" premiums
 - Reducing volatility increases geometric growth
-- No utility function needed—maximizing growth is sufficient
+- No utility function needed, maximizing growth is sufficient
 
 ### Win-Win Nature of Insurance
 
