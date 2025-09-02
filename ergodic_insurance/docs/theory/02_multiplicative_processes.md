@@ -287,7 +287,9 @@ $$
 
 This represents the cost of volatility on compound growth.
 
-### Example Calculation  ```python
+### Example Calculation
+
+```python
 def analyze_growth_rates(returns):
 """Compare different growth rate measures."""
 
