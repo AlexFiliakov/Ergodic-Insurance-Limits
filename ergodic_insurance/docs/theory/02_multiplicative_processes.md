@@ -101,12 +101,14 @@ final_values = paths[:, -1]
 print(f"Mean final value: {np.mean(final_values):.2f}")
 print(f"Median final value: {np.median(final_values):.2f}")
 print(f"Probability of loss: {np.mean(final_values < 100):.1%}")
-
 ```
-(log-normal-distributions)= ## Log-Normal Distributions
+
+(log-normal-distributions)=
+## Log-Normal Distributions
 ### Definition and Properties
 
 If $X \sim \text{LogNormal}(\mu, \sigma^2)$, then $\ln(X) \sim \text{Normal}(\mu, \sigma^2)$.
+
 **Probability density function**:
 
 $$
@@ -116,6 +118,7 @@ $$
 ### Moments of Log-Normal Distribution
 
 For $X \sim \text{LogNormal}(\mu, \sigma^2)$:
+
 - **Mean**: $E[X] = e^{\mu + \sigma^2/2}$
 - **Median**: $\text{Med}[X] = e^{\mu}$
 - **Mode**: $\text{Mode}[X] = e^{\mu - \sigma^2}$
@@ -144,9 +147,11 @@ By Central Limit Theorem, $\ln(W_n)$ approaches normal distribution.
 ### Insurance Loss Modeling
 
 Log-normal distributions are common for:
+
 - **Claim severities**: Natural for multiplicative effects
 - **Asset values**: Result of compound growth
 - **Time-to-event**: With log-time normally distributed
+-
 ```python
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -162,8 +167,8 @@ plt.title('Log-Normal Claim Severity Distribution')
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.show()
-
 ```
+
 (path-dependence-and-history)=
 ## Path Dependence and History
 ### Definition of Path Dependence
@@ -245,7 +250,6 @@ print("Correlation with final value:")
 print(f"Maximum reached: {correlation_matrix[0, 1]:.3f}")
 print(f"Max drawdown: {correlation_matrix[0, 2]:.3f}")
 print(f"Realized volatility: {correlation_matrix[0, 3]:.3f}")
-
 ```
 
 (growth-rate-calculations)=
@@ -352,10 +356,15 @@ if 'Wealth' in key:
 print(f"{key}: {value:.2f}x")
 else:
 print(f"{key}: {value:.2%}")
-
 ```
-(the-kelly-criterion)= ## The Kelly Criterion
-![Kelly Criterion](figures/kelly_criterion.png) *Figure 2: Kelly criterion visualization showing optimal bet sizing (left) and growth rate vs fraction bet (right) for different odds and probabilities.*
+
+(the-kelly-criterion)=
+## The Kelly Criterion
+
+![Kelly Criterion](figures/kelly_criterion.png)
+
+*Figure 1: Kelly criterion visualization showing optimal bet sizing (left) and growth rate vs fraction bet (right) for different odds and probabilities.*
+
 ### Original Formulation
 
 For a binary bet with probability $p$ of winning $b$ times the wager:
@@ -478,7 +487,7 @@ print(f"Kelly-optimal retention: ${optimal_retention:,.0f}")
 
 ![Volatility Drag](figures/volatility_drag.png)
 
-*Figure 3: The impact of volatility on growth rates, showing how geometric mean decreases with volatility even when arithmetic mean is constant.*
+*Figure 2: The impact of volatility on growth rates, showing how geometric mean decreases with volatility even when arithmetic mean is constant.*
 
 ### Mathematical Definition
 
@@ -560,6 +569,7 @@ A widget manufacturer faces:
 - Catastrophic risk: 5% chance of \$5M loss annually
 
 Without insurance:
+
 ```python
 def simulate_manufacturer(years=10, with_insurance=False):
     """Simulate manufacturer wealth evolution."""
@@ -624,6 +634,7 @@ print(f"  Growth rate: {np.mean(np.log(np.array(final_without)[np.array(final_wi
 ![Office Building](../../../assets/photos/office_building_1_small.jpg)
 
 Portfolio with tail risk:
+
 ```python
 def portfolio_with_tail_risk(leverage=1.0, tail_hedge=False):
     """Simulate leveraged portfolio with tail risk."""
