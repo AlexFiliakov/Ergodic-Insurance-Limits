@@ -70,6 +70,7 @@ This means the time-average growth rate is **always less than** the growth rate 
 Consider a simple investment that with equal probability either:
 - Increases wealth by 50% (multiply by 1.5)
 - Decreases wealth by 40% (multiply by 0.6)
+
 **Ensemble average** growth factor:
 
 $$
@@ -77,6 +78,7 @@ E[R] = 0.5 \times 1.5 + 0.5 \times 0.6 = 1.05
 $$
 
 This suggests a 5% expected gain per round.
+
 **Time average** growth rate:
 
 $$
@@ -117,15 +119,17 @@ Wealth processes violate multiple conditions, particularly due to the absorbing 
 ### Wealth and Income
 
 **Wealth** accumulation is fundamentally non-ergodic:
+
 - Multiplicative growth: $W_{t+1} = W_t \cdot (1 + r_t)$
-- - Bankruptcy is absorbing: $W_t = 0 \Rightarrow W_{t+k} = 0$ for all $k > 0$
-
+- Bankruptcy is absorbing: $W_t = 0 \Rightarrow W_{t+k} = 0$ for all $k > 0$
 - Path-dependent: Current wealth depends on entire history
-**Income** processes may be closer to ergodic if:
-- Additive rather than multiplicative
 
+**Income** processes may be closer to ergodic if:
+
+- Additive rather than multiplicative
 - Mean-reverting
 - Independent of wealth level
+
 ### Growth Rates
 
 While wealth itself is non-ergodic, the **logarithmic growth rate** can be ergodic under certain conditions:
@@ -143,6 +147,7 @@ Traditional utility theory assumes ergodic averaging. In reality:
 
 - No arbitrary utility function needed
 - Optimal strategies maximize time-average growth
+
 (application-to-wealth-dynamics)=
 ## Application to Wealth Dynamics
 ### Geometric Brownian Motion
@@ -156,6 +161,7 @@ $$
 - $\mu$ = drift (expected return)
 - $\sigma$ = volatility
 - $B_t$ = Brownian motion
+
 **Ensemble average** wealth:
 
 $$
@@ -178,7 +184,9 @@ $$
 dW = W(\mu dt + \sigma dB_t) - dN_t \cdot L_t
 $$
 
-- $N_t$ = Poisson process (claim arrivals) - $L_t$ = Loss severity
+- $N_t$ = Poisson process (claim arrivals)
+- $L_t$ = Loss severity
+
 The time-average growth becomes:
 
 $$
@@ -209,20 +217,27 @@ $$
 ### Traditional View: Expected Value
 
 Classical insurance theory focuses on expected values:
-- Insurance is "unfair" if premium > expected loss
 
+- Insurance is "unfair" if premium > expected loss
 - Risk-neutral agents shouldn't buy insurance
 - Utility functions needed to explain insurance demand
+
 ### Ergodic View: Time Averages
 
 Ergodic theory reveals insurance as growth optimization:
+
 - Insurance reduces volatility drag
 - Premiums 2-5× expected losses can be optimal
 - No utility function needed, just time averaging
+
 ### The Insurance Paradox Resolution
+
 **Paradox**: Why do people pay premiums exceeding expected losses?
+
 **Traditional answer**: Risk aversion via concave utility
+
 **Ergodic answer**: Maximizing time-average growth naturally leads to insurance demand
+
 ### Mathematical Justification
 
 Without insurance, facing loss $L$ with probability $p$:
@@ -279,10 +294,7 @@ This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
 3. **Validation**: Test strategies over long horizons
 
 (visual-examples)=
-## Visual Examples
-
-![Ensemble vs Time Average](figures/ensemble_vs_time.png)
-*Figure 1: Divergence between ensemble average (blue) and typical path (red) in multiplicative processes. Individual trajectories shown in gray.*
+## Examples
 
 ### Ensemble vs Time Average Divergence
 
@@ -332,56 +344,63 @@ plt.title('Distribution of Individual Growth Rates')
 
 plt.tight_layout()
 plt.show()
-
 ```
 
+#### Sample Output
+
+![Ensemble vs Time Average](figures/ensemble_vs_time_average_wealth_trajectories.png)
 
 ### Insurance Impact on Growth
 
 ![Insurance Impact](figures/insurance_impact.png)
-*Figure 2: Comparison of wealth trajectories with and without insurance over 50 years, showing improved survival rates and growth consistency with insurance.*
+*Comparison of wealth trajectories with and without insurance over 50 years, showing improved survival rates and growth consistency with insurance.*
 
 ```python
+import numpy as np
+
+
 def simulate_with_insurance(W0, n_years, premium_rate, retention, n_sims=1000):
-"""Simulate wealth with and without insurance."""
-np.random.seed(42)
+    """Simulate wealth with and without insurance."""
+    np.random.seed(42)
 
     # Parameters
-base_growth = 0.08
-# 8% base growth
-volatility = 0.15
-# 15% volatility
-claim_freq = 3
-# 3 claims per year
-claim_severity_mean = 50000
-claim_severity_std = 100000
+    base_growth = 0.08
+    # 8% base growth
+    volatility = 0.15
+    # 15% volatility
+    claim_freq = 3
+    # 3 claims per year
+    claim_severity_mean = 50000
+    claim_severity_std = 100000
 
-wealth_with = np.zeros((n_sims, n_years + 1))
-wealth_without = np.zeros((n_sims, n_years + 1))
-wealth_with[:, 0] = W0
-wealth_without[:, 0] = W0
+    wealth_with = np.zeros((n_sims, n_years + 1))
+    wealth_without = np.zeros((n_sims, n_years + 1))
+    wealth_with[:, 0] = W0
+    wealth_without[:, 0] = W0
 
-for sim in range(n_sims):
-for year in range(n_years):
+    for sim in range(n_sims):
+        for year in range(n_years):
             # Base growth with volatility
-growth_factor = np.exp((base_growth - 0.5
-* volatility**2) + volatility * np.random.randn())
+            growth_factor = np.exp((base_growth - 0.5
+                                    * volatility**2) + volatility * np.random.randn())
 
             # Claims
-n_claims = np.random.poisson(claim_freq)
-claims = np.random.lognormal(np.log(claim_severity_mean), 1)
-* n_claims
+            n_claims = np.random.poisson(claim_freq)
+            claims = np.random.lognormal(np.log(claim_severity_mean), 1) \
+                * n_claims
 
             # Without insurance
-wealth_without[sim, year + 1] = max(0, wealth_without[sim, year] * growth_factor - claims)
+            wealth_without[sim, year +
+                           1] = max(0, wealth_without[sim, year] * growth_factor - claims)
 
             # With insurance
-premium = wealth_with[sim, year]
-* premium_rate
-covered_loss = max(0, claims - retention)
-wealth_with[sim, year + 1] = max(0, wealth_with[sim, year] * growth_factor - premium - min(claims, retention))
+            premium = wealth_with[sim, year] * premium_rate
+            covered_loss = max(0, claims - retention)
+            wealth_with[sim, year + 1] = max(0, wealth_with[sim, year]
+                                             * growth_factor - premium - min(claims, retention))
 
-return wealth_with, wealth_without
+    return wealth_with, wealth_without
+
 
 # Run simulation
 W0 = 10_000_000
@@ -396,7 +415,15 @@ print(f"Average growth WITH insurance: {np.mean(growth_with[wealth_with[:, -1] >
 print(f"Average growth WITHOUT insurance: {np.mean(growth_without[wealth_without[:, -1] > 0]):.3f}")
 print(f"Bankruptcy rate WITH insurance: {np.mean(wealth_with[:, -1] == 0):.1%}")
 print(f"Bankruptcy rate WITHOUT insurance: {np.mean(wealth_without[:, -1] == 0):.1%}")
+```
 
+#### Sample Output:
+
+```
+Average growth WITH insurance: 0.040
+Average growth WITHOUT insurance: 0.059
+Bankruptcy rate WITH insurance: 2.8%
+Bankruptcy rate WITHOUT insurance: 2.4%
 ```
 
 
