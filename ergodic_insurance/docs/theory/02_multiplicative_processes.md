@@ -164,7 +164,8 @@ plt.grid(True, alpha=0.3)
 plt.show()
 
 ```
-(path-dependence-and-history)= ## Path Dependence and History
+(path-dependence-and-history)=
+## Path Dependence and History
 ### Definition of Path Dependence
 
 A process is **path-dependent** if the outcome depends not just on the starting and ending points, but on the entire trajectory taken.
