@@ -187,7 +187,7 @@ Optimal retention: $499,470 Optimal limit:$2,001,013
 Expected growth: 16.1544
 
 ```
----
+
 ## Pareto Efficiency
 ### Definition
 
@@ -202,7 +202,8 @@ $$
 * \in \mathcal{X} : \nexists x \in \mathcal{X}, f_i(x) \geq f_i(x^*) \forall i, f_j(x) > f_j(x^*) \text{ for some } j\}
 $$
 
-### Scalarization Methods  #### Weighted Sum
+### Scalarization Methods
+#### Weighted Sum
 
 $$
 \min_{x} \sum_{i=1}^k w_i f_i(x)
@@ -425,7 +426,7 @@ pareto.plot_frontier(frontier, ['Negative Growth', 'Risk (CVaR)'])
 ```
 #### Sample Output
 ![Pareto Frontier 2D](../../../theory/figures/pareto_frontier_2d.png)
----
+
 ## Multi-Objective Optimization
 ### Problem Formulation
 
@@ -712,7 +713,7 @@ plt.show()
 ```
 #### Sample Output
 ![Pareto Frontier 3D](../../../theory/figures/pareto_frontier_3d.png)
----
+
 ## Hamilton-Jacobi-Bellman Equations
 ### Optimal Control Problem
 
@@ -939,9 +940,10 @@ print("
 
 ```
 #### Sample Output
-![HJB Solver Result](../../../theory/figures/hjb_solver_result.png)
-```
 
+![HJB Solver Result](../../../theory/figures/hjb_solver_result.png)
+
+```
 ============================================================
 HJB SOLUTION SUMMARY
 ============================================================
@@ -955,9 +957,8 @@ Optimal Coverage Statistics:
 • Mean: 53.7%
 • Max: 99.9%
 • Min: 8.2%
-• Peak at: $0.95M  Value Function Properties: • Initial value range: [97.13, 135.96] • Terminal value range: [11.51, 16.12] • Value increase: 102.97  This simplified HJB solution demonstrates: 1. Dynamic programming backward iteration  2. Wealth-dependent optimal insurance 3. Time evolution of value and policy  4. Ergodic growth considerations  ```
-
----
+• Peak at: $0.95M  Value Function Properties: • Initial value range: [97.13, 135.96] • Terminal value range: [11.51, 16.12] • Value increase: 102.97  This simplified HJB solution demonstrates: 1. Dynamic programming backward iteration  2. Wealth-dependent optimal insurance 3. Time evolution of value and policy  4. Ergodic growth considerations
+```
 
 ## Numerical Methods
 
@@ -1222,12 +1223,12 @@ for name, result in results.items():
     print(f"  Solution: {result['solution']}")
     print(f"  Final Value: {result['value']:.6f}")
     print(f"  Converged to: {insurance_objective(result['solution']):.6f}")
-
 ```
 #### Sample Output
-![Convergence Comparison](../../../assets/convergence_comparison.png)
-```
 
+![Convergence Comparison](../../../assets/convergence_comparison.png)
+
+```
 Optimization Results:
 ==================================================
 
@@ -1245,9 +1246,8 @@ Particle Swarm:
   Solution: [ 2. 10.  0.]
   Final Value: 0.650479
   Converged to: 0.650479
-
 ```
----
+
 ## Stochastic Control
 
 ### Stochastic Differential Equation
@@ -1753,9 +1753,8 @@ Number of Paths: 250
 Wealth Range: $0.5M -$20.0M
 Market Cycle Period: 2.5 years
 ============================================================
-
 ```
----
+
 ## Convergence Criteria
 ### Numerical Convergence
 1. **Gradient norm**: $\|\nabla f(x_k)\| < \epsilon$
@@ -2167,11 +2166,8 @@ Optimal Retention: $0
 Optimal Limit: $25,000,000 Annual Cost:$375,000
 Survival Rate: 100.0%
 Expected Growth: 9.2%
-
 ```
 
-
----
 
 ## Key Takeaways
 

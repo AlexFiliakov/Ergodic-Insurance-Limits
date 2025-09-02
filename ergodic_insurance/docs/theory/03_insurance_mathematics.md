@@ -501,20 +501,10 @@ class PremiumPrinciples:
 
         return results
 
-# Example with heavy-tailed distribution
-loss_dist = stats.pareto(b=2, scale=50000)
-principles = PremiumPrinciples(loss_dist)
-premiums = principles.compare_all()
-```
-
-
-return results
-
-# Example with heavy-tailed distribution
-loss_dist = stats.pareto(b=2, scale=50000)
-principles = PremiumPrinciples(loss_dist)
-premiums = principles.compare_all()
-
+    # Example with heavy-tailed distribution
+    loss_dist = stats.pareto(b=2, scale=50000)
+    principles = PremiumPrinciples(loss_dist)
+    premiums = principles.compare_all()
 ```
 (claims-development)=
 ## Claims Development
