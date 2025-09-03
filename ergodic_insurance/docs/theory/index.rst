@@ -63,10 +63,10 @@ All theoretical concepts are supported by:
 - Numerical examples with Python implementations
 - Visualizations demonstrating key insights
 - References to peer-reviewed literature
-- Validation through simulation and backtesting
+- Validation through simulation
 
 Theory Documentation
-====================
+--------------------
 .. toctree::
    :maxdepth: 2
    :caption: Theory Documentation:
