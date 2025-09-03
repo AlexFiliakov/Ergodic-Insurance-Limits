@@ -1,9 +1,21 @@
 # Multiplicative Processes in Finance and Insurance
 
+<div style="flex: 1; padding: 15px; border: 2px solid #2196F3; border-radius: 8px; background-color: #E3F2FD;">
+    <h3 style="margin-top: 0; color: #1e82d3ff !important;">🎯 Why This Matters</h3>
+    <p>Multiplicative processes reveal why volatility is costly even when expected returns are unchanged: the volatility drag effect means a 30% volatility with 10% average return underperforms a steady 10% return due to compounding asymmetry. For P&C actuaries, this framework transforms how we value insurance: beyond covering expected losses, insurance creates value by reducing volatility drag, enabling higher sustainable growth rates. The Kelly criterion provides the mathematical foundation for optimal retention decisions, showing that maximizing log-wealth growth naturally prevents ruin while optimizing long-term performance. Path dependence explains why claims history, experience rating, and capital requirements can't be reduced to simple point estimates; the entire trajectory matters. These mathematics prove that smooth, predictable cash flows are inherently more valuable than volatile ones with the same mean, justifying insurance premiums that exceed expected losses and explaining why diversification and reinsurance remain rational even when they reduce expected returns.</p>
+</div>
+
 ## Table of Contents
 1. [Introduction to Multiplicative Dynamics](#introduction-to-multiplicative-dynamics)
-2. [Key Takeaways](#key-takeaways)
-3. [Next Steps](#next-steps)
+2. [Geometric Brownian Motion](geometric-brownian-motion)
+3. [Log-Normal Distributions](#log-normal-distributions)
+4. [Path Dependence and History](path-dependence-and-history)
+5. [Growth Rate Calculations](growth-rate-calculations)
+6. [The Kelly Criterion](the-kelly-criterion)
+7. [Volatility Drag](volatility-drag)
+8. [Practical Examples](practical-examples)
+9. [Key Takeaways](#key-takeaways)
+10. [Next Steps](#next-steps)
 
 (introduction-to-multiplicative-dynamics)=
 ## Introduction to Multiplicative Dynamics
@@ -27,16 +39,22 @@ where $A_t$ is a random increment.
 ### Why Multiplicative Processes Matter
 
 Most economic quantities evolve multiplicatively:
+
 - **Wealth**: Returns compound on existing capital
 - **Populations**: Growth rates apply to current size
 - **Company revenues**: Growth percentages, not fixed amounts
 - **Insurance losses**: Often proportional to exposure
+
 ### Key Properties
+
 1. **Non-negative**: Cannot go below zero (natural boundary)
 2. **Scale-dependent**: Absolute changes depend on current level
 3. **Compound effects**: Small differences accumulate exponentially
 4. **Log-additivity**: Logarithms transform to additive process
-(geometric-brownian-motion)= ## Geometric Brownian Motion
+
+(geometric-brownian-motion)=
+## Geometric Brownian Motion
+
 ### Mathematical Definition
 
 Geometric Brownian Motion (GBM) is the continuous-time limit of multiplicative random walks:
@@ -61,40 +79,51 @@ This shows explicitly the volatility drag term $-\sigma^2/2$.
 
 ### Properties of GBM
 
-1. **Log-normality**: $\ln(S_t/S_0)$ is normally distributed 2.
-2. **Martingale property**: Under risk-neutral measure with $\mu = r$
+1. **Log-normality**: $\ln(S_t/S_0)$ is normally distributed
+2. **Martingale property**: Under risk-neutral measure with $\mu = r$ (risk-free rate)
 3. **Self-similarity**: Statistical properties scale with time
 4. **Markov property**: Future depends only on present, not past
 
 ### Simulation in Discrete Time
 
 Euler-Maruyama discretization for time step $\Delta t$:
+
 ```python
+import matplotlib.pyplot as plt
 import numpy as np
 
 def simulate_gbm(S0, mu, sigma, T, dt, n_paths=1000):
-"""Simulate Geometric Brownian Motion paths."""
-n_steps = int(T / dt)
-t = np.linspace(0, T, n_steps + 1)
+    """Simulate Geometric Brownian Motion paths."""
+    n_steps = int(T / dt)
+    t = np.linspace(0, T, n_steps + 1)
 
-    # Generate random shocks
-dW = np.random.randn(n_paths, n_steps) * np.sqrt(dt)
+        # Generate random shocks
+    dW = np.random.randn(n_paths, n_steps) * np.sqrt(dt)
 
-    # Initialize paths
+        # Initialize paths
 
-S = np.zeros((n_paths, n_steps + 1))
-S[:, 0] = S0
+    S = np.zeros((n_paths, n_steps + 1))
+    S[:, 0] = S0
 
-    # Simulate using exact solution for each step
-for i in range(n_steps):
-S[:, i + 1] = S[:, i]
-* np.exp((mu - 0.5 * sigma**2) * dt + sigma
-* dW[:, i])
+        # Simulate using exact solution for each step
+    for i in range(n_steps):
+        S[:, i + 1] = S[:, i] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * dW[:, i])
 
-return t, S
+    return t, S
 
 # Example simulation
 t, paths = simulate_gbm(S0=100, mu=0.08, sigma=0.2, T=10, dt=0.01)
+
+plt.figure(figsize=(10, 6))
+n_plot = min(10, paths.shape[0])  # plot up to 100 paths for readability
+plt.plot(t, paths[:n_plot].T, lw=0.8, alpha=0.6)
+plt.plot(t, paths.mean(axis=0), color='blue', lw=2, label='Mean path')
+plt.xlabel('Time')
+plt.ylabel('Price')
+plt.title('Simulated GBM paths')
+plt.legend()
+plt.grid(True)
+plt.show()
 
 # Calculate statistics
 final_values = paths[:, -1]
@@ -103,8 +132,19 @@ print(f"Median final value: {np.median(final_values):.2f}")
 print(f"Probability of loss: {np.mean(final_values < 100):.1%}")
 ```
 
+#### Sample Output
+
+![GBM Simulations](figures/gbm_sims.png)
+
+```
+Mean final value: 218.46
+Median final value: 178.65
+Probability of loss: 18.3%
+```
+
 (log-normal-distributions)=
 ## Log-Normal Distributions
+
 ### Definition and Properties
 
 If $X \sim \text{LogNormal}(\mu, \sigma^2)$, then $\ln(X) \sim \text{Normal}(\mu, \sigma^2)$.
@@ -122,7 +162,11 @@ For $X \sim \text{LogNormal}(\mu, \sigma^2)$:
 - **Mean**: $E[X] = e^{\mu + \sigma^2/2}$
 - **Median**: $\text{Med}[X] = e^{\mu}$
 - **Mode**: $\text{Mode}[X] = e^{\mu - \sigma^2}$
-- **Variance**: $\text{Var}[X] = e^{2\mu + \sigma^2}(e^{\sigma^2} - 1)$  Note: Mean > Median > Mode (right-skewed distribution)  ### Connection to Multiplicative Processes
+- **Variance**: $\text{Var}[X] = e^{2\mu + \sigma^2}(e^{\sigma^2} - 1)$
+
+Note: Mean > Median > Mode (right-skewed distribution)
+
+### Connection to Multiplicative Processes
 
 If returns are multiplicative with log-normal distribution:
 
@@ -151,17 +195,46 @@ Log-normal distributions are common for:
 - **Claim severities**: Natural for multiplicative effects
 - **Asset values**: Result of compound growth
 - **Time-to-event**: With log-time normally distributed
--
+
 ```python
 from scipy import stats
 import matplotlib.pyplot as plt
 
 # Parameters for claim severity
-mu_claim = 10
-# log-mean (corresponds to ~$22k median) sigma_claim = 2 # log-standard deviation  # Create distribution claim_dist = stats.lognorm(s=sigma_claim, scale=np.exp(mu_claim))  # Calculate statistics mean_claim = claim_dist.mean() median_claim = claim_dist.median() percentile_95 = claim_dist.ppf(0.95) percentile_99 = claim_dist.ppf(0.99)  print(f"Mean claim:${mean_claim:,.0f}")
-print(f"Median claim: ${median_claim:,.0f}") print(f"95th percentile:${percentile_95:,.0f}")
-print(f"99th percentile: ${percentile_99:,.0f}")  # Visualize x = np.linspace(0, percentile_99 * 1.2, 1000) pdf = claim_dist.pdf(x)  plt.figure(figsize=(10, 6)) plt.plot(x, pdf, 'b-', linewidth=2) plt.axvline(mean_claim, color='r', linestyle='--', label=f'Mean:${mean_claim:,.0f}')
-plt.axvline(median_claim, color='g', linestyle='--', label=f'Median: ${median_claim:,.0f}') plt.fill_between(x[x > percentile_95], pdf[x > percentile_95], alpha=0.3, color='red', label='Top 5% tail') plt.xlabel('Claim Size ($)')
+mu_claim = 10  # log-mean (corresponds to ~$22k median)
+sigma_claim = 2  # log-standard deviation
+
+# Create distribution
+claim_dist = stats.lognorm(s=sigma_claim, scale=np.exp(mu_claim))
+
+# Calculate statistics
+mean_claim = claim_dist.mean()
+median_claim = claim_dist.median()
+percentile_95 = claim_dist.ppf(0.95)
+percentile_99 = claim_dist.ppf(0.99)
+
+print(f"Mean claim:${mean_claim:,.0f}")
+print(f"Median claim: ${median_claim:,.0f}")
+print(f"95th percentile:${percentile_95:,.0f}")
+print(f"99th percentile: ${percentile_99:,.0f}")
+
+# Visualize
+x = np.linspace(0, percentile_99 * 1.2, 1000)
+pdf = claim_dist.pdf(x)
+
+plt.figure(figsize=(10, 6))
+plt.plot(x, pdf, 'b-', linewidth=2)
+plt.axvline(mean_claim, color='r', linestyle='--', label=f'Mean:${mean_claim:,.0f}')
+plt.axvline(median_claim,
+    color='g',
+    linestyle='--',
+    label=f'Median: ${median_claim:,.0f}')
+plt.fill_between(x[x > percentile_95],
+    pdf[x > percentile_95],
+    alpha=0.3,
+    color='red',
+    label='Top 5% tail')
+plt.xlabel('Claim Size ($)')
 plt.ylabel('Probability Density')
 plt.title('Log-Normal Claim Severity Distribution')
 plt.legend()
@@ -169,18 +242,30 @@ plt.grid(True, alpha=0.3)
 plt.show()
 ```
 
+#### Sample Output
+
+```
+Mean claim:$162,755
+Median claim: $22,026
+95th percentile:$591,080
+99th percentile: $2,309,856
+```
+
+![Log-Normal Claim Severity Distribution](figures/lognormal_severity_example.png)
+
 (path-dependence-and-history)=
 ## Path Dependence and History
+
 ### Definition of Path Dependence
 
 A process is **path-dependent** if the outcome depends not just on the starting and ending points, but on the entire trajectory taken.
 
 ### Examples in Finance
 
-1. **Barrier options**: Payoff depends on whether price crossed a threshold
-2. **Asian options**: Payoff based on average price over time
-3. **Bankruptcy**: Once wealth hits zero, it stays there
-4. **Credit ratings**: History of defaults affects future borrowing
+1. **Bankruptcy**: Once wealth hits zero, it stays there
+2. **Credit ratings**: History of defaults affects future borrowing
+3. **Barrier options**: Payoff depends on whether price crossed a threshold
+4. **Asian options**: Payoff based on average price over time
 
 ### Mathematical Formulation
 
@@ -207,43 +292,45 @@ Path dependence affects:
 
 ### Measuring Path Dependence
 ```python
+# First run the GMB example above to generate `paths`
+
 def calculate_path_metrics(paths):
-"""Calculate various path-dependent metrics."""
+    """Calculate various path-dependent metrics."""
 
-metrics = {
-'final_value': paths[:, -1],
-'maximum': np.max(paths, axis=1),
-'minimum': np.min(paths, axis=1),
-'average': np.mean(paths, axis=1),
-'max_drawdown': np.zeros(len(paths)),
-'time_underwater': np.zeros(len(paths)),
-'volatility_realized': np.zeros(len(paths))
-}
+    metrics = {
+        'final_value': paths[:, -1],
+        'maximum': np.max(paths, axis=1),
+        'minimum': np.min(paths, axis=1),
+        'average': np.mean(paths, axis=1),
+        'max_drawdown': np.zeros(len(paths)),
+        'time_underwater': np.zeros(len(paths)),
+        'volatility_realized': np.zeros(len(paths))
+    }
 
-for i, path in enumerate(paths):
+    for i, path in enumerate(paths):
         # Maximum drawdown
-cummax = np.maximum.accumulate(path)
-drawdown = (cummax - path) / cummax
-metrics['max_drawdown'][i] = np.max(drawdown)
+        cummax = np.maximum.accumulate(path)
+        drawdown = (cummax - path) / cummax
+        metrics['max_drawdown'][i] = np.max(drawdown)
 
         # Time underwater
-metrics['time_underwater'][i] = np.mean(path < path[0])
+        metrics['time_underwater'][i] = np.mean(path < path[0])
 
         # Realized volatility
-returns = np.diff(np.log(path))
-metrics['volatility_realized'][i] = np.std(returns) * np.sqrt(252)
+        returns = np.diff(np.log(path))
+        metrics['volatility_realized'][i] = np.std(returns) * np.sqrt(252)
 
-return metrics
+    return metrics
 
 # Analyze path dependence
 metrics = calculate_path_metrics(paths)
 
 # Compare final values with path metrics
 correlation_matrix = np.corrcoef([
-metrics['final_value'],
-metrics['maximum'],
-metrics['max_drawdown'],
-metrics['volatility_realized']
+    metrics['final_value'],
+    metrics['maximum'],
+    metrics['max_drawdown'],
+    metrics['volatility_realized']
 ])
 
 print("Correlation with final value:")
@@ -252,24 +339,56 @@ print(f"Max drawdown: {correlation_matrix[0, 2]:.3f}")
 print(f"Realized volatility: {correlation_matrix[0, 3]:.3f}")
 ```
 
+#### Sample Output
+
+```
+Correlation with final value:
+Maximum reached: 0.962
+Max drawdown: -0.604
+Realized volatility: -0.001
+```
+
 (growth-rate-calculations)=
 ## Growth Rate Calculations
 
-### Arithmetic vs Geometric Returns
-
-**Arithmetic mean return**:
+Suppose we have a multiplicative process:
 
 $$
-r_a = \frac{1}{T} \sum_{t=1}^T r_t
+W_t = W_{t-1} \cdot R_t
 $$
 
-**Geometric mean return**:
+Where $R_t$ is a random growth factor at each period with expectation $R$.
 
-$$
-r_g = \left(\prod_{t=1}^T (1 + r_t)\right)^{1/T} - 1
-$$
+### Two Different Questions We Can Ask:
 
-### Relationship Between Means
+#### 1. Ensemble Average (Arithmetic Mean):
+
+*"What is the expected wealth across many people/paths at time $T$?"*
+
+- Person 1: $W_T^{(1)} = W_0 \cdot R_1^{(1)} \cdot R_2^{(1)} \cdot ... \cdot R_T^{(1)}$
+- Person 2: $W_T^{(2)} = W_0 \cdot R_1^{(2)} \cdot R_2^{(2)} \cdot ... \cdot R_T^{(2)}$
+- ...
+- Person N: $W_T^{(N)} = W_0 \cdot R_1^{(N)} \cdot R_2^{(N)} \cdot ... \cdot R_T^{(N)}$
+
+The ensemble average is the expected value: $E[W_T]_\text{ensemble} = \frac{1}{N}\sum_{i=1}^N{W_T^{(i)}}$
+
+As $N \rightarrow \infin$, this converges to $E[W_T] = W_0 \cdot E[R]^T$ (for i.i.d. returns).
+
+And we have $E[R] = 1 + r_a$
+
+#### 2. Time Average (Geometric Mean):
+
+*"What growth rate does a single individual experience over time?"*
+
+For one specific path: $W_T = W_0 \cdot R_1 \cdot R_2 \cdot ... \cdot R_T$
+
+The growth rate thus experienced is: $g = (\frac{W_T}{W_0})^\frac{1}{T} - 1 = (\prod{R_t})^\frac{1}{T} - 1$
+
+As $T \rightarrow \infin$, this converges to $\langle g \rangle_\text{time} = \lim_{T \rightarrow \infin}{\frac{1}{T}\ln{\frac{W_T^{(i)}}{W_0}}} = E[\ln(R)]$
+
+And we have $W_T = W_0 \cdot (1 + r_g)^T$
+
+### Relationship Between Returns
 
 For small returns, approximately:
 
@@ -282,22 +401,6 @@ Exact relationship:
 $$
 r_g = r_a - \frac{\sigma^2}{2(1 + r_a)}
 $$
-
-### Time-Average Growth Rate
-
-For continuous compounding:
-
-$$
-g = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)
-$$
-
-This equals:
-
-$$
-g = E[\ln(1 + r)]
-$$
-
-where $r$ is the period return.
 
 ### Volatility Drag
 
@@ -313,37 +416,37 @@ This represents the cost of volatility on compound growth.
 
 ```python
 def analyze_growth_rates(returns):
-"""Compare different growth rate measures."""
+    """Compare different growth rate measures."""
 
     # Arithmetic mean
-r_arithmetic = np.mean(returns)
+    r_arithmetic = np.mean(returns)
 
     # Geometric mean
-wealth_factor = np.prod(1 + returns)
-r_geometric = wealth_factor**(1/len(returns)) - 1
+    wealth_factor = np.prod(1 + returns)
+    r_geometric = wealth_factor**(1/len(returns)) - 1
 
     # Log growth rate
-log_returns = np.log(1 + returns)
-g_log = np.mean(log_returns)
+    log_returns = np.log(1 + returns)
+    g_log = np.mean(log_returns)
 
     # Volatility
-volatility = np.std(returns)
+    volatility = np.std(returns)
 
     # Theoretical drag
-theoretical_drag = volatility**2 / 2
-actual_drag = r_arithmetic - r_geometric
+    theoretical_drag = volatility**2 / 2
+    actual_drag = r_arithmetic - r_geometric
 
-results = {
-'Arithmetic Mean': r_arithmetic,
-'Geometric Mean': r_geometric,
-'Log Growth Rate': g_log,
-'Volatility': volatility,
-'Theoretical Drag': theoretical_drag,
-'Actual Drag': actual_drag,
-'Final Wealth Multiple': wealth_factor
-}
+    results = {
+    'Arithmetic Mean': r_arithmetic,
+    'Geometric Mean': r_geometric,
+    'Log Growth Rate': g_log,
+    'Volatility': volatility,
+    'Theoretical Drag': theoretical_drag,
+    'Actual Drag': actual_drag,
+    'Final Wealth Multiple': wealth_factor
+    }
 
-return results
+    return results
 
 # Example with volatile returns
 np.random.seed(42)
@@ -352,10 +455,22 @@ returns = np.random.randn(100) * 0.3 + 0.1
 
 results = analyze_growth_rates(returns)
 for key, value in results.items():
-if 'Wealth' in key:
-print(f"{key}: {value:.2f}x")
-else:
-print(f"{key}: {value:.2%}")
+    if 'Wealth' in key:
+        print(f"{key}: {value:.2f}x")
+    else:
+        print(f"{key}: {value:.2%}")
+```
+
+#### Sample Output
+
+```
+Arithmetic Mean: 6.88%
+Geometric Mean: 2.97%
+Log Growth Rate: 2.92%
+Volatility: 27.11%
+Theoretical Drag: 3.67%
+Actual Drag: 3.92%
+Final Wealth Multiple: 18.62x
 ```
 
 (the-kelly-criterion)=
@@ -370,8 +485,7 @@ print(f"{key}: {value:.2%}")
 For a binary bet with probability $p$ of winning $b$ times the wager:
 
 $$
-f^
-* = \frac{p \cdot b - q}{b} = \frac{p \cdot b - (1-p)}{b}
+f^* = \frac{p \cdot b - q}{b} = \frac{p \cdot b - (1-p)}{b}
 $$
 
 where $f^*$ is the optimal fraction of wealth to bet.
@@ -389,8 +503,7 @@ $$
 Optimal retention level:
 
 $$
-R^
-* = \arg\max_R E[\ln(W_{\text{end}})]
+R^* = \arg\max_R E[\ln(W_{\text{end}})]
 $$
 
 
@@ -413,7 +526,7 @@ $$
 f_{\text{used}} = \alpha \cdot f^*
 $$
 
-where $\alpha \in (0, 1]$, typically $\alpha \approx 0.25$ to \$0.5$.
+where $\alpha \in (0, 1]$, typically $\alpha \approx$ 0.25 to 0.5.
 
 ### Implementation
 
@@ -503,8 +616,8 @@ $$ g = \mu - \frac{\sigma^2}{2} $$
 
 Consider two scenarios:
 
-1. Steady 10% annual return → 1.1^10 = 2.594x after 10 years
-2. Alternating +30% and -10% (average 10%) → (1.3 × 0.9)^5 = 2.373x
+1. Steady 10% annual return → $1.1^{10} = 2.594x$ after 10 years
+2. Alternating +30% and -10% (average 10%) → $(1.3 × 0.9)^5 = 2.373x$
 
 The volatile path underperforms despite same average.
 

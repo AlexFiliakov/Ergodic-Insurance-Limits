@@ -131,6 +131,9 @@ I
 **IBNR (Incurred But Not Reported)**
    Losses that have occurred but haven't yet been reported to the insurer.
 
+**I.I.D. (Independent and Identically Distributed)**
+   Assumption that random variables are independent and drawn from the same distribution.
+
 **Insurance Layer**
    A specific segment of coverage defined by its attachment point and limit.
 

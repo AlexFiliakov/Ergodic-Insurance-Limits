@@ -88,6 +88,9 @@ Mathematical Terms
 **Geometric Brownian Motion (GBM)**
    Stochastic process used to model asset prices with continuous random changes.
 
+**I.I.D. (Independent and Identically Distributed)**
+   Assumption that random variables are independent and drawn from the same distribution.
+
 **Kelly Criterion**
    Formula for optimal bet sizing that maximizes long-term growth rate.
 
