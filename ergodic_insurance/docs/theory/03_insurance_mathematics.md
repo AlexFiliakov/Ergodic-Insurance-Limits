@@ -23,7 +23,9 @@ S = \sum_{i=1}^{N} X_i
 $$
 
 - $N$ = Number of claims (random) - $X_i$ = Size of $i$-th claim (random)
+
 ### Frequency Distributions
+
 #### Poisson Distribution
 
 Most common for claim counts:
@@ -36,6 +38,7 @@ Properties:
 - Mean = Variance = $\lambda$
 
 - Memoryless inter-arrival times - Suitable for homogeneous risks
+
 #### Negative Binomial
 
 For overdispersed counts (variance > mean):
@@ -47,6 +50,7 @@ $$
 Properties:
 - Mean = $r(1-p)/p$
 - Variance = $r(1-p)/p^2$ > Mean - Captures heterogeneity via mixing
+
 #### Zero-Inflated Models
 
 When many policies have no claims:
@@ -61,6 +65,7 @@ P(N = n) = (1-\pi)P_0(N = n), \quad n \geq 1
 $$
 
 ### Severity Distributions
+
 #### Log-Normal
 
 For moderate to large claims:
@@ -70,10 +75,11 @@ f(x) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left[-\frac{(\ln x - \mu)^2}{2\sigma^2}
 $$
 
 Properties:
+
 - Right-skewed
 - Multiplicative effects
-
 - No upper bound
+
 #### Pareto
 
 For extreme losses (heavy-tailed):
@@ -83,9 +89,10 @@ f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m
 $$
 
 Properties:
-- Power-law tail - Infinite variance if $\alpha \leq 2$
 
+- Power-law tail - Infinite variance if $\alpha \leq 2$
 - Scale-invariant
+
 #### Generalized Pareto (GPD)
 
 For excess losses above threshold:
@@ -193,6 +200,7 @@ print(f"{key}: ${value:,.0f}")
 
 (compound-distributions)=
 ## Compound Distributions
+
 ### Definition
 
 The compound distribution of total losses$S = \sum_{i=1}^N X_i$has:
@@ -303,6 +311,7 @@ $$ \text{G}(r) = \frac{E[X \wedge rM]}{E[X]} $$
 where$M$is the maximum possible loss.
 
 ### Layer Pricing Implementation
+
 ```python
 class LayerPricing:
     """Price excess of loss layers."""
@@ -345,6 +354,7 @@ $$ \max_R \quad E[\ln(W - P(R) - L \wedge R)] $$
 3. **Regulatory minimum**: $R \geq R_{\text{min}}$
 
 ### Dynamic Programming Solution
+
 ```python
 def calculate_optimal_retention(wealth, loss_mean=100_000, loss_std=50_000,
                                 premium_loading=0.3, risk_aversion=2):
@@ -562,6 +572,7 @@ class PremiumPrinciples:
 
 (claims-development)=
 ## Claims Development
+
 ### Development Triangles
 
 Claims develop over time:
@@ -668,6 +679,7 @@ print(completed)
 
 (reinsurance-structures)=
 ## Reinsurance Structures
+
 ### Types of Reinsurance
 
 1. **Proportional (Pro-Rata)**
@@ -793,7 +805,7 @@ for key, value in optimal.items():
     else:
         print(f"{key}: {value:.1%}")
 ```
-```
+
 
 (practical-applications)=
 ## Practical Applications
@@ -971,9 +983,7 @@ return comparison
 # Analyze hedging strategies
 hedging_analysis = portfolio_tail_risk_hedging()
 print(hedging_analysis.to_string())
-
 ```
-
 
 ## Key Takeaways
 

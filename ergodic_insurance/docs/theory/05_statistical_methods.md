@@ -31,7 +31,9 @@ $$
 
 where $X_i$ are independent samples from the distribution of $X$.
 
-### Variance Reduction Techniques  #### Antithetic Variates
+### Variance Reduction Techniques
+
+#### Antithetic Variates
 
 Use negatively correlated pairs:
 
@@ -278,24 +280,26 @@ insurance_loss_simulator.original_pdf = lambda x: stats.lognorm.pdf(x, s=2, scal
 # Run comparison
 mc_engine = MonteCarloEngine(insurance_loss_simulator)
 comparison = mc_engine.compare_methods(n_sims=10000)
-
 ```
+
 #### Sample Output
-```
 
+```
 Basic
 Mean: 54612.877866, SE: 325.263503
 Antithetic
 Mean: 55128.179291, SE: 324.461365
 Stratified
 Mean: 55034.214910, SE: 324.692728
-
 ```
----
-(convergence-diagnostics)=
 
+(convergence-diagnostics)=
 ## Convergence Diagnostics
-![Convergence Diagnostics](figures/convergence_diagnostics.png) *Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
+
+![Convergence Diagnostics](figures/convergence_diagnostics.png)
+
+*Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
+
 ### Gelman-Rubin Statistic
 
 For multiple chains, assess convergence:
@@ -304,7 +308,9 @@ $$
 \hat{R} = \sqrt{\frac{\hat{V}}{W}}
 $$
 
-- $W$ = Within-chain variance - $\hat{V}$ = Estimated variance
+- $W$ = Within-chain variance
+- $\hat{V}$ = Estimated variance
+
 ### Effective Sample Size
 
 Account for autocorrelation:
@@ -594,12 +600,13 @@ print(f"Stationary: {hw['stationary']}, Halfwidth test: {hw['halfwidth_test_pass
 
 # Visualize
 diagnostics.plot_diagnostics()
-
 ```
+
 #### Sample Output
-![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
-```
 
+![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
+
+```
 Convergence Diagnostics:
 ----------------------------------------
 Gelman-Rubin R-hat: 1.001 (Converged: True)
@@ -608,10 +615,10 @@ Geweke z-score: -9.717 (p-value: 0.000)
 Stationary: False, Halfwidth test: False
 
 ```
----
-(confidence-intervals)=
 
+(confidence-intervals)=
 ## Confidence Intervals
+
 ### Classical Confidence Intervals
 
 For large samples, use Central Limit Theorem:
@@ -847,8 +854,8 @@ comparison = ci_analyzer.plot_intervals(confidence=0.95)
 
 print("\nConfidence Interval Comparison:")
 print(comparison.to_string())
-
 ```
+
 ### Sample Output
 
 ![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)
@@ -863,15 +870,19 @@ Confidence Interval Comparison:
 4       Bootstrap (basic)  0.344356  0.428684  0.084327
 ```
 
----
 (hypothesis-testing)=
-
 ## Hypothesis Testing
+
 ### Framework
 
 Test null hypothesis $H_0$ against alternative $H_1$:
-1. **Test statistic**: $T = T(X_1, ..., X_n)$ 2. **P-value**: $P(T \geq T_{\text{obs}} | H_0)$ 3. **Decision**: Reject $H_0$ if p-value < $\alpha$
+
+1. **Test statistic**: $T = T(X_1, ..., X_n)$
+2. **P-value**: $P(T \geq T_{\text{obs}} | H_0)$
+3. **Decision**: Reject $H_0$ if p-value < $\alpha$
+
 ### Tests for Ergodic Advantage
+
 ```python
 class HypothesisTesting:
 """Statistical tests for insurance optimization."""
@@ -1016,23 +1027,27 @@ print(f"K-S Test: p={ks['p_value']:.4f}")
 # Permutation test
 perm = tester.permutation_test()
 print(f"Permutation: p={perm['p_value']:.4f}, Observed diff={perm['observed']:.4f}")
-
 ```
+
 #### Sample Output
-```
 
+```
 Strategy Comparison Tests:
 ----------------------------------------
 Mann-Whitney: p=0.0006, Effect size=0.088
 K-S Test: p=0.0000
 Permutation: p=0.0008, Observed diff=-0.0187
-
 ```
----
+
 (bootstrap-methods)=
 ## Bootstrap Methods
-![Bootstrap Analysis](figures/bootstrap_analysis.png) *Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*
+
+![Bootstrap Analysis](figures/bootstrap_analysis.png)
+
+*Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*
+
 ### Bootstrap Algorithm
+
 1. Draw $B$ samples of size $n$ with replacement
 2. Calculate statistic $\hat{\theta}^*_b$ for each sample
 3. Use distribution of $\hat{\theta}^*$ for inference
@@ -1179,16 +1194,13 @@ print("-" * 50)
 for name, dist in methods.items():
 print(f"{name:12} Mean: {np.mean(dist):.3f}, Std: {np.std(dist):.3f}, "
 f"95% CI: [{np.percentile(dist, 2.5):.3f}, {np.percentile(dist, 97.5):.3f}]")
-
 ```
-
 
 #### Sample Output
 
 ![Comparison of Bootstrap Methods](../../../theory/figures/bootstrap_methods_comparison.png)
 
 ```
-
 Bootstrap Comparison:
 --------------------------------------------------
 Standard
@@ -1199,22 +1211,20 @@ Block
 Mean: 0.554, Std: 0.061, 95% CI: [0.437, 0.675]
 Wild
 Mean: 0.552, Std: 0.063, 95% CI: [0.432, 0.681]
-
 ```
 
 (walk-forward-validation)=
 ## Walk-Forward Validation
 
 ![Validation Methods](figures/validation_methods.png)
+
 *Figure 4: Walk-forward validation and backtesting visualization showing rolling windows, performance tracking, and model comparison for insurance pricing strategies.*
 
 ### Methodology
 
 1. Train on historical window
-
 2. Test on next period
 3. Roll window forward
-
 4. Aggregate results
 
 ### Implementation
@@ -1411,7 +1421,6 @@ print(f"{key}: {value:.4f}" if isinstance(value, float) else f"{key}: {value}")
 
 # Visualize
 validator.plot_validation(results)
-
 ```
 
 #### Sample Output
@@ -1428,7 +1437,6 @@ max_performance: 0.1136
 sharpe_ratio: 3.5398
 win_rate: 1.0000
 n_folds: 16
-
 ```
 
 (backtesting)=
@@ -1711,7 +1719,6 @@ print(f"{key}: {value}")
 
 # Visualize
 backtester.plot_backtest()
-
 ```
 
 #### Sample Output
@@ -1733,7 +1740,6 @@ total_retained: 282088.83
 loss_ratio: 0.50
 final_capital: 7520085.91
 survival: True
-
 ```
 
 (model-validation)=
@@ -1771,6 +1777,7 @@ survival: True
 - Best for data with strong autocorrelation
 
 #### Best Practices:
+
 ✓ Always respect temporal order
 ✓ Include gap/purge for autocorrelated data
 ✓ Use multiple CV strategies to validate robustness
@@ -2230,16 +2237,13 @@ print("\n" + "="*60)
 print("VISUALIZATION OF CV STRATEGIES")
 print("="*60)
 cv_demo.plot_cv_comparison()
-
 ```
-
 
 #### Sample Output
 
 ![Cross-Validation Examples](../../../theory/figures/cv_examples.png)
 
 ```
-
 Walk-Forward Validation Results:
 ----------------------------------------
 mean_performance: 0.0757
@@ -2323,7 +2327,6 @@ Fold 5: Train size: 790, Test: 800-1000, Purge: ±10, MSE: 7,457,208,690,945
 
 Average MSE: 3,598,537,032,683
 ✓ Purge window of 10 prevents temporal leakage
-
 ```
 
 ## Key Statistical Methods for Insurance Analysis:
@@ -2332,7 +2335,6 @@ Average MSE: 3,598,537,032,683
 - Basic simulation for complex systems
 - Variance reduction techniques (antithetic, control variates)
 - Importance sampling for rare events
-
 
 2. Convergence Diagnostics
 - Gelman-Rubin statistic for MCMC
@@ -2355,7 +2357,6 @@ Average MSE: 3,598,537,032,683
 - Block bootstrap for time series
 - Wild bootstrap for heteroskedasticity
 
-
 6. Walk-Forward Validation
 - Realistic out-of-sample testing
 - Parameter stability assessment
@@ -2366,7 +2367,6 @@ Average MSE: 3,598,537,032,683
 - Comprehensive risk metrics
 - Visual diagnostics
 
-
 8. Model Validation
 - Cross-validation for time series
 - Multiple scoring metrics
@@ -2375,21 +2375,15 @@ Average MSE: 3,598,537,032,683
 ## Key Takeaways
 
 1. **Monte Carlo is fundamental**: But use variance reduction for efficiency
-
 2. **Convergence must be verified**: Multiple diagnostics prevent false conclusions
 3. **Bootstrap provides flexibility**: Works for complex statistics without assumptions
-
 4. **Time series need special methods**: Block bootstrap, walk-forward validation
 5. **Backtesting reveals reality**: But beware of overfitting to historical data
-
 6. **Multiple validation approaches**: No single method captures all aspects
 7. **Statistical rigor essential**: Proper testing prevents costly mistakes
 
 ## Next Steps
 
-- [Chapter 6: References](06_references.md)
-- Academic papers and resources
-- [Chapter 4: Optimization Theory](04_optimization_theory.md)
-- Optimization methods
-- [Chapter 1: Ergodic Economics](01_ergodic_economics.md)
-- Theoretical foundation
+- [Chapter 6: References](06_references.md) - Academic papers and resources
+- [Chapter 4: Optimization Theory](04_optimization_theory.md) - Optimization methods
+- [Chapter 1: Ergodic Economics](01_ergodic_economics.md) - Theoretical foundation
