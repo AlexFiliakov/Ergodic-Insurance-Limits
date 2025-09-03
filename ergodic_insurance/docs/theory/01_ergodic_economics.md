@@ -1,16 +1,19 @@
 # Ergodic Economics and Insurance
 
-## Table of Contents
-1. [The Core Insight](#the-core-insight)
+<div style="flex: 1; padding: 15px; border: 2px solid #2196F3; border-radius: 8px; background-color: #E3F2FD;">
+    <h3 style="margin-top: 0; color: #1e82d3ff !important;">🎲 Why This Matters</h3>
+    <p>Ergodic economics reveals that most economic systems are non-ergodic: the <b>time average</b> experienced by an individual systematically differs from the <b>ensemble average (aka expected value)</b> across many individuals. Since wealth dynamics are multiplicative (losses are normally bounded at -100% while gains are unbounded, and investments compound), using expected values for individual decision-making is fundamentally flawed. This naturally explains why risk-averse behaviors like insurance and diversification are growth-optimal over time, even when they reduce expected returns. The framework shows that pooling risks, which is the foundation of insurance, creates value by converting non-ergodic individual trajectories into more ergodic collective outcomes. One key takeaway is: avoiding ruin is more important than maximizing expected value because recovery from large losses is disproportionately difficult in multiplicative systems.</p>
+</div>
 
+## Table of Contents
+
+1. [The Core Insight](#the-core-insight)
 2. [Time Averages vs Ensemble Averages](#time-averages-vs-ensemble-averages)
 3. [The Ergodicity Problem](#the-ergodicity-problem)
-
 4. [Non-Ergodic Observables](#non-ergodic-observables)
 5. [Application to Wealth Dynamics](#application-to-wealth-dynamics)
 6. [Insurance Through an Ergodic Lens](#insurance-through-an-ergodic-lens)
 7. [Practical Implications](#practical-implications)
-
 8. [Visual Examples](#visual-examples)
 
 (the-core-insight)=
@@ -38,7 +41,11 @@ where $W_i(t)$ represents the wealth of individual $i$ at time $t$.
 For a multiplicative process with growth factor $R_t$:
 
 $$
-\langle W_t \rangle = W_0 \cdot E[R]^t
+\langle W_t \rangle = W_0 \cdot E[R]^t = W_0 \cdot e^{t\ln{E[R]}}
+$$
+
+$$
+g_\text{ensemble average} = \ln{E[R]}
 $$
 
 ### Time Average
@@ -52,7 +59,7 @@ $$
 As $T \to \infty$, this converges to:
 
 $$
-g = E[\ln(R)]
+g_\text{time average} = E[\ln(R)]
 $$
 
 ### The Critical Difference
@@ -61,6 +68,10 @@ For any non-degenerate random variable $R > 0$, Jensen's inequality ensures:
 
 $$
 E[\ln(R)] < \ln(E[R])
+$$
+
+$$
+g_\text{time average} < g_\text{ensemble average}
 $$
 
 This means the time-average growth rate is **always less than** the growth rate of the ensemble average for processes with uncertainty.
@@ -82,7 +93,7 @@ This suggests a 5% expected gain per round.
 **Time average** growth rate:
 
 $$
-g = E[\ln(R)] = 0.5 \times \ln(1.5) + 0.5 \times \ln(0.6) = -0.0527
+g_\text{time average} = E[\ln(R)] = 0.5 \times \ln(1.5) + 0.5 \times \ln(0.6) = -0.0527
 $$
 
 This reveals a 5.27% **loss** per round for a typical individual trajectory!
@@ -135,10 +146,10 @@ Wealth processes violate multiple conditions, particularly due to the absorbing 
 While wealth itself is non-ergodic, the **logarithmic growth rate** can be ergodic under certain conditions:
 
 $$
-g_t = \ln(W_t/W_{t-1})
+g_\text{time average} = \ln(W_t/W_{t-1})
 $$
 
-If $g_t$ is stationary and mixing, long-term growth rates converge to a stable distribution.
+If $g_\text{time average}$ is stationary and mixing, long-term growth rates converge to a stable distribution.
 
 ### Risk Preferences
 
@@ -171,10 +182,10 @@ $$
 **Time average** growth rate:
 
 $$
-g = \mu - \frac{\sigma^2}{2}
+g_\text{time average} = \mu - \frac{\sigma^2}{2}
 $$
 
-The volatility drag $\sigma^2/2$ reduces time-average growth but not ensemble-average growth.
+The **volatility drag** $\sigma^2/2$ reduces time-average growth but not ensemble-average growth.
 
 ### With Catastrophic Losses
 
@@ -190,7 +201,7 @@ $$
 The time-average growth becomes:
 
 $$
-g = \mu - \frac{\sigma^2}{2} - \lambda \cdot E\left[\frac{L}{W}\right]
+g_\text{time average} = \mu - \frac{\sigma^2}{2} - \lambda \cdot E\left[\frac{L}{W}\right]
 $$
 
 where $\lambda$ is the claim frequency.
@@ -200,8 +211,7 @@ where $\lambda$ is the claim frequency.
 The Kelly criterion emerges naturally from maximizing time-average growth:
 
 $$
-f^
-* = \arg\max_f E[\ln(1 + f \cdot R)]
+f^* = \arg\max_f E[\ln(1 + f \cdot R)]
 $$
 
 where $f$ is the fraction of wealth invested.
@@ -243,8 +253,7 @@ Ergodic theory reveals insurance as growth optimization:
 Without insurance, facing loss $L$ with probability $p$:
 
 $$
-g_{\text{uninsured}} = (1-p) \cdot 0 + p \cdot \ln(1 - L/W) = p \cdot \ln(1
-- L/W)
+g_{\text{uninsured}} = (1-p) \cdot 0 + p \cdot \ln(1 - L/W) = p \cdot \ln(1- L/W)
 $$
 
 With insurance costing premium $P$:
@@ -255,8 +264,7 @@ $$
 
 
 $$
-\ln(1
-- P/W) > p \cdot \ln(1 - L/W)
+\ln(1- P/W) > p \cdot \ln(1 - L/W)
 $$
 
 This can hold even when $P > p \cdot L$ (premium exceeds expected loss).
@@ -426,15 +434,12 @@ Bankruptcy rate WITH insurance: 2.8%
 Bankruptcy rate WITHOUT insurance: 2.4%
 ```
 
-
 ## Key Takeaways
 
 1. **Ergodicity matters**: Time averages and ensemble averages diverge for multiplicative processes
-
 2. **Insurance is growth-enabling**: When viewed through time averages, insurance enhances long-term growth
 3. **Premiums can exceed expected losses**: Rational actors may pay 2-5× expected losses for growth optimization
 4. **No utility function needed**: Time averaging naturally produces risk-averse behavior
-
 5. **Long horizons favor insurance**: Benefits compound over time
 6. **Survival is paramount**: Avoiding ruin is more important than maximizing expected value
 
