@@ -3,17 +3,6 @@ Theoretical Foundations
 
 This section provides comprehensive documentation of the theoretical and mathematical foundations underlying the ergodic insurance optimization framework.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Theory Documentation:
-
-   01_ergodic_economics
-   02_multiplicative_processes
-   03_insurance_mathematics
-   04_optimization_theory
-   05_statistical_methods
-   06_references
-
 Overview
 --------
 
@@ -75,6 +64,17 @@ All theoretical concepts are supported by:
 - Visualizations demonstrating key insights
 - References to peer-reviewed literature
 - Validation through simulation and backtesting
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Theory Documentation:
+
+   01_ergodic_economics
+   02_multiplicative_processes
+   03_insurance_mathematics
+   04_optimization_theory
+   05_statistical_methods
+   06_references
 
 Connection to Implementation
 ----------------------------
