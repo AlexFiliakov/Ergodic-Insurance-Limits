@@ -65,6 +65,8 @@ All theoretical concepts are supported by:
 - References to peer-reviewed literature
 - Validation through simulation and backtesting
 
+Theory Documentation
+====================
 .. toctree::
    :maxdepth: 2
    :caption: Theory Documentation:
