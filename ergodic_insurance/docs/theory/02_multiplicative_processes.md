@@ -9,13 +9,12 @@
 1. [Introduction to Multiplicative Dynamics](#introduction-to-multiplicative-dynamics)
 2. [Geometric Brownian Motion](geometric-brownian-motion)
 3. [Log-Normal Distributions](#log-normal-distributions)
-4. [Path Dependence and History](path-dependence-and-history)
-5. [Growth Rate Calculations](growth-rate-calculations)
-6. [The Kelly Criterion](the-kelly-criterion)
-7. [Volatility Drag](volatility-drag)
-8. [Practical Examples](practical-examples)
+4. [Path Dependence and History](#path-dependence-and-history)
+5. [Growth Rate Calculations](#growth-rate-calculations)
+6. [The Kelly Criterion](#the-kelly-criterion)
+7. [Volatility Drag](#volatility-drag)
+8. [Practical Examples](#practical-examples)
 9. [Key Takeaways](#key-takeaways)
-10. [Next Steps](#next-steps)
 
 (introduction-to-multiplicative-dynamics)=
 ## Introduction to Multiplicative Dynamics
@@ -476,16 +475,25 @@ Final Wealth Multiple: 18.62x
 (the-kelly-criterion)=
 ## The Kelly Criterion
 
-![Kelly Criterion](figures/kelly_criterion.png)
+### What Is It?
 
-*Figure 1: Kelly criterion visualization showing optimal bet sizing (left) and growth rate vs fraction bet (right) for different odds and probabilities.*
+The Kelly Criterion is a mathematical framework that answers a critical question: **"How much risk is too much?"**
+
+Originally developed for gambling and investing, it determines the optimal size of bets (or in insurance terms, retentions) to maximize long-term growth while avoiding ruin.
+
+The formula balances two competing forces:
+
+- Too much risk retention → Higher probability of catastrophic loss
+- Too much risk transfer → Excessive premiums erode profitability
+
+Kelly identifies the sweet spot that maximizes compound growth rate over time, not just expected value in any single period. In essence, Kelly solves a specific problem in situations where Ergodicity breaks down (when time ≠ ensemble averages).
 
 ### Original Formulation
 
 For a binary bet with probability $p$ of winning $b$ times the wager:
 
 $$
-f^* = \frac{p \cdot b - q}{b} = \frac{p \cdot b - (1-p)}{b}
+f^* = \frac{p \cdot b - (1-p)}{b}
 $$
 
 where $f^*$ is the optimal fraction of wealth to bet.
@@ -497,6 +505,8 @@ For continuous returns $R$ with distribution $F$:
 $$
 f^* = \arg\max_f E[\ln(1 + f \cdot R)]
 $$
+
+Where the $\arg\max\limits_f$ function returns $f$ that maximizes the expectation.
 
 ### Insurance Application
 
@@ -520,7 +530,7 @@ $$
 
 ### Fractional Kelly
 
-Due to estimation error and preferences, often use fractional Kelly:
+Due to estimation error and preferences, practitioners often use fractional Kelly:
 
 $$
 f_{\text{used}} = \alpha \cdot f^*
@@ -531,76 +541,83 @@ where $\alpha \in (0, 1]$, typically $\alpha \approx$ 0.25 to 0.5.
 ### Implementation
 
 ```python
-def kelly_optimal_insurance(wealth, growth_rate, volatility,
-claim_frequency, claim_severity_dist,
-premium_loading=1.3):
-"""Find Kelly-optimal insurance retention."""
-
-def expected_log_wealth(retention):
-        # Annual premium
-expected_loss = claim_frequency
-* claim_severity_dist.mean()
-premium = min(expected_loss, retention) * premium_loading
-
-        # Simulate one year
-n_sims = 10000
-final_wealth = np.zeros(n_sims)
-
-for i in range(n_sims):
-            # Base growth
-w = wealth
-* np.exp(growth_rate - 0.5*volatility**2 +
-volatility*np.random.randn())
-
-            # Claims
-n_claims = np.random.poisson(claim_frequency)
-if n_claims > 0:
-claims = claim_severity_dist.rvs(n_claims)
-total_claim = np.sum(claims)
-retained_loss = min(total_claim, retention)
-else:
-retained_loss = 0
-
-            # Final wealth
-final_wealth[i] = max(0, w - premium - retained_loss)
-
-        # Expected log wealth (excluding zeros)
-positive_wealth = final_wealth[final_wealth > 0]
-if len(positive_wealth) == 0:
-return -np.inf
-
-return np.mean(np.log(positive_wealth / wealth))
-
-    # Optimize
 from scipy.optimize import minimize_scalar
 
-result = minimize_scalar(
-lambda r: -expected_log_wealth(r),
-bounds=(0, wealth * 0.5),
-method='bounded'
-)
 
-return result.x
+def kelly_optimal_insurance(wealth, growth_rate, volatility,
+    claim_frequency, claim_severity_dist,
+    premium_loading=1.3):
+    """Find Kelly-optimal insurance retention."""
+
+    def expected_log_wealth(retention):
+        # Annual premium
+        expected_loss = claim_frequency * claim_severity_dist.mean()
+        premium = min(expected_loss, retention) * premium_loading
+
+        # Simulate one year
+        n_sims = 10_000
+        final_wealth = np.zeros(n_sims)
+
+        for i in range(n_sims):
+            # Base growth
+            w = wealth * np.exp(growth_rate - 0.5*volatility**2 + volatility*np.random.randn())
+
+            # Claims
+            n_claims = np.random.poisson(claim_frequency)
+
+            if n_claims > 0:
+                claims = claim_severity_dist.rvs(n_claims)
+                total_claim = np.sum(claims)
+                retained_loss = min(total_claim, retention)
+            else:
+                retained_loss = 0
+
+            # Final wealth
+            final_wealth[i] = max(0, w - premium - retained_loss)
+
+            # Expected log wealth (excluding zeros)
+            positive_wealth = final_wealth[final_wealth > 0]
+            if len(positive_wealth) == 0:
+                return -np.inf
+
+        return np.mean(np.log(positive_wealth / wealth))
+
+    # Optimize
+    result = minimize_scalar(
+        lambda r: -expected_log_wealth(r),
+        bounds=(0, wealth * 0.5),
+        method='bounded'
+    )
+
+    return result.x
 
 # Example usage
 claim_dist = stats.lognorm(s=2, scale=50000)
 optimal_retention = kelly_optimal_insurance(
-wealth=10_000_000,
-growth_rate=0.08,
-volatility=0.15,
-claim_frequency=3,
-claim_severity_dist=claim_dist
+    wealth=10_000_000,
+    growth_rate=0.08,
+    volatility=0.15,
+    claim_frequency=3,
+    claim_severity_dist=claim_dist
 )
 
 print(f"Kelly-optimal retention: ${optimal_retention:,.0f}")
 ```
+
+#### Sample Output
+
+```
+Kelly-optimal retention: $18,155
+```
+
+![Kelly Wealth Optimization](figures/kelly_wealth.png)
 
 (volatility-drag)=
 ## Volatility Drag
 
 ![Volatility Drag](figures/volatility_drag.png)
 
-*Figure 2: The impact of volatility on growth rates, showing how geometric mean decreases with volatility even when arithmetic mean is constant.*
+*Figure: The impact of volatility on growth rates, showing how geometric mean decreases with volatility even when arithmetic mean is constant.*
 
 ### Mathematical Definition
 
@@ -619,7 +636,7 @@ Consider two scenarios:
 1. Steady 10% annual return → $1.1^{10} = 2.594x$ after 10 years
 2. Alternating +30% and -10% (average 10%) → $(1.3 × 0.9)^5 = 2.373x$
 
-The volatile path underperforms despite same average.
+The volatile path underperforms despite the same average.
 
 ### Impact on Insurance Decisions
 
@@ -653,7 +670,7 @@ def calculate_volatility_drag_benefit(base_volatility,
     benefit = (wealth_with / wealth_without - 1) * 100
 
     print(f"Base volatility: {base_volatility:.1%}")
-    print(f"With insurance: {volatility_with_insurance:.1%}")
+    print(f"Volatility with insurance: {volatility_with_insurance:.1%}")
     print(f"Growth without insurance: {g_without:.2%}")
     print(f"Growth with insurance: {g_with:.2%}")
     print(f"Wealth improvement: {benefit:.1f}%")
@@ -668,6 +685,16 @@ benefit = calculate_volatility_drag_benefit(
 )
 ```
 
+#### Sample Output
+
+```
+Base volatility: 30.0%
+Volatility with insurance: 15.0%
+Growth without insurance: 5.50%
+Growth with insurance: 8.88%
+Wealth improvement: 96.4%
+```
+
 (practical-examples)=
 ## Practical Examples
 
@@ -677,11 +704,10 @@ benefit = calculate_volatility_drag_benefit(
 
 A widget manufacturer faces:
 
+- \$10M starting capital
 - Revenue growth: 8% expected, 15% volatility
 - Operating leverage: 2x (costs are 50% fixed)
-- Catastrophic risk: 5% chance of \$5M loss annually
-
-Without insurance:
+- Catastrophic risk: 5% chance to lose 50% of capital
 
 ```python
 def simulate_manufacturer(years=10, with_insurance=False):
@@ -698,14 +724,16 @@ def simulate_manufacturer(years=10, with_insurance=False):
         profit_shock = 1 + 2 * (revenue_shock - 1)
 
         # Catastrophic loss
-        if np.random.rand() < 0.05:
-            loss = 5_000_000
+        cat_loss = wealth[-1] / 2.0
+        cat_prob = 0.05
+        if np.random.rand() < cat_prob:
+            loss = cat_loss
         else:
             loss = 0
 
         if with_insurance:
-            premium = 0.02 * wealth[-1]  # 2% of assets
             retention = 500_000
+            premium = (cat_loss - retention) * cat_prob / 0.7  # 70% Loss Ratio
             covered_loss = max(0, loss - retention)
             net_loss = premium + min(loss, retention)
         else:
@@ -719,7 +747,7 @@ def simulate_manufacturer(years=10, with_insurance=False):
 
 # Run simulations
 np.random.seed(42)
-n_sims = 1000
+n_sims = 100_000
 results_with = []
 results_without = []
 
@@ -730,6 +758,20 @@ for _ in range(n_sims):
 # Analyze
 final_with = [r[-1] for r in results_with]
 final_without = [r[-1] for r in results_without]
+
+fw = np.array(final_with)
+fwo = np.array(final_without)
+
+plt.figure(figsize=(10, 6))
+plt.hist(fw, bins=100, density=True, alpha=0.5, label='With insurance')
+plt.hist(fwo, bins=100, density=True, alpha=0.5, label='Without insurance')
+plt.xscale('symlog', linthresh=1e3)  # show tails but keep visibility near zero
+plt.xlabel('Final wealth ($)')
+plt.ylabel('Density')
+plt.title('Final wealth distributions: with vs without insurance')
+plt.legend()
+plt.grid(True, which='both', alpha=0.3)
+plt.show()
 
 print("With Insurance:")
 print(f"  Median final wealth: ${np.median(final_with):,.0f}")
@@ -742,11 +784,34 @@ print(f"  Bankruptcy rate: {np.mean(np.array(final_without) == 0):.1%}")
 print(f"  Growth rate: {np.mean(np.log(np.array(final_without)[np.array(final_without) > 0] / 10_000_000) / 20):.2%}")
 ```
 
+#### Sample Output
+
+![Widget Manufacturer: With and Without Insurance](figures/widgets_with_without_insurance.png)
+
+```
+With Insurance:
+  Median final wealth: $50,420,575
+  Bankruptcy rate: 0.0%
+  Growth rate: 7.98%
+
+Without Insurance:
+  Median final wealth: $54,126,214
+  Bankruptcy rate: 0.9%
+  Growth rate: 8.09%
+```
+
 ### Example 2: Investment Portfolio
 
 ![Office Building](../../../assets/photos/office_building_1_small.jpg)
 
 Portfolio with tail risk:
+
+- Starting portfolio of $100M
+- Fixed operating costs of $500K per year
+- Base Return: 7% with 15% Volatility
+- Tail event: 2% chance of 40% loss
+- 1.5x Leverage
+- Hedge option: protects downside below 20% at a price of 1.5% of assets
 
 ```python
 def portfolio_with_tail_risk(leverage=1.0, tail_hedge=False):
@@ -759,10 +824,12 @@ def portfolio_with_tail_risk(leverage=1.0, tail_hedge=False):
     tail_prob = 0.02  # 2% annual chance
     tail_loss = 0.40  # 40% loss in tail event
 
+    fixed_costs = 500_000
+
     wealth_paths = []
 
     for _ in range(1000):
-        wealth = 100
+        wealth = 100_000_000
         for year in range(years):
             # Normal return with leverage
             normal_return = base_return * leverage
@@ -775,13 +842,14 @@ def portfolio_with_tail_risk(leverage=1.0, tail_hedge=False):
                 year_return = -tail_loss * leverage
 
             if tail_hedge:
-                # Pay 1% for tail protection
-                hedge_cost = 0.01
+                # Pay 1.5% for tail protection
+                hedge_cost = 0.015
                 if year_return < -0.20:
                     year_return = -0.20  # Cap losses at 20%
                 year_return -= hedge_cost
 
             wealth *= (1 + year_return)
+            wealth -= fixed_costs
             wealth = max(0, wealth)
 
         wealth_paths.append(wealth)
@@ -793,22 +861,29 @@ unhedged = portfolio_with_tail_risk(leverage=1.5, tail_hedge=False)
 hedged = portfolio_with_tail_risk(leverage=1.5, tail_hedge=True)
 
 print("Leveraged Portfolio (1.5x):")
-print(f"Without hedge - Median: ${np.median(unhedged):.0f}, Ruin: {np.mean(unhedged == 0):.1%}")
-print(f"With hedge - Median: ${np.median(hedged):.0f}, Ruin: {np.mean(hedged == 0):.1%}")
+print(f"Without hedge - Median: ${np.median(unhedged):,.0f}; Ruin: {np.mean(unhedged == 0):.1%}")
+print(f"   With hedge - Median: ${np.median(hedged):,.0f}; Ruin: {np.mean(hedged == 0):.1%}")
+```
+
+#### Sample Output
+
+```
+Leveraged Portfolio (1.5x):
+Without hedge - Median: $551,012,310; Ruin: 0.6%
+   With hedge - Median: $754,000,522; Ruin: 0.0%
 ```
 
 (key-takeaways)=
 ## Key Takeaways
 
-1. **Multiplicative processes dominate economics**: Most financial quantities compound
-2. **GBM captures essential features**: But real processes have jumps and fat tails
-3. **Log-normal distributions arise naturally**: From multiplicative effects
-4. **Path dependence matters**: History constrains future possibilities
-5. **Geometric mean < Arithmetic mean**: Volatility drag is real and substantial
-6. **Kelly criterion optimizes growth**: Natural framework for insurance decisions
-7. **Volatility reduction enhances growth**: Insurance benefit beyond loss coverage
+1. **Multiplicative processes dominate economics**: most financial quantities compound
+2. **GBM captures essential features**, but real processes have jumps and fat tails
+3. **Log-normal distributions arise naturally** from multiplicative effects
+4. **Path dependence matters**: history constrains future possibilities
+5. **Geometric mean < Arithmetic mean**: volatility drag is real and substantial
+6. **Volatility reduction enhances growth**: insurance benefit beyond loss coverage
+7. **Kelly criterion optimizes growth**, providing a natural framework for insurance decisions
 
-(next-steps)=
 ## Next Steps
 
 - [Chapter 1: Ergodic Economics](01_ergodic_economics.md) - Foundational concepts

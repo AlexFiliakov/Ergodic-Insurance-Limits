@@ -15,6 +15,7 @@
 6. [Insurance Through an Ergodic Lens](#insurance-through-an-ergodic-lens)
 7. [Practical Implications](#practical-implications)
 8. [Visual Examples](#visual-examples)
+9. [Key Takeaways](#key-takeaways)
 
 (the-core-insight)=
 ## The Core Insight
@@ -434,6 +435,7 @@ Bankruptcy rate WITH insurance: 2.8%
 Bankruptcy rate WITHOUT insurance: 2.4%
 ```
 
+(key-takeaways)=
 ## Key Takeaways
 
 1. **Ergodicity matters**: Time averages and ensemble averages diverge for multiplicative processes
