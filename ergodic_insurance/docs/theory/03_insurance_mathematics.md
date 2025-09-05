@@ -1041,195 +1041,39 @@ premiums = prem_principles.compare_all()
 #### Sample Output
 
 ```
-import numpy as np
-from scipy import stats
-from scipy.integrate import quad, quad_vec
-from scipy.special import ndtr
-import warnings
+Lognormal distribution
+======================================================================
+LOSS DISTRIBUTION STATISTICS
+======================================================================
+Mean Loss:              $     149,930.25
+Standard Deviation:     $     167,486.79
+Coefficient of Var:               1.117
+Skewness:                         4.745
 
-class PremiumPrinciples:
-    """
-    Compare different premium calculation methods for P&C insurance.
-    Enhanced with numerical stability and realistic loss distributions.
-    """
+Key Percentiles:
+  p50  :               $     100,000.00
+  p75  :               $     183,499.32
+  p90  :               $     316,893.77
+  p95  :               $     439,456.37
+  p99  :               $     811,499.10
+  p99.5:               $   1,015,784.56
 
-    def __init__(self, loss_dist, max_loss=None):
-        self.loss_dist = loss_dist
-        self.mean = loss_dist.mean()
-        self.std = loss_dist.std()
-        self.var = loss_dist.var()
+Integration bound:      $   2,842,061.71
 
-        # Set practical upper bound for integration (99.99th percentile or specified max)
-        self.max_loss = max_loss if max_loss else loss_dist.ppf(0.9999)
-
-        # Store some percentiles for context
-        self.percentiles = {
-            'p50': loss_dist.ppf(0.50),
-            'p75': loss_dist.ppf(0.75),
-            'p90': loss_dist.ppf(0.90),
-            'p95': loss_dist.ppf(0.95),
-            'p99': loss_dist.ppf(0.99),
-            'p99.5': loss_dist.ppf(0.995),
-        }
-
-    def pure_premium(self):
-        """Net premium with no loading."""
-        return self.mean
-
-    def expected_value(self, loading=0.3):
-        """Expected value principle with proportional loading."""
-        return self.mean * (1 + loading)
-
-    def variance_principle(self, alpha=0.00001):
-        """Variance principle: μ + α·σ²
-        Alpha typically small for P&C (e.g., 0.00001 to 0.0001)"""
-        return self.mean + alpha * self.var
-
-    def standard_deviation(self, beta=0.5):
-        """Standard deviation principle: μ + β·σ
-        Beta typically 0.3 to 0.7 for P&C"""
-        return self.mean + beta * self.std
-
-    def exponential_principle(self, alpha=None):
-        """
-        Exponential/Esscher principle using limited integration range.
-        For heavy-tailed distributions, we use a small alpha and bounded integration.
-        """
-        # Auto-select alpha if not provided (smaller for higher variance)
-        if alpha is None:
-            cv = self.std / self.mean  # Coefficient of variation
-            alpha = min(0.5 / self.std, 0.001)  # Adaptive alpha based on volatility
-
-        try:
-            # Use bounded integration to avoid numerical issues
-            def integrand(x):
-                return np.exp(alpha * x) * self.loss_dist.pdf(x)
-
-            # Integrate over practical range
-            mgf, error = quad(integrand, 0, self.max_loss, limit=100)
-
-            if mgf <= 0 or np.isnan(mgf) or np.isinf(mgf):
-                # Fallback to approximation using cumulants
-                return self.mean + alpha * self.var / 2  # Second-order approximation
-
-            return np.log(mgf) / alpha
-
-        except Exception as e:
-            # Fallback to Taylor approximation
-            return self.mean + alpha * self.var / 2
-
-    def wang_transform(self, lambda_param=0.25):
-        """
-        Wang transform with power distortion function.
-        g(S(x)) = S(x)^(1/(1+λ)) where S(x) is survival function
-        Lambda typically 0.1 to 0.5 for P&C
-        """
-        try:
-            def distorted_survival_density(x):
-                # Survival function
-                S_x = 1 - self.loss_dist.cdf(x)
-
-                # Avoid numerical issues near boundaries
-                if S_x <= 1e-10:
-                    return 0
-
-                # Power distortion: g(u) = u^(1/(1+λ))
-                exponent = 1 / (1 + lambda_param)
-                return S_x ** exponent
-
-            # Integrate the distorted survival function
-            premium, error = quad(distorted_survival_density, 0, self.max_loss,
-                                 limit=100, epsabs=1e-8)
-
-            return premium
-
-        except Exception as e:
-            print(f"Wang Transform calculation error: {e}")
-            return np.nan
-
-    def swiss_solvency(self, confidence=0.99):
-        """
-        Swiss Solvency Test principle (simplified).
-        Premium = Mean + Loading based on tail risk
-        """
-        tvar = self.tail_value_at_risk(confidence)
-        loading_factor = 0.06  # Typical SST cost of capital rate
-        return self.mean + loading_factor * (tvar - self.mean)
-
-    def tail_value_at_risk(self, confidence=0.99):
-        """Calculate TVaR (Conditional Tail Expectation)."""
-        var = self.loss_dist.ppf(confidence)
-
-        def tail_expectation(x):
-            return x * self.loss_dist.pdf(x)
-
-        tail_integral, _ = quad(tail_expectation, var, self.max_loss, limit=100)
-        tail_prob = 1 - confidence
-
-        if tail_prob > 0:
-            return tail_integral / tail_prob
-        else:
-            return var
-
-    def distortion_principle_general(self, distortion_func):
-        """
-        General distortion principle for any distortion function.
-        Premium = ∫[0,∞] g(S(x)) dx where g is the distortion function
-        """
-        def integrand(x):
-            survival = 1 - self.loss_dist.cdf(x)
-            return distortion_func(survival)
-
-        premium, _ = quad(integrand, 0, self.max_loss, limit=100)
-        return premium
-
-    def compare_all(self, show_stats=True):
-        """Compare all premium principles with enhanced output."""
-
-        if show_stats:
-            print("=" * 70)
-            print("LOSS DISTRIBUTION STATISTICS")
-            print("=" * 70)
-            print(f"Mean Loss:              ${self.mean:15,.2f}")
-            print(f"Standard Deviation:     ${self.std:15,.2f}")
-            print(f"Coefficient of Var:     {self.std/self.mean:15.3f}")
-            print(f"Skewness:               {self.loss_dist.stats(moments='s'):15.3f}")
-            print("\nKey Percentiles:")
-            for p_name, p_val in self.percentiles.items():
-                print(f"  {p_name:5}:               ${p_val:15,.2f}")
-            print(f"\nIntegration bound:      ${self.max_loss:15,.2f}")
-            print("\n" + "=" * 70)
-            print("PREMIUM CALCULATIONS")
-            print("=" * 70)
-
-        results = {
-            'Pure Premium': self.pure_premium(),
-            'Expected Value (30%)': self.expected_value(0.3),
-            'Expected Value (40%)': self.expected_value(0.4),
-            'Variance (α=0.00001)': self.variance_principle(0.00001),
-            'Std Dev (β=0.5)': self.standard_deviation(0.5),
-            'Std Dev (β=0.7)': self.standard_deviation(0.7),
-            'Exponential': self.exponential_principle(),
-            'Wang Transform (λ=0.25)': self.wang_transform(0.25),
-            'Wang Transform (λ=0.50)': self.wang_transform(0.50),
-            'Swiss Solvency (99%)': self.swiss_solvency(0.99),
-            'TVaR (99%)': self.tail_value_at_risk(0.99),
-        }
-
-        # Calculate loadings and display
-        for name, premium in results.items():
-            if np.isnan(premium) or np.isinf(premium):
-                print(f"{name:28} ${'N/A':>15} (Loading:     N/A)")
-            else:
-                loading = (premium / self.mean - 1) * 100
-                print(f"{name:28} ${premium:15,.2f} (Loading: {loading:7.2f}%)")
-
-        return results
-
-print("Lognormal distribution")
-loss_dist = stats.lognorm(s=0.9, scale=100_000)
-prem_principles = PremiumPrinciples(loss_dist)
-premiums = prem_principles.compare_all()
+======================================================================
+PREMIUM CALCULATIONS
+======================================================================
+Pure Premium                 $     149,930.25 (Loading:    0.00%)
+Expected Value (30%)         $     194,909.33 (Loading:   30.00%)
+Expected Value (40%)         $     209,902.35 (Loading:   40.00%)
+Variance (α=0.00001)         $     430,448.48 (Loading:  187.10%)
+Std Dev (β=0.5)              $     233,673.64 (Loading:   55.85%)
+Std Dev (β=0.7)              $     267,171.00 (Loading:   78.20%)
+Exponential                  $     299,105.36 (Loading:   99.50%)
+Wang Transform (λ=0.25)      $     192,521.83 (Loading:   28.41%)
+Wang Transform (λ=0.50)      $     240,034.37 (Loading:   60.10%)
+Swiss Solvency (99%)         $     207,931.15 (Loading:   38.69%)
+TVaR (99%)                   $   1,116,611.89 (Loading:  644.75%)
 ```
 
 (claims-development)=
@@ -1237,107 +1081,191 @@ premiums = prem_principles.compare_all()
 
 ### Development Triangles
 
-Claims develop over time:
-| Year | Dev 0 | Dev 1 | Dev 2 | Dev 3 | Ultimate |
-|------|-------|-------|-------|-------|----------|
-| 2020 | 100   | 150   | 170   | 175   | 175      |
+Claims develop over time as they get reported and processed.
+
+Here is an example of how actuaries organize development:
+
+| Poliy<br />Year | 12 Months | 24 Months| 36 Months | 48 Months | Ultimate |
+|:---------------:|:------:|:---------:|:--------:|:---------:|:---------:|
+| 2020 | 100   | 150   | 170   | 175   | 176      |
 | 2021 | 110   | 165   | 187   | ?     | ?        |
 | 2022 | 120   | 180   | ?     | ?     | ?        |
 | 2023 | 130   | ?     | ?     | ?     | ?        |
+
+- Vertically are batches of claims, usually by Policy Year, Accident Year, Report Year, or Calendar Year.
+- Going across are the same batches as they age over valuation dates.
 
 ### Chain Ladder Method
 
 Development factors:
 
 $$
-f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}}
+f_j = \frac{\sum_{i} C_{i,j+1}}{\sum_{i} C_{i,j}} \quad \text{, often indexed as} f_{j: (j+1)}
 $$
+
+The development factors are then judgmentally adjusted for reasonability and consistency with industry to arrive at $f_j^*$
 
 Ultimate loss:
 
 $$
-\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j
+\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\infty} f_j^*
 $$
+
+In practice, the triangles are finite, so typically there is a cutoff for available data, and a tail factor is applied judgmentally based on a separate study:
+
+$$
+f_\text{tail}^* = \prod_{j>\text{cutoff}}^{\infty} f_j^*
+$$
+
+$$
+\hat{C}_{i,\infty} = C_{i,k} \prod_{j=k}^{\text{cutoff}} (f_j^*) \cdot f_\text{tail}^*
+$$
+
+#### Chain Ladder Example
+
+Continuing with the prior example, we compute the development factors:
+
+| Poliy<br />Year | 12:24 | 24:36| 36:48 | 48:Ultimate |
+|:---------------:|:-----:|:----:|:-----:|:-----------:|
+| 2020     | 1.5   | 1.13   | 1.03  | 1.01  |
+| 2021     | 1.5   | 1.13   | ?     | ?     |
+| 2022     | 1.5   | ?      | ?     | ?     |
+
+Since all the factors happen to agree for each age, we'll select the factors without any adjustment, rounded as shown.
+
+| Age-to-Age Factors | 12:24 | 24:36| 36:48 | 48:Ultimate |
+|:------------------:|:-----:|:----:|:-----:|:-----------:|
+| Selected     | 1.5   | 1.13   | 1.03  | 1.01  |
+
+| Age-to-Ultimate Factors | 12:Ult | 24:Ult| 36:Ult | 48:Ult |
+|:-----------------------:|:-----:|:----:|:-----:|:-----------:|
+| Selected     | 1.76   | 1.18   | 1.04  | 1.01  |
+
+We can now fill the rightmost column of the triangle:
+
+| Poliy<br />Year | 12 Months | 24 Months| 36 Months | 48 Months | Ultimate |
+|:---------------:|:------:|:---------:|:--------:|:---------:|:---------:|
+| 2020 | 100   | 150   | 170   | 175   | 176      |
+| 2021 | 110   | 165   | 187   | ?     | **194**      |
+| 2022 | 120   | 180   | ?     | ?     | **212**      |
+| 2023 | 130   | ?     | ?     | ?     | **229**      |
+
+These are **ultimate claim estimates** for each Policy Year, reliable under the following conditions:
+
+- Historical patterns of loss development are stable and consistent.
+- These historical patterns can be reliably projected into the future.
+- The book of business is neither growing nor shrinking rapidly.
 
 ### Bornhuetter-Ferguson Method
 
-Combines prior estimate with actual:
+Combines a prior estimate (typically Expected Claims Method) with actual incurred:
 
 $$
-\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - \text{DevPattern}_k)
+\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (\text{\% Undeveloped})_k
 $$
+
+This assumes claims incurred to date for the period bear no predictability of future development.
+
+Oftentimes, $(\text{\% Undeveloped})_k$ is estimated using Chain Ladder:
+
+$$
+\hat{C}_{i,\infty} = C_{i,k} + \text{Prior}_i \cdot (1 - (1/f_k^*))
+$$
+
+This holds since $f_k^* = (\text{Proportional Future Ultimate}) = 1 + (\text{Proportional Future Development})$, so we have:
+
+$$
+\frac{1}{f_k^*} = \frac{\text{Proportion Reported to Date (=1)}}{\text{Proportional Future Ultimate}}
+$$
+
+Either method can be performed on Incurred amounts or Paid amounts, with Paid typically giving more volatile estimates.
 
 ### Implementation
 
 ```python
 class ClaimsDevelopment:
-"""Model claims development patterns."""
+    """Model claims development patterns."""
 
-def __init__(self, triangle):
-self.triangle = np.array(triangle)
-self.n_years, self.n_dev = triangle.shape
+    def __init__(self, triangle):
+        self.triangle = np.array(triangle)
+        self.n_years, self.n_dev = self.triangle.shape
 
-def chain_ladder(self):
-"""Apply chain ladder method."""
+    def chain_ladder(self):
+        """Apply chain ladder method."""
 
         # Calculate development factors
-factors = []
-for j in range(self.n_dev - 1):
-numerator = np.nansum(self.triangle[:, j + 1])
-denominator = np.nansum(self.triangle[:self.n_years - j - 1, j])
-factors.append(numerator / denominator)
+        factors = []
+        for j in range(self.n_dev - 1):
+            numerator = np.nansum(self.triangle[:, j + 1])
+            denominator = np.nansum(self.triangle[:self.n_years - j - 1, j])
+            factors.append(numerator / denominator)
 
         # Apply factors to complete triangle
-completed = self.triangle.copy()
+        completed = self.triangle.copy()
 
-for i in range(self.n_years):
-for j in range(self.n_years - i, self.n_dev):
-if np.isnan(completed[i, j]):
-completed[i, j] = completed[i, j - 1] * factors[j - 1]
+        for i in range(self.n_years):
+            for j in range(self.n_years - i, self.n_dev):
+                if np.isnan(completed[i, j]):
+                    completed[i, j] = completed[i, j - 1] * factors[j - 1]
 
-return completed, factors
+        return completed, factors
 
-def plot_development(self, completed):
-"""Visualize development patterns."""
+    def plot_development(self, completed):
+        """Visualize development patterns."""
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        # Use explicit figure and axis so we can return the local figure
+        fig, ax = plt.subplots(figsize=(10, 6))
 
-        # Development by year
-for i in range(self.n_years):
-dev_pattern = completed[i, :] / completed[i, -1]
-axes[0].plot(dev_pattern, marker='o', label=f'Year {i}')
+        # x coordinates for development periods
+        x = np.arange(self.n_dev)
 
-axes[0].set_xlabel('Development Period')
-axes[0].set_ylabel('Proportion of Ultimate')
-axes[0].set_title('Development Patterns')
-axes[0].legend()
-axes[0].grid(True, alpha=0.3)
+        # Color map for accident years (older darker, younger lighter)
+        cmap = plt.cm.Blues
+        colors = [cmap(0.9 - 0.6 * (i / max(1, self.n_years - 1))) for i in range(self.n_years)]
 
-        # Ultimate losses
-ultimate = completed[:, -1]
-axes[1].bar(range(self.n_years), ultimate)
-axes[1].set_xlabel('Accident Year')
-axes[1].set_ylabel('Ultimate Loss')
-axes[1].set_title('Ultimate Loss Estimates')
+        # Plot development curve for each accident year and annotate
+        for i in range(self.n_years):
+            y = completed[i, :]
+            ax.plot(x, y, color=colors[i], linewidth=3, marker='o', markersize=6,
+                    zorder=3, alpha=0.9)
+            for k, val in enumerate(y):
+                if not np.isnan(val):
+                    ax.text(k, val, f'{val:.0f}', fontsize=8, va='bottom', ha='center',
+                            color=colors[i], alpha=0.8)
 
-plt.tight_layout()
-return fig
+        # Set axes to development-period (x) vs incurred loss (y)
+        ax.set_xlabel('Development Period')
+        ax.set_ylabel('Incurred Loss')
+        ax.set_xticks(x)
+        ax.set_xticklabels([f'D{d}' for d in x])
+        ax.set_ylim(0, np.nanmax(completed) * 1.05)
+        ax.set_title('Claims Development Patterns\n(Chain Ladder Method)', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        return fig
 
 # Example triangle (with NaN for future)
 triangle = [
-[1000, 1500, 1700, 1750],
-[1100, 1650, 1870, np.nan],
-[1200, 1800, np.nan, np.nan],
-[1300, np.nan, np.nan, np.nan]
+    [1000, 1500, 1700, 1750],
+    [1100, 1650, 1870, np.nan],
+    [1200, 1800, np.nan, np.nan],
+    [1300, np.nan, np.nan, np.nan]
 ]
 
 dev_model = ClaimsDevelopment(triangle)
 completed, factors = dev_model.chain_ladder()
 
+dev_model.plot_development(completed)
+
 print("Development Factors:", factors)
-print("\nCompleted Triangle:")
+print("Completed Triangle:")
 print(completed)
 ```
+
+#### Sample Output
+
+![Claims Development Patterns (Chain Ladder Method)](figures/chain_ladder_development.png)
 
 (reinsurance-structures)=
 ## Reinsurance Structures
@@ -1376,98 +1304,470 @@ where $S$ is sum insured.
 Annual aggregate deductible $D$ and limit $L$:
 
 $$
-\text{Recovery} = \min(L, \max(0, S_{\text{annual}}
-- D))
+\text{Recovery} = \min(L, \max(0, S_{\text{annual}} - D))
 $$
 
 ### Optimization Example
 
 ```python
-def optimize_reinsurance_program(base_losses, budget, risk_tolerance):
-    """Optimize multi-layer reinsurance program."""
+"""
+Reinsurance Program Optimizer for Property & Casualty Insurance
+"""
 
-    from scipy.optimize import differential_evolution
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+from scipy import stats
+from scipy.optimize import differential_evolution
+from dataclasses import dataclass
+from typing import Dict, Tuple, List, Optional
+import warnings
+warnings.filterwarnings('ignore')
 
-    def objective(params):
-        # Unpack parameters
-        xs_retention = params[0]
-        xs_limit = params[1]
-        agg_deductible = params[2]
-        agg_limit = params[3]
-        quota_share = params[4]
+# Set style for professional visualizations
+plt.style.use('seaborn-v0_8-darkgrid')
 
-        # Simulate net losses
-        net_losses = []
-        total_premium = 0
+@dataclass
+class ReinsuranceStructure:
+    """Reinsurance program structure parameters"""
+    quota_share: float  # Percentage ceded (0-1)
+    xs_retention: float  # Per-occurrence excess attachment
+    xs_limit: float  # Per-occurrence excess limit
+    agg_retention: float  # Aggregate excess attachment
+    agg_limit: float  # Aggregate excess limit
+    stop_loss_retention: float  # Stop loss attachment
+    stop_loss_limit: float  # Stop loss limit
 
-        for gross_loss in base_losses:
-            # Apply quota share first
-            after_qs = gross_loss * (1 - quota_share)
+@dataclass
+class RiskMetrics:
+    """Risk and performance metrics"""
+    expected_loss_gross: float
+    expected_loss_net: float
+    var_95_gross: float
+    var_95_net: float
+    var_99_gross: float
+    var_99_net: float
+    tvar_95_gross: float
+    tvar_95_net: float
+    tvar_99_gross: float
+    tvar_99_net: float
+    max_loss_gross: float
+    max_loss_net: float
+    premium_total: float
+    premium_breakdown: Dict[str, float]
+    loss_ratio: float
+    recovery_rate: float
+    retention_rate: float
+    risk_reduction_var99: float
 
-            # Apply per-occurrence excess
-            if after_qs > xs_retention:
-                xs_recovery = min(xs_limit, after_qs - xs_retention)
-                after_xs = after_qs - xs_recovery
-            else:
-                after_xs = after_qs
+class LossGenerator:
+    """Generate losses from various distributions"""
 
-            net_losses.append(after_xs)
+    @staticmethod
+    def generate(n: int, dist_type: str, mean_loss: float, cv: float,
+                 seed: Optional[int] = None) -> np.ndarray:
+        """
+        Generate loss samples from specified distribution
+        """
+        if seed is not None:
+            np.random.seed(seed)
 
-        # Apply aggregate excess
-        annual_total = sum(net_losses)
-        if annual_total > agg_deductible:
-            agg_recovery = min(agg_limit, annual_total - agg_deductible)
-            final_net = annual_total - agg_recovery
+        if dist_type == 'lognormal':
+            sigma = np.sqrt(np.log(1 + cv**2))
+            mu = np.log(mean_loss) - sigma**2 / 2
+            return np.random.lognormal(mu, sigma, n)
+
+        elif dist_type == 'pareto':
+            alpha = 1 + 1/cv if cv > 0 else 2
+            scale = mean_loss * (alpha - 1) / alpha if alpha > 1 else mean_loss
+            return (np.random.pareto(alpha, n) + 1) * scale
+
+        elif dist_type == 'weibull':
+            from scipy.special import gamma as gamma_fn
+            k = 1 / cv if cv > 0 else 1
+            scale = mean_loss / gamma_fn(1 + 1/k)
+            return np.random.weibull(k, n) * scale
+
         else:
-            final_net = annual_total
+            raise ValueError(f"Unknown distribution type: {dist_type}")
 
-        # Calculate premiums (simplified)
-        xs_premium = xs_limit * 0.05 * (1 - xs_retention / 1e6)
-        agg_premium = agg_limit * 0.03
-        qs_premium = quota_share * np.mean(base_losses) * len(base_losses) * 1.2
-        total_premium = xs_premium + agg_premium + qs_premium
+class ReinsuranceCalculator:
+    """Calculate reinsurance recoveries and net losses"""
 
-        # Check constraints
-        if total_premium > budget:
-            return 1e10
+    @staticmethod
+    def apply_reinsurance(gross_losses: np.ndarray,
+                          structure: ReinsuranceStructure) -> Dict:
+        """
+        Apply reinsurance structure to gross losses
+        """
+        n_losses = len(gross_losses)
+        results = {
+            'gross_losses': gross_losses.copy(),
+            'qs_recoveries': np.zeros(n_losses),
+            'xs_recoveries': np.zeros(n_losses),
+            'net_losses_per_event': np.zeros(n_losses),
+            'agg_recovery': 0.0,
+            'stop_loss_recovery': 0.0
+        }
 
-        # Objective: minimize VaR subject to premium constraint
-        return np.percentile(net_losses, 99)
+        # 1. Apply Quota Share
+        results['qs_recoveries'] = gross_losses * structure.quota_share
+        after_qs = gross_losses * (1 - structure.quota_share)
 
-    # Optimization bounds
-    bounds = [
-        (0, 1e6),      # xs_retention
-        (0, 5e6),      # xs_limit
-        (0, 10e6),     # agg_deductible
-        (0, 20e6),     # agg_limit
-        (0, 0.5)       # quota_share
-    ]
+        # 2. Apply Per-Occurrence Excess of Loss
+        for i, loss in enumerate(after_qs):
+            if loss > structure.xs_retention:
+                results['xs_recoveries'][i] = min(
+                    structure.xs_limit,
+                    loss - structure.xs_retention
+                )
 
-    result = differential_evolution(objective, bounds, maxiter=100)
+        results['net_losses_per_event'] = after_qs - results['xs_recoveries']
 
-    optimal_params = {
-        'xs_retention': result.x[0],
-        'xs_limit': result.x[1],
-        'agg_deductible': result.x[2],
-        'agg_limit': result.x[3],
-        'quota_share': result.x[4]
-    }
+        # 3. Apply Aggregate Excess (on accumulated XS recoveries)
+        total_xs_recoveries = results['xs_recoveries'].sum()
+        if total_xs_recoveries > structure.agg_retention:
+            results['agg_recovery'] = min(
+                structure.agg_limit,
+                total_xs_recoveries - structure.agg_retention
+            )
 
-    return optimal_params
+        # 4. Apply Stop Loss (on final net retained)
+        total_net_before_sl = results['net_losses_per_event'].sum()
+        if total_net_before_sl > structure.stop_loss_retention:
+            results['stop_loss_recovery'] = min(
+                structure.stop_loss_limit,
+                total_net_before_sl - structure.stop_loss_retention
+            )
 
-# Example optimization
-np.random.seed(42)
-base_losses = stats.lognorm(s=2, scale=100_000).rvs(100)
-optimal = optimize_reinsurance_program(base_losses, budget=1e6, risk_tolerance=0.01)
+        # Calculate final positions
+        results['final_net'] = total_net_before_sl - results['stop_loss_recovery']
+        results['total_gross'] = gross_losses.sum()
+        results['total_recoveries'] = (
+            results['qs_recoveries'].sum() +
+            results['xs_recoveries'].sum() -
+            results['agg_recovery'] +
+            results['stop_loss_recovery']
+        )
 
-print("Optimal Reinsurance Program:")
-for key, value in optimal.items():
-    if 'retention' in key or 'limit' in key or 'deductible' in key:
-        print(f"{key}: ${value:,.0f}")
-    else:
-        print(f"{key}: {value:.1%}")
+        return results
+
+class PremiumCalculator:
+    """Calculate reinsurance premiums with actuarial pricing"""
+
+    @staticmethod
+    def calculate(structure: ReinsuranceStructure,
+                 loss_stats: Dict) -> Dict[str, float]:
+        """
+        Calculate premiums using actuarial pricing methods
+        """
+        premiums = {}
+
+        # Quota Share Premium (with ceding commission)
+        qs_expected_recovery = structure.quota_share * loss_stats['mean'] * loss_stats['frequency']
+        premiums['quota_share'] = qs_expected_recovery * 0.75  # 25% ceding commission
+
+        # Per-Occurrence XS Premium
+        if structure.xs_retention > 0:
+            xs_rate = 0.15 * np.exp(-structure.xs_retention / (loss_stats['mean'] * 3))
+            premiums['excess'] = structure.xs_limit * xs_rate
+        else:
+            premiums['excess'] = structure.xs_limit * 0.20
+
+        # Aggregate XS Premium
+        if structure.agg_retention > 0:
+            agg_rate = 0.10 * np.exp(-structure.agg_retention / (loss_stats['mean'] * 10))
+            premiums['aggregate'] = structure.agg_limit * agg_rate
+        else:
+            premiums['aggregate'] = structure.agg_limit * 0.15
+
+        # Stop Loss Premium
+        if structure.stop_loss_retention > 0:
+            sl_attachment_ratio = structure.stop_loss_retention / loss_stats['total_expected']
+            sl_rate = 0.25 * np.exp(-sl_attachment_ratio * 2)
+            premiums['stop_loss'] = structure.stop_loss_limit * sl_rate
+        else:
+            premiums['stop_loss'] = structure.stop_loss_limit * 0.30
+
+        premiums['total'] = sum(premiums.values())
+
+        return premiums
+
+class ReinsuranceOptimizer:
+    """Optimize reinsurance program structure"""
+
+    def __init__(self, gross_losses: np.ndarray, budget: float):
+        self.gross_losses = gross_losses
+        self.budget = budget
+        self.loss_stats = self._calculate_loss_statistics()
+
+    def _calculate_loss_statistics(self) -> Dict:
+        """Calculate loss statistics for pricing"""
+        stats = {
+            'mean': np.mean(self.gross_losses),
+            'std': np.std(self.gross_losses),
+            'cv': np.std(self.gross_losses) / np.mean(self.gross_losses),
+            'total_expected': np.sum(self.gross_losses),
+            'frequency': len(self.gross_losses),
+            'p90': np.percentile(self.gross_losses, 90),
+            'p99': np.percentile(self.gross_losses, 99)
+        }
+        return stats
+
+    def optimize(self, objective: str = 'var99') -> Tuple[ReinsuranceStructure, RiskMetrics]:
+        """
+        Optimize reinsurance structure
+        """
+
+        def objective_function(params):
+            """Objective function for optimization"""
+            structure = ReinsuranceStructure(
+                quota_share=params[0],
+                xs_retention=params[1],
+                xs_limit=params[2],
+                agg_retention=params[3],
+                agg_limit=params[4],
+                stop_loss_retention=params[5],
+                stop_loss_limit=params[6]
+            )
+
+            # Check premium constraint
+            premiums = PremiumCalculator.calculate(structure, self.loss_stats)
+            if premiums['total'] > self.budget:
+                return 1e10
+
+            # Simulate multiple years
+            n_sims = 100
+            annual_nets = []
+            for _ in range(n_sims):
+                # Sample with replacement for each simulated year
+                sim_losses = np.random.choice(self.gross_losses,
+                                            size=min(100, len(self.gross_losses)),
+                                            replace=True)
+                results = ReinsuranceCalculator.apply_reinsurance(sim_losses, structure)
+                annual_nets.append(results['final_net'])
+
+            # Return objective
+            if objective == 'var99':
+                return np.percentile(annual_nets, 99)
+            elif objective == 'tvar99':
+                var99 = np.percentile(annual_nets, 99)
+                return np.mean([x for x in annual_nets if x >= var99])
+            else:
+                return np.mean(annual_nets)
+
+        # Optimization bounds
+        bounds = [
+            (0, 0.5),  # quota_share
+            (self.loss_stats['mean'] * 0.5, self.loss_stats['p99']),  # xs_retention
+            (self.loss_stats['mean'], self.loss_stats['p99'] * 2),  # xs_limit
+            (self.loss_stats['mean'] * 5, self.loss_stats['mean'] * 50),  # agg_retention
+            (self.loss_stats['mean'] * 10, self.loss_stats['mean'] * 100),  # agg_limit
+            (self.loss_stats['mean'] * 50, self.loss_stats['mean'] * 200),  # sl_retention
+            (self.loss_stats['mean'] * 20, self.loss_stats['mean'] * 100),  # sl_limit
+        ]
+
+        # Run optimization
+        result = differential_evolution(
+            objective_function,
+            bounds,
+            maxiter=100,
+            popsize=10,
+            tol=0.01,
+            seed=42
+        )
+
+        # Create optimal structure
+        optimal_structure = ReinsuranceStructure(
+            quota_share=result.x[0],
+            xs_retention=result.x[1],
+            xs_limit=result.x[2],
+            agg_retention=result.x[3],
+            agg_limit=result.x[4],
+            stop_loss_retention=result.x[5],
+            stop_loss_limit=result.x[6]
+        )
+
+        # Calculate metrics
+        metrics = self.calculate_metrics(optimal_structure)
+
+        return optimal_structure, metrics
+
+    def calculate_metrics(self, structure: ReinsuranceStructure) -> RiskMetrics:
+        """Calculate comprehensive risk metrics"""
+        # Apply reinsurance to actual losses
+        results = ReinsuranceCalculator.apply_reinsurance(self.gross_losses, structure)
+        premiums = PremiumCalculator.calculate(structure, self.loss_stats)
+
+        # Simulate annual aggregates
+        n_sims = 1000
+        annual_gross = []
+        annual_net = []
+
+        for _ in range(n_sims):
+            # Sample annual losses
+            n_annual = min(100, len(self.gross_losses))
+            sim_losses = np.random.choice(self.gross_losses, size=n_annual, replace=True)
+            sim_result = ReinsuranceCalculator.apply_reinsurance(sim_losses, structure)
+
+            annual_gross.append(sim_losses.sum())
+            annual_net.append(sim_result['final_net'])
+
+        annual_gross = np.array(annual_gross)
+        annual_net = np.array(annual_net)
+
+        # Calculate metrics
+        var_95_gross = np.percentile(annual_gross, 95)
+        var_99_gross = np.percentile(annual_gross, 99)
+        var_95_net = np.percentile(annual_net, 95)
+        var_99_net = np.percentile(annual_net, 99)
+
+        tail_95_gross = annual_gross[annual_gross >= var_95_gross]
+        tail_99_gross = annual_gross[annual_gross >= var_99_gross]
+        tail_95_net = annual_net[annual_net >= var_95_net]
+        tail_99_net = annual_net[annual_net >= var_99_net]
+
+        metrics = RiskMetrics(
+            expected_loss_gross=np.mean(annual_gross),
+            expected_loss_net=np.mean(annual_net),
+            var_95_gross=var_95_gross,
+            var_95_net=var_95_net,
+            var_99_gross=var_99_gross,
+            var_99_net=var_99_net,
+            tvar_95_gross=np.mean(tail_95_gross),
+            tvar_95_net=np.mean(tail_95_net),
+            tvar_99_gross=np.mean(tail_99_gross),
+            tvar_99_net=np.mean(tail_99_net),
+            max_loss_gross=np.max(annual_gross),
+            max_loss_net=np.max(annual_net),
+            premium_total=premiums['total'],
+            premium_breakdown=premiums,
+            loss_ratio=np.mean(annual_net) / premiums['total'] if premiums['total'] > 0 else 0,
+            recovery_rate=results['total_recoveries'] / results['total_gross'],
+            retention_rate=results['final_net'] / results['total_gross'],
+            risk_reduction_var99=(1 - var_99_net/var_99_gross) * 100
+        )
+
+        return metrics
+
+print("=" * 80)
+print("ENHANCED REINSURANCE PROGRAM OPTIMIZER")
+print("Property & Casualty Insurance")
+print("=" * 80)
+
+# Parameters
+n_losses = 1000  # Number of individual loss events
+budget = 1_000_000  # Premium budget
+distribution = 'lognormal'
+mean_loss = 100_000  # Mean loss per event
+cv = 2.0  # Coefficient of variation
+
+print(f"\n📊 SIMULATION PARAMETERS:")
+print(f"  • Number of loss events: {n_losses:,}")
+print(f"  • Premium budget: ${budget:,.0f}")
+print(f"  • Loss distribution: {distribution.capitalize()}")
+print(f"  • Mean loss per event: ${mean_loss:,.0f}")
+print(f"  • Coefficient of variation: {cv}")
+
+# Generate losses
+print("\n🎲 Generating loss scenarios...")
+losses = LossGenerator.generate(n_losses, distribution, mean_loss, cv, seed=42)
+
+print(f"  ✓ Generated {len(losses):,} loss events")
+print(f"  ✓ Total losses: ${np.sum(losses)/1e6:.1f}M")
+print(f"  ✓ Average loss: ${np.mean(losses)/1e3:.0f}K")
+print(f"  ✓ Maximum loss: ${np.max(losses)/1e6:.2f}M")
+
+# Optimize reinsurance structure
+print("\n🔧 Optimizing reinsurance structure...")
+optimizer = ReinsuranceOptimizer(losses, budget)
+optimal_structure, metrics = optimizer.optimize(objective='var99')
+
+# Display results
+print("\n✨ OPTIMAL REINSURANCE STRUCTURE:")
+print(f"  • Quota Share: {optimal_structure.quota_share*100:.1f}%")
+print(f"  • XS: ${optimal_structure.xs_limit/1e3:.0f}K xs ${optimal_structure.xs_retention/1e3:.0f}K")
+print(f"  • Aggregate: ${optimal_structure.agg_limit/1e3:.0f}K xs ${optimal_structure.agg_retention/1e3:.0f}K")
+print(f"  • Stop Loss: ${optimal_structure.stop_loss_limit/1e3:.0f}K xs ${optimal_structure.stop_loss_retention/1e3:.0f}K")
+
+print("\n📈 RISK METRICS:")
+print(f"  • Expected Loss (Gross): ${metrics.expected_loss_gross/1e6:.2f}M")
+print(f"  • Expected Loss (Net): ${metrics.expected_loss_net/1e6:.2f}M")
+print(f"  • VaR 99% (Gross): ${metrics.var_99_gross/1e6:.2f}M")
+print(f"  • VaR 99% (Net): ${metrics.var_99_net/1e6:.2f}M")
+print(f"  • TVaR 99% (Gross): ${metrics.tvar_99_gross/1e6:.2f}M")
+print(f"  • TVaR 99% (Net): ${metrics.tvar_99_net/1e6:.2f}M")
+
+print("\n💰 PREMIUM BREAKDOWN:")
+for layer, premium in metrics.premium_breakdown.items():
+    if layer != 'total':
+        print(f"  • {layer.replace('_', ' ').title()}: ${premium/1e3:.0f}K")
+print(f"  • TOTAL PREMIUM: ${metrics.premium_total/1e3:.0f}K")
+
+print("\n🎯 PERFORMANCE INDICATORS:")
+print(f"  • Retention Rate: {metrics.retention_rate*100:.1f}%")
+print(f"  • Recovery Rate: {metrics.recovery_rate*100:.1f}%")
+print(f"  • Loss Ratio: {metrics.loss_ratio*100:.1f}%")
+print(f"  • Risk Reduction (VaR 99%): {metrics.risk_reduction_var99:.1f}%")
+
+print("\n✅ Analysis complete!")
 ```
 
+#### Sample Output
+
+![Sample Reinsurance Optimization Output](figures/reinsurance_optimization.png)
+
+```
+================================================================================
+ENHANCED REINSURANCE PROGRAM OPTIMIZER
+Property & Casualty Insurance
+================================================================================
+
+📊 SIMULATION PARAMETERS:
+  • Number of loss events: 1,000
+  • Premium budget: $1,000,000
+  • Loss distribution: Lognormal
+  • Mean loss per event: $100,000
+  • Coefficient of variation: 2.0
+
+🎲 Generating loss scenarios...
+  ✓ Generated 1,000 loss events
+  ✓ Total losses: $103.9M
+  ✓ Average loss: $104K
+  ✓ Maximum loss: $5.93M
+
+🔧 Optimizing reinsurance structure...
+
+✨ OPTIMAL REINSURANCE STRUCTURE:
+  • Quota Share: 2.2%
+  • XS: $851K xs $169K
+  • Aggregate: $2873K xs $3871K
+  • Stop Loss: $6281K xs $12766K
+
+📈 RISK METRICS:
+  • Expected Loss (Gross): $10.54M
+  • Expected Loss (Net): $7.21M
+  • VaR 99% (Gross): $19.40M
+  • VaR 99% (Net): $12.77M
+  • TVaR 99% (Gross): $21.38M
+  • TVaR 99% (Net): $12.98M
+
+💰 PREMIUM BREAKDOWN:
+  • Quota Share: $1748K
+  • Excess: $74K
+  • Aggregate: $7K
+  • Stop Loss: $1228K
+  • TOTAL PREMIUM: $3057K
+
+🎯 PERFORMANCE INDICATORS:
+  • Retention Rate: 62.9%
+  • Recovery Rate: 34.3%
+  • Loss Ratio: 235.8%
+  • Risk Reduction (VaR 99%): 34.2%
+
+✅ Analysis complete!
+```
 
 (practical-applications)=
 ## Practical Applications
@@ -1476,188 +1776,1030 @@ for key, value in optimal.items():
 
 ![Factory Floor](../../../assets/photos/factory_floor_1_small.jpg)
 
+This example takes a while to run and explores the ensemble approach to estimating required limits.
+
 ```python
-def manufacturing_insurance_analysis():
-    """Analyze insurance needs for widget manufacturer."""
+import numpy as np
+from scipy import stats
+import pandas as pd
 
-    # Company parameters
-    revenue = 50_000_000  # $50M annual revenue
-    assets = 30_000_000   # $30M total assets
-    margin = 0.08         # 8% operating margin
 
-    # Risk profile
-    risks = {
-        'property': {
-            'frequency': stats.poisson(mu=2),
-            'severity': stats.lognorm(s=1.5, scale=200_000),
-            'max_loss': assets * 0.5
-        },
-        'liability': {
-            'frequency': stats.poisson(mu=5),
-            'severity': stats.lognorm(s=2, scale=50_000),
-            'max_loss': revenue * 2
-        },
-        'business_interruption': {
-            'frequency': stats.poisson(mu=0.5),
-            'severity': stats.uniform(loc=revenue*0.1, scale=revenue*0.4),
-            'max_loss': revenue
-        }
-    }
+class ManufacturingInsuranceModel:
+    """Comprehensive insurance analysis for manufacturing company."""
 
-    # Simulate annual losses
-    n_sims = 10000
-    results = {}
+    def __init__(self, revenue=50_000_000, assets=30_000_000, margin=0.08):
+        self.revenue = revenue
+        self.assets = assets
+        self.margin = margin
+        self.operating_income = revenue * margin
 
-    for risk_type, risk_params in risks.items():
-        annual_losses = []
-
-        for _ in range(n_sims):
-            n_claims = risk_params['frequency'].rvs()
-            if n_claims > 0:
-                claims = risk_params['severity'].rvs(n_claims)
-                total = min(sum(claims), risk_params['max_loss'])
-            else:
-                total = 0
-            annual_losses.append(total)
-
-        results[risk_type] = {
-            'mean': np.mean(annual_losses),
-            'p95': np.percentile(annual_losses, 95),
-            'p99': np.percentile(annual_losses, 99),
-            'max': np.max(annual_losses)
+        # Enhanced risk profile with correlation structure
+        self.risks = {
+            'property': {
+                'frequency': stats.poisson(mu=2.0),
+                'severity': stats.lognorm(s=1.5, scale=200_000),
+                'max_loss': assets * 0.5,
+                'deductible': 25_000
+            },
+            'liability': {
+                'frequency': stats.nbinom(n=3, p=0.375),
+                'severity': stats.lognorm(s=2.0, scale=50_000),
+                'max_loss': revenue * 2,
+                'deductible': 10_000
+            },
+            'business_interruption': {
+                'frequency': stats.poisson(mu=0.5),
+                'severity': stats.lognorm(s=0.8, scale=revenue*0.2),
+                'max_loss': revenue,
+                'deductible': revenue * 0.02  # 2% of revenue deductible
+            },
+            'cyber': {  # Added cyber risk
+                'frequency': stats.poisson(mu=1.0),
+                'severity': stats.pareto(b=2.5, scale=100_000),
+                'max_loss': revenue * 0.5,
+                'deductible': 50_000
+            }
         }
 
-    # Recommend limits
-    recommendations = {}
-    for risk_type, stats in results.items():
-        # Primary layer at 95th percentile
-        primary = stats['p95']
+    def simulate_annual_losses(self, n_sims=100_000):
+        """Simulate annual aggregate losses using compound distribution approach."""
+        results = {}
 
-        # Excess layer to 99.5th percentile
-        excess = stats['p99'] - primary
+        for risk_type, risk_params in self.risks.items():
+            annual_losses = []
+            gross_losses = []
 
-        # Catastrophic layer
-        cat = stats['max'] - stats['p99']
+            for _ in range(n_sims):
+                # Frequency simulation
+                n_claims = risk_params['frequency'].rvs()
 
-        recommendations[risk_type] = {
-            'primary': primary,
-            'excess': excess,
-            'catastrophic': cat,
-            'total_limit': primary + excess + cat
+                if n_claims > 0:
+                    # Severity simulation
+                    claims = risk_params['severity'].rvs(n_claims)
+
+                    # Apply individual claim limits
+                    capped_claims = np.minimum(claims, risk_params['max_loss'])
+
+                    # Apply deductibles
+                    net_claims = np.maximum(capped_claims - risk_params['deductible'], 0)
+
+                    gross_total = np.sum(capped_claims)
+                    net_total = np.sum(net_claims)
+                else:
+                    gross_total = 0
+                    net_total = 0
+
+                gross_losses.append(gross_total)
+                annual_losses.append(net_total)
+
+            # Calculate statistics
+            results[risk_type] = {
+                'mean': np.mean(annual_losses),
+                'std': np.std(annual_losses),
+                'skewness': stats.skew(annual_losses),
+                'p90': np.percentile(annual_losses, 90),
+                'p95': np.percentile(annual_losses, 95),
+                'p99': np.percentile(annual_losses, 99),
+                'p99.5': np.percentile(annual_losses, 99.5),
+                'p99.9': np.percentile(annual_losses, 99.9),
+                'tvar_95': np.mean([l for l in annual_losses if l >= np.percentile(annual_losses, 95)]),
+                'max_sim': np.max(annual_losses),
+                'prob_zero': np.mean(np.array(annual_losses) == 0),
+                'gross_mean': np.mean(gross_losses)
+            }
+
+        return results
+
+    def calculate_layer_pricing(self, losses_dict):
+        """Calculate pricing for different insurance layers."""
+        layer_pricing = {}
+
+        for risk_type, stats in losses_dict.items():
+            # Define layers based on percentiles
+            attachment_points = {
+                'primary': 0,
+                'first_excess': stats['p90'],
+                'second_excess': stats['p95'],
+                'catastrophic': stats['p99']
+            }
+
+            limits = {
+                'primary': stats['p90'],
+                'first_excess': stats['p95'] - stats['p90'],
+                'second_excess': stats['p99'] - stats['p95'],
+                'catastrophic': stats['p99.5'] - stats['p99']
+            }
+
+            # Calculate pure premium for each layer
+            # Using simplified exposure rating
+            layer_pricing[risk_type] = {}
+
+            for layer_name, limit in limits.items():
+                if limit > 0:
+                    # Expected loss in layer
+                    if layer_name == 'primary':
+                        expected_loss = min(stats['mean'], limit)
+                    else:
+                        attach = attachment_points[layer_name]
+                        # Approximate expected loss in layer
+                        prob_exceed = 1 - (list(attachment_points.values()).index(attach) * 10 / 100)
+                        expected_loss = limit * prob_exceed * 0.3  # Simplified
+
+                    # Apply loading factors (higher for higher layers)
+                    loading = {'primary': 1.2, 'first_excess': 1.35,
+                                'second_excess': 1.5, 'catastrophic': 2.0}
+
+                    premium = expected_loss * loading.get(layer_name, 1.5)
+
+                    layer_pricing[risk_type][layer_name] = {
+                        'attachment': attachment_points[layer_name],
+                        'limit': limit,
+                        'expected_loss': expected_loss,
+                        'premium': premium,
+                        'rate_on_line': premium / limit if limit > 0 else 0
+                    }
+
+        return layer_pricing
+
+    def optimize_retention(self, losses_dict, capital_available=None):
+        """Optimize retention levels based on company financials."""
+        if capital_available is None:
+            capital_available = self.assets * 0.2  # 20% of assets as available capital
+
+        retention_analysis = {}
+
+        for risk_type, stats in losses_dict.items():
+            # Risk tolerance based on company size and profitability
+            risk_tolerance = self.operating_income * 2  # Can tolerate 2 years of operating income
+
+            # Optimal retention formula considering:
+            # 1. Capital constraints
+            # 2. Risk tolerance
+            # 3. Loss volatility
+
+            # Base retention as function of mean and volatility
+            base_retention = stats['mean'] + 1.645 * stats['std']  # 95% confidence
+
+            # Adjust for capital constraints
+            capital_factor = min(1.0, capital_available / (risk_tolerance * 2))
+
+            # Adjust for loss predictability (lower retention for higher skewness)
+            predictability_factor = 1.0 / (1.0 + abs(stats['skewness']) * 0.1)
+
+            optimal_retention = base_retention * capital_factor * predictability_factor
+
+            # Cap at reasonable levels
+            max_retention = min(
+                capital_available * 0.1,  # 10% of available capital
+                stats['p95'],  # 95th percentile loss
+                risk_tolerance * 0.5  # 50% of risk tolerance
+            )
+
+            optimal_retention = min(optimal_retention, max_retention)
+
+            retention_analysis[risk_type] = {
+                'optimal_retention': optimal_retention,
+                'retention_as_pct_of_capital': optimal_retention / capital_available * 100,
+                'expected_retained_loss': min(stats['mean'], optimal_retention),
+                'prob_exceeds_retention': np.mean([1 for i in range(100000)
+                                                    if self.risks[risk_type]['severity'].rvs() > optimal_retention])
+            }
+
+        return retention_analysis
+
+    def create_insurance_program(self, losses_dict, layer_pricing, retentions):
+        """Design complete insurance program with layers and retentions."""
+        program = {}
+        total_premium = 0
+
+        for risk_type in losses_dict.keys():
+            retention = retentions[risk_type]['optimal_retention']
+            layers = layer_pricing[risk_type]
+
+            # Structure the program
+            program_structure = []
+            current_attachment = retention
+
+            for layer_name, layer_info in layers.items():
+                if layer_info['attachment'] >= retention:
+                    structure = {
+                        'layer': layer_name,
+                        'attachment': current_attachment,
+                        'limit': layer_info['limit'],
+                        'premium': layer_info['premium'],
+                        'rate_on_line': layer_info['rate_on_line']
+                    }
+                    program_structure.append(structure)
+                    total_premium += layer_info['premium']
+                    current_attachment += layer_info['limit']
+
+            program[risk_type] = {
+                'retention': retention,
+                'layers': program_structure,
+                'total_limit': current_attachment,
+                'total_premium': sum(l['premium'] for l in program_structure)
+            }
+
+        program['summary'] = {
+            'total_premium': total_premium,
+            'premium_as_pct_revenue': total_premium / self.revenue * 100,
+            'premium_as_pct_operating_income': total_premium / self.operating_income * 100
         }
 
-    return results, recommendations
+        return program
 
-# Run analysis
-loss_stats, recommendations = manufacturing_insurance_analysis()
+    def analyze_program_effectiveness(self, program, losses_dict, n_scenarios=10000):
+        """Test insurance program effectiveness under various scenarios."""
+        scenarios = []
 
-print("Loss Statistics by Risk Type:")
-for risk_type, stats in loss_stats.items():
+        for _ in range(n_scenarios):
+            scenario_losses = {}
+            scenario_recoveries = {}
+
+            for risk_type, risk_params in self.risks.items():
+                # Simulate a loss
+                n_claims = risk_params['frequency'].rvs()
+                if n_claims > 0:
+                    claims = risk_params['severity'].rvs(n_claims)
+                    gross_loss = np.sum(np.minimum(claims, risk_params['max_loss']))
+                else:
+                    gross_loss = 0
+
+                # Apply insurance program
+                retention = program[risk_type]['retention']
+                retained_loss = min(gross_loss, retention)
+
+                # Calculate recoveries from layers
+                recovery = 0
+                remaining_loss = max(0, gross_loss - retention)
+
+                for layer in program[risk_type]['layers']:
+                    layer_recovery = min(remaining_loss, layer['limit'])
+                    recovery += layer_recovery
+                    remaining_loss -= layer_recovery
+
+                scenario_losses[risk_type] = gross_loss
+                scenario_recoveries[risk_type] = recovery
+
+            total_gross = sum(scenario_losses.values())
+            total_recovery = sum(scenario_recoveries.values())
+            total_net = total_gross - total_recovery
+
+            scenarios.append({
+                'gross_loss': total_gross,
+                'recovery': total_recovery,
+                'net_loss': total_net,
+                'recovery_ratio': total_recovery / total_gross if total_gross > 0 else 0
+            })
+
+        scenarios_df = pd.DataFrame(scenarios)
+
+        effectiveness = {
+            'mean_gross_loss': scenarios_df['gross_loss'].mean(),
+            'mean_recovery': scenarios_df['recovery'].mean(),
+            'mean_net_loss': scenarios_df['net_loss'].mean(),
+            'avg_recovery_ratio': scenarios_df[scenarios_df['gross_loss'] > 0]['recovery_ratio'].mean(),
+            'net_loss_95_var': scenarios_df['net_loss'].quantile(0.95),
+            'net_loss_99_var': scenarios_df['net_loss'].quantile(0.99),
+            'prob_net_loss_exceeds_income': (scenarios_df['net_loss'] > self.operating_income).mean(),
+            'economic_value': self.operating_income - scenarios_df['net_loss'].mean() - program['summary']['total_premium']
+        }
+
+        return effectiveness
+
+
+# Run comprehensive analysis
+print("=" * 80)
+print("MANUFACTURING COMPANY INSURANCE ANALYSIS")
+print("=" * 80)
+
+# Initialize model
+model = ManufacturingInsuranceModel(
+    revenue=50_000_000,
+    assets=30_000_000,
+    margin=0.08
+)
+
+print(f"\nCompany Profile:")
+print(f"  Revenue: ${model.revenue:,.0f}")
+print(f"  Assets: ${model.assets:,.0f}")
+print(f"  Operating Income: ${model.operating_income:,.0f}")
+
+# Simulate losses
+print("\nSimulating loss distributions...")
+losses = model.simulate_annual_losses(n_sims=100_000)
+
+print("\n" + "=" * 80)
+print("LOSS STATISTICS BY RISK TYPE")
+print("=" * 80)
+
+for risk_type, stats in losses.items():
     print(f"\n{risk_type.upper()}:")
-    for metric, value in stats.items():
-        print(f"  {metric}: ${value:,.0f}")
+    print(f"  Expected Annual Loss: ${stats['mean']:,.0f}")
+    print(f"  Standard Deviation: ${stats['std']:,.0f}")
+    print(f"  95th Percentile: ${stats['p95']:,.0f}")
+    print(f"  99th Percentile: ${stats['p99']:,.0f}")
+    print(f"  99.9th Percentile: ${stats['p99.9']:,.0f}")
+    print(f"  Tail Value at Risk (95%): ${stats['tvar_95']:,.0f}")
+    print(f"  Probability of Zero Loss: {stats['prob_zero']:.1%}")
 
-print("\n\nRecommended Insurance Structure:")
-for risk_type, limits in recommendations.items():
+# Calculate layer pricing
+layer_pricing = model.calculate_layer_pricing(losses)
+
+print("\n" + "=" * 80)
+print("LAYER PRICING ANALYSIS")
+print("=" * 80)
+
+for risk_type, layers in layer_pricing.items():
+    print(f"\n{risk_type.upper()} LAYERS:")
+    for layer_name, layer_info in layers.items():
+        print(f"  {layer_name.upper()}:")
+        print(f"    Attachment: ${layer_info['attachment']:,.0f}")
+        print(f"    Limit: ${layer_info['limit']:,.0f}")
+        print(f"    Premium: ${layer_info['premium']:,.0f}")
+        print(f"    Rate on Line: {layer_info['rate_on_line']:.1%}")
+
+# Optimize retention
+retentions = model.optimize_retention(losses)
+
+print("\n" + "=" * 80)
+print("OPTIMAL RETENTION ANALYSIS")
+print("=" * 80)
+
+for risk_type, retention_info in retentions.items():
     print(f"\n{risk_type.upper()}:")
-    print(f"  Primary (0 - ${limits['primary']:,.0f})")
-    print(f"  Excess (${limits['primary']:,.0f} - ${limits['primary'] + limits['excess']:,.0f})")
-    print(f"  Cat (${limits['primary'] + limits['excess']:,.0f} - ${limits['total_limit']:,.0f})")
+    print(f"  Optimal Retention: ${retention_info['optimal_retention']:,.0f}")
+    print(f"  As % of Available Capital: {retention_info['retention_as_pct_of_capital']:.1f}%")
+    print(f"  Expected Retained Loss: ${retention_info['expected_retained_loss']:,.0f}")
+    print(f"  Probability of Exceeding Retention: {retention_info['prob_exceeds_retention']:.1%}")
+
+# Create insurance program
+program = model.create_insurance_program(losses, layer_pricing, retentions)
+
+print("\n" + "=" * 80)
+print("RECOMMENDED INSURANCE PROGRAM")
+print("=" * 80)
+
+for risk_type, structure in program.items():
+    if risk_type != 'summary':
+        print(f"\n{risk_type.upper()}:")
+        print(f"  Retention: ${structure['retention']:,.0f}")
+        print(f"  Insurance Layers:")
+        for layer in structure['layers']:
+            print(f"    {layer['layer']}: ${layer['attachment']:,.0f} xs ${layer['limit']:,.0f}")
+            print(f"      Premium: ${layer['premium']:,.0f} (Rate: {layer['rate_on_line']:.1%})")
+        print(f"  Total Limit: ${structure['total_limit']:,.0f}")
+        print(f"  Total Premium: ${structure['total_premium']:,.0f}")
+
+print(f"\nPROGRAM SUMMARY:")
+print(f"  Total Annual Premium: ${program['summary']['total_premium']:,.0f}")
+print(f"  Premium as % of Revenue: {program['summary']['premium_as_pct_revenue']:.2f}%")
+print(f"  Premium as % of Operating Income: {program['summary']['premium_as_pct_operating_income']:.1f}%")
+
+# Test program effectiveness
+effectiveness = model.analyze_program_effectiveness(program, losses)
+
+print("\n" + "=" * 80)
+print("PROGRAM EFFECTIVENESS ANALYSIS")
+print("=" * 80)
+
+print(f"\nExpected Performance:")
+print(f"  Mean Gross Loss: ${effectiveness['mean_gross_loss']:,.0f}")
+print(f"  Mean Recovery: ${effectiveness['mean_recovery']:,.0f}")
+print(f"  Mean Net Loss: ${effectiveness['mean_net_loss']:,.0f}")
+print(f"  Average Recovery Ratio: {effectiveness['avg_recovery_ratio']:.1%}")
+
+print(f"\nRisk Metrics:")
+print(f"  Net Loss 95% VaR: ${effectiveness['net_loss_95_var']:,.0f}")
+print(f"  Net Loss 99% VaR: ${effectiveness['net_loss_99_var']:,.0f}")
+print(f"  Prob(Net Loss > Operating Income): {effectiveness['prob_net_loss_exceeds_income']:.2%}")
+
+print(f"\nEconomic Analysis:")
+print(f"  Operating Income: ${model.operating_income:,.0f}")
+print(f"  - Expected Net Loss: ${effectiveness['mean_net_loss']:,.0f}")
+print(f"  - Insurance Premium: ${program['summary']['total_premium']:,.0f}")
+print(f"  = Economic Value: ${effectiveness['economic_value']:,.0f}")
 ```
 
+#### Sample Output
+
+```
+================================================================================
+MANUFACTURING COMPANY INSURANCE ANALYSIS
+================================================================================
+
+Company Profile:
+  Revenue: $50,000,000
+  Assets: $30,000,000
+  Operating Income: $4,000,000
+
+================================================================================
+LOSS STATISTICS BY RISK TYPE
+================================================================================
+
+PROPERTY:
+  Expected Annual Loss: $1,143,295
+  Standard Deviation: $2,024,042
+  95th Percentile: $4,599,934
+  99th Percentile: $10,723,699
+  99.9th Percentile: $16,612,999
+  Tail Value at Risk (95%): $8,133,537
+  Probability of Zero Loss: 15.9%
+
+LIABILITY:
+  Expected Annual Loss: $1,772,085
+  Standard Deviation: $4,417,186
+  95th Percentile: $6,786,077
+  99th Percentile: $18,524,114
+  99.9th Percentile: $58,658,920
+  Tail Value at Risk (95%): $14,983,676
+  Probability of Zero Loss: 8.0%
+
+BUSINESS_INTERRUPTION:
+  Expected Annual Loss: $6,188,418
+  Standard Deviation: $11,603,019
+  95th Percentile: $31,312,740
+  99th Percentile: $50,623,389
+  99.9th Percentile: $78,177,437
+  Tail Value at Risk (95%): $44,910,613
+  Probability of Zero Loss: 60.7%
+
+CYBER:
+  Expected Annual Loss: $116,971
+  Standard Deviation: $179,790
+  95th Percentile: $400,562
+  99th Percentile: $741,906
+  99.9th Percentile: $1,694,560
+  Tail Value at Risk (95%): $641,953
+  Probability of Zero Loss: 36.9%
+
+================================================================================
+LAYER PRICING ANALYSIS
+================================================================================
+
+PROPERTY LAYERS:
+  PRIMARY:
+    Attachment: $0
+    Limit: $2,924,607
+    Premium: $1,371,954
+    Rate on Line: 46.9%
+  FIRST_EXCESS:
+    Attachment: $2,924,607
+    Limit: $1,675,327
+    Premium: $610,657
+    Rate on Line: 36.4%
+  SECOND_EXCESS:
+    Attachment: $4,599,934
+    Limit: $6,123,765
+    Premium: $2,204,555
+    Rate on Line: 36.0%
+  CATASTROPHIC:
+    Attachment: $10,723,699
+    Limit: $4,087,983
+    Premium: $1,716,953
+    Rate on Line: 42.0%
+
+LIABILITY LAYERS:
+  PRIMARY:
+    Attachment: $0
+    Limit: $4,101,636
+    Premium: $2,126,502
+    Rate on Line: 51.8%
+  FIRST_EXCESS:
+    Attachment: $4,101,636
+    Limit: $2,684,442
+    Premium: $978,479
+    Rate on Line: 36.5%
+  SECOND_EXCESS:
+    Attachment: $6,786,077
+    Limit: $11,738,037
+    Premium: $4,225,693
+    Rate on Line: 36.0%
+  CATASTROPHIC:
+    Attachment: $18,524,114
+    Limit: $7,341,431
+    Premium: $3,083,401
+    Rate on Line: 42.0%
+
+BUSINESS_INTERRUPTION LAYERS:
+  PRIMARY:
+    Attachment: $0
+    Limit: $20,784,325
+    Premium: $7,426,102
+    Rate on Line: 35.7%
+  FIRST_EXCESS:
+    Attachment: $20,784,325
+    Limit: $10,528,415
+    Premium: $3,837,607
+    Rate on Line: 36.4%
+  SECOND_EXCESS:
+    Attachment: $31,312,740
+    Limit: $19,310,649
+    Premium: $6,951,834
+    Rate on Line: 36.0%
+  CATASTROPHIC:
+    Attachment: $50,623,389
+    Limit: $8,405,303
+    Premium: $3,530,227
+    Rate on Line: 42.0%
+
+CYBER LAYERS:
+  PRIMARY:
+    Attachment: $0
+    Limit: $290,444
+    Premium: $140,366
+    Rate on Line: 48.3%
+  FIRST_EXCESS:
+    Attachment: $290,444
+    Limit: $110,118
+    Premium: $40,138
+    Rate on Line: 36.4%
+  SECOND_EXCESS:
+    Attachment: $400,562
+    Limit: $341,343
+    Premium: $122,884
+    Rate on Line: 36.0%
+  CATASTROPHIC:
+    Attachment: $741,906
+    Limit: $200,907
+    Premium: $84,381
+    Rate on Line: 42.0%
+
+================================================================================
+OPTIMAL RETENTION ANALYSIS
+================================================================================
+
+PROPERTY:
+  Optimal Retention: $600,000
+  As % of Available Capital: 10.0%
+  Expected Retained Loss: $600,000
+  Probability of Exceeding Retention: 100.0%
+
+LIABILITY:
+  Optimal Retention: $600,000
+  As % of Available Capital: 10.0%
+  Expected Retained Loss: $600,000
+  Probability of Exceeding Retention: 100.0%
+
+BUSINESS_INTERRUPTION:
+  Optimal Retention: $600,000
+  As % of Available Capital: 10.0%
+  Expected Retained Loss: $600,000
+  Probability of Exceeding Retention: 100.0%
+
+CYBER:
+  Optimal Retention: $84,015
+  As % of Available Capital: 1.4%
+  Expected Retained Loss: $84,015
+  Probability of Exceeding Retention: 100.0%
+
+================================================================================
+RECOMMENDED INSURANCE PROGRAM
+================================================================================
+
+PROPERTY:
+  Retention: $600,000
+  Insurance Layers:
+    first_excess: $600,000 xs $1,675,327
+      Premium: $610,657 (Rate: 36.4%)
+    second_excess: $2,275,327 xs $6,123,765
+      Premium: $2,204,555 (Rate: 36.0%)
+    catastrophic: $8,399,092 xs $4,087,983
+      Premium: $1,716,953 (Rate: 42.0%)
+  Total Limit: $12,487,075
+  Total Premium: $4,532,165
+
+LIABILITY:
+  Retention: $600,000
+  Insurance Layers:
+    first_excess: $600,000 xs $2,684,442
+      Premium: $978,479 (Rate: 36.5%)
+    second_excess: $3,284,442 xs $11,738,037
+      Premium: $4,225,693 (Rate: 36.0%)
+    catastrophic: $15,022,479 xs $7,341,431
+      Premium: $3,083,401 (Rate: 42.0%)
+  Total Limit: $22,363,910
+  Total Premium: $8,287,574
+
+BUSINESS_INTERRUPTION:
+  Retention: $600,000
+  Insurance Layers:
+    first_excess: $600,000 xs $10,528,415
+      Premium: $3,837,607 (Rate: 36.4%)
+    second_excess: $11,128,415 xs $19,310,649
+      Premium: $6,951,834 (Rate: 36.0%)
+    catastrophic: $30,439,064 xs $8,405,303
+      Premium: $3,530,227 (Rate: 42.0%)
+  Total Limit: $38,844,368
+  Total Premium: $14,319,668
+
+CYBER:
+  Retention: $84,015
+  Insurance Layers:
+    first_excess: $84,015 xs $110,118
+      Premium: $40,138 (Rate: 36.4%)
+    second_excess: $194,133 xs $341,343
+      Premium: $122,884 (Rate: 36.0%)
+    catastrophic: $535,476 xs $200,907
+      Premium: $84,381 (Rate: 42.0%)
+  Total Limit: $736,383
+  Total Premium: $247,403
+
+PROGRAM SUMMARY:
+  Total Annual Premium: $27,386,810
+  Premium as % of Revenue: 54.77%
+  Premium as % of Operating Income: 684.7%
+
+================================================================================
+PROGRAM EFFECTIVENESS ANALYSIS
+================================================================================
+
+Expected Performance:
+  Mean Gross Loss: $9,813,860
+  Mean Recovery: $8,181,940
+  Mean Net Loss: $1,631,920
+  Average Recovery Ratio: 63.0%
+
+Risk Metrics:
+  Net Loss 95% VaR: $1,884,015
+  Net Loss 99% VaR: $17,662,183
+  Prob(Net Loss > Operating Income): 3.55%
+
+Economic Analysis:
+  Operating Income: $4,000,000
+  - Expected Net Loss: $1,631,920
+  - Insurance Premium: $27,386,810
+  = Economic Value: $-25,018,729
+```
 
 ### Application 2: Portfolio Insurance
 
 ![Office Space](../../../assets/photos/conference_room_1_small.jpg)
 
+This example takes a while to run and explores the ensemble approach to estimating required limits.
+
+
+
 ```python
-def portfolio_tail_risk_hedging(portfolio_value=100_000_000):
-"""Design tail risk hedging for investment portfolio."""
+import numpy as np
+import pandas as pd
+from scipy import stats
+from scipy.optimize import minimize_scalar
 
-    # Market scenarios
-scenarios = {
-'normal': {'prob': 0.85, 'return': 0.08, 'vol': 0.15},
-'correction': {'prob': 0.10, 'return': -0.10, 'vol': 0.25},
-'crisis': {'prob': 0.04, 'return': -0.30, 'vol': 0.40},
-'black_swan': {'prob': 0.01, 'return': -0.50, 'vol': 0.60}
-}
+def portfolio_insurance_optimization(portfolio_value=100_000_000, n_years=10, n_sims=10000):
+    """
+    Demonstrate insurance mathematics concepts for portfolio protection:
+    1. Frequency-severity modeling of market events
+    2. Layer structuring (retention, primary, excess)
+    3. Ergodic optimization (time-average growth vs ensemble average)
+    4. Dynamic retention optimization based on wealth level
+    """
 
-    # Simulate with and without hedging
-n_sims = 10000
-results_unhedged = []
-results_hedged = []
-hedge_cost = portfolio_value * 0.01
-# 1% annual cost
+    # 1. FREQUENCY-SEVERITY MODEL FOR MARKET EVENTS
+    # Frequency: Number of adverse events per year (Poisson)
+    event_frequency = stats.poisson(mu=2.5)  # Average 2.5 events/year
 
-for _ in range(n_sims):
-        # Select scenario
-rand = np.random.rand()
-cumsum = 0
-for scenario, params in scenarios.items():
-cumsum += params['prob']
-if rand < cumsum:
-selected = params
-break
+    # Severity: Size of loss given event (mixture for tail risk)
+    # Small corrections: Log-normal
+    small_severity = stats.lognorm(s=0.5, scale=0.03)  # 3% mean, moderate vol
+    # Large crises: Pareto for heavy tails
+    large_severity = stats.pareto(b=2.5, scale=0.10)  # Power law tail
 
-        # Generate return
-annual_return = np.random.normal(selected['return'], selected['vol'])
+    # Probability of large event given any event
+    prob_large = 0.15
 
-        # Unhedged portfolio
-unhedged_value = portfolio_value
-* (1 + annual_return)
-results_unhedged.append(unhedged_value)
+    # 2. INSURANCE LAYER STRUCTURE
+    def calculate_layer_premiums(retention, primary_limit, excess_limit):
+        """Calculate premiums for each layer using exposure curves."""
+        base_rate = 0.015  # Base premium rate
 
-        # Hedged portfolio (put option at 90% strike)
-hedged_return = max(annual_return, -0.10)
-# Floor at -10%
-hedged_value = portfolio_value * (1 + hedged_return) - hedge_cost
-results_hedged.append(hedged_value)
+        # Retention layer: Self-insured, no premium
+        retention_premium = 0
 
-    # Compare strategies
-comparison = pd.DataFrame({
-'Metric': ['Mean', 'Std Dev', '5% VaR', '1% CVaR', 'Worst Case',
-'Prob(Loss>20%)', 'Sharpe Ratio'],
-'Unhedged': [
-np.mean(results_unhedged),
-np.std(results_unhedged),
-portfolio_value - np.percentile(results_unhedged, 5),
-portfolio_value - np.mean([x for x in results_unhedged
-if x < np.percentile(results_unhedged, 1)]),
-portfolio_value - np.min(results_unhedged),
-np.mean(np.array(results_unhedged) < portfolio_value
-* 0.8),
-(np.mean(results_unhedged) - portfolio_value) / np.std(results_unhedged)
-],
-'Hedged': [
-np.mean(results_hedged),
-np.std(results_hedged),
-portfolio_value - np.percentile(results_hedged, 5),
-portfolio_value - np.mean([x for x in results_hedged
-if x < np.percentile(results_hedged, 1)]),
-portfolio_value - np.min(results_hedged),
-np.mean(np.array(results_hedged) < portfolio_value * 0.8),
-(np.mean(results_hedged) - portfolio_value) / np.std(results_hedged)
-]
-})
+        # Primary layer: Higher frequency, lower severity
+        primary_rate = base_rate * (1 - np.exp(-primary_limit/retention))
+        primary_premium = portfolio_value * primary_rate
 
-return comparison
+        # Excess layer: Lower frequency, higher severity
+        excess_rate = base_rate * 0.3 * (1 - np.exp(-excess_limit/primary_limit))
+        excess_premium = portfolio_value * excess_rate
 
-# Analyze hedging strategies
-hedging_analysis = portfolio_tail_risk_hedging()
-print(hedging_analysis.to_string())
+        return retention_premium, primary_premium, excess_premium
+
+    # 3. SIMULATE PORTFOLIO PATHS WITH AND WITHOUT INSURANCE
+    def simulate_wealth_path(initial_wealth, retention_pct, primary_pct, excess_pct,
+                            use_insurance=True):
+        """Simulate wealth evolution over multiple years."""
+        wealth = initial_wealth
+        wealth_history = [wealth]
+
+        for year in range(n_years):
+            # Base return (drift)
+            base_return = 0.08
+            normal_volatility = 0.15
+
+            # Generate base portfolio return
+            annual_return = np.random.normal(base_return, normal_volatility)
+
+            # Generate adverse events (frequency-severity)
+            n_events = event_frequency.rvs()
+            total_event_loss = 0
+
+            for _ in range(n_events):
+                if np.random.rand() < prob_large:
+                    # Large event (Pareto distributed)
+                    loss = min(large_severity.rvs(), 0.5)  # Cap at 50% loss
+                else:
+                    # Small event (Log-normal distributed)
+                    loss = min(small_severity.rvs(), 0.2)  # Cap at 20% loss
+                total_event_loss += loss
+
+            # Apply losses to portfolio
+            gross_return = annual_return - total_event_loss
+
+            if use_insurance:
+                # Calculate insurance structure based on current wealth
+                retention = wealth * retention_pct
+                primary_limit = wealth * primary_pct
+                excess_limit = wealth * excess_pct
+
+                # Calculate premiums
+                _, primary_prem, excess_prem = calculate_layer_premiums(
+                    retention, primary_limit, excess_limit
+                )
+                total_premium = (primary_prem + excess_prem)
+
+                # Apply insurance layers
+                portfolio_loss = wealth * max(gross_return, -1.0)
+                if portfolio_loss < 0:
+                    loss_amount = abs(portfolio_loss)
+
+                    # Retention (deductible)
+                    retained_loss = min(loss_amount, retention)
+                    remaining_loss = max(0, loss_amount - retention)
+
+                    # Primary layer coverage
+                    primary_recovery = min(remaining_loss, primary_limit)
+                    remaining_loss = max(0, remaining_loss - primary_limit)
+
+                    # Excess layer coverage
+                    excess_recovery = min(remaining_loss, excess_limit)
+
+                    # Net loss after insurance
+                    net_loss = retained_loss + max(0, remaining_loss - excess_limit)
+                    net_return = -net_loss / wealth
+                else:
+                    net_return = gross_return
+
+                # Apply return and subtract premium
+                wealth = wealth * (1 + net_return) - total_premium
+            else:
+                # No insurance - full exposure
+                wealth = wealth * (1 + gross_return)
+
+            # Ensure non-negative wealth
+            wealth = max(0, wealth)
+            wealth_history.append(wealth)
+
+            # Stop if ruined
+            if wealth == 0:
+                break
+
+        return wealth_history
+
+    # 4. OPTIMIZE RETENTION USING ERGODIC PRINCIPLE
+    def optimize_retention(initial_wealth):
+        """Find optimal retention that maximizes time-average growth rate."""
+
+        def negative_growth_rate(retention_pct):
+            """Calculate negative of expected log growth rate."""
+            if retention_pct < 0.01 or retention_pct > 0.5:
+                return 1e6
+
+            # Fixed layer structure for optimization
+            primary_pct = min(0.15, (1 - retention_pct) * 0.5)
+            excess_pct = min(0.25, (1 - retention_pct) * 0.8)
+
+            # Simulate multiple paths
+            final_wealths = []
+            for _ in range(1000):  # Fewer sims for optimization
+                path = simulate_wealth_path(
+                    initial_wealth, retention_pct, primary_pct, excess_pct, True
+                )
+                if path[-1] > 0:
+                    final_wealths.append(path[-1])
+
+            if len(final_wealths) == 0:
+                return 1e6
+
+            # Calculate time-average growth rate
+            growth_rates = [np.log(w / initial_wealth) / n_years
+                            for w in final_wealths if w > 0]
+
+            # Return negative for minimization
+            return -np.mean(growth_rates) if growth_rates else 1e6
+
+        # Optimize retention percentage
+        result = minimize_scalar(
+            negative_growth_rate,
+            bounds=(0.01, 0.30),
+            method='bounded',
+            options={'xatol': 0.01}
+        )
+
+        return result.x
+
+    # 5. RUN COMPREHENSIVE ANALYSIS
+    print("=" * 60)
+    print("PORTFOLIO INSURANCE OPTIMIZATION ANALYSIS")
+    print("=" * 60)
+
+    # Find optimal retention
+    print("\n1. OPTIMAL RETENTION ANALYSIS")
+    optimal_retention = optimize_retention(portfolio_value)
+    print(f"   Optimal retention: {optimal_retention:.1%} of portfolio value")
+    print(f"   Dollar amount: ${portfolio_value * optimal_retention:,.0f}")
+
+    # Set insurance structure based on optimization
+    retention_pct = optimal_retention
+    primary_pct = min(0.15, (1 - retention_pct) * 0.5)
+    excess_pct = min(0.25, (1 - retention_pct) * 0.8)
+
+    print(f"\n2. OPTIMIZED LAYER STRUCTURE")
+    print(f"   Retention:     0 - {retention_pct:.1%} (${portfolio_value*retention_pct:,.0f})")
+    print(f"   Primary:       {retention_pct:.1%} - {retention_pct+primary_pct:.1%} (${portfolio_value*primary_pct:,.0f})")
+    print(f"   Excess:        {retention_pct+primary_pct:.1%} - {retention_pct+primary_pct+excess_pct:.1%} (${portfolio_value*excess_pct:,.0f})")
+
+    # Calculate premiums
+    _, primary_prem, excess_prem = calculate_layer_premiums(
+        portfolio_value * retention_pct,
+        portfolio_value * primary_pct,
+        portfolio_value * excess_pct
+    )
+
+    print(f"\n3. ANNUAL PREMIUM BREAKDOWN")
+    print(f"   Primary layer:  ${primary_prem:,.0f} ({primary_prem/portfolio_value:.2%})")
+    print(f"   Excess layer:   ${excess_prem:,.0f} ({excess_prem/portfolio_value:.2%})")
+    print(f"   Total premium:  ${primary_prem + excess_prem:,.0f} ({(primary_prem + excess_prem)/portfolio_value:.2%})")
+
+    # Run full simulation
+    print(f"\n4. MONTE CARLO SIMULATION ({n_sims:,} paths, {n_years} years)")
+
+    insured_paths = []
+    uninsured_paths = []
+
+    for _ in range(n_sims):
+        # Insured portfolio
+        insured = simulate_wealth_path(
+            portfolio_value, retention_pct, primary_pct, excess_pct, True
+        )
+        insured_paths.append(insured[-1])
+
+        # Uninsured portfolio
+        uninsured = simulate_wealth_path(
+            portfolio_value, 1.0, 0, 0, False
+        )
+        uninsured_paths.append(uninsured[-1])
+
+    # Calculate statistics
+    def calculate_metrics(values, initial):
+        """Calculate key risk and return metrics."""
+        values = np.array(values)
+        positive_values = values[values > 0]
+
+        if len(positive_values) == 0:
+            return {
+                'Mean': 0,
+                'Median': 0,
+                'Std Dev': 0,
+                '5% VaR': initial,
+                '1% CVaR': initial,
+                'Ruin Prob': 1.0,
+                'Growth Rate': -np.inf
+            }
+
+        # Time-average growth rate (ergodic)
+        growth_rates = [np.log(v / initial) / n_years for v in positive_values]
+
+        return {
+            'Mean': np.mean(values),
+            'Median': np.median(values),
+            'Std Dev': np.std(values),
+            '5% VaR': initial - np.percentile(values, 5),
+            '1% CVaR': initial - np.mean(values[values <= np.percentile(values, 1)]),
+            'Ruin Prob': np.mean(values <= 0),
+            'Growth Rate': np.mean(growth_rates) if growth_rates else -np.inf
+        }
+
+    insured_metrics = calculate_metrics(insured_paths, portfolio_value)
+    uninsured_metrics = calculate_metrics(uninsured_paths, portfolio_value)
+
+    # Create comparison table
+    comparison = pd.DataFrame({
+        'Uninsured': list(insured_metrics.values()),
+        'Insured': list(insured_metrics.values())
+    }, index=insured_metrics.keys())
+
+    print("\n5. RESULTS COMPARISON")
+    print("-" * 60)
+
+    results = []
+    for metric in insured_metrics.keys():
+        unins_val = uninsured_metrics[metric]
+        ins_val = insured_metrics[metric]
+
+        if metric in ['Mean', 'Median', 'Std Dev', '5% VaR', '1% CVaR']:
+            results.append({
+                'Metric': metric,
+                'Uninsured': f"${unins_val:,.0f}",
+                'Insured': f"${ins_val:,.0f}"
+            })
+        elif metric == 'Ruin Prob':
+            results.append({
+                'Metric': metric,
+                'Uninsured': f"{unins_val:.2%}",
+                'Insured': f"{ins_val:.2%}"
+            })
+        else:  # Growth Rate
+            results.append({
+                'Metric': 'Time-Avg Growth',
+                'Uninsured': f"{unins_val:.2%}",
+                'Insured': f"{ins_val:.2%}"
+            })
+
+    results_df = pd.DataFrame(results)
+    print(results_df.to_string(index=False))
+
+    # Key insights
+    print("\n6. KEY INSIGHTS")
+    print("-" * 60)
+    print(f"✓ Insurance reduces ruin probability by {(uninsured_metrics['Ruin Prob'] - insured_metrics['Ruin Prob']):.1%}")
+    print(f"✓ Time-average growth improved by {(insured_metrics['Growth Rate'] - uninsured_metrics['Growth Rate'])*100:.1f}bps")
+    print(f"✓ Tail risk (1% CVaR) reduced by ${(uninsured_metrics['1% CVaR'] - insured_metrics['1% CVaR'])/1e6:.1f}M")
+    print(f"✓ Optimal retention balances premium cost vs risk retention")
+
+    return results_df
+
+# Run the analysis
+results = portfolio_insurance_optimization(
+    portfolio_value=100_000_000,
+    n_years=10,
+    n_sims=5000  # Reduce for faster execution
+)
+```
+
+#### Sample Output
+
+```
+============================================================
+PORTFOLIO INSURANCE OPTIMIZATION ANALYSIS
+============================================================
+
+1. OPTIMAL RETENTION ANALYSIS
+   Optimal retention: 1.6% of portfolio value
+   Dollar amount: $1,617,301
+
+2. OPTIMIZED LAYER STRUCTURE
+   Retention:     0 - 1.6% ($1,617,301)
+   Primary:       1.6% - 16.6% ($15,000,000)
+   Excess:        16.6% - 41.6% ($25,000,000)
+
+3. ANNUAL PREMIUM BREAKDOWN
+   Primary layer:  $1,499,859 (1.50%)
+   Excess layer:   $365,006 (0.37%)
+   Total premium:  $1,864,865 (1.86%)
+
+4. MONTE CARLO SIMULATION (5,000 paths, 10 years)
+
+5. RESULTS COMPARISON
+------------------------------------------------------------
+         Metric   Uninsured      Insured
+           Mean $60,021,752 $122,654,929
+         Median $49,754,072 $114,719,654
+        Std Dev $43,522,383  $43,328,475
+         5% VaR $87,719,760  $31,093,881
+        1% CVaR $97,415,436  $61,322,870
+      Ruin Prob       0.20%        0.00%
+Time-Avg Growth      -7.61%        1.47%
+
+6. KEY INSIGHTS
+------------------------------------------------------------
+✓ Insurance reduces ruin probability by 0.2%
+✓ Time-average growth improved by 9.1bps
+✓ Tail risk (1% CVaR) reduced by $36.1M
+✓ Optimal retention balances premium cost vs risk retention
 ```
 
 (key-takeaways)=
 ## Key Takeaways
 
-1. **Frequency-severity framework**: Foundation of insurance modeling
-2. **Heavy tails matter**: Extreme events dominate risk
-3. **Layers reduce cost**: Structured coverage optimizes premium spend
-4. **Retention optimization**: Balance premium savings with risk tolerance
-5. **Multiple premium principles**: Different approaches for different risks
-6. **Claims develop over time**: Reserve adequacy crucial
+1. **Claims develop over time**: Reserve adequacy is crucial
+2. **Frequency-severity framework** is the foundation of insurance modeling
+3. **Multiple premium principles**: Different approaches for different risks
+4. **Heavy tails matter**: Extreme events dominate risk
+5. **Retention optimization** balances premium savings with risk tolerance
+5. **Layers reduce cost**: Structured coverage optimizes premium spend
 7. **Reinsurance complexity**: Multiple structures serve different purposes
-8. **Practical applications**: Theory guides real-world decisions
 
 ## Next Steps
 
