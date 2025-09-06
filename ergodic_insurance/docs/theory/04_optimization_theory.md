@@ -5,6 +5,11 @@
     <p>Optimization theory reveals that insurance decisions are fundamentally multi-objective problems with no single optimal solution. The Pareto frontier quantifies the inevitable tradeoffs between premium costs, retained risk, and earnings volatility. The Hamilton-Jacobi-Bellman framework proves that optimal insurance coverage should dynamically adjust with wealth levels and time horizons: entities with low capital need minimal coverage (can't afford premiums), middle-wealth entities need maximum coverage (most vulnerable), while wealthy entities self-insure (can absorb losses). Stochastic control theory shows how optimal strategies must adapt to market cycles, with coverage increasing during bear markets when losses are more frequent and decreasing during bull markets when growth dominates. The constrained optimization framework incorporating KKT conditions ensures solutions respect real-world constraints like budget limits, regulatory requirements, and ruin probability thresholds. Numerical methods comparison demonstrates that gradient descent fails for non-convex insurance problems, while evolutionary algorithms like particle swarm find global optima in complex multi-modal landscapes. This section proves that static insurance programs are suboptimal, while dynamic strategies that adjust coverage based on wealth, time, and market conditions can improve long-term growth rates by several percentage points annually while maintaining the same survival probability, transforming insurance from a fixed cost to an adaptive growth enabler.</p>
 </div>
 
+## Table of Contents
+...
+
+![Tree Growing on a Termite Mound](photos/termite_mound_tree.jpg)
+
 ## Constrained Optimization
 
 ### General Formulation
@@ -1839,19 +1844,45 @@ if __name__ == "__main__":
 
 ## Hamilton-Jacobi-Bellman Equations
 
+The Hamilton-Jacobi-Bellman (HJB) equation is a fundamental tool in stochastic optimal control theory with direct applications to dynamic decision-making problems in insurance, particularly in optimal reinsurance design, dynamic premium adjustment, and surplus management.
+
 ### Optimal Control Problem
+
+The value function $V(t, x)$ represents the maximum expected utility (or minimum expected cost) achievable from time $t$ to terminal time $T$, starting from state $x$ at time $t$:
 
 $$
 V(t, x) = \max_{u \in U} \left\{ \int_t^T L(s, x(s), u(s)) ds + \Phi(x(T)) \right\}
 $$
 
-### HJB Equation
+#### Actuarial interpretation:
+
+- **State variable** $x(t)$: Organization's financial position (e.g., retained earnings, working capital, cumulative losses, or risk-adjusted assets)
+- **Control variable** $u(t)$: Insurance purchasing decisions such as retention levels, coverage limits, deductible selection, or proportion of risk to transfer
+- **Running reward/cost** $L(t, x, u)$: Net benefit from risk management strategy (operating profit minus total cost of risk: premiums, retained losses, and risk financing costs)
+- **Terminal value** $\Phi(x(T))$: Target financial position at planning horizon (e.g., equity value, capital adequacy, or cost of failing to meet financial covenants)
+
+Essentially, we're looking for optimal control $u$ that optimizes utility $L$
+
+### HJB Partial Differential Equation
+
+The HJB equation provides necessary conditions for optimality:
 
 $$
-\frac{\partial V}{\partial t} + \max_{u \in U} \left\{ L(t, x, u) + \nabla V \cdot f(t, x, u) + \frac{1}{2} \text{tr}(\sigma \sigma^T \nabla^2 V) \right\} = 0
+\frac{\partial V}{\partial t} + \max_{u \in U} \left\{ L(t, x, u) + \nabla V \cdot f(t, x, u) + \frac{1}{2} \text{tr}(\sigma \sigma^\textsf{T} \nabla^2 V) \right\} = 0
 $$
 
-with boundary condition: $V(T, x) = \Phi(x)$
+with boundary condition: $V(T, x) = \Phi(x)$ that ensures consistency with the terminal objective.
+
+$\sigma$ is the diffusion/volatility matrix, $\sigma^\textsf{T}$ is its transpose, and $\sigma \sigma^\textsf{T}$ forms the covariance matrix.
+
+#### Component breakdown:
+
+- $\frac{\partial V}{\partial t}$​: **Change in strategy value over time**: captures how the optimal risk financing strategy evolves as you approach renewal periods or financial targets
+- $L(t, x, u)$: **Current period's risk-adjusted performance**: your operating results net of insurance costs (premiums paid) and retained losses, reflecting the immediate impact of your risk transfer decisions
+- $\nabla V \cdot f(t, x, u)$: **Expected trajectory of financial position**: how your chosen insurance structure affects expected cash flows, accounting for predictable business growth, insurance premium payments, and expected retained losses under your deductible/SIR
+- $\frac{1}{2} \text{tr}(\sigma \sigma^\textsf{T} \nabla^2 V)$: **Volatility penalty/benefit**: adjustment for earnings volatility based on your retention strategy; higher retentions increase volatility (larger $\sigma$) but save premium, while more insurance transfer reduces volatility at a cost
+
+The HJB framework helps determine optimal insurance program structure by balancing premium costs against retained risk exposure and earnings volatility, all while considering your organization's risk tolerance and financial objectives.
 
 ### Insurance Application
 
@@ -1864,188 +1895,189 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 class SimplifiedHJBSolver:
-"""Simplified HJB solver for insurance control demonstration."""
+    """Simplified HJB solver for insurance control demonstration."""
 
-def __init__(self, wealth_min=1e5, wealth_max=1e7, n_wealth=50, n_time=100):
-"""Initialize the solver with wealth and time grids."""
-    # Create wealth grid (log-spaced for better resolution)
-self.wealth_grid = np.logspace(np.log10(wealth_min), np.log10(wealth_max), n_wealth)
-self.n_wealth = n_wealth
+    def __init__(self, wealth_min=1e5, wealth_max=1e7, n_wealth=50, n_time=100):
+        """Initialize the solver with wealth and time grids."""
+        # Create wealth grid (log-spaced for better resolution)
+        self.wealth_grid = np.logspace(np.log10(wealth_min), np.log10(wealth_max), n_wealth)
+        self.n_wealth = n_wealth
 
-    # Time parameters
-self.T = 10.0
-# 10-year horizon
-self.dt = self.T / n_time
-self.n_time = n_time
-self.time_grid = np.linspace(0, self.T, n_time)
+        # Time parameters
+        self.T = 10.0  # 10-year horizon
+        self.dt = self.T / n_time
+        self.n_time = n_time
+        self.time_grid = np.linspace(0, self.T, n_time)
 
-    # Model parameters
-self.growth_rate = 0.08
-# 8% expected growth
-self.volatility = 0.20
-# 20% volatility
-self.discount_rate = 0.05
-# 5% discount rate
+        # Model parameters
+        self.growth_rate = 0.08  # 8% expected growth
+        self.volatility = 0.20  # 20% volatility
+        self.discount_rate = 0.05  # 5% discount rate
 
-    # Insurance parameters
-self.premium_rate = 0.03
-# 3% of wealth for full coverage
-self.loss_frequency = 0.2
-# Expected losses per year
-self.loss_severity = 0.3
-# Average loss as fraction of wealth
+        # Insurance parameters
+        self.premium_rate = 0.03  # 3% of wealth for full coverage
+        self.loss_frequency = 0.2  # Expected losses per year
+        self.loss_severity = 0.3  # Average loss as fraction of wealth
 
-def utility(self, wealth):
-"""Log utility function for ergodic optimization."""
-return np.log(np.maximum(wealth, 1e4))
+    def utility(self, wealth):
+        """Log utility function for ergodic optimization."""
+        return np.log(np.maximum(wealth, 1e4))
 
-def optimal_coverage(self, wealth, time_to_maturity):
-"""Compute optimal insurance coverage analytically (simplified)."""
-    # Simplified rule: more insurance for middle wealth levels
-    # Low wealth: can't afford insurance
-    # High wealth: can self-insure
+    def optimal_coverage(self, wealth, time_to_maturity):
+        """Compute optimal insurance coverage analytically (simplified)."""
+        # Simplified rule: more insurance for middle wealth levels
+        # Low wealth: can't afford insurance
+        # High wealth: can self-insure
 
-    # Wealth-dependent coverage
-log_wealth = np.log10(wealth)
-log_min = np.log10(1e5)
-log_max = np.log10(1e7)
+        # Wealth-dependent coverage
+        log_wealth = np.log10(wealth)
+        log_min = np.log10(1e5)
+        log_max = np.log10(1e7)
 
-    # Normalized wealth (0 to 1)
-normalized = (log_wealth - log_min) / (log_max - log_min)
+        # Normalized wealth (0 to 1)
+        normalized = (log_wealth - log_min) / (log_max - log_min)
 
-    # Bell-shaped coverage function
-coverage = np.exp(-((normalized - 0.5) ** 2) / 0.1)
+        # Bell-shaped coverage function
+        coverage = np.exp(-((normalized - 0.5) ** 2) / 0.1)
 
-    # Adjust for time to maturity (more coverage near end)
-time_factor = 1 + 0.5
-* (1 - time_to_maturity / self.T)
-coverage = coverage * time_factor
+        # Adjust for time to maturity (more coverage near end)
+        time_factor = 1 + 0.5 * (1 - time_to_maturity / self.T)
+        coverage = coverage * time_factor
 
-return np.clip(coverage, 0, 1)
+        return np.clip(coverage, 0, 1)
 
-def value_function(self, wealth, time):
-"""Compute value function (simplified closed-form approximation)."""
-time_to_maturity = self.T - time
+    def value_function(self, wealth, time):
+        """Compute value function (simplified closed-form approximation)."""
+        time_to_maturity = self.T - time
 
-    # Terminal value
-if time_to_maturity < 1e-6:
-return self.utility(wealth)
+        # Terminal value
+        if time_to_maturity < 1e-6:
+            return self.utility(wealth)
 
-    # Expected growth factor
-growth_factor = np.exp((self.growth_rate - 0.5
-* self.volatility**2) * time_to_maturity)
+        # Expected growth factor
+        growth_factor = np.exp((self.growth_rate - 0.5 * self.volatility**2) * time_to_maturity)
 
-    # Value approximation
-expected_wealth = wealth
-* growth_factor
-value = self.utility(expected_wealth) + 0.5 * time_to_maturity
+        # Value approximation
+        expected_wealth = wealth * growth_factor
+        value = self.utility(expected_wealth) + 0.5 * time_to_maturity
 
-return value
+        return value
 
-def solve(self):
-"""Solve for value function and optimal policy."""
-    # Initialize arrays
+    def solve(self):
+        """Solve for value function and optimal policy."""
 
-V = np.zeros((self.n_time, self.n_wealth))
-optimal_coverage = np.zeros((self.n_time, self.n_wealth))
+        # Initialize arrays
+        V = np.zeros((self.n_time, self.n_wealth))
+        optimal_coverage = np.zeros((self.n_time, self.n_wealth))
 
-    # Terminal condition
+        # Terminal condition
+        V[-1, :] = self.utility(self.wealth_grid)
 
-V[-1, :] = self.utility(self.wealth_grid)
+        # Backward iteration (simplified)
+        for t_idx in range(self.n_time - 2, -1, -1):
+            time = self.time_grid[t_idx]
+            time_to_maturity = self.T - time
 
-    # Backward iteration (simplified)
-for t_idx in range(self.n_time - 2, -1, -1):
-time = self.time_grid[t_idx]
-time_to_maturity = self.T - time
+            # Compute optimal coverage
+            for w_idx, wealth in enumerate(self.wealth_grid):
+                coverage = self.optimal_coverage(wealth, time_to_maturity)
+                optimal_coverage[t_idx, w_idx] = coverage
 
-for w_idx, wealth in enumerate(self.wealth_grid):
-        # Compute optimal coverage
-coverage = self.optimal_coverage(wealth, time_to_maturity)
-optimal_coverage[t_idx, w_idx] = coverage
+                # Compute value (simplified Bellman equation)
+                # Expected continuation value
+                expected_growth = self.growth_rate - self.premium_rate * coverage
 
-        # Compute value (simplified Bellman equation)
-        # Expected continuation value
-expected_growth = self.growth_rate - self.premium_rate
-* coverage
+                # Risk reduction from insurance
+                risk_reduction = coverage * self.loss_frequency * self.loss_severity * wealth
 
-        # Risk reduction from insurance
-risk_reduction = coverage * self.loss_frequency
-* self.loss_severity * wealth
+                # Value update
+                continuation_value = V[t_idx + 1, w_idx]
+                instant_reward = self.dt * (self.utility(wealth) + risk_reduction / wealth)
 
-        # Value update
-continuation_value = V[t_idx + 1, w_idx]
-instant_reward = self.dt
-* (self.utility(wealth) + risk_reduction / wealth)
+                V[t_idx, w_idx] = (1 - self.discount_rate * self.dt) * continuation_value + instant_reward
 
-V[t_idx, w_idx] = (1 - self.discount_rate * self.dt)
-* continuation_value + instant_reward
+        return V, optimal_coverage
 
-return V, optimal_coverage
+    def plot_results(self, V, optimal_coverage):
+        """Create clear visualizations of the HJB solution."""
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+        fig.suptitle('HJB Solution: Optimal Insurance Control', fontsize=16, fontweight='bold')
 
-def plot_results(self, V, optimal_coverage):
-"""Create clear visualizations of the HJB solution."""
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-fig.suptitle('HJB Solution: Optimal Insurance Control', fontsize=16, fontweight='bold')
+        # Select time slices to show
+        time_indices = [0, self.n_time // 4, self.n_time // 2, 3 * self.n_time // 4, -1]
+        time_labels = [f't = {self.time_grid[idx]:.1f}y' for idx in time_indices]
+        colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(time_indices)))
 
-    # Select time slices to show
-time_indices = [0, self.n_time // 4, self.n_time // 2, 3 * self.n_time // 4, -1]
-time_labels = [f't = {self.time_grid[idx]:.1f}y' for idx in time_indices]
-colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(time_indices)))
+        # 1. Value Function Evolution
+        ax1 = axes[0, 0]
+        for idx, label, color in zip(time_indices, time_labels, colors):
+            ax1.plot(self.wealth_grid / 1e6, V[idx, :], label=label, color=color, linewidth=2)
+        ax1.set_xlabel('Wealth ($Millions)')
+        ax1.set_ylabel('Value Function')
+        ax1.set_title('Value Function Evolution')
+        ax1.set_xscale('log')
+        ax1.legend(loc='best')
+        ax1.grid(True, alpha=0.3)      # 2. Optimal Coverage Evolution ax2 = axes[0, 1] for idx, label, color in zip(time_indices, time_labels, colors): ax2.plot(self.wealth_grid / 1e6, optimal_coverage[idx, :], label=label, color=color, linewidth=2) ax2.set_xlabel('Wealth ($ Millions)')
 
-    # 1. Value Function Evolution
-ax1 = axes[0, 0]
-for idx, label, color in zip(time_indices, time_labels, colors):
-ax1.plot(self.wealth_grid / 1e6, V[idx, :], label=label, color=color, linewidth=2)
-ax1.set_xlabel('Wealth ($Millions)') ax1.set_ylabel('Value Function') ax1.set_title('Value Function Evolution') ax1.set_xscale('log') ax1.legend(loc='best') ax1.grid(True, alpha=0.3)      # 2. Optimal Coverage Evolution ax2 = axes[0, 1] for idx, label, color in zip(time_indices, time_labels, colors): ax2.plot(self.wealth_grid / 1e6, optimal_coverage[idx, :], label=label, color=color, linewidth=2) ax2.set_xlabel('Wealth ($ Millions)')
-ax2.set_ylabel('Optimal Coverage Level')
-ax2.set_title('Optimal Insurance Coverage')
-ax2.set_xscale('log')
-ax2.set_ylim([0, 1.1])
-ax2.legend(loc='best')
-ax2.grid(True, alpha=0.3)
+        ax2 = axes[0, 1]
+        ax2.set_ylabel('Optimal Coverage Level')
+        ax2.set_title('Optimal Insurance Coverage')
+        ax2.set_xscale('log')
+        ax2.set_ylim([0, 1.1])
+        ax2.legend(loc='best')
+        ax2.grid(True, alpha=0.3)
 
-    # 3. Value Function Surface (3D view)
-ax3 = axes[0, 2]
-W, T = np.meshgrid(self.wealth_grid / 1e6, self.time_grid)
-contour = ax3.contourf(np.log10(W), T, V, levels=20, cmap='viridis')
-ax3.set_xlabel('Log10(Wealth $Millions)') ax3.set_ylabel('Time (years)') ax3.set_title('Value Function Surface') plt.colorbar(contour, ax=ax3)      # 4. Optimal Coverage Surface ax4 = axes[1, 0] contour2 = ax4.contourf(np.log10(W), T, optimal_coverage, levels=20, cmap='RdYlBu_r') ax4.set_xlabel('Log10(Wealth$ Millions)')
-ax4.set_ylabel('Time (years)')
-ax4.set_title('Optimal Coverage Surface')
-plt.colorbar(contour2, ax=ax4)
+        # 3. Value Function Surface (3D view)
+        ax3 = axes[0, 2]
+        W, T = np.meshgrid(self.wealth_grid / 1e6, self.time_grid)
+        contour = ax3.contourf(np.log10(W), T, V, levels=20, cmap='viridis')
+        ax3.set_xlabel('Log10(Wealth $Millions)')
+        ax3.set_ylabel('Time (years)')
+        ax3.set_title('Value Function Surface')
+        plt.colorbar(contour, ax=ax3)
 
-    # 5. Coverage vs Wealth (at t=0)
-ax5 = axes[1, 1]
-coverage_t0 = optimal_coverage[0, :]
-premium_cost = self.premium_rate
-* coverage_t0 * self.wealth_grid
-expected_protection = self.loss_frequency
-* self.loss_severity * coverage_t0
-* self.wealth_grid
+        # 4. Optimal Coverage Surface
+        ax4 = axes[1, 0]
+        contour2 = ax4.contourf(np.log10(W), T, optimal_coverage, levels=20, cmap='RdYlBu_r')
+        ax4.set_xlabel('Log10(Wealth$ Millions)')
+        ax4.set_ylabel('Time (years)')
+        ax4.set_title('Optimal Coverage Surface')
+        plt.colorbar(contour2, ax=ax4)
 
-ax5.plot(self.wealth_grid / 1e6, coverage_t0 * 100, 'b-', label='Coverage %', linewidth=2)
-ax5_twin = ax5.twinx()
-ax5_twin.plot(self.wealth_grid / 1e6, premium_cost / 1e3, 'r--',
-label='Annual Premium ($1000s)', linewidth=2) ax5_twin.plot(self.wealth_grid / 1e6, expected_protection / 1e3, 'g--', label='Expected Protection ($1000s)', linewidth=2)
+        # 5. Coverage vs Wealth (at t=0)
+        ax5 = axes[1, 1]
+        coverage_t0 = optimal_coverage[0, :]
+        premium_cost = self.premium_rate * coverage_t0 * self.wealth_grid
+        expected_protection = self.loss_frequency * self.loss_severity * coverage_t0 * self.wealth_grid
 
-ax5.set_xlabel('Wealth ($Millions)') ax5.set_ylabel('Coverage (%)', color='b') ax5_twin.set_ylabel('Annual Amount ($1000s)', color='r')
-ax5.set_xscale('log')
-ax5.set_title('Insurance Economics (t=0)')
-ax5.grid(True, alpha=0.3)
+        ax5.plot(self.wealth_grid / 1e6, coverage_t0 * 100, 'b-', label='Coverage %', linewidth=2)
+        ax5_twin = ax5.twinx()
+        ax5_twin.plot(self.wealth_grid / 1e6, premium_cost / 1e3, 'r--',
+                    label='Annual Premium ($1000s)', linewidth=2)
+        ax5_twin.plot(self.wealth_grid / 1e6, expected_protection / 1e3, 'g--',
+                    label='Expected Protection ($1000s)', linewidth=2)
 
-    # Combine legends
-lines1, labels1 = ax5.get_legend_handles_labels()
-lines2, labels2 = ax5_twin.get_legend_handles_labels()
-ax5.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+        ax5.set_xlabel('Wealth ($Millions)')
+        ax5.set_ylabel('Coverage (%)', color='b')
+        ax5_twin.set_ylabel('Annual Amount ($1000s)', color='r')
+        ax5.set_xscale('log')
+        ax5.set_title('Insurance Economics (t=0)')
+        ax5.grid(True, alpha=0.3)
 
-    # 6. Key Insights
-ax6 = axes[1, 2]
-ax6.axis('off')
+        # Combine legends
+        lines1, labels1 = ax5.get_legend_handles_labels()
+        lines2, labels2 = ax5_twin.get_legend_handles_labels()
+        ax5.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
 
-    # Calculate key metrics
-mean_coverage = np.mean(optimal_coverage[0, :])
-peak_coverage_wealth = self.wealth_grid[np.argmax(optimal_coverage[0, :])]
+        # 6. Key Insights
+        ax6 = axes[1, 2]
+        ax6.axis('off')
 
-insights_text = f"""
+        # Calculate key metrics
+        mean_coverage = np.mean(optimal_coverage[0, :])
+        peak_coverage_wealth = self.wealth_grid[np.argmax(optimal_coverage[0, :])]
+
+        insights_text = f"""
 KEY INSIGHTS:
 
 1. Optimal Coverage Pattern:
@@ -2066,13 +2098,13 @@ KEY INSIGHTS:
 • Ergodic growth optimization
 """
 
-ax6.text(0.1, 0.9, insights_text, transform=ax6.transAxes, fontsize=10, verticalalignment='top', fontfamily='monospace')
-ax6.set_title('Key Insights', fontweight='bold')
+        ax6.text(0.1, 0.9, insights_text, transform=ax6.transAxes, fontsize=10, verticalalignment='top', fontfamily='monospace')
+        ax6.set_title('Key Insights', fontweight='bold')
 
-plt.tight_layout()
-plt.savefig('../../theory/figures/hjb_solver_result_clear.png', dpi=150, bbox_inches='tight')
-plt.show()
-return fig
+        plt.tight_layout()
+        plt.savefig('figures/hjb_solver_result_clear.png', dpi=150, bbox_inches='tight')
+        plt.show()
+        return fig
 
 # Create and solve the HJB problem
 print("Solving simplified HJB equation for insurance control...")
@@ -2120,12 +2152,9 @@ print(f"• Value increase: {(V[0, :].mean() - V[-1, :].mean()):.2f}")
 
 print("\nThis simplified HJB solution demonstrates:")
 print("1. Dynamic programming backward iteration")
-print("
-2. Wealth-dependent optimal insurance")
+print("2. Wealth-dependent optimal insurance")
 print("3. Time evolution of value and policy")
-print("
-4. Ergodic growth considerations")
-
+print("4. Ergodic growth considerations")
 ```
 #### Sample Output
 
@@ -2137,15 +2166,26 @@ HJB SOLUTION SUMMARY
 ============================================================
 
 Wealth Segments (at t=0):
-• Low coverage (<20%): $0.1M -$10.0M
-• Moderate coverage (20-80%): $0.2M -$6.3M
-• High coverage (>80%): $0.5M -$1.8M
+• Low coverage (<20%):$0.1M - $10.0M
+• Moderate coverage (20-80%):$0.2M - $6.3M
+• High coverage (>80%):$0.5M - $1.8M
 
 Optimal Coverage Statistics:
 • Mean: 53.7%
 • Max: 99.9%
 • Min: 8.2%
-• Peak at: $0.95M  Value Function Properties: • Initial value range: [97.13, 135.96] • Terminal value range: [11.51, 16.12] • Value increase: 102.97  This simplified HJB solution demonstrates: 1. Dynamic programming backward iteration  2. Wealth-dependent optimal insurance 3. Time evolution of value and policy  4. Ergodic growth considerations
+• Peak at:$0.95M
+
+Value Function Properties:
+• Initial value range: [97.13, 135.96]
+• Terminal value range: [11.51, 16.12]
+• Value increase: 102.97
+
+This simplified HJB solution demonstrates:
+1. Dynamic programming backward iteration
+2. Wealth-dependent optimal insurance
+3. Time evolution of value and policy
+4. Ergodic growth considerations
 ```
 
 ## Numerical Methods

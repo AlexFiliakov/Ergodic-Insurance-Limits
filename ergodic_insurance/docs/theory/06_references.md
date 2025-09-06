@@ -10,6 +10,8 @@
 7. [Online Resources](#online-resources)
 8. [Related Frameworks](#related-frameworks)
 
+![Tree Rings](photos/tree_rings.jpg)
+
 (foundational-papers)=
 ## Foundational Papers
 

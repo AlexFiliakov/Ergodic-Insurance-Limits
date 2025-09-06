@@ -17,6 +17,8 @@
 8. [Visual Examples](#visual-examples)
 9. [Key Takeaways](#key-takeaways)
 
+![Tree of Life](photos/tree_of_life.jpg)
+
 (the-core-insight)=
 ## The Core Insight
 

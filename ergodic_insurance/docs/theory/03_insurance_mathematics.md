@@ -16,6 +16,8 @@
 8. [Practical Applications](#practical-applications)
 9. [Key Takeaways](#key-takeaways)
 
+![Stalagmites in a Cave](photos/stalagmites.jpg)
+
 (frequency-severity-models)=
 ## Frequency-Severity Models
 

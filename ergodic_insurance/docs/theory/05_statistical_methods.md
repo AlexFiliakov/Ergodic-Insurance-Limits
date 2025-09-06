@@ -15,6 +15,8 @@
 7. [Backtesting](#backtesting)
 8. [Model Validation](#model-validation)
 
+![Sand Dune](photos/sand_dune.jpg)
+
 (monte-carlo-methods)=
 ## Monte Carlo Methods
 

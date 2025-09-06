@@ -16,6 +16,8 @@
 8. [Practical Examples](#practical-examples)
 9. [Key Takeaways](#key-takeaways)
 
+![Lightning](photos/lightning.jpg)
+
 (introduction-to-multiplicative-dynamics)=
 ## Introduction to Multiplicative Dynamics
 
