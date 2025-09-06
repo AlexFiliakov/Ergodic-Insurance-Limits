@@ -20,12 +20,9 @@
 (monte-carlo-methods)=
 ## Monte Carlo Methods
 
-![Monte Carlo Convergence](figures/monte_carlo_convergence.png)
-*Figure 1: Monte Carlo convergence comparison showing standard MC, antithetic variates, and control variates techniques with their variance reduction properties.*
-
 ### Basic Monte Carlo Simulation
 
-Monte Carlo methods estimate expectations through random sampling:
+Monte Carlo methods estimate expectations through random sampling, providing a powerful tool for evaluating complex insurance structures where analytical solutions are intractable:
 
 $$
 E[f(X)] \approx \frac{1}{N} \sum_{i=1}^N f(X_i)
@@ -33,11 +30,44 @@ $$
 
 where $X_i$ are independent samples from the distribution of $X$.
 
+#### Convergence Considerations:
+
+The standard error of the Monte Carlo estimate decreases as $O(1/\sqrt{N})$:
+
+$$
+SE(\hat{\mu}) = \frac{\sigma}{\sqrt{N}}
+$$
+
+For insurance applications with heavy-tailed distributions, larger $N$ (typically 10,000-100,000 simulations) is necessary to adequately capture tail events that drive insurance buying decisions.
+
+### MCMC (Markov Chain Monte Carlo)
+
+Sequential, dependent sampling creating a Markov chain, with each sample depending on the previous one. A Markov Chain is a stochastic model where the current state depends only on the immediate previous state (meaning it's "memoryless," not looking back over the full history of the path). MCMC requires a "burn-in" period to converge to the target distribution.
+
+### When Each Is Used in Insurance Applications
+
+**Basic Monte Carlo**:
+
+- Simulating losses from known distributions (given parameters)
+- Pricing layers when severity/frequency distributions are specified
+- Evaluating retention levels with established loss distributions
+- Bootstrap resampling of historical losses
+
+**MCMC**:
+
+- Parameter estimation with complex likelihoods (Bayesian inference)
+- Fitting copulas for dependency modeling between lines
+- Hierarchical models (e.g., credibility across multiple entities)
+- Missing data problems in loss triangles
+- Situations where the normalizing constant is unknown
+
 ### Variance Reduction Techniques
+
+These techniques improve estimation efficiency, crucial when evaluating rare but severe events that determine insurance program effectiveness.
 
 #### Antithetic Variates
 
-Use negatively correlated pairs:
+Use negatively correlated pairs to reduce variance while maintaining unbiased estimates:
 
 $$
 \hat{\mu}_{\text{AV}} = \frac{1}{2N} \sum_{i=1}^N [f(X_i) + f(X_i')]
@@ -45,1182 +75,1145 @@ $$
 
 where $X_i'$ is antithetic to $X_i$.
 
+This technique particularly benefits:
+
+- Excess layer pricing where both attachment and exhaustion probabilities matter
+- Aggregate stop-loss evaluations where both frequency and severity variations impact results
+
 #### Control Variates
 
-Reduce variance using correlated variable with known mean:
+Reduce variance using a correlated variable with known expectation:
 
 $$
 \hat{\mu}_{\text{CV}} = \hat{\mu} - c(\hat{\mu}_Y - \mu_Y)
 $$
 
+where $c$ is optimally chosen as $\text{Cov}(f(X), Y)/\text{Var}(Y)$.
+
+This technique excels when:
+
+- Comparing similar program structures (the control variate cancels common variation)
+- Evaluating the marginal benefit of additional coverage layers
+- Assessing the impact of inflation or trend uncertainty on long-term programs
+
 #### Importance Sampling
 
-Sample from alternative distribution:
+Sample from an alternative distribution to improve efficiency for rare event estimation:
 
 $$
 E[f(X)] = E_Q\left[f(X)\frac{p(X)}{q(X)}\right]
 $$
 
-### Implementation
+where $p(X)$ is the original density and $q(X)$ is the importance sampling density.
 
-```python
-import numpy as np
-from scipy import stats
-import matplotlib.pyplot as plt
+For example, importance sampling may use a Pareto distribution with lower threshold to simulate tail losses, where base distribution would produce very few simulated excess losses.
 
-class MonteCarloEngine:
-"""Advanced Monte Carlo simulation engine for insurance analysis."""
-
-def __init__(self, base_simulator):
-self.simulator = base_simulator
-self.results = {}
-
-def basic_monte_carlo(self, n_sims=10000):
-"""Standard Monte Carlo simulation."""
-
-outcomes = []
-for _ in range(n_sims):
-outcome = self.simulator()
-outcomes.append(outcome)
-
-outcomes = np.array(outcomes)
-
-return {
-'mean': np.mean(outcomes),
-'std': np.std(outcomes),
-'se': np.std(outcomes) / np.sqrt(n_sims),
-'samples': outcomes
-}
-
-def antithetic_variates(self, n_pairs=5000):
-"""Monte Carlo with antithetic variates."""
-
-outcomes_regular = []
-outcomes_antithetic = []
-
-for _ in range(n_pairs):
-            # Regular sample
-np.random.seed()
-regular = self.simulator()
-outcomes_regular.append(regular)
-
-            # Antithetic sample (using inverted random numbers)
-state = np.random.get_state()
-np.random.seed()
-u = np.random.rand(100)
-# Get random uniforms
-np.random.set_state(state)
-np.random.rand(100)
-# Use same sequence
-            # Now use 1-u for antithetic
-antithetic = self.simulator(antithetic=True)
-outcomes_antithetic.append(antithetic)
-
-        # Combine estimates
-combined = 0.5
-* (np.array(outcomes_regular) + np.array(outcomes_antithetic))
-
-return {
-'mean': np.mean(combined),
-'std': np.std(combined),
-'se': np.std(combined) / np.sqrt(n_pairs),
-'variance_reduction': 1 - np.var(combined) / np.var(outcomes_regular),
-'samples': combined
-}
-
-def control_variates(self, n_sims=10000, control_func=None, control_mean=None):
-"""Monte Carlo with control variates."""
-
-if control_func is None or control_mean is None:
-raise ValueError("Control function and mean required")
-
-outcomes = []
-controls = []
-
-for _ in range(n_sims):
-outcome = self.simulator()
-control = control_func()
-
-outcomes.append(outcome)
-controls.append(control)
-
-outcomes = np.array(outcomes)
-controls = np.array(controls)
-
-        # Optimal coefficient
-cov_matrix = np.cov(outcomes, controls)
-c_optimal = cov_matrix[0, 1] / cov_matrix[1, 1]
-
-        # Adjusted estimate
-adjusted = outcomes - c_optimal * (controls - control_mean)
-
-return {
-'mean': np.mean(adjusted),
-'std': np.std(adjusted),
-'se': np.std(adjusted) / np.sqrt(n_sims),
-'c_optimal': c_optimal,
-'variance_reduction': 1 - np.var(adjusted) / np.var(outcomes),
-'samples': adjusted
-}
-
-def importance_sampling(self, n_sims=10000, importance_dist=None):
-"""Monte Carlo with importance sampling."""
-
-if importance_dist is None:
-raise ValueError("Importance distribution required")
-
-outcomes = []
-weights = []
-
-for _ in range(n_sims):
-            # Sample from importance distribution
-x = importance_dist.rvs()
-
-            # Evaluate function
-outcome = self.simulator(x=x)
-
-            # Calculate weight (likelihood ratio)
-weight = self.simulator.original_pdf(x) / importance_dist.pdf(x)
-
-outcomes.append(outcome)
-weights.append(weight)
-
-outcomes = np.array(outcomes)
-weights = np.array(weights)
-
-        # Weighted average
-weighted_mean = np.sum(outcomes
-* weights) / np.sum(weights)
-
-        # Effective sample size
-ess = np.sum(weights)**2 / np.sum(weights**2)
-
-return {
-'mean': weighted_mean,
-'ess': ess,
-'efficiency': ess / n_sims,
-'samples': outcomes,
-'weights': weights
-}
-
-def stratified_sampling(self, n_sims=10000, n_strata=10):
-"""Stratified Monte Carlo sampling."""
-
-strata_bounds = np.linspace(0, 1, n_strata + 1)
-n_per_stratum = n_sims // n_strata
-
-outcomes = []
-
-for i in range(n_strata):
-lower = strata_bounds[i]
-upper = strata_bounds[i + 1]
-
-for _ in range(n_per_stratum):
-                # Sample uniformly within stratum
-u = np.random.uniform(lower, upper)
-outcome = self.simulator(quantile=u)
-outcomes.append(outcome)
-
-outcomes = np.array(outcomes)
-
-return {
-'mean': np.mean(outcomes),
-'std': np.std(outcomes),
-'se': np.std(outcomes) / np.sqrt(n_sims),
-'samples': outcomes
-}
-
-def compare_methods(self, n_sims=10000):
-"""Compare different Monte Carlo methods."""
-
-methods = {
-'Basic': lambda: self.basic_monte_carlo(n_sims),
-'Antithetic': lambda: self.antithetic_variates(n_sims // 2),
-'Stratified': lambda: self.stratified_sampling(n_sims, 20)
-}
-
-results = {}
-for name, method in methods.items():
-result = method()
-results[name] = result
-print(f"{name:12} Mean: {result['mean']:.6f}, SE: {result['se']:.6f}")
-
-return results
-
-# Example: Insurance loss simulation
-def insurance_loss_simulator(antithetic=False, x=None, quantile=None):
-"""Simulate annual insurance losses."""
-
-if quantile is not None:
-        # For stratified sampling
-u = quantile
-elif x is not None:
-        # For importance sampling
-return x * np.exp(-0.5
-* x**2)
-# Example transformation
-elif antithetic:
-u = 1 - np.random.rand()
-else:
-u = np.random.rand()
-
-    # Transform uniform to loss distribution
-loss = stats.lognorm.ppf(u, s=2, scale=100000)
-
-    # Apply insurance structure
-retention = 50000
-limit = 500000
-retained_loss = min(loss, retention)
-insured_loss = min(max(0, loss - retention), limit)
-
-return retained_loss + 0.1 * insured_loss
-# Net cost
-
-# Set up original PDF for importance sampling
-insurance_loss_simulator.original_pdf = lambda x: stats.lognorm.pdf(x, s=2, scale=100000)
-
-# Run comparison
-mc_engine = MonteCarloEngine(insurance_loss_simulator)
-comparison = mc_engine.compare_methods(n_sims=10000)
-```
-
-#### Sample Output
-
-```
-Basic
-Mean: 54612.877866, SE: 325.263503
-Antithetic
-Mean: 55128.179291, SE: 324.461365
-Stratified
-Mean: 55034.214910, SE: 324.692728
-```
+- Weight adjustments ensure unbiased estimates while dramatically reducing variance
 
 (convergence-diagnostics)=
 ## Convergence Diagnostics
 
-![Convergence Diagnostics](figures/convergence_diagnostics.png)
-
-*Figure 2: MCMC convergence diagnostics including trace plots, Gelman-Rubin statistic, autocorrelation analysis, and effective sample size calculation.*
+When using iterative simulation methods (MCMC, bootstrapping, or sequential Monte Carlo), convergence diagnostics ensure reliable estimates for insurance program evaluation. These tools are critical when modeling complex dependencies between lines of coverage or multi-year loss development patterns.
 
 ### Gelman-Rubin Statistic
 
-For multiple chains, assess convergence:
+For multiple chains, assess whether independent simulations have converged to the same distribution:
 
 $$
 \hat{R} = \sqrt{\frac{\hat{V}}{W}}
 $$
 
-- $W$ = Within-chain variance
-- $\hat{V}$ = Estimated variance
+where:
+- $W$ = Within-chain variance (average variance within each independent simulation)
+- $\hat{V}$ = Estimated total variance (combines within-chain and between-chain variance)
+- $B$ = Between-chain variance
+
+More specifically:
+$$
+\hat{V} = \frac{n-1}{n}W + \frac{1}{n}B
+$$
+
+#### Interpretation for Insurance Applications:
+
+- $\hat{R} \approx 1.0$: Chains have converged (typically require $\hat{R} < 1.1$ for confidence)
+- $\hat{R} > 1.1$: Insufficient convergence, requiring longer runs
+- $\hat{R} \gg 1.5$: Indicates fundamental issues with model specification or starting values
 
 ### Effective Sample Size
 
-Account for autocorrelation:
+Account for autocorrelation in sequential samples to determine the true information content:
 
 $$
 \text{ESS} = \frac{N}{1 + 2\sum_{k=1}^K \rho_k}
 $$
 
-where $\rho_k$ is lag-$k$ autocorrelation.
+where:
+- $N$ = Total number of samples
+- $\rho_k$ = Lag-$k$ autocorrelation
+- $K$ = Maximum lag considered (typically where $\rho_k$ becomes negligible)
 
-### Implementation
+#### Practical Interpretation:
+
+- $\text{ESS} \approx N$: Independent samples (ideal case)
+- $\text{ESS} \ll N$: High autocorrelation reducing information content
+- $\text{ESS}/N$ = Efficiency ratio (target > 0.1 for practical applications)
+
+#### Decision Thresholds for Insurance Buyers:
+
+Minimum ESS requirements depend on the decision context:
+
+- **Strategic program design**: ESS > 1,000 for major retention decisions
+- **Layer pricing comparison**: ESS > 5,000 for distinguishing between similar options
+- **Tail risk metrics** (TVaR, probable maximum loss): ESS > 10,000 for 99.5th percentile estimates
+- **Regulatory capital calculations**: Follow specific guidelines (e.g., Solvency II requires demonstrable convergence)
+
+### Warning Signs Requiring Investigation:
+
+- Persistent $\hat{R} > 1.1$ after extended runs: Model misspecification or multimodal posteriors
+- ESS plateaus despite increasing $N$: Fundamental correlation structure requiring reparameterization
+- Divergent chains for tail parameters: Insufficient data for extreme value estimation
+- Cyclic behavior in trace plots: Indicates need for alternative sampling methods
+
+### Implementation Example
 
 ```python
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+
+
 class ConvergenceDiagnostics:
-"""Diagnose Monte Carlo convergence."""
+    """Diagnose Monte Carlo convergence for insurance optimization models."""
 
-def __init__(self, chains):
-"""
-Parameters:
-chains: list of arrays, each representing a Markov chain
-"""
-self.chains = [np.array(chain) for chain in chains]
-self.n_chains = len(chains)
-self.n_samples = len(chains[0])
+    def __init__(self, chains):
+        """
+        Parameters:
+        chains: list of arrays, each representing a Markov chain
+                (e.g., samples of retention levels, loss parameters, or program costs)
+        """
+        self.chains = [np.array(chain) for chain in chains]
+        self.n_chains = len(chains)
+        self.n_samples = len(chains[0])
 
-def gelman_rubin(self):
-"""Calculate Gelman-Rubin convergence diagnostic."""
-
+    def gelman_rubin(self):
+        """
+        Calculate Gelman-Rubin convergence diagnostic.
+        Critical for validating parameter estimates in insurance models.
+        """
         # Chain means
-chain_means = [np.mean(chain) for chain in self.chains]
+        chain_means = [np.mean(chain) for chain in self.chains]
 
         # Overall mean
-overall_mean = np.mean(chain_means)
+        overall_mean = np.mean(chain_means)
 
         # Between-chain variance
-
-B = self.n_samples
-* np.var(chain_means, ddof=1)
+        B = self.n_samples * np.var(chain_means, ddof=1)
 
         # Within-chain variance
-
-W = np.mean([np.var(chain, ddof=1) for chain in self.chains])
+        W = np.mean([np.var(chain, ddof=1) for chain in self.chains])
 
         # Estimated variance
-
-V_hat = ((self.n_samples - 1) / self.n_samples) * W + B / self.n_samples
+        V_hat = ((self.n_samples - 1) / self.n_samples) * W + B / self.n_samples
 
         # R-hat statistic
+        R_hat = np.sqrt(V_hat / W) if W > 0 else 1.0
 
-R_hat = np.sqrt(V_hat / W) if W > 0 else 1.0
+        return {
+            'R_hat': R_hat,
+            'converged': R_hat < 1.1,
+            'B': B,
+            'W': W,
+            'V_hat': V_hat
+        }
 
-return {
-'R_hat': R_hat,
-'converged': R_hat < 1.1,
-'B': B,
-'W': W,
-'V_hat': V_hat
-}
-
-def effective_sample_size(self, chain=None):
-"""Calculate effective sample size accounting for autocorrelation."""
-
-if chain is None:
+    def effective_sample_size(self, chain=None):
+        """
+        Calculate effective sample size accounting for autocorrelation.
+        Essential for determining if we have enough independent information
+        for reliable retention decisions.
+        """
+        if chain is None:
             # Combine all chains
-chain = np.concatenate(self.chains)
+            chain = np.concatenate(self.chains)
 
-n = len(chain)
+        n = len(chain)
 
         # Calculate autocorrelation
-mean = np.mean(chain)
-c0 = np.sum((chain - mean)**2) / n
+        mean = np.mean(chain)
+        c0 = np.sum((chain - mean)**2) / n
 
         # Calculate autocorrelation at each lag
-max_lag = min(int(n/4), 100)
-autocorr = []
+        max_lag = min(int(n/4), 100)
+        autocorr = []
 
-for k in range(1, max_lag):
-ck = np.sum((chain[:-k] - mean) * (chain[k:] - mean)) / n
-rho_k = ck / c0
+        for k in range(1, max_lag):
+            ck = np.sum((chain[:-k] - mean) * (chain[k:] - mean)) / n
+            rho_k = ck / c0
 
-if rho_k < 0.05:
-# Stop when autocorrelation becomes negligible
-break
+            if rho_k < 0.05:
+                # Stop when autocorrelation becomes negligible
+                break
 
-autocorr.append(rho_k)
+            autocorr.append(rho_k)
 
         # ESS calculation
-sum_autocorr = sum(autocorr)
-ess = n / (1 + 2
-* sum_autocorr)
+        sum_autocorr = sum(autocorr) if autocorr else 0
+        ess = n / (1 + 2 * sum_autocorr)
 
-return {
-'ess': ess,
-'efficiency': ess / n,
-'autocorrelation': autocorr,
-'n_lags': len(autocorr)
-}
+        return {
+            'ess': ess,
+            'efficiency': ess / n,
+            'autocorrelation': autocorr,
+            'n_lags': len(autocorr)
+        }
 
-def geweke_diagnostic(self, chain=None, first_prop=0.1, last_prop=0.5):
-"""Geweke convergence diagnostic comparing early and late portions."""
+    def geweke_diagnostic(self, chain=None, first_prop=0.1, last_prop=0.5):
+        """
+        Geweke convergence diagnostic comparing early and late portions.
+        Useful for detecting drift in parameter estimates.
+        """
+        if chain is None:
+            chain = self.chains[0]
 
-if chain is None:
-chain = self.chains[0]
+        n = len(chain)
+        n_first = int(n * first_prop)
+        n_last = int(n * last_prop)
 
-n = len(chain)
-n_first = int(n * first_prop)
-n_last = int(n
-* last_prop)
-
-first_portion = chain[:n_first]
-last_portion = chain[-n_last:]
+        first_portion = chain[:n_first]
+        last_portion = chain[-n_last:]
 
         # Calculate means and variances
-mean_first = np.mean(first_portion)
-mean_last = np.mean(last_portion)
-var_first = np.var(first_portion, ddof=1)
-var_last = np.var(last_portion, ddof=1)
+        mean_first = np.mean(first_portion)
+        mean_last = np.mean(last_portion)
+        var_first = np.var(first_portion, ddof=1)
+        var_last = np.var(last_portion, ddof=1)
 
         # Geweke z-score
-se = np.sqrt(var_first/n_first + var_last/n_last)
-z_score = (mean_first - mean_last) / se if se > 0 else 0
+        se = np.sqrt(var_first/n_first + var_last/n_last)
+        z_score = (mean_first - mean_last) / se if se > 0 else 0
 
         # P-value (two-tailed)
-p_value = 2 * (1 - stats.norm.cdf(abs(z_score)))
+        p_value = 2 * (1 - stats.norm.cdf(abs(z_score)))
 
-return {
-'z_score': z_score,
-'p_value': p_value,
-'converged': abs(z_score) < 2,
-'mean_diff': mean_first - mean_last
-}
+        return {
+            'z_score': z_score,
+            'p_value': p_value,
+            'converged': abs(z_score) < 2,
+            'mean_diff': mean_first - mean_last
+        }
 
-def heidelberger_welch(self, chain=None, alpha=0.05):
-"""Heidelberger-Welch stationarity and interval halfwidth test."""
+    def heidelberger_welch(self, chain=None, alpha=0.05):
+        """
+        Heidelberger-Welch stationarity and interval halfwidth test.
+        Validates stability of insurance program cost estimates.
+        """
+        if chain is None:
+            chain = self.chains[0]
 
-if chain is None:
-chain = self.chains[0]
-
-n = len(chain)
+        n = len(chain)
 
         # Stationarity test using Cramer-von Mises
-        # Simplified version
-cumsum = np.cumsum(chain - np.mean(chain))
-test_stat = np.sum(cumsum**2) / (n**2 * np.var(chain))
+        cumsum = np.cumsum(chain - np.mean(chain))
+        test_stat = np.sum(cumsum**2) / (n**2 * np.var(chain))
 
         # Critical value approximation
-critical_value = 0.461
-# For alpha=0.05
-stationary = test_stat < critical_value
+        critical_value = 0.461  # For alpha=0.05
+        stationary = test_stat < critical_value
 
         # Halfwidth test
-mean = np.mean(chain)
-se = np.std(chain, ddof=1) / np.sqrt(n)
-halfwidth = stats.t.ppf(1 - alpha/2, n-1)
-* se
-relative_halfwidth = halfwidth / abs(mean) if mean != 0 else np.inf
+        mean = np.mean(chain)
+        se = np.std(chain, ddof=1) / np.sqrt(n)
+        halfwidth = stats.t.ppf(1 - alpha/2, n-1) * se
+        relative_halfwidth = halfwidth / abs(mean) if mean != 0 else np.inf
 
-return {
-'stationary': stationary,
-'test_statistic': test_stat,
-'mean': mean,
-'halfwidth': halfwidth,
-'relative_halfwidth': relative_halfwidth,
-'halfwidth_test_passed': relative_halfwidth < 0.1
-}
+        return {
+            'stationary': stationary,
+            'test_statistic': test_stat,
+            'mean': mean,
+            'halfwidth': halfwidth,
+            'relative_halfwidth': relative_halfwidth,
+            'halfwidth_test_passed': relative_halfwidth < 0.1
+        }
 
-def plot_diagnostics(self):
-"""Visualize convergence diagnostics."""
-
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    def plot_diagnostics(self):
+        """Visualize convergence diagnostics for insurance optimization."""
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
         # Trace plots
-for i, chain in enumerate(self.chains[:3]):
-axes[0, 0].plot(chain, alpha=0.7, label=f'Chain {i+1}')
-axes[0, 0].set_xlabel('Iteration')
-axes[0, 0].set_ylabel('Value')
-axes[0, 0].set_title('Trace Plots')
-axes[0, 0].legend()
+        for i, chain in enumerate(self.chains[:3]):
+            axes[0, 0].plot(chain, alpha=0.7, label=f'Chain {i+1}')
+        axes[0, 0].set_xlabel('Iteration')
+        axes[0, 0].set_ylabel('Value')
+        axes[0, 0].set_title('Trace Plots')
+        axes[0, 0].legend()
 
         # Running mean
-for chain in self.chains[:3]:
-running_mean = np.cumsum(chain) / np.arange(1, len(chain) + 1)
-axes[0, 1].plot(running_mean, alpha=0.7)
-axes[0, 1].set_xlabel('Iteration')
-axes[0, 1].set_ylabel('Running Mean')
-axes[0, 1].set_title('Running Mean Convergence')
+        for chain in self.chains[:3]:
+            running_mean = np.cumsum(chain) / np.arange(1, len(chain) + 1)
+            axes[0, 1].plot(running_mean, alpha=0.7)
+        axes[0, 1].set_xlabel('Iteration')
+        axes[0, 1].set_ylabel('Running Mean')
+        axes[0, 1].set_title('Running Mean Convergence')
 
         # Autocorrelation
-chain = self.chains[0]
-lags = range(1, min(50, len(chain)//4))
-autocorr = [np.corrcoef(chain[:-lag], chain[lag:])[0, 1] for lag in lags]
-axes[0, 2].bar(lags, autocorr)
-axes[0, 2].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
-axes[0, 2].set_xlabel('Lag')
-axes[0, 2].set_ylabel('Autocorrelation')
-axes[0, 2].set_title('Autocorrelation Function')
+        chain = self.chains[0]
+        lags = range(1, min(50, len(chain)//4))
+        autocorr = [np.corrcoef(chain[:-lag], chain[lag:])[0, 1] for lag in lags]
+        axes[0, 2].bar(lags, autocorr)
+        axes[0, 2].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
+        axes[0, 2].set_xlabel('Lag')
+        axes[0, 2].set_ylabel('Autocorrelation')
+        axes[0, 2].set_title('Autocorrelation Function')
 
         # Density plots
-for chain in self.chains[:3]:
-axes[1, 0].hist(chain, bins=30, alpha=0.5, density=True)
-axes[1, 0].set_xlabel('Value')
-axes[1, 0].set_ylabel('Density')
-axes[1, 0].set_title('Marginal Distributions')
+        for chain in self.chains[:3]:
+            axes[1, 0].hist(chain, bins=30, alpha=0.5, density=True)
+        axes[1, 0].set_xlabel('Value')
+        axes[1, 0].set_ylabel('Density')
+        axes[1, 0].set_title('Marginal Distributions')
 
-        # Gelman-Rubin evolution
-r_hats = []
-check_points = range(100, len(self.chains[0]), 100)
-for n in check_points:
-truncated_chains = [chain[:n] for chain in self.chains]
-diag = ConvergenceDiagnostics(truncated_chains)
-r_hats.append(diag.gelman_rubin()['R_hat'])
+        # Gelman-Rubin evolution (FIXED INDENTATION)
+        r_hats = []
+        check_points = range(100, len(self.chains[0]), 100)
+        for n in check_points:
+            truncated_chains = [chain[:n] for chain in self.chains]
+            diag = ConvergenceDiagnostics(truncated_chains)
+            r_hats.append(diag.gelman_rubin()['R_hat'])
 
-axes[1, 1].plot(check_points, r_hats)
-axes[1, 1].axhline(y=1.1, color='r', linestyle='--', label='Threshold')
-axes[1, 1].set_xlabel('Sample Size')
-axes[1, 1].set_ylabel('R-hat')
-axes[1, 1].set_title('Gelman-Rubin Statistic')
-axes[1, 1].legend()
+        # Plot outside the loop
+        axes[1, 1].plot(check_points, r_hats)
+        axes[1, 1].axhline(y=1.1, color='r', linestyle='--', label='Threshold')
+        axes[1, 1].set_xlabel('Sample Size')
+        axes[1, 1].set_ylabel('R-hat')
+        axes[1, 1].set_title('Gelman-Rubin Statistic')
+        axes[1, 1].legend()
 
         # Cumulative mean comparison
-for chain in self.chains[:3]:
-cumulative_mean = np.cumsum(chain) / np.arange(1, len(chain) + 1)
-cumulative_std = [np.std(chain[:i]) for i in range(1, len(chain) + 1)]
-axes[1, 2].fill_between(range(len(chain)),
-cumulative_mean - cumulative_std,
-cumulative_mean + cumulative_std,
-alpha=0.3)
-axes[1, 2].plot(cumulative_mean, linewidth=2)
+        for chain in self.chains[:3]:
+            cumulative_mean = np.cumsum(chain) / np.arange(1, len(chain) + 1)
+            cumulative_std = [np.std(chain[:i]) for i in range(1, len(chain) + 1)]
+            axes[1, 2].fill_between(range(len(chain)),
+                                    cumulative_mean - cumulative_std,
+                                    cumulative_mean + cumulative_std,
+                                    alpha=0.3)
+            axes[1, 2].plot(cumulative_mean, linewidth=2)
 
-axes[1, 2].set_xlabel('Iteration')
-axes[1, 2].set_ylabel('Cumulative Mean ± Std')
-axes[1, 2].set_title('Convergence Bands')
+        axes[1, 2].set_xlabel('Iteration')
+        axes[1, 2].set_ylabel('Cumulative Mean ± Std')
+        axes[1, 2].set_title('Convergence Bands')
 
-plt.tight_layout()
-plt.show()
+        plt.tight_layout()
+        plt.show()
 
-# Example: Run multiple chains for insurance optimization
-def run_mcmc_chain(seed, n_samples=5000):
-"""Run a single MCMC chain for insurance optimization."""
 
-np.random.seed(seed)
-chain = []
+# ============================================================================
+# INSURANCE-SPECIFIC EXAMPLE: Optimal Retention Level Estimation
+# ============================================================================
 
-    # Initial value
-x = np.random.randn()
+class InsuranceRetentionMCMC:
+    """
+    MCMC for estimating optimal retention levels considering:
+    - Historical loss data uncertainty
+    - Premium savings vs. volatility trade-off
+    - Multiple lines of coverage correlation
+    """
 
-for _ in range(n_samples):
-        # Propose new value
-x_new = x + np.random.randn() * 0.5
+    def __init__(self, historical_losses, premium_schedule):
+        """
+        Parameters:
+        historical_losses: dict with keys as coverage lines, values as loss arrays
+        premium_schedule: function mapping retention to premium savings
+        """
+        self.losses = historical_losses
+        self.premium_schedule = premium_schedule
 
-        # Acceptance ratio (simplified)
-alpha = min(1, np.exp(-0.5
-* (x_new**2 - x**2)))
+    def log_posterior(self, params):
+        """
+        Calculate log posterior for retention optimization.
+        params = [retention, risk_aversion, correlation_factor]
+        """
+        retention, risk_aversion, corr_factor = params
 
-        # Accept or reject
-if np.random.rand() < alpha:
-x = x_new
+        # Prior constraints (e.g., retention between 100k and 5M)
+        if retention < 100000 or retention > 5000000:
+            return -np.inf
+        if risk_aversion < 0.5 or risk_aversion > 3:
+            return -np.inf
+        if corr_factor < 0 or corr_factor > 1:
+            return -np.inf
 
-chain.append(x)
+        # Calculate expected retained losses
+        retained_losses = []
+        for line, losses in self.losses.items():
+            retained = np.minimum(losses, retention)
+            retained_losses.extend(retained)
 
-return chain
+        # Total cost = retained losses - premium savings + risk charge
+        expected_retained = np.mean(retained_losses)
+        volatility = np.std(retained_losses)
+        premium_savings = self.premium_schedule(retention)
 
-# Run multiple chains
-chains = [run_mcmc_chain(seed=i) for i in range(4)]
+        # Risk-adjusted total cost
+        total_cost = expected_retained - premium_savings + risk_aversion * volatility
+
+        # Log posterior (negative cost since we want to minimize)
+        return -total_cost / 100000  # Scale for numerical stability
+
+    def run_chain(self, seed, n_samples=5000, initial_params=None):
+        """Run a single MCMC chain for retention optimization."""
+        np.random.seed(seed)
+
+        if initial_params is None:
+            # Random initialization
+            initial_params = [
+                np.random.uniform(250000, 2000000),  # retention
+                np.random.uniform(1, 2),              # risk_aversion
+                np.random.uniform(0.2, 0.8)           # correlation
+            ]
+
+        chain = []
+        current_params = initial_params
+        current_log_p = self.log_posterior(current_params)
+
+        # Metropolis-Hastings sampling
+        for i in range(n_samples):
+            # Propose new parameters
+            proposal = current_params + np.random.randn(3) * [50000, 0.1, 0.05]
+            proposal_log_p = self.log_posterior(proposal)
+
+            # Accept/reject
+            log_ratio = proposal_log_p - current_log_p
+            if np.log(np.random.rand()) < log_ratio:
+                current_params = proposal
+                current_log_p = proposal_log_p
+
+            # Store only retention level for diagnostics
+            chain.append(current_params[0])
+
+        return chain
+
+
+# ============================================================================
+# EXAMPLE USAGE: Corporate Insurance Program Optimization
+# ============================================================================
+
+# Simulate historical loss data for a manufacturer
+np.random.seed(42)
+historical_losses = {
+    'property': np.random.pareto(2, 100) * 100000,  # Heavy-tailed property losses
+    'liability': np.random.lognormal(11, 1.5, 80),   # GL/Products losses
+    'auto': np.random.gamma(2, 50000, 120),          # Fleet losses
+    'workers_comp': np.random.lognormal(9, 2, 150)   # WC claims
+}
+
+# Premium schedule (savings increase with retention)
+def premium_schedule(retention):
+    """Premium savings as function of retention level."""
+    base_premium = 2000000
+    discount = min(0.4, (retention / 1000000) * 0.15)
+    return base_premium * discount
+
+# Initialize MCMC sampler
+sampler = InsuranceRetentionMCMC(historical_losses, premium_schedule)
+
+# Run multiple chains with different starting points
+print("Running MCMC for Optimal Retention Analysis...")
+print("=" * 50)
+
+chains = []
+for i in range(4):
+    print(f"Running chain {i+1}/4...")
+    chain = sampler.run_chain(seed=i, n_samples=5000)
+    chains.append(chain)
 
 # Diagnose convergence
-diagnostics = ConvergenceDiagnostics(chains)
+print("\nConvergence Diagnostics for Retention Optimization:")
+print("-" * 50)
 
-print("Convergence Diagnostics:")
-print("-" * 40)
+diagnostics = ConvergenceDiagnostics(chains)
 
 # Gelman-Rubin
 gr = diagnostics.gelman_rubin()
-print(f"Gelman-Rubin R-hat: {gr['R_hat']:.3f} (Converged: {gr['converged']})")
+print(f"Gelman-Rubin R-hat: {gr['R_hat']:.3f}")
+print(f"  → Converged: {gr['converged']}")
+print(f"  → Interpretation: {'Chains agree on optimal retention' if gr['converged'] else 'Need longer runs'}")
 
-# ESS
+# Effective Sample Size
 ess = diagnostics.effective_sample_size()
-print(f"Effective Sample Size: {ess['ess']:.0f} ({ess['efficiency']:.1%} efficiency)")
+print(f"\nEffective Sample Size: {ess['ess']:.0f} ({ess['efficiency']:.1%} efficiency)")
+print(f"  → Interpretation: {'Sufficient for decision' if ess['ess'] > 1000 else 'Need more samples'}")
 
 # Geweke
 geweke = diagnostics.geweke_diagnostic()
-print(f"Geweke z-score: {geweke['z_score']:.3f} (p-value: {geweke['p_value']:.3f})")
+print(f"\nGeweke Diagnostic:")
+print(f"  → z-score: {geweke['z_score']:.3f} (p-value: {geweke['p_value']:.3f})")
+print(f"  → Interpretation: {'Stable estimates' if geweke['converged'] else 'Potential drift detected'}")
 
 # Heidelberger-Welch
 hw = diagnostics.heidelberger_welch()
-print(f"Stationary: {hw['stationary']}, Halfwidth test: {hw['halfwidth_test_passed']}")
+print(f"\nHeidelberger-Welch Test:")
+print(f"  → Stationary: {hw['stationary']}")
+print(f"  → Halfwidth test: {hw['halfwidth_test_passed']}")
+print(f"  → Mean retention estimate: ${hw['mean']:,.0f}")
+print(f"  → Confidence interval halfwidth: ${hw['halfwidth']:,.0f}")
 
-# Visualize
+# Final recommendation
+combined_chain = np.concatenate(chains)
+optimal_retention = np.mean(combined_chain)
+retention_std = np.std(combined_chain)
+percentiles = np.percentile(combined_chain, [25, 50, 75])
+
+print(f"\n" + "=" * 50)
+print("RETENTION RECOMMENDATION:")
+print(f"  → Optimal Retention: ${optimal_retention:,.0f}")
+print(f"  → Standard Deviation: ${retention_std:,.0f}")
+print(f"  → 50% Confidence Range: ${percentiles[0]:,.0f} - ${percentiles[2]:,.0f}")
+print(f"  → Decision Quality: {'High confidence' if gr['converged'] and ess['ess'] > 1000 else 'Consider additional analysis'}")
+
+# Visualize diagnostics
+print("\nGenerating diagnostic plots...")
 diagnostics.plot_diagnostics()
 ```
 
 #### Sample Output
 
-![Convergence Diagnostics Example](../../../theory/figures/convergence_diagnostics_example.png)
+![Convergence Diagnostics Example](figures/convergence_diagnostics_example.png)
 
 ```
-Convergence Diagnostics:
-----------------------------------------
-Gelman-Rubin R-hat: 1.001 (Converged: True)
-Effective Sample Size: 994 (5.0% efficiency)
-Geweke z-score: -9.717 (p-value: 0.000)
-Stationary: False, Halfwidth test: False
+Convergence Diagnostics for Retention Optimization:
+--------------------------------------------------
+Gelman-Rubin R-hat: 1.134
+  → Converged: False
+  → Interpretation: Need longer runs
 
+Effective Sample Size: 107 (0.5% efficiency)
+  → Interpretation: Need more samples
+
+Geweke Diagnostic:
+  → z-score: -87.302 (p-value: 0.000)
+  → Interpretation: Potential drift detected
+
+Heidelberger-Welch Test:
+  → Stationary: False
+  → Halfwidth test: True
+  → Mean retention estimate: $2,634,781
+  → Confidence interval halfwidth: $18,035
+
+==================================================
+RETENTION RECOMMENDATION:
+  → Optimal Retention: $3,362,652
+  → Standard Deviation: $1,126,258
+  → 50% Confidence Range: $2,701,352 - $4,404,789
+  → Decision Quality: Consider additional analysis
 ```
 
 (confidence-intervals)=
 ## Confidence Intervals
 
+Confidence intervals quantify parameter uncertainty in insurance estimates, crucial for setting retention levels, evaluating program adequacy, and regulatory compliance. The choice of method depends on sample size, distribution characteristics, and the specific insurance application.
+
 ### Classical Confidence Intervals
 
-For large samples, use Central Limit Theorem:
+For large samples with approximately normal sampling distributions, use Central Limit Theorem:
 
 $$
 \bar{X} \pm z_{\alpha/2} \frac{s}{\sqrt{n}}
 $$
 
+**Limitations in Insurance Context:**
+- Assumes normality of sampling distribution (often violated for insurance losses)
+- Underestimates uncertainty for heavy-tailed distributions
+- Poor coverage for extreme percentiles (important for high limit attachment points)
+
+**Appropriate Uses:**
+- Frequency estimates with sufficient data (n > 30)
+- Average severity for high-frequency lines after log transformation
+- Loss ratio estimates for stable, mature books
+
+### Student's *t* Intervals
+
+For smaller samples or unknown population variance:
+
+$$
+\bar{X} \pm t_{n-1,\alpha/2} \frac{s}{\sqrt{n}}
+$$
+
+**Insurance Applications:**
+- New coverage lines with limited history (n < 30)
+- Credibility-weighted estimates for small accounts
+- Emerging risk categories with sparse data
+
 ### Bootstrap Confidence Intervals
+
+Bootstrap methods handle complex statistics and non-normal distributions common in insurance, providing distribution-free (nonparametric) inference.
 
 #### Percentile Method
 
+Direct empirical quantiles from bootstrap distribution:
 
 $$
 [\hat{\theta}^*_{\alpha/2}, \hat{\theta}^*_{1-\alpha/2}]
 $$
 
+where $\hat{\theta}^*_p$ is the $p$-th percentile of $B$ bootstrap estimates.
+
+**Implementation for Insurance:**
+
+1. Resample claims data with replacement $B$ times (at least 1,000 resamples for confidence intervals, typically 5,000-10,000)
+2. Calculate statistic of interest for each resample (e.g., 99.5% VaR)
+3. Use empirical percentiles as confidence bounds
+
+**Best for:**
+
+- Median loss estimates
+- Interquartile ranges for pricing bands
+- Simple reserve estimates
+
 #### BCa (Bias-Corrected and Accelerated)
 
-Adjust for bias and skewness:
+Adjusts for bias and skewness inherent in insurance loss distributions:
 
 $$
 [\hat{\theta}^*_{\alpha_1}, \hat{\theta}^*_{\alpha_2}]
 $$
 
-where $\alpha_1$ and $\alpha_2$ are adjusted percentiles.
+where adjusted percentiles are:
 
-### Implementation
+$$
+\alpha_1 = \Phi\left(\hat{z}_0 + \frac{\hat{z}_0 + z_{\alpha/2}}{1 - \hat{a}(\hat{z}_0 + z_{\alpha/2})}\right)
+$$
 
-```python
-import pandas as pd
+$$
+\alpha_2 = \Phi\left(\hat{z}_0 + \frac{\hat{z}_0 + z_{1-\alpha/2}}{1 - \hat{a}(\hat{z}_0 + z_{1-\alpha/2})}\right)
+$$
 
-class ConfidenceIntervals:
-"""Calculate various types of confidence intervals."""
+with:
+- $\hat{z}_0$ = bias correction factor (proportion of bootstrap estimates < original estimate)
+- $\hat{a}$ = acceleration constant (measures rate of change in standard error)
 
-def __init__(self, data):
-self.data = np.array(data)
-self.n = len(data)
-self.mean = np.mean(data)
-self.std = np.std(data, ddof=1)
+**Critical for:**
+- Tail risk metrics (TVaR, probable maximum loss)
+- Excess layer loss costs with limited data
+- Catastrophe model uncertainty quantification
 
-def classical_ci(self, confidence=0.95):
-"""Classical confidence interval using normal approximation."""
+#### Bootstrap-*t* Intervals
 
-alpha = 1 - confidence
-z_critical = stats.norm.ppf(1 - alpha/2)
+Studentized bootstrap for improved coverage:
 
-se = self.std / np.sqrt(self.n)
-margin = z_critical * se
+$$
+[\hat{\theta} - t^*_{1-\alpha/2} \cdot SE^*, \hat{\theta} - t^*_{\alpha/2} \cdot SE^*]
+$$
 
-return {
-'lower': self.mean - margin,
-'upper': self.mean + margin,
-'se': se,
-'margin': margin,
-'method': 'Classical (Normal)'
-}
+where $t^*$ values come from bootstrap distribution of $(\hat{\theta}^* - \hat{\theta})/SE^*$.
 
-def t_ci(self, confidence=0.95):
-"""Student's t confidence interval."""
+**Superior for:**
+- Highly skewed distributions (cyber, catastrophe losses)
+- Ratio estimates (loss ratios, combined ratios)
+- Correlation estimates between coverage lines
 
-alpha = 1 - confidence
-t_critical = stats.t.ppf(1 - alpha/2, self.n - 1)
+### Credibility-Weighted Confidence Intervals
 
-se = self.std / np.sqrt(self.n)
-margin = t_critical
-* se
+Combines company-specific and industry experience where company experience has low credibility:
 
-return {
-'lower': self.mean - margin,
-'upper': self.mean + margin,
-'se': se,
-'margin': margin,
-'method': "Student's t"
-}
+$$
+\hat{\theta}_{\text{cred}} = Z \cdot \hat{\theta}_{\text{company}} + (1-Z) \cdot \hat{\theta}_{\text{industry}}
+$$
 
-def bootstrap_ci(self, confidence=0.95, n_bootstrap=10000, method='percentile'):
-"""Bootstrap confidence intervals."""
+with variance:
 
-        # Generate bootstrap samples
-bootstrap_means = []
+$$
+\text{Var}(\hat{\theta}_{\text{cred}}) = Z^2 \cdot \text{Var}(\hat{\theta}_{\text{company}}) + (1-Z)^2 \cdot \text{Var}(\hat{\theta}_{\text{industry}})
+$$
 
-for _ in range(n_bootstrap):
-sample = np.random.choice(self.data, size=self.n, replace=True)
-bootstrap_means.append(np.mean(sample))
+where credibility factor $Z = n/(n + k)$ with $k$ representing prior variance.
 
-bootstrap_means = np.array(bootstrap_means)
+### Bayesian Credible Intervals
 
-if method == 'percentile':
-            # Percentile method
-alpha = 1 - confidence
-lower = np.percentile(bootstrap_means, 100 * alpha/2)
-upper = np.percentile(bootstrap_means, 100
-* (1 - alpha/2))
+Bayesian credible intervals provide direct probability statements about where a parameter lies, incorporating both observed data and prior knowledge. This approach is particularly valuable when dealing with limited loss data or incorporating industry benchmarks.
 
-elif method == 'bca':
-            # BCa method
-lower, upper = self._bca_interval(bootstrap_means, confidence)
+#### Core Concept
 
-elif method == 'basic':
-            # Basic bootstrap
-alpha = 1 - confidence
-lower_q = np.percentile(bootstrap_means, 100 * alpha/2)
-upper_q = np.percentile(bootstrap_means, 100
-* (1 - alpha/2))
-lower = 2 * self.mean - upper_q
-upper = 2
-* self.mean - lower_q
+A 95% credible interval means there's a 95% probability the parameter falls within the interval:
 
-else:
-raise ValueError(f"Unknown method: {method}")
+$$
+P(\theta \in [a, b] | \text{data}) = 0.95
+$$
 
-return {
-'lower': lower,
-'upper': upper,
-'bootstrap_mean': np.mean(bootstrap_means),
-'bootstrap_std': np.std(bootstrap_means),
-'method': f'Bootstrap ({method})',
-'n_bootstrap': n_bootstrap
-}
+**Key Distinction from Confidence Intervals:**
+- **Confidence Interval**: "If we repeated this procedure many times, 95% of intervals would contain the true value"
+- **Credible Interval**: "Given our data and prior knowledge, there's a 95% probability the parameter is in this range"
 
-def _bca_interval(self, bootstrap_dist, confidence):
-"""Calculate BCa (bias-corrected and accelerated) interval."""
+The credible interval directly answers: "What's the probability our retention is adequate?"
 
-alpha = 1 - confidence
+#### How Credible Intervals Work
 
-        # Bias correction
-z0 = stats.norm.ppf(np.mean(bootstrap_dist < self.mean))
+Starting with:
 
-        # Acceleration
-jackknife_means = []
-for i in range(self.n):
-jack_sample = np.delete(self.data, i)
-jackknife_means.append(np.mean(jack_sample))
+1. **Prior distribution**: Industry benchmark or regulatory assumption
+2. **Likelihood**: How well different parameter values explain your data
+3. **Posterior distribution**: Updated belief combining prior and data
 
-jackknife_means = np.array(jackknife_means)
-jack_mean = np.mean(jackknife_means)
+The credible interval captures the central 95% (or other level) of the posterior distribution.
 
-numerator = np.sum((jack_mean - jackknife_means)**3)
-denominator = 6 * np.sum((jack_mean - jackknife_means)**2)**(3/2)
+#### Two Types of Credible Intervals
 
-a = numerator / denominator if denominator != 0 else 0
+##### Equal-Tailed Intervals
+Uses the 2.5th and 97.5th percentiles of posterior distribution (or for some other level, take $\alpha / 2$ from each side):
 
-        # Adjusted percentiles
-z_alpha = stats.norm.ppf(alpha/2)
-z_1alpha = stats.norm.ppf(1 - alpha/2)
+$$
+[\theta_{0.025}, \theta_{0.975}]
+$$
 
-alpha1 = stats.norm.cdf(z0 + (z0 + z_alpha)/(1 - a*(z0 + z_alpha)))
-alpha2 = stats.norm.cdf(z0 + (z0 + z_1alpha)/(1 - a*(z0 + z_1alpha)))
+**When to use**: Symmetric distributions, standard reporting
 
-lower = np.percentile(bootstrap_dist, 100 * alpha1)
-upper = np.percentile(bootstrap_dist, 100
-* alpha2)
+##### Highest Posterior Density (HPD) Intervals
+The shortest interval containing 95% probability:
+- Always shorter than equal-tailed for skewed distributions
+- All points inside have higher probability than points outside
 
-return lower, upper
+**When to use**: Skewed distributions (severity modeling), optimization decisions
 
-def compare_methods(self, confidence=0.95):
-"""Compare different confidence interval methods."""
+**Example - Cyber Loss Severity:**
 
-methods = {
-'Classical': self.classical_ci(confidence),
-"Student's t": self.t_ci(confidence),
-'Bootstrap (percentile)': self.bootstrap_ci(confidence, method='percentile'),
-'Bootstrap (BCa)': self.bootstrap_ci(confidence, method='bca'),
-'Bootstrap (basic)': self.bootstrap_ci(confidence, method='basic')
-}
+- Equal-tailed 95%: [\$50K, \$2.8M]  (width: \$2.75M)
+- HPD 95%: [\$25K, \$2.3M]  (width: \$2.275M)
+  - HPD provides tighter bounds for decision-making
 
-        # Create comparison table
-comparison = []
-for name, ci in methods.items():
-comparison.append({
-'Method': name,
-'Lower': ci['lower'],
-'Upper': ci['upper'],
-'Width': ci['upper'] - ci['lower']
-})
+**Insurance-Specific Advantages**:
 
-return pd.DataFrame(comparison)
+1. Natural Incorporation of Industry Priors
+2. Handles Parameter Uncertainty in Hierarchical Models
+3. Updates Systematically with Emerging Experience
 
-def plot_intervals(self, confidence=0.95):
-"""Visualize confidence intervals."""
+#### When to Use Bayesian Credible Intervals
 
-comparison = self.compare_methods(confidence)
+**Ideal situations:**
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+- Limited company data (< 3 years history)
+- New coverage lines or emerging risks
+- Incorporating industry benchmarks or expert judgment
+- Multi-level modeling (location, division, company)
+- When stakeholders want probability statements for decisions
 
-        # Plot intervals
-y_pos = np.arange(len(comparison))
+**May not be suitable when:**
 
-for i, row in comparison.iterrows():
-ax1.plot([row['Lower'], row['Upper']], [i, i], 'o-', linewidth=2)
-ax1.plot(self.mean, i, 'rx', markersize=10)
+- Extensive historical data makes priors irrelevant
+- Regulatory requirements mandate frequentist methods
+- Computational resources are limited
+- Prior information is controversial or unavailable
 
-ax1.set_yticks(y_pos)
-ax1.set_yticklabels(comparison['Method'])
-ax1.set_xlabel('Value')
-ax1.set_title(f'{confidence*100:.0f}% Confidence Intervals')
-ax1.axvline(self.mean, color='r', linestyle='--', alpha=0.5, label='Sample Mean')
-ax1.legend()
-ax1.grid(True, alpha=0.3)
+### Profile Likelihood Intervals
 
-        # Bootstrap distribution
-bootstrap_dist = []
-for _ in range(5000):
-sample = np.random.choice(self.data, size=self.n, replace=True)
-bootstrap_dist.append(np.mean(sample))
+Profile likelihood intervals provide more accurate confidence intervals for maximum likelihood estimates, especially when standard methods fail due to skewness, small samples, or boundary constraints.
 
-ax2.hist(bootstrap_dist, bins=50, density=True, alpha=0.7, edgecolor='black')
-ax2.axvline(self.mean, color='r', linestyle='--', label='Sample Mean')
-ax2.axvline(np.percentile(bootstrap_dist, 2.5), color='g', linestyle='--',
-label='2.5% Percentile')
-ax2.axvline(np.percentile(bootstrap_dist, 97.5), color='g', linestyle='--',
-label='97.5% Percentile')
-ax2.set_xlabel('Bootstrap Mean')
-ax2.set_ylabel('Density')
-ax2.set_title('Bootstrap Distribution')
-ax2.legend()
+#### The Problem with Standard (Wald) Intervals
 
-plt.tight_layout()
-plt.show()
+Maximum likelihood estimates typically use Wald intervals based on asymptotic normality:
 
-return comparison
+$$
+\hat{\theta} \pm z_{\alpha/2} \cdot SE(\hat{\theta})
+$$
 
-# Example: Confidence intervals for insurance metrics
-np.random.seed(42)
+These assume the likelihood is approximately quadratic (normal) near the MLE, which often fails for:
+- Small samples (n < 50)
+- Parameters near boundaries (probabilities near 0 or 1)
+- Skewed likelihood surfaces (common in tail estimation)
 
-# Simulate insurance loss ratios
-loss_ratios = np.random.beta(2, 5, 100) * 1.5
-# Scaled beta distribution
+#### Profile Likelihood Solution
 
-ci_analyzer = ConfidenceIntervals(loss_ratios)
-comparison = ci_analyzer.plot_intervals(confidence=0.95)
+Profile likelihood intervals use the actual shape of the likelihood function rather than assuming normality:
 
-print("\nConfidence Interval Comparison:")
-print(comparison.to_string())
-```
+$$
+\{θ : 2[\ell(\hat{θ}) - \ell(θ)] ≤ χ^2_{1,1-α}\}
+$$
 
-### Sample Output
+where:
+- $\ell(\hat{θ})$ = log-likelihood at maximum
+- $\ell(θ)$ = log-likelihood at any value θ
+- $χ^2_{1,1-α}$ = critical value from chi-squared distribution
 
-![Bootstrap Confidence Interval](../../../theory/figures/bootstrap_ci.png)
+#### Why Profile Likelihood Works Better
 
-```
-Confidence Interval Comparison:
-                   Method     Lower     Upper     Width
-0               Classical  0.344443  0.430019  0.085576
-1             Student's t  0.343914  0.430549  0.086635
-2  Bootstrap (percentile)  0.344961  0.430498  0.085537
-3         Bootstrap (BCa)  0.347206  0.432543  0.085337
-4       Bootstrap (basic)  0.344356  0.428684  0.084327
-```
+1. **Respects parameter constraints**: Won't give negative variances or probabilities > 1
+2. **Captures asymmetry**: Naturally wider on the side with more uncertainty
+3. **Better small-sample coverage**: Achieves closer to nominal 95% coverage
+4. **Invariant to parameterization**: Same interval whether using $\theta$ or $\log(\theta)$
+
+**Essential for:**
+- Tail index estimation in extreme value models
+- Copula parameter estimation for dependency modeling
+- Non-linear trend parameters in reserve development
 
 (hypothesis-testing)=
 ## Hypothesis Testing
 
 ### Framework
 
+Hypothesis testing provides a formal framework for making data-driven decisions about insurance program changes, comparing options, and validating actuarial assumptions. The process quantifies evidence against a baseline assumption to support strategic decisions.
+
+#### Core Components
+
 Test null hypothesis $H_0$ against alternative $H_1$:
 
-1. **Test statistic**: $T = T(X_1, ..., X_n)$
-2. **P-value**: $P(T \geq T_{\text{obs}} | H_0)$
-3. **Decision**: Reject $H_0$ if p-value < $\alpha$
+1. **Test statistic**: $T = T(X_1, ..., X_n)$ - Summary measure of evidence
+2. **P-value**: $P(T \geq T_{\text{obs}} | H_0)$ - Probability of seeing data this extreme if $H_0$ true
+3. **Decision**: Reject $H_0$ if p-value < $\alpha$ (significance level, typically 0.05)
 
-### Tests for Ergodic Advantage
+#### Interpretation for Insurance Decisions
+
+**P-value meaning**: "If our current program is adequate (null hypothesis), what's the probability of seeing losses this bad or worse?"
+   - P-value = 0.03: Only 3% chance of seeing these results if program adequate, consider changing programs
+   - P-value = 0.15: 15% chance, insufficient evidence to change program
+
+**Common significance levels (α) in insurance:**
+   - 0.10: Preliminary analysis, early warning systems
+   - 0.05: Standard business decisions, pricing changes
+   - 0.01: Major strategic changes, regulatory compliance
+   - 0.001: Safety-critical decisions, catastrophe modeling
+
+### Types of Hypothesis Tests for Insurance
+
+- **One-Sample Tests**: Testing whether observed experience differs from expected
+- **Two-Sample Tests**: Comparing programs, periods, or segments
+- **Goodness-of-Fit Tests**: Validating distributional assumptions
+  - **Kolmogorov-Smirnov Test**: Maximum distance between empirical and theoretical CDF
+  - **Anderson-Darling Test**: More sensitive to tail differences than K-S
+
+### Bayesian Hypothesis Testing
+
+Alternative framework using posterior probabilities:
+
+#### Bayes Factors
+
+Ratio of evidence for competing hypotheses:
+
+$$
+BF_{10} = \frac{P(\text{data}|H_1)}{P(\text{data}|H_0)}
+$$
+
+#### Interpretation scale:
+
+- BF < 1: Evidence favors $H_0$
+- BF = 1-3: Weak evidence for $H_1​$
+- BF = 3-10: Moderate evidence for $H_1​$
+- BF > 10: Strong evidence for $H_1​$
+
+### Hypothesis Testing Example
 
 ```python
-class HypothesisTesting:
-"""Statistical tests for insurance optimization."""
+import numpy as np
+from scipy import stats
+import pandas as pd
 
-def __init__(self, group1, group2=None):
-self.group1 = np.array(group1)
-self.group2 = np.array(group2) if group2 is not None else None
+def retention_analysis(losses, current_retention, proposed_retention,
+                      premium_difference, alpha=0.05):
+    """
+    Complete hypothesis testing framework for retention decision.
+    """
 
-def test_ergodic_advantage(self, time_avg, ensemble_avg, n_sims=10000):
-"""Test if time average significantly differs from ensemble average."""
+    # Calculate retained losses under each retention
+    current_retained = np.minimum(losses, current_retention)
+    proposed_retained = np.minimum(losses, proposed_retention)
 
-        # Bootstrap test
-differences = []
+    # Test 1: Paired t-test for mean difference
+    t_stat, p_value_mean = stats.ttest_rel(current_retained, proposed_retained)
 
-for _ in range(n_sims):
-            # Resample paths
-sample_indices = np.random.choice(len(time_avg), size=len(time_avg), replace=True)
-sample_time = time_avg[sample_indices]
-sample_ensemble = ensemble_avg[sample_indices]
+    # Test 2: F-test for variance difference
+    f_stat = np.var(current_retained) / np.var(proposed_retained)
+    p_value_var = stats.f.sf(f_stat, len(losses)-1, len(losses)-1) * 2
 
-            # Calculate difference
-diff = np.mean(sample_time) - np.mean(sample_ensemble)
-differences.append(diff)
+    # Test 3: Bootstrap test for tail risk (95th percentile)
+    n_bootstrap = 10000
+    percentile_diffs = []
 
-differences = np.array(differences)
+    for _ in range(n_bootstrap):
+        sample_idx = np.random.choice(len(losses), len(losses), replace=True)
+        sample_losses = losses[sample_idx]
 
-        # Calculate p-value
-observed_diff = np.mean(time_avg) - np.mean(ensemble_avg)
-p_value = np.mean(differences >= observed_diff)
+        current_p95 = np.percentile(np.minimum(sample_losses, current_retention), 95)
+        proposed_p95 = np.percentile(np.minimum(sample_losses, proposed_retention), 95)
+        percentile_diffs.append(proposed_p95 - current_p95)
 
-return {
-'observed_difference': observed_diff,
-'p_value': p_value,
-'significant': p_value < 0.05,
-'bootstrap_mean': np.mean(differences),
-'bootstrap_std': np.std(differences),
-'confidence_interval': (np.percentile(differences, 2.5),
-np.percentile(differences, 97.5))
-}
+    p_value_tail = np.mean(np.array(percentile_diffs) > premium_difference)
 
-def mann_whitney_test(self):
-"""Non-parametric test for difference in distributions."""
+    # Economic significance test
+    expected_savings = np.mean(current_retained - proposed_retained)
+    roi = (expected_savings - premium_difference) / premium_difference
 
-if self.group2 is None:
-raise ValueError("Two groups required for Mann-Whitney test")
+    # Decision matrix
+    decisions = {
+        'mean_test': {
+            'statistic': t_stat,
+            'p_value': p_value_mean,
+            'significant': p_value_mean < alpha,
+            'interpretation': 'Average retained losses differ' if p_value_mean < alpha
+                           else 'No significant difference in average'
+        },
+        'variance_test': {
+            'statistic': f_stat,
+            'p_value': p_value_var,
+            'significant': p_value_var < alpha,
+            'interpretation': 'Volatility changes significantly' if p_value_var < alpha
+                           else 'Similar volatility'
+        },
+        'tail_test': {
+            'p_value': p_value_tail,
+            'significant': p_value_tail < alpha,
+            'interpretation': 'Tail risk justifies premium' if p_value_tail < alpha
+                           else 'Premium exceeds tail risk benefit'
+        },
+        'economic_test': {
+            'expected_savings': expected_savings,
+            'roi': roi,
+            'recommendation': 'Change retention' if roi > 0.1 and p_value_mean < alpha
+                           else 'Keep current retention'
+        }
+    }
 
-statistic, p_value = stats.mannwhitneyu(self.group1, self.group2,
-alternative='two-sided')
+    return decisions
 
-        # Effect size (rank-biserial correlation)
-n1, n2 = len(self.group1), len(self.group2)
-effect_size = 1 - (2 * statistic) / (n1
-* n2)
+# Example usage
+losses = np.random.pareto(2, 1000) * 100000  # Historical losses
+results = retention_analysis(losses, 500000, 1000000, 75000)
 
-return {
-'statistic': statistic,
-'p_value': p_value,
-'effect_size': effect_size,
-'significant': p_value < 0.05
-}
-
-def kolmogorov_smirnov_test(self):
-"""Test if two samples come from same distribution."""
-
-if self.group2 is None:
-            # One-sample test against normal
-statistic, p_value = stats.kstest(self.group1, 'norm',
-args=(np.mean(self.group1),
-np.std(self.group1)))
-else:
-            # Two-sample test
-statistic, p_value = stats.ks_2samp(self.group1, self.group2)
-
-return {
-'statistic': statistic,
-'p_value': p_value,
-'significant': p_value < 0.05
-}
-
-def permutation_test(self, statistic_func=np.mean, n_permutations=10000):
-"""Permutation test for any test statistic."""
-
-if self.group2 is None:
-raise ValueError("Two groups required for permutation test")
-
-        # Observed statistic
-observed = statistic_func(self.group1) - statistic_func(self.group2)
-
-        # Combine groups
-combined = np.concatenate([self.group1, self.group2])
-n1 = len(self.group1)
-
-        # Permutation distribution
-perm_stats = []
-
-for _ in range(n_permutations):
-            # Shuffle and split
-np.random.shuffle(combined)
-perm_group1 = combined[:n1]
-perm_group2 = combined[n1:]
-
-            # Calculate statistic
-perm_stat = statistic_func(perm_group1) - statistic_func(perm_group2)
-perm_stats.append(perm_stat)
-
-perm_stats = np.array(perm_stats)
-
-        # P-value
-p_value = np.mean(np.abs(perm_stats) >= np.abs(observed))
-
-return {
-'observed': observed,
-'p_value': p_value,
-'significant': p_value < 0.05,
-'permutation_mean': np.mean(perm_stats),
-'permutation_std': np.std(perm_stats)
-}
-
-# Example: Test insurance strategies
-np.random.seed(42)
-
-# Strategy A: Lower retention, higher premium
-strategy_a_returns = np.random.normal(0.06, 0.10, 1000)
-
-# Strategy B: Higher retention, lower premium
-strategy_b_returns = np.random.normal(0.07, 0.15, 1000)
-
-# Test for difference
-tester = HypothesisTesting(strategy_a_returns, strategy_b_returns)
-
-print("Strategy Comparison Tests:")
-print("-" * 40)
-
-# Mann-Whitney
-mw = tester.mann_whitney_test()
-print(f"Mann-Whitney: p={mw['p_value']:.4f}, Effect size={mw['effect_size']:.3f}")
-
-# Kolmogorov-Smirnov
-ks = tester.kolmogorov_smirnov_test()
-print(f"K-S Test: p={ks['p_value']:.4f}")
-
-# Permutation test
-perm = tester.permutation_test()
-print(f"Permutation: p={perm['p_value']:.4f}, Observed diff={perm['observed']:.4f}")
+print("Retention Analysis Results:")
+for test, result in results.items():
+    print(f"\n{test}:")
+    for key, value in result.items():
+        print(f"  {key}: {value}")
 ```
 
 #### Sample Output
 
 ```
-Strategy Comparison Tests:
-----------------------------------------
-Mann-Whitney: p=0.0006, Effect size=0.088
-K-S Test: p=0.0000
-Permutation: p=0.0008, Observed diff=-0.0187
+Retention Analysis Results:
+
+mean_test:
+  statistic: -4.836500411778284
+  p_value: 1.5295080832844058e-06
+  significant: True
+  interpretation: Average retained losses differ
+
+variance_test:
+  statistic: 0.5405383468155659
+  p_value: 1.9999999999999998
+  significant: False
+  interpretation: Similar volatility
+
+tail_test:
+  p_value: 0.0
+  significant: True
+  interpretation: Tail risk justifies premium
+
+economic_test:
+  expected_savings: -9644.033668628837
+  roi: -1.1285871155817178
+  recommendation: Keep current retention
 ```
 
 (bootstrap-methods)=
 ## Bootstrap Methods
 
-![Bootstrap Analysis](figures/bootstrap_analysis.png)
+Bootstrap methods provide powerful, flexible tools for quantifying uncertainty without restrictive distributional assumptions. For insurance applications with limited data, heavy tails, complex dependencies, or complex policy mechanics, bootstrap techniques often outperform traditional methods.
 
-*Figure 3: Bootstrap analysis showing resampling distributions, confidence interval comparisons, and convergence properties for insurance claims data.*
+### Core Concept
 
-### Bootstrap Algorithm
+Bootstrap resampling mimics the sampling process by treating the observed data as the population, enabling inference about parameter uncertainty, confidence intervals, and hypothesis testing without assuming normality or other specific distributions.
 
-1. Draw $B$ samples of size $n$ with replacement
-2. Calculate statistic $\hat{\theta}^*_b$ for each sample
-3. Use distribution of $\hat{\theta}^*$ for inference
+### Standard (Nonparametric) Bootstrap Algorithm
 
-### Advanced Bootstrap
+The classical bootstrap resamples from observed data with replacement:
+
+1. Draw $B$ samples of size $n$ *with replacement* from original data
+2. Calculate statistic $\hat{\theta}^*_b$ for each bootstrap sample $b = 1, ..., B$
+3. Use empirical distribution of $\{\hat{\theta}^*_1, ..., \hat{\theta}^*_B\}$ for inference
+
+#### Insurance Implementation:
 
 ```python
-class BootstrapAnalysis:
-"""Advanced bootstrap methods for insurance analysis."""
+import numpy as np
 
-def __init__(self, data, statistic_func):
-self.data = np.array(data)
-self.statistic_func = statistic_func
-self.n = len(data)
+def bootstrap_loss_metrics(losses, n_bootstrap=10000, seed=42):
+    """
+    Bootstrap key metrics for insurance loss analysis.
 
-def basic_bootstrap(self, n_bootstrap=10000):
-"""Standard bootstrap resampling."""
+    Parameters:
+    losses: array of historical loss amounts
+    n_bootstrap: number of bootstrap samples
+    """
+    np.random.seed(seed)
+    n = len(losses)
 
-bootstrap_stats = []
+    # Storage for bootstrap statistics
+    means = []
+    medians = []
+    percentile_95s = []
+    tvar_95s = []  # Tail Value at Risk
 
-for _ in range(n_bootstrap):
-sample = np.random.choice(self.data, size=self.n, replace=True)
-stat = self.statistic_func(sample)
-bootstrap_stats.append(stat)
+    for b in range(n_bootstrap):
+        # Resample with replacement
+        sample = np.random.choice(losses, size=n, replace=True)
 
-return np.array(bootstrap_stats)
+        # Calculate statistics
+        means.append(np.mean(sample))
+        medians.append(np.median(sample))
+        percentile_95s.append(np.percentile(sample, 95))
 
-def parametric_bootstrap(self, n_bootstrap=10000, dist_family='normal'):
-"""Parametric bootstrap assuming distribution family."""
+        # TVaR (average of losses above 95th percentile)
+        threshold = np.percentile(sample, 95)
+        tail_losses = sample[sample > threshold]
+        tvar_95s.append(np.mean(tail_losses) if len(tail_losses) > 0 else threshold)
 
-if dist_family == 'normal':
-            # Fit normal distribution
-mu, sigma = np.mean(self.data), np.std(self.data, ddof=1)
+    # Return bootstrap distributions
+    return {
+        'mean': means,
+        'median': medians,
+        'var_95': percentile_95s,
+        'tvar_95': tvar_95s
+    }
 
-bootstrap_stats = []
-for _ in range(n_bootstrap):
-sample = np.random.normal(mu, sigma, self.n)
-stat = self.statistic_func(sample)
-bootstrap_stats.append(stat)
+# Example: Property losses for manufacturer
+property_losses = np.array([15000, 28000, 45000, 52000, 78000, 95000,
+                           120000, 185000, 340000, 580000, 1250000])
 
-elif dist_family == 'lognormal':
-            # Fit lognormal
-log_data = np.log(self.data[self.data > 0])
-mu, sigma = np.mean(log_data), np.std(log_data, ddof=1)
+bootstrap_results = bootstrap_loss_metrics(property_losses)
 
-bootstrap_stats = []
-for _ in range(n_bootstrap):
-sample = np.random.lognormal(mu, sigma, self.n)
-stat = self.statistic_func(sample)
-bootstrap_stats.append(stat)
-
-else:
-raise ValueError(f"Unknown distribution: {dist_family}")
-
-return np.array(bootstrap_stats)
-
-def block_bootstrap(self, block_size, n_bootstrap=10000):
-"""Block bootstrap for time series data."""
-
-n_blocks = self.n // block_size
-
-bootstrap_stats = []
-
-for _ in range(n_bootstrap):
-            # Sample blocks
-block_indices = np.random.choice(n_blocks, size=n_blocks, replace=True)
-
-            # Construct bootstrap sample
-sample = []
-for idx in block_indices:
-start = idx * block_size
-end = min(start + block_size, self.n)
-sample.extend(self.data[start:end])
-
-sample = np.array(sample[:self.n])
-stat = self.statistic_func(sample)
-bootstrap_stats.append(stat)
-
-return np.array(bootstrap_stats)
-
-def wild_bootstrap(self, n_bootstrap=10000):
-"""Wild bootstrap for heteroskedastic data."""
-
-        # Fit initial model (simplified)
-residuals = self.data - np.mean(self.data)
-
-bootstrap_stats = []
-
-for _ in range(n_bootstrap):
-            # Generate wild weights (Rademacher distribution)
-weights = np.random.choice([-1, 1], size=self.n)
-
-            # Create bootstrap sample
-sample = np.mean(self.data) + residuals
-* weights
-stat = self.statistic_func(sample)
-bootstrap_stats.append(stat)
-
-return np.array(bootstrap_stats)
-
-# Example: Bootstrap analysis of insurance metrics
-def sharpe_ratio(returns):
-"""Calculate Sharpe ratio."""
-return np.mean(returns) / np.std(returns) if np.std(returns) > 0 else 0
-
-# Generate sample returns
-np.random.seed(42)
-returns = np.random.normal(0.08, 0.15, 250)
-# Daily returns
-
-# Bootstrap analysis
-bootstrap = BootstrapAnalysis(returns, sharpe_ratio)
-
-# Compare bootstrap methods
-methods = {
-'Standard': bootstrap.basic_bootstrap(5000),
-'Parametric': bootstrap.parametric_bootstrap(5000, 'normal'),
-'Block': bootstrap.block_bootstrap(block_size=10, n_bootstrap=5000),
-'Wild': bootstrap.wild_bootstrap(5000)
-}
-
-# Visualize
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-
-for (name, dist), ax in zip(methods.items(), axes.flatten()):
-ax.hist(dist, bins=50, density=True, alpha=0.7, edgecolor='black')
-ax.axvline(sharpe_ratio(returns), color='r', linestyle='--', label='Observed')
-ax.axvline(np.mean(dist), color='g', linestyle='--', label='Bootstrap Mean')
-ax.set_xlabel('Sharpe Ratio')
-ax.set_ylabel('Density')
-ax.set_title(f'{name} Bootstrap')
-ax.legend()
-
-    # Add confidence interval
-ci_lower, ci_upper = np.percentile(dist, [2.5, 97.5])
-ax.axvspan(ci_lower, ci_upper, alpha=0.2, color='gray')
-
-plt.tight_layout()
-plt.show()
-
-# Print statistics
-print("Bootstrap Comparison:")
-print("-" * 50)
-for name, dist in methods.items():
-print(f"{name:12} Mean: {np.mean(dist):.3f}, Std: {np.std(dist):.3f}, "
-f"95% CI: [{np.percentile(dist, 2.5):.3f}, {np.percentile(dist, 97.5):.3f}]")
+# Confidence intervals
+print("95% Bootstrap Confidence Intervals:")
+for metric, values in bootstrap_results.items():
+    ci_lower = np.percentile(values, 2.5)
+    ci_upper = np.percentile(values, 97.5)
+    print(f"{metric}: [{ci_lower:,.0f}, {ci_upper:,.0f}]")
 ```
 
-#### Sample Output
-
-![Comparison of Bootstrap Methods](../../../theory/figures/bootstrap_methods_comparison.png)
+##### Sample Output:
 
 ```
-Bootstrap Comparison:
---------------------------------------------------
-Standard
-Mean: 0.553, Std: 0.065, 95% CI: [0.431, 0.682]
-Parametric
-Mean: 0.552, Std: 0.067, 95% CI: [0.426, 0.691]
-Block
-Mean: 0.554, Std: 0.061, 95% CI: [0.437, 0.675]
-Wild
-Mean: 0.552, Std: 0.063, 95% CI: [0.432, 0.681]
+95% Bootstrap Confidence Intervals:
+mean: [86,539, 486,189]
+median: [45,000, 340,000]
+var_95: [185,000, 1,250,000]
+tvar_95: [185,000, 1,250,000]
 ```
+
+#### Advantages for Insurance:
+
+- No distributional assumptions (critical for heavy-tailed losses)
+- Captures actual data characteristics including skewness
+- Works for any statistic (ratios, percentiles, complex metrics)
+
+#### Limitations:
+
+- Underestimates tail uncertainty if largest loss not representative
+- Requires sufficient data to represent distribution (typically n > 30)
+- Cannot extrapolate beyond observed range
+
+### Parametric Bootstrap
+
+Resamples from fitted parametric distribution rather than empirical distribution:
+
+1. Fit parametric model to data: $\hat{F}(x; \hat{\theta})$
+2. Generate $B$ samples of size $n$ from $\hat{F}$
+3. Calculate statistic for each parametric bootstrap sample
+4. Use distribution for inference
+
+#### When to Use:
+
+- Strong theoretical basis for distribution (e.g., Poisson frequency)
+- Small samples where nonparametric bootstrap unreliable
+- Extrapolation beyond observed data needed
+
+#### Advantages:
+
+- Can extrapolate beyond observed data
+- Smoother estimates for tail probabilities
+- More efficient if model correct
+
+#### Risks:
+
+- Model misspecification bias
+- Overconfidence if model wrong
+- Should validate with goodness-of-fit tests
+
+### Block Bootstrap
+
+Preserves temporal or spatial dependencies by resampling blocks of consecutive observations:
+
+1. Divide data into overlapping or non-overlapping blocks of length $l$
+2. Resample blocks with replacement
+3. Concatenate blocks to form bootstrap sample
+4. Calculate statistics from blocked samples
+
+#### Block Length Selection:
+
+- Too short: Doesn't capture dependencies
+- Too long: Reduces effective sample size
+- Rule of thumb: $l \approx n^{1/3}$ for time series
+- For insurance: Often use 3-6 months for monthly data
+
+##### Applications:
+
+- Loss development patterns with correlation
+- Natural catastrophe clustering
+- Economic cycle effects on liability claims
+- Seasonal patterns in frequency
+
+### Wild Bootstrap
+
+Preserves heteroskedasticity (varying variance) by resampling residuals with random weights:
+
+- Fit initial model: $y_i = f(x_i; \hat{\theta}) + \hat{\epsilon}_i$
+- Generate bootstrap samples: $y_i^* = f(x_i; \hat{\theta}) + w_i \cdot \hat{\epsilon}_i$
+- Weights $w_i$​ drawn from distribution with $E[w] = 0$, $Var[w] = 1$
+- Refit model to bootstrap data
+
+#### Advantages:
+
+- Preserves heteroskedastic structure
+- Valid for regression with non-constant variance
+- Better coverage for predictions across size ranges
+
+#### Weight Distributions:
+
+- Rademacher: $P(w = 1) = P(w = -1) = 0.5$
+- Mammen: $P(w = -(\sqrt{5}-1)/2) = (\sqrt{5}+1)/(2\sqrt{5})$
+- Normal: $w \sim N(0, 1)$
+
+### Smoothed Bootstrap
+
+For small samples or discrete distributions, adds small random noise (jitter) to avoid discreteness.
+
+### Bootstrap Selection Guidelines
+
+1. Data Structure:
+   - Independent observations → Standard bootstrap
+   - Time series/dependencies → Block bootstrap
+   - Regression/varying variance → Wild bootstrap
+   - Small sample/discrete → Smoothed bootstrap
+   - Known distribution family → Parametric bootstrap
+
+3. Objective:
+   - General inference → Standard bootstrap
+   - Tail risk/extremes → Parametric (GPD/Pareto)
+   - Trend analysis → Block bootstrap
+   - Predictive intervals → Wild or parametric
+
+4. Sample Size:
+   - n < 20: Parametric or smoothed
+   - 20 < n < 100: Any method, validate with alternatives
+   - n > 100: Standard usually sufficient
+
+### Computational Considerations
+
+Number of Bootstrap Samples ($B$):
+
+- Confidence intervals: B = 5,000-10,000
+- Standard errors: B = 1,000
+- Hypothesis tests: B = 10,000-20,000
+- Extreme percentiles: B = 20,000-50,000
 
 (walk-forward-validation)=
 ## Walk-Forward Validation
-
-![Validation Methods](figures/validation_methods.png)
-
-*Figure 4: Walk-forward validation and backtesting visualization showing rolling windows, performance tracking, and model comparison for insurance pricing strategies.*
 
 ### Methodology
 
@@ -2333,46 +2326,53 @@ Average MSE: 3,598,537,032,683
 
 ## Key Statistical Methods for Insurance Analysis:
 
-1. Monte Carlo Methods
-- Basic simulation for complex systems
-- Variance reduction techniques (antithetic, control variates)
-- Importance sampling for rare events
+1. **Monte Carlo Methods**
 
-2. Convergence Diagnostics
-- Gelman-Rubin statistic for MCMC
-- Effective sample size accounting for correlation
-- Multiple diagnostic tests for reliability
+   - Basic simulation for complex systems
+   - Variance reduction techniques (antithetic, control variates)
+   - Importance sampling for rare events
 
-3. Confidence Intervals
-- Classical, bootstrap, and BCa methods
-- Appropriate for different data distributions
-- Bootstrap for complex statistics
+2. **Convergence Diagnostics**
 
+   - Gelman-Rubin statistic for MCMC
+   - Effective sample size accounting for correlation
+   - Multiple diagnostic tests for reliability
 
-4. Hypothesis Testing
-- Tests for ergodic advantage
-- Non-parametric alternatives
-- Permutation tests for flexibility
+3. **Confidence Intervals**
 
-5. Bootstrap Methods
-- Resampling for uncertainty quantification
-- Block bootstrap for time series
-- Wild bootstrap for heteroskedasticity
+   - Classical, bootstrap, and BCa methods
+   - Appropriate for different data distributions
+   - Bootstrap for complex statistics
 
-6. Walk-Forward Validation
-- Realistic out-of-sample testing
-- Parameter stability assessment
-- Time series appropriate
+4. **Hypothesis Testing**
 
-7. Backtesting
-- Historical performance evaluation
-- Comprehensive risk metrics
-- Visual diagnostics
+   - Tests for ergodic advantage
+   - Non-parametric alternatives
+   - Permutation tests for flexibility
 
-8. Model Validation
-- Cross-validation for time series
-- Multiple scoring metrics
-- Robustness checks
+5. **Bootstrap Methods**
+
+   - Resampling for uncertainty quantification
+   - Block bootstrap for time series
+   - Wild bootstrap for heteroskedasticity
+
+6. **Walk-Forward Validation**
+
+   - Realistic out-of-sample testing
+   - Parameter stability assessment
+   - Time series appropriate
+
+7. **Backtesting**
+
+   - Historical performance evaluation
+   - Comprehensive risk metrics
+   - Visual diagnostics
+
+8. **Model Validation**
+
+   - Cross-validation for time series
+   - Multiple scoring metrics
+   - Robustness checks
 
 ## Key Takeaways
 
@@ -2380,9 +2380,9 @@ Average MSE: 3,598,537,032,683
 2. **Convergence must be verified**: Multiple diagnostics prevent false conclusions
 3. **Bootstrap provides flexibility**: Works for complex statistics without assumptions
 4. **Time series need special methods**: Block bootstrap, walk-forward validation
-5. **Backtesting reveals reality**: But beware of overfitting to historical data
+5. **Backtesting is powerful**: But beware of overfitting to historical data
 6. **Multiple validation approaches**: No single method captures all aspects
-7. **Statistical rigor essential**: Proper testing prevents costly mistakes
+7. **Statistical rigor is essential**: Proper testing prevents costly mistakes
 
 ## Next Steps
 
