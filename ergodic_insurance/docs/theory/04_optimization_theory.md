@@ -5,11 +5,20 @@
     <p>Optimization theory reveals that insurance decisions are fundamentally multi-objective problems with no single optimal solution. The Pareto frontier quantifies the inevitable tradeoffs between premium costs, retained risk, and earnings volatility. The Hamilton-Jacobi-Bellman framework proves that optimal insurance coverage should dynamically adjust with wealth levels and time horizons: entities with low capital need minimal coverage (can't afford premiums), middle-wealth entities need maximum coverage (most vulnerable), while wealthy entities self-insure (can absorb losses). Stochastic control theory shows how optimal strategies must adapt to market cycles, with coverage increasing during bear markets when losses are more frequent and decreasing during bull markets when growth dominates. The constrained optimization framework incorporating KKT conditions ensures solutions respect real-world constraints like budget limits, regulatory requirements, and ruin probability thresholds. Numerical methods comparison demonstrates that gradient descent fails for non-convex insurance problems, while evolutionary algorithms like particle swarm find global optima in complex multi-modal landscapes. This section proves that static insurance programs are suboptimal, while dynamic strategies that adjust coverage based on wealth, time, and market conditions can improve long-term growth rates by several percentage points annually while maintaining the same survival probability, transforming insurance from a fixed cost to an adaptive growth enabler.</p>
 </div>
 
+
 ## Table of Contents
-...
+
+1. [Constrained Optimization](#constrained-optimization)
+2. [Pareto Efficiency](#pareto-efficiency)
+3. [Multi-Objective Optimization](#multi-objective-optimization)
+4. [Hamilton-Jacobi-Bellman Equations](#hamilton-jacobi-bellman-equations)
+5. [Numerical Methods](#numerical-methods)
+6. [Stochastic Control](#stochastic-control)
+7. [Convergence Criteria](#convergence-criteria)
 
 ![Tree Growing on a Termite Mound](photos/termite_mound_tree.jpg)
 
+(constrained-optimization)=
 ## Constrained Optimization
 
 ### General Formulation
@@ -221,6 +230,7 @@ Optimal limit: $1,997,977
 Expected growth: 16.1570
 ```
 
+(pareto-efficiency)=
 ## Pareto Efficiency
 
 ### Definition
@@ -950,6 +960,7 @@ Moderate Risk Limit (VaR ≤ $61.1M):
 
 ![Pareto Frontier for Capital Allocation](figures/pareto_frontier_capital_allocation.png)
 
+(multi-objective-optimization)=
 ## Multi-Objective Optimization
 
 Multi-objective optimization (MOO) addresses the reality that actuarial decisions rarely involve a single goal. In P&C insurance, we simultaneously optimize competing objectives like minimizing risk while maximizing profit, or balancing policyholder protection with shareholder returns. Unlike single-objective problems with unique optimal solutions, MOO produces a set of trade-off solutions where improving one objective necessarily worsens another.
@@ -1842,6 +1853,7 @@ if __name__ == "__main__":
 
 ![Pareto Front - Reinsurance Structure Optimization - 2D Projections](figures/pareto_nsga_ii_projections.png)
 
+(hamilton-jacobi-bellman-equations)=
 ## Hamilton-Jacobi-Bellman Equations
 
 The Hamilton-Jacobi-Bellman (HJB) equation is a fundamental tool in stochastic optimal control theory with direct applications to dynamic decision-making problems in insurance, particularly in optimal reinsurance design, dynamic premium adjustment, and surplus management.
@@ -2188,1318 +2200,901 @@ This simplified HJB solution demonstrates:
 4. Ergodic growth considerations
 ```
 
+(numerical-methods)=
 ## Numerical Methods
+
+### Overview for Actuarial Applications
+
+Numerical optimization methods are essential tools for solving complex insurance problems where closed-form solutions don't exist. In P&C insurance, we commonly encounter:
+
+- **Non-convex objectives**: Total cost of risk optimization balancing premiums, retained losses, and business disruption costs
+- **High-dimensional spaces**: Coordinating coverage across multiple locations, subsidiaries, and hazard types (property, liability, cyber, D&O)
+- **Stochastic elements**: Uncertain future loss frequency from operations, supply chain volatility, and evolving risk exposures
+- **Discrete constraints**: Choosing from available market deductibles, sub-limits, and coverage tiers offered by insurers
+- **Regulatory boundaries**: Compliance with minimum coverage requirements, contractual insurance obligations, and lender-mandated limits
 
 ### Gradient-Based Methods
 
+These methods use derivative information to find optimal solutions efficiently. They work best for smooth, differentiable objective functions.
+
 #### Gradient Descent
 
+This is a classic approach that steps along the gradient of your function at the learning rate $\alpha_k$.
+
+**Mathematical Formulation:**
 $$
-x_{k+1} = x_k - lpha_k
-abla f(x_k)
+x_{k+1} = x_k - \alpha_k \nabla f(x_k)
 $$
+
+**When to Use in Insurance:**
+- Premium optimization with smooth demand curves
+- Reserve allocation across lines
+- Investment portfolio optimization
+- Expense allocation models
+
+**Key Parameters:**
+- **Learning rate ($\alpha_k$)**: Controls step size
+  - Too large: Overshooting, oscillation
+  - Too small: Slow convergence
+  - Adaptive methods: Start with $\alpha_0 = 0.1$, decay by factor 0.99
+
+**Actuarial Example - Premium Optimization:**
+```python
+def premium_gradient_descent(initial_premium, loss_data, market_data,
+                           learning_rate=0.01, max_iter=1000):
+    """
+    Optimize premium considering profitability and market share.
+
+    Objective: Maximize expected profit subject to market constraints
+    """
+    premium = initial_premium
+    history = []
+
+    for iteration in range(max_iter):
+        # Calculate gradient components
+
+        # Profitability gradient
+        expected_loss_ratio = estimate_loss_ratio(premium, loss_data)
+        profit_gradient = 1 - expected_loss_ratio - expense_ratio
+
+        # Market share gradient (elasticity model)
+        market_gradient = -elasticity * market_share_derivative(premium, market_data)
+
+        # Combined gradient with business weights
+        gradient = weight_profit * profit_gradient + weight_market * market_gradient
+
+        # Update premium
+        premium = premium - learning_rate * gradient
+
+        # Apply regulatory constraints
+        premium = np.clip(premium, min_filed_rate, max_filed_rate)
+
+        history.append({'iteration': iteration, 'premium': premium,
+                       'gradient': gradient})
+
+        # Check convergence
+        if abs(gradient) < tolerance:
+            break
+
+    return premium, history
+```
+
+**Convergence Properties:**
+- Linear convergence rate: $O(1/k)$ for convex functions
+- Sensitive to condition number of Hessian
+- May get stuck in local minima for non-convex problems
+
+**Brief Explanation of the Hessian:**
+
+A **Hessian** is a square matrix of second-order partial derivatives of a function. For actuaries, think of it as the multivariable extension of the second derivative from your GLM and MLE work.
+
+If you're optimizing a likelihood function with two parameters $(\mu, \sigma)$:
+
+The gradient gives you the slope:
+
+$$
+\nabla = \begin{bmatrix} \partial L / \partial \mu \\
+                        \partial L / \partial \sigma \end{bmatrix}
+$$
+
+The Hessian gives you the curvature:
+
+$$
+H = \begin{bmatrix} \partial^2 L / \partial \mu^2 & \partial^2 L / \partial \mu \partial \sigma \\
+                    \partial^2 L / \partial \sigma \partial \mu & \partial^2 L / \partial \sigma^2 \end{bmatrix}
+$$
+
+For actuaries, the Hessian comes up in Statistics where it's used for Maximum Likelihood Estimation (MLE).
 
 #### Newton's Method
 
+**Mathematical Formulation:**
 $$
-x_{k+1} = x_k - H_f(x_k)^{-1}
-abla f(x_k)
-$$
-
-#### Quasi-Newton (BFGS)
-
-$$
-x_{k+1} = x_k - lpha_k B_k^{-1}
-abla f(x_k)
+x_{k+1} = x_k - H_f(x_k)^{-1} \nabla f(x_k)
 $$
 
-where $B_k$ approximates the Hessian.
+where $H_f(x_k)$ is the Hessian matrix (second derivatives).
+
+**When to Use in Insurance:**
+- GLM parameter estimation for pricing models
+- Maximum likelihood estimation for severity distributions
+- Credit risk models with smooth loss functions
+- Fast convergence needed near optimum
+
+**Advantages:**
+- Quadratic convergence near solution: $O(1/k^2)$
+- Accounts for curvature of objective function
+- Fewer iterations than gradient descent
+
+**Disadvantages:**
+- Requires Hessian computation (expensive for high dimensions)
+- Hessian must be positive definite
+- Can diverge if starting point is far from optimum
+
+**Actuarial Example - MLE for Loss Distribution:**
+```python
+def newton_mle_lognormal(losses, initial_params, max_iter=50):
+    """
+    Maximum likelihood estimation for lognormal severity using Newton's method.
+    Essential for pricing excess layers.
+    """
+    mu, sigma = initial_params
+    log_losses = np.log(losses)
+    n = len(losses)
+
+    for iteration in range(max_iter):
+        # Score function (gradient of log-likelihood)
+        score_mu = np.sum(log_losses - mu) / sigma**2
+        score_sigma = -n/sigma + np.sum((log_losses - mu)**2) / sigma**3
+        gradient = np.array([score_mu, score_sigma])
+
+        # Hessian matrix
+        H_mu_mu = -n / sigma**2
+        H_mu_sigma = -2 * np.sum(log_losses - mu) / sigma**3
+        H_sigma_sigma = n/sigma**2 - 3*np.sum((log_losses - mu)**2) / sigma**4
+
+        hessian = np.array([[H_mu_mu, H_mu_sigma],
+                           [H_mu_sigma, H_sigma_sigma]])
+
+        # Newton step with regularization for stability
+        try:
+            step = np.linalg.solve(hessian, gradient)
+        except np.linalg.LinAlgError:
+            # Add regularization if Hessian is singular
+            hessian += np.eye(2) * 1e-6
+            step = np.linalg.solve(hessian, gradient)
+
+        # Update with line search for global convergence
+        alpha = backtracking_line_search(mu, sigma, step, losses)
+        mu -= alpha * step[0]
+        sigma -= alpha * step[1]
+
+        # Ensure sigma stays positive
+        sigma = max(sigma, 1e-6)
+
+        if np.linalg.norm(gradient) < 1e-8:
+            break
+
+    return mu, sigma
+```
+
+#### Quasi-Newton Methods (BFGS)
+
+**Mathematical Formulation:**
+$$
+x_{k+1} = x_k - \alpha_k B_k^{-1} \nabla f(x_k)
+$$
+
+where $B_k$ approximates the Hessian and is updated using gradient information.
+
+**BFGS Update Formula:**
+$$
+B_{k+1} = B_k + \frac{y_k y_k^T}{y_k^T s_k} - \frac{B_k s_k s_k^T B_k}{s_k^T B_k s_k}
+$$
+
+where:
+- $s_k = x_{k+1} - x_k$ (step)
+- $y_k = \nabla f(x_{k+1}) - \nabla f(x_k)$ (gradient change)
+
+**When to Use in Insurance:**
+- Large-scale pricing optimization (100+ parameters)
+- Reinsurance treaty optimization
+- Capital allocation across business units
+- Any problem where Hessian is expensive to compute
+
+**Memory-Efficient Variant (L-BFGS):**
+- Stores only recent gradient/step pairs (typically 5-20)
+- Ideal for high-dimensional problems
+- Standard choice in many actuarial software packages
+
+**Actuarial Example - Multi-Line Pricing:**
+```python
+from scipy.optimize import minimize
+
+def multiline_pricing_objective(rates, loss_costs, market_data, cross_elasticities):
+    """
+    Optimize rates across multiple lines considering cross-subsidization.
+    Common in personal lines (auto + home bundles).
+    """
+    n_lines = len(rates)
+
+    # Expected profit by line
+    profits = rates - loss_costs - expense_loads
+
+    # Market share model with cross-elasticities
+    market_shares = calculate_market_share(rates, market_data, cross_elasticities)
+
+    # Combined objective: profit * volume with risk penalty
+    expected_profit = np.sum(profits * market_shares * volumes)
+    risk_penalty = calculate_var(profits, market_shares, correlation_matrix)
+
+    return -(expected_profit - risk_weight * risk_penalty)
+
+# BFGS optimization
+result = minimize(
+    multiline_pricing_objective,
+    x0=initial_rates,
+    args=(loss_costs, market_data, cross_elasticities),
+    method='L-BFGS-B',
+    bounds=rate_constraints,
+    options={'ftol': 1e-6, 'maxiter': 200}
+)
+
+optimal_rates = result.x
+```
 
 ### Derivative-Free Methods
 
+Essential when gradients are unavailable or unreliable, common in insurance applications with:
+
+- Discrete decision variables (coverage limits, deductibles)
+- Simulation-based objectives (DFA models)
+- Non-smooth constraints (regulatory thresholds)
+- Black-box vendor models
+
+#### Nelder-Mead Simplex Method
+
+**How it Works:**
+
+1. Create simplex of n+1 points in n dimensions
+2. Evaluate objective at each vertex
+3. Transform simplex through reflection, expansion, contraction
+4. Iterate until convergence
+
+**When to Use:**
+
+- Small dimension problems (< 10 variables)
+- Non-smooth objectives
+- Quick initial exploration
+
+**Insurance Application:**
 ```python
-class OptimizationMethods:
-    """Compare different optimization methods for insurance problems."""
+def optimize_reinsurance_structure(simulation_model):
+    """
+    Optimize attachment points and limits for excess-of-loss treaty.
+    Uses simulation model that's expensive to differentiate.
+    """
+    def objective(params):
+        attachment, limit = params
 
-    def __init__(self, objective, bounds):
-    self.objective = objective
-    self.bounds = bounds
+        # Run DFA simulation (expensive, non-differentiable)
+        results = simulation_model.run(
+            attachment_point=attachment,
+            limit=limit,
+            n_simulations=10000
+        )
 
-    def gradient_descent(self, x0, learning_rate=0.01, max_iter=500):
-    """Basic gradient descent with numerical gradients."""
+        # Calculate economic value
+        expected_recoveries = results['expected_recoveries']
+        premium = calculate_reinsurance_premium(attachment, limit)
+        volatility_reduction = results['volatility_reduction']
 
-    x = x0.copy()
-    history = [x.copy()]
+        # Minimize: net cost - volatility benefit
+        return premium - expected_recoveries - risk_appetite * volatility_reduction
 
-    for _ in range(max_iter):
-        # Numerical gradient
-        grad = self.numerical_gradient(x)
-
-        # Update
-        x = x - learning_rate * grad
-
-        # Project onto bounds
-        x = np.clip(x, self.bounds[:, 0], self.bounds[:, 1])
-
-        history.append(x.copy())
-
-        # Check convergence
-        if np.linalg.norm(grad) < 1e-6:
-        # Continue recording the converged value
-        for _ in range(max_iter - len(history) + 1):
-            history.append(x.copy())
-        break
-
-    return x, history
-
-    def numerical_gradient(self, x, eps=1e-6):
-    """Compute gradient using finite differences."""
-
-    grad = np.zeros_like(x)
-
-    for i in range(len(x)):
-        x_plus = x.copy()
-        x_minus = x.copy()
-        x_plus[i] += eps
-        x_minus[i] -= eps
-
-        grad[i] = (self.objective(x_plus) - self.objective(x_minus)) / (2 * eps)
-
-    return grad
-
-    def simulated_annealing(self, x0, temp=1.0, cooling=0.99, max_iter=500):
-    """Simulated annealing for global optimization."""
-
-    x = x0.copy()
-    best_x = x.copy()
-    best_f = self.objective(x)
-
-    history = [x.copy()]
-
-    for i in range(max_iter):
-        # Generate neighbor
-        neighbor = x + np.random.randn(len(x)) * temp
-        neighbor = np.clip(neighbor, self.bounds[:, 0], self.bounds[:, 1])
-
-        # Evaluate
-        f_neighbor = self.objective(neighbor)
-        f_current = self.objective(x)
-
-        # Accept or reject
-        delta = f_neighbor - f_current
-        if delta < 0 or np.random.rand() < np.exp(-delta / max(temp, 1e-10)):
-        x = neighbor
-
-        if f_neighbor < best_f:
-        best_x = neighbor.copy()
-        best_f = f_neighbor
-
-        # Cool down more gradually
-        temp *= cooling
-
-    history.append(best_x.copy())  # Track best found so far
-
-    return best_x, history
-
-    def particle_swarm(self, n_particles=30, max_iter=500):
-    """Particle swarm optimization with improved convergence."""
-
-    # Initialize swarm
-    particles = np.random.uniform(
-        self.bounds[:, 0],
-        self.bounds[:, 1],
-        (n_particles, len(self.bounds))
+    # Nelder-Mead optimization
+    result = minimize(
+        objective,
+        x0=[initial_attachment, initial_limit],
+        method='Nelder-Mead',
+        options={'xatol': 1e4, 'fatol': 1e3}  # Tolerances in dollars
     )
-    velocities = np.random.randn(n_particles, len(self.bounds)) * 0.1
 
-    # Best positions
-    p_best = particles.copy()
-    p_best_scores = np.array([self.objective(p) for p in particles])
-
-    g_best_idx = np.argmin(p_best_scores)
-    g_best = p_best[g_best_idx].copy()
-    g_best_score = p_best_scores[g_best_idx]
-
-    history = [g_best.copy()]
-
-    # PSO parameters with better convergence
-    w_start = 0.9  # Higher initial inertia
-    w_end = 0.4    # Lower final inertia
-    c1 = 2.0       # Cognitive parameter
-    c2 = 2.0       # Social parameter
-
-    for iteration in range(max_iter):
-        # Linear inertia weight decay
-        w = w_start - (w_start - w_end) * iteration / max_iter
-
-        # Update all particles
-        for i in range(n_particles):
-        # Update velocity
-        r1, r2 = np.random.rand(), np.random.rand()
-        velocities[i] = (w * velocities[i] +
-                c1 * r1 * (p_best[i] - particles[i]) +
-                c2 * r2 * (g_best - particles[i]))
-
-        # Limit velocity to prevent divergence
-        max_vel = (self.bounds[:, 1] - self.bounds[:, 0]) * 0.1
-        velocities[i] = np.clip(velocities[i], -max_vel, max_vel)
-
-        # Update position
-        particles[i] = particles[i] + velocities[i]
-        particles[i] = np.clip(particles[i], self.bounds[:, 0], self.bounds[:, 1])
-
-        # Update best positions
-        score = self.objective(particles[i])
-        if score < p_best_scores[i]:
-            p_best[i] = particles[i].copy()
-            p_best_scores[i] = score
-
-        if score < g_best_score:
-            g_best = particles[i].copy()
-            g_best_score = score
-
-        history.append(g_best.copy())
-
-    return g_best, history
-
-    def compare_methods(self, x0):
-    """Compare convergence of different methods."""
-
-    # Set random seed for reproducibility
-    np.random.seed(42)
-
-    methods = {
-        'Gradient Descent': lambda: self.gradient_descent(x0, max_iter=500),
-        'Simulated Annealing': lambda: self.simulated_annealing(x0, max_iter=500),
-        'Particle Swarm': lambda: self.particle_swarm(max_iter=500)
-    }
-
-    results = {}
-
-    for name, method in methods.items():
-        np.random.seed(42)  # Reset seed for each method
-        solution, history = method()
-        results[name] = {
-        'solution': solution,
-        'value': self.objective(solution),
-        'history': history
-        }
-
-    return results
-
-    def plot_convergence(self, results):
-    """Visualize convergence of different methods."""
-
-    plt.figure(figsize=(12, 6))
-
-    for name, result in results.items():
-        history = result['history']
-        values = [self.objective(x) for x in history]
-        plt.plot(values, label=name, linewidth=2)
-
-    plt.xlabel('Iteration')
-    plt.ylabel('Objective Value')
-    plt.title('Convergence Comparison')
-    plt.legend()
-
-    # Use regular number formatting instead of scientific notation
-    ax = plt.gca()
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.2f}'))
-
-    plt.grid(True, alpha=0.3)
-    plt.xlim(0, 500)  # Set x-axis limit to 500
-
-    # Save the figure
-    plt.savefig('../../assets/convergence_comparison.png', dpi=100, bbox_inches='tight')
-    plt.show()
-
-# Test optimization methods
-def insurance_objective(x):
-    """Complex insurance optimization objective."""
-    retention, limit, deductible = x
-
-    # Expected cost
-    cost = 0.02 * limit + 0.01 * deductible + 0.005 / (1 + retention)
-
-    # Risk penalty
-    risk = np.exp(-retention) + np.exp(-limit/10)
-
-    # Non-convex component
-    complexity = np.sin(retention * 5) * 0.1
-
-    return cost + risk + complexity
-
-bounds = np.array([
-    [0, 2],   # retention
-    [0, 10],  # limit
-    [0, 1]    # deductible
-])
-
-opt_methods = OptimizationMethods(insurance_objective, bounds)
-x0 = np.array([1, 5, 0.5])
-
-results = opt_methods.compare_methods(x0)
-opt_methods.plot_convergence(results)
-
-# Print results
-print("
-Optimization Results:")
-print("=" * 50)
-for name, result in results.items():
-    print(f"
-{name}:")
-    print(f"  Solution: {result['solution']}")
-    print(f"  Final Value: {result['value']:.6f}")
-    print(f"  Converged to: {insurance_objective(result['solution']):.6f}")
+    return result.x
 ```
 
-#### Sample Output
+#### Genetic Algorithms
 
-![Convergence Comparison](../../../assets/convergence_comparison.png)
+**What they are:** Optimization methods inspired by natural evolution. They maintain a "population" of candidate solutions that evolve over generations through selection (keeping better solutions), crossover (combining good solutions), and mutation (random changes for exploration). Think of it as breeding better and better insurance programs over many iterations.
 
+**When to Use:**
+- Discrete/combinatorial problems (selecting which assets to insure vs. self-insure across locations)
+- Multiple local optima
+- Parallel evaluation available
+
+**Insurance Application - Product Feature Selection:**
+```python
+def genetic_algorithm_product_design(features, market_data, n_generations=100):
+    """
+    Select optimal combination of insurance product features.
+    Binary decision for each feature (include/exclude).
+    """
+    population_size = 50
+    n_features = len(features)
+    mutation_rate = 0.1
+
+    # Initialize population (random feature combinations)
+    population = np.random.randint(0, 2, (population_size, n_features))
+
+    for generation in range(n_generations):
+        # Evaluate fitness (profitability vs. complexity)
+        fitness = []
+        for individual in population:
+            selected_features = [f for f, include in zip(features, individual) if include]
+            profit = estimate_profit(selected_features, market_data)
+            complexity_cost = len(selected_features) * complexity_penalty
+            fitness.append(profit - complexity_cost)
+
+        # Selection (tournament)
+        parents = tournament_selection(population, fitness)
+
+        # Crossover
+        offspring = crossover(parents)
+
+        # Mutation
+        offspring = mutate(offspring, mutation_rate)
+
+        # Replace population
+        population = offspring
+
+    # Return best solution
+    best_idx = np.argmax(fitness)
+    return population[best_idx], fitness[best_idx]
 ```
-Optimization Results:
-==================================================
 
-Gradient Descent:
-  Solution: [1.09050224 5.20024017 0.45      ]
-  Final Value: 0.967612
-  Converged to: 0.967612
+#### Simulated Annealing
 
-Simulated Annealing:
-  Solution: [ 2. 10.  0.]
-  Final Value: 0.650479
-  Converged to: 0.650479
+**What it is:** An optimization method that mimics how metals cool and crystallize. It starts by accepting almost any solution (high "temperature"), then gradually becomes pickier about only accepting improvements (cooling down). Sometimes you need to accept a temporarily worse solution to eventually find the global best, like how increasing your deductible might cost more short-term but leads to better long-term premium savings through loss control incentives.
 
-Particle Swarm:
-  Solution: [ 2. 10.  0.]
-  Final Value: 0.650479
-  Converged to: 0.650479
-```
+**Actuarial analogy:** Think of it like credibility theory in reverse. Instead of giving more weight to experience over time, you start by exploring wildly different options (low credibility in current solution) and gradually trust your best-found solution more (high credibility) as the algorithm "cools."
 
+**When to Use:**
+- Global optimization with many local minima
+- Discrete optimization (e.g., choosing deductible levels across 50 locations from insurer-offered tiers)
+- Can accept temporary worse solutions to escape local optima
+
+**Temperature Schedule:**
+
+$$T_k = T_0 \cdot \alpha^k$$
+
+where $\alpha \in (0.85, 0.99)$ typically
+
+**Acceptance Probability:**
+
+$$P(\text{accept worse solution}) = \exp\left(-\frac{\Delta f}{T_k}\right)$$
+
+At high temperature, this probability ≈ 1 (accept almost anything). As T → 0, it only accepts improvements. This prevents getting stuck at the first "okay" insurance structure you find.
+
+### Choosing the Right Method
+
+| Problem Type | Recommended Method | Reasoning |
+|-------------|-------------------|-----------|
+| Claims frequency/severity forecasting | Newton/IRLS | Standard GLM fitting for budgeting |
+| Multi-location insurance allocation | L-BFGS | Optimizing coverage across 100+ facilities |
+| Captive retention levels | Nelder-Mead/PSO | Non-smooth, requires loss simulation |
+| Location self-insurance selection | Simulated Annealing | Discrete choice per facility |
+| Insurance program structure | Genetic Algorithm | Mix of deductibles, limits, carriers |
+| Dynamic retention decisions | Gradient Descent (SGD) | Adjust as claims develop |
+| Cost vs. coverage trade-offs | NSGA-II | Balance premium, retention, risk |
+| Loss projection with sparse data | Bayesian optimization | Limited historical claims |
+
+(stochastic-control)=
 ## Stochastic Control
 
 ### Stochastic Differential Equation
 
-State dynamics:
+**What it is:** An SDE generalizes the Geometric Brownian Motion (GBM) you know from asset modeling by adding a control variable. Think of SDE as GBM where you can adjust the drift and volatility through your decisions.
+
+**Recall GBM from earlier:**
+
+$$
+dS_t = \mu S_t dt + \sigma S_t dW_t
+$$
+
+**Now with controllable decisions:**
 
 $$
 dx_t = f(t, x_t, u_t)dt + \sigma(t, x_t, u_t)dW_t
 $$
 
-### Dynamic Programming Principle
+Where:
+
+- $x_t$ = state variable (e.g., surplus level)
+- $u_t$ = control variable (e.g., retention level, investment allocation)
+- $f(\cdot)$ = drift that depends on your control choice
+- $\sigma(\cdot)$ = volatility that may change based on your control
+
+**Actuarial example:** Your company's surplus follows:
 
 $$
-V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right]
+dS_t = [r S_t - P(u_t) - L(1-u_t)]dt + \sigma S_t \sqrt{1-u_t} dW_t
 $$
+
+Where $u_t$ is your insurance coverage level (0 = no insurance, 1 = full coverage):
+- Drift: investment returns minus premiums minus retained losses
+- Volatility: reduced by insurance coverage
+
+### Dynamic Programming Principle
+
+**What it is:** The insurance version of "value today = immediate costs/benefits + discounted expected future value." It's the recursive formula for finding optimal strategies over time, like pricing an American option but for insurance decisions.
+
+$$V(t, x) = \sup_{u \in \mathcal{U}} E\left[\int_t^{t+h} L(s, x_s, u_s)ds + V(t+h, x_{t+h}) \mid x_t = x\right]$$
+
+**Translation for actuaries:**
+- $V(t, x)$ = Value function (maximum expected utility from time $t$ with surplus $x$)
+- $L(s, x_s, u_s)$ = Running reward/cost (like premium savings minus retained risk)
+- $V(t + h, x)$ = Expected future value (like recursion in life contingencies)
+  - Dynamic Programming essentially computes the value function backwards, starting from the latest time and proceeding to the earliest
+- $\sup_{u \in \mathcal{U}}$ = Optimize over all feasible insurance strategies
+
+**Practical meaning:** At each moment, choose your insurance coverage to maximize:
+
+$$
+(\text{Current period benefit}) + (\text{Expected future value given your choice})
+$$
+
+You solve multi-period insurance optimization working backwards from the terminal time to find the optimal strategy at each point.
 
 ### Implementation
 
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d, interp2d
-from scipy.optimize import minimize_scalar
-from scipy.ndimage import gaussian_filter
-from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter1d
 
-class StochasticControl:
-    def __init__(self, T=5.0, dt=0.1, n_wealth=35, n_control=20):
-    self.T = T
-    self.dt = dt
-    self.n_steps = int(T / dt)
-    self.times = np.linspace(0, T, self.n_steps + 1)
+class InsuranceStochasticControl:
+    """
+    Stochastic control for dynamic insurance decisions in P&C insurance.
+    Demonstrates clear time and wealth dependencies in optimal coverage.
+    """
 
-    # Wealth grid (log-spaced for better resolution)
-    self.wealth_min = 5e5
-    self.wealth_max = 2e7
-    self.wealth_grid = np.logspace(
-        np.log10(self.wealth_min),
-        np.log10(self.wealth_max),
-        n_wealth
-    )
-    self.n_wealth = n_wealth
+    def __init__(self, T=5.0, dt=0.1, n_control=30):
+        self.T = T
+        self.dt = dt
+        self.n_steps = int(T / dt)
+        self.times = np.linspace(0, T, self.n_steps + 1)
 
-    # Control grid (insurance coverage level from 0 to 1)
-    self.control_grid = np.linspace(0, 1, n_control)
-    self.n_control = n_control
+        # Enhanced wealth grid with more points in the critical $1M-$20M range
+        # This gives better resolution where the action happens
+        wealth_low = np.linspace(5e5, 2e6, 15)  # Dense in low wealth
+        wealth_mid = np.linspace(2.5e6, 1e7, 20)  # Very dense in middle
+        wealth_high = np.logspace(np.log10(1.2e7), np.log10(5e7), 15)  # Sparse in high
+        self.wealth_grid = np.sort(np.concatenate([wealth_low, wealth_mid, wealth_high]))
+        self.n_wealth = len(self.wealth_grid)
 
-    # Economic parameters with smoother market cycles
-    self.r_base = 0.07  # Base risk-free rate
-    self.sigma_base = 0.18  # Base volatility
-    self.rho = 0.045  # Discount rate
+        # Finer control grid for better policy resolution
+        self.control_grid = np.linspace(0, 1, n_control)
+        self.n_control = n_control
 
-    # Smoother market cycle parameters
-    self.market_cycle_period = 2.5  # 2.5-year market cycles
-    self.market_cycle_amplitude = 0.5  # Higher amplitude for more variation
+        # Economic parameters calibrated for P&C reality
+        self.r = 0.6           # Investment return
+        self.sigma = 0.15       # Moderate market volatility
+        self.rho = 0.04         # Discount rate
 
-    # Insurance parameters that vary smoothly with market conditions
-    self.lambda_loss_base = 0.25  # Base loss frequency
-    self.mu_loss = 0.12  # Mean loss size (fraction of wealth)
-    self.sigma_loss = 0.06  # Loss size volatility
-    self.premium_base = 0.018  # Base premium rate
-    self.premium_loading = 1.3  # Premium loading factor
+        # Insurance parameters that create meaningful trade-offs
+        self.loss_freq_base = 0.4      # Higher base frequency (40% annual)
+        self.loss_sev_base = 0.30      # Base severity (30% of wealth)
+        self.premium_loading = 0.15    # Industry-typical loading factor
 
-    # Risk aversion that changes smoothly over time
-    self.gamma_base = 0.3  # Lower base risk aversion for more variation
-    self.gamma_time_variation = 0.7  # Higher variation over time
+    def utility(self, wealth, time_to_go):
+        """
+        Standard CRRA utility with time-varying risk aversion.
+        """
+        wealth = np.maximum(wealth, 1e4)
 
-    def get_market_condition(self, t):
-    # Main cycle
-    cycle_phase = 2 * np.pi * t / self.market_cycle_period
+        progress = 1 - time_to_go / self.T
+        gamma = 1.0 + 2.0 * progress  # gamma: 1 to 3
 
-    # Add smaller secondary cycle for realism
-    secondary_phase = 2 * np.pi * t / (self.market_cycle_period / 2.5)
+        if abs(gamma - 1) < 1e-6:
+            return np.log(wealth)
+        else:
+            # Standard CRRA: u(w) = w^(1-γ) / (1-γ)
+            return wealth ** (1 - gamma) / (1 - gamma)
 
-    # Combine cycles for more dynamic pattern
-    market_condition = 0.5 + 0.4 * np.sin(cycle_phase) + 0.1 * np.sin(secondary_phase)
-    return np.clip(market_condition, 0, 1)
+    def loss_params(self, t):
+        """
+        Time-varying loss parameters reflecting deteriorating conditions.
+        Both frequency and severity increase over time.
+        """
+        progress = t / self.T
 
-    def get_risk_aversion(self, t):
-    time_factor = t / self.T  # 0 at start, 1 at end
+        # Frequency increases by 50% over the horizon
+        frequency = self.loss_freq_base * (1 + 0.5 * progress)
 
-    # Smooth increase using sigmoid-like function
-    smooth_factor = 3 * time_factor**2 - 2 * time_factor**3
-    gamma = self.gamma_base * (1 + self.gamma_time_variation * smooth_factor)
-    return gamma
+        # Severity increases by 30% over the horizon
+        severity = self.loss_sev_base * (1 + 0.3 * progress)
 
-    def utility(self, wealth, t=0):
-    wealth = np.maximum(wealth, 1e-6)
-    gamma = self.get_risk_aversion(t)
-    if abs(gamma - 1) < 1e-6:
-        return np.log(wealth)
-    else:
-        return (wealth ** (1 - gamma) - 1) / (1 - gamma)
+        return frequency, severity
 
-    def premium(self, coverage_level, wealth, t):
-    wealth = np.maximum(wealth, 1e-6)
-    market_condition = self.get_market_condition(t)
+    def premium(self, coverage, wealth, t):
+        """
+        Actuarially fair premium with loading that varies by:
+        - Coverage level (non-linear loading for moral hazard)
+        - Time (increasing cost over time)
+        - Wealth (slight economies of scale)
+        """
+        freq, sev = self.loss_params(t)
 
-    # Stronger premium adjustment based on market
-    market_factor = 1 + 0.4 * (1 - market_condition)
+        # Pure Premium (actuarially fair)
+        expected_loss = freq * sev * wealth * coverage
 
-    # Wealth-dependent premium adjustment
-    wealth_factor = np.log10(wealth / self.wealth_min) / np.log10(self.wealth_max / self.wealth_min)
-    wealth_discount = 1 - 0.1 * wealth_factor  # Wealthy get small discount
+        # Loading factor increases with coverage (moral hazard/adverse selection)
+        coverage_loading = 1 + self.premium_loading * (1 + 2 * coverage ** 2)
 
-    base_premium = self.premium_base * coverage_level * wealth * market_factor * wealth_discount
+        # Time loading (insurance gets more expensive)
+        time_loading = 1 + 0.2 * (t / self.T)
 
-    # Non-linear loading function
-    loading = 1 + self.premium_loading * (coverage_level ** 1.5) * 0.15
-    return base_premium * loading
+        # Wealth adjustment (slight economies of scale for larger accounts)
+        wealth_factor = 1 - 0.05 * np.tanh((wealth - 5e6) / 5e6)
 
-    def expected_loss(self, wealth, t):
-    wealth = np.maximum(wealth, 1e-6)
-    market_condition = self.get_market_condition(t)
-
-    # Stronger loss frequency adjustment
-    lambda_loss = self.lambda_loss_base * (1 + 0.4 * (1 - market_condition))
-
-    return lambda_loss * self.mu_loss * wealth
-
-    def drift(self, wealth, control, t):
-    wealth = np.maximum(wealth, 1e-6)
-    control = np.clip(control, 0, 1)
-
-    market_condition = self.get_market_condition(t)
-
-    # More dynamic growth rate variation
-    r = self.r_base * (0.6 + 0.8 * market_condition)
-
-    growth = r * wealth
-    premium_cost = self.premium(control, wealth, t)
-    expected_loss_retained = self.expected_loss(wealth, t) * (1 - control)
-
-    return growth - premium_cost - expected_loss_retained
-
-    def diffusion(self, wealth, control, t):
-    wealth = np.maximum(wealth, 1e-6)
-    control = np.clip(control, 0, 1)
-
-    market_condition = self.get_market_condition(t)
-
-    # More dynamic volatility adjustment
-    sigma = self.sigma_base * (1 + 0.4 * (1 - market_condition))
-
-    market_vol = sigma * wealth
-    loss_vol = self.sigma_loss * wealth * np.sqrt(self.lambda_loss_base)
-
-    # Dynamic insurance effectiveness
-    insurance_effectiveness = 0.2 + 0.25 * (1 - market_condition)
-    effective_vol = market_vol * (1 - insurance_effectiveness * control) + loss_vol * (1 - control)
-
-    return effective_vol
+        return expected_loss * coverage_loading * time_loading * wealth_factor
 
     def solve_hjb(self):
-    # Initialize value function
-    V = np.zeros((self.n_steps + 1, self.n_wealth))
-    optimal_control = np.zeros((self.n_steps + 1, self.n_wealth))
-
-    # Terminal condition
-    V[-1, :] = self.utility(self.wealth_grid, self.T)
-
-    # Backward iteration
-    for t_idx in range(self.n_steps - 1, -1, -1):
-        t = self.times[t_idx]
-
-        for w_idx, wealth in enumerate(self.wealth_grid):
-
-        best_value = -np.inf
-        best_control = 0.5  # Start with middle value
-
-        for control in self.control_grid:
-            # Calculate drift and diffusion with current market conditions
-            mu = self.drift(wealth, control, t)
-            sigma = self.diffusion(wealth, control, t)
-
-            # Expected next wealth
-            wealth_next = wealth + mu * self.dt
-            wealth_next = np.maximum(wealth_next, self.wealth_min * 0.5)
-
-            # Consider uncertainty scenarios
-            n_scenarios = 9
-            scenarios = np.linspace(-3, 3, n_scenarios)
-            scenario_probs = np.exp(-0.5 * scenarios**2) / np.sqrt(2 * np.pi)
-            scenario_probs /= scenario_probs.sum()
-
-            expected_value = 0
-            for scenario, prob in zip(scenarios, scenario_probs):
-            w_next = wealth_next + sigma * np.sqrt(self.dt) * scenario
-            w_next = np.clip(w_next, self.wealth_min * 0.8, self.wealth_max * 1.2)
-
-            if t_idx < self.n_steps - 1:
-                v_next = np.interp(w_next, self.wealth_grid, V[t_idx + 1, :])
-            else:
-                v_next = self.utility(w_next, self.times[t_idx + 1])
-
-            expected_value += prob * v_next
-
-            # Bellman equation with time-dependent utility
-            instant_utility = self.utility(wealth, t) * self.dt
-            continuation_value = np.exp(-self.rho * self.dt) * expected_value
-            total_value = instant_utility + continuation_value
-
-            if total_value > best_value:
-            best_value = total_value
-            best_control = control
-
-        V[t_idx, w_idx] = best_value
-        optimal_control[t_idx, w_idx] = best_control
-
-    # Create more interesting patterns based on wealth and time
-    for t_idx in range(self.n_steps + 1):
-        t = self.times[t_idx]
-        market_condition = self.get_market_condition(t)
-
-        for w_idx, wealth in enumerate(self.wealth_grid):
-        wealth_factor = np.log10(wealth / self.wealth_min) / np.log10(self.wealth_max / self.wealth_min)
-
-        # Different patterns for different wealth levels
-        if wealth_factor < 0.3:  # Poor: limited coverage
-            target_coverage = 0.2 + 0.3 * market_condition
-        elif wealth_factor < 0.7:  # Middle: high coverage
-            bell_factor = np.exp(-8 * (wealth_factor - 0.5)**2)
-            target_coverage = 0.4 + 0.5 * bell_factor + 0.1 * (1 - market_condition)
-        else:  # Rich: self-insurance
-            target_coverage = 0.3 - 0.2 * wealth_factor + 0.2 * (1 - market_condition)
-
-        # Blend with optimal control
-        optimal_control[t_idx, w_idx] = 0.7 * optimal_control[t_idx, w_idx] + 0.3 * target_coverage
-        optimal_control[t_idx, w_idx] = np.clip(optimal_control[t_idx, w_idx], 0, 1)
-
-    # Smooth the surface for visualization
-    optimal_control = gaussian_filter(optimal_control, sigma=[0.3, 0.8])
-
-    return V, optimal_control
-
-    def simulate_path(self, w0, control_policy, n_paths=100):
-    paths = np.zeros((n_paths, self.n_steps + 1))
-    controls_used = np.zeros((n_paths, self.n_steps))
-    market_conditions = np.zeros(self.n_steps + 1)
-
-    # Record market conditions
-    for t_idx in range(self.n_steps + 1):
-        market_conditions[t_idx] = self.get_market_condition(self.times[t_idx])
-
-    for i in range(n_paths):
-        wealth = w0
-        paths[i, 0] = wealth
-
-        for t_idx in range(self.n_steps):
-        t = self.times[t_idx]
-        wealth = np.maximum(wealth, 1000)
-
-        # Get optimal control with interpolation
-        control = np.interp(wealth, self.wealth_grid, control_policy[t_idx, :])
-        control = np.clip(control, 0, 1)
-        controls_used[i, t_idx] = control
-
-        # Simulate with market-dependent dynamics
-        mu = self.drift(wealth, control, t)
-        sigma = self.diffusion(wealth, control, t)
-
-        if np.isnan(mu) or np.isnan(sigma):
-            mu = 0
-            sigma = wealth * 0.01
-
-        # Euler-Maruyama step
-        dW = np.random.randn() * np.sqrt(self.dt)
-        wealth_next = wealth + mu * self.dt + sigma * dW
-
-        # Market-dependent loss events
-        market_condition = self.get_market_condition(t)
-        lambda_loss = self.lambda_loss_base * (1 + 0.4 * (1 - market_condition))
-
-        if np.random.rand() < lambda_loss * self.dt:
-            loss_fraction = np.random.lognormal(
-            np.log(self.mu_loss), self.sigma_loss
-            )
-            loss_fraction = np.clip(loss_fraction, 0, 0.35)
-            loss_size = loss_fraction * wealth
-            retained_loss = loss_size * np.maximum(0, 1 - control)
-            wealth_next -= retained_loss
-
-        wealth = np.maximum(wealth_next, 1000)
-        paths[i, t_idx + 1] = wealth
-
-    return paths, controls_used, market_conditions
-
-    def plot_results(self, V, optimal_control, paths, controls_used, market_conditions):
-    fig = plt.figure(figsize=(17, 12))
-    fig.suptitle('Stochastic Optimal Control: Dynamic Insurance Strategy with Market Cycles',
-             fontsize=16, fontweight='bold')
-
-    # Create grid with more spacing between columns
-    gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.35, bottom=0.12, top=0.94)
-
-    # 1. Smooth Optimal Control Policy Surface with Colorbar
-    ax1 = fig.add_subplot(gs[0, 0], projection='3d')
-
-    # Create mesh for visualization
-    T_mesh, W_mesh = np.meshgrid(self.times, self.wealth_grid / 1e6)
-
-    # Color map showing coverage levels
-    surf = ax1.plot_surface(T_mesh, W_mesh, optimal_control.T,
-                cmap='coolwarm', alpha=0.95,
-                linewidth=0.1, edgecolor='gray',
-                vmin=0, vmax=1,
-                rstride=1, cstride=2)
-
-    ax1.set_xlabel('Time (years)', fontsize=9)
-    ax1.set_ylabel('Wealth ($M)', fontsize=9)
-ax1.set_zlabel('Coverage Level', fontsize=9)
-ax1.set_title('Optimal Insurance Coverage Surface', fontsize=10)
-ax1.view_init(elev=20, azim=-50)
-ax1.set_zlim([0, 1])
-
-# Add colorbar for the surface
-cbar1 = fig.colorbar(surf, ax=ax1, shrink=0.5, aspect=5, pad=0.1)
-cbar1.set_label('Coverage Level', fontsize=8)
-cbar1.ax.tick_params(labelsize=7)
-
-# 2. Control Policy Evolution with Clear Time Progression
-ax2 = fig.add_subplot(gs[0, 1])
-
-# Select well-spaced time points
-time_indices = np.array([0, 10, 20, 30, 40, 50])
-colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(time_indices)))
-
-for idx, color in zip(time_indices, colors):
-if idx < len(self.times):
-time_label = f't={self.times[idx]:.1f}y'
-market = self.get_market_condition(self.times[idx])
-
-# Plot with clear wealth progression
-ax2.plot(self.wealth_grid / 1e6, optimal_control[idx, :],
-label=time_label, color=color, linewidth=2.5, alpha=0.9)
-
-ax2.set_xlabel('Wealth ($M)', fontsize=10)
-ax2.set_ylabel('Optimal Coverage', fontsize=10)
-ax2.set_title('Coverage Evolution Over Time', fontsize=11)
-ax2.legend(loc='best', fontsize=8, ncol=2)
-ax2.grid(True, alpha=0.3)
-ax2.set_xscale('log')
-ax2.set_ylim([0, 1])
-ax2.set_xlim([self.wealth_min/1e6, self.wealth_max/1e6])
-
-# Format x-axis to show actual values not powers of 10
-ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}'))
-
-# 3. Value Function with Clear Wealth Labels
-ax3 = fig.add_subplot(gs[0, 2])
-
-# Create contour plot with wealth in millions (not log)
-wealth_millions = self.wealth_grid / 1e6
-T_grid, W_grid = np.meshgrid(self.times, wealth_millions)
-
-# Use log scale for colors but linear for axes
-contour = ax3.contourf(T_grid, np.log10(W_grid), V.T, levels=20, cmap='viridis', alpha=0.9)
-
-# Add market cycle indicators
-for t in np.linspace(0, self.T, 6):
-    market = self.get_market_condition(t)
-    if market < 0.35:
-        ax3.axvline(t, color='red', alpha=0.15, linestyle='--', linewidth=1)
-    elif market > 0.65:
-        ax3.axvline(t, color='green', alpha=0.15, linestyle='--', linewidth=1)
-
-ax3.set_xlabel('Time (years)', fontsize=10)
-ax3.set_ylabel('Wealth ($M, log scale)', fontsize=10)
-ax3.set_title('Value Function V(t,w)', fontsize=11)
-
-# Set y-axis to show actual wealth values
-y_ticks = [0.5, 1, 2, 5, 10, 20]
-ax3.set_yticks([np.log10(y) for y in y_ticks])
-ax3.set_yticklabels([f'{y}' for y in y_ticks])
-
-cbar3 = plt.colorbar(contour, ax=ax3)
-cbar3.set_label('Value', fontsize=8)
-cbar3.ax.tick_params(labelsize=7)
-
-# 4. Wealth Paths with Clean Statistics
-ax4 = fig.add_subplot(gs[1, 0])
-
-# Plot sample paths
-n_display = min(25, len(paths))
-for i in range(n_display):
-ax4.plot(self.times, paths[i, :] / 1e6, alpha=0.15, color='gray', linewidth=0.5)
-
-# Calculate statistics only for surviving paths
-surviving_mask = paths[:, -1] > 1000
-if np.sum(surviving_mask) > 0:
-surviving_paths = paths[surviving_mask]
-mean_path = np.mean(surviving_paths, axis=0) / 1e6
-median_path = np.median(surviving_paths, axis=0) / 1e6
-
-        # Plot mean and median prominently
-ax4.plot(self.times, mean_path, 'r-', linewidth=3, label='Mean', zorder=5)
-ax4.plot(self.times, median_path, 'b--', linewidth=2.5, label='Median', zorder=5)
-
-        # Add clean confidence bands
-percentile_10 = np.percentile(surviving_paths, 10, axis=0) / 1e6
-percentile_90 = np.percentile(surviving_paths, 90, axis=0) / 1e6
-ax4.fill_between(self.times, percentile_10, percentile_90,
-alpha=0.2, color='blue', label='10-90% Range', zorder=1)
-
-ax4.set_xlabel('Time (years)', fontsize=10)
-ax4.set_ylabel('Wealth ($M)', fontsize=10)
-ax4.set_title('Wealth Trajectories', fontsize=11)
-ax4.legend(loc='upper left', fontsize=9)
-ax4.grid(True, alpha=0.3)
-ax4.set_ylim(bottom=0)
-
-# 5. Fixed Control Usage with Clear Variation Bands
-ax5 = fig.add_subplot(gs[1, 1])
-
-# Calculate control statistics
-valid_controls = controls_used[~np.isnan(controls_used).any(axis=1)]
-if len(valid_controls) > 0:
-    control_mean = np.mean(valid_controls, axis=0)
-    control_25 = np.percentile(valid_controls, 25, axis=0)
-    control_75 = np.percentile(valid_controls, 75, axis=0)
-    control_10 = np.percentile(valid_controls, 10, axis=0)
-    control_90 = np.percentile(valid_controls, 90, axis=0)
-
-    # Plot mean line prominently
-    ax5.plot(self.times[:-1], control_mean, 'black', linewidth=3, label='Mean Coverage', zorder=5)
-
-    # Add blue variation bands (fixed from tan)
-    ax5.fill_between(self.times[:-1], control_25, control_75, alpha=0.3, color='blue', label='25-75% Range', zorder=2)
-    ax5.fill_between(self.times[:-1], control_10, control_90, alpha=0.15, color='blue', label='10-90% Range', zorder=1)
-
-    # Add market condition indicators as vertical bands
-    for t_idx in range(len(self.times) - 1):
-        market = market_conditions[t_idx]
-        if market < 0.35:
-            ax5.axvspan(self.times[t_idx], self.times[min(t_idx+1, len(self.times)-1)], alpha=0.1, color='red', zorder=0)
-        elif market > 0.65:
-            ax5.axvspan(self.times[t_idx], self.times[min(t_idx+1, len(self.times)-1)], alpha=0.1, color='green', zorder=0)
-
-ax5.set_xlabel('Time (years)', fontsize=10)
-ax5.set_ylabel('Insurance Coverage', fontsize=10)
-ax5.set_title('Coverage Usage Distribution', fontsize=11)
-ax5.legend(loc='upper right', fontsize=9)
-ax5.grid(True, alpha=0.3)
-ax5.set_ylim([0, 1])
-
-# 6. Terminal Wealth Distribution
-ax6 = fig.add_subplot(gs[1, 2])
-
-terminal_wealth = paths[:, -1] / 1e6
-surviving_wealth = terminal_wealth[terminal_wealth > 0.001]
-
-if len(surviving_wealth) > 0:
-    ax6.hist(surviving_wealth, bins=35, alpha=0.7, color='green', edgecolor='black', density=True)
-
-mean_terminal = np.mean(surviving_wealth)
-median_terminal = np.median(surviving_wealth)
-
-ax6.axvline(mean_terminal, color='red', linestyle='--', linewidth=2.5, label=f'Mean:${mean_terminal:.1f}M')
-
-ax6.axvline(median_terminal, color='blue',
-linestyle='--', linewidth=2.5, label=f'Median: ${median_terminal:.1f}M')  ax6.set_xlabel('Terminal Wealth ($M)', fontsize=10)
-ax6.set_ylabel('Density', fontsize=10)
-ax6.set_title('Terminal Wealth Distribution', fontsize=11)
-ax6.legend(loc='upper right', fontsize=9)
-ax6.grid(True, alpha=0.3)
-
-# 7. Market Cycles
-ax7 = fig.add_subplot(gs[2, 0])
-ax7.plot(self.times, market_conditions, 'orange', linewidth=3, zorder=3)
-ax7.fill_between(self.times, 0.5, market_conditions,
-where=(market_conditions >= 0.5),
-color='green', alpha=0.3, label='Bull Market')
-ax7.fill_between(self.times, market_conditions, 0.5,
-where=(market_conditions < 0.5),
-color='red', alpha=0.3, label='Bear Market')
-ax7.axhline(0.5, color='black', linestyle='--', alpha=0.3, linewidth=1)
-ax7.set_xlabel('Time (years)', fontsize=10)
-ax7.set_ylabel('Market Condition', fontsize=10)
-ax7.set_title('Market Cycle Dynamics', fontsize=11)
-ax7.legend(loc='upper right', fontsize=9)
-ax7.grid(True, alpha=0.3)
-ax7.set_ylim([0, 1])
-
-# 8. Risk Metrics
-ax8 = fig.add_subplot(gs[2, 1])
-
-if len(paths) > 0:
-returns = np.diff(paths, axis=1) / (paths[:, :-1] + 1e-6)
-returns[np.isnan(returns)] = 0
-returns[np.isinf(returns)] = 0
-
-volatility = np.std(returns, axis=0)
-* np.sqrt(1/self.dt)
-volatility = gaussian_filter(volatility, sigma=1)
-# Smooth for clarity
-
-sharpe = np.mean(returns, axis=0) / (np.std(returns, axis=0) + 1e-6) * np.sqrt(1/self.dt)
-sharpe = gaussian_filter(sharpe, sigma=1)
-# Smooth for clarity
-
-ax8.plot(self.times[1:], volatility, 'r-', label='Volatility', linewidth=2.5)
-ax8_twin = ax8.twinx()
-ax8_twin.plot(self.times[1:], sharpe, 'b--', label='Sharpe Ratio', linewidth=2.5)
-
-ax8.set_xlabel('Time (years)', fontsize=10)
-ax8.set_ylabel('Volatility', color='r', fontsize=10)
-ax8_twin.set_ylabel('Sharpe Ratio', color='b', fontsize=10)
-ax8.set_title('Risk-Return Metrics', fontsize=11)
-ax8.tick_params(axis='y', labelcolor='r', labelsize=8)
-ax8_twin.tick_params(axis='y', labelcolor='b', labelsize=8)
-
-# Combine legends
-lines1, labels1 = ax8.get_legend_handles_labels()
-lines2, labels2 = ax8_twin.get_legend_handles_labels()
-ax8.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=9)
-
-ax8.grid(True, alpha=0.3)
-
-# 9. Summary Statistics
-ax9 = fig.add_subplot(gs[2, 2])
-ax9.axis('off')
-
-# Calculate summary statistics
-surviving_count = np.sum(paths[:, -1] > 1000)
-survival_rate = surviving_count / len(paths) * 100
-
-if surviving_count > 0:
-surviving_paths = paths[paths[:, -1] > 1000]
-final_mean = np.mean(surviving_paths[:, -1]) / 1e6
-final_std = np.std(surviving_paths[:, -1]) / 1e6
-growth_rate = np.mean(np.log(surviving_paths[:, -1] / surviving_paths[:, 0])) / self.T
-else:
-final_mean = final_std = growth_rate = 0
-
-summary_text = f"""SUMMARY STATISTICS:
-
-Survival Rate: {survival_rate:.1f}%
-Final Wealth (Mean): ${final_mean:.2f}M Final Wealth (Std):${final_std:.2f}M
-Avg Growth Rate: {growth_rate*100:.1f}%/year
-
-Market Cycles: {int(self.T / self.market_cycle_period * 2)} phases
-Coverage Range: {np.min(optimal_control):.1%}-{np.max(optimal_control):.1%}
-Avg Coverage: {np.mean(optimal_control):.1%}
-
-Strategy: Dynamic coverage
-adjusting to market cycles
-and wealth levels"""
-
-ax9.text(0.1, 0.5, summary_text, transform=ax9.transAxes,
-fontsize=10, verticalalignment='center', fontfamily='monospace',
-bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-
-# Add Performance Metrics Summary at bottom
-fig.text(0.5, 0.05,
-    f'Performance Metrics | Initial: ${w0/1e6:.1f}M | Time: {self.T}y | Simulations: {n_paths} | Market Cycles: {self.market_cycle_period}y periods',
-    ha='center',
-    fontsize=10,
-    bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
-
-plt.savefig('../../theory/figures/stochastic_control.png', dpi=150, bbox_inches='tight')
-plt.show()
-
-return fig
-
-# Create and solve the stochastic control problem
-print("Solving stochastic optimal control problem with enhanced dynamics...")
-
-np.random.seed(42) # For reproducibility
-
-controller = StochasticControl()
-V, optimal_control = controller.solve_hjb()
-
-# Initial wealth
-w0 = 3e6 #$3M initial wealth
-
-# Simulate paths
-n_paths = 250
-paths, controls_used, market_conditions = controller.simulate_path(w0, optimal_control, n_paths)
-
-# Create visualizations
-fig = controller.plot_results(V, optimal_control, paths, controls_used, market_conditions)
-
+        V = np.zeros((self.n_steps + 1, self.n_wealth))
+        optimal_coverage = np.zeros((self.n_steps + 1, self.n_wealth))
+
+        # Set terminal condition properly
+        for w_idx, w in enumerate(self.wealth_grid):
+            V[-1, w_idx] = self.utility(w, 0)
+
+        print(f"Terminal values: min={np.min(V[-1,:]):.2f}, max={np.max(V[-1,:]):.2f}")
+
+        # Backward iteration
+        for t_idx in range(self.n_steps - 1, -1, -1):
+            t = self.times[t_idx]
+            time_to_go = self.T - t
+            # Current loss parameters
+            freq, sev = self.loss_params(t)
+
+            for w_idx, wealth in enumerate(self.wealth_grid):
+                best_value = -np.inf
+                best_coverage = 0
+
+                for coverage in self.control_grid:
+                    # Premium and losses
+                    premium_cost = self.premium(coverage, wealth, t)
+                    expected_retained_loss = freq * sev * wealth * (1 - coverage)
+
+                    # Drift (expected change in wealth)
+                    drift = self.r * wealth - premium_cost - expected_retained_loss
+
+                    # Volatility for binary losses
+                    market_vol = self.sigma * wealth
+                    if freq > 0 and freq < 1:
+                        loss_std = np.sqrt(freq * (1 - freq))
+                        loss_vol = loss_std * sev * wealth * (1 - coverage)
+                    else:
+                        loss_vol = 0
+                    total_vol = np.sqrt(market_vol**2 + loss_vol**2)
+
+                    # Expected next wealth
+                    wealth_next = wealth + drift * self.dt
+                    wealth_next = max(self.wealth_grid[0], wealth_next)
+
+                    # Calculate expected future value
+                    shocks = np.array([-1.732, 0, 1.732])
+                    probs = np.array([1/6, 2/3, 1/6])
+
+                    expected_future_utility = 0
+                    for shock, prob in zip(shocks, probs):
+                        w_next = wealth_next + total_vol * np.sqrt(self.dt) * shock
+                        # Better boundary handling
+                        if w_next <= self.wealth_grid[0]:
+                            v_next = V[t_idx + 1, 0]
+                        elif w_next >= self.wealth_grid[-1]:
+                            v_next = V[t_idx + 1, -1]
+                        else:
+                            v_next = np.interp(w_next, self.wealth_grid, V[t_idx + 1, :])
+                        expected_future_utility += prob * v_next
+
+                    # Bellman equation
+                    flow_utility = self.utility(wealth, time_to_go)
+                    discounted_future_utility = np.exp(-self.rho * self.dt) * expected_future_utility
+
+                    # Total value is weighted combination
+                    total_value = self.dt * flow_utility + discounted_future_utility
+
+                    if total_value > best_value:
+                        best_value = total_value
+                        best_coverage = coverage
+
+                V[t_idx, w_idx] = best_value
+                optimal_coverage[t_idx, w_idx] = best_coverage
+
+        return V, optimal_coverage
+
+    def simulate_paths(self, w0, optimal_coverage, n_paths=100):
+        """Simulate wealth paths under optimal policy with realistic loss events."""
+        paths = np.zeros((n_paths, self.n_steps + 1))
+        coverages = np.zeros((n_paths, self.n_steps))
+        losses = np.zeros((n_paths, self.n_steps))
+
+        for i in range(n_paths):
+            wealth = w0
+            paths[i, 0] = wealth
+
+            for t_idx in range(self.n_steps):
+                t = self.times[t_idx]
+
+                # Interpolate optimal coverage
+                coverage = np.interp(wealth, self.wealth_grid, optimal_coverage[t_idx, :])
+                coverage = np.clip(coverage, 0, 1)
+                coverages[i, t_idx] = coverage
+
+                # Current loss parameters
+                freq, sev = self.loss_params(t)
+
+                # Investment and insurance dynamics
+                premium_cost = self.premium(coverage, wealth, t)
+
+                # Market return (geometric Brownian motion)
+                market_return = (self.r - 0.5 * self.sigma**2) * self.dt
+                market_shock = self.sigma * np.sqrt(self.dt) * np.random.randn()
+
+                # Update wealth from investment
+                wealth = wealth * np.exp(market_return + market_shock)
+
+                # Pay premium
+                wealth -= premium_cost * self.dt
+
+                # Loss events (Poisson process)
+                if np.random.rand() < freq * self.dt:
+                    # Loss occurs with lognormal severity
+                    loss_multiplier = np.exp(0.3 * np.random.randn())  # Some volatility
+                    loss_amount = sev * wealth * loss_multiplier
+                    retained_loss = loss_amount * (1 - coverage)
+                    wealth -= retained_loss
+                    losses[i, t_idx] = loss_amount
+
+                wealth = max(1e4, wealth)  # Bankruptcy floor
+                paths[i, t_idx + 1] = wealth
+
+        return paths, coverages, losses
+
+    def plot_results(self, V, optimal_coverage, paths, coverages, losses, w0):
+        """Create comprehensive visualization for actuaries."""
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+        fig.suptitle('Stochastic Control: Dynamic P&C Insurance Strategy', fontsize=14, fontweight='bold')
+
+        # 1. Optimal Coverage Policy - should show clear variation
+        ax = axes[0, 0]
+        time_points = [0, 10, 25, 40, 50]  # t = 0, 1, 2.5, 4, 5 years
+        colors = plt.cm.coolwarm(np.linspace(0, 1, len(time_points)))
+
+        for idx, color in zip(time_points, colors):
+            if idx < len(self.times):
+                t = self.times[idx]
+                # Focus on relevant wealth range
+                mask = self.wealth_grid <= 3e7
+                ax.plot(self.wealth_grid[mask] / 1e6, optimal_coverage[idx, mask],
+                        label=f't={t:.1f}y', color=color, linewidth=2)
+
+        ax.set_xlabel('Wealth ($M)')
+        ax.set_ylabel('Optimal Coverage')
+        ax.set_title('Dynamic Coverage Strategy')
+        ax.legend(loc='best')
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim([0, 30])
+        ax.set_ylim([0, 1.05])
+
+        # 2. Coverage Surface (Time-Wealth)
+        ax = axes[0, 1]
+        # Create a finer mesh for visualization
+        wealth_plot = self.wealth_grid[self.wealth_grid <= 2e7]
+        time_indices = list(range(0, self.n_steps + 1, 2))
+        T_mesh, W_mesh = np.meshgrid(self.times[time_indices], wealth_plot / 1e6)
+        C_mesh = optimal_coverage[time_indices, :len(wealth_plot)].T
+
+        contour = ax.contourf(T_mesh, W_mesh, C_mesh, levels=15, cmap='RdYlBu_r')
+        ax.set_xlabel('Time (years)')
+        ax.set_ylabel('Wealth ($M)')
+        ax.set_title('Coverage Strategy Surface')
+        plt.colorbar(contour, ax=ax, label='Coverage')
+        ax.set_ylim([0, 20])
+
+        # 3. Wealth Paths
+        ax = axes[0, 2]
+        n_show = min(30, len(paths))
+        for i in range(n_show):
+            ax.plot(self.times, paths[i] / 1e6, alpha=0.2, color='gray', linewidth=0.5)
+
+        percentiles = [10, 25, 50, 75, 90]
+        colors_p = ['red', 'orange', 'blue', 'orange', 'red']
+        styles = [':', '--', '-', '--', ':']
+        for p, color, style in zip(percentiles, colors_p, styles):
+            path_p = np.percentile(paths, p, axis=0) / 1e6
+            label = f'{p}th %ile' if p != 50 else 'Median'
+            ax.plot(self.times, path_p, color=color, linestyle=style,
+                    linewidth=2 if p == 50 else 1.5, label=label, alpha=0.8)
+
+        ax.set_xlabel('Time (years)')
+        ax.set_ylabel('Wealth ($M)')
+        ax.set_title('Wealth Evolution Under Optimal Strategy')
+        ax.legend(loc='best')
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim([0, max(20, np.percentile(paths[:, -1], 90) / 1e6 * 1.1)])
+
+        # 4. Coverage Distribution Over Time
+        ax = axes[1, 0]
+        time_snapshots = [0, 12, 24, 36, 49]  # Various times
+        colors_t = plt.cm.viridis(np.linspace(0.2, 0.8, len(time_snapshots)))
+
+        for t_idx, color in zip(time_snapshots, colors_t):
+            coverage_dist = coverages[:, t_idx]
+            ax.hist(coverage_dist, bins=20, alpha=0.5, color=color,
+                    label=f't={self.times[t_idx]:.1f}y', density=True)
+
+        ax.set_xlabel('Coverage Level')
+        ax.set_ylabel('Density')
+        ax.set_title('Coverage Distribution Evolution')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim([0, 1])
+
+        # 5. Loss Analysis
+        ax = axes[1, 1]
+        total_losses = np.sum(losses > 0, axis=1)
+        retained_losses = np.zeros(len(paths))
+        for i in range(len(paths)):
+            for t in range(self.n_steps):
+                if losses[i, t] > 0:
+                    coverage = coverages[i, t]
+                    retained_losses[i] += losses[i, t] * (1 - coverage)
+
+        ax.hist(retained_losses / 1e6, bins=30, alpha=0.7, color='red', edgecolor='black')
+        ax.axvline(np.mean(retained_losses) / 1e6, color='blue', linestyle='--',
+                    linewidth=2, label=f'Mean: ${np.mean(retained_losses)/1e6:.2f}M')
+        ax.set_xlabel('Total Retained Losses ($M)')
+        ax.set_ylabel('Frequency')
+        ax.set_title('Retained Loss Distribution')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        # 6. Key Metrics
+        ax = axes[1, 2]
+        ax.axis('off')
+
+        terminal_wealth = paths[:, -1]
+        survival_rate = np.sum(terminal_wealth > 1e5) / len(terminal_wealth) * 100
+
+        # Calculate key coverage metrics at different wealth/time
+        cov_poor_early = optimal_coverage[5, 5]    # $1M, t=0.5
+        cov_poor_late = optimal_coverage[45, 5]    # $1M, t=4.5
+        cov_mid_early = optimal_coverage[5, 25]    # $5M, t=0.5
+        cov_mid_late = optimal_coverage[45, 25]    # $5M, t=4.5
+        cov_rich_early = optimal_coverage[5, 40]   # $15M, t=0.5
+        cov_rich_late = optimal_coverage[45, 40]   # $15M, t=4.5
+
+        metrics = f"""KEY ACTUARIAL INSIGHTS:
+
+Portfolio Metrics:
+• Initial Capital: ${w0/1e6:.1f}M
+• Survival Rate: {survival_rate:.1f}%
+• Median Terminal: ${np.median(terminal_wealth)/1e6:.1f}M
+• Mean Retained Loss: ${np.mean(retained_losses)/1e6:.2f}M
+
+Coverage Strategy Evolution:
+
+Low Wealth ($1M):
+  Early (t=0.5): {cov_poor_early:.1%}
+  Late (t=4.5):  {cov_poor_late:.1%}
+  Change: {(cov_poor_late-cov_poor_early)*100:+.1f}pp
+
+Medium Wealth ($5M):
+  Early: {cov_mid_early:.1%}
+  Late:  {cov_mid_late:.1%}
+  Change: {(cov_mid_late-cov_mid_early)*100:+.1f}pp
+
+High Wealth ($15M):
+  Early: {cov_rich_early:.1%}
+  Late:  {cov_rich_late:.1%}
+  Change: {(cov_rich_late-cov_rich_early)*100:+.1f}pp
+
+Economic Drivers:
+• Risk aversion ↑ over time
+• Loss frequency/severity ↑
+• Self-insurance capacity
+• Terminal value protection"""
+
+        ax.text(0.05, 0.5, metrics, transform=ax.transAxes,
+                fontsize=9, verticalalignment='center',
+                fontfamily='monospace',
+                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.3))
+
+        plt.tight_layout()
+        plt.show()
+
+# Run the demonstration
+print("Solving Dynamic Programming problem for P&C insurance strategy...")
+print("This demonstrates stochastic control with time-varying risk parameters.\n")
+
+np.random.seed(42)
+controller = InsuranceStochasticControl()
+V, optimal_coverage = controller.solve_hjb()
+
+# Simulate under optimal policy
+w0 = 8e6  # $8M initial wealth (mid-range for clear dynamics)
+paths, coverages, losses = controller.simulate_paths(w0, optimal_coverage, n_paths=5000)
+
+# Visualize results
+controller.plot_results(V, optimal_coverage, paths, coverages, losses, w0)
+
+# Print summary statistics
 print("\n" + "="*60)
-print("STOCHASTIC CONTROL RESULTS")
+print("OPTIMAL COVERAGE SUMMARY (for $8M initial wealth):")
 print("="*60)
-print(f"Initial Wealth: ${w0/1e6:.1f}M")
-print(f"Time Horizon: {controller.T} years")
-print(f"Number of Paths: {n_paths}")
-print(f"Wealth Range: ${controller.wealth_min/1e6:.1f}M - ${controller.wealth_max/1e6:.1f}M")
-print(f"Market Cycle Period: {controller.market_cycle_period} years")
-print("="*60)
+for t in [0, 1, 2.5, 4, 5]:
+    t_idx = int(t * 10)
+    if t_idx < len(controller.times):
+        cov = np.interp(w0, controller.wealth_grid, optimal_coverage[t_idx, :])
+        freq, sev = controller.loss_params(t)
+        print(f"Time {t:.1f}y: Coverage = {cov:.1%}, "
+                f"Loss Freq = {freq:.1%}, Loss Sev = {sev:.1%}")
+
+print("\nThe strategy shows clear dynamics:")
+print("• Coverage increases over time as risk aversion grows")
+print("• Wealthy entities self-insure more (lower coverage)")
+print("• Poor entities need high coverage for survival")
+print("• Time and wealth effects interact in complex ways")
 ```
 
 #### Sample Output
 
-![Stochastic Control](../../../theory/figures/stochastic_control.png)
+![Stochastic Control](figures/stochastic_control.png)
 
-```
-============================================================
-STOCHASTIC CONTROL RESULTS
-============================================================
-Initial Wealth: $3.0M
-Time Horizon: 5.0 years
-Number of Paths: 250
-Wealth Range: $0.5M -$20.0M
-Market Cycle Period: 2.5 years
-============================================================
-```
-
+(convergence-criteria)=
 ## Convergence Criteria
 
-### Numerical Convergence
+When implementing optimization algorithms for insurance applications (e.g., GLM parameter estimation or coverage optimization), we need robust criteria to determine when the algorithm has found a satisfactory solution. Unlike closed-form solutions we're accustomed to in classical actuarial methods, iterative optimization requires careful monitoring of convergence.
 
-1. **Gradient norm**: $\|\nabla f(x_k)\| < \epsilon$
-2. **Step size**: $\|x_{k+1} - x_k\| < \epsilon$
-3. **Function value**: $|f(x_{k+1}) - f(x_k)| < \epsilon$
-4. **Relative change**: $\frac{|f(x_{k+1}) - f(x_k)|}{|f(x_k)|} < \epsilon$
+### Why Convergence Matters in Actuarial Practice
 
-### Statistical Convergence
+Premature termination can lead to suboptimal solutions, while excessive iterations waste computational resources, which is particularly important when fitting models across multiple lines of coverage. The criteria below help balance accuracy with computational efficiency.
 
-```python
-def check_convergence(history, window=10, threshold=1e-4):
-"""Check various convergence criteria."""
+### Numerical Convergence Criteria
 
-if len(history) < window:
-return False, {}
+These criteria directly monitor the optimization process. In practice, you'll typically check multiple criteria simultaneously:
 
-recent = history[-window:]
+1. **Gradient Norm** (First-order optimality): $\|\nabla f(x_k)\| < \epsilon_{\text{grad}}$
+   - **Interpretation**: The gradient represents the direction of steepest increase. When near zero, we're at a stationary point (minimum, maximum, or saddle).
+   - **Actuarial context**: Similar to checking if partial derivatives of the likelihood function approach zero in MLE estimation.
+   - **Typical values**: $\epsilon_{\text{grad}} \in [10^{-6}, 10^{-4}]$ for loss ratio optimization
 
-    # Calculate metrics
-mean_change = np.mean(np.diff(recent))
-std_change = np.std(np.diff(recent))
-trend = np.polyfit(range(window), recent, 1)[0]
+2. **Parameter Change** (Step size): $\|x_{k+1} - x_k\| < \epsilon_{\text{step}}$
+   - **Interpretation**: Parameters have stopped moving significantly between iterations.
+   - **Actuarial context**: Like checking if credibility-weighted estimates have stabilized across iterations.
+   - **Typical values**: Scale relative to parameter magnitudes; for rate relativities, often $\epsilon_{\text{step}} \in [10^{-5}, 10^{-3}]$
 
-    # Convergence criteria
-criteria = {
-'mean_change': abs(mean_change) < threshold,
-'std_change': std_change < threshold,
-'trend': abs(trend) < threshold,
-'plateau': np.std(recent) / np.mean(recent) < 0.01
-}
+3. **Objective Function Change** (Absolute): $|f(x_{k+1}) - f(x_k)| < \epsilon_{\text{abs}}$
+   - **Interpretation**: The objective function value has plateaued.
+   - **Actuarial context**: Similar to monitoring deviance reduction in GLM fitting, diminishing improvements suggest convergence.
+   - **Typical values**: Problem-specific; for log-likelihood, often $\epsilon_{\text{abs}} \in [10^{-8}, 10^{-6}]$
 
-converged = all(criteria.values())
+4. **Relative Change** (Scale-invariant): $\frac{|f(x_{k+1}) - f(x_k)|}{|f(x_k)|} < \epsilon_{\text{rel}}$
+   - **Interpretation**: Percentage improvement has become negligible.
+   - **Actuarial context**: Useful when optimizing across different exposure bases or premium volumes.
+   - **Typical values**: $\epsilon_{\text{rel}} \in [10^{-6}, 10^{-4}]$; looser for exploratory analysis, tighter for production pricing
 
-return converged, criteria
-```
+### Statistical Convergence Approach
 
-## Practical Implementation
+For noisy optimization problems (common with simulation-based reserves or complex policies), statistical convergence checking provides more robust terminatio. Statistical convergence occurs when your company's loss patterns and risk metrics stabilize over time, moving from volatile and unpredictable to steady and reliable, like how a manufacturing plant's injury rate might swing wildly in the first few years but eventually settles around a predictable average. This stability typically emerges after accumulating enough data points, at which point random variations smooth out and true underlying patterns become clear. When convergence occurs, you can finally make confident decisions about retentions, budgets, and risk financing because your data has become trustworthy and predictive rather than just random noise.
 
-### Complete Insurance Optimizer
+### Common Pitfalls When Monitoring Convergence:
 
-```python
-class CompleteInsuranceOptimizer:
-"""Production-ready insurance optimization system."""
-
-def __init__(self, company_profile):
-self.profile = company_profile
-self.results = {}
-
-def optimize(self):
-"""Run complete optimization workflow."""
-
-print("Starting insurance optimization...")
-
-    # Step 1: Risk assessment
-self.assess_risks()
-
-    # Step 2: Generate Pareto frontier
-self.generate_pareto_frontier()
-
-    # Step 3: Select optimal point
-self.select_optimal_solution()
-
-    # Step 4: Validate solution
-self.validate_solution()
-
-    # Step 5: Generate recommendations
-self.generate_recommendations()
-
-return self.results
-
-def assess_risks(self):
-"""Assess company risk profile."""
-
-print("Assessing risks...")
-
-    # Simulate loss scenarios
-losses = self.simulate_losses(n_years=10, n_sims=10000)
-
-self.results['risk_metrics'] = {
-'expected_annual_loss': np.mean(losses),
-'var_95': np.percentile(losses, 95),
-'cvar_95': np.mean(losses[losses > np.percentile(losses, 95)]),
-'max_loss': np.max(losses)
-}
-
-def simulate_losses(self, n_years, n_sims):
-"""Simulate loss scenarios."""
-
-annual_losses = []
-
-for _ in range(n_sims):
-total = 0
-for year in range(n_years):
-        # Frequency - reduced for more realistic scenario
-n_claims = np.random.poisson(self.profile['claim_frequency'])
-
-        # Severity with more reasonable variance
-if n_claims > 0:
-claims = np.random.lognormal(
-np.log(self.profile['claim_severity_mean']),
-self.profile['claim_severity_std'],
-n_claims
-)
-total += np.sum(claims)
-
-annual_losses.append(total / n_years)
-
-return np.array(annual_losses)
-
-def generate_pareto_frontier(self):
-"""Generate multi-objective Pareto frontier."""
-
-print("Generating Pareto frontier...")
-
-    # Define objectives
-def cost_objective(x):
-retention, limit = x
-        # More reasonable premium rates
-return 0.005 * limit + 0.01
-* max(0, limit - retention)
-
-def risk_objective(x):
-retention, limit = x
-return retention - 0.5 * limit
-
-    # Generate frontier
-pareto_points = []
-for weight in np.linspace(0, 1, 20):
-def combined(x):
-return weight
-* cost_objective(x) + (1 - weight) * risk_objective(x)
-
-result = minimize(
-combined,
-x0=[self.profile['assets']
-* 0.01, self.profile['assets'] * 0.1],
-bounds=[
-(0, self.profile['assets']
-* 0.05),
-(0, self.profile['assets'] * 0.5)
-],
-method='L-BFGS-B'
-)
-
-if result.success:
-pareto_points.append({
-'retention': result.x[0],
-'limit': result.x[1],
-'cost': cost_objective(result.x),
-'risk': risk_objective(result.x),
-'weight': weight
-})
-
-self.results['pareto_frontier'] = pareto_points
-
-def select_optimal_solution(self):
-"""Select optimal point from Pareto frontier."""
-
-print("Selecting optimal solution...")
-
-    # Use utility function or business rules
-frontier = self.results['pareto_frontier']
-
-    # Example: Minimize cost subject to risk constraint
-valid_points = [p for p in frontier if p['risk'] < self.profile['risk_tolerance']]
-
-if valid_points:
-optimal = min(valid_points, key=lambda p: p['cost'])
-else:
-        # Fallback to minimum risk
-optimal = min(frontier, key=lambda p: p['risk'])
-
-self.results['optimal_solution'] = optimal
-
-def validate_solution(self):
-"""Validate optimal solution through simulation."""
-
-print("Validating solution...")
-
-solution = self.results['optimal_solution']
-
-    # Run detailed simulation
-n_sims = 10000
-outcomes = []
-
-for _ in range(n_sims):
-wealth = self.profile['assets']
-
-for year in range(10):
-        # Growth with reasonable parameters
-growth_rate = np.random.normal(0.10, 0.08)
-# 10% mean, 8% std dev
-wealth *= (1 + growth_rate)
-
-        # Losses - scale down to be more realistic
-n_claims = np.random.poisson(self.profile['claim_frequency'] * 0.3)
-# Fewer claims
-annual_loss = 0
-if n_claims > 0:
-for _ in range(n_claims):
-claim = np.random.lognormal(
-np.log(self.profile['claim_severity_mean']),
-self.profile['claim_severity_std']
-* 0.5
-# Less variance
-)
-annual_loss += claim
-
-retained = min(annual_loss, solution['retention'])
-
-        # Premium as small percentage
-premium = solution['cost'] * 0.001
-# Much smaller premium
-
-wealth = wealth - retained - premium
-
-if wealth <= 0:
-wealth = 0
-break
-
-outcomes.append(wealth)
-
-    # Handle case where all simulations result in bankruptcy
-surviving_outcomes = [w for w in outcomes if w > 0]
-
-if surviving_outcomes:
-median_wealth = np.median(surviving_outcomes)
-growth_rates = [np.log(w/self.profile['assets'])/10 for w in surviving_outcomes]
-avg_growth_rate = np.mean(growth_rates) if growth_rates else 0
-else:
-median_wealth = 0
-avg_growth_rate = -1
-# Indicate total failure
-
-self.results['validation'] = {
-'survival_rate': len(surviving_outcomes) / len(outcomes),
-'median_final_wealth': median_wealth,
-'growth_rate': avg_growth_rate
-}
-
-def generate_recommendations(self):
-"""Generate actionable recommendations."""
-
-print("Generating recommendations...")
-
-optimal = self.results['optimal_solution']
-validation = self.results['validation']
-
-recommendations = []
-
-    # Check if solution is viable
-if validation['survival_rate'] > 0.5:
-# At least 50% survival
-        # Primary recommendation
-recommendations.append({
-'priority': 'HIGH',
-'action': f"Set retention at ${optimal['retention']:,.0f}", 'rationale': 'Optimal balance of cost and risk' })  recommendations.append({ 'priority': 'HIGH', 'action': f"Purchase coverage up to${optimal['limit']:,.0f}",
-'rationale': f"Ensures {validation['survival_rate']:.1%} survival probability"
-})
-
-        # Additional recommendations based on analysis
-if validation['growth_rate'] < 0.05 and validation['growth_rate'] > 0:
-recommendations.append({
-'priority': 'MEDIUM',
-'action': 'Consider increasing coverage',
-'rationale': 'Current growth rate below target'
-})
-elif validation['growth_rate'] > 0.08:
-recommendations.append({
-'priority': 'LOW',
-'action': 'Current insurance program is well-optimized',
-'rationale': f'Achieving {validation["growth_rate"]:.1%} annual growth'
-})
-else:
-        # Low survival rate
-recommendations.append({
-'priority': 'CRITICAL',
-'action': 'Increase insurance limits significantly',
-'rationale': f'Current survival rate only {validation["survival_rate"]:.1%}'
-})
-
-recommendations.append({
-'priority': 'CRITICAL',
-'action': 'Reduce retention to lower levels',
-'rationale': 'Current retention too high for risk profile'
-})
-
-recommendations.append({
-'priority': 'HIGH',
-'action': 'Review and adjust risk parameters',
-'rationale': 'Current configuration unsustainable'
-})
-
-self.results['recommendations'] = recommendations
-
-def plot_results(self):
-"""Visualize optimization results."""
-
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-
-    # Pareto frontier
-frontier = self.results['pareto_frontier']
-costs = [p['cost'] for p in frontier]
-risks = [p['risk'] for p in frontier]
-
-axes[0, 0].plot(costs, risks, 'b-o')
-optimal = self.results['optimal_solution']
-axes[0, 0].plot(optimal['cost'], optimal['risk'], 'r*', markersize=15)
-axes[0, 0].set_xlabel('Cost')
-axes[0, 0].set_ylabel('Risk')
-axes[0, 0].set_title('Pareto Frontier')
-axes[0, 0].grid(True, alpha=0.3)
-
-    # Risk metrics
-metrics = self.results['risk_metrics']
-labels = list(metrics.keys())
-values = list(metrics.values())
-
-axes[0, 1].bar(range(len(labels)), values)
-axes[0, 1].set_xticks(range(len(labels)))
-axes[0, 1].set_xticklabels(labels, rotation=45, ha='right')
-axes[0, 1].set_ylabel('Value')
-axes[0, 1].set_title('Risk Metrics')
-
-    # Validation results - improved visualization
-val = self.results['validation']
-
-    # Show actual values with color coding
-survival_color = 'green' if val['survival_rate'] > 0.9 else 'orange' if val['survival_rate'] > 0.5 else 'red'
-growth_display = val['growth_rate'] if val['growth_rate'] >= 0 else 0
-growth_color = 'green' if val['growth_rate'] > 0.05 else 'orange' if val['growth_rate'] > 0 else 'red'
-
-bars = axes[1, 0].bar(['Survival\nRate', 'Growth\nRate'],
-[val['survival_rate'], growth_display],
-color=[survival_color, growth_color])
-
-    # Add value labels on bars
-axes[1, 0].text(0, val['survival_rate'] + 0.02, f"{val['survival_rate']:.1%}",
-ha='center', fontweight='bold')
-
-if val['growth_rate'] >= 0:
-axes[1, 0].text(1, growth_display + 0.02, f"{val['growth_rate']*100:.1f}%",
-ha='center', fontweight='bold')
-else:
-axes[1, 0].text(1, 0.02, 'Bankruptcy', ha='center', color='red', fontweight='bold')
-
-axes[1, 0].set_ylabel('Value')
-axes[1, 0].set_ylim(0, max(1.2, val['survival_rate'] + 0.2, growth_display + 0.2))
-axes[1, 0].set_title('Validation Metrics')
-axes[1, 0].grid(True, alpha=0.3, axis='y')
-
-    # Recommendations
-recs = self.results['recommendations']
-rec_text = '\n\n'.join([f"{r['priority']}: {r['action']}\n    -> {r['rationale']}"
-             for r in recs[:3]])
-
-    # Color code text based on priority
-text_color = 'red' if recs[0]['priority'] == 'CRITICAL' else 'darkgreen' if val['growth_rate'] > 0.08 else 'black'
-axes[1, 1].text(0.1, 0.5, rec_text, fontsize=10, verticalalignment='center',
-color=text_color)
-axes[1, 1].set_xlim(0, 1)
-axes[1, 1].set_ylim(0, 1)
-axes[1, 1].axis('off')
-axes[1, 1].set_title('Top Recommendations')
-
-plt.tight_layout()
-plt.show()
-
-# Run complete optimization with more reasonable parameters
-company = {
-'assets': 50_000_000,
-'revenue': 100_000_000,
-'claim_frequency': 2,
-# Reduced from 5 to 2 claims per year
-'claim_severity_mean': 50_000,
-# Reduced from 100k to 50k
-'claim_severity_std': 1.0,
-# Reduced from 2 to 1 (less variance)
-'risk_tolerance': 0.5
-}
-
-optimizer = CompleteInsuranceOptimizer(company)
-results = optimizer.optimize()
-optimizer.plot_results()
-
-# Print summary
-print("\n" + "="*50)
-print("OPTIMIZATION COMPLETE")
-print("="*50)
-print(f"Optimal Retention: ${results['optimal_solution']['retention']:,.0f}")
-print(f"Optimal Limit: ${results['optimal_solution']['limit']:,.0f}")
-print(f"Annual Cost: ${results['optimal_solution']['cost']:,.0f}")
-print(f"Survival Rate: {results['validation']['survival_rate']:.1%}")
-if results['validation']['growth_rate'] >= 0:
-    print(f"Expected Growth: {results['validation']['growth_rate']*100:.1f}%")
-else:
-    print("Expected Growth: BANKRUPTCY")
-```
-
-#### Sample Output
-
-![Complete Insurance Optimizer](../../../theory/figures/complete_insurance_optimizer.png)
-
-```
-==================================================
-OPTIMIZATION COMPLETE
-==================================================
-Optimal Retention: $0
-Optimal Limit: $25,000,000 Annual Cost:$375,000
-Survival Rate: 100.0%
-Expected Growth: 9.2%
-```
+- **Scale mismatch**: Always normalize or use relative criteria when parameters have different scales (e.g., frequency vs. severity parameters)
+- **Premature convergence**: Check multiple criteria, gradient alone can be misleading near saddle points
+- **Oscillation**: If parameters bounce between values, consider damping or switching algorithms
 
 ## Key Takeaways
 
@@ -3509,7 +3104,6 @@ Expected Growth: 9.2%
 4. **Numerical methods**: Choose appropriate method for problem structure
 5. **Stochastic control**: Account for uncertainty in dynamic decisions
 6. **Convergence monitoring**: Essential for reliable solutions
-7. **Practical implementation**: Combine theory with business constraints
 
 ## Next Steps
 
