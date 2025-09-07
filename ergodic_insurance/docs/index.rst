@@ -3,18 +3,34 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Ergodic Insurance Limits Documentation
-=======================================
+Transform Insurance from Cost Center to Strategic Asset
+=======================================================
 
-Welcome to the documentation for Ergodic Insurance Limits, a framework for optimizing insurance
-limits using ergodic (time-average) theory rather than traditional ensemble approaches.
+Every year, businesses commit nearly a trillion dollars to insurance protection, yet most companies still treat these decisions as isolated annual expenses rather than integral components of long-term value creation.
 
-The framework demonstrates how insurance transforms from a cost center to a growth enabler when
-analyzed through time averages, with potential for 30-50% better long-term performance.
+The Hidden Cost of Traditional Insurance Planning
+-------------------------------------------------
+
+While your business operates on a going-concern basis with 5, 10, or 20-year strategic horizons, your insurance decisions likely reset annually. This temporal mismatch between business strategy and risk financing creates a critical blind spot: you're optimizing for single-period outcomes while your business success depends on compound growth over time.
+
+A New Framework for Insurance Optimization
+------------------------------------------
+
+Ergodic Insurance Limits brings institutional-grade risk analytics, previously accessible only to major insurers, directly to your business. By analyzing insurance through the lens of time-average growth rather than expected value, this framework reveals how protection decisions compound to either accelerate or constrain your long-term trajectory.
+
+Our approach demonstrates that properly structured insurance programs can deliver 30-50% better long-term capital efficiency by:
+- Aligning coverage limits with your actual growth trajectory, not just industry averages
+- Quantifying the true cost of underinsurance on compound returns
+- Optimizing retention levels based on your specific risk tolerance and capital structure
+- Converting insurance from a defensive necessity into an offensive growth enabler
+
+Built for Strategic Decision-Makers
+-----------------------------------
+
+Whether you're evaluating captive insurance programs, negotiating renewal terms, or redesigning your entire risk financing strategy, this framework provides the quantitative foundation to make insurance decisions that create measurable enterprise value.
 
 .. note::
-   **New to insurance optimization?** Start with our comprehensive :doc:`Business User Guide <user_guide/index>`
-   designed for CFOs, risk managers, and actuaries. No advanced mathematics required!
+   **New to insurance optimization?** Start with our comprehensive :doc:`Business User Guide <user_guide/index>` designed for CFOs, risk managers, and actuaries. No advanced mathematics required!
 
 Quick Links
 -----------
