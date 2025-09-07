@@ -312,48 +312,73 @@ footer {
    Mobile Responsive Fixes
    ======================================== */
 
-/* Mobile hamburger menu toggle state */
+/* Mobile hamburger menu toggle state - COMPREHENSIVE FIX */
 @media screen and (max-width: 768px) {
-    /* When navigation is closed (hamburger menu visible) */
+    /* Hide sidebar completely off-screen */
     .wy-nav-side {
-        left: -300px !important;  /* Hide sidebar off-screen */
-        width: 300px !important;
+        left: -300px !important;
+        width: 85% !important;
+        max-width: 300px !important;
     }
 
-    /* When navigation is open (menu toggled) */
-    .wy-nav-side.shift {
-        left: 0 !important;  /* Show sidebar */
+    /* When menu is open */
+    .wy-nav-side.shift,
+    nav.wy-nav-side.shift {
+        width: 85% !important;
+        left: 0 !important;
     }
 
-    /* Fix content area to use full width when sidebar is hidden */
+    /* CRITICAL: Remove ALL left margins and make content full width */
     .wy-nav-content-wrap {
-        margin-left: 0 !important;  /* Remove left margin */
+        margin-left: 0 !important;
         padding: 0 !important;
+        left: 0 !important;
+        position: relative !important;
     }
 
-    /* When sidebar is showing, shift content */
-    .wy-nav-content-wrap.shift {
-        position: relative;
-        left: 300px;  /* Shift content when sidebar is open */
-    }
-
-    /* Ensure content uses full width */
+    /* Ensure the main content wrapper uses full width */
     .wy-nav-content {
-        max-width: 100% !important;
-        padding: 1rem !important;  /* Add some padding for mobile */
+        max-width: none !important;
+        width: 100% !important;
+        padding: 1rem !important;
+        margin: 0 !important;
     }
 
-    /* Fix the mobile top navigation bar */
+    /* When sidebar is showing, DON'T shift content (overlay instead) */
+    .wy-nav-content-wrap.shift {
+        left: 0 !important;  /* Don't shift content, let sidebar overlay */
+        position: relative !important;
+    }
+
+    /* Top navigation bar with hamburger menu */
     .wy-nav-top {
-        display: block !important;  /* Ensure hamburger menu is visible */
+        display: block !important;
         position: fixed !important;
         width: 100% !important;
         z-index: 1001 !important;
+        background: linear-gradient(120deg, var(--cayman-secondary), var(--cayman-primary)) !important;
     }
 
-    /* Add padding to account for fixed top nav */
+    /* Main grid container */
     .wy-grid-for-nav {
-        padding-top: 2.2rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Body wrapper */
+    .wy-body-for-nav {
+        background: white !important;
+    }
+
+    /* Add top padding to account for fixed header */
+    section.wy-nav-content-wrap {
+        margin-top: 2.4rem !important;
+    }
+
+    /* Override any desktop-specific margins */
+    .rst-content {
+        max-width: none !important;
+        width: 100% !important;
     }
 }
 
@@ -418,9 +443,11 @@ footer {
     margin: 1rem 0 !important;
 }
 
-/* Make the theme more cohesive with main site */
-.wy-nav-content-wrap {
-    margin-left: 300px !important;
+/* Make the theme more cohesive with main site - DESKTOP ONLY */
+@media screen and (min-width: 769px) {
+    .wy-nav-content-wrap {
+        margin-left: 300px !important;
+    }
 }
 
 .wy-nav-top {
@@ -675,7 +702,7 @@ div.math mjx-container {
     }
 }
 
-/* Fix for ReadTheDocs theme mobile navigation behavior */
+/* Fix for ReadTheDocs theme mobile navigation behavior - AGGRESSIVE OVERRIDE */
 @media screen and (max-width: 768px) {
     /* Override RTD theme's default behavior */
     .wy-body-for-nav {
@@ -691,16 +718,42 @@ div.math mjx-container {
         transition: left 0.3s ease-in-out !important;
     }
 
-    /* Content should not have transform applied */
-    .wy-nav-content-wrap {
-        position: static !important;
+    /* MOST IMPORTANT FIX - Override all possible margin/padding sources */
+    .wy-nav-content-wrap,
+    section.wy-nav-content-wrap,
+    .wy-nav-content-wrap.shift,
+    section.wy-nav-content-wrap.shift {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        left: 0 !important;
         transform: none !important;
         transition: none !important;
+        position: static !important;
+    }
+
+    /* Additional override for the content area itself */
+    .wy-nav-content,
+    .rst-content {
+        margin-left: 0 !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
 
     /* Remove any box shadows on mobile */
     .wy-nav-side {
         box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
+    }
+
+    /* Dark overlay when menu is open */
+    .wy-nav-side.shift ~ .wy-nav-content-wrap::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 999;
     }
 }
 
