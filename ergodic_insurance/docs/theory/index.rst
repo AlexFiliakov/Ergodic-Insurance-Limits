@@ -1,7 +1,7 @@
 Theoretical Foundations
 ========================
 
-This section provides comprehensive documentation of the theoretical and mathematical foundations underlying the ergodic insurance optimization framework.
+This section provides a comprehensive documentation of the theoretical and mathematical foundations underlying the ergodic insurance optimization framework.
 
 Overview
 --------
@@ -12,6 +12,8 @@ The ergodic approach to insurance optimization fundamentally changes how we unde
 2. **Time matters**: Long-term perspectives favor more insurance than short-term analysis suggests
 3. **Survival is paramount**: Avoiding ruin is more important than maximizing expected value
 4. **No utility function needed**: Time averaging naturally produces appropriate risk aversion
+
+The value proposition of this framework is to bring enterprise risk management tools used at major insurers to individual businesses to develop bottom-up insurance strategies.
 
 Getting Started
 ---------------
@@ -38,7 +40,7 @@ Key Concepts
    The reduction in geometric growth rate due to volatility, quantified as σ²/2 for log-normal processes.
 
 **Kelly Criterion**
-   The optimal strategy for maximizing long-term growth rate, naturally emerging from time-average considerations.
+   The optimal strategy for maximizing long-term growth rate, naturally emerging from time-average considerations. Special case of Ergodic Theory.
 
 **Pareto Efficiency**
    Solutions where no objective can be improved without worsening another, crucial for multi-objective insurance optimization.
@@ -64,6 +66,7 @@ All theoretical concepts are supported by:
 - Visualizations demonstrating key insights
 - References to peer-reviewed literature
 - Validation through simulation
+- Backtesting where historical data is available
 
 Theory Documentation
 --------------------
