@@ -308,14 +308,52 @@ footer {
     color: var(--cayman-text);
 }
 
-/* Responsive adjustments */
+/* ========================================
+   Mobile Responsive Fixes
+   ======================================== */
+
+/* Mobile hamburger menu toggle state */
 @media screen and (max-width: 768px) {
+    /* When navigation is closed (hamburger menu visible) */
     .wy-nav-side {
+        left: -300px !important;  /* Hide sidebar off-screen */
         width: 300px !important;
     }
 
+    /* When navigation is open (menu toggled) */
+    .wy-nav-side.shift {
+        left: 0 !important;  /* Show sidebar */
+    }
+
+    /* Fix content area to use full width when sidebar is hidden */
     .wy-nav-content-wrap {
-        margin-left: 0 !important;
+        margin-left: 0 !important;  /* Remove left margin */
+        padding: 0 !important;
+    }
+
+    /* When sidebar is showing, shift content */
+    .wy-nav-content-wrap.shift {
+        position: relative;
+        left: 300px;  /* Shift content when sidebar is open */
+    }
+
+    /* Ensure content uses full width */
+    .wy-nav-content {
+        max-width: 100% !important;
+        padding: 1rem !important;  /* Add some padding for mobile */
+    }
+
+    /* Fix the mobile top navigation bar */
+    .wy-nav-top {
+        display: block !important;  /* Ensure hamburger menu is visible */
+        position: fixed !important;
+        width: 100% !important;
+        z-index: 1001 !important;
+    }
+
+    /* Add padding to account for fixed top nav */
+    .wy-grid-for-nav {
+        padding-top: 2.2rem !important;
     }
 }
 
@@ -544,6 +582,125 @@ div.math mjx-container {
 
     .MathJax_Display {
         font-size: 0.9em !important;
+    }
+}
+
+/* ========================================
+   Additional Mobile & Tablet Responsive Improvements
+   ======================================== */
+
+/* Small mobile devices (portrait) */
+@media screen and (max-width: 480px) {
+    /* Smaller font sizes for mobile */
+    body {
+        font-size: 14px !important;
+    }
+
+    h1 {
+        font-size: 1.75rem !important;
+    }
+
+    h2 {
+        font-size: 1.5rem !important;
+    }
+
+    h3 {
+        font-size: 1.25rem !important;
+    }
+
+    /* Reduce padding on mobile */
+    .wy-nav-content {
+        padding: 0.5rem !important;
+    }
+
+    /* Make code blocks scrollable horizontally */
+    .highlight pre {
+        font-size: 12px !important;
+        padding: 0.5rem !important;
+    }
+
+    /* Adjust table font size */
+    table {
+        font-size: 12px !important;
+    }
+
+    /* Reduce margins */
+    .rst-content .section {
+        margin-bottom: 1rem !important;
+    }
+}
+
+/* Tablets and small laptops */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+    /* Adjust sidebar width for tablets */
+    .wy-nav-side {
+        width: 250px !important;
+    }
+
+    .wy-nav-content-wrap {
+        margin-left: 250px !important;
+    }
+
+    /* When sidebar is toggled on tablets */
+    .wy-nav-content-wrap.shift {
+        left: 250px !important;
+    }
+
+    /* Slightly smaller fonts for tablets */
+    body {
+        font-size: 15px !important;
+    }
+}
+
+/* Landscape orientation on mobile */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+    /* Reduce vertical spacing in landscape */
+    .wy-nav-top {
+        padding: 0.5rem 1rem !important;
+    }
+
+    .wy-grid-for-nav {
+        padding-top: 2rem !important;
+    }
+
+    /* Smaller headers in landscape */
+    h1 {
+        font-size: 1.8rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    h2 {
+        font-size: 1.4rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+}
+
+/* Fix for ReadTheDocs theme mobile navigation behavior */
+@media screen and (max-width: 768px) {
+    /* Override RTD theme's default behavior */
+    .wy-body-for-nav {
+        background: var(--cayman-bg) !important;
+    }
+
+    /* Ensure navigation toggle works properly */
+    .wy-nav-side {
+        position: fixed !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        z-index: 1000 !important;
+        transition: left 0.3s ease-in-out !important;
+    }
+
+    /* Content should not have transform applied */
+    .wy-nav-content-wrap {
+        position: static !important;
+        transform: none !important;
+        transition: none !important;
+    }
+
+    /* Remove any box shadows on mobile */
+    .wy-nav-side {
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
     }
 }
 
