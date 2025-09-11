@@ -1,5 +1,7 @@
 # Ergodic Insurance Limits
 
+Rationalizing and optimizing insurance purchasing decisions.
+
 ![Repo Banner](assets/repo_banner_small.png)
 
 This research model applies Ole Peters’ ergodic economics framework to insurance optimization for a widget manufacturing company, demonstrating that traditional expected value approaches systematically mislead insurance decisions. By optimizing time-average growth rates (for a single company) rather than ensemble averages (across many companies), the model aims to demonstrate that insurance premiums can significantly exceed expected losses while still enhancing long-term growth, transforming insurance from a cost center to a growth enabler. The implementation features:
@@ -18,14 +20,13 @@ The research reveals that **traditional expected value approaches systematically
 
 $$g = \lim_{T\to\infty}{\frac{1}{T}\ln{\frac{x(T)}{x(0)}}}$$
 
-This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For our widget manufacturing model with $10M starting assets, the hypothesis is that **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
-This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For our widget manufacturing model with $10M starting assets, the hypothesis is that **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth.
+This framework resolves the fundamental insurance puzzle: while insurance appears zero-sum in expected value terms, both parties benefit when optimizing time-average growth rates. For our widget manufacturing model with \$10M starting assets, the hypothesis is that **optimal insurance premiums can exceed expected losses by 200-500%** while still enhancing long-term growth. This package is being built to validate this hypothesis.
 
 ### Value Proposition
 
 ![Ergodic Distinction Between Averages](assets/ergodic_distinction.png)
 
-The framework fundamentally reframes insurance from cost center to growth enabler. By optimizing time-average growth rates rather than expected values, widget manufacturers can achieve **30-50% better long-term performance** while maintaining acceptable ruin probabilities. The key insight: **maximizing ergodic growth rates naturally balances profitability with survival**, eliminating the need for arbitrary risk preferences or utility functions.
+The framework fundamentally reframes insurance from a cost center to growth enabler. By optimizing time-average growth rates rather than expected values, widget manufacturers can achieve **30-50% better long-term performance** while maintaining acceptable ruin probabilities. The key insight: **maximizing ergodic growth rates naturally balances profitability with survival**, eliminating the need for arbitrary risk preferences or utility functions.
 
 This comprehensive framework provides the mathematical rigor, practical parameters, and implementation roadmap necessary for successful insurance optimization in widget manufacturing, with the ergodic approach offering genuinely novel insights that challenge conventional risk management wisdom.
 
@@ -42,29 +43,28 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 ### Configuration Management (v2.0)
 - **3-tier configuration architecture** with profiles, modules, and presets
 - **ConfigManager** with profile inheritance and module composition
-- **Pydantic v2 validation** with comprehensive type safety
 - **Runtime overrides** for flexible parameter experimentation
 - **Preset libraries** for common market conditions and risk scenarios
-- **Full backward compatibility** with legacy ConfigLoader
 
 ### Documentation & Testing
-- **Comprehensive Google-style docstrings** throughout the codebase
 - **Sphinx documentation system** for professional API reference
+- **Comprehensive Google-style docstrings** throughout the codebase
 - **90% test coverage** with pytest framework
 - **Type safety** enforced with mypy static analysis
 
 ### Analysis Tools
 ![Sample Analytics: Optimal Insurance Configuration by Company Size](assets/sample_optmal_insurance_config_by_company_size.png)
-- **Jupyter notebooks** for interactive exploration and visualization
-- **Demo scripts** showing stochastic vs deterministic comparisons
 - **Performance metrics** including ROE, risk of ruin, and time-average growth rates
+- **Robust Visualizations and Annotations** to help you see the stories behind the results
+- **Jupyter notebooks** with examples of interactive exploration and visualization
+- **Demo scripts** showing stochastic vs deterministic comparisons
 
 ### Enhanced Parallel Processing (v2.0)
 - **CPU-optimized parallel executor** designed for budget hardware (4-8 cores)
+- **Memory efficiency** - handles 100K+ simulations in <4GB RAM
 - **Smart dynamic chunking** that adapts to workload complexity
 - **Shared memory management** for zero-copy data sharing across processes
 - **Near-linear scaling** with minimal serialization overhead (<5%)
-- **Memory efficiency** - handles 100K+ simulations in <4GB RAM
 - **Performance monitoring** with detailed metrics and benchmarking tools
 
 ## Results
@@ -309,7 +309,7 @@ This project uses several tools to maintain code quality:
 - **isort**: Import sorting
 - **mypy**: Static type checking
 - **pylint**: Code linting
-- **pytest-cov**: Test coverage reporting (minimum: 80%, achieved: 100%)
+- **pytest-cov**: Test coverage reporting (minimum: 80%)
 
 ### Running Tests
 
