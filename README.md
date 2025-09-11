@@ -187,117 +187,51 @@ pre-commit install
 
 ## Project Structure
 
-See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the complete directory tree.
-
-### Key Directories
-
 ```
-Ergodic Insurance Limits/
-├── ergodic_insurance/           # Main Python package
-│   ├── src/                    # Core source code (42 modules)
-│   │   ├── # Configuration System v2.0
-│   │   ├── config_manager.py   # 3-tier configuration manager
-│   │   ├── config_v2.py        # Enhanced Pydantic v2 models
-│   │   ├── config_migrator.py  # Migration tool
-│   │   ├── config_compat.py    # Backward compatibility
-│   │   ├── config.py           # Legacy configuration (deprecated)
-│   │   ├── config_loader.py    # Legacy loader (deprecated)
-│   │   │
-│   │   ├── # Core Financial Models
-│   │   ├── manufacturer.py     # Widget manufacturer model
-│   │   ├── claim_generator.py  # Claim generation
-│   │   ├── claim_development.py # Payment patterns
-│   │   ├── stochastic_processes.py # GBM, mean-reversion
-│   │   │
-│   │   ├── # Insurance & Risk
-│   │   ├── insurance.py        # Basic optimization
-│   │   ├── insurance_program.py # Multi-layer programs
-│   │   ├── loss_distributions.py # Loss modeling
-│   │   ├── risk_metrics.py     # VaR, CVaR, etc.
-│   │   ├── ruin_probability.py # Ruin probability calculations
-│   │   │
-│   │   ├── # Simulation & Analysis
-│   │   ├── simulation.py       # Main engine
-│   │   ├── monte_carlo.py      # MC framework
-│   │   ├── ergodic_analyzer.py # Ergodic theory
-│   │   ├── convergence.py      # Convergence tools
-│   │   │
-│   │   ├── # Optimization & Control
-│   │   ├── optimization.py     # Algorithms
-│   │   ├── business_optimizer.py # Business optimization
-│   │   ├── decision_engine.py  # Decision framework
-│   │   ├── pareto_frontier.py  # Multi-objective
-│   │   ├── hjb_solver.py       # HJB equations
-│   │   ├── optimal_control.py  # Control theory
-│   │   │
-│   │   ├── # Enhanced Parallel Processing
-│   │   ├── parallel_executor.py # CPU-optimized execution
-│   │   ├── trajectory_storage.py # Memory-efficient storage
-│   │   ├── progress_monitor.py # Progress tracking
-│   │   ├── batch_processor.py  # Batch processing
-│   │   ├── scenario_manager.py # Scenario management
-│   │   │
-│   │   ├── # Statistical Analysis
-│   │   ├── result_aggregator.py # Result aggregation
-│   │   ├── summary_statistics.py # Statistical summaries
-│   │   ├── bootstrap_analysis.py # Bootstrap methods
-│   │   ├── statistical_tests.py # Hypothesis testing
-│   │   │
-│   │   ├── # Validation Framework (NEW)
-│   │   ├── walk_forward_validator.py # Walk-forward validation
-│   │   ├── strategy_backtester.py # Strategy backtesting
-│   │   ├── validation_metrics.py # Validation metrics
-│   │   ├── accuracy_validator.py # Accuracy validation
-│   │   │
-│   │   ├── # Performance Tools
-│   │   ├── performance_optimizer.py # Performance optimization
-│   │   ├── benchmarking.py # Benchmarking utilities
-│   │   │
-│   │   └── visualization.py    # Plotting utilities
-│   ├── tests/                  # Test suite (100% coverage, 40+ test files)
-│   ├── notebooks/              # Jupyter notebooks (15 analysis notebooks)
-│   │   ├── 00_config_migration_example.ipynb # Configuration v2 demo
-│   │   ├── 00_setup_verification.ipynb
-│   │   ├── 01-12: Analysis notebooks covering all aspects
-│   │   └── cache/             # Monte Carlo simulation cache
-│   ├── examples/               # Example scripts (7 demos)
-│   │   ├── demo_config_v2.py  # Configuration v2 demo
-│   │   ├── demo_config_practical.py # Practical configuration
-│   │   ├── demo_manufacturer.py
-│   │   ├── demo_stochastic.py
-│   │   ├── demo_claim_development.py
-│   │   ├── demo_collateral_management.py
-│   │   └── benchmark_parallel.py # Performance benchmarking
-│   ├── data/                   # Configuration files
-│   │   ├── parameters/         # Legacy YAML parameters (deprecated)
-│   │   └── config/             # New 3-tier configuration
-│   │       ├── profiles/       # Complete configurations
-│   │       ├── modules/        # Reusable components
-│   │       └── presets/        # Quick-apply templates
-│   ├── docs/                   # Sphinx documentation
-│   │   ├── conf.py            # Sphinx configuration
-│   │   ├── index.rst          # Documentation main page
-│   │   ├── api/               # Auto-generated API docs (37 modules)
-│   │   ├── architecture/      # Architecture diagrams
-│   │   └── user_guide/        # Business user guide
-│   └── checkpoints/           # Simulation checkpoints
-├── simone/                     # TypeScript simulation & sprint docs
-│   ├── src/                   # TypeScript source
-│   ├── tests/                 # Jest tests
-│   ├── 00_PLAN.md            # Overall project plan
-│   ├── SPRINT_0*.md          # Sprint planning documents
-│   └── package.json          # Node dependencies
-├── results/                    # Reports and outputs
-├── assets/                     # Images and media
-├── pyproject.toml             # Python configuration
-├── setup.py                   # Package setup
-├── uv.lock                    # UV dependency lock
-├── mypy.ini                   # MyPy configuration
-├── README.md                  # This file
-├── CLAUDE.md                  # Development instructions
-├── CC Prompts.md              # Development history
-└── LICENSE                    # MIT License
-```
+Ergodic-Insurance-Limits/
+├── ergodic_insurance/          # Main Python package
+│   ├── src/                   # Core modules (50+ files)
+│   │   ├── config_*.py        # Configuration system v2.0 - 3-tier architecture with profiles, modules, and presets
+│   │   ├── manufacturer.py    # Widget manufacturer financial model with balance sheet management
+│   │   ├── insurance*.py      # Insurance optimization, pricing, and multi-layer program management
+│   │   ├── claim_*.py         # Claim generation and multi-year payment development patterns
+│   │   ├── loss_distributions.py # Statistical loss modeling (lognormal, pareto, etc.)
+│   │   ├── monte_carlo.py     # Enhanced Monte Carlo simulation engine with parallel processing
+│   │   ├── ergodic_analyzer.py # Ergodic theory implementation for time-average growth analysis
+│   │   ├── simulation.py      # Main simulation orchestrator
+│   │   ├── stochastic_processes.py # GBM, mean-reversion, and volatility models
+│   │   ├── risk_metrics.py    # VaR, CVaR, tail risk, and ruin probability calculations
+│   │   ├── optimization.py    # Core optimization algorithms and solvers
+│   │   ├── business_optimizer.py # Business-specific optimization strategies
+│   │   ├── decision_engine.py # Decision framework for insurance purchasing
+│   │   ├── parallel_executor.py # CPU-optimized parallel processing for budget hardware
+│   │   ├── convergence*.py    # Convergence analysis and advanced stopping criteria
+│   │   ├── sensitivity*.py    # Sensitivity analysis and visualization tools
+│   │   ├── bootstrap_analysis.py # Statistical bootstrap methods
+│   │   ├── validation_metrics.py # Model validation and accuracy metrics
+│   │   ├── walk_forward_validator.py # Walk-forward validation framework
+│   │   ├── strategy_backtester.py # Insurance strategy backtesting
+│   │   ├── result_aggregator.py # Results aggregation and summary statistics
+│   │   ├── excel_reporter.py  # Excel report generation for business users
+│   │   └── visualization*.py  # Comprehensive plotting and visualization utilities
+│   ├── tests/                 # Test suite with 80%+ coverage
+│   ├── notebooks/             # Jupyter notebooks for analysis and exploration
+│   ├── examples/              # Demo scripts showing framework usage
+│   ├── data/                  # Configuration and parameter files
+│   │   └── config/           # 3-tier configuration system
+│   │       ├── profiles/     # Complete configuration profiles (default, conservative, aggressive)
+│   │       ├── modules/      # Reusable configuration components
+│   │       └── presets/      # Quick-apply market condition templates
+│   └── docs/                  # Sphinx documentation with API reference
+├── simone/                    # AI project management engine
+├── assets/                    # Images, diagrams, and visual resources
+├── results/                   # Simulation outputs and analysis reports
+├── .github/workflows/         # CI/CD pipelines for docs and testing
+├── pyproject.toml            # Python project configuration and dependencies
+├── uv.lock                   # Locked dependency versions for reproducibility
+├── README.md                 # Project overview and documentation (this file)
+├── CLAUDE.md                 # AI assistant development instructions
+└── LICENSE                   # MIT open source license
 
 ## Development
 
