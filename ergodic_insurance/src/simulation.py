@@ -4,7 +4,45 @@ This module provides the main simulation engine that orchestrates the
 time evolution of the widget manufacturer financial model, managing
 claim events, financial calculations, and result collection.
 
-Includes both single-path simulation and Monte Carlo capabilities.
+The simulation framework supports both single-path and Monte Carlo simulations,
+enabling comprehensive analysis of insurance strategies and business outcomes
+under uncertainty. It tracks detailed financial metrics, processes insurance claims,
+and handles bankruptcy conditions appropriately.
+
+Key Features:
+    - Single-path trajectory simulation with detailed metrics
+    - Monte Carlo simulation support through integration
+    - Insurance claim processing with policy application
+    - Financial statement tracking and ROE calculation
+    - Bankruptcy detection and proper termination
+    - Comprehensive result analysis and export capabilities
+
+Examples:
+    Basic simulation::
+
+        from ergodic_insurance.src import Simulation, Config
+        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+        from ergodic_insurance.src.claim_generator import ClaimGenerator
+
+        config = Config()
+        manufacturer = WidgetManufacturer(config.manufacturer)
+        claims = ClaimGenerator(frequency=0.1, seed=42)
+
+        sim = Simulation(
+            manufacturer=manufacturer,
+            claim_generator=claims,
+            time_horizon=50
+        )
+        results = sim.run()
+
+        print(f"Mean ROE: {results.summary_stats()['mean_roe']:.2%}")
+
+Note:
+    This module is thread-safe for parallel Monte Carlo simulations when
+    each thread has its own Simulation instance.
+
+Since:
+    Version 0.1.0
 """
 
 from dataclasses import dataclass, field
@@ -35,6 +73,43 @@ class SimulationResults:
 
     Holds the complete time series of financial metrics and events
     from a single simulation run, with methods for analysis and export.
+
+    This dataclass provides comprehensive storage for all simulation outputs
+    and includes utility methods for calculating derived metrics, performing
+    statistical analysis, and exporting data for further processing.
+
+    Attributes:
+        years: Array of simulation years (0 to time_horizon-1).
+        assets: Total assets at each year.
+        equity: Shareholder equity at each year.
+        roe: Return on equity for each year.
+        revenue: Annual revenue for each year.
+        net_income: Annual net income for each year.
+        claim_counts: Number of claims in each year.
+        claim_amounts: Total claim amount in each year.
+        insolvency_year: Year when bankruptcy occurred (None if survived).
+
+    Examples:
+        Analyzing simulation results::
+
+            results = simulation.run()
+
+            # Get summary statistics
+            stats = results.summary_stats()
+            print(f"Survival: {stats['survived']}")
+            print(f"Mean ROE: {stats['mean_roe']:.2%}")
+
+            # Export to DataFrame
+            df = results.to_dataframe()
+            df.to_csv('simulation_results.csv')
+
+            # Calculate volatility metrics
+            volatility = results.calculate_roe_volatility()
+            print(f"ROE Sharpe Ratio: {volatility['roe_sharpe']:.2f}")
+
+    Note:
+        All financial values are in nominal dollars without inflation adjustment.
+        ROE calculations handle edge cases like zero equity appropriately.
     """
 
     years: np.ndarray
@@ -51,7 +126,14 @@ class SimulationResults:
         """Convert simulation results to pandas DataFrame.
 
         Returns:
-            DataFrame with all trajectory data.
+            pd.DataFrame: DataFrame with columns for year, assets, equity, roe,
+                revenue, net_income, claim_count, and claim_amount.
+
+        Examples:
+            Export to Excel::
+
+                df = results.to_dataframe()
+                df.to_excel('results.xlsx', index=False)
         """
         return pd.DataFrame(
             {
@@ -71,10 +153,23 @@ class SimulationResults:
 
         Time-weighted ROE gives equal weight to each period regardless
         of the equity level, providing a better measure of consistent
-        performance over time.
+        performance over time. Uses geometric mean for proper compounding.
 
         Returns:
-            Time-weighted average ROE.
+            float: Time-weighted average ROE as a decimal (e.g., 0.08 for 8%).
+
+        Note:
+            This method uses geometric mean of growth factors (1 + ROE) to
+            properly account for compounding effects. NaN values are excluded
+            from the calculation.
+
+        Examples:
+            Compare different ROE measures::
+
+                simple_avg = np.mean(results.roe)
+                time_weighted = results.calculate_time_weighted_roe()
+                print(f"Simple average: {simple_avg:.2%}")
+                print(f"Time-weighted: {time_weighted:.2%}")
         """
         valid_roe = self.roe[~np.isnan(self.roe)]
         if len(valid_roe) == 0:
@@ -92,10 +187,22 @@ class SimulationResults:
         """Calculate rolling window ROE.
 
         Args:
-            window: Window size in years (e.g., 1, 3, 5).
+            window: Window size in years (e.g., 1, 3, 5). Must be positive
+                and not exceed the data length.
 
         Returns:
-            Array of rolling ROE values.
+            np.ndarray: Array of rolling ROE values. Values are NaN for
+                positions where the full window is not available.
+
+        Raises:
+            ValueError: If window size exceeds data length.
+
+        Examples:
+            Calculate and plot rolling ROE::
+
+                rolling_3yr = results.calculate_rolling_roe(3)
+                plt.plot(results.years, rolling_3yr, label='3-Year Rolling ROE')
+                plt.axhline(y=0.08, color='r', linestyle='--', label='Target')
         """
         if window > len(self.roe):
             raise ValueError(f"Window {window} larger than data length {len(self.roe)}")
@@ -114,10 +221,28 @@ class SimulationResults:
         """Calculate ROE component breakdown.
 
         Decomposes ROE into operating, insurance, and tax components
-        using DuPont-style analysis.
+        using DuPont-style analysis. This helps identify the drivers
+        of ROE performance and the impact of insurance decisions.
 
         Returns:
-            Dictionary with component arrays.
+            Dict[str, np.ndarray]: Dictionary containing:
+                - 'operating_roe': Base business ROE without claims
+                - 'insurance_impact': ROE reduction from claims/premiums
+                - 'tax_effect': Impact of taxes on ROE
+                - 'total_roe': Actual ROE for reference
+
+        Note:
+            This is a simplified decomposition. Actual implementation would
+            require more detailed financial data for precise attribution.
+
+        Examples:
+            Analyze ROE drivers::
+
+                components = results.calculate_roe_components()
+                operating_avg = np.mean(components['operating_roe'])
+                insurance_drag = np.mean(components['insurance_impact'])
+                print(f"Operating ROE: {operating_avg:.2%}")
+                print(f"Insurance drag: {insurance_drag:.2%}")
         """
         components = {
             "operating_roe": np.zeros(len(self.years)),
@@ -148,8 +273,28 @@ class SimulationResults:
     def calculate_roe_volatility(self) -> Dict[str, float]:
         """Calculate ROE volatility metrics.
 
+        Computes various risk-adjusted performance metrics for ROE,
+        including standard deviation, downside deviation, Sharpe ratio,
+        and coefficient of variation.
+
         Returns:
-            Dictionary with volatility metrics.
+            Dict[str, float]: Dictionary containing:
+                - 'roe_std': Standard deviation of ROE
+                - 'roe_downside_deviation': Downside deviation from mean
+                - 'roe_sharpe': Sharpe ratio using 2% risk-free rate
+                - 'roe_coefficient_variation': Coefficient of variation (std/mean)
+
+        Note:
+            Returns zeros for all metrics if insufficient data (< 2 observations).
+            Sharpe ratio uses a 2% risk-free rate assumption.
+
+        Examples:
+            Risk-adjusted performance analysis::
+
+                volatility = results.calculate_roe_volatility()
+                if volatility['roe_sharpe'] > 1.0:
+                    print("Strong risk-adjusted performance")
+                print(f"Downside risk: {volatility['roe_downside_deviation']:.2%}")
         """
         valid_roe = self.roe[~np.isnan(self.roe)]
         if len(valid_roe) < 2:
@@ -186,8 +331,31 @@ class SimulationResults:
     def summary_stats(self) -> Dict[str, float]:
         """Calculate summary statistics for the simulation.
 
+        Computes comprehensive summary statistics including ROE metrics,
+        rolling averages, volatility measures, and survival indicators.
+
         Returns:
-            Dictionary of key statistics including enhanced ROE metrics.
+            Dict[str, float]: Dictionary containing:
+                - Basic ROE metrics (mean, std, median, time-weighted)
+                - Rolling averages (1, 3, 5 year)
+                - Final state (assets, equity)
+                - Claims statistics (total, frequency)
+                - Survival indicators (survived, insolvency_year)
+                - Volatility metrics (from calculate_roe_volatility)
+
+        Examples:
+            Generate summary report::
+
+                stats = results.summary_stats()
+
+                print("Performance Summary:")
+                print(f"  Mean ROE: {stats['mean_roe']:.2%}")
+                print(f"  Volatility: {stats['std_roe']:.2%}")
+                print(f"  Sharpe Ratio: {stats['roe_sharpe']:.2f}")
+
+                print("\nRisk Summary:")
+                print(f"  Survived: {stats['survived']}")
+                print(f"  Total Claims: ${stats['total_claims']:,.0f}")
         """
         # Filter out NaN values for ROE calculation
         valid_roe = self.roe[~np.isnan(self.roe)]
@@ -305,11 +473,35 @@ class Simulation:
         """Initialize simulation.
 
         Args:
-            manufacturer: WidgetManufacturer instance to simulate.
-            claim_generator: ClaimGenerator for creating insurance claims.
-            insurance_policy: Insurance policy for claim processing.
-            time_horizon: Number of years to simulate.
-            seed: Random seed for reproducibility.
+            manufacturer: WidgetManufacturer instance to simulate. This object
+                maintains the financial state and is modified during simulation.
+            claim_generator: ClaimGenerator for creating insurance claims. If None,
+                a default generator with standard parameters is created.
+            insurance_policy: Insurance policy for claim processing. If None,
+                legacy claim processing is used with fixed parameters.
+            time_horizon: Number of years to simulate. Must be positive.
+            seed: Random seed for reproducibility. Passed to claim generator.
+
+        Note:
+            The manufacturer object is modified in-place during simulation.
+            Create a copy if you need to preserve the initial state.
+
+        Examples:
+            Setup with custom insurance::
+
+                from ergodic_insurance.src.insurance import InsurancePolicy
+
+                policy = InsurancePolicy(
+                    deductible=1_000_000,
+                    limit=10_000_000,
+                    premium_rate=0.03
+                )
+
+                sim = Simulation(
+                    manufacturer=manufacturer,
+                    insurance_policy=policy,
+                    time_horizon=50
+                )
         """
         self.manufacturer = manufacturer
         self.claim_generator = claim_generator or ClaimGenerator(seed=seed)
@@ -332,12 +524,29 @@ class Simulation:
     def step_annual(self, year: int, claims: List[ClaimEvent]) -> Dict[str, float]:
         """Execute single annual time step.
 
+        Processes claims for the year, applies insurance coverage,
+        updates manufacturer financial state, and returns metrics.
+
         Args:
-            year: Current simulation year.
-            claims: List of claims for this year.
+            year: Current simulation year (0-indexed).
+            claims: List of ClaimEvent objects for this year.
 
         Returns:
-            Dictionary of metrics for this year.
+            Dict[str, float]: Dictionary containing metrics:
+                - All metrics from manufacturer.step()
+                - 'claim_count': Number of claims this year
+                - 'claim_amount': Total claim amount before insurance
+                - 'company_payment': Amount paid by company after deductible
+                - 'insurance_recovery': Amount recovered from insurance
+
+        Note:
+            This method modifies the manufacturer state in-place. Insurance
+            premiums are deducted from both assets and equity to maintain
+            balance sheet integrity.
+
+        Side Effects:
+            - Modifies manufacturer.assets and manufacturer.equity
+            - Updates manufacturer internal state via step() method
         """
         # Process claims
         total_claim_amount = sum(claim.amount for claim in claims)

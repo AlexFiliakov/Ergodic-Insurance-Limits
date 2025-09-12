@@ -1,455 +1,263 @@
-# Data Models and Configuration Classes
+# Data Models and Analysis Classes
 
-(configuration-data-models)=
-## Configuration Data Models
-
-```mermaid
-classDiagram
-    class Config {
-        +ManufacturerConfig manufacturer
-        +SimulationConfig simulation
-        +WorkingCapitalConfig working_capital
-        +DebtConfig debt
-        +GrowthConfig growth
-        +OutputConfig output
-        +LoggingConfig logging
-        +validate() bool
-        +to_yaml(path)
-        +from_yaml(path) Config
-    }
-
-    class ManufacturerConfig {
-        +float initial_assets
-        +float asset_turnover_mean
-        +float asset_turnover_std
-        +float operating_margin_mean
-        +float operating_margin_std
-        +float tax_rate
-        +float dividend_payout_ratio
-        +float max_debt_to_equity
-        +float interest_rate
-    }
-
-    class SimulationConfig {
-        +int n_years
-        +int n_simulations
-        +float time_step
-        +int seed
-        +bool use_stochastic
-        +float volatility
-        +bool save_trajectories
-        +str checkpoint_dir
-    }
-
-    class WorkingCapitalConfig {
-        +float base_ratio
-        +float safety_stock_days
-        +float receivables_days
-        +float payables_days
-        +float inventory_turnover
-        +calculate_requirement(revenue) float
-    }
-
-    class DebtConfig {
-        +float initial_debt
-        +float interest_rate
-        +float term_years
-        +str repayment_type
-        +float covenant_debt_to_equity
-        +float covenant_coverage_ratio
-    }
-
-    class GrowthConfig {
-        +float base_growth_rate
-        +float volatility
-        +float mean_reversion_speed
-        +float long_term_mean
-        +str growth_model
-    }
-
-    Config --> ManufacturerConfig : contains
-    Config --> SimulationConfig : contains
-    Config --> WorkingCapitalConfig : contains
-    Config --> DebtConfig : contains
-    Config --> GrowthConfig : contains
-```
-
-## ConfigV2 Enhanced Models
+This diagram shows the data structures and analysis models used throughout the system.
 
 ```mermaid
 classDiagram
-    class ConfigV2 {
-        +ProfileMetadata metadata
-        +Dict~str,ModuleConfig~ modules
-        +PresetConfig preset
-        +InsuranceConfig insurance
-        +LossDistributionConfig losses
-        +validate_consistency() bool
-        +merge_with_preset(preset) ConfigV2
-        +export_profile() dict
+    %% Ergodic Analysis Models
+    class ErgodicAnalyzer {
+        -convergence_threshold: float
+        -min_paths: int
+        -confidence_level: float
+        +analyze_trajectory(trajectory: ndarray) ErgodicData
+        +compare_scenarios(insured: List, uninsured: List) dict
+        +calculate_ergodic_metrics(data: ErgodicData) dict
+        +validate_insurance_impact() ValidationResults
+        +plot_ergodic_comparison()
     }
 
-    class ProfileMetadata {
-        +str name
-        +str version
-        +str description
-        +datetime created_at
-        +datetime updated_at
-        +List~str~ tags
-        +str author
-        +dict compatibility
+    class ErgodicData {
+        +trajectory: ndarray
+        +time_points: ndarray
+        +time_average: float
+        +ensemble_average: float
+        +growth_rate: float
+        +volatility: float
+        +survival_rate: float
+        +calculate_time_average() float
+        +calculate_ensemble_average() float
+        +calculate_ergodic_divergence() float
     }
 
-    class InsuranceLayerConfig {
-        +float limit
-        +float attachment
-        +float premium_rate
-        +int reinstatements
-        +float reinstatement_cost
-        +str coverage_type
-        +dict exclusions
+    class ErgodicAnalysisResults {
+        +insured_metrics: dict
+        +uninsured_metrics: dict
+        +ergodic_advantage: dict
+        +confidence_intervals: dict
+        +convergence_metrics: ConvergenceMetrics
+        +to_dataframe() DataFrame
+        +plot_results()
     }
 
-    class InsuranceConfig {
-        +List~InsuranceLayerConfig~ layers
-        +float retention
-        +float aggregate_limit
-        +str program_type
-        +dict optimization_params
-        +calculate_total_limit() float
-        +optimize_structure() List~InsuranceLayerConfig~
-    }
-
-    class LossDistributionConfig {
-        +str frequency_distribution
-        +dict frequency_params
-        +str severity_distribution
-        +dict severity_params
-        +float correlation
-        +List~str~ peril_types
-        +dict calibration_data
-    }
-
-    class ModuleConfig {
-        +str module_type
-        +dict parameters
-        +bool enabled
-        +int priority
-        +List~str~ dependencies
-    }
-
-    class PresetConfig {
-        +str base_preset
-        +dict overrides
-        +List~str~ included_modules
-        +List~str~ excluded_modules
-        +merge(other) PresetConfig
-    }
-
-    ConfigV2 --> ProfileMetadata : has
-    ConfigV2 --> InsuranceConfig : contains
-    ConfigV2 --> LossDistributionConfig : contains
-    ConfigV2 --> ModuleConfig : contains many
-    ConfigV2 --> PresetConfig : uses
-    InsuranceConfig --> InsuranceLayerConfig : contains many
-```
-
-(result-data-models)=
-## Result Data Models
-
-```mermaid
-classDiagram
-    class SimulationResults {
-        +ndarray timestamps
-        +ndarray asset_values
-        +ndarray revenues
-        +ndarray claims
-        +ndarray insurance_recoveries
-        +dict metrics
-        +dict metadata
-        +to_dataframe() pd.DataFrame
-        +to_dict() dict
-        +save(path)
-        +load(path) SimulationResults
-    }
-
-    class BatchResult {
-        +str batch_id
-        +ProcessingStatus status
-        +List~SimulationResults~ results
-        +datetime start_time
-        +datetime end_time
-        +dict performance_metrics
-        +aggregate() AggregatedResults
-    }
-
-    class AggregatedResults {
-        +Dict~str,ndarray~ percentiles
-        +Dict~str,float~ mean_metrics
-        +Dict~str,float~ std_metrics
-        +Dict~str,float~ risk_metrics
-        +pd.DataFrame summary_table
-        +export_summary() dict
-    }
-
-    class RiskMetricsResult {
-        +float var_95
-        +float var_99
-        +float cvar_95
-        +float cvar_99
-        +float sharpe_ratio
-        +float sortino_ratio
-        +float max_drawdown
-        +dict tail_statistics
-    }
-
-    class BootstrapResult {
-        +ndarray samples
-        +float mean
-        +float std
-        +Tuple~float,float~ confidence_interval
-        +float bias
-        +float standard_error
-        +plot_distribution()
-    }
-
-    class StatisticalSummary {
-        +float mean
-        +float median
-        +float std
-        +float skewness
-        +float kurtosis
-        +Dict~int,float~ percentiles
-        +float min
-        +float max
-        +to_series() pd.Series
-    }
-
-    BatchResult --> SimulationResults : contains many
-    BatchResult --> AggregatedResults : produces
-    AggregatedResults --> RiskMetricsResult : includes
-    AggregatedResults --> StatisticalSummary : uses
-    SimulationResults --> StatisticalSummary : generates
-```
-
-## Analysis Result Models
-
-```mermaid
-classDiagram
-    class ErgodicAnalysisResult {
-        +float time_average_growth
-        +float ensemble_average_growth
-        +float ergodic_difference
-        +ndarray time_averages
-        +ndarray ensemble_averages
-        +dict convergence_metrics
-        +bool is_ergodic
-        +plot_comparison()
+    %% Optimization Models
+    class BusinessOptimizer {
+        -objective: BusinessObjective
+        -constraints: BusinessConstraints
+        -algorithm: OptimizationAlgorithm
+        +optimize(initial_guess: dict) OptimalStrategy
+        +run_pareto_analysis() ParetoFrontier
+        +sensitivity_analysis() SensitivityResult
     }
 
     class OptimalStrategy {
-        +Dict~str,float~ parameters
-        +float expected_return
-        +float risk_level
-        +InsuranceProgram recommended_insurance
-        +dict sensitivity_analysis
-        +str reasoning
-        +to_recommendation() str
+        +insurance_limit: float
+        +retention: float
+        +premium_budget: float
+        +expected_growth: float
+        +risk_metrics: dict
+        +implementation_steps: List[str]
     }
 
-    class DecisionMetrics {
-        +float expected_value
-        +float downside_risk
-        +float upside_potential
-        +float information_ratio
-        +Dict~str,float~ scenario_outcomes
-        +rank_alternatives() List~Tuple~
+    class BusinessObjective {
+        +metric: str
+        +target_value: float
+        +weight: float
+        +evaluate(simulation_results: SimulationResults) float
     }
 
-    class ParetoPoint {
-        +List~float~ objectives
-        +Dict~str,Any~ parameters
-        +int rank
-        +float crowding_distance
-        +bool is_dominated_by(other) bool
-        +distance_to(ideal) float
+    class BusinessConstraints {
+        +min_equity: float
+        +max_leverage: float
+        +min_liquidity: float
+        +max_premium_ratio: float
+        +validate(state: dict) bool
     }
 
-    class HJBSolution {
-        +ndarray value_function
-        +ndarray optimal_control
-        +ndarray state_grid
-        +float convergence_error
-        +int iterations
-        +plot_value_function()
-        +get_control_at_state(state) float
+    %% Risk Metrics
+    class RiskMetrics {
+        +value_at_risk: float
+        +conditional_value_at_risk: float
+        +expected_shortfall: float
+        +maximum_drawdown: float
+        +sharpe_ratio: float
+        +sortino_ratio: float
+        +calculate_var(returns: ndarray, confidence: float) float
+        +calculate_cvar(returns: ndarray, confidence: float) float
+        +calculate_max_drawdown(equity: ndarray) float
     }
 
-    class ConvergenceStats {
-        +List~float~ running_mean
-        +List~float~ running_std
-        +float gelman_rubin_stat
-        +float effective_sample_size
-        +bool has_converged
-        +int burn_in_period
-        +plot_diagnostics()
+    class RuinProbability {
+        +threshold: float
+        +time_horizon: int
+        +probability: float
+        +expected_time_to_ruin: float
+        +calculate_ruin_prob(trajectories: List) float
+        +estimate_recovery_time() float
     }
 
-    OptimalStrategy --> DecisionMetrics : based on
-    OptimalStrategy --> InsuranceProgram : recommends
-    ParetoPoint --> DecisionMetrics : evaluates
-    ErgodicAnalysisResult --> ConvergenceStats : uses
-    HJBSolution --> OptimalStrategy : informs
+    %% Convergence and Validation
+    class ConvergenceMetrics {
+        +mean_estimate: float
+        +std_estimate: float
+        +confidence_interval: tuple
+        +effective_sample_size: int
+        +gelman_rubin_stat: float
+        +is_converged: bool
+        +plot_convergence()
+    }
+
+    class ValidationResults {
+        +accuracy_metrics: dict
+        +statistical_tests: dict
+        +edge_cases: List[dict]
+        +performance_benchmarks: dict
+        +is_valid: bool
+        +generate_report() str
+    }
+
+    %% Sensitivity Analysis
+    class SensitivityAnalyzer {
+        -base_params: dict
+        -param_ranges: dict
+        -n_samples: int
+        +run_one_way_analysis(param: str) SensitivityResult
+        +run_two_way_analysis(param1: str, param2: str) TwoWaySensitivityResult
+        +run_sobol_analysis() SobolIndices
+        +plot_tornado_diagram()
+    }
+
+    class SensitivityResult {
+        +parameter: str
+        +values: ndarray
+        +outputs: ndarray
+        +elasticity: float
+        +critical_threshold: float
+        +plot()
+    }
+
+    %% Financial Statements
+    class FinancialStatements {
+        +balance_sheet: BalanceSheet
+        +income_statement: IncomeStatement
+        +cash_flow: CashFlowStatement
+        +ratios: FinancialRatios
+        +generate_statements(manufacturer: WidgetManufacturer)
+        +export_to_excel(path: str)
+    }
+
+    class BalanceSheet {
+        +assets: dict
+        +liabilities: dict
+        +equity: dict
+        +total_assets: float
+        +total_liabilities: float
+        +total_equity: float
+        +validate_balance() bool
+    }
+
+    class IncomeStatement {
+        +revenue: float
+        +operating_income: float
+        +insurance_expense: float
+        +tax_expense: float
+        +net_income: float
+        +ebitda: float
+        +calculate_margins() dict
+    }
+
+    %% Loss Distributions
+    class LossDistribution {
+        +distribution_type: str
+        +parameters: dict
+        +fitted: bool
+        +fit(data: ndarray)
+        +sample(n: int) ndarray
+        +pdf(x: float) float
+        +cdf(x: float) float
+        +quantile(p: float) float
+    }
+
+    class LossData {
+        +historical_losses: DataFrame
+        +frequency_data: ndarray
+        +severity_data: ndarray
+        +exposure_base: float
+        +clean_data()
+        +fit_distributions() dict
+        +validate_fit() bool
+    }
+
+    %% Relationships
+    ErgodicAnalyzer --> ErgodicData : creates
+    ErgodicAnalyzer --> ErgodicAnalysisResults : produces
+    ErgodicAnalyzer --> ValidationResults : validates with
+
+    BusinessOptimizer --> OptimalStrategy : finds
+    BusinessOptimizer --> BusinessObjective : uses
+    BusinessOptimizer --> BusinessConstraints : respects
+
+    OptimalStrategy --> RiskMetrics : includes
+
+    SensitivityAnalyzer --> SensitivityResult : produces
+
+    FinancialStatements --> BalanceSheet : contains
+    FinancialStatements --> IncomeStatement : contains
+
+    LossDistribution --> LossData : fitted from
+
+    ErgodicAnalysisResults --> ConvergenceMetrics : includes
+    ValidationResults --> RiskMetrics : uses
 ```
 
-(state-and-progress-models)=
-## State and Progress Models
+## Data Flow Sequence
 
 ```mermaid
-classDiagram
-    class SimulationState {
-        +int current_period
-        +float current_assets
-        +float current_equity
-        +List~ClaimLiability~ pending_claims
-        +InsuranceProgramState insurance_state
-        +dict custom_state
-        +checkpoint() bytes
-        +restore(data)
-    }
+sequenceDiagram
+    participant Sim as Simulation
+    participant EA as ErgodicAnalyzer
+    participant BO as BusinessOptimizer
+    participant SA as SensitivityAnalyzer
+    participant RM as RiskMetrics
+    participant FS as FinancialStatements
 
-    class InsuranceProgramState {
-        +Dict~str,LayerState~ layer_states
-        +float ytd_losses
-        +float ytd_recoveries
-        +float ytd_premiums
-        +List~ClaimEvent~ claim_history
-        +reset_annual()
-        +get_summary() dict
-    }
+    Sim->>EA: Trajectory data
+    EA->>EA: Calculate time averages
+    EA->>EA: Calculate ensemble averages
+    EA->>RM: Request risk metrics
+    RM-->>EA: VaR, CVaR, Sharpe
+    EA-->>BO: Ergodic metrics
 
-    class LayerState {
-        +str layer_id
-        +float remaining_limit
-        +float remaining_aggregate
-        +int reinstatements_used
-        +float premium_paid
-        +bool is_exhausted
-        +update(loss) float
-    }
+    BO->>BO: Define objective
+    BO->>BO: Set constraints
+    BO->>SA: Request sensitivity
+    SA->>SA: Parameter sweep
+    SA-->>BO: Sensitivity results
+    BO-->>BO: Find optimal strategy
 
-    class ProgressStats {
-        +int total_tasks
-        +int completed_tasks
-        +float progress_percentage
-        +datetime start_time
-        +datetime estimated_completion
-        +float tasks_per_second
-        +str current_task
-        +update(completed)
-        +get_eta() timedelta
-    }
-
-    class CheckpointData {
-        +str simulation_id
-        +SimulationState state
-        +int iteration
-        +datetime timestamp
-        +dict metadata
-        +save(path)
-        +load(path) CheckpointData
-    }
-
-    class ScenarioConfig {
-        +str name
-        +ScenarioType type
-        +Dict~str,ParameterSpec~ parameters
-        +List~str~ dependencies
-        +int priority
-        +generate_variations() List~dict~
-        +validate_parameters() bool
-    }
-
-    SimulationState --> InsuranceProgramState : contains
-    InsuranceProgramState --> LayerState : manages many
-    CheckpointData --> SimulationState : stores
-    ScenarioConfig --> ParameterSpec : defines
+    BO->>FS: Generate statements
+    FS->>FS: Build balance sheet
+    FS->>FS: Build income statement
+    FS-->>BO: Financial reports
 ```
 
-## Data Transfer Objects
+## Key Data Patterns
 
-```mermaid
-classDiagram
-    class ClaimRequest {
-        +float amount
-        +datetime occurrence_date
-        +str claim_type
-        +str policy_number
-        +dict supporting_docs
-        +validate() bool
-    }
+### 1. **Immutable Data Objects**
+- Results objects are immutable after creation
+- Ensures data integrity through analysis pipeline
 
-    class ClaimResult {
-        +ClaimRequest request
-        +float gross_loss
-        +float deductible
-        +float recovery
-        +float net_loss
-        +Dict~str,float~ layer_recoveries
-        +datetime processed_date
-    }
+### 2. **Lazy Evaluation**
+- Metrics calculated on-demand
+- Caching of expensive computations
 
-    class YearResult {
-        +int year
-        +float starting_assets
-        +float ending_assets
-        +float revenue
-        +float operating_income
-        +float net_income
-        +List~ClaimResult~ claims
-        +float total_recovery
-        +float insurance_premium
-    }
+### 3. **Composite Pattern**
+- FinancialStatements composed of multiple statement types
+- ErgodicAnalysisResults aggregates multiple metric types
 
-    class MonteCarloRequest {
-        +int n_simulations
-        +int n_periods
-        +Config config
-        +bool parallel
-        +int batch_size
-        +str output_format
-    }
+### 4. **Template Method**
+- Base distribution class with template methods
+- Subclasses implement specific distributions
 
-    class OptimizationRequest {
-        +List~str~ objectives
-        +Dict~str,Tuple~ constraints
-        +str algorithm
-        +int max_iterations
-        +float tolerance
-        +dict initial_guess
-    }
-
-    class ReportRequest {
-        +str report_type
-        +List~str~ metrics
-        +str format
-        +bool include_charts
-        +dict filters
-        +str output_path
-    }
-
-    ClaimResult --> ClaimRequest : processes
-    YearResult --> ClaimResult : contains many
-    MonteCarloRequest --> Config : uses
-    OptimizationRequest --> OptimalStrategy : produces
-    ReportRequest --> AggregatedResults : generates from
-```
-
-## Key Data Model Patterns
-
-1. **Configuration Hierarchy**: Nested configuration models with validation at each level
-2. **Result Aggregation**: Hierarchical results from individual simulations to batch aggregations
-3. **State Management**: Comprehensive state tracking for checkpointing and recovery
-4. **Request-Response**: Clean DTOs for API boundaries and service interactions
-5. **Immutable Results**: Result objects are designed to be immutable after creation
-6. **Serialization**: All data models support serialization to/from standard formats (JSON, YAML, HDF5)
+### 5. **Data Transfer Objects (DTO)**
+- Result classes act as DTOs between modules
+- Clean separation of data and logic

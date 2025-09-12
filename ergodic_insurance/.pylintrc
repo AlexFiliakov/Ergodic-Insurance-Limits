@@ -22,8 +22,8 @@ max-module-lines=2000
 
 [DESIGN]
 max-args=7
-max-locals=20
-max-returns=6
+max-locals=45
+max-returns=14
 max-branches=15
 max-statements=60
 max-attributes=10

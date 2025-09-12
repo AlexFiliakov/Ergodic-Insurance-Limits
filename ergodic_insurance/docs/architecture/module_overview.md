@@ -1,364 +1,191 @@
 # Module Overview and Dependencies
 
-(module-dependency-graph)=
-## Module Dependency Graph
-
-This diagram shows the detailed module dependencies and import relationships in the ergodic insurance system.
+This diagram shows the detailed module structure and dependencies within the Ergodic Insurance framework.
 
 ```mermaid
-graph TD
-    subgraph Core["Core Financial Domain"]
-        manufacturer["manufacturer.py<br/>WidgetManufacturer<br/>ClaimLiability"]
-        claim_generator["claim_generator.py<br/>ClaimGenerator<br/>ClaimEvent"]
-        claim_development["claim_development.py<br/>ClaimDevelopment<br/>Claim, ClaimCohort<br/>CashFlowProjector"]
-        stochastic["stochastic_processes.py<br/>GeometricBrownianMotion<br/>LognormalVolatility<br/>MeanRevertingProcess"]
+graph LR
+    %% Configuration Layer
+    subgraph Config["Configuration Management"]
+        CONFIG_BASE["config.py<br/>Base Configuration"]
+        CONFIG_V2["config_v2.py<br/>Enhanced Config"]
+        CONFIG_MGR["config_manager.py<br/>Config Manager"]
+        CONFIG_LOADER["config_loader.py<br/>Config Loader"]
+        CONFIG_COMPAT["config_compat.py<br/>Compatibility Layer"]
+        CONFIG_MIG["config_migrator.py<br/>Migration Tools"]
     end
 
-    subgraph Insurance["Insurance Domain"]
-        insurance["insurance.py<br/>InsuranceLayer<br/>InsurancePolicy"]
-        insurance_program["insurance_program.py<br/>InsuranceProgram<br/>EnhancedInsuranceLayer<br/>LayerState"]
-        insurance_pricing["insurance_pricing.py<br/>PremiumCalculator<br/>RateModeler"]
-        loss_distributions["loss_distributions.py<br/>LossDistribution<br/>LognormalLoss<br/>ParetoLoss<br/>FrequencyGenerator"]
-        ruin_probability["ruin_probability.py<br/>RuinProbabilityAnalyzer<br/>RuinProbabilityResults"]
+    %% Core Business Logic
+    subgraph Business["Business Logic"]
+        MANUFACTURER["manufacturer.py<br/>Widget Manufacturer"]
+        INSURANCE["insurance.py<br/>Insurance Policy"]
+        INS_PROGRAM["insurance_program.py<br/>Insurance Program"]
+        INS_PRICING["insurance_pricing.py<br/>Pricing Models"]
+        CLAIM_GEN["claim_generator.py<br/>Claim Events"]
+        CLAIM_DEV["claim_development.py<br/>Claim Development"]
     end
 
-    subgraph Simulation["Simulation Engine"]
-        simulation["simulation.py<br/>Simulation<br/>SimulationResults"]
-        monte_carlo["monte_carlo.py<br/>MonteCarloEngine<br/>SimulationConfig<br/>SimulationResults"]
-        parallel_executor["parallel_executor.py<br/>ParallelExecutor<br/>CPUProfile<br/>ChunkingStrategy"]
-        batch_processor["batch_processor.py<br/>BatchProcessor<br/>BatchResult<br/>AggregatedResults"]
-        trajectory_storage["trajectory_storage.py<br/>TrajectoryStorage<br/>StorageConfig<br/>SimulationSummary"]
+    %% Simulation Engine
+    subgraph Simulation["Simulation Core"]
+        SIM_CORE["simulation.py<br/>Main Engine"]
+        MONTE_CARLO["monte_carlo.py<br/>Monte Carlo"]
+        STOCHASTIC["stochastic_processes.py<br/>Stochastic Models"]
+        LOSS_DIST["loss_distributions.py<br/>Loss Distributions"]
     end
 
-    subgraph Analytics["Analytics & Metrics"]
-        ergodic_analyzer["ergodic_analyzer.py<br/>ErgodicAnalyzer"]
-        risk_metrics["risk_metrics.py<br/>RiskMetrics<br/>RiskMetricsResult<br/>ROEAnalyzer"]
-        convergence["convergence.py<br/>ConvergenceDiagnostics<br/>ConvergenceStats"]
-        convergence_advanced["convergence_advanced.py<br/>AdvancedDiagnostics<br/>MultiMetricTracker"]
-        convergence_plots["convergence_plots.py<br/>ConvergencePlotter<br/>DiagnosticVisualizer"]
-        bootstrap_analysis["bootstrap_analysis.py<br/>BootstrapAnalyzer<br/>BootstrapResult"]
-        statistical_tests["statistical_tests.py<br/>HypothesisTestResult"]
-        sensitivity["sensitivity.py<br/>SensitivityAnalyzer<br/>TornadoAnalysis"]
-        sensitivity_viz["sensitivity_visualization.py<br/>SensitivityPlotter<br/>TornadoChart"]
-        parameter_sweep["parameter_sweep.py<br/>ParameterSweeper<br/>GridSearcher"]
+    %% Analysis Tools
+    subgraph Analysis["Analysis & Optimization"]
+        ERGODIC_ANALYZER["ergodic_analyzer.py<br/>Ergodic Analysis"]
+        BUSINESS_OPT["business_optimizer.py<br/>Optimization"]
+        DECISION_ENGINE["decision_engine.py<br/>Decision Making"]
+        OPTIMIZATION["optimization.py<br/>Optimization Algos"]
+        HJB_SOLVER["hjb_solver.py<br/>HJB Equations"]
+        OPTIMAL_CTRL["optimal_control.py<br/>Control Theory"]
     end
 
-    subgraph Optimization["Optimization & Control"]
-        business_optimizer["business_optimizer.py<br/>BusinessOptimizer<br/>OptimalStrategy<br/>BusinessObjective"]
-        decision_engine["decision_engine.py<br/>InsuranceDecisionEngine<br/>DecisionMetrics<br/>InsuranceDecision"]
-        pareto_frontier["pareto_frontier.py<br/>ParetoFrontier<br/>ParetoPoint<br/>Objective"]
-        optimization["optimization.py"]
-        hjb_solver["hjb_solver.py<br/>HJBSolver<br/>HJBProblem<br/>StateSpace<br/>UtilityFunction"]
-        optimal_control["optimal_control.py<br/>OptimalController<br/>ControlStrategy<br/>HJBFeedbackControl"]
+    %% Validation & Testing
+    subgraph Validation["Validation"]
+        ACCURACY_VAL["accuracy_validator.py<br/>Accuracy Checks"]
+        STRATEGY_BACK["strategy_backtester.py<br/>Backtesting"]
+        WALK_FORWARD["walk_forward_validator.py<br/>Walk-Forward"]
+        VALIDATION_METRICS["validation_metrics.py<br/>Metrics"]
+        STATISTICAL_TESTS["statistical_tests.py<br/>Statistical Tests"]
     end
 
-    subgraph Results["Results & Reporting"]
-        result_aggregator["result_aggregator.py<br/>ResultAggregator<br/>TimeSeriesAggregator<br/>HierarchicalAggregator"]
-        summary_statistics["summary_statistics.py<br/>SummaryStatistics<br/>QuantileCalculator<br/>DistributionFitter"]
-        scenario_manager["scenario_manager.py<br/>ScenarioManager<br/>ScenarioConfig<br/>ParameterSpec"]
-        progress_monitor["progress_monitor.py<br/>ProgressMonitor<br/>ProgressStats"]
-        visualization_legacy["visualization_legacy.py<br/>LegacyPlotter"]
-        excel_reporter["excel_reporter.py<br/>ExcelReporter<br/>BusinessReport"]
-        financial_statements["financial_statements.py<br/>IncomeStatement<br/>BalanceSheet"]
+    %% Risk Analysis
+    subgraph Risk["Risk Analysis"]
+        RISK_METRICS["risk_metrics.py<br/>Risk Metrics"]
+        RUIN_PROB["ruin_probability.py<br/>Ruin Analysis"]
+        SENSITIVITY["sensitivity.py<br/>Sensitivity Analysis"]
+        PARETO["pareto_frontier.py<br/>Pareto Analysis"]
+        BOOTSTRAP["bootstrap_analysis.py<br/>Bootstrap Methods"]
     end
 
-    subgraph Validation["Validation Framework"]
-        walk_forward["walk_forward_validator.py<br/>WalkForwardValidator<br/>OutOfSampleTest"]
-        strategy_backtest["strategy_backtester.py<br/>StrategyBacktester<br/>BacktestResults"]
-        validation_metrics["validation_metrics.py<br/>ValidationMetrics<br/>MetricCalculator"]
-        accuracy_validator["accuracy_validator.py<br/>AccuracyValidator<br/>PrecisionTester"]
-        performance_optimizer["performance_optimizer.py<br/>PerformanceOptimizer<br/>SpeedTuner"]
-        benchmarking["benchmarking.py<br/>BenchmarkSuite<br/>PerformanceMetrics"]
-        adaptive_stopping["adaptive_stopping.py<br/>AdaptiveStopper<br/>ConvergenceMonitor"]
+    %% Performance & Infrastructure
+    subgraph Infrastructure["Infrastructure"]
+        BATCH_PROC["batch_processor.py<br/>Batch Processing"]
+        PARALLEL_EXEC["parallel_executor.py<br/>Parallelization"]
+        PERF_OPT["performance_optimizer.py<br/>Performance"]
+        TRAJ_STORAGE["trajectory_storage.py<br/>Data Storage"]
+        PROGRESS_MON["progress_monitor.py<br/>Progress Tracking"]
+        PARAM_SWEEP["parameter_sweep.py<br/>Parameter Sweeps"]
     end
 
-    subgraph Config["Configuration"]
-        config["config.py<br/>Config<br/>ManufacturerConfig<br/>SimulationConfig"]
-        config_v2["config_v2.py<br/>ConfigV2<br/>InsuranceConfig<br/>ModuleConfig"]
-        config_manager["config_manager.py<br/>ConfigManager"]
-        config_loader["config_loader.py<br/>ConfigLoader"]
-        config_compat["config_compat.py<br/>LegacyConfigAdapter<br/>ConfigTranslator"]
-        config_migrator["config_migrator.py<br/>ConfigMigrator"]
+    %% Reporting & Visualization
+    subgraph Reporting["Reporting & Visualization"]
+        VIZ_LEGACY["visualization_legacy.py<br/>Legacy Plots"]
+        EXCEL_REPORT["excel_reporter.py<br/>Excel Reports"]
+        SUMMARY_STATS["summary_statistics.py<br/>Statistics"]
+        RESULT_AGG["result_aggregator.py<br/>Aggregation"]
+        FINANCIAL_STMT["financial_statements.py<br/>Statements"]
     end
 
-    %% Core Dependencies
-    manufacturer --> config
-    manufacturer --> claim_generator
-    manufacturer --> claim_development
-    manufacturer --> stochastic
-    manufacturer --> insurance_program
+    %% Visualization Submodule
+    subgraph VizModule["visualization/"]
+        VIZ_CORE["core.py<br/>Core Functions"]
+        VIZ_EXEC["executive_plots.py<br/>Executive Views"]
+        VIZ_TECH["technical_plots.py<br/>Technical Views"]
+        VIZ_ANNOT["annotations.py<br/>Annotations"]
+        VIZ_STYLE["style_manager.py<br/>Styling"]
+        VIZ_FACTORY["figure_factory.py<br/>Figure Factory"]
+        VIZ_EXPORT["export.py<br/>Export Tools"]
+    end
 
-    claim_generator --> config
-    claim_development --> config
-    stochastic --> config
+    %% Advanced Features
+    subgraph Advanced["Advanced Features"]
+        CONVERGENCE["convergence.py<br/>Convergence"]
+        CONV_ADV["convergence_advanced.py<br/>Advanced Conv."]
+        CONV_PLOTS["convergence_plots.py<br/>Conv. Plots"]
+        ADAPTIVE_STOP["adaptive_stopping.py<br/>Adaptive Stopping"]
+        SCENARIO_MGR["scenario_manager.py<br/>Scenarios"]
+        BENCHMARKING["benchmarking.py<br/>Benchmarks"]
+    end
 
-    %% Insurance Dependencies
-    insurance --> config
-    insurance_program --> insurance
-    insurance_program --> loss_distributions
-    insurance_pricing --> loss_distributions
-    insurance_pricing --> insurance_program
-    loss_distributions --> config
-    ruin_probability --> risk_metrics
+    %% Key Dependencies
+    CONFIG_BASE --> MANUFACTURER
+    CONFIG_V2 --> MANUFACTURER
+    CONFIG_MGR --> CONFIG_LOADER
 
-    %% Simulation Dependencies
-    simulation --> manufacturer
-    simulation --> monte_carlo
-    simulation --> ergodic_analyzer
-    simulation --> config
+    MANUFACTURER --> SIM_CORE
+    INSURANCE --> INS_PROGRAM
+    INS_PRICING --> INS_PROGRAM
+    CLAIM_GEN --> SIM_CORE
 
-    monte_carlo --> parallel_executor
-    monte_carlo --> trajectory_storage
-    monte_carlo --> progress_monitor
+    SIM_CORE --> MONTE_CARLO
+    STOCHASTIC --> MONTE_CARLO
+    LOSS_DIST --> CLAIM_GEN
 
-    parallel_executor --> batch_processor
-    batch_processor --> scenario_manager
-    batch_processor --> result_aggregator
+    MONTE_CARLO --> ERGODIC_ANALYZER
+    ERGODIC_ANALYZER --> BUSINESS_OPT
+    BUSINESS_OPT --> DECISION_ENGINE
 
-    %% Analytics Dependencies
-    ergodic_analyzer --> convergence
-    risk_metrics --> summary_statistics
-    convergence --> statistical_tests
-    convergence --> convergence_advanced
-    convergence_advanced --> convergence_plots
-    bootstrap_analysis --> statistical_tests
-    sensitivity --> risk_metrics
-    sensitivity --> sensitivity_viz
-    parameter_sweep --> sensitivity
+    MONTE_CARLO --> ACCURACY_VAL
+    STRATEGY_BACK --> WALK_FORWARD
 
-    %% Optimization Dependencies
-    business_optimizer --> decision_engine
-    decision_engine --> pareto_frontier
-    decision_engine --> risk_metrics
-    pareto_frontier --> optimization
+    ERGODIC_ANALYZER --> RISK_METRICS
+    RISK_METRICS --> RUIN_PROB
+    SENSITIVITY --> PARETO
 
-    hjb_solver --> optimal_control
-    optimal_control --> hjb_solver
+    BATCH_PROC --> PARALLEL_EXEC
+    PARALLEL_EXEC --> MONTE_CARLO
 
-    %% Results Dependencies
-    result_aggregator --> summary_statistics
-    summary_statistics --> visualization_legacy
-    scenario_manager --> config_v2
-    progress_monitor --> trajectory_storage
-    excel_reporter --> summary_statistics
-    financial_statements --> manufacturer
-    excel_reporter --> financial_statements
+    RESULT_AGG --> SUMMARY_STATS
+    SUMMARY_STATS --> EXCEL_REPORT
+    FINANCIAL_STMT --> EXCEL_REPORT
 
-    %% Validation Dependencies
-    walk_forward --> strategy_backtest
-    strategy_backtest --> validation_metrics
-    validation_metrics --> accuracy_validator
-    accuracy_validator --> statistical_tests
-    performance_optimizer --> benchmarking
-    benchmarking --> monte_carlo
-    adaptive_stopping --> convergence
-
-    %% Config Dependencies
-    config_manager --> config_v2
-    config_manager --> config_loader
-    config_v2 --> config_compat
-    config_compat --> config
-    config_migrator --> config_v2
-    config_migrator --> config_compat
+    VIZ_CORE --> VIZ_FACTORY
+    VIZ_STYLE --> VIZ_EXEC
+    VIZ_STYLE --> VIZ_TECH
+    VIZ_FACTORY --> VIZ_EXPORT
 
     %% Styling
-    style Core fill:#e8f5e9
-    style Insurance fill:#fff3e0
-    style Simulation fill:#f3e5f5
-    style Analytics fill:#e0f2f1
-    style Optimization fill:#fce4ec
-    style Results fill:#fff9c4
-    style Validation fill:#e8eaf6
-    style Config fill:#e3f2fd
+    classDef config fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef business fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef simulation fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    classDef analysis fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef validation fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef risk fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef infra fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    classDef reporting fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
+    classDef viz fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    classDef advanced fill:#fafafa,stroke:#424242,stroke-width:2px
+
+    class CONFIG_BASE,CONFIG_V2,CONFIG_MGR,CONFIG_LOADER,CONFIG_COMPAT,CONFIG_MIG config
+    class MANUFACTURER,INSURANCE,INS_PROGRAM,INS_PRICING,CLAIM_GEN,CLAIM_DEV business
+    class SIM_CORE,MONTE_CARLO,STOCHASTIC,LOSS_DIST simulation
+    class ERGODIC_ANALYZER,BUSINESS_OPT,DECISION_ENGINE,OPTIMIZATION,HJB_SOLVER,OPTIMAL_CTRL analysis
+    class ACCURACY_VAL,STRATEGY_BACK,WALK_FORWARD,VALIDATION_METRICS,STATISTICAL_TESTS validation
+    class RISK_METRICS,RUIN_PROB,SENSITIVITY,PARETO,BOOTSTRAP risk
+    class BATCH_PROC,PARALLEL_EXEC,PERF_OPT,TRAJ_STORAGE,PROGRESS_MON,PARAM_SWEEP infra
+    class VIZ_LEGACY,EXCEL_REPORT,SUMMARY_STATS,RESULT_AGG,FINANCIAL_STMT reporting
+    class VIZ_CORE,VIZ_EXEC,VIZ_TECH,VIZ_ANNOT,VIZ_STYLE,VIZ_FACTORY,VIZ_EXPORT viz
+    class CONVERGENCE,CONV_ADV,CONV_PLOTS,ADAPTIVE_STOP,SCENARIO_MGR,BENCHMARKING advanced
 ```
 
-## Module Interaction Patterns
+## Module Categories
 
-### 1. Configuration Flow
-```mermaid
-sequenceDiagram
-    participant User
-    participant ConfigManager
-    participant ConfigV2
-    participant ConfigCompat
-    participant Module
+### Configuration Management
+Handles all configuration aspects including loading, validation, migration, and compatibility between different configuration versions.
 
-    User->>ConfigManager: load_config(path)
-    ConfigManager->>ConfigV2: parse YAML
-    ConfigV2->>ConfigV2: validate with Pydantic
-    ConfigManager->>ConfigCompat: create adapter if needed
-    ConfigCompat->>Module: provide config interface
-    Module->>Module: initialize with config
-```
+### Business Logic
+Core business domain models including the manufacturer, insurance policies, pricing, and claim processing.
 
-### 2. Simulation Execution Flow
-```mermaid
-sequenceDiagram
-    participant Simulation
-    participant MonteCarloEngine
-    participant ParallelExecutor
-    participant BatchProcessor
-    participant TrajectoryStorage
-    participant ResultAggregator
+### Simulation Core
+The main simulation engine that orchestrates time evolution, Monte Carlo runs, and stochastic processes.
 
-    Simulation->>MonteCarloEngine: run_ensemble(config)
-    MonteCarloEngine->>ParallelExecutor: distribute_work(scenarios)
-    ParallelExecutor->>BatchProcessor: process_batch(chunk)
-    BatchProcessor->>BatchProcessor: simulate trajectories
-    BatchProcessor->>TrajectoryStorage: store results
-    TrajectoryStorage->>ResultAggregator: aggregate data
-    ResultAggregator-->>Simulation: return results
-```
+### Analysis & Optimization
+Advanced analytical tools including ergodic analysis, business optimization, and decision-making engines.
 
-### 3. Insurance Claim Processing
-```mermaid
-sequenceDiagram
-    participant Manufacturer
-    participant ClaimGenerator
-    participant InsuranceProgram
-    participant ClaimDevelopment
-    participant CashFlowProjector
+### Validation
+Comprehensive validation framework for ensuring accuracy and robustness of simulations.
 
-    Manufacturer->>ClaimGenerator: generate_claims(period)
-    ClaimGenerator->>ClaimGenerator: sample from distributions
-    ClaimGenerator-->>Manufacturer: return ClaimEvents
-    Manufacturer->>InsuranceProgram: apply_coverage(claims)
-    InsuranceProgram->>InsuranceProgram: calculate recoveries
-    InsuranceProgram-->>Manufacturer: net_loss
-    Manufacturer->>ClaimDevelopment: develop_claims(claims)
-    ClaimDevelopment->>CashFlowProjector: project_payments()
-    CashFlowProjector-->>Manufacturer: payment schedule
-```
+### Risk Analysis
+Specialized risk assessment tools including ruin probability, sensitivity analysis, and bootstrap methods.
 
-### 4. Optimization Workflow
-```mermaid
-sequenceDiagram
-    participant User
-    participant BusinessOptimizer
-    participant DecisionEngine
-    participant RiskMetrics
-    participant ParetoFrontier
-    participant HJBSolver
+### Infrastructure
+High-performance computing infrastructure for parallel processing, caching, and data management.
 
-    User->>BusinessOptimizer: optimize(objectives, constraints)
-    BusinessOptimizer->>DecisionEngine: evaluate_strategy(params)
-    DecisionEngine->>RiskMetrics: calculate_metrics(results)
-    RiskMetrics-->>DecisionEngine: risk measures
-    DecisionEngine->>ParetoFrontier: add_point(objectives)
-    BusinessOptimizer->>HJBSolver: solve_optimal_control()
-    HJBSolver-->>BusinessOptimizer: control_policy
-    BusinessOptimizer-->>User: OptimalStrategy
-```
+### Reporting & Visualization
+Output generation including Excel reports, visualizations, and statistical summaries.
 
-## Module Categories and Responsibilities
-
-### Core Financial Domain (4 modules)
-- **manufacturer.py**: Central financial model, balance sheet evolution
-- **claim_generator.py**: Loss event generation with configurable frequencies
-- **claim_development.py**: Payment pattern modeling over time
-- **stochastic_processes.py**: Revenue and cost volatility modeling
-
-### Insurance & Risk (5 modules)
-- **insurance.py**: Basic insurance coverage calculations
-- **insurance_program.py**: Complex multi-layer insurance structures
-- **insurance_pricing.py**: Premium calculation and rate modeling
-- **loss_distributions.py**: Statistical distributions for losses
-- **ruin_probability.py**: Bankruptcy risk assessment
-
-(simulation-infrastructure)=
-### Simulation Infrastructure (5 modules)
-- **simulation.py**: Main orchestrator for running simulations
-- **monte_carlo.py**: Ensemble simulation engine
-- **parallel_executor.py**: CPU-optimized parallel processing
-- **batch_processor.py**: Efficient batch scenario processing
-- **trajectory_storage.py**: Memory-efficient result storage
-
-(analytics--metrics)=
-(analytics-metrics)=
-### Analytics & Metrics (10 modules)
-- **ergodic_analyzer.py**: Time vs ensemble average comparison
-- **risk_metrics.py**: Comprehensive risk measure calculations
-- **convergence.py**: Statistical convergence diagnostics
-- **convergence_advanced.py**: Multi-metric advanced convergence analysis
-- **convergence_plots.py**: Convergence visualization tools
-- **bootstrap_analysis.py**: Confidence interval estimation
-- **statistical_tests.py**: Hypothesis testing framework
-- **sensitivity.py**: Parameter sensitivity analysis
-- **sensitivity_visualization.py**: Sensitivity charts and tornado diagrams
-- **parameter_sweep.py**: Grid search across parameter spaces
-
-### Optimization & Control (6 modules)
-- **business_optimizer.py**: Business strategy optimization
-- **decision_engine.py**: Multi-criteria decision support
-- **pareto_frontier.py**: Multi-objective optimization
-- **optimization.py**: Core optimization algorithms
-- **hjb_solver.py**: Dynamic programming solutions
-- **optimal_control.py**: Feedback control strategies
-
-### Results & Visualization (7 modules)
-- **result_aggregator.py**: Hierarchical result aggregation
-- **summary_statistics.py**: Statistical analysis and summaries
-- **scenario_manager.py**: Scenario generation and management
-- **progress_monitor.py**: Real-time progress tracking
-- **visualization_legacy.py**: Legacy plotting utilities
-- **excel_reporter.py**: Automated Excel business reports
-- **financial_statements.py**: Income statement and balance sheet generation
-
-### Validation & Testing Framework (7 modules)
-- **walk_forward_validator.py**: Out-of-sample walk-forward validation
-- **strategy_backtester.py**: Historical strategy backtesting
-- **validation_metrics.py**: Performance metrics and KPIs
-- **accuracy_validator.py**: Numerical accuracy and precision testing
-- **performance_optimizer.py**: Performance tuning and optimization
-- **benchmarking.py**: Performance benchmarking suite
-- **adaptive_stopping.py**: Early termination based on convergence
-
-### Configuration Management (6 modules)
-- **config_v2.py**: Modern Pydantic v2 configuration models
-- **config_manager.py**: 3-tier configuration system
-- **config_compat.py**: Backward compatibility layer
-- **config_migrator.py**: Configuration version migration
-- **config.py**: Legacy configuration (deprecated)
-- **config_loader.py**: Legacy loader (deprecated)
-
-## Import Hierarchy
-
-### Top-Level Modules (no internal dependencies)
-- `config.py`
-- `stochastic_processes.py`
-- `optimization.py`
-- `visualization_legacy.py`
-- `statistical_tests.py`
-
-### Mid-Level Modules (depend on top-level)
-- `claim_generator.py` → config
-- `claim_development.py` → config
-- `insurance.py` → config
-- `loss_distributions.py` → config
-- `config_loader.py` → config
-- `config_v2.py` → config (via compat)
-
-### High-Level Modules (depend on mid-level)
-- `manufacturer.py` → config, claim_*, stochastic, insurance_program
-- `insurance_program.py` → insurance, loss_distributions
-- `risk_metrics.py` → summary_statistics
-- `config_manager.py` → config_v2, config_loader
-- `config_compat.py` → config, config_v2
-
-### Integration Modules (orchestrate others)
-- `simulation.py` → manufacturer, monte_carlo, ergodic_analyzer
-- `monte_carlo.py` → parallel_executor, trajectory_storage, progress_monitor
-- `batch_processor.py` → scenario_manager, result_aggregator
-- `business_optimizer.py` → decision_engine, hjb_solver
-- `decision_engine.py` → pareto_frontier, risk_metrics
-
-## Key Design Patterns
-
-1. **Factory Pattern**: ConfigManager creates appropriate config objects
-2. **Strategy Pattern**: StochasticProcess implementations (GBM, OU, Lognormal)
-3. **Observer Pattern**: ProgressMonitor tracks simulation progress
-4. **Template Method**: LossDistribution abstract base class
-5. **Adapter Pattern**: ConfigCompat bridges v1 and v2 configs
-6. **Singleton Pattern**: ConfigManager ensures single config instance
-7. **Command Pattern**: BatchProcessor queues and executes simulation tasks
-8. **Composite Pattern**: InsuranceProgram composes multiple InsuranceLayers
+### Advanced Features
+Sophisticated features for convergence monitoring, adaptive stopping, and benchmarking.

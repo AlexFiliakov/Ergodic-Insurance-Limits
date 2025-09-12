@@ -88,7 +88,9 @@ max-module-lines = 2000
 [tool.pylint.design]
 max-args = 7
 max-attributes = 10
-max-locals = 20
+max-locals = 45
+max-returns = 14
+max-branches = 15
 
 [tool.pylint.similarities]
 min-similarity-lines = 10

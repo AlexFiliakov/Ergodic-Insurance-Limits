@@ -2,7 +2,44 @@
 
 This module provides the main entry point for the Ergodic Insurance Limits
 package, exposing the key classes and functions for insurance simulation
-and analysis.
+and analysis using ergodic theory. The framework helps optimize insurance
+retentions and limits for businesses by analyzing time-average outcomes
+rather than traditional ensemble approaches.
+
+Key Features:
+    - Ergodic analysis of insurance decisions
+    - Business optimization with insurance constraints
+    - Monte Carlo simulation with trajectory storage
+    - Insurance strategy backtesting and validation
+    - Performance optimization and benchmarking
+    - Comprehensive visualization and reporting
+
+Examples:
+    Basic simulation::
+
+        from ergodic_insurance import Simulation, Config
+
+        config = Config()
+        sim = Simulation(config)
+        results = sim.run(years=50)
+
+    Business optimization::
+
+        from ergodic_insurance import BusinessOptimizer, BusinessObjective
+
+        optimizer = BusinessOptimizer()
+        result = optimizer.optimize(
+            objective=BusinessObjective.MAXIMIZE_GROWTH,
+            constraints=BusinessConstraints(min_survival_prob=0.95)
+        )
+
+Note:
+    This module uses lazy imports to avoid circular dependencies during
+    test discovery. All public API classes are accessible through the
+    module's __all__ list.
+
+Since:
+    Version 0.1.0
 """
 # pylint: disable=undefined-all-variable
 
@@ -57,7 +94,24 @@ __all__ = [
 
 
 def __getattr__(name):
-    """Lazy import modules to avoid circular dependencies during test discovery."""
+    """Lazy import modules to avoid circular dependencies during test discovery.
+
+    This function implements PEP 562 for lazy loading of submodules, which helps
+    reduce import time and avoid circular dependencies during test discovery.
+
+    Args:
+        name: The name of the attribute to retrieve.
+
+    Returns:
+        The requested module, class, or function.
+
+    Raises:
+        AttributeError: If the requested attribute does not exist in the module.
+
+    Note:
+        This function is called automatically by Python when accessing module
+        attributes that are not yet loaded. It should not be called directly.
+    """
     if name in (
         "BusinessObjective",
         "BusinessConstraints",

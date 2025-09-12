@@ -1,11 +1,59 @@
 """Insurance policy structure and claim processing.
 
 This module provides classes for modeling multi-layer insurance policies
-with configurable attachment points, limits, and premium rates.
+with configurable attachment points, limits, and premium rates. It supports
+complex insurance structures commonly used in commercial insurance including
+excess layers, umbrella coverage, and multi-layer towers.
 
-Note: For advanced features like reinstatements and complex multi-layer programs,
-see the insurance_program module which provides EnhancedInsuranceLayer and
-InsuranceProgram classes.
+The module integrates with pricing engines for dynamic premium calculation
+and supports both static and market-driven pricing models.
+
+Key Features:
+    - Multi-layer insurance towers with attachment points and limits
+    - Deductible and self-insured retention handling
+    - Dynamic pricing integration with market cycles
+    - Claim allocation across multiple layers
+    - Premium calculation with various rating methods
+
+Examples:
+    Simple single-layer policy::
+
+        from ergodic_insurance.src.insurance import InsurancePolicy, InsuranceLayer
+
+        # $5M excess $1M with 3% rate
+        layer = InsuranceLayer(
+            attachment_point=1_000_000,
+            limit=5_000_000,
+            rate=0.03
+        )
+
+        policy = InsurancePolicy(
+            layers=[layer],
+            deductible=500_000
+        )
+
+        # Process a $3M claim
+        company_payment, insurance_recovery = policy.process_claim(3_000_000)
+
+    Multi-layer tower::
+
+        # Build a insurance tower
+        layers = [
+            InsuranceLayer(1_000_000, 4_000_000, 0.025),  # Primary
+            InsuranceLayer(5_000_000, 5_000_000, 0.015),  # First excess
+            InsuranceLayer(10_000_000, 10_000_000, 0.01), # Second excess
+        ]
+
+        tower = InsurancePolicy(layers, deductible=1_000_000)
+        annual_premium = tower.calculate_premium()
+
+Note:
+    For advanced features like reinstatements and complex multi-layer programs,
+    see the insurance_program module which provides EnhancedInsuranceLayer and
+    InsuranceProgram classes.
+
+Since:
+    Version 0.1.0
 """
 
 from dataclasses import dataclass
@@ -26,6 +74,39 @@ class InsuranceLayer:
 
     Each layer has an attachment point (where coverage starts),
     a limit (maximum coverage), and a rate (premium percentage).
+    Insurance layers are the building blocks of complex insurance programs.
+
+    Attributes:
+        attachment_point: Dollar amount where this layer starts providing
+            coverage. Also known as the retention or excess point.
+        limit: Maximum coverage amount from this layer. The layer covers
+            losses from attachment_point to (attachment_point + limit).
+        rate: Premium rate as a percentage of the limit. For example,
+            0.03 means 3% of limit as annual premium.
+
+    Examples:
+        Primary layer with $1M retention::
+
+            primary = InsuranceLayer(
+                attachment_point=1_000_000,  # $1M retention
+                limit=5_000_000,             # $5M limit
+                rate=0.025                   # 2.5% rate
+            )
+
+            # This covers losses from $1M to $6M
+            # Annual premium = $5M × 2.5% = $125,000
+
+        Excess layer in a tower::
+
+            excess = InsuranceLayer(
+                attachment_point=6_000_000,  # Attaches at $6M
+                limit=10_000_000,            # $10M limit
+                rate=0.01                    # 1% rate (lower for excess)
+            )
+
+    Note:
+        Layers are typically structured in towers with each successive
+        layer attaching where the previous layer exhausts.
     """
 
     attachment_point: float  # Where this layer starts covering
@@ -33,7 +114,12 @@ class InsuranceLayer:
     rate: float  # Premium rate as percentage of limit
 
     def __post_init__(self):
-        """Validate insurance layer parameters."""
+        """Validate insurance layer parameters.
+
+        Raises:
+            ValueError: If attachment_point is negative, limit is non-positive,
+                or rate is negative.
+        """
         if self.attachment_point < 0:
             raise ValueError(f"Attachment point must be non-negative, got {self.attachment_point}")
         if self.limit <= 0:
@@ -44,11 +130,31 @@ class InsuranceLayer:
     def calculate_recovery(self, loss_amount: float) -> float:
         """Calculate recovery from this layer for a given loss.
 
+        Determines how much of a loss is covered by this specific layer
+        based on its attachment point and limit.
+
         Args:
-            loss_amount: Total loss amount to recover.
+            loss_amount: Total loss amount in dollars to recover.
 
         Returns:
-            Amount recovered from this layer.
+            float: Amount recovered from this layer in dollars. Returns 0
+                if loss is below attachment point, partial recovery if loss
+                partially penetrates layer, or full limit if loss exceeds
+                layer exhaust point.
+
+        Examples:
+            Layer with $1M attachment, $5M limit::
+
+                layer = InsuranceLayer(1_000_000, 5_000_000, 0.02)
+
+                # Loss below attachment
+                recovery = layer.calculate_recovery(500_000)  # Returns 0
+
+                # Loss partially in layer
+                recovery = layer.calculate_recovery(3_000_000)  # Returns 2M
+
+                # Loss exceeds layer
+                recovery = layer.calculate_recovery(10_000_000)  # Returns 5M (full limit)
         """
         if loss_amount <= self.attachment_point:
             return 0.0
@@ -63,7 +169,14 @@ class InsuranceLayer:
         """Calculate premium for this layer.
 
         Returns:
-            Premium amount (rate × limit).
+            float: Annual premium amount in dollars (rate × limit).
+
+        Examples:
+            Calculate annual cost::
+
+                layer = InsuranceLayer(1_000_000, 10_000_000, 0.015)
+                premium = layer.calculate_premium()  # Returns 150,000
+                print(f"Annual premium: ${premium:,.0f}")
         """
         return self.limit * self.rate
 
@@ -71,7 +184,44 @@ class InsuranceLayer:
 class InsurancePolicy:
     """Multi-layer insurance policy with deductible.
 
-    Manages multiple insurance layers and processes claims across them.
+    Manages multiple insurance layers and processes claims across them,
+    handling proper allocation of losses to each layer in sequence.
+    Supports both static and dynamic pricing models.
+
+    The policy structure follows standard commercial insurance practices:
+    1. Insured pays deductible first
+    2. Losses then penetrate layers in order of attachment
+    3. Each layer pays up to its limit
+    4. Insured bears losses exceeding all coverage
+
+    Attributes:
+        layers: List of InsuranceLayer objects sorted by attachment point.
+        deductible: Self-insured retention before insurance applies.
+        pricing_enabled: Whether to use dynamic pricing models.
+        pricer: Optional pricing engine for market-based premiums.
+        pricing_results: History of pricing calculations.
+
+    Examples:
+        Standard commercial property program::
+
+            # Build insurance program
+            policy = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(500_000, 4_500_000, 0.03),   # Primary
+                    InsuranceLayer(5_000_000, 10_000_000, 0.02), # Excess
+                    InsuranceLayer(15_000_000, 25_000_000, 0.01) # Umbrella
+                ],
+                deductible=500_000  # $500K SIR
+            )
+
+            # Process various claims
+            small_claim = policy.process_claim(100_000)  # All on deductible
+            medium_claim = policy.process_claim(3_000_000)  # Hits primary
+            large_claim = policy.process_claim(20_000_000)  # Multiple layers
+
+    Note:
+        Layers are automatically sorted by attachment point to ensure
+        proper claim allocation regardless of input order.
     """
 
     def __init__(
@@ -84,10 +234,29 @@ class InsurancePolicy:
         """Initialize insurance policy.
 
         Args:
-            layers: List of insurance layers in order of attachment.
-            deductible: Amount paid by insured before insurance kicks in.
-            pricing_enabled: Whether to use dynamic pricing.
-            pricer: Optional InsurancePricer for dynamic pricing.
+            layers: List of InsuranceLayer objects defining the coverage tower.
+                Layers will be automatically sorted by attachment point.
+            deductible: Amount in dollars paid by insured before insurance
+                applies. Also known as self-insured retention (SIR).
+                Default is 0.
+            pricing_enabled: Whether to use dynamic pricing models that
+                adjust premiums based on market conditions. Default is False.
+            pricer: Optional InsurancePricer instance for dynamic pricing.
+                Required if pricing_enabled is True.
+
+        Examples:
+            Create policy with dynamic pricing::
+
+                from ergodic_insurance.src.insurance_pricing import InsurancePricer
+
+                pricer = InsurancePricer(base_rate=0.02)
+
+                policy = InsurancePolicy(
+                    layers=[layer1, layer2],
+                    deductible=1_000_000,
+                    pricing_enabled=True,
+                    pricer=pricer
+                )
         """
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
         self.deductible = deductible
@@ -97,6 +266,9 @@ class InsurancePolicy:
 
     def process_claim(self, claim_amount: float) -> Tuple[float, float]:
         """Process a claim through the insurance structure.
+
+        Allocates a loss across the deductible and insurance layers,
+        calculating how much is paid by the company versus insurance.
 
         Args:
             claim_amount: Total claim amount.

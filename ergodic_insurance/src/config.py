@@ -1,8 +1,56 @@
 """Configuration management using Pydantic v2 models.
 
 This module provides comprehensive configuration classes for the Ergodic
-Insurance simulation framework. It uses Pydantic models for validation
-and type safety.
+Insurance simulation framework. It uses Pydantic models for validation,
+type safety, and automatic serialization/deserialization of configuration
+parameters.
+
+The configuration system is hierarchical, with specialized configs for
+different aspects of the simulation (manufacturer, insurance, simulation
+parameters, etc.) that can be composed into a master configuration.
+
+Key Features:
+    - Type-safe configuration with automatic validation
+    - Hierarchical configuration structure
+    - Environment variable support
+    - JSON/YAML serialization support
+    - Default values with business logic constraints
+    - Cross-field validation for consistency
+
+Examples:
+    Basic configuration setup::
+
+        from ergodic_insurance.src.config import Config, ManufacturerConfig
+
+        # Create manufacturer config
+        manufacturer = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7
+        )
+
+        # Create master config
+        config = Config(
+            manufacturer=manufacturer,
+            simulation_years=50
+        )
+
+    Loading from file::
+
+        # Load from JSON
+        config = Config.from_json('config.json')
+
+        # Load from environment
+        config = Config.from_env()
+
+Note:
+    All monetary values are in nominal dollars unless otherwise specified.
+    Rates and ratios are expressed as decimals (0.1 = 10%).
+
+Since:
+    Version 0.1.0
 """
 
 from pathlib import Path
@@ -15,7 +63,43 @@ class ManufacturerConfig(BaseModel):
     """Financial parameters for the widget manufacturer.
 
     This class defines the core financial parameters used to initialize
-    and configure a widget manufacturing company in the simulation.
+    and configure a widget manufacturing company in the simulation. All
+    parameters are validated to ensure realistic business constraints.
+
+    Attributes:
+        initial_assets: Starting asset value in dollars. Must be positive.
+        asset_turnover_ratio: Revenue per dollar of assets. Typically 0.5-2.0
+            for manufacturing companies.
+        operating_margin: Operating income as percentage of revenue. Typically
+            5-15% for healthy manufacturers.
+        tax_rate: Corporate tax rate. Typically 20-30% depending on jurisdiction.
+        retention_ratio: Portion of earnings retained vs distributed as dividends.
+            Higher retention supports faster growth.
+
+    Examples:
+        Conservative manufacturer::
+
+            config = ManufacturerConfig(
+                initial_assets=5_000_000,
+                asset_turnover_ratio=0.6,  # Low turnover
+                operating_margin=0.05,      # 5% margin
+                tax_rate=0.25,
+                retention_ratio=0.9         # High retention
+            )
+
+        Aggressive growth manufacturer::
+
+            config = ManufacturerConfig(
+                initial_assets=20_000_000,
+                asset_turnover_ratio=1.2,  # High turnover
+                operating_margin=0.12,      # 12% margin
+                tax_rate=0.25,
+                retention_ratio=1.0         # Full retention
+            )
+
+    Note:
+        The asset turnover ratio and operating margin together determine
+        the return on assets (ROA) before taxes.
     """
 
     initial_assets: float = Field(gt=0, description="Starting asset value in dollars")
@@ -32,10 +116,14 @@ class ManufacturerConfig(BaseModel):
         """Warn if operating margin is unusually high or negative.
 
         Args:
-            v: Operating margin value to validate.
+            v: Operating margin value to validate (as decimal, e.g., 0.1 for 10%).
 
         Returns:
-            The validated operating margin value.
+            float: The validated operating margin value.
+
+        Note:
+            Margins above 30% are flagged as unusual for manufacturing.
+            Negative margins indicate unprofitable operations.
         """
         if v > 0.3:
             print(f"Warning: Operating margin {v:.1%} is unusually high")
@@ -48,7 +136,30 @@ class WorkingCapitalConfig(BaseModel):
     """Working capital management parameters.
 
     This class configures how working capital requirements are calculated
-    as a percentage of sales revenue.
+    as a percentage of sales revenue. Working capital represents the funds
+    tied up in day-to-day operations (inventory, receivables, etc.).
+
+    Attributes:
+        percent_of_sales: Working capital as percentage of sales. Typically
+            15-25% for manufacturers depending on payment terms and inventory
+            turnover.
+
+    Examples:
+        Efficient working capital::
+
+            wc_config = WorkingCapitalConfig(
+                percent_of_sales=0.15  # 15% - lean operations
+            )
+
+        Conservative working capital::
+
+            wc_config = WorkingCapitalConfig(
+                percent_of_sales=0.30  # 30% - higher inventory/receivables
+            )
+
+    Note:
+        Higher working capital requirements reduce available cash for
+        growth investments but provide operational cushion.
     """
 
     percent_of_sales: float = Field(
@@ -61,13 +172,14 @@ class WorkingCapitalConfig(BaseModel):
         """Validate working capital percentage.
 
         Args:
-            v: Working capital percentage to validate.
+            v: Working capital percentage to validate (as decimal).
 
         Returns:
-            The validated working capital percentage.
+            float: The validated working capital percentage.
 
         Raises:
-            ValueError: If working capital percentage exceeds 50% of sales.
+            ValueError: If working capital percentage exceeds 50% of sales,
+                which would indicate severe operational inefficiency.
         """
         if v > 0.5:
             raise ValueError(f"Working capital {v:.1%} of sales is unrealistically high")
@@ -78,7 +190,36 @@ class GrowthConfig(BaseModel):
     """Growth model parameters.
 
     Configures whether the simulation uses deterministic or stochastic
-    growth models, along with the associated parameters.
+    growth models, along with the associated parameters. Stochastic models
+    add realistic business volatility to growth trajectories.
+
+    Attributes:
+        type: Growth model type - 'deterministic' for fixed growth or
+            'stochastic' for random variation.
+        annual_growth_rate: Base annual growth rate (e.g., 0.05 for 5%).
+            Can be negative for declining businesses.
+        volatility: Growth rate volatility (standard deviation) for stochastic
+            models. Zero for deterministic models.
+
+    Examples:
+        Stable growth::
+
+            growth = GrowthConfig(
+                type='deterministic',
+                annual_growth_rate=0.03  # 3% steady growth
+            )
+
+        Volatile growth::
+
+            growth = GrowthConfig(
+                type='stochastic',
+                annual_growth_rate=0.05,  # 5% expected
+                volatility=0.15           # 15% std dev
+            )
+
+    Note:
+        Stochastic growth uses geometric Brownian motion to model
+        realistic business volatility patterns.
     """
 
     type: Literal["deterministic", "stochastic"] = Field(
@@ -94,10 +235,11 @@ class GrowthConfig(BaseModel):
         """Ensure volatility is set for stochastic models.
 
         Returns:
-            The validated config object.
+            GrowthConfig: The validated config object.
 
         Raises:
-            ValueError: If stochastic model is selected but volatility is zero.
+            ValueError: If stochastic model is selected but volatility is zero,
+                which would make it effectively deterministic.
         """
         if self.type == "stochastic" and self.volatility == 0:
             raise ValueError("Stochastic model requires non-zero volatility")
@@ -108,7 +250,35 @@ class DebtConfig(BaseModel):
     """Debt financing parameters for insurance claims.
 
     Configures debt financing options and constraints for handling
-    large insurance claims and maintaining liquidity.
+    large insurance claims and maintaining liquidity. Companies may need
+    to borrow to cover deductibles or claims exceeding insurance limits.
+
+    Attributes:
+        interest_rate: Annual interest rate on debt (e.g., 0.05 for 5%).
+        max_leverage_ratio: Maximum debt-to-equity ratio allowed. Higher
+            ratios increase financial risk.
+        minimum_cash_balance: Minimum cash balance to maintain for operations.
+
+    Examples:
+        Conservative debt policy::
+
+            debt = DebtConfig(
+                interest_rate=0.04,        # 4% borrowing cost
+                max_leverage_ratio=1.0,    # Max 1:1 debt/equity
+                minimum_cash_balance=1_000_000
+            )
+
+        Aggressive leverage::
+
+            debt = DebtConfig(
+                interest_rate=0.06,        # Higher rate for risk
+                max_leverage_ratio=3.0,    # 3:1 leverage allowed
+                minimum_cash_balance=500_000
+            )
+
+    Note:
+        Higher leverage increases return on equity but also increases
+        bankruptcy risk during adverse claim events.
     """
 
     interest_rate: float = Field(ge=0, le=0.5, description="Annual interest rate on debt")
@@ -120,7 +290,39 @@ class SimulationConfig(BaseModel):
     """Simulation execution parameters.
 
     Controls how the simulation runs, including time resolution,
-    horizon, and randomization settings.
+    horizon, and randomization settings. These parameters affect
+    computational performance and result granularity.
+
+    Attributes:
+        time_resolution: Simulation time step - 'annual' or 'monthly'.
+            Monthly provides more granularity but increases computation.
+        time_horizon_years: Simulation horizon in years. Longer horizons
+            reveal ergodic properties but require more computation.
+        max_horizon_years: Maximum supported horizon to prevent excessive
+            memory usage.
+        random_seed: Random seed for reproducibility. None for random.
+
+    Examples:
+        Quick test simulation::
+
+            sim = SimulationConfig(
+                time_resolution='annual',
+                time_horizon_years=10,
+                random_seed=42  # Reproducible
+            )
+
+        Long-term ergodic analysis::
+
+            sim = SimulationConfig(
+                time_resolution='annual',
+                time_horizon_years=500,
+                max_horizon_years=1000,
+                random_seed=None  # Random each run
+            )
+
+    Note:
+        For ergodic analysis, horizons of 100+ years are recommended
+        to observe long-term time averages.
     """
 
     time_resolution: Literal["annual", "monthly"] = Field(
@@ -139,10 +341,11 @@ class SimulationConfig(BaseModel):
         """Ensure time horizon doesn't exceed maximum.
 
         Returns:
-            The validated config object.
+            SimulationConfig: The validated config object.
 
         Raises:
-            ValueError: If time horizon exceeds maximum allowed value.
+            ValueError: If time horizon exceeds maximum allowed value,
+                preventing potential memory issues.
         """
         if self.time_horizon_years > self.max_horizon_years:
             raise ValueError(

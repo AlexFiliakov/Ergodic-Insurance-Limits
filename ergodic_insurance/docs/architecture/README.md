@@ -1,173 +1,139 @@
-# Architecture Documentation
+# Ergodic Insurance Limits - Architecture Documentation
 
 ## Overview
 
-This directory contains comprehensive architectural documentation for the Ergodic Insurance Limits system, including system diagrams, module relationships, and class structures.
+This directory contains comprehensive architecture documentation for the Ergodic Insurance Limits framework, including system diagrams, class relationships, and design patterns. The documentation uses Mermaid diagrams for visual representation of the system architecture.
 
 ## Documentation Structure
 
-### High-Level Architecture
-- **[Context Diagram](./context_diagram.md)** - System-wide architecture showing all major components, data flows, and external interactions
-- **[Module Overview](./module_overview.md)** - Detailed module dependencies, interaction patterns, and import hierarchy
+### 📊 System Architecture
+- **[Context Diagram](./context_diagram.md)** - High-level system overview showing major components and data flow
+- **[Module Overview](./module_overview.md)** - Detailed module structure and dependencies
 
-### Class Diagrams
-- **[Core Classes](./class_diagrams/core_classes.md)** - Financial core, insurance structures, loss modeling, and simulation engine classes
-- **[Data Models](./class_diagrams/data_models.md)** - Configuration models, result structures, state management, and DTOs
-- **[Service Layer](./class_diagrams/service_layer.md)** - Analytics services, optimization engines, control systems, and orchestration
-
-### Configuration Documentation
-- **[Configuration v2 System](./configuration_v2.md)** - Enhanced 3-tier configuration management with Pydantic v2 models
+### 🏗️ Class Diagrams
+- **[Core Classes](./class_diagrams/core_classes.md)** - Main simulation engine classes and their interactions
+- **[Data Models](./class_diagrams/data_models.md)** - Data structures and analysis models
+- **[Service Layer](./class_diagrams/service_layer.md)** - Infrastructure services and utilities
 
 ## Quick Navigation
 
-### By Domain
+### For New Developers
+1. Start with the [Context Diagram](./context_diagram.md) to understand the overall system
+2. Review [Module Overview](./module_overview.md) to see how modules interact
+3. Deep dive into [Core Classes](./class_diagrams/core_classes.md) for implementation details
 
-#### Financial Modeling
-- WidgetManufacturer ([Core Classes](./class_diagrams/core_classes.md#financial-core-classes))
-- Stochastic Processes ([Core Classes](./class_diagrams/core_classes.md#financial-core-classes))
-- Configuration ([Data Models](./class_diagrams/data_models.md#configuration-data-models))
+### For Architects
+1. Review all diagrams to understand the complete architecture
+2. Pay special attention to the design patterns documented in each diagram
+3. Check the service layer for infrastructure considerations
 
-#### Insurance & Risk
-- Insurance Programs ([Core Classes](./class_diagrams/core_classes.md#insurance-classes))
-- Loss Distributions ([Core Classes](./class_diagrams/core_classes.md#loss-distribution-classes))
-- Risk Metrics ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
+### For Contributors
+1. Update diagrams when making significant architectural changes
+2. Follow the established patterns and conventions
+3. Use the Claude command for maintaining diagrams (see `.claude/commands/simone/mermaid.md`)
 
-#### Simulation & Analysis
-- Monte Carlo Engine ([Service Layer](./class_diagrams/service_layer.md#simulation-orchestration-services))
-- Ergodic Analysis ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
-- Statistical Testing ([Service Layer](./class_diagrams/service_layer.md#statistical-analysis-services))
-- Sensitivity Analysis ([Module Overview](./module_overview.md#analytics--metrics-10-modules))
-- Convergence Diagnostics ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
+## System Components
 
-#### Optimization & Control
-- Business Optimization ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
-- HJB Solver ([Service Layer](./class_diagrams/service_layer.md#control-and-optimization-services))
-- Pareto Frontier ([Service Layer](./class_diagrams/service_layer.md#analytics-and-optimization-services))
+### Core Simulation Engine
+The heart of the system that orchestrates business simulation:
+- **Simulation Engine** - Main simulation orchestrator
+- **Widget Manufacturer** - Business model implementation
+- **Insurance Program** - Insurance policy management
+- **Claim Generator** - Stochastic claim generation
 
-#### Validation & Testing
-- Walk-Forward Validation ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
-- Strategy Backtesting ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
-- Performance Benchmarking ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
-- Accuracy Validation ([Service Layer](./class_diagrams/service_layer.md#validation-framework-services))
+### Analysis & Optimization
+Advanced analytical capabilities:
+- **Ergodic Analyzer** - Time-average vs ensemble-average analysis
+- **Business Optimizer** - Optimization algorithms
+- **Risk Metrics** - Comprehensive risk assessment
+- **Sensitivity Analyzer** - Parameter sensitivity studies
 
-### By Technical Layer
+### Infrastructure
+High-performance computing support:
+- **Batch Processor** - Large-scale batch processing
+- **Parallel Executor** - Parallel computation management
+- **Smart Cache** - Intelligent caching system
+- **Trajectory Storage** - Efficient data persistence
 
-#### Infrastructure
-- Parallel Processing ([Module Overview](./module_overview.md#simulation-infrastructure-5-modules))
-- Trajectory Storage ([Service Layer](./class_diagrams/service_layer.md#simulation-orchestration-services))
-- Progress Monitoring ([Service Layer](./class_diagrams/service_layer.md#simulation-orchestration-services))
+### Reporting & Visualization
+Output generation and presentation:
+- **Excel Reporter** - Detailed Excel reports
+- **Figure Factory** - Visualization generation
+- **Style Manager** - Consistent styling
+- **Result Aggregator** - Statistical aggregation
 
-#### Data Management
-- Configuration Models ([Data Models](./class_diagrams/data_models.md#configuration-data-models))
-- Result Aggregation ([Data Models](./class_diagrams/data_models.md#result-data-models))
-- State Management ([Data Models](./class_diagrams/data_models.md#state-and-progress-models))
+## Key Design Principles
 
-#### Integration
-- Service Integration ([Service Layer](./class_diagrams/service_layer.md#service-integration-layer))
-- Module Dependencies ([Module Overview](./module_overview.md#module-dependency-graph))
-- Data Flow Patterns ([Context Diagram](./context_diagram.md#data-flow-patterns))
+### 1. Modularity
+- Clear separation of concerns
+- Well-defined interfaces between modules
+- Pluggable components for extensibility
 
-## Key Architectural Decisions
+### 2. Performance
+- Vectorized operations for numerical efficiency
+- Parallel processing for Monte Carlo simulations
+- Smart caching to avoid redundant computations
 
-### 1. Modular Design
-Each module has a single, well-defined responsibility with clear interfaces. This enables:
-- Independent testing and development
-- Easy replacement of implementations
-- Clear dependency management
+### 3. Accuracy
+- Comprehensive validation framework
+- Multiple accuracy checking mechanisms
+- Cross-validation between implementations
 
-### 2. Configuration-Driven Architecture
-All system parameters are externalized through Pydantic models:
-- Type-safe configuration validation
-- Environment-specific configurations
-- Easy parameter sweeps for optimization
-
-### 3. Parallel Processing
-CPU-optimized execution for large-scale simulations:
-- Chunking strategies for efficient work distribution
-- Shared memory management for reduced overhead
-- Progress monitoring with ETA calculations
-
-### 4. Ergodic Theory Integration
-Core differentiation through time vs ensemble average analysis:
-- Dedicated ergodic analyzer service
-- Integration with optimization decisions
-- Visualization of ergodic differences
-
-### 5. Extensible Plugin Architecture
-New components can be added without modifying core:
-- Abstract base classes for distributions and processes
-- Strategy pattern for control implementations
-- Factory pattern for scenario generation
-
-## Module Statistics
-
-| Category | Module Count | Key Modules |
-|----------|--------------|-------------|
-| Core Financial | 4 | manufacturer, claim_generator, claim_development, stochastic_processes |
-| Insurance & Risk | 5 | insurance, insurance_program, insurance_pricing, loss_distributions, ruin_probability |
-| Simulation | 5 | simulation, monte_carlo, parallel_executor, batch_processor, trajectory_storage |
-| Analytics | 10 | ergodic_analyzer, risk_metrics, convergence*, bootstrap_analysis, statistical_tests, sensitivity* |
-| Optimization | 6 | business_optimizer, decision_engine, pareto_frontier, hjb_solver, optimal_control, optimization |
-| Results | 7 | result_aggregator, summary_statistics, scenario_manager, progress_monitor, excel_reporter, financial_statements, visualization_legacy |
-| Validation | 7 | walk_forward_validator, strategy_backtester, validation_metrics, accuracy_validator, performance_optimizer, benchmarking, adaptive_stopping |
-| Configuration | 6 | config_v2, config_manager, config_compat, config_migrator, config, config_loader |
-| **Total** | **50** | |
+### 4. Usability
+- Clear configuration management
+- Comprehensive error handling
+- Rich visualization capabilities
 
 ## Design Patterns Used
 
-1. **Factory Pattern** - ConfigManager, ScenarioManager
-2. **Strategy Pattern** - StochasticProcess, ControlStrategy implementations
-3. **Observer Pattern** - ProgressMonitor with callbacks
-4. **Template Method** - LossDistribution abstract base class
-5. **Adapter Pattern** - ConfigCompat for version bridging
-6. **Singleton Pattern** - ConfigManager instance management
-7. **Command Pattern** - BatchProcessor task queuing
-8. **Composite Pattern** - InsuranceProgram layer composition
-9. **Repository Pattern** - TrajectoryStorage data persistence
-10. **Chain of Responsibility** - ResultAggregator chaining
+### Creational Patterns
+- **Factory Pattern** - FigureFactory, ClaimGenerator
+- **Builder Pattern** - Configuration objects, SimulationResults
 
-## Testing Coverage
+### Structural Patterns
+- **Facade Pattern** - MonteCarloEngine, InsuranceProgram
+- **Adapter Pattern** - Storage backends, Report exporters
+- **Composite Pattern** - Financial statements, Analysis results
 
-All modules maintain 100% test coverage with:
-- Unit tests for individual components
-- Integration tests for module interactions
-- Performance tests for optimization verification
-- Property-based testing for stochastic processes
+### Behavioral Patterns
+- **Strategy Pattern** - Insurance strategies, Optimization algorithms
+- **Observer Pattern** - Progress monitoring, Convergence tracking
+- **Template Method** - Distribution implementations
 
-## Performance Characteristics
+## Technology Stack
 
-| Operation | Target Performance | Current Status |
-|-----------|-------------------|----------------|
-| 1000-year simulation | < 1 minute | ✅ Achieved |
-| 100K Monte Carlo iterations | < 10 minutes | ✅ Achieved |
-| 1M iterations | Overnight | ✅ Achieved |
-| Memory per trajectory | < 1MB | ✅ Optimized |
-| Parallel efficiency | > 80% | ✅ Verified |
+### Core Dependencies
+- **NumPy** - Numerical computations
+- **Pandas** - Data manipulation
+- **SciPy** - Scientific computing
+- **Matplotlib/Plotly** - Visualizations
 
-## Diagram Rendering
+### Infrastructure
+- **Multiprocessing** - Parallel execution
+- **HDF5** - Trajectory storage
+- **OpenPyXL** - Excel generation
 
-All diagrams use Mermaid format and can be viewed:
-- Directly in GitHub/GitLab (automatic rendering)
-- VS Code with Mermaid extension
+## Viewing Mermaid Diagrams
+
+The architecture documentation uses Mermaid diagrams which can be viewed in:
+- GitHub (renders automatically)
+- VS Code with Mermaid preview extension
+- Any Markdown viewer with Mermaid support
 - Online at [mermaid.live](https://mermaid.live)
-- Exported to SVG/PNG using Mermaid CLI
 
-## Future Enhancements
+## Maintaining Documentation
 
-1. **GPU Acceleration** - CUDA support for Monte Carlo simulations
-2. **Distributed Computing** - Multi-machine cluster support
-3. **Real-time Analytics** - Streaming analysis during simulation
-4. **Machine Learning** - Neural network approximations for HJB solutions
-5. **Cloud Integration** - AWS/Azure deployment capabilities
+To keep documentation current:
+1. Update diagrams when making architectural changes
+2. Run tests to ensure consistency
+3. Use the Claude command for automated updates:
+   ```bash
+   # See .claude/commands/simone/mermaid.md for details
+   ```
 
-## Contributing
+## Contact
 
-When adding new components:
-1. Follow existing architectural patterns
-2. Update relevant diagrams in this directory
-3. Maintain 100% test coverage
-4. Document with Google-style docstrings
-5. Add to appropriate module category
-
-## Last Updated
-2025-09-01 | Version 0.1.0 | Comprehensive architecture update with 50 modules documented
+For questions about the architecture or documentation:
+- Review the [main README](../../README.md)
+- Check the [CLAUDE.md](../../CLAUDE.md) for project context
+- Consult sprint documents in `simone/` directory

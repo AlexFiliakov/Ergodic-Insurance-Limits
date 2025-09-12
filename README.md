@@ -32,7 +32,29 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 
 ## Key Features
 
-![System Architecture Diagram](assets/system_architecture.png)
+```mermaid
+flowchart LR
+    %% Simplified Executive View
+    INPUT[("📊 Market Data<br/>& Configuration")]
+    BUSINESS[("🏭 Business<br/>Simulation")]
+    ERGODIC[("📈 Ergodic<br/>Analysis")]
+    OPTIMIZE[("🎯 Strategy<br/>Optimization")]
+    OUTPUT[("📑 Reports &<br/>Insights")]
+
+    INPUT --> BUSINESS
+    BUSINESS --> ERGODIC
+    ERGODIC --> OPTIMIZE
+    OPTIMIZE --> OUTPUT
+
+    %% Styling
+    classDef inputStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:3px,font-size:14px
+    classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,font-size:14px
+    classDef outputStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,font-size:14px
+
+    class INPUT inputStyle
+    class BUSINESS,ERGODIC,OPTIMIZE processStyle
+    class OUTPUT outputStyle
+```
 
 ### Financial Modeling
 - **Widget manufacturer model** with comprehensive balance sheet management

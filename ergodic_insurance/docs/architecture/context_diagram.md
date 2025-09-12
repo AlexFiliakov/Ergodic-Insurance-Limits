@@ -1,270 +1,242 @@
 # High-Level System Context Diagram
 
-## Overview
-This diagram shows the overall architecture of the Ergodic Insurance Limits system, illustrating how different components interact to provide insurance optimization through ergodic theory.
+## Executive Summary
+
+The Ergodic Insurance Limits framework analyzes insurance decisions using time-average (ergodic) theory rather than traditional ensemble averages. This approach reveals that insurance can enhance business growth even when premiums exceed expected losses by 200-500%, transforming insurance from a cost center to a growth enabler.
+
+### Simplified System Architecture
+
+```mermaid
+flowchart LR
+    %% Simplified Executive View
+    INPUT[("📊 Market Data<br/>& Configuration")]
+    BUSINESS[("🏭 Business<br/>Simulation")]
+    ERGODIC[("📈 Ergodic<br/>Analysis")]
+    OPTIMIZE[("🎯 Strategy<br/>Optimization")]
+    OUTPUT[("📑 Reports &<br/>Insights")]
+
+    INPUT --> BUSINESS
+    BUSINESS --> ERGODIC
+    ERGODIC --> OPTIMIZE
+    OPTIMIZE --> OUTPUT
+
+    %% Styling
+    classDef inputStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:3px,font-size:14px
+    classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,font-size:14px
+    classDef outputStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,font-size:14px
+
+    class INPUT inputStyle
+    class BUSINESS,ERGODIC,OPTIMIZE processStyle
+    class OUTPUT outputStyle
+```
+
+**Key Innovation**: By comparing time-average growth (what one business experiences over time) with ensemble-average growth (statistical average across many businesses), the framework demonstrates that insurance fundamentally transforms the growth dynamics of volatile businesses.
+
+### System Architecture Overview (Detailed)
+
+The actual implementation follows a sophisticated multi-layer architecture:
+
+```mermaid
+graph TB
+    %% Input Layer
+    subgraph Inputs["📥 Input Layer"]
+        CONF["Configuration<br/>(YAML/JSON)"]
+        HIST["Historical Loss Data"]
+        PARAMS["Business Parameters"]
+    end
+
+    %% Core Simulation
+    subgraph Core["⚙️ Core Simulation Engine"]
+        MANU["WidgetManufacturer<br/>(Business Model)"]
+        CLAIM["ClaimGenerator<br/>(Loss Events)"]
+        INS["InsuranceProgram<br/>(Coverage Tower)"]
+        SIM["Simulation Engine<br/>(Time Evolution)"]
+    end
+
+    %% Analysis Layer
+    subgraph Analysis["📊 Analysis & Optimization"]
+        MONTE["Monte Carlo Engine<br/>(10,000+ paths)"]
+        ERGODIC["Ergodic Analyzer<br/>(Time vs Ensemble)"]
+        OPT["Business Optimizer<br/>(Strategy Selection)"]
+        SENS["Sensitivity Analysis<br/>(Parameter Impact)"]
+    end
+
+    %% Output Layer
+    subgraph Outputs["📤 Output & Insights"]
+        EXCEL["Excel Reports<br/>(Detailed Results)"]
+        VIZ["Visualizations<br/>(Executive & Technical)"]
+        METRICS["Risk Metrics<br/>(VaR, CVaR, Ruin Prob)"]
+        STRATEGY["Optimal Strategy<br/>(Limits & Retentions)"]
+    end
+
+    %% Data Flow
+    Inputs --> Core
+    Core --> MONTE
+    MONTE --> Analysis
+    Analysis --> Outputs
+
+    %% Key Connections
+    MANU -.-> INS
+    CLAIM -.-> INS
+    INS -.-> SIM
+    SIM -.-> MONTE
+    ERGODIC -.-> OPT
+    OPT -.-> SENS
+
+    classDef inputClass fill:#e3f2fd,stroke:#1565c0
+    classDef coreClass fill:#fff3e0,stroke:#ef6c00
+    classDef analysisClass fill:#f3e5f5,stroke:#7b1fa2
+    classDef outputClass fill:#e8f5e9,stroke:#2e7d32
+
+    class CONF,HIST,PARAMS inputClass
+    class MANU,CLAIM,INS,SIM coreClass
+    class MONTE,ERGODIC,OPT,SENS analysisClass
+    class EXCEL,VIZ,METRICS,STRATEGY outputClass
+```
+
+### Reference to System Architecture Diagram
+
+For a visual representation, see: [`assets/system_architecture.png`](../../assets/system_architecture.png)
+
+The PNG diagram shows the simplified flow, while the detailed architecture above reflects the actual implementation with all major components.
+
+## Detailed System Architecture
+
+This diagram shows the overall architecture of the Ergodic Insurance Limits framework, including the main components, external dependencies, and data flow between major modules.
 
 ```mermaid
 flowchart TB
-    subgraph External["External Systems & I/O"]
-        YAML["/Configuration Files<br/>(YAML/JSON)"/]
-        CSV["/Data Export<br/>(CSV/Excel/Parquet)"/]
-        CHECKPOINT["/Checkpoint Storage<br/>(Persistence)"/]
-        JUPYTER["/Jupyter Notebooks<br/>(Interactive Analysis)"/]
-        SPHINX["/Documentation<br/>(Sphinx API Docs)"/]
+    %% External Inputs and Configurations
+    subgraph External["External Inputs"]
+        CONFIG[("Configuration Files<br/>YAML/JSON")]
+        MARKET[("Market Data<br/>Loss Distributions")]
+        PARAMS[("Business Parameters<br/>Financial Metrics")]
     end
 
-    subgraph ConfigLayer["Configuration Management v2.0"]
-        CONFIG_MGR["Config Manager<br/>(3-Tier System)"]
-        CONFIG_V2["ConfigV2<br/>(Pydantic Models)"]
-        CONFIG_COMPAT["Legacy Adapter<br/>(Backward Compat)"]
-        CONFIG_MIGRATOR["Config Migrator<br/>(Version Upgrade)"]
+    %% Core System Components
+    subgraph Core["Core Simulation Engine"]
+        SIM["Simulation<br/>Engine"]
+        MANU["Widget<br/>Manufacturer<br/>Model"]
+        CLAIM["Claim<br/>Generator"]
+        INS["Insurance<br/>Program"]
     end
 
-    subgraph FinancialCore["Financial Modeling Core"]
-        MANUFACTURER["Widget Manufacturer<br/>(Balance Sheet Model)"]
-        CLAIM_GEN["Claim Generator<br/>(Loss Events)"]
-        CLAIM_DEV["Claim Development<br/>(Payment Patterns)"]
-        STOCHASTIC["Stochastic Processes<br/>(GBM, OU, Lognormal)"]
+    %% Analysis and Optimization
+    subgraph Analysis["Analysis & Optimization"]
+        ERGODIC["Ergodic<br/>Analyzer"]
+        OPT["Business<br/>Optimizer"]
+        MONTE["Monte Carlo<br/>Engine"]
+        SENS["Sensitivity<br/>Analyzer"]
     end
 
-    subgraph InsuranceLayer["Insurance & Risk Management"]
-        INSURANCE["Insurance Policy<br/>(Basic Coverage)"]
-        INSURANCE_PROG["Insurance Program<br/>(Multi-Layer)"]
-        LOSS_DIST["Loss Distributions<br/>(Frequency/Severity)"]
-        RUIN_PROB["Ruin Probability<br/>(Survival Analysis)"]
+    %% Validation and Testing
+    subgraph Validation["Validation & Testing"]
+        ACC["Accuracy<br/>Validator"]
+        BACK["Strategy<br/>Backtester"]
+        WALK["Walk-Forward<br/>Validator"]
+        CONV["Convergence<br/>Monitor"]
     end
 
-    subgraph OptimizationEngine["Optimization & Control"]
-        OPTIMIZER["Business Optimizer<br/>(Strategy Search)"]
-        DECISION["Decision Engine<br/>(Multi-Objective)"]
-        PARETO["Pareto Frontier<br/>(Trade-off Analysis)"]
-        HJB["HJB Solver<br/>(Dynamic Programming)"]
-        OPTIMAL_CTRL["Optimal Control<br/>(Feedback Strategies)"]
+    %% Processing Infrastructure
+    subgraph Infrastructure["Processing Infrastructure"]
+        BATCH["Batch<br/>Processor"]
+        PARALLEL["Parallel<br/>Executor"]
+        CACHE["Smart<br/>Cache"]
+        STORAGE["Trajectory<br/>Storage"]
     end
 
-    subgraph SimulationFramework["Simulation & Execution"]
-        SIMULATION["Main Simulation<br/>(Orchestrator)"]
-        MONTE_CARLO["Monte Carlo Engine<br/>(Ensemble Runs)"]
-        PARALLEL_EXEC["Parallel Executor<br/>(CPU Optimization)"]
-        BATCH_PROC["Batch Processor<br/>(Scenario Management)"]
-        TRAJECTORY["Trajectory Storage<br/>(Memory Efficient)"]
+    %% Reporting and Visualization
+    subgraph Output["Reporting & Visualization"]
+        VIZ["Visualization<br/>Engine"]
+        EXCEL["Excel<br/>Reporter"]
+        STATS["Summary<br/>Statistics"]
+        METRICS["Risk<br/>Metrics"]
     end
 
-    subgraph AnalyticsLayer["Analytics & Metrics"]
-        ERGODIC["Ergodic Analyzer<br/>(Time vs Ensemble)"]
-        RISK_METRICS["Risk Metrics<br/>(VaR, CVaR, TVaR)"]
-        CONVERGENCE["Convergence Tools<br/>(Diagnostics)"]
-        CONVERGENCE_ADV["Advanced Convergence<br/>(Multi-Metric)"]
-        CONVERGENCE_PLOT["Convergence Plots<br/>(Visualization)"]
-        BOOTSTRAP["Bootstrap Analysis<br/>(Confidence Intervals)"]
-        STATS_TESTS["Statistical Tests<br/>(Hypothesis Testing)"]
-        SENSITIVITY["Sensitivity Analysis<br/>(Parameter Impact)"]
-        PARAMETER_SWEEP["Parameter Sweep<br/>(Grid Search)"]
-    end
+    %% Data Flow
+    CONFIG --> SIM
+    MARKET --> CLAIM
+    PARAMS --> MANU
 
-    subgraph ResultsProcessing["Results & Reporting"]
-        AGGREGATOR["Result Aggregator<br/>(Hierarchical)"]
-        SUMMARY_STATS["Summary Statistics<br/>(Distribution Analysis)"]
-        SCENARIO_MGR["Scenario Manager<br/>(Parameter Grids)"]
-        PROGRESS_MON["Progress Monitor<br/>(Real-time Tracking)"]
-        VISUALIZATION["Visualization<br/>(WSJ-Style Charts)"]
-        SENSITIVITY_VIZ["Sensitivity Viz<br/>(Tornado Charts)"]
-        EXCEL_REPORTER["Excel Reporter<br/>(Business Reports)"]
-        FINANCIAL_STMT["Financial Statements<br/>(P&L, Balance Sheet)"]
-    end
+    SIM --> MANU
+    SIM --> CLAIM
+    SIM --> INS
 
-    subgraph ValidationFramework["Validation & Testing"]
-        WALK_FORWARD["Walk-Forward Validator<br/>(Out-of-Sample)"]
-        STRATEGY_BACKTEST["Strategy Backtester<br/>(Historical Validation)"]
-        VALIDATION_METRICS["Validation Metrics<br/>(Performance KPIs)"]
-        ACCURACY_VAL["Accuracy Validator<br/>(Numerical Precision)"]
-        PERFORMANCE_OPT["Performance Optimizer<br/>(Speed Tuning)"]
-        BENCHMARKING["Benchmarking Suite<br/>(Performance Tests)"]
-        ADAPTIVE_STOP["Adaptive Stopping<br/>(Early Termination)"]
-    end
+    MANU <--> INS
+    CLAIM --> INS
 
-    subgraph InsuranceAdvanced["Advanced Insurance Features"]
-        INSURANCE_PRICING["Insurance Pricing<br/>(Premium Models)"]
-    end
+    SIM --> MONTE
+    MONTE --> ERGODIC
+    MONTE --> OPT
 
-    %% Configuration Flow
-    YAML -->|Load| CONFIG_MGR
-    CONFIG_MGR --> CONFIG_V2
-    CONFIG_V2 --> CONFIG_COMPAT
-    CONFIG_MIGRATOR -->|Upgrade| CONFIG_V2
+    ERGODIC --> SENS
+    OPT --> SENS
 
-    %% Initialization Flow
-    CONFIG_V2 -->|Initialize| MANUFACTURER
-    CONFIG_V2 -->|Configure| INSURANCE_PROG
-    CONFIG_V2 -->|Setup| STOCHASTIC
-    CONFIG_V2 -->|Define| LOSS_DIST
+    MONTE --> ACC
+    MONTE --> BACK
+    BACK --> WALK
 
-    %% Simulation Flow
-    MANUFACTURER -->|State| SIMULATION
-    CLAIM_GEN -->|Events| MANUFACTURER
-    CLAIM_DEV -->|Cash Flows| MANUFACTURER
-    STOCHASTIC -->|Shocks| MANUFACTURER
-    INSURANCE_PROG -->|Coverage| MANUFACTURER
+    MONTE --> CONV
+    CONV --> BATCH
 
-    %% Parallel Execution
-    SIMULATION -->|Orchestrate| MONTE_CARLO
-    MONTE_CARLO -->|Distribute| PARALLEL_EXEC
-    PARALLEL_EXEC -->|Execute| BATCH_PROC
-    BATCH_PROC -->|Store| TRAJECTORY
-    TRAJECTORY -->|Checkpoint| CHECKPOINT
+    BATCH --> PARALLEL
+    PARALLEL --> CACHE
+    CACHE --> STORAGE
 
-    %% Analytics Flow
-    TRAJECTORY -->|Time Series| ERGODIC
-    TRAJECTORY -->|Paths| RISK_METRICS
-    RISK_METRICS -->|Metrics| CONVERGENCE
-    CONVERGENCE -->|Advanced| CONVERGENCE_ADV
-    CONVERGENCE_ADV -->|Visualize| CONVERGENCE_PLOT
-    CONVERGENCE -->|Tests| STATS_TESTS
-    STATS_TESTS -->|Bootstrap| BOOTSTRAP
-    RISK_METRICS -->|Parameters| SENSITIVITY
-    SENSITIVITY -->|Grid| PARAMETER_SWEEP
+    ERGODIC --> VIZ
+    OPT --> VIZ
+    SENS --> VIZ
 
-    %% Optimization Flow
-    RISK_METRICS -->|Objectives| OPTIMIZER
-    ERGODIC -->|Growth Rates| OPTIMIZER
-    OPTIMIZER -->|Search| DECISION
-    DECISION -->|Evaluate| PARETO
-    HJB -->|Value Function| OPTIMAL_CTRL
-    OPTIMAL_CTRL -->|Strategy| DECISION
+    STORAGE --> STATS
+    STATS --> EXCEL
+    STATS --> METRICS
 
-    %% Results Flow
-    BATCH_PROC -->|Results| AGGREGATOR
-    AGGREGATOR -->|Statistics| SUMMARY_STATS
-    SUMMARY_STATS -->|Reports| SCENARIO_MGR
-    SCENARIO_MGR -->|Monitor| PROGRESS_MON
-    SUMMARY_STATS -->|Visualize| VISUALIZATION
-    SENSITIVITY -->|Charts| SENSITIVITY_VIZ
-    SUMMARY_STATS -->|Business| EXCEL_REPORTER
-    MANUFACTURER -->|Financials| FINANCIAL_STMT
+    VIZ --> EXCEL
 
-    %% Validation Flow
-    TRAJECTORY -->|Historical| WALK_FORWARD
-    WALK_FORWARD -->|Backtest| STRATEGY_BACKTEST
-    STRATEGY_BACKTEST -->|Metrics| VALIDATION_METRICS
-    VALIDATION_METRICS -->|Accuracy| ACCURACY_VAL
-    MONTE_CARLO -->|Performance| PERFORMANCE_OPT
-    PERFORMANCE_OPT -->|Benchmark| BENCHMARKING
-    CONVERGENCE -->|Early Stop| ADAPTIVE_STOP
+    %% Styling
+    classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef core fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef analysis fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef validation fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef infra fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    classDef output fill:#e0f2f1,stroke:#004d40,stroke-width:2px
 
-    %% Insurance Advanced Flow
-    LOSS_DIST -->|Pricing| INSURANCE_PRICING
-    INSURANCE_PRICING -->|Premium| INSURANCE_PROG
-
-    %% Output Flow
-    VISUALIZATION -->|Export| CSV
-    AGGREGATOR -->|Save| CHECKPOINT
-    VISUALIZATION -->|Interactive| JUPYTER
-    CONFIG_V2 -->|Document| SPHINX
-    EXCEL_REPORTER -->|Export| CSV
-    FINANCIAL_STMT -->|Export| CSV
-
-    style ConfigLayer fill:#e3f2fd
-    style FinancialCore fill:#e8f5e9
-    style InsuranceLayer fill:#fff3e0
-    style InsuranceAdvanced fill:#ffe0b2
-    style OptimizationEngine fill:#fce4ec
-    style SimulationFramework fill:#f3e5f5
-    style AnalyticsLayer fill:#e0f2f1
-    style ResultsProcessing fill:#fff9c4
-    style ValidationFramework fill:#e8eaf6
-    style External fill:#efebe9
+    class CONFIG,MARKET,PARAMS external
+    class SIM,MANU,CLAIM,INS core
+    class ERGODIC,OPT,MONTE,SENS analysis
+    class ACC,BACK,WALK,CONV validation
+    class BATCH,PARALLEL,CACHE,STORAGE infra
+    class VIZ,EXCEL,STATS,METRICS output
 ```
 
-## Component Descriptions
+## System Overview
 
-### External Systems & I/O
-- **Configuration Files**: YAML and JSON configuration files for scenarios and parameters
-- **Data Export**: Results export to CSV, Excel, and Parquet formats
-- **Checkpoint Storage**: Persistence layer for simulation checkpoints and recovery
-- **Jupyter Notebooks**: Interactive analysis and demonstration environment
-- **Documentation**: Sphinx-generated API documentation
+The Ergodic Insurance Limits framework is designed as a modular, high-performance system for analyzing insurance purchasing decisions through the lens of ergodic theory. The architecture follows these key principles:
 
-### Configuration Management v2.0
-- **Config Manager**: 3-tier configuration system (profiles, modules, presets)
-- **ConfigV2**: Enhanced Pydantic v2 models with validation
-- **Legacy Adapter**: Backward compatibility with v1 configurations
-- **Config Migrator**: Tool for upgrading legacy configurations
+### 1. **Separation of Concerns**
+- **Core Simulation**: Handles the fundamental business and insurance mechanics
+- **Analysis Layer**: Provides ergodic and optimization capabilities
+- **Infrastructure**: Manages computational efficiency and data handling
+- **Validation**: Ensures accuracy and robustness of results
+- **Output**: Delivers insights through visualizations and reports
 
-### Financial Modeling Core
-- **Widget Manufacturer**: Balance sheet evolution and financial state modeling
-- **Claim Generator**: Loss event generation with configurable distributions
-- **Claim Development**: Payment pattern modeling over time
-- **Stochastic Processes**: GBM, Ornstein-Uhlenbeck, and lognormal volatility
+### 2. **Data Flow Architecture**
+- Configuration and market data flow into the simulation engine
+- Simulations generate trajectories processed by analysis modules
+- Infrastructure layers provide caching and parallelization
+- Results flow to visualization and reporting components
 
-### Insurance & Risk Management
-- **Insurance Policy**: Basic insurance coverage implementation
-- **Insurance Program**: Multi-layer insurance structures with reinstatements
-- **Loss Distributions**: Frequency and severity modeling (Poisson, lognormal, Pareto)
-- **Ruin Probability**: Survival analysis and bankruptcy risk assessment
+### 3. **Key Interactions**
+- The **Simulation Engine** orchestrates the time evolution of the business model
+- The **Manufacturer Model** interacts with the **Insurance Program** for claim processing
+- **Monte Carlo Engine** generates multiple scenarios for statistical analysis
+- **Ergodic Analyzer** compares time-average vs ensemble-average growth
+- **Batch Processor** and **Parallel Executor** enable high-performance computing
 
-### Optimization & Control
-- **Business Optimizer**: Strategy search and optimization algorithms
-- **Decision Engine**: Multi-objective decision support system
-- **Pareto Frontier**: Trade-off analysis between competing objectives
-- **HJB Solver**: Hamilton-Jacobi-Bellman equation solver for dynamic programming
-- **Optimal Control**: Feedback control strategies for adaptive decisions
-
-### Simulation Framework
-- **Main Simulation**: Central orchestrator for simulation execution
-- **Monte Carlo Engine**: Ensemble simulation runner
-- **Parallel Executor**: CPU-optimized parallel processing
-- **Batch Processor**: Scenario batch management with checkpointing
-- **Trajectory Storage**: Memory-efficient storage of simulation paths
-
-### Analytics & Metrics
-- **Ergodic Analyzer**: Time average vs ensemble average comparison
-- **Risk Metrics**: Comprehensive risk measures (VaR, CVaR, TVaR, Sharpe, etc.)
-- **Convergence Tools**: Statistical convergence diagnostics
-- **Advanced Convergence**: Multi-metric convergence analysis with sophisticated tests
-- **Convergence Plots**: Visualization of convergence diagnostics
-- **Bootstrap Analysis**: Confidence interval estimation
-- **Statistical Tests**: Hypothesis testing framework
-- **Sensitivity Analysis**: Parameter impact assessment and tornado diagrams
-- **Parameter Sweep**: Grid search across parameter spaces
-
-### Results Processing
-- **Result Aggregator**: Hierarchical aggregation of simulation results
-- **Summary Statistics**: Distribution analysis and statistical summaries
-- **Scenario Manager**: Parameter grid management and scenario generation
-- **Progress Monitor**: Real-time simulation progress tracking
-- **Visualization**: WSJ-style professional charting
-- **Sensitivity Visualization**: Tornado charts and sensitivity heat maps
-- **Excel Reporter**: Automated business reports in Excel format
-- **Financial Statements**: P&L and balance sheet generation
-
-### Validation & Testing Framework
-- **Walk-Forward Validator**: Out-of-sample validation for strategy robustness
-- **Strategy Backtester**: Historical validation of insurance strategies
-- **Validation Metrics**: Comprehensive performance KPIs and metrics
-- **Accuracy Validator**: Numerical precision and correctness testing
-- **Performance Optimizer**: Speed tuning and computational optimization
-- **Benchmarking Suite**: Performance testing and regression detection
-- **Adaptive Stopping**: Early termination based on convergence criteria
-
-### Advanced Insurance Features
-- **Insurance Pricing**: Sophisticated premium modeling and rate calculation
-
-(data-flow-patterns)=
-## Data Flow Patterns
-
-1. **Configuration Pipeline**: External configs → Manager → V2 models → Component initialization
-2. **Simulation Pipeline**: Financial model + Stochastic + Insurance → Simulation engine → Parallel execution
-3. **Analytics Pipeline**: Raw trajectories → Metrics calculation → Statistical analysis → Optimization
-4. **Results Pipeline**: Aggregation → Summary stats → Visualization → Export
-5. **Validation Pipeline**: Historical data → Walk-forward → Backtesting → Performance metrics
-6. **Sensitivity Pipeline**: Base scenario → Parameter variations → Impact analysis → Visualization
-7. **Reporting Pipeline**: Results → Financial statements → Excel reports → Business insights
-
-## Key Architectural Decisions
-
-1. **Modular Design**: Each component has a single responsibility with clear interfaces
-2. **Configuration-Driven**: All parameters externalized through Pydantic models
-3. **Parallel Processing**: CPU-optimized execution for large-scale simulations
-4. **Memory Efficiency**: Trajectory storage and batch processing for long simulations
-5. **Extensibility**: Plugin-style architecture for new loss distributions and processes
-6. **Testing**: 100% test coverage with comprehensive unit and integration tests
+### 4. **External Dependencies**
+The system integrates with:
+- NumPy/SciPy for numerical computations
+- Pandas for data manipulation
+- Matplotlib/Plotly for visualizations
+- OpenPyXL for Excel reporting
+- Multiprocessing for parallel execution

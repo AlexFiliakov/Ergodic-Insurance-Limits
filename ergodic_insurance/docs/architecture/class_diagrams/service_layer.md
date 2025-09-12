@@ -1,482 +1,289 @@
-# Service Layer Architecture
+# Service Layer and Infrastructure
 
-(analytics-and-optimization-services)=
-## Analytics and Optimization Services
-
-```mermaid
-classDiagram
-    class ErgodicAnalyzer {
-        -Config config
-        -ConvergenceDiagnostics diagnostics
-        +__init__(config)
-        +analyze_single_path(trajectory) float
-        +analyze_ensemble(trajectories) ErgodicResult
-        +calculate_time_average(path) float
-        +calculate_ensemble_average(paths) float
-        +test_ergodicity(paths) bool
-        +plot_ergodic_comparison()
-    }
-
-    class RiskMetrics {
-        -Dict~str,Callable~ metric_functions
-        +__init__()
-        +calculate_var(returns, confidence) float
-        +calculate_cvar(returns, confidence) float
-        +calculate_sharpe_ratio(returns, risk_free) float
-        +calculate_sortino_ratio(returns, mar) float
-        +calculate_max_drawdown(prices) float
-        +calculate_all_metrics(data) RiskMetricsResult
-    }
-
-    class BusinessOptimizer {
-        -DecisionEngine decision_engine
-        -ParetoFrontier pareto_frontier
-        -Dict constraints
-        +__init__(objectives, constraints)
-        +optimize(simulation_func) OptimalStrategy
-        +evaluate_strategy(params) float
-        +generate_candidates() List~Dict~
-        +apply_constraints(candidates) List~Dict~
-        +select_best(evaluated) OptimalStrategy
-    }
-
-    class InsuranceDecisionEngine {
-        -RiskMetrics risk_calculator
-        -Dict optimization_constraints
-        +__init__(constraints)
-        +evaluate_program(program, simulations) DecisionMetrics
-        +compare_programs(programs) List~Tuple~
-        +optimize_retention(base_program) float
-        +recommend_structure(metrics) InsuranceProgram
-        +sensitivity_analysis(program) Dict
-    }
-
-    class ParetoFrontier {
-        -List~Objective~ objectives
-        -List~ParetoPoint~ frontier
-        +__init__(objectives)
-        +add_point(values, params) bool
-        +is_dominated(point) bool
-        +get_frontier() List~ParetoPoint~
-        +find_knee_point() ParetoPoint
-        +plot_frontier()
-    }
-
-    class ConvergenceDiagnostics {
-        +__init__(tolerance, min_iterations)
-        +check_convergence(values) bool
-        +gelman_rubin_statistic(chains) float
-        +effective_sample_size(chain) int
-        +autocorrelation(chain) ndarray
-        +plot_diagnostics(chains)
-    }
-
-    ErgodicAnalyzer --> ConvergenceDiagnostics : uses
-    BusinessOptimizer --> InsuranceDecisionEngine : contains
-    BusinessOptimizer --> ParetoFrontier : uses
-    InsuranceDecisionEngine --> RiskMetrics : uses
-```
-
-(simulation-orchestration-services)=
-## Simulation Orchestration Services
+This diagram shows the service layer components that provide infrastructure support for the core simulation and analysis.
 
 ```mermaid
 classDiagram
-    class MonteCarloEngine {
-        -SimulationConfig config
-        -ParallelExecutor executor
-        -ProgressMonitor monitor
-        -TrajectoryStorage storage
-        +__init__(config)
-        +run(n_simulations) MonteCarloResults
-        +run_batch(batch_params) BatchResult
-        +checkpoint_state(iteration)
-        +resume_from_checkpoint(path)
-        +aggregate_results() AggregatedResults
+    %% Batch Processing Services
+    class BatchProcessor {
+        -config: BatchConfig
+        -executor: ParallelExecutor
+        -cache: SmartCache
+        -progress_monitor: ProgressMonitor
+        +process_scenarios(scenarios: List) BatchResults
+        +process_parameter_sweep(params: dict) SweepResults
+        +process_convergence_study() ConvergenceResults
+        +resume_from_checkpoint(checkpoint_id: str)
     }
 
     class ParallelExecutor {
-        -int n_workers
-        -ChunkingStrategy strategy
-        -SharedMemoryManager mem_manager
-        -Queue task_queue
-        +__init__(n_workers, strategy)
-        +execute(func, data) List
-        +map(func, iterable) List
-        +map_reduce(map_func, reduce_func, data) Any
-        +shutdown()
+        -n_workers: int
+        -chunk_size: int
+        -backend: str
+        -memory_limit: float
+        +map(func: Callable, items: List) List
+        +map_reduce(map_func, reduce_func, items) Any
+        +scatter_gather(tasks: List) List
+        +get_worker_status() dict
     }
 
-    class BatchProcessor {
-        -ScenarioManager scenario_manager
-        -ResultAggregator aggregator
-        -CheckpointManager checkpointer
-        +__init__(config)
-        +process_scenarios(scenarios) AggregatedResults
-        +process_batch(batch) BatchResult
-        +handle_failure(batch_id, error)
-        +merge_results(batch_results) AggregatedResults
+    class SmartCache {
+        -cache_dir: Path
+        -max_size_gb: float
+        -ttl_hours: int
+        -compression: bool
+        +get(key: str) Optional[Any]
+        +set(key: str, value: Any)
+        +invalidate(pattern: str)
+        +get_stats() CacheStats
+    }
+
+    %% Progress and Monitoring
+    class ProgressMonitor {
+        -total_tasks: int
+        -completed_tasks: int
+        -start_time: float
+        -update_interval: float
+        +update(progress: float, message: str)
+        +estimate_time_remaining() float
+        +get_throughput() float
+        +display_progress_bar()
+    }
+
+    class ConvergenceMonitor {
+        -metrics: List[float]
+        -threshold: float
+        -window_size: int
+        -patience: int
+        +add_metric(value: float)
+        +check_convergence() bool
+        +get_convergence_rate() float
+        +plot_convergence_history()
+    }
+
+    %% Trajectory Storage
+    class TrajectoryStorage {
+        -storage_backend: str
+        -compression_level: int
+        -chunk_size: int
+        +store_trajectory(sim_id: str, data: ndarray)
+        +load_trajectory(sim_id: str) ndarray
+        +store_batch(trajectories: dict)
+        +query_trajectories(filter: dict) List
+        +get_storage_stats() dict
+    }
+
+    %% Parameter Management
+    class ParameterSweep {
+        -base_params: dict
+        -sweep_params: dict
+        -sweep_type: str
+        -n_points: int
+        +generate_grid() List[dict]
+        +generate_latin_hypercube() List[dict]
+        +generate_sobol_sequence() List[dict]
+        +adaptive_sampling(results: List) List[dict]
     }
 
     class ScenarioManager {
-        -List~ScenarioConfig~ scenarios
-        -Dict parameter_grids
-        +__init__(base_config)
-        +create_scenario(name, params) ScenarioConfig
-        +generate_grid(param_specs) List~Dict~
-        +validate_scenario(scenario) bool
-        +prioritize_scenarios() List~ScenarioConfig~
-        +export_scenarios(path)
+        -scenarios: Dict[str, Scenario]
+        -active_scenario: str
+        +add_scenario(name: str, params: dict)
+        +load_scenario(name: str) Scenario
+        +compare_scenarios(names: List[str]) ComparisonResults
+        +export_scenarios(path: str)
     }
 
-    class TrajectoryStorage {
-        -StorageConfig config
-        -h5py.File file_handle
-        -LRUCache cache
-        +__init__(config)
-        +store(simulation_id, data)
-        +retrieve(simulation_id) ndarray
-        +query(criteria) List~SimulationSummary~
-        +compress_data(data) bytes
-        +cleanup_old(days)
+    %% Performance Optimization
+    class PerformanceOptimizer {
+        -profiler: cProfile
+        -memory_profiler: MemoryProfiler
+        -optimization_level: int
+        +profile_function(func: Callable) ProfileResult
+        +optimize_memory_usage()
+        +enable_numba_jit()
+        +vectorize_operations()
+        +get_bottlenecks() List[Bottleneck]
     }
 
-    class ProgressMonitor {
-        -ProgressStats stats
-        -List~Callable~ callbacks
-        +__init__()
-        +start_task(name, total)
-        +update(completed)
-        +finish_task()
-        +add_callback(func)
-        +get_eta() datetime
-        +display_progress()
+    class VectorizedOperations {
+        <<static>>
+        +calculate_returns(prices: ndarray) ndarray
+        +calculate_drawdowns(equity: ndarray) ndarray
+        +calculate_rolling_stats(data: ndarray, window: int) dict
+        +apply_vectorized_claim(claims: ndarray, limits: ndarray) ndarray
     }
 
-    MonteCarloEngine --> ParallelExecutor : uses
-    MonteCarloEngine --> ProgressMonitor : uses
-    MonteCarloEngine --> TrajectoryStorage : stores to
-    ParallelExecutor --> SharedMemoryManager : uses
-    BatchProcessor --> ScenarioManager : uses
-    BatchProcessor --> ResultAggregator : uses
-```
-
-(statistical-analysis-services)=
-## Statistical Analysis Services
-
-```mermaid
-classDiagram
-    class BootstrapAnalyzer {
-        -int n_bootstrap
-        -float confidence_level
-        -np.random.RandomState rng
-        +__init__(n_bootstrap, confidence, seed)
-        +bootstrap_mean(data) BootstrapResult
-        +bootstrap_statistic(data, func) BootstrapResult
-        +confidence_interval(samples) Tuple
-        +bias_correction(samples, observed) float
-        +plot_bootstrap_distribution(result)
+    %% Benchmarking
+    class BenchmarkSuite {
+        -benchmarks: List[Benchmark]
+        -baseline_results: dict
+        -comparison_results: dict
+        +add_benchmark(benchmark: Benchmark)
+        +run_all_benchmarks() BenchmarkResults
+        +compare_implementations(impl1, impl2) ComparisonReport
+        +generate_performance_report() str
     }
 
-    class StatisticalTests {
-        +__init__()
-        +t_test(group1, group2) TestResult
-        +mann_whitney_u(group1, group2) TestResult
-        +kolmogorov_smirnov(data, distribution) TestResult
-        +anderson_darling(data) TestResult
-        +jarque_bera(data) TestResult
-        +adf_test(series) TestResult
-        +run_all_tests(data) Dict~str,TestResult~
+    class Benchmark {
+        +name: str
+        +setup_func: Callable
+        +test_func: Callable
+        +teardown_func: Callable
+        +n_iterations: int
+        +run() BenchmarkResult
     }
 
-    class SummaryStatistics {
-        -Dict cache
-        +__init__()
-        +calculate(data) StatisticalSummary
-        +rolling_statistics(data, window) pd.DataFrame
-        +expanding_statistics(data) pd.DataFrame
-        +grouped_statistics(data, groups) Dict
-        +weighted_statistics(data, weights) StatisticalSummary
-    }
-
-    class ResultAggregator {
-        -AggregationConfig config
-        -List~BaseAggregator~ aggregators
-        +__init__(config)
-        +aggregate(results) AggregatedResults
-        +add_aggregator(aggregator)
-        +hierarchical_aggregate(results, levels) Dict
-        +time_series_aggregate(results) TimeSeriesResult
-        +export_summary(format) Any
-    }
-
-    class ResultExporter {
-        -Dict~str,Callable~ exporters
-        +__init__()
-        +export_csv(results, path)
-        +export_excel(results, path)
-        +export_json(results, path)
-        +export_parquet(results, path)
-        +export_html_report(results, template, path)
-        +create_dashboard(results) str
-    }
-
-    ResultAggregator --> SummaryStatistics : uses
-    ResultAggregator --> ResultExporter : exports via
-    BootstrapAnalyzer --> StatisticalTests : may use
-```
-
-(validation-framework-services)=
-## Validation Framework Services
-
-```mermaid
-classDiagram
-    class WalkForwardValidator {
-        -int window_size
-        -int step_size
-        -float validation_split
-        -ValidationConfig config
-        +__init__(window_size, step_size, config)
-        +validate(data, strategy) ValidationResult
-        +create_windows(data) List~ValidationWindow~
-        +train_strategy(window) Strategy
-        +test_strategy(window, strategy) WindowResult
-        +aggregate_results(results) ValidationResult
+    %% Validation Services
+    class AccuracyValidator {
+        -tolerance: float
+        -reference_impl: ReferenceImplementations
+        +validate_calculation(func, inputs, expected) bool
+        +validate_convergence(results: List) bool
+        +validate_edge_cases() ValidationReport
+        +cross_validate(method1, method2) float
     }
 
     class StrategyBacktester {
-        -BacktestConfig config
-        -MetricCalculator calculator
-        +__init__(config)
-        +backtest(strategy, historical_data) BacktestResults
-        +calculate_returns(strategy, data) ndarray
-        +calculate_drawdown(returns) float
-        +calculate_risk_metrics(returns) Dict
-        +generate_report(results) Report
+        -historical_data: DataFrame
+        -strategy: InsuranceStrategy
+        -metrics: List[str]
+        +backtest(start_date, end_date) BacktestResults
+        +walk_forward_analysis(window_size: int) WalkForwardResults
+        +calculate_performance_metrics() dict
+        +generate_backtest_report() str
     }
 
-    class ValidationMetrics {
-        -List~str~ metric_names
-        -Dict thresholds
-        +__init__(metrics)
-        +calculate(actual, predicted) Dict
-        +calculate_rmse(actual, predicted) float
-        +calculate_mae(actual, predicted) float
-        +calculate_sharpe(returns) float
-        +check_performance(metrics) bool
+    %% Reporting Services
+    class ExcelReporter {
+        -template_path: str
+        -output_path: str
+        -workbook: Workbook
+        +create_summary_sheet(results: dict)
+        +create_charts(data: DataFrame)
+        +add_sensitivity_tables(sensitivity: SensitivityResult)
+        +add_risk_metrics(metrics: RiskMetrics)
+        +format_report()
+        +save()
     }
 
-    class AccuracyValidator {
-        -float tolerance
-        -ReferenceImplementation reference
-        +__init__(tolerance)
-        +validate_calculation(func, inputs) bool
-        +compare_results(actual, expected) float
-        +test_edge_cases(func) List~TestResult~
-        +validate_numerical_stability(func) bool
+    class ResultAggregator {
+        -results: List[SimulationResults]
+        -aggregation_funcs: dict
+        +add_results(results: SimulationResults)
+        +calculate_statistics() SummaryStatistics
+        +calculate_percentiles(percentiles: List) dict
+        +group_by(key: str) Dict[str, List]
+        +export_aggregated_data(format: str)
     }
 
-    class PerformanceOptimizer {
-        -ProfileConfig config
-        -SystemProfiler profiler
-        +__init__(config)
-        +profile(func) ProfileResult
-        +optimize_bottlenecks(profile) OptimizedFunc
-        +cache_optimization(func) CachedFunc
-        +parallelize(func) ParallelFunc
-        +benchmark(original, optimized) ComparisonResult
+    %% Visualization Services
+    class FigureFactory {
+        -style_manager: StyleManager
+        -default_size: tuple
+        -dpi: int
+        +create_line_plot(data: DataFrame) Figure
+        +create_distribution_plot(data: ndarray) Figure
+        +create_heatmap(data: ndarray) Figure
+        +create_dashboard(results: dict) Figure
+        +save_figure(fig: Figure, path: str)
     }
 
-    class BenchmarkSuite {
-        -List~Benchmark~ benchmarks
-        -BenchmarkConfig config
-        +__init__(config)
-        +add_benchmark(name, func)
-        +run_all() BenchmarkResults
-        +compare_versions(v1, v2) Comparison
-        +generate_report() Report
-        +detect_regression(results) bool
+    class StyleManager {
+        -theme: Theme
+        -color_palette: List[str]
+        -font_settings: dict
+        +apply_theme(theme: Theme)
+        +get_color_cycle() List
+        +format_axis(ax: Axes)
+        +add_annotations(ax: Axes, annotations: List)
     }
 
-    class AdaptiveStopper {
-        -ConvergenceMonitor monitor
-        -StoppingCriteria criteria
-        +__init__(criteria)
-        +should_stop(metrics) bool
-        +update_state(iteration, value)
-        +estimate_completion(current) int
-        +adjust_criteria(performance)
-    }
+    %% Relationships
+    BatchProcessor --> ParallelExecutor : uses
+    BatchProcessor --> SmartCache : caches with
+    BatchProcessor --> ProgressMonitor : monitors with
 
-    WalkForwardValidator --> ValidationMetrics : uses
-    StrategyBacktester --> ValidationMetrics : uses
-    PerformanceOptimizer --> BenchmarkSuite : uses
-    AdaptiveStopper --> ConvergenceMonitor : contains
-    AccuracyValidator --> ReferenceImplementation : validates against
+    ParallelExecutor --> VectorizedOperations : optimizes with
+
+    ParameterSweep --> ScenarioManager : generates for
+
+    PerformanceOptimizer --> VectorizedOperations : creates
+    PerformanceOptimizer --> BenchmarkSuite : benchmarks with
+
+    BenchmarkSuite --> Benchmark : runs
+
+    AccuracyValidator --> StrategyBacktester : validates
+
+    ResultAggregator --> ExcelReporter : feeds
+    ResultAggregator --> FigureFactory : visualizes with
+
+    FigureFactory --> StyleManager : styled by
+
+    BatchProcessor --> TrajectoryStorage : stores in
+    ConvergenceMonitor --> ProgressMonitor : reports to
 ```
 
-(control-and-optimization-services)=
-## Control and Optimization Services
-
-```mermaid
-classDiagram
-    class HJBSolver {
-        -HJBProblem problem
-        -StateSpace state_space
-        -ndarray value_function
-        -HJBSolverConfig config
-        +__init__(problem, config)
-        +solve() HJBSolution
-        +iterate_value_function() float
-        +compute_optimal_control(state) float
-        +check_convergence() bool
-        +refine_grid()
-    }
-
-    class OptimalController {
-        -ControlSpace control_space
-        -ControlStrategy strategy
-        -Dict state_feedback
-        +__init__(control_space, mode)
-        +compute_control(state, time) float
-        +update_feedback(state, value)
-        +switch_strategy(new_strategy)
-        +evaluate_performance(trajectory) float
-    }
-
-    class ControlStrategy {
-        <<abstract>>
-        +compute(state, time) float
-        +update(feedback)
-        +get_parameters() Dict
-    }
-
-    class HJBFeedbackControl {
-        -HJBSolution solution
-        -Interpolator interpolator
-        +__init__(solution)
-        +compute(state, time) float
-        +interpolate_value(state) float
-        +gradient_ascent(state) float
-    }
-
-    class StaticControl {
-        -Dict parameters
-        +__init__(params)
-        +compute(state, time) float
-        +optimize_parameters(objective) Dict
-    }
-
-    class TimeVaryingControl {
-        -List~float~ control_schedule
-        -Interpolator time_interpolator
-        +__init__(schedule)
-        +compute(state, time) float
-        +update_schedule(new_schedule)
-    }
-
-    HJBSolver --> StateSpace : uses
-    HJBSolver --> HJBProblem : solves
-    OptimalController --> ControlStrategy : implements
-    ControlStrategy <|-- HJBFeedbackControl : inherits
-    ControlStrategy <|-- StaticControl : inherits
-    ControlStrategy <|-- TimeVaryingControl : inherits
-    HJBFeedbackControl --> HJBSolution : uses
-```
-
-(service-integration-layer)=
-## Service Integration Layer
+## Service Interaction Flow
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant API as Service API
-    participant Engine as MonteCarloEngine
-    participant Optimizer as BusinessOptimizer
-    participant Analytics as ErgodicAnalyzer
-    participant Storage as TrajectoryStorage
-    participant Export as ResultExporter
+    participant BP as BatchProcessor
+    participant PE as ParallelExecutor
+    participant SC as SmartCache
+    participant TS as TrajectoryStorage
+    participant PM as ProgressMonitor
+    participant RA as ResultAggregator
+    participant ER as ExcelReporter
 
-    Client->>API: Run optimization request
-    API->>Engine: Initialize simulations
+    Client->>BP: Submit batch job
+    BP->>SC: Check cache
+    alt Cache hit
+        SC-->>BP: Cached results
+        BP-->>Client: Return results
+    else Cache miss
+        BP->>PM: Initialize monitor
+        BP->>PE: Distribute work
 
-    loop For each scenario
-        Engine->>Engine: Run simulation batch
-        Engine->>Storage: Store trajectories
+        loop Parallel execution
+            PE->>PE: Process chunk
+            PE->>PM: Update progress
+            PM-->>Client: Progress update
+        end
+
+        PE-->>BP: Raw results
+        BP->>TS: Store trajectories
+        BP->>SC: Cache results
+        BP->>RA: Aggregate results
+        RA->>ER: Generate report
+        ER-->>Client: Excel report
+        BP-->>Client: Complete results
     end
-
-    Engine->>Analytics: Analyze results
-    Analytics->>Analytics: Calculate ergodic metrics
-    Analytics-->>Engine: Return analysis
-
-    Engine->>Optimizer: Optimize with results
-    Optimizer->>Optimizer: Evaluate strategies
-    Optimizer-->>Engine: Return optimal strategy
-
-    Engine->>Export: Export results
-    Export->>Export: Generate reports
-    Export-->>API: Return report paths
-
-    API-->>Client: Return optimization results
 ```
 
-## Service Responsibilities
+## Service Layer Patterns
 
-### Core Services
+### 1. **Service Locator Pattern**
+- Central registry for service discovery
+- Dynamic service binding at runtime
 
-| Service | Primary Responsibility | Key Operations |
-|---------|----------------------|----------------|
-| **MonteCarloEngine** | Orchestrate ensemble simulations | run(), checkpoint(), aggregate() |
-| **ErgodicAnalyzer** | Ergodic theory calculations | time_average(), ensemble_average() |
-| **BusinessOptimizer** | Find optimal strategies | optimize(), evaluate_strategy() |
-| **RiskMetrics** | Calculate risk measures | VaR, CVaR, Sharpe, Sortino |
+### 2. **Repository Pattern**
+- TrajectoryStorage abstracts data persistence
+- ScenarioManager provides scenario repository
 
-### Infrastructure Services
+### 3. **Unit of Work Pattern**
+- BatchProcessor coordinates complex operations
+- Ensures consistency across service calls
 
-| Service | Primary Responsibility | Key Operations |
-|---------|----------------------|----------------|
-| **ParallelExecutor** | Distribute computation | execute(), map_reduce() |
-| **TrajectoryStorage** | Persist simulation data | store(), retrieve(), query() |
-| **ProgressMonitor** | Track execution progress | update(), get_eta() |
-| **ResultAggregator** | Combine and summarize results | aggregate(), hierarchical_aggregate() |
+### 4. **Pipeline Pattern**
+- Data flows through processing pipeline
+- Each service transforms data for next stage
 
-### Analysis Services
+### 5. **Decorator Pattern**
+- ProgressMonitor decorates long-running operations
+- SmartCache decorates expensive computations
 
-| Service | Primary Responsibility | Key Operations |
-|---------|----------------------|----------------|
-| **BootstrapAnalyzer** | Bootstrap confidence intervals | bootstrap_statistic(), confidence_interval() |
-| **StatisticalTests** | Hypothesis testing | t_test(), ks_test(), adf_test() |
-| **SummaryStatistics** | Statistical summaries | calculate(), rolling_statistics() |
-| **ResultExporter** | Export results to various formats | export_csv(), export_html_report() |
-
-### Control Services
-
-| Service | Primary Responsibility | Key Operations |
-|---------|----------------------|----------------|
-| **HJBSolver** | Solve Hamilton-Jacobi-Bellman equations | solve(), compute_optimal_control() |
-| **OptimalController** | Implement control strategies | compute_control(), update_feedback() |
-| **ScenarioManager** | Manage simulation scenarios | create_scenario(), generate_grid() |
-| **BatchProcessor** | Process simulation batches | process_batch(), merge_results() |
-
-### Validation Services
-
-| Service | Primary Responsibility | Key Operations |
-|---------|----------------------|----------------|
-| **WalkForwardValidator** | Out-of-sample validation | validate(), create_windows() |
-| **StrategyBacktester** | Historical strategy testing | backtest(), calculate_returns() |
-| **ValidationMetrics** | Performance metric calculation | calculate(), check_performance() |
-| **AccuracyValidator** | Numerical accuracy testing | validate_calculation(), test_edge_cases() |
-| **PerformanceOptimizer** | Speed optimization | profile(), optimize_bottlenecks() |
-| **BenchmarkSuite** | Performance benchmarking | run_all(), detect_regression() |
-| **AdaptiveStopper** | Early stopping logic | should_stop(), estimate_completion() |
-
-## Key Service Patterns
-
-1. **Dependency Injection**: Services receive dependencies through constructors
-2. **Strategy Pattern**: Multiple implementations for control strategies
-3. **Chain of Responsibility**: Aggregators can be chained for processing
-4. **Observer Pattern**: Progress monitoring with callbacks
-5. **Repository Pattern**: TrajectoryStorage abstracts data persistence
-6. **Factory Pattern**: ScenarioManager creates scenario configurations
-7. **Template Method**: Abstract base classes for aggregators and strategies
-8. **Singleton Pattern**: Service registry maintains single instances
+### 6. **Adapter Pattern**
+- ExcelReporter adapts results to Excel format
+- Different storage backends adapted by TrajectoryStorage
