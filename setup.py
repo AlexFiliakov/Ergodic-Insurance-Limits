@@ -22,8 +22,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/ergodic-insurance-limits",
-    packages=find_packages(where="ergodic_insurance/src"),
-    package_dir={"": "ergodic_insurance/src"},
+    packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
