@@ -14,7 +14,7 @@
 6. [The Kelly Criterion](#the-kelly-criterion)
 7. [Volatility Drag](#volatility-drag)
 8. [Practical Examples](#practical-examples)
-9. [Key Takeaways](#key-takeaways)
+9. [Key Takeaways](#multiplicative-processes-key-takeaways)
 
 ![Lightning](photos/lightning.jpg)
 
@@ -875,7 +875,7 @@ Without hedge - Median: $551,012,310; Ruin: 0.6%
    With hedge - Median: $754,000,522; Ruin: 0.0%
 ```
 
-(key-takeaways)=
+(multiplicative-processes-key-takeaways)=
 ## Key Takeaways
 
 1. **Multiplicative processes dominate economics**: most financial quantities compound

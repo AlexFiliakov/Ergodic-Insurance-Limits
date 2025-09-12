@@ -6,29 +6,37 @@ The Ergodic Insurance Limits framework analyzes insurance decisions using time-a
 
 ### Simplified System Architecture
 
-```mermaid
-flowchart LR
-    %% Simplified Executive View
-    INPUT[("📊 Market Data<br/>& Configuration")]
-    BUSINESS[("🏭 Business<br/>Simulation")]
-    ERGODIC[("📈 Ergodic<br/>Analysis")]
-    OPTIMIZE[("🎯 Strategy<br/>Optimization")]
-    OUTPUT[("📑 Reports &<br/>Insights")]
+.. mermaid diagram (pre-rendered as SVG)
+.. raw:: html
 
-    INPUT --> BUSINESS
-    BUSINESS --> ERGODIC
-    ERGODIC --> OPTIMIZE
-    OPTIMIZE --> OUTPUT
+   <div class="mermaid-diagram">
+   <img src="/_static/mermaid/context_diagram_diagram_0_9aae6fbf.svg" alt="Diagram 1" style="max-width: 100%; height: auto;">
+   </div>
 
-    %% Styling
-    classDef inputStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:3px,font-size:14px
-    classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,font-size:14px
-    classDef outputStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,font-size:14px
+.. code-block:: text
+   :class: mermaid-source
 
-    class INPUT inputStyle
-    class BUSINESS,ERGODIC,OPTIMIZE processStyle
-    class OUTPUT outputStyle
-```
+   flowchart LR
+       %% Simplified Executive View
+       INPUT[("📊 Market Data<br/>& Configuration")]
+       BUSINESS[("🏭 Business<br/>Simulation")]
+       ERGODIC[("📈 Ergodic<br/>Analysis")]
+       OPTIMIZE[("🎯 Strategy<br/>Optimization")]
+       OUTPUT[("📑 Reports &<br/>Insights")]
+
+       INPUT --> BUSINESS
+       BUSINESS --> ERGODIC
+       ERGODIC --> OPTIMIZE
+       OPTIMIZE --> OUTPUT
+
+       %% Styling
+       classDef inputStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:3px,font-size:14px
+       classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,font-size:14px
+       classDef outputStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,font-size:14px
+
+       class INPUT inputStyle
+       class BUSINESS,ERGODIC,OPTIMIZE processStyle
+       class OUTPUT outputStyle
 
 **Key Innovation**: By comparing time-average growth (what one business experiences over time) with ensemble-average growth (statistical average across many businesses), the framework demonstrates that insurance fundamentally transforms the growth dynamics of volatile businesses.
 
@@ -36,67 +44,75 @@ flowchart LR
 
 The actual implementation follows a sophisticated multi-layer architecture:
 
-```mermaid
-graph TB
-    %% Input Layer
-    subgraph Inputs["📥 Input Layer"]
-        CONF["Configuration<br/>(YAML/JSON)"]
-        HIST["Historical Loss Data"]
-        PARAMS["Business Parameters"]
-    end
+.. mermaid diagram (pre-rendered as SVG)
+.. raw:: html
 
-    %% Core Simulation
-    subgraph Core["⚙️ Core Simulation Engine"]
-        MANU["WidgetManufacturer<br/>(Business Model)"]
-        CLAIM["ClaimGenerator<br/>(Loss Events)"]
-        INS["InsuranceProgram<br/>(Coverage Tower)"]
-        SIM["Simulation Engine<br/>(Time Evolution)"]
-    end
+   <div class="mermaid-diagram">
+   <img src="/_static/mermaid/context_diagram_diagram_1_0fde5d9b.svg" alt="Diagram 2" style="max-width: 100%; height: auto;">
+   </div>
 
-    %% Analysis Layer
-    subgraph Analysis["📊 Analysis & Optimization"]
-        MONTE["Monte Carlo Engine<br/>(10,000+ paths)"]
-        ERGODIC["Ergodic Analyzer<br/>(Time vs Ensemble)"]
-        OPT["Business Optimizer<br/>(Strategy Selection)"]
-        SENS["Sensitivity Analysis<br/>(Parameter Impact)"]
-    end
+.. code-block:: text
+   :class: mermaid-source
 
-    %% Output Layer
-    subgraph Outputs["📤 Output & Insights"]
-        EXCEL["Excel Reports<br/>(Detailed Results)"]
-        VIZ["Visualizations<br/>(Executive & Technical)"]
-        METRICS["Risk Metrics<br/>(VaR, CVaR, Ruin Prob)"]
-        STRATEGY["Optimal Strategy<br/>(Limits & Retentions)"]
-    end
+   graph TB
+       %% Input Layer
+       subgraph Inputs["📥 Input Layer"]
+           CONF["Configuration<br/>(YAML/JSON)"]
+           HIST["Historical Loss Data"]
+           PARAMS["Business Parameters"]
+       end
 
-    %% Data Flow
-    Inputs --> Core
-    Core --> MONTE
-    MONTE --> Analysis
-    Analysis --> Outputs
+       %% Core Simulation
+       subgraph Core["⚙️ Core Simulation Engine"]
+           MANU["WidgetManufacturer<br/>(Business Model)"]
+           CLAIM["ClaimGenerator<br/>(Loss Events)"]
+           INS["InsuranceProgram<br/>(Coverage Tower)"]
+           SIM["Simulation Engine<br/>(Time Evolution)"]
+       end
 
-    %% Key Connections
-    MANU -.-> INS
-    CLAIM -.-> INS
-    INS -.-> SIM
-    SIM -.-> MONTE
-    ERGODIC -.-> OPT
-    OPT -.-> SENS
+       %% Analysis Layer
+       subgraph Analysis["📊 Analysis & Optimization"]
+           MONTE["Monte Carlo Engine<br/>(10,000+ paths)"]
+           ERGODIC["Ergodic Analyzer<br/>(Time vs Ensemble)"]
+           OPT["Business Optimizer<br/>(Strategy Selection)"]
+           SENS["Sensitivity Analysis<br/>(Parameter Impact)"]
+       end
 
-    classDef inputClass fill:#e3f2fd,stroke:#1565c0
-    classDef coreClass fill:#fff3e0,stroke:#ef6c00
-    classDef analysisClass fill:#f3e5f5,stroke:#7b1fa2
-    classDef outputClass fill:#e8f5e9,stroke:#2e7d32
+       %% Output Layer
+       subgraph Outputs["📤 Output & Insights"]
+           EXCEL["Excel Reports<br/>(Detailed Results)"]
+           VIZ["Visualizations<br/>(Executive & Technical)"]
+           METRICS["Risk Metrics<br/>(VaR, CVaR, Ruin Prob)"]
+           STRATEGY["Optimal Strategy<br/>(Limits & Retentions)"]
+       end
 
-    class CONF,HIST,PARAMS inputClass
-    class MANU,CLAIM,INS,SIM coreClass
-    class MONTE,ERGODIC,OPT,SENS analysisClass
-    class EXCEL,VIZ,METRICS,STRATEGY outputClass
-```
+       %% Data Flow
+       Inputs --> Core
+       Core --> MONTE
+       MONTE --> Analysis
+       Analysis --> Outputs
+
+       %% Key Connections
+       MANU -.-> INS
+       CLAIM -.-> INS
+       INS -.-> SIM
+       SIM -.-> MONTE
+       ERGODIC -.-> OPT
+       OPT -.-> SENS
+
+       classDef inputClass fill:#e3f2fd,stroke:#1565c0
+       classDef coreClass fill:#fff3e0,stroke:#ef6c00
+       classDef analysisClass fill:#f3e5f5,stroke:#7b1fa2
+       classDef outputClass fill:#e8f5e9,stroke:#2e7d32
+
+       class CONF,HIST,PARAMS inputClass
+       class MANU,CLAIM,INS,SIM coreClass
+       class MONTE,ERGODIC,OPT,SENS analysisClass
+       class EXCEL,VIZ,METRICS,STRATEGY outputClass
 
 ### Reference to System Architecture Diagram
 
-For a visual representation, see: [`assets/system_architecture.png`](../../assets/system_architecture.png)
+For a visual representation, see: [`assets/system_architecture.png`](../../../assets/system_architecture.png)
 
 The PNG diagram shows the simplified flow, while the detailed architecture above reflects the actual implementation with all major components.
 
@@ -104,110 +120,118 @@ The PNG diagram shows the simplified flow, while the detailed architecture above
 
 This diagram shows the overall architecture of the Ergodic Insurance Limits framework, including the main components, external dependencies, and data flow between major modules.
 
-```mermaid
-flowchart TB
-    %% External Inputs and Configurations
-    subgraph External["External Inputs"]
-        CONFIG[("Configuration Files<br/>YAML/JSON")]
-        MARKET[("Market Data<br/>Loss Distributions")]
-        PARAMS[("Business Parameters<br/>Financial Metrics")]
-    end
+.. mermaid diagram (pre-rendered as SVG)
+.. raw:: html
 
-    %% Core System Components
-    subgraph Core["Core Simulation Engine"]
-        SIM["Simulation<br/>Engine"]
-        MANU["Widget<br/>Manufacturer<br/>Model"]
-        CLAIM["Claim<br/>Generator"]
-        INS["Insurance<br/>Program"]
-    end
+   <div class="mermaid-diagram">
+   <img src="/_static/mermaid/context_diagram_diagram_2_9e5579ef.svg" alt="Diagram 3" style="max-width: 100%; height: auto;">
+   </div>
 
-    %% Analysis and Optimization
-    subgraph Analysis["Analysis & Optimization"]
-        ERGODIC["Ergodic<br/>Analyzer"]
-        OPT["Business<br/>Optimizer"]
-        MONTE["Monte Carlo<br/>Engine"]
-        SENS["Sensitivity<br/>Analyzer"]
-    end
+.. code-block:: text
+   :class: mermaid-source
 
-    %% Validation and Testing
-    subgraph Validation["Validation & Testing"]
-        ACC["Accuracy<br/>Validator"]
-        BACK["Strategy<br/>Backtester"]
-        WALK["Walk-Forward<br/>Validator"]
-        CONV["Convergence<br/>Monitor"]
-    end
+   flowchart TB
+       %% External Inputs and Configurations
+       subgraph External["External Inputs"]
+           CONFIG[("Configuration Files<br/>YAML/JSON")]
+           MARKET[("Market Data<br/>Loss Distributions")]
+           PARAMS[("Business Parameters<br/>Financial Metrics")]
+       end
 
-    %% Processing Infrastructure
-    subgraph Infrastructure["Processing Infrastructure"]
-        BATCH["Batch<br/>Processor"]
-        PARALLEL["Parallel<br/>Executor"]
-        CACHE["Smart<br/>Cache"]
-        STORAGE["Trajectory<br/>Storage"]
-    end
+       %% Core System Components
+       subgraph Core["Core Simulation Engine"]
+           SIM["Simulation<br/>Engine"]
+           MANU["Widget<br/>Manufacturer<br/>Model"]
+           CLAIM["Claim<br/>Generator"]
+           INS["Insurance<br/>Program"]
+       end
 
-    %% Reporting and Visualization
-    subgraph Output["Reporting & Visualization"]
-        VIZ["Visualization<br/>Engine"]
-        EXCEL["Excel<br/>Reporter"]
-        STATS["Summary<br/>Statistics"]
-        METRICS["Risk<br/>Metrics"]
-    end
+       %% Analysis and Optimization
+       subgraph Analysis["Analysis & Optimization"]
+           ERGODIC["Ergodic<br/>Analyzer"]
+           OPT["Business<br/>Optimizer"]
+           MONTE["Monte Carlo<br/>Engine"]
+           SENS["Sensitivity<br/>Analyzer"]
+       end
 
-    %% Data Flow
-    CONFIG --> SIM
-    MARKET --> CLAIM
-    PARAMS --> MANU
+       %% Validation and Testing
+       subgraph Validation["Validation & Testing"]
+           ACC["Accuracy<br/>Validator"]
+           BACK["Strategy<br/>Backtester"]
+           WALK["Walk-Forward<br/>Validator"]
+           CONV["Convergence<br/>Monitor"]
+       end
 
-    SIM --> MANU
-    SIM --> CLAIM
-    SIM --> INS
+       %% Processing Infrastructure
+       subgraph Infrastructure["Processing Infrastructure"]
+           BATCH["Batch<br/>Processor"]
+           PARALLEL["Parallel<br/>Executor"]
+           CACHE["Smart<br/>Cache"]
+           STORAGE["Trajectory<br/>Storage"]
+       end
 
-    MANU <--> INS
-    CLAIM --> INS
+       %% Reporting and Visualization
+       subgraph Output["Reporting & Visualization"]
+           VIZ["Visualization<br/>Engine"]
+           EXCEL["Excel<br/>Reporter"]
+           STATS["Summary<br/>Statistics"]
+           METRICS["Risk<br/>Metrics"]
+       end
 
-    SIM --> MONTE
-    MONTE --> ERGODIC
-    MONTE --> OPT
+       %% Data Flow
+       CONFIG --> SIM
+       MARKET --> CLAIM
+       PARAMS --> MANU
 
-    ERGODIC --> SENS
-    OPT --> SENS
+       SIM --> MANU
+       SIM --> CLAIM
+       SIM --> INS
 
-    MONTE --> ACC
-    MONTE --> BACK
-    BACK --> WALK
+       MANU <--> INS
+       CLAIM --> INS
 
-    MONTE --> CONV
-    CONV --> BATCH
+       SIM --> MONTE
+       MONTE --> ERGODIC
+       MONTE --> OPT
 
-    BATCH --> PARALLEL
-    PARALLEL --> CACHE
-    CACHE --> STORAGE
+       ERGODIC --> SENS
+       OPT --> SENS
 
-    ERGODIC --> VIZ
-    OPT --> VIZ
-    SENS --> VIZ
+       MONTE --> ACC
+       MONTE --> BACK
+       BACK --> WALK
 
-    STORAGE --> STATS
-    STATS --> EXCEL
-    STATS --> METRICS
+       MONTE --> CONV
+       CONV --> BATCH
 
-    VIZ --> EXCEL
+       BATCH --> PARALLEL
+       PARALLEL --> CACHE
+       CACHE --> STORAGE
 
-    %% Styling
-    classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef core fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef analysis fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef validation fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef infra fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    classDef output fill:#e0f2f1,stroke:#004d40,stroke-width:2px
+       ERGODIC --> VIZ
+       OPT --> VIZ
+       SENS --> VIZ
 
-    class CONFIG,MARKET,PARAMS external
-    class SIM,MANU,CLAIM,INS core
-    class ERGODIC,OPT,MONTE,SENS analysis
-    class ACC,BACK,WALK,CONV validation
-    class BATCH,PARALLEL,CACHE,STORAGE infra
-    class VIZ,EXCEL,STATS,METRICS output
-```
+       STORAGE --> STATS
+       STATS --> EXCEL
+       STATS --> METRICS
+
+       VIZ --> EXCEL
+
+       %% Styling
+       classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+       classDef core fill:#fff3e0,stroke:#e65100,stroke-width:2px
+       classDef analysis fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+       classDef validation fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+       classDef infra fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+       classDef output fill:#e0f2f1,stroke:#004d40,stroke-width:2px
+
+       class CONFIG,MARKET,PARAMS external
+       class SIM,MANU,CLAIM,INS core
+       class ERGODIC,OPT,MONTE,SENS analysis
+       class ACC,BACK,WALK,CONV validation
+       class BATCH,PARALLEL,CACHE,STORAGE infra
+       class VIZ,EXCEL,STATS,METRICS output
 
 ## System Overview
 

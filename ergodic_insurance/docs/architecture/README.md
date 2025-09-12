@@ -134,6 +134,6 @@ To keep documentation current:
 ## Contact
 
 For questions about the architecture or documentation:
-- Review the [main README](../../README.md)
-- Check the [CLAUDE.md](../../CLAUDE.md) for project context
+- Review the main README file in the project root
+- Check the CLAUDE.md file in the project root for project context
 - Consult sprint documents in `simone/` directory

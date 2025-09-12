@@ -2170,7 +2170,7 @@ print("4. Ergodic growth considerations")
 ```
 #### Sample Output
 
-![HJB Solver Result](../../../theory/figures/hjb_solver_result.png)
+![HJB Solver Result](figures/hjb_solver_result_clear.png)
 
 ```
 ============================================================

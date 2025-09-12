@@ -14,7 +14,7 @@
 6. [Claims Development](#claims-development)
 7. [Reinsurance Structures](#reinsurance-structures)
 8. [Practical Applications](#practical-applications)
-9. [Key Takeaways](#key-takeaways)
+9. [Key Takeaways](#insurance-mathematics-key-takeaways)
 
 ![Stalagmites in a Cave](photos/stalagmites.jpg)
 
@@ -430,7 +430,7 @@ where $M$ is the maximum possible loss.
 
 For an exploration of Insurance Layers, see this [Jupyter Notebook on Insurance Layer Optimization](../../notebooks/07_insurance_layers.ipynb).
 
-![Layer Pricing](../../../theory/figures/layer_pricing.png)
+![Reinsurance Layer Optimization](figures/reinsurance_optimization.png)
 
 (retention-optimization)=
 ## Retention Optimization
@@ -2128,7 +2128,7 @@ Time-Avg Growth      -7.61%        1.47%
 ✓ Optimal retention balances premium cost vs risk retention
 ```
 
-(key-takeaways)=
+(insurance-mathematics-key-takeaways)=
 ## Key Takeaways
 
 1. **Claims develop over time**: Reserve adequacy is crucial

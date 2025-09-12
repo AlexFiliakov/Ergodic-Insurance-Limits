@@ -21,7 +21,9 @@ def extract_mermaid_blocks(content):
 
 def generate_svg(mermaid_code, output_file):
     """Generate SVG from mermaid code using mmdc."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".mmd", delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".mmd", delete=False, encoding="utf-8"
+    ) as tmp:
         tmp.write(mermaid_code)
         tmp_path = tmp.name
 
