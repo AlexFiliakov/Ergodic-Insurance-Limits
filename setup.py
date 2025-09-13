@@ -45,6 +45,7 @@ setup(
         "dev": [
             "pytest>=8.4.1",
             "pytest-cov>=6.2.1",
+            "coverage>=7.7.0",
             "pytest-xdist>=3.8.0",
             "pylint>=3.3.8",
             "black>=25.1.0",

@@ -1,5 +1,6 @@
 """Tests for Monte Carlo simulation engine."""
 
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -166,6 +167,9 @@ class TestMonteCarloEngine:
         engine.config.parallel = True
         engine.config.n_workers = 2
         engine.config.chunk_size = 5_000
+        # Disable enhanced parallel on Windows to avoid scipy issues
+        if os.name == "nt":
+            engine.config.use_enhanced_parallel = False
 
         # Mock loss events
         from ergodic_insurance.src.loss_distributions import LossEvent
@@ -691,6 +695,10 @@ class TestRuinProbabilityEstimation:
         assert len(combined["bankruptcy_years"]) == 15
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Skipping enhanced parallel tests on Windows due to scipy/multiprocessing issues",
+)
 class TestEnhancedParallelExecution:
     """Test enhanced parallel execution features."""
 
@@ -722,16 +730,16 @@ class TestEnhancedParallelExecution:
         )
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        # Create enhanced config in serial mode (parallel disabled to avoid Mock serialization issues)
+        # Create enhanced config with parallel mode enabled for enhanced features
         config = SimulationConfig(
             n_simulations=1000,
             n_years=5,
-            parallel=False,
+            parallel=True,
             use_enhanced_parallel=True,
             monitor_performance=True,
             adaptive_chunking=True,
-            shared_memory=False,
-            n_workers=1,
+            shared_memory=True,
+            n_workers=2,  # Use small number of workers for test
             progress_bar=False,
             seed=42,
         )

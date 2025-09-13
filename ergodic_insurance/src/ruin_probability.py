@@ -366,11 +366,13 @@ class RuinProbabilityAnalyzer:
 
         # Calculate and apply insurance
         total_loss = sum(event.amount for event in events)
-        self.insurance_program.process_claim(total_loss)
+        claim_result = self.insurance_program.process_claim(total_loss)
+        recovery = claim_result.get("total_recovery", 0)
+        retained = total_loss - recovery
 
-        # Process claims
-        for event in events:
-            manufacturer.process_insurance_claim(event.amount)
+        # Apply retained loss to manufacturer assets
+        if retained > 0:
+            manufacturer.assets = max(0, manufacturer.assets - retained)
 
         # Update state
         metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)
@@ -396,6 +398,7 @@ class RuinProbabilityAnalyzer:
 
         consecutive_negative_count = 0
         bankruptcy_year = max_horizon + 1
+        is_bankrupt = False
 
         for year in range(max_horizon):
             metrics = self._process_simulation_year(manufacturer, year)
@@ -406,12 +409,14 @@ class RuinProbabilityAnalyzer:
             )
 
             # Early stopping if bankrupt
-            if is_bankrupt and config.early_stopping:
+            if is_bankrupt:
                 bankruptcy_year = year + 1
-                break
+                if config.early_stopping:
+                    break
 
-        if is_bankrupt and bankruptcy_year > max_horizon:
-            bankruptcy_year = max_horizon
+        # If no bankruptcy occurred, keep the default year beyond horizon
+        if not is_bankrupt:
+            bankruptcy_year = max_horizon + 1
 
         return {"bankruptcy_year": bankruptcy_year, "causes": causes}
 

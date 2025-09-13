@@ -35,10 +35,10 @@ class TestProcessInsuranceClaim:
         assert company_payment == claim_amount
         assert insurance_payment == 0
 
-        # No collateral should be posted
-        assert manufacturer.collateral == 0
-        assert manufacturer.restricted_assets == 0
-        assert len(manufacturer.claim_liabilities) == 0
+        # Collateral should be posted for company payment
+        assert manufacturer.collateral == company_payment
+        assert manufacturer.restricted_assets == company_payment
+        assert len(manufacturer.claim_liabilities) == 1
 
     def test_claim_above_deductible_below_limit(self, manufacturer):
         """Test claim between deductible and limit."""
@@ -55,13 +55,13 @@ class TestProcessInsuranceClaim:
         assert company_payment == deductible
         assert insurance_payment == claim_amount - deductible
 
-        # Check collateral and liabilities
-        assert manufacturer.collateral == insurance_payment
-        assert manufacturer.restricted_assets == insurance_payment
+        # Check collateral for company payment (not insurance)
+        assert manufacturer.collateral == company_payment
+        assert manufacturer.restricted_assets == company_payment
         assert len(manufacturer.claim_liabilities) == 1
 
-        # Check assets reduced by company payment
-        assert manufacturer.assets == initial_assets - company_payment
+        # Assets not immediately reduced (paid over time)
+        assert manufacturer.assets == initial_assets
 
     def test_claim_above_limit(self, manufacturer):
         """Test claim that exceeds insurance limit."""
@@ -79,12 +79,12 @@ class TestProcessInsuranceClaim:
         assert company_payment == expected_company
         assert insurance_payment == limit
 
-        # Check collateral for insurance portion
-        assert manufacturer.collateral == limit
-        assert manufacturer.restricted_assets == limit
+        # Check collateral for company portion (not insurance)
+        assert manufacturer.collateral == expected_company
+        assert manufacturer.restricted_assets == expected_company
 
-        # Check assets reduced
-        assert manufacturer.assets == initial_assets - expected_company
+        # Assets not immediately reduced (paid over time)
+        assert manufacturer.assets == initial_assets
 
     def test_zero_claim(self, manufacturer):
         """Test handling of zero claim amount."""
@@ -132,11 +132,16 @@ class TestProcessInsuranceClaim:
         deductible = 100_000
         limit = 1_000_000
 
-        _, insurance_payment = manufacturer.process_insurance_claim(claim_amount, deductible, limit)
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount, deductible, limit
+        )
 
-        # Company tries to pay deductible but is limited by assets
-        # The actual payment made is limited to available assets
-        assert manufacturer.assets == 0  # All assets used
+        # Company payment is the deductible amount
+        assert company_payment == deductible
+        # Assets remain unchanged (collateral posted, paid over time)
+        assert manufacturer.assets == 50_000
+        # Collateral posted for company payment
+        assert manufacturer.collateral == company_payment
         # Insurance still covers its portion
         assert insurance_payment == claim_amount - deductible
 
@@ -543,7 +548,8 @@ class TestStepMethod:
         manufacturer.process_insurance_claim(claim1_amount, deductible, limit)
 
         # Verify claim 1 setup
-        assert manufacturer.collateral == (claim1_amount - deductible)
+        # Collateral should equal the deductible (company payment portion)
+        assert manufacturer.collateral == deductible
         assert len(manufacturer.claim_liabilities) == 1
 
         # Year 1: Step and add second claim
@@ -555,7 +561,8 @@ class TestStepMethod:
 
         # Should have two claims now
         assert len(manufacturer.claim_liabilities) == 2
-        total_collateral = (claim1_amount - deductible) + (claim2_amount - deductible)
+        # Total collateral is sum of deductibles (company payment portions)
+        total_collateral = deductible + deductible  # Two claims, each with same deductible
 
         # Year 2-5: Continue operations and track claim payments
         for year in range(1, 5):

@@ -12,7 +12,6 @@ import warnings
 import numpy as np
 from tqdm import tqdm
 
-from .bootstrap_analysis import BootstrapAnalyzer, bootstrap_confidence_interval
 from .convergence import ConvergenceDiagnostics, ConvergenceStats
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
@@ -54,8 +53,12 @@ def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
     """Simulate losses for a single year."""
     np.random.seed(sim_id * 1000 + year)  # Ensure reproducibility
     n_events = np.random.poisson(3)  # Average 3 events per year
-    event_amounts = np.random.lognormal(10, 2, n_events)  # Log-normal losses
-    total_loss = np.sum(event_amounts)
+
+    if n_events == 0:
+        total_loss = 0.0
+    else:
+        event_amounts = np.random.lognormal(10, 2, n_events)  # Log-normal losses
+        total_loss = float(np.sum(event_amounts))
 
     # Apply insurance (simplified)
     recovery = min(total_loss, 1_000_000) * 0.9  # Simplified recovery
@@ -105,8 +108,9 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         result_arrays["insurance_recoveries"][year] = recovery
         result_arrays["retained_losses"][year] = retained
 
-        # Update manufacturer
-        manufacturer.assets *= 1.0 - retained / manufacturer.assets
+        # Update manufacturer - subtract retained losses
+        if manufacturer.assets > 0:
+            manufacturer.assets = max(0, manufacturer.assets - retained)
 
         # Check for ruin
         if manufacturer.assets <= 0:
@@ -427,6 +431,27 @@ class MonteCarloEngine:
                 print("Loaded cached results")
                 return cached
 
+        # Reinitialize parallel executor if config has changed
+        if self.config.use_enhanced_parallel and self.config.parallel:
+            if self.parallel_executor is None or (
+                self.parallel_executor and self.parallel_executor.n_workers != self.config.n_workers
+            ):
+                # Need to reinitialize with new worker count
+                chunking_strategy = ChunkingStrategy(
+                    initial_chunk_size=self.config.chunk_size,
+                    adaptive=self.config.adaptive_chunking,
+                )
+                shared_memory_config = SharedMemoryConfig(
+                    enable_shared_arrays=self.config.shared_memory,
+                    enable_shared_objects=self.config.shared_memory,
+                )
+                self.parallel_executor = ParallelExecutor(
+                    n_workers=self.config.n_workers,
+                    chunking_strategy=chunking_strategy,
+                    shared_memory_config=shared_memory_config,
+                    monitor_performance=self.config.monitor_performance,
+                )
+
         # Run simulation with appropriate executor
         if self.config.parallel:
             if self.config.use_enhanced_parallel and self.parallel_executor:
@@ -449,9 +474,30 @@ class MonteCarloEngine:
         # Set execution time
         results.execution_time = time.time() - start_time
 
-        # Add performance metrics if using enhanced parallel
-        if self.config.use_enhanced_parallel and self.parallel_executor:
-            results.performance_metrics = self.parallel_executor.performance_metrics
+        # Add performance metrics if monitoring is enabled
+        if self.config.monitor_performance:
+            if self.config.use_enhanced_parallel and self.parallel_executor:
+                results.performance_metrics = self.parallel_executor.performance_metrics
+            else:
+                # Create basic performance metrics for non-enhanced execution
+                execution_time = time.time() - start_time
+                # Estimate memory usage based on simulation size (basic approximation)
+                memory_estimate = (
+                    self.config.n_simulations * self.config.n_years * 8 * 4
+                )  # 4 arrays of 8-byte floats
+                results.performance_metrics = PerformanceMetrics(
+                    total_time=execution_time,
+                    setup_time=0.0,
+                    computation_time=execution_time,
+                    serialization_time=0.0,
+                    reduction_time=0.0,
+                    memory_peak=memory_estimate,
+                    cpu_utilization=0.0,
+                    items_per_second=self.config.n_simulations / execution_time
+                    if execution_time > 0
+                    else 0.0,
+                    speedup=1.0,
+                )
 
         # Compute bootstrap confidence intervals if requested
         if self.config.compute_bootstrap_ci:
@@ -762,9 +808,9 @@ class MonteCarloEngine:
             retained = total_loss - recovery
             retained_losses[year] = retained
 
-            # Process insurance claims
-            for event in events:
-                manufacturer.process_insurance_claim(event.amount)
+            # Apply retained loss to manufacturer assets
+            if retained > 0:
+                manufacturer.assets = max(0, manufacturer.assets - retained)
 
             # Update manufacturer state with annual step
             # Apply stochastic if the manufacturer has a stochastic process
@@ -1076,6 +1122,9 @@ class MonteCarloEngine:
         Returns:
             Dictionary mapping metric names to (lower, upper) confidence bounds.
         """
+        # Lazy import to avoid scipy issues in worker processes
+        from .bootstrap_analysis import BootstrapAnalyzer, bootstrap_confidence_interval
+
         analyzer = BootstrapAnalyzer(
             n_bootstrap=n_bootstrap,
             confidence_level=confidence_level,

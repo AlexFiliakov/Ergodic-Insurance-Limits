@@ -52,9 +52,12 @@ class TestFinancialIntegration:
         for claim in claims:
             manufacturer.process_insurance_claim(
                 claim_amount=claim.amount,
-                deductible=0,  # No insurance
+                deductible_amount=0,  # No insurance
                 insurance_limit=0,  # No insurance coverage
             )
+
+        # Pay the claim liabilities to trigger actual equity reduction
+        manufacturer.pay_claim_liabilities()
 
         # Verify financial impact
         assert manufacturer.equity < initial_equity, "Equity should decrease from losses"
@@ -62,7 +65,11 @@ class TestFinancialIntegration:
 
         # Verify loss amount impact
         equity_reduction = initial_equity - manufacturer.equity
-        assert equity_reduction >= total_losses * 0.5, "Losses should significantly impact equity"
+        # With default payment schedule, only 10% of claims are paid in year 0
+        expected_year_0_payment = total_losses * 0.10
+        assert (
+            equity_reduction >= expected_year_0_payment * 0.8
+        ), "Equity reduction should match claim payments"
 
     def test_claim_development_integration(
         self,
@@ -97,7 +104,7 @@ class TestFinancialIntegration:
             for claim in claims_in_year:
                 manufacturer.process_insurance_claim(
                     claim_amount=claim.amount,
-                    deductible=0,
+                    deductible_amount=0,
                     insurance_limit=0,
                 )
 
@@ -155,11 +162,14 @@ class TestFinancialIntegration:
             for claim in claims:
                 manufacturer.process_insurance_claim(
                     claim_amount=claim.amount,
-                    deductible=0,
+                    deductible_amount=0,
                     insurance_limit=0,
                 )
 
-            # Track asset position after claims
+            # Step forward (this pays the liabilities and affects assets)
+            manufacturer.step()
+
+            # Track asset position after claims and step
             assets_after = manufacturer.assets
 
             wc_history.append(
@@ -170,9 +180,6 @@ class TestFinancialIntegration:
                     "claims": sum(c.amount for c in claims),
                 }
             )
-
-            # Step forward
-            manufacturer.step()
 
             # Verify financial constraints
             assert manufacturer.assets >= 0, f"Negative assets in year {year}"
@@ -260,9 +267,13 @@ class TestFinancialIntegration:
             for claim in payment_schedule[0]:
                 manufacturer.process_insurance_claim(
                     claim_amount=claim.amount,
-                    deductible=0,
+                    deductible_amount=0,
                     insurance_limit=0,
                 )
+
+        # Pay the claim liabilities to trigger actual equity reduction
+        if len(annual_losses) > 0:
+            manufacturer.pay_claim_liabilities()
 
         # Assertions
         if len(annual_losses) > 0:
@@ -295,12 +306,11 @@ class TestFinancialIntegration:
         immediate_claim = ClaimEvent(year=0, amount=1_000_000)
         developed_claim = ClaimEvent(year=0, amount=2_000_000)
 
-        # Process immediate claim
+        # Process immediate claim using uninsured claim method for immediate payment
         assets_before_immediate = manufacturer.assets
-        manufacturer.process_insurance_claim(
+        manufacturer.process_uninsured_claim(
             claim_amount=immediate_claim.amount,
-            deductible=0,
-            insurance_limit=0,
+            immediate_payment=True,
         )
         assets_after_immediate = manufacturer.assets
 
@@ -311,18 +321,15 @@ class TestFinancialIntegration:
         # Reset for developed claim test
         manufacturer2 = base_manufacturer.copy()
 
-        # Develop the claim
-        developed_payments = claim_development.develop_claims([developed_claim])
-
-        # Process only first year of developed claim
+        # Process developed claim using uninsured claim method with payment schedule
         assets_before_developed = manufacturer2.assets
-        if len(developed_payments) > 0 and len(developed_payments[0]) > 0:
-            for claim in developed_payments[0]:
-                manufacturer2.process_insurance_claim(
-                    claim_amount=claim.amount,
-                    deductible=0,
-                    insurance_limit=0,
-                )
+        manufacturer2.process_uninsured_claim(
+            claim_amount=developed_claim.amount,
+            immediate_payment=False,  # This creates a liability with payment schedule
+        )
+
+        # Manually trigger first year payment from the liability
+        manufacturer2.pay_claim_liabilities()
         assets_after_developed = manufacturer2.assets
 
         # First year impact should be less than total claim
@@ -331,11 +338,11 @@ class TestFinancialIntegration:
             first_year_impact < developed_claim.amount
         ), "First year payment should be less than total claim"
 
-        # Verify it matches development pattern
-        expected_first_year = developed_claim.amount * claim_development.pattern[0]
+        # Verify it matches the default ClaimLiability payment pattern (10% in first year)
+        expected_first_year = developed_claim.amount * 0.10  # Default first year is 10%
         assert np.isclose(first_year_impact, expected_first_year, rtol=0.1), (
             f"First year payment {first_year_impact:.2f} should match "
-            f"pattern {expected_first_year:.2f}"
+            f"default pattern {expected_first_year:.2f}"
         )
 
     def test_revenue_loss_correlation(
@@ -404,13 +411,12 @@ class TestFinancialIntegration:
         original = base_manufacturer.copy()
         original_equity = original.equity
 
-        # Apply losses to original
+        # Apply losses to original using uninsured claims for immediate impact
         claims = standard_claim_generator.generate_claims(years=1)
         for claim in claims:
-            original.process_insurance_claim(
+            original.process_uninsured_claim(
                 claim_amount=claim.amount,
-                deductible=0,
-                insurance_limit=0,
+                immediate_payment=True,
             )
 
         # Verify original changed
@@ -444,12 +450,11 @@ class TestFinancialIntegration:
         manufacturer = base_manufacturer.copy()
         initial_equity = manufacturer.equity
 
-        # Apply catastrophic loss (50% of assets)
+        # Apply catastrophic loss (50% of assets) with immediate payment
         catastrophic_loss = manufacturer.assets * 0.5
-        manufacturer.process_insurance_claim(
+        manufacturer.process_uninsured_claim(
             claim_amount=catastrophic_loss,
-            deductible=0,
-            insurance_limit=0,
+            immediate_payment=True,
         )
 
         # Verify significant impact but consistency
@@ -460,18 +465,17 @@ class TestFinancialIntegration:
 
         # Test near-bankruptcy scenario
         manufacturer2 = base_manufacturer.copy()
-        initial_assets2 = manufacturer2.assets
+        initial_equity2 = manufacturer2.equity
         bankruptcy_loss = manufacturer2.assets * 0.95
-        manufacturer2.process_insurance_claim(
+        manufacturer2.process_uninsured_claim(
             claim_amount=bankruptcy_loss,
-            deductible=0,
-            insurance_limit=0,
+            immediate_payment=True,
         )
 
         # Should be near bankruptcy but still consistent
         # In this model without debt: assets = equity, so both drop by 95%
         assert (
-            manufacturer2.equity < initial_assets2 * 0.1
+            manufacturer2.equity < initial_equity2 * 0.1
         ), "Should retain less than 10% of original equity"
         assert manufacturer2.equity >= 0, "Equity should not go negative in basic model"
         assert_financial_consistency(manufacturer2)

@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from scipy import stats
 
 
 @dataclass
@@ -174,17 +173,15 @@ class ConvergenceDiagnostics:
         if method == "mean":
             if chains.ndim == 2:
                 return float(np.mean(ess_values))
-            else:
-                return np.array([np.mean(metric_ess) for metric_ess in ess_values])
-        elif method == "min":
+            return np.array([np.mean(metric_ess) for metric_ess in ess_values])
+        if method == "min":
             if chains.ndim == 2:
                 return float(np.min(ess_values))
-            else:
-                return np.array([np.min(metric_ess) for metric_ess in ess_values])
-        elif method == "all":
+            return np.array([np.min(metric_ess) for metric_ess in ess_values])
+        if method == "all":
             return np.array(ess_values)
-        else:
-            raise ValueError(f"Unknown method: {method}")
+
+        raise ValueError(f"Unknown method: {method}")
 
     def calculate_ess_per_second(self, chain: np.ndarray, computation_time: float) -> float:
         """Calculate ESS per second of computation.
@@ -346,6 +343,9 @@ class ConvergenceDiagnostics:
         z_score = (mean_first - mean_last) / np.sqrt(var_first + var_last)
 
         # Calculate p-value
+        # Lazy import to avoid scipy issues in worker processes
+        from scipy import stats
+
         p_value = 2 * (1 - stats.norm.cdf(abs(z_score)))
 
         return z_score, p_value

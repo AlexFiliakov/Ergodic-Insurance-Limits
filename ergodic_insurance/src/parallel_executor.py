@@ -573,7 +573,7 @@ class ParallelExecutor:
             pass  # Platform-specific optimization
 
         with ProcessPoolExecutor(
-            max_workers=self.n_workers, mp_context=mp.get_context("spawn")  # Better for numpy
+            max_workers=self.n_workers, mp_context=mp.get_context()  # Use default context
         ) as executor:
             # Submit all chunks
             futures = {}

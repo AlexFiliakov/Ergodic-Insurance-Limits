@@ -25,6 +25,7 @@ Requires-Dist: jinja2>=3.1.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.4.1; extra == "dev"
 Requires-Dist: pytest-cov>=6.2.1; extra == "dev"
+Requires-Dist: coverage>=7.7.0; extra == "dev"
 Requires-Dist: pytest-xdist>=3.8.0; extra == "dev"
 Requires-Dist: pylint>=3.3.8; extra == "dev"
 Requires-Dist: black>=25.1.0; extra == "dev"
