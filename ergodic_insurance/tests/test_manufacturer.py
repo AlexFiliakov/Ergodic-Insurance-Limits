@@ -258,42 +258,52 @@ class TestWidgetManufacturer:
         assert manufacturer.equity == initial_equity - 200_000
 
     def test_process_insurance_claim_with_collateral(self, manufacturer):
-        """Test processing claim with default parameters (no deductible/limit)."""
-        company_payment, insurance_payment = manufacturer.process_insurance_claim(500_000)
+        """Test processing claim with deductible that creates company payment and collateral."""
+        # Claim with deductible so company has payment obligation
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount=1_000_000, deductible_amount=500_000, insurance_limit=2_000_000
+        )
 
-        # With no deductible and infinite limit, insurance covers everything
-        assert company_payment == 0
+        # Company pays deductible, insurance covers rest
+        assert company_payment == 500_000
         assert insurance_payment == 500_000
-        assert manufacturer.collateral == 500_000  # Full collateral required
+        assert manufacturer.collateral == 500_000  # Only company portion collateralized
         assert manufacturer.restricted_assets == 500_000
         assert len(manufacturer.claim_liabilities) == 1
-        assert manufacturer.claim_liabilities[0].original_amount == 500_000
+        assert manufacturer.claim_liabilities[0].original_amount == 500_000  # Company portion only
 
     def test_process_large_insurance_claim(self, manufacturer):
-        """Test processing large claim with full collateral."""
-        company_payment, insurance_payment = manufacturer.process_insurance_claim(15_000_000)
+        """Test processing large claim with high deductible."""
+        # Large claim with high deductible to test company payment collateralization
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount=20_000_000, deductible_amount=5_000_000, insurance_limit=15_000_000
+        )
 
-        # With no deductible and infinite limit, insurance covers everything
-        assert company_payment == 0
+        # Company pays deductible, insurance covers up to limit
+        assert company_payment == 5_000_000
         assert insurance_payment == 15_000_000
-        assert manufacturer.collateral == 15_000_000  # Full collateral
-        assert manufacturer.restricted_assets == 15_000_000
+        assert manufacturer.collateral == 5_000_000  # Only company portion collateralized
+        assert manufacturer.restricted_assets == 5_000_000
         assert len(manufacturer.claim_liabilities) == 1
-        assert manufacturer.claim_liabilities[0].original_amount == 15_000_000
+        assert (
+            manufacturer.claim_liabilities[0].original_amount == 5_000_000
+        )  # Company portion only
 
     def test_pay_claim_liabilities_single_claim(self, manufacturer):
         """Test paying scheduled claim liabilities."""
-        # Process a claim in year 0
-        manufacturer.process_insurance_claim(1_000_000)
+        # Process a claim with deductible in year 0
+        manufacturer.process_insurance_claim(
+            claim_amount=1_500_000, deductible_amount=1_000_000, insurance_limit=2_000_000
+        )
 
-        # Pay first year payment (year 0 of claim = 10% = 100k)
+        # Pay first year payment (year 0 of claim = 10% of company portion = 100k)
         total_paid = manufacturer.pay_claim_liabilities()
 
         assert total_paid == 100_000
         assert manufacturer.assets == 9_900_000  # 10M - 100k
         assert manufacturer.claim_liabilities[0].remaining_amount == 900_000
 
-        # Move to year 1 for second payment (20% = 200k)
+        # Move to year 1 for second payment (20% of company portion = 200k)
         manufacturer.current_year = 1
         total_paid = manufacturer.pay_claim_liabilities()
 
@@ -304,10 +314,13 @@ class TestWidgetManufacturer:
     def test_pay_claim_liabilities_insufficient_assets(self, manufacturer):
         """Test partial payment when insufficient assets."""
         manufacturer.assets = 150_000  # Very low assets
-        manufacturer.process_insurance_claim(1_000_000)
+        # Process claim with deductible to create company liability
+        manufacturer.process_insurance_claim(
+            claim_amount=1_500_000, deductible_amount=1_000_000, insurance_limit=2_000_000
+        )
         manufacturer.current_year = 1
 
-        # Try to pay first year (10% = 100k)
+        # Try to pay year 1 payment (20% of company portion = 200k)
         # But only 50k available (150k - 100k min)
         total_paid = manufacturer.pay_claim_liabilities()
 
@@ -351,8 +364,10 @@ class TestWidgetManufacturer:
 
     def test_calculate_metrics_with_collateral(self, manufacturer):
         """Test metrics with collateral."""
-        # Process claim which automatically sets collateral
-        manufacturer.process_insurance_claim(500_000)
+        # Process claim with deductible to create company payment and collateral
+        manufacturer.process_insurance_claim(
+            claim_amount=1_000_000, deductible_amount=500_000, insurance_limit=2_000_000
+        )
 
         metrics = manufacturer.calculate_metrics()
 
@@ -458,6 +473,45 @@ class TestWidgetManufacturer:
         assert manufacturer.check_solvency() is False
         assert manufacturer.is_ruined is True
 
+    def test_check_solvency_payment_insolvency(self, manufacturer):
+        """Test solvency checking with payment insolvency (new realistic detection)."""
+        # Create a catastrophic loss that creates unsustainable payment burden
+        catastrophic_loss = 40_000_000  # $40M loss
+        manufacturer.process_uninsured_claim(catastrophic_loss)
+
+        # Should be solvent initially (no payments due yet in year 0)
+        assert manufacturer.check_solvency() is True
+        assert manufacturer.is_ruined is False
+
+        # Move to year 1 - payments should be manageable (10% = $4M vs $10M revenue = 40%)
+        manufacturer.step()
+
+        # Year 2 should trigger insolvency (20% = $8M payment vs reduced revenue)
+        # Revenue will be reduced due to previous year's asset reduction
+        current_revenue = manufacturer.calculate_revenue()
+
+        # Calculate expected payments for year 2
+        expected_payments = catastrophic_loss * 0.20  # $8M
+        payment_ratio = expected_payments / current_revenue
+
+        # If payment ratio > 80%, should trigger insolvency
+        if payment_ratio > 0.80:
+            solvency_result = manufacturer.check_solvency()
+            assert solvency_result is False
+            assert manufacturer.is_ruined is True
+        else:
+            # If ratio is still manageable, need to go to year 3
+            manufacturer.step()
+            current_revenue = manufacturer.calculate_revenue()
+            expected_payments = catastrophic_loss * 0.20  # Still 20% in year 3
+            payment_ratio = expected_payments / current_revenue
+
+            # Should definitely trigger by year 3
+            assert payment_ratio > 0.80
+            solvency_result = manufacturer.check_solvency()
+            assert solvency_result is False
+            assert manufacturer.is_ruined is True
+
     def test_check_solvency_negative_equity(self, config):
         """Test solvency checking with negative equity.
 
@@ -474,8 +528,10 @@ class TestWidgetManufacturer:
 
     def test_monthly_collateral_costs(self, manufacturer):
         """Test monthly letter of credit cost tracking."""
-        # Add collateral
-        manufacturer.process_insurance_claim(1_200_000)
+        # Add collateral by processing claim with deductible
+        manufacturer.process_insurance_claim(
+            claim_amount=2_000_000, deductible_amount=1_200_000, insurance_limit=3_000_000
+        )
 
         # Calculate expected monthly cost
         expected_monthly = 1_200_000 * 0.015 / 12  # 1,500
@@ -487,6 +543,38 @@ class TestWidgetManufacturer:
         # Test annual calculation
         annual_cost = manufacturer.calculate_collateral_costs(0.015, "annual")
         assert annual_cost == pytest.approx(1_200_000 * 0.015)
+
+    def test_process_uninsured_claim_with_schedule(self, manufacturer):
+        """Test processing uninsured claims with payment schedule."""
+        # Process uninsured claim with payment schedule
+        claim_amount = manufacturer.process_uninsured_claim(1_000_000)
+
+        # Should create liability without affecting assets immediately
+        assert claim_amount == 1_000_000
+        assert manufacturer.assets == 10_000_000  # No immediate impact
+        assert manufacturer.collateral == 0  # No collateral required
+        assert len(manufacturer.claim_liabilities) == 1
+        assert manufacturer.claim_liabilities[0].original_amount == 1_000_000
+        assert manufacturer.claim_liabilities[0].remaining_amount == 1_000_000
+        assert manufacturer.claim_liabilities[0].is_insured is False  # Uninsured claim
+
+        # Pay first year payment (10% = $100K)
+        total_paid = manufacturer.pay_claim_liabilities()
+        assert total_paid == 100_000
+        assert manufacturer.assets == 9_900_000  # Assets reduced by payment
+
+    def test_process_uninsured_claim_immediate(self, manufacturer):
+        """Test processing uninsured claims with immediate payment."""
+        # Process uninsured claim with immediate payment
+        claim_amount = manufacturer.process_uninsured_claim(500_000, immediate_payment=True)
+
+        # Should immediately reduce assets and record loss
+        assert claim_amount == 500_000
+        assert manufacturer.assets == 9_500_000  # Immediate reduction
+        assert (
+            manufacturer.period_insurance_losses == 500_000
+        )  # Tax deductible (immediate payment records as insurance loss)
+        assert len(manufacturer.claim_liabilities) == 0  # No liability created
 
     def test_full_financial_cycle(self, manufacturer):
         """Test a complete financial cycle with all components.
@@ -502,9 +590,11 @@ class TestWidgetManufacturer:
         assert metrics_0["net_income"] > 0
         initial_equity = manufacturer.equity
 
-        # Process a large claim that requires collateral
-        # All claims now require full collateral
-        company_payment, insurance_payment = manufacturer.process_insurance_claim(15_000_000)
+        # Process a large claim with deductible that requires collateral
+        # Only company portion requires collateral
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount=20_000_000, deductible_amount=5_000_000, insurance_limit=15_000_000
+        )
 
         # Year 1: Operations with claim payments and collateral costs
         metrics_1 = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
@@ -518,8 +608,8 @@ class TestWidgetManufacturer:
             metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
             assert metrics["year"] == year
 
-        # After 10 years, claim should be significantly paid down
-        assert manufacturer.total_claim_liabilities < 15_000_000
+        # After 10 years, claim should be significantly paid down (company portion only)
+        assert manufacturer.total_claim_liabilities < 5_000_000
 
         # Check if company became insolvent
         if manufacturer.is_ruined:

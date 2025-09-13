@@ -27,7 +27,7 @@ git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
 cd Ergodic-Insurance-Limits
 ```
 
-Or download the ZIP file from GitHub and extract it.
+Or download the [ZIP file from GitHub](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/archive/refs/heads/main.zip) and extract it.
 
 ### Step 2: Install Dependencies
 
@@ -49,9 +49,9 @@ Let's verify everything is working:
 
 ```python
 # test_installation.py
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.config_v2 import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.config_v2 import ManufacturerConfig
 
 print("✅ Framework imported successfully!")
 
@@ -71,11 +71,6 @@ print(f"✅ Created company with ${company.assets:,.0f} in assets")
 print("🎉 Installation successful!")
 ```
 
-Run this script:
-```bash
-python test_installation.py
-```
-
 ## Your First Simulation
 
 Now let's run a real simulation to see how insurance affects your company's growth trajectory.
@@ -86,9 +81,9 @@ Now let's run a real simulation to see how insurance affects your company's grow
 # first_simulation.py
 import numpy as np
 import matplotlib.pyplot as plt
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.config_v2 import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.config_v2 import ManufacturerConfig
 
 # Set random seed for reproducibility
 np.random.seed(42)
@@ -109,6 +104,15 @@ print(f"Company Profile:")
 print(f"  Initial Assets: ${manufacturer.assets:,.0f}")
 print(f"  Expected Annual Revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
 print(f"  Expected Operating Income: ${manufacturer.assets * config.asset_turnover_ratio * config.operating_margin:,.0f}")
+```
+
+#### Expected Output:
+
+```
+Company Profile:
+  Initial Assets: $10,000,000
+  Expected Annual Revenue: $10,000,000
+  Expected Operating Income: $800,000
 ```
 
 ### Step 2: Set Up Loss Generation
@@ -178,6 +182,26 @@ if sample_losses:
     print(f"  Total events: {len(sample_losses)}")
     print(f"  Total losses: ${sum(sample_losses):,.0f}")
     print(f"  Expected annual losses: ~${int(regular_frequency * 80_000 + catastrophic_frequency * 2_000_000):,.0f}")
+```
+
+#### Expected Output:
+
+```
+Annual Loss Profile (Revenue: $10,000,000):
+Regular Losses:
+  Expected frequency: 5.0 losses/year
+  Actual regular losses: 5
+  Range: $51,809 - $168,006
+  Total regular: $469,851
+
+Catastrophic Losses:
+  Expected frequency: 0.30 losses/year (once every 3.3 years)
+  Actual catastrophic losses: 0
+
+Combined Annual Losses:
+  Total events: 5
+  Total losses: $469,851
+  Expected annual losses: ~$1,000,000
 ```
 
 ### Step 3: Run the Simulation
@@ -292,6 +316,33 @@ elif manufacturer_with_ins.assets > manufacturer_no_ins.assets:
     print(f"\n✅ Insurance resulted in ${manufacturer_with_ins.assets - manufacturer_no_ins.assets:,.0f} higher wealth")
 else:
     print(f"\n📊 In this scenario, insurance cost exceeded benefits by ${manufacturer_no_ins.assets - manufacturer_with_ins.assets:,.0f}")
+```
+
+#### Expected Output:
+
+```
+Company became insolvent with equity: $0.00
+Company is already insolvent, skipping step
+Company is already insolvent, skipping step
+
+Loss Preview (20 years):
+  Years with catastrophic losses (>$1M): [14, 17]
+  Maximum annual loss: $6,214,104 (Year 14)
+  Average annual loss: $932,290
+
+Results After 20 Years:
+Without Insurance:
+  Final Wealth: $0
+  Survived: False
+
+With Insurance ($100K deductible, $5M limit):
+  Final Wealth: $5,945,285
+  Survived: True
+  Annual Premium: $100,000
+  Annualized Growth: -2.6%
+  Total Premiums Paid: $2,000,000
+
+⚠️ Insurance SAVED the company from bankruptcy!
 ```
 
 ### Step 4: Visualize the Results
@@ -417,6 +468,8 @@ plt.tight_layout()
 plt.show()
 ```
 
+#### Expected Output:
+
 ![Simulation Results](../../../assets/results/getting_started/output.png)
 
 ## Understanding the Results
@@ -426,28 +479,30 @@ plt.show()
 This demonstration shows the true value of insurance: **protection against catastrophic losses that can bankrupt the company**.
 
 #### The Loss Structure
-1. **Regular Losses** (~5 per year, $50K-$150K each)
+1. **Regular Losses** (~5 per year, \$50K\$150K each)
    - These are manageable without insurance
    - Total ~$400K per year on average
 
-2. **Catastrophic Losses** (~0.3 per year, $1M-$5M each)
+2. **Catastrophic Losses** (~0.3 per year, \$1M-\$5M each)
    - Occur roughly once every 3 years
    - Can exceed annual profits by 2-5x
    - **These are what make insurance valuable**
+   - What's not shown here is that catastrophic attritional losses (below the retention) can also matter
 
 #### Key Insights
 
 1. **Insurance Premium vs Expected Losses**:
-   - Annual premium: $100,000
-   - Expected regular losses: ~$400,000/year
-   - Expected catastrophic losses: ~$600,000/year
-   - Total expected losses: ~$1,000,000/year
+   - Annual premium: \$100,000
+   - Expected regular losses: ~\$400,000/year
+   - Expected catastrophic losses: ~\$600,000/year
+   - Total expected losses: ~\$1,000,000/year
    - **The premium is only 10% of expected losses!**
 
 2. **The Catastrophic Protection**:
-   - Without insurance: A $3-5M loss can wipe out years of profits
-   - With insurance: Maximum exposure is deductible ($100K) per event
-   - The $5M limit covers most catastrophic events
+   - Without insurance: A single loss can wipe out years of profits
+   - With insurance: Maximum exposure is the deductible (\$100K) per event
+     - Barring a tail event
+   - The \$5M limit covers most catastrophic events
 
 3. **Long-term Growth Impact**:
    - Insurance smooths the growth trajectory
@@ -462,8 +517,8 @@ This demonstration shows the true value of insurance: **protection against catas
    - "With Insurance" shows smoother, more consistent growth
 
 2. **Annual Losses (Top Right)**:
-   - Red bars show catastrophic losses (>$1M)
-   - Green line shows annual premium ($100K)
+   - Red bars show catastrophic losses (>\$1M)
+   - Green line shows annual premium (\$100K)
    - Insurance is valuable when red bars appear
 
 3. **Growth Comparison (Bottom Left)**:

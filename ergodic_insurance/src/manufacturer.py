@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Widget manufacturer financial model implementation.
 
 This module implements the core financial model for a widget manufacturing
@@ -231,6 +232,8 @@ class ClaimLiability:
         original_amount (float): The original claim amount at inception.
         remaining_amount (float): The unpaid balance of the claim.
         year_incurred (int): The year when the claim was first incurred.
+        is_insured (bool): Whether this claim involves insurance coverage.
+            True for insured claims (company deductible), False for uninsured claims.
         payment_schedule (List[float]): Payment percentages by year since inception.
             Default follows a standard long-tail pattern:
             - Years 1-3: Front-loaded payments (10%, 20%, 20%)
@@ -278,6 +281,7 @@ class ClaimLiability:
     original_amount: float
     remaining_amount: float
     year_incurred: int
+    is_insured: bool = True  # Default to insured for backward compatibility
     payment_schedule: List[float] = field(
         default_factory=lambda: [
             0.10,  # Year 1: 10%
@@ -485,6 +489,10 @@ class WidgetManufacturer:
         self.current_year = 0
         self.current_month = 0  # Track months for monthly LoC payments
 
+        # Insurance cost tracking for tax purposes
+        self.period_insurance_premiums = 0.0  # Premiums paid this period
+        self.period_insurance_losses = 0.0  # Losses paid this period (deductibles)
+
         # Solvency tracking
         self.is_ruined = False
 
@@ -523,6 +531,98 @@ class WidgetManufacturer:
             :attr:`restricted_assets`: Assets pledged as collateral.
         """
         return self.assets - self.restricted_assets
+
+    def record_insurance_premium(self, premium_amount: float) -> None:
+        """Record insurance premium payment for tax deduction tracking.
+
+        This method tracks insurance premium payments during the current period
+        for proper tax treatment. Premiums are tax-deductible business expenses
+        that reduce taxable income.
+
+        Args:
+            premium_amount (float): Premium amount paid in the current period.
+                Must be >= 0.
+
+        Examples:
+            Record annual premium payment::
+
+                # Pay annual insurance premium
+                annual_premium = 250_000
+                manufacturer.record_insurance_premium(annual_premium)
+
+                # Premium will be tax-deductible in next net income calculation
+
+        Side Effects:
+            - Increases period_insurance_premiums by premium_amount
+            - Reduces assets and equity by premium_amount
+
+        Note:
+            This method should be called whenever premium payments are made,
+            either directly or through insurance program calculations.
+
+        See Also:
+            :meth:`calculate_net_income`: Uses tracked premiums for tax calculations.
+        """
+        if premium_amount > 0:
+            self.period_insurance_premiums += premium_amount
+            logger.info(f"Recorded insurance premium payment: ${premium_amount:,.2f}")
+            logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
+
+    def record_insurance_loss(self, loss_amount: float) -> None:
+        """Record insurance loss (deductible/retention) for tax deduction tracking.
+
+        This method tracks insurance losses paid by the company during the current
+        period for proper tax treatment. Company-paid losses (deductibles, retentions,
+        excess over limits) are tax-deductible business expenses.
+
+        Args:
+            loss_amount (float): Loss amount paid by company in the current period.
+                Must be >= 0.
+
+        Examples:
+            Record deductible payment on claim::
+
+                # Company pays $500K deductible on claim
+                deductible_paid = 500_000
+                manufacturer.record_insurance_loss(deductible_paid)
+
+                # Loss will be tax-deductible in next net income calculation
+
+        Side Effects:
+            - Increases period_insurance_losses by loss_amount
+            - Assets and equity already reduced by process_insurance_claim()
+
+        Note:
+            This method is automatically called by process_insurance_claim()
+            for the company payment portion, but can be called manually for
+            other loss payments.
+
+        See Also:
+            :meth:`calculate_net_income`: Uses tracked losses for tax calculations.
+            :meth:`process_insurance_claim`: Automatically records company losses.
+        """
+        if loss_amount > 0:
+            self.period_insurance_losses += loss_amount
+            logger.debug(f"Recorded insurance loss: ${loss_amount:,.2f}")
+            logger.debug(f"Period losses total: ${self.period_insurance_losses:,.2f}")
+
+    def reset_period_insurance_costs(self) -> None:
+        """Reset period insurance cost tracking for new period.
+
+        This method clears the accumulated insurance premiums and losses
+        from the current period, typically called at the end of each
+        simulation step to prepare for the next period.
+
+        Side Effects:
+            - Resets period_insurance_premiums to 0.0
+            - Resets period_insurance_losses to 0.0
+
+        Note:
+            Called automatically at the end of each step() to ensure
+            costs are only counted once per period.
+        """
+        self.period_insurance_premiums = 0.0
+        self.period_insurance_losses = 0.0
 
     @property
     def available_assets(self) -> float:
@@ -811,40 +911,57 @@ class WidgetManufacturer:
             )
         return collateral_costs
 
-    def calculate_net_income(self, operating_income: float, collateral_costs: float) -> float:
-        """Calculate net income after collateral costs and taxes.
+    def calculate_net_income(
+        self,
+        operating_income: float,
+        collateral_costs: float,
+        insurance_premiums: float = 0.0,
+        insurance_losses: float = 0.0,
+    ) -> float:
+        """Calculate net income after collateral costs, insurance costs, and taxes.
 
         Net income represents the final profitability available to shareholders
-        after all operating expenses, financing costs, and taxes. This is the
-        amount available for retention and dividend distribution.
+        after all operating expenses, financing costs, insurance costs, and taxes.
+        This is the amount available for retention and dividend distribution.
 
         Args:
             operating_income (float): Operating income before financing costs
                 and taxes (EBIT). Can be negative if operations are unprofitable.
             collateral_costs (float): Financing costs for letter of credit
                 collateral. Must be >= 0.
+            insurance_premiums (float): Insurance premium payments for the period.
+                Tax-deductible business expense. Defaults to 0.0.
+            insurance_losses (float): Insurance losses/claims paid by company.
+                Tax-deductible business expense. Defaults to 0.0.
 
         Returns:
             float: Net income after all expenses and taxes. Can be negative
                 if the company operates at a loss after financing costs and taxes.
 
         Examples:
-            Calculate full income statement::
+            Calculate full income statement with insurance costs::
 
                 revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
                 operating_income = manufacturer.calculate_operating_income(revenue)
                 collateral_costs = manufacturer.calculate_collateral_costs(0.015)
                 net_income = manufacturer.calculate_net_income(
-                    operating_income, collateral_costs
+                    operating_income, collateral_costs,
+                    insurance_premiums=500_000, insurance_losses=200_000
                 )
 
                 # Net margin
                 net_margin = net_income / revenue if revenue > 0 else 0
 
         Note:
-            Taxes are only applied to positive pre-tax income. Loss years
-            generate no tax benefit in this model. The tax calculation is:
-            - Income before tax = operating_income - collateral_costs
+            Tax treatment follows proper accounting principles:
+            - Insurance premiums are tax-deductible business expenses
+            - Insurance losses/claims are tax-deductible business expenses
+            - Collateral costs are tax-deductible financing expenses
+            - Taxes are only applied to positive pre-tax income
+            - Loss years generate no tax benefit in this model
+
+            The tax calculation is:
+            - Income before tax = operating_income - collateral_costs - insurance_premiums - insurance_losses
             - Taxes = max(0, income_before_tax * tax_rate)
             - Net income = income_before_tax - taxes
 
@@ -852,14 +969,28 @@ class WidgetManufacturer:
             :attr:`tax_rate`: Tax rate applied to positive income.
             :attr:`retention_ratio`: Portion of net income retained vs. distributed.
         """
-        # Deduct collateral costs (like interest expense)
-        income_before_tax = operating_income - collateral_costs
+        # Deduct all tax-deductible expenses
+        income_before_tax = (
+            operating_income - collateral_costs - insurance_premiums - insurance_losses
+        )
 
         # Calculate taxes (only on positive income)
         taxes = max(0, income_before_tax * self.tax_rate)
 
         net_income = income_before_tax - taxes
-        logger.debug(f"Net income: ${net_income:,.2f} after ${taxes:,.2f} taxes")
+
+        # Enhanced logging for tax calculation transparency
+        if insurance_premiums > 0 or insurance_losses > 0:
+            logger.debug(f"Tax calculation: Operating income ${operating_income:,.2f}")
+            logger.debug(f"  - Collateral costs: ${collateral_costs:,.2f}")
+            logger.debug(f"  - Insurance premiums (deductible): ${insurance_premiums:,.2f}")
+            logger.debug(f"  - Insurance losses (deductible): ${insurance_losses:,.2f}")
+            logger.debug(f"  = Income before tax: ${income_before_tax:,.2f}")
+            logger.debug(f"  - Taxes (@{self.tax_rate:.1%}): ${taxes:,.2f}")
+            logger.debug(f"  = Net income: ${net_income:,.2f}")
+        else:
+            logger.debug(f"Net income: ${net_income:,.2f} after ${taxes:,.2f} taxes")
+
         return net_income
 
     def update_balance_sheet(self, net_income: float, growth_rate: float = 0.0) -> None:
@@ -939,10 +1070,9 @@ class WidgetManufacturer:
     def process_insurance_claim(
         self,
         claim_amount: float,
-        deductible: float = 0.0,
+        deductible_amount: float = 0.0,
         insurance_limit: float = float("inf"),
         insurance_recovery: Optional[float] = None,
-        deductible_amount: Optional[float] = None,
     ) -> tuple[float, float]:
         """Process an insurance claim with deductible and limit, setting up collateral.
 
@@ -959,17 +1089,14 @@ class WidgetManufacturer:
         Args:
             claim_amount (float): Total amount of the loss/claim in dollars.
                 Must be >= 0.
-            deductible (float): Amount company must pay before insurance kicks in
-                (legacy parameter). Defaults to 0.0. Use deductible_amount instead
-                for new code.
+            deductible_amount (float): Amount company must pay before insurance kicks in
+                (legacy parameter). Defaults to 0.0.
             insurance_limit (float): Maximum amount insurance will pay per claim
                 (legacy parameter). Defaults to unlimited. Use insurance_recovery
                 instead for new code.
             insurance_recovery (Optional[float]): Pre-calculated insurance recovery
                 amount (preferred). If provided, overrides deductible/limit
                 calculation. Should be the exact amount insurance will pay.
-            deductible_amount (Optional[float]): Deductible amount (preferred over
-                legacy deductible parameter). More explicit naming.
 
         Returns:
             tuple[float, float]: Tuple of (company_payment, insurance_payment)
@@ -1009,22 +1136,22 @@ class WidgetManufacturer:
                 # insurance_paid = $25,000,000
 
         Side Effects:
-            - Reduces company assets by company_payment amount
-            - Reduces equity by company_payment amount
-            - Increases collateral by insurance_payment amount
-            - Increases restricted_assets by insurance_payment amount
-            - Creates ClaimLiability for insurance_payment with payment schedule
-            - May trigger insolvency if company_payment > assets
+            - Increases collateral by company_payment amount (not insurance_payment)
+            - Increases restricted_assets by company_payment amount
+            - Creates ClaimLiability for company_payment with payment schedule
+            - Insurance payment has no impact on company balance sheet
+            - Assets/equity reduced over time as claim payments are made
 
         Note:
-            The insurance portion creates a liability that will be paid over
+            The company portion creates a liability that will be paid over
             multiple years according to the ClaimLiability payment schedule.
             Collateral is posted immediately but released as payments are made.
+            The insurance portion has no financial impact on the company.
 
         Warning:
-            If company assets are insufficient to pay the deductible, the company
-            pays what it can but this may trigger insolvency. Check solvency
-            after processing large claims.
+            Large company payments may require significant collateral, restricting
+            available assets for operations. Monitor available assets after
+            processing large claims with high deductibles.
 
         See Also:
             :class:`ClaimLiability`: For understanding payment schedules.
@@ -1036,54 +1163,120 @@ class WidgetManufacturer:
         if insurance_recovery is not None:
             # Use pre-calculated recovery
             insurance_payment = insurance_recovery
-            actual_deductible = deductible_amount if deductible_amount is not None else deductible
             company_payment = claim_amount - insurance_payment
         else:
-            # Legacy calculation
-            actual_deductible = deductible_amount if deductible_amount is not None else deductible
             # Calculate insurance coverage
-            if claim_amount <= actual_deductible:
+            if claim_amount <= deductible_amount:
                 # Below deductible, company pays all
                 company_payment = claim_amount
                 insurance_payment = 0
             else:
                 # Above deductible
-                company_payment = actual_deductible
-                insurance_payment = int(min(claim_amount - actual_deductible, insurance_limit))
+                company_payment = deductible_amount
+                insurance_payment = int(min(claim_amount - deductible_amount, insurance_limit))
                 # Company also pays any amount above the limit
-                if claim_amount > actual_deductible + insurance_limit:
-                    company_payment += claim_amount - actual_deductible - insurance_limit
+                if claim_amount > deductible_amount + insurance_limit:
+                    company_payment += claim_amount - deductible_amount - insurance_limit
 
-        # Company must immediately pay its portion
+        # Company payment is collateralized and paid over time (not immediately)
         if company_payment > 0:
-            actual_payment = min(company_payment, self.assets)  # Pay what we can
-            self.assets -= actual_payment
-            self.equity -= actual_payment  # Reduce equity by the same amount
-            logger.info(f"Company paid ${actual_payment:,.2f} (deductible/excess)")
+            # Post letter of credit as collateral for company payment
+            # This restricts assets but doesn't change total assets or equity initially
+            self.collateral += company_payment
+            self.restricted_assets += company_payment
 
-        # Insurance payment requires collateral and creates liability
-        if insurance_payment > 0:
-            # Post letter of credit as collateral for insurance payment
-            # This restricts assets but doesn't change total assets or equity
-            self.collateral += insurance_payment
-            self.restricted_assets += insurance_payment
-
-            # Create claim liability with payment schedule for insurance portion
+            # Create claim liability with payment schedule for company portion
             claim = ClaimLiability(
-                original_amount=insurance_payment,
-                remaining_amount=insurance_payment,
+                original_amount=company_payment,
+                remaining_amount=company_payment,
                 year_incurred=self.current_year,
+                is_insured=True,  # This is the company portion of an insured claim
             )
             self.claim_liabilities.append(claim)
 
-            logger.info(f"Insurance covering ${insurance_payment:,.2f}")
-            logger.info(f"Posted ${insurance_payment:,.2f} letter of credit as collateral")
+            logger.info(
+                f"Company portion: ${company_payment:,.2f} - collateralized with payment schedule"
+            )
+            logger.info(
+                f"Posted ${company_payment:,.2f} letter of credit as collateral for company portion"
+            )
+
+        # Insurance payment has no impact on company financials
+        if insurance_payment > 0:
+            logger.info(
+                f"Insurance covering ${insurance_payment:,.2f} - no impact on company financials"
+            )
 
         logger.info(
             f"Total claim: ${claim_amount:,.2f} (Company: ${company_payment:,.2f}, Insurance: ${insurance_payment:,.2f})"
         )
 
         return company_payment, insurance_payment
+
+    def process_uninsured_claim(
+        self, claim_amount: float, immediate_payment: bool = False
+    ) -> float:
+        """Process an uninsured claim paid by company over time without collateral.
+
+        This method handles claims where the company has no insurance coverage
+        and must pay the full amount over time. Unlike insured claims, no collateral
+        is required since there's no insurance company to secure payment to.
+
+        Args:
+            claim_amount (float): Total amount of the claim in dollars. Must be >= 0.
+            immediate_payment (bool): If True, pays entire amount immediately.
+                If False, creates liability with payment schedule. Defaults to False.
+
+        Returns:
+            float: The claim amount processed (for consistency with other methods).
+
+        Examples:
+            Process claim with payment schedule::
+
+                # $500K claim paid over default schedule
+                amount = manufacturer.process_uninsured_claim(500_000)
+                # Creates liability, no immediate asset reduction
+
+            Process claim with immediate payment::
+
+                # $500K claim paid immediately
+                amount = manufacturer.process_uninsured_claim(500_000, immediate_payment=True)
+                # Immediately reduces assets and equity by $500K
+
+        Side Effects:
+            - If immediate_payment=True: Reduces assets and equity immediately
+            - If immediate_payment=False: Creates ClaimLiability without collateral
+            - Records claim amount as tax-deductible insurance loss
+
+        Note:
+            Unlike process_insurance_claim(), this method does not require collateral
+            since there's no insurance company requiring security for payments.
+        """
+        if claim_amount <= 0:
+            return 0.0
+
+        if immediate_payment:
+            # Pay immediately - reduce assets and equity
+            actual_payment = min(claim_amount, self.assets)
+            self.assets -= actual_payment
+            self.equity -= actual_payment
+            # Record as tax-deductible loss
+            self.period_insurance_losses += actual_payment
+            logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
+            return actual_payment
+
+        # Create liability without collateral for payment over time
+        claim = ClaimLiability(
+            original_amount=claim_amount,
+            remaining_amount=claim_amount,
+            year_incurred=self.current_year,
+            is_insured=False,  # This is an uninsured claim
+        )
+        self.claim_liabilities.append(claim)
+        logger.info(
+            f"Created uninsured claim liability: ${claim_amount:,.2f} (no collateral required)"
+        )
+        return claim_amount
 
     def pay_claim_liabilities(self) -> float:
         """Pay scheduled claim liabilities for the current year.
@@ -1164,12 +1357,23 @@ class WidgetManufacturer:
                     self.equity -= actual_payment  # Reduce equity when paying claims
                     total_paid += actual_payment
 
-                    # Reduce collateral and restricted assets by payment amount
-                    self.collateral -= actual_payment
-                    self.restricted_assets -= actual_payment
-                    logger.debug(
-                        f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
-                    )
+                    # Different treatment for insured vs uninsured claims
+                    if claim.is_insured:
+                        # For insured claims: record as tax-deductible insurance loss & reduce collateral
+                        self.period_insurance_losses += actual_payment
+                        self.collateral -= actual_payment
+                        self.restricted_assets -= actual_payment
+                        logger.debug(
+                            f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
+                        )
+                        logger.debug(
+                            f"Recorded ${actual_payment:,.2f} as tax-deductible insurance loss"
+                        )
+                    else:
+                        # For uninsured claims: just a regular business expense (no collateral to reduce)
+                        logger.debug(
+                            f"Paid ${actual_payment:,.2f} toward uninsured claim (regular business expense)"
+                        )
 
         # Remove fully paid claims
         self.claim_liabilities = [c for c in self.claim_liabilities if c.remaining_amount > 0]
@@ -1309,13 +1513,16 @@ class WidgetManufacturer:
     def check_solvency(self) -> bool:
         """Check if the company is solvent and update ruin status.
 
-        Evaluates the company's financial solvency based on equity position.
-        A company is considered insolvent (ruined) when equity falls to zero
-        or below, indicating that liabilities exceed assets. This method
-        updates the internal ruin status and provides logging for tracking.
+        Evaluates the company's financial solvency based on both equity position
+        and payment capacity. A company is considered insolvent (ruined) when:
+        1. Equity falls to zero or below (traditional balance sheet insolvency)
+        2. Scheduled claim payments exceed sustainable cash flow capacity (payment insolvency)
+
+        Payment insolvency occurs when the company cannot realistically service
+        its claim payment obligations given its revenue-generating capacity.
 
         Returns:
-            bool: True if company is solvent (equity > 0), False if insolvent.
+            bool: True if company is solvent, False if insolvent.
                 Once False, the company remains ruined for the simulation.
 
         Examples:
@@ -1328,7 +1535,7 @@ class WidgetManufacturer:
                 )
 
                 if not manufacturer.check_solvency():
-                    print(f"Company became insolvent with equity: ${manufacturer.equity:,.2f}")
+                    print(f"Company became insolvent")
                     break  # Exit simulation
 
             Solvency-aware simulation loop::
@@ -1343,15 +1550,14 @@ class WidgetManufacturer:
                         break
 
         Side Effects:
-            - Updates :attr:`is_ruined` to True if equity <= 0
+            - Updates :attr:`is_ruined` to True if insolvent
             - Logs warning message when insolvency first detected
             - Once ruined, company remains ruined for simulation duration
 
         Note:
-            This method is automatically called during :meth:`step` execution,
-            so explicit calls are typically not necessary during normal
-            simulation. However, it can be useful after manual balance sheet
-            modifications or large claim processing.
+            This method is automatically called during :meth:`step` execution.
+            Payment insolvency is detected when scheduled claim payments exceed
+            80% of revenue, indicating unsustainable claim service burden.
 
         Warning:
             Insolvency is an absorbing state - once ruined, the company cannot
@@ -1363,10 +1569,42 @@ class WidgetManufacturer:
             :attr:`equity`: Financial equity determining solvency.
             :meth:`step`: Automatically includes solvency checking.
         """
+        # Traditional balance sheet insolvency
         if self.equity <= 0:
-            self.is_ruined = True
-            logger.warning(f"Company became insolvent with equity: ${self.equity:,.2f}")
-        return not self.is_ruined
+            if not self.is_ruined:  # Only log once
+                self.is_ruined = True
+                logger.warning(f"Company became insolvent - negative equity: ${self.equity:,.2f}")
+            return False
+
+        # Payment insolvency - check if claim payment obligations are unsustainable
+        if self.claim_liabilities:
+            # Calculate scheduled payments for the current year
+            current_year_payments = 0.0
+            for claim in self.claim_liabilities:
+                years_since = self.current_year - claim.year_incurred
+                scheduled_payment = claim.get_payment(years_since)
+                current_year_payments += scheduled_payment
+
+            # Check if payments are sustainable relative to revenue capacity
+            if current_year_payments > 0:
+                current_revenue = self.calculate_revenue()
+                payment_burden_ratio = (
+                    current_year_payments / current_revenue if current_revenue > 0 else float("inf")
+                )
+
+                # Company is insolvent if claim payments exceed 80% of revenue
+                # This threshold represents realistic maximum debt service capacity
+                if payment_burden_ratio > 0.80:
+                    if not self.is_ruined:  # Only log once
+                        self.is_ruined = True
+                        logger.warning(
+                            f"Company became insolvent - unsustainable payment burden: "
+                            f"${current_year_payments:,.0f} payments vs ${current_revenue:,.0f} revenue "
+                            f"({payment_burden_ratio:.1%} burden ratio)"
+                        )
+                    return False
+
+        return True
 
     def calculate_metrics(self) -> Dict[str, float]:
         """Calculate comprehensive financial metrics for analysis.
@@ -1462,7 +1700,12 @@ class WidgetManufacturer:
         revenue = self.calculate_revenue()
         operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs()
-        net_income = self.calculate_net_income(operating_income, collateral_costs)
+        net_income = self.calculate_net_income(
+            operating_income,
+            collateral_costs,
+            0.0,  # No period premiums in metrics calculation
+            0.0,  # No period losses in metrics calculation
+        )
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income
@@ -1669,7 +1912,13 @@ class WidgetManufacturer:
             # Annual collateral costs (sum of 12 monthly payments)
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
 
-        net_income = self.calculate_net_income(operating_income, collateral_costs)
+        # Calculate net income with proper tax treatment of insurance costs
+        net_income = self.calculate_net_income(
+            operating_income,
+            collateral_costs,
+            self.period_insurance_premiums,
+            self.period_insurance_losses,
+        )
 
         # Update balance sheet with retained earnings
         self.update_balance_sheet(net_income, growth_rate)
@@ -1688,6 +1937,9 @@ class WidgetManufacturer:
 
         # Increment time
         self._increment_time(time_resolution)
+
+        # Reset period insurance costs for next period
+        self.reset_period_insurance_costs()
 
         return metrics
 
@@ -1760,6 +2012,10 @@ class WidgetManufacturer:
         self.current_month = 0
         self.is_ruined = False
         self.metrics_history = []
+
+        # Reset period insurance cost tracking
+        self.period_insurance_premiums = 0.0
+        self.period_insurance_losses = 0.0
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:

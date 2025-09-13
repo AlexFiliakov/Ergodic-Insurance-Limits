@@ -573,7 +573,9 @@ class Simulation:
             # Legacy behavior - process claims without policy
             for claim in claims:
                 self.manufacturer.process_insurance_claim(
-                    claim_amount=claim.amount, deductible=1_000_000, insurance_limit=10_000_000
+                    claim_amount=claim.amount,
+                    deductible_amount=1_000_000,
+                    insurance_limit=10_000_000,
                 )
 
         # Step manufacturer forward
