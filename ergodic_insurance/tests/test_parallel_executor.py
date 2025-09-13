@@ -72,10 +72,24 @@ def _test_simulate_path(sim_id):
     np.random.seed(sim_id)
     steps = 100
     path = np.random.randn(steps).cumsum()
+
+    # Guard against empty arrays or invalid values
+    if len(path) == 0:
+        return {
+            "final_value": 0.0,
+            "max_value": 0.0,
+            "min_value": 0.0,
+        }
+
+    # Use numpy functions that handle edge cases better
+    max_value = np.nanmax(path) if not np.all(np.isnan(path)) else 0.0
+    min_value = np.nanmin(path) if not np.all(np.isnan(path)) else 0.0
+    final_value = path[-1] if not np.isnan(path[-1]) else 0.0
+
     return {
-        "final_value": path[-1],
-        "max_value": path.max(),
-        "min_value": path.min(),
+        "final_value": float(final_value),
+        "max_value": float(max_value),
+        "min_value": float(min_value),
     }
 
 

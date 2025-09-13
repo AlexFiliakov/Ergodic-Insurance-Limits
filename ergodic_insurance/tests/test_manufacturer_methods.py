@@ -161,6 +161,148 @@ class TestProcessInsuranceClaim:
         assert payment_year_0 > 0
         assert payment_year_0 == claim.original_amount * claim.payment_schedule[0]
 
+    def test_uninsured_claim_immediate_payment(self, manufacturer):
+        """Test immediate payment of uninsured claim."""
+        initial_assets = manufacturer.assets
+        initial_equity = manufacturer.equity
+        claim_amount = 500_000
+
+        processed_amount = manufacturer.process_uninsured_claim(
+            claim_amount, immediate_payment=True
+        )
+
+        assert processed_amount == claim_amount
+        assert manufacturer.assets == initial_assets - claim_amount
+        assert manufacturer.equity == initial_equity - claim_amount
+        assert manufacturer.period_insurance_losses == claim_amount
+        assert len(manufacturer.claim_liabilities) == 0
+        assert manufacturer.collateral == 0
+        assert manufacturer.restricted_assets == 0
+
+    def test_uninsured_claim_immediate_payment_exceeds_assets(self, manufacturer):
+        """Test immediate payment when claim exceeds available assets."""
+        manufacturer.assets = 100_000
+        manufacturer.equity = 100_000
+        claim_amount = 500_000
+
+        processed_amount = manufacturer.process_uninsured_claim(
+            claim_amount, immediate_payment=True
+        )
+
+        assert processed_amount == 100_000
+        assert manufacturer.assets == 0
+        assert manufacturer.equity == 0
+        assert manufacturer.period_insurance_losses == 100_000
+
+    def test_uninsured_claim_deferred_payment(self, manufacturer):
+        """Test uninsured claim with deferred payment schedule."""
+        initial_assets = manufacturer.assets
+        initial_equity = manufacturer.equity
+        claim_amount = 500_000
+
+        processed_amount = manufacturer.process_uninsured_claim(claim_amount)
+
+        assert processed_amount == claim_amount
+        assert manufacturer.assets == initial_assets
+        assert manufacturer.equity == initial_equity
+        assert manufacturer.period_insurance_losses == 0
+        assert len(manufacturer.claim_liabilities) == 1
+        assert manufacturer.collateral == 0
+        assert manufacturer.restricted_assets == 0
+
+        claim = manufacturer.claim_liabilities[0]
+        assert claim.original_amount == claim_amount
+        assert claim.remaining_amount == claim_amount
+        assert claim.year_incurred == manufacturer.current_year
+        assert claim.is_insured is False
+
+    def test_uninsured_claim_deferred_payment_multiple_claims(self, manufacturer):
+        """Test multiple uninsured claims with deferred payment."""
+        claim_amount_1 = 300_000
+        claim_amount_2 = 200_000
+
+        manufacturer.process_uninsured_claim(claim_amount_1)
+        manufacturer.process_uninsured_claim(claim_amount_2)
+
+        assert len(manufacturer.claim_liabilities) == 2
+        assert manufacturer.collateral == 0
+        assert manufacturer.restricted_assets == 0
+
+        total_liability = manufacturer.total_claim_liabilities
+        assert total_liability == claim_amount_1 + claim_amount_2
+
+        for claim in manufacturer.claim_liabilities:
+            assert claim.is_insured is False
+
+    def test_uninsured_claim_zero_amount(self, manufacturer):
+        """Test uninsured claim with zero amount."""
+        initial_assets = manufacturer.assets
+        initial_equity = manufacturer.equity
+
+        processed_amount = manufacturer.process_uninsured_claim(0.0)
+
+        assert processed_amount == 0.0
+        assert manufacturer.assets == initial_assets
+        assert manufacturer.equity == initial_equity
+        assert len(manufacturer.claim_liabilities) == 0
+
+    def test_uninsured_claim_negative_amount(self, manufacturer):
+        """Test uninsured claim with negative amount."""
+        initial_assets = manufacturer.assets
+        initial_equity = manufacturer.equity
+
+        processed_amount = manufacturer.process_uninsured_claim(-100_000)
+
+        assert processed_amount == 0.0
+        assert manufacturer.assets == initial_assets
+        assert manufacturer.equity == initial_equity
+        assert len(manufacturer.claim_liabilities) == 0
+
+    def test_uninsured_claim_immediate_vs_deferred_comparison(self, manufacturer):
+        """Test comparison between immediate and deferred payment modes."""
+        claim_amount = 500_000
+
+        # Test immediate payment
+        manufacturer_immediate = WidgetManufacturer(manufacturer.config)
+        initial_assets_imm = manufacturer_immediate.assets
+        manufacturer_immediate.process_uninsured_claim(claim_amount, immediate_payment=True)
+
+        # Test deferred payment
+        manufacturer_deferred = WidgetManufacturer(manufacturer.config)
+        initial_assets_def = manufacturer_deferred.assets
+        manufacturer_deferred.process_uninsured_claim(claim_amount, immediate_payment=False)
+
+        # Immediate payment should reduce assets immediately
+        assert manufacturer_immediate.assets == initial_assets_imm - claim_amount
+        # Deferred payment should not reduce assets immediately
+        assert manufacturer_deferred.assets == initial_assets_def
+
+        # Immediate should have no liabilities
+        assert len(manufacturer_immediate.claim_liabilities) == 0
+        # Deferred should have one liability
+        assert len(manufacturer_deferred.claim_liabilities) == 1
+
+    def test_uninsured_claim_with_existing_collateral(self, manufacturer):
+        """Test that uninsured claims don't affect existing collateral from insured claims."""
+        # Create an insured claim first to establish collateral
+        manufacturer.process_insurance_claim(300_000, 50_000, 500_000)
+        initial_collateral = manufacturer.collateral
+        initial_restricted = manufacturer.restricted_assets
+
+        # Add uninsured claim
+        manufacturer.process_uninsured_claim(200_000)
+
+        # Collateral should remain unchanged
+        assert manufacturer.collateral == initial_collateral
+        assert manufacturer.restricted_assets == initial_restricted
+        # Should have 2 liabilities total (1 insured + 1 uninsured)
+        assert len(manufacturer.claim_liabilities) == 2
+
+        insured_claims = [c for c in manufacturer.claim_liabilities if c.is_insured]
+        uninsured_claims = [c for c in manufacturer.claim_liabilities if not c.is_insured]
+        assert len(insured_claims) == 1
+        assert len(uninsured_claims) == 1
+
 
 class TestStepMethod:
     """Test suite for step() method."""

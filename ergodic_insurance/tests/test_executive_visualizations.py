@@ -114,14 +114,14 @@ class TestOptimalCoverageHeatmap:
         fig = plot_optimal_coverage_heatmap()
         assert fig is not None
         assert isinstance(fig, plt.Figure)
-        assert len(fig.axes) == 6  # Three company sizes + three colorbars
+        assert len(fig.axes) == 4  # Three company sizes + one colorbar
         plt.close(fig)
 
     def test_plot_optimal_coverage_heatmap_custom_sizes(self):
         """Test heatmap with custom company sizes."""
         fig = plot_optimal_coverage_heatmap(company_sizes=[500_000, 5_000_000, 50_000_000])
         assert fig is not None
-        assert len(fig.axes) == 6  # Three company sizes + three colorbars
+        assert len(fig.axes) == 4  # Three company sizes + one colorbar
         plt.close(fig)
 
     def test_plot_optimal_coverage_heatmap_with_data(self):

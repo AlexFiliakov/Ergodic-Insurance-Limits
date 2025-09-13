@@ -1136,22 +1136,22 @@ class WidgetManufacturer:
                 # insurance_paid = $25,000,000
 
         Side Effects:
-            - Increases collateral by company_payment amount (not insurance_payment)
-            - Increases restricted_assets by company_payment amount
-            - Creates ClaimLiability for company_payment with payment schedule
-            - Insurance payment has no impact on company balance sheet
-            - Assets/equity reduced over time as claim payments are made
+            - Increases collateral by insurance_payment amount (for insurance portion)
+            - Increases restricted_assets by insurance_payment amount
+            - Creates ClaimLiability for insurance_payment with payment schedule
+            - Company payment immediately reduces assets and equity
+            - Insurance portion paid over time via claim liability schedule
 
         Note:
-            The company portion creates a liability that will be paid over
+            The company portion is paid immediately and reduces assets/equity.
+            The insurance portion creates a liability that will be paid over
             multiple years according to the ClaimLiability payment schedule.
-            Collateral is posted immediately but released as payments are made.
-            The insurance portion has no financial impact on the company.
+            Collateral is posted for the insurance portion to secure payments.
 
         Warning:
-            Large company payments may require significant collateral, restricting
+            Large insurance portions may require significant collateral, restricting
             available assets for operations. Monitor available assets after
-            processing large claims with high deductibles.
+            processing large claims with high insurance coverage.
 
         See Also:
             :class:`ClaimLiability`: For understanding payment schedules.
@@ -1173,38 +1173,42 @@ class WidgetManufacturer:
             else:
                 # Above deductible
                 company_payment = deductible_amount
-                insurance_payment = int(min(claim_amount - deductible_amount, insurance_limit))
+                insurance_payment = min(claim_amount - deductible_amount, insurance_limit)
                 # Company also pays any amount above the limit
                 if claim_amount > deductible_amount + insurance_limit:
                     company_payment += claim_amount - deductible_amount - insurance_limit
 
-        # Company payment is collateralized and paid over time (not immediately)
+        # Company payment is paid immediately - reduce assets and equity
         if company_payment > 0:
-            # Post letter of credit as collateral for company payment
-            # This restricts assets but doesn't change total assets or equity initially
-            self.collateral += company_payment
-            self.restricted_assets += company_payment
+            # Ensure company can pay (limit to available assets)
+            actual_company_payment = min(company_payment, self.assets)
+            self.assets -= actual_company_payment
+            self.equity -= actual_company_payment
+            self.record_insurance_loss(actual_company_payment)
 
-            # Create claim liability with payment schedule for company portion
+            logger.info(f"Company portion: ${actual_company_payment:,.2f} - paid immediately")
+
+        # Insurance payment is collateralized and paid over time
+        if insurance_payment > 0:
+            # Post letter of credit as collateral for insurance portion
+            # This restricts assets but doesn't change total assets or equity initially
+            self.collateral += insurance_payment
+            self.restricted_assets += insurance_payment
+
+            # Create claim liability with payment schedule for insurance portion
             claim = ClaimLiability(
-                original_amount=company_payment,
-                remaining_amount=company_payment,
+                original_amount=insurance_payment,
+                remaining_amount=insurance_payment,
                 year_incurred=self.current_year,
-                is_insured=True,  # This is the company portion of an insured claim
+                is_insured=True,  # This is the insurance portion of an insured claim
             )
             self.claim_liabilities.append(claim)
 
             logger.info(
-                f"Company portion: ${company_payment:,.2f} - collateralized with payment schedule"
+                f"Insurance portion: ${insurance_payment:,.2f} - collateralized with payment schedule"
             )
             logger.info(
-                f"Posted ${company_payment:,.2f} letter of credit as collateral for company portion"
-            )
-
-        # Insurance payment has no impact on company financials
-        if insurance_payment > 0:
-            logger.info(
-                f"Insurance covering ${insurance_payment:,.2f} - no impact on company financials"
+                f"Posted ${insurance_payment:,.2f} letter of credit as collateral for insurance portion"
             )
 
         logger.info(

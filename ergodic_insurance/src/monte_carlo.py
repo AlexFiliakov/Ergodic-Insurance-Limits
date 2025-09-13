@@ -17,6 +17,7 @@ from .convergence import ConvergenceDiagnostics, ConvergenceStats
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
+from .monte_carlo_worker import run_chunk_standalone
 from .parallel_executor import (
     ChunkingStrategy,
     ParallelExecutor,
@@ -529,6 +530,20 @@ class MonteCarloEngine:
 
     def _run_parallel(self) -> SimulationResults:
         """Run simulation in parallel using multiprocessing."""
+        # Check if we're on Windows and have scipy import issues
+        # Fall back to sequential execution in these cases
+        try:
+            # Test if we can import scipy successfully (needed for loss distributions)
+            from scipy import stats  # noqa: F401
+        except (ImportError, TypeError) as e:
+            warnings.warn(
+                f"Scipy import failed in parallel mode: {e}. "
+                "Falling back to sequential execution for reliability.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return self._run_sequential()
+
         n_sims = self.config.n_simulations
         n_workers = self.config.n_workers
         chunk_size = self.config.chunk_size
@@ -540,25 +555,50 @@ class MonteCarloEngine:
             chunk_seed = None if self.config.seed is None else self.config.seed + i
             chunks.append((i, chunk_end, chunk_seed))
 
-        # Run chunks in parallel
+        # Prepare config dictionary for the standalone function
+        config_dict = {
+            "n_years": self.config.n_years,
+            "use_float32": self.config.use_float32,
+        }
+
+        # Run chunks in parallel using standalone function
         all_results = []
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            # Submit all tasks
-            futures = {executor.submit(self._run_chunk, chunk): chunk for chunk in chunks}
+        try:
+            with ProcessPoolExecutor(max_workers=n_workers) as executor:
+                # Submit all tasks using the standalone function
+                futures = {
+                    executor.submit(
+                        run_chunk_standalone,
+                        chunk,
+                        self.loss_generator,
+                        self.insurance_program,
+                        self.manufacturer,
+                        config_dict,
+                    ): chunk
+                    for chunk in chunks
+                }
 
-            # Process completed tasks
-            if self.config.progress_bar:
-                pbar = tqdm(total=len(chunks), desc="Processing chunks")
+                # Process completed tasks
+                if self.config.progress_bar:
+                    pbar = tqdm(total=len(chunks), desc="Processing chunks")
 
-            for future in as_completed(futures):
-                chunk_results = future.result()
-                all_results.append(chunk_results)
+                for future in as_completed(futures):
+                    chunk_results = future.result()
+                    all_results.append(chunk_results)
+
+                    if self.config.progress_bar:
+                        pbar.update(1)
 
                 if self.config.progress_bar:
-                    pbar.update(1)
+                    pbar.close()
 
-            if self.config.progress_bar:
-                pbar.close()
+        except (OSError, RuntimeError, ValueError, ImportError) as e:
+            warnings.warn(
+                f"Parallel execution failed: {e}. Falling back to sequential execution.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return self._run_sequential()
 
         # Combine results
         return self._combine_chunk_results(all_results)
