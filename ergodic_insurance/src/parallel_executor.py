@@ -595,9 +595,10 @@ class ParallelExecutor:
 
                     if progress_bar:
                         pbar.update(1)
-                except (TimeoutError, MemoryError, RuntimeError) as e:
+                except (ValueError, TypeError, RuntimeError) as e:
                     warnings.warn(f"Chunk execution failed: {e}")
-                    results.append((futures[future], None))
+                    # Return empty list for failed chunks instead of None
+                    results.append((futures[future], []))
 
             if progress_bar:
                 pbar.close()
@@ -605,8 +606,13 @@ class ParallelExecutor:
         # Sort results by original order
         results.sort(key=lambda x: x[0])
 
-        # Return just the results
-        return [r[1] for r in results if r[1] is not None]
+        # Flatten the results - each chunk returns a list
+        flattened_results = []
+        for _, chunk_results in results:
+            if chunk_results:  # Skip empty results from failed chunks
+                flattened_results.extend(chunk_results)
+
+        return flattened_results
 
     def _update_memory_metrics(self):
         """Update memory usage metrics."""

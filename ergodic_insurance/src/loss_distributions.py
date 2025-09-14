@@ -713,9 +713,10 @@ class ManufacturingLossGenerator:
 
         # Set seed for all generators
         if seed is not None:
+            # Use modulo to prevent overflow when seed is close to 2**32
             attritional_params["seed"] = seed
-            large_params["seed"] = seed + 1  # Different seed for each
-            catastrophic_params["seed"] = seed + 2
+            large_params["seed"] = (seed + 1) % (2**32)  # Different seed for each
+            catastrophic_params["seed"] = (seed + 2) % (2**32)
 
         self.attritional = AttritionalLossGenerator(**attritional_params)
         self.large = LargeLossGenerator(**large_params)

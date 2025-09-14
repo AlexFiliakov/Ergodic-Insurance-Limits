@@ -33,8 +33,8 @@ def _test_square(x):
 
 
 def _test_sum_results(results):
-    """Sum all results from chunks."""
-    return sum(sum(chunk) for chunk in results)
+    """Sum all results."""
+    return sum(results)
 
 
 def _test_process_with_config(item, **kwargs):
@@ -58,8 +58,8 @@ def _test_failing_function(x):
 
 
 def _test_reduce(results):
-    """Reduce results from chunks."""
-    return sum(sum(chunk) for chunk in results)
+    """Reduce results."""
+    return sum(results)
 
 
 def _test_multiply_with_kwargs(x, **kwargs):
@@ -93,17 +93,14 @@ def _test_simulate_path(sim_id):
     }
 
 
-def _test_aggregate_results(chunks):
+def _test_aggregate_results(results):
     """Aggregate simulation results for integration tests."""
-    all_results = []
-    for chunk in chunks:
-        all_results.extend(chunk)
-
-    final_values = [r["final_value"] for r in all_results]
+    # Results are already flattened
+    final_values = [r["final_value"] for r in results]
     return {
         "mean_final": np.mean(final_values),
         "std_final": np.std(final_values),
-        "n_simulations": len(all_results),
+        "n_simulations": len(results),
     }
 
 
@@ -457,8 +454,8 @@ class TestParallelExecutor:
                 progress_bar=False,
             )
 
-        # Flatten results
-        flat_results = [item for chunk in results for item in chunk]
+        # Results are already flattened
+        flat_results = results
         expected = [i * 2 + 10 for i in range(5)]
         assert flat_results == expected
 
@@ -489,9 +486,9 @@ class TestParallelExecutor:
             )
 
         # Verify results
-        flat_results = [item for chunk in results for item in chunk]
+        # Results are already flattened
         expected = [np.dot(matrix[i], vector) for i in range(100)]
-        np.testing.assert_array_almost_equal(flat_results, expected)
+        np.testing.assert_array_almost_equal(results, expected)
 
     def test_performance_monitoring(self):
         """Test performance monitoring functionality."""
@@ -522,8 +519,8 @@ class TestParallelExecutor:
         )
 
         # Should complete without errors
-        flat_results = [item for chunk in results for item in chunk]
-        assert len(flat_results) == 100
+        # Results are already flattened
+        assert len(results) == 100
 
     def test_error_handling(self):
         """Test error handling in parallel execution."""
@@ -559,8 +556,8 @@ class TestUtilityFunctions:
         """Test simple parallel map utility."""
         results = parallel_map(func=_test_square, items=range(10), n_workers=2, progress=False)
 
-        # Flatten results
-        flat_results = [item for chunk in results for item in chunk]
+        # Results are already flattened
+        flat_results = results
         expected = [x**2 for x in range(10)]
         assert flat_results == expected
 

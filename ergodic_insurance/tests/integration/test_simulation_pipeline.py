@@ -34,23 +34,8 @@ from .test_fixtures import (
 )
 from .test_helpers import benchmark_function, timer
 
-
-# Module-level functions for multiprocessing compatibility
-def simulate_path_for_parallel_test(seed: int) -> Dict[str, Any]:
-    """Simulate a single path for parallel executor test.
-
-    Module-level function for pickle compatibility in multiprocessing.
-    """
-    np.random.seed(seed)
-    n_years = 20
-    returns = np.random.normal(0.05, 0.15, n_years)
-    values = 1000000 * np.exp(np.cumsum(returns))
-    return {
-        "terminal_value": values[-1],
-        "max_value": np.max(values),
-        "min_value": np.min(values),
-        "seed": seed,
-    }
+# Import worker function from separate module to avoid import chain issues
+from .test_parallel_worker import simulate_path_for_parallel_test
 
 
 def worker_task_for_shared_memory_test(args: Tuple[int, int, int, Any]) -> None:
@@ -209,9 +194,7 @@ class TestSimulationPipeline:
                 results = executor.map_reduce(
                     work_function=simulate_path_for_parallel_test,
                     work_items=small_seeds,
-                    reduce_function=lambda x: [
-                        item for sublist in x for item in sublist
-                    ],  # Flatten results
+                    reduce_function=None,  # No reduce needed, executor returns list
                 )
 
             # Verify results
@@ -231,6 +214,9 @@ class TestSimulationPipeline:
 
         # Just verify serial results match expectations
         assert len(serial_results) == small_n_paths, "Serial results should match path count"
+        assert all(
+            "terminal_value" in r for r in serial_results
+        ), "All serial results should have terminal value"
 
     @pytest.mark.skip(reason="Takes too long. Test needs update")
     def test_trajectory_storage_memory_efficiency(self):

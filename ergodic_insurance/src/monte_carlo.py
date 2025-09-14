@@ -67,6 +67,24 @@ def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
     return total_loss, recovery, retained
 
 
+def _test_worker_function() -> bool:
+    """Test function to check if multiprocessing works with scipy imports.
+
+    Returns:
+        True if the worker can execute successfully
+    """
+    try:
+        # Try importing scipy to check if it causes issues
+        from scipy import stats  # noqa: F401
+
+        # Test numpy is available (already imported at module level)
+        _ = np.array([1, 2, 3])
+
+        return True
+    except ImportError:
+        return False
+
+
 def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     """Enhanced simulation function for parallel execution.
 
@@ -660,6 +678,26 @@ class MonteCarloEngine:
         # Ensure parallel executor is available
         assert self.parallel_executor is not None, "Enhanced parallel executor not initialized"
 
+        # Check if we can safely use enhanced parallel execution
+        # On Windows with scipy import issues, fall back to standard parallel
+        try:
+            # Try to execute a test function to see if multiprocessing works
+            import multiprocessing as mp
+
+            with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context()) as executor:
+                future = executor.submit(_test_worker_function)
+                result = future.result(timeout=5)
+                if not result:
+                    raise RuntimeError("Worker test failed")
+        except (ImportError, RuntimeError, TimeoutError) as e:
+            warnings.warn(
+                f"Enhanced parallel execution failed: {e}. "
+                "Falling back to standard parallel execution.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return self._run_parallel()
+
         # Prepare shared data (configuration that doesn't change)
         shared_data = {
             "n_years": self.config.n_years,
@@ -801,7 +839,7 @@ class MonteCarloEngine:
 
             # Apply insurance
             claim_result = self.insurance_program.process_claim(total_loss)
-            recovery = claim_result.get("total_recovery", 0)
+            recovery = claim_result.get("insurance_recovery", 0)
             insurance_recoveries[year] = recovery
 
             # Calculate retained loss
@@ -811,6 +849,11 @@ class MonteCarloEngine:
             # Apply retained loss to manufacturer assets
             if retained > 0:
                 manufacturer.assets = max(0, manufacturer.assets - retained)
+
+            # Record insurance premium payment (annual premium)
+            annual_premium = self.insurance_program.calculate_annual_premium()
+            if annual_premium > 0:
+                manufacturer.record_insurance_premium(annual_premium)
 
             # Update manufacturer state with annual step
             # Apply stochastic if the manufacturer has a stochastic process
