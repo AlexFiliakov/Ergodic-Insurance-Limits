@@ -92,7 +92,7 @@ np.random.seed(42)
 config = ManufacturerConfig(
     initial_assets=10_000_000,    # Starting with $10M
     asset_turnover_ratio=1.0,     # Generate revenue equal to assets
-    operating_margin=0.08,        # 8% profit margin
+    operating_margin=0.12,        # protif margin before losses (~8% margin after losses)
     tax_rate=0.25,                # 25% corporate tax
     retention_ratio=0.7           # Retain 70% of earnings
 )
@@ -103,7 +103,7 @@ manufacturer = WidgetManufacturer(config)
 print(f"Company Profile:")
 print(f"  Initial Assets: ${manufacturer.assets:,.0f}")
 print(f"  Expected Annual Revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
-print(f"  Expected Operating Income: ${manufacturer.assets * config.asset_turnover_ratio * config.operating_margin:,.0f}")
+print(f"  Expected Operating Income (Before Losses): ${manufacturer.assets * config.asset_turnover_ratio * config.operating_margin:,.0f}")
 ```
 
 #### Expected Output:
@@ -112,363 +112,247 @@ print(f"  Expected Operating Income: ${manufacturer.assets * config.asset_turnov
 Company Profile:
   Initial Assets: $10,000,000
   Expected Annual Revenue: $10,000,000
-  Expected Operating Income: $800,000
+  Expected Operating Income (Before Losses): $1,200,000
 ```
 
-### Step 2: Set Up Loss Generation
+### Step 2: Set Up Loss and Premium Parameters
 
 ```python
-# Configure realistic loss patterns with catastrophic tail risk
-# This demonstrates why insurance is valuable - protecting against rare but devastating events
+scenarios = 100
+years = 20
+deductible = 100_000
 
-# Two types of losses:
-# 1. Regular operational losses (frequent but manageable)
-# 2. Catastrophic losses (rare but potentially ruinous)
+# Loss Parameters
+regular_freq_baseline = 2.0
+regular_sev_mean = 80_000
+regular_sev_std = 50_000
 
-revenue = manufacturer.assets * config.asset_turnover_ratio  # Current revenue
+cat_freq_baseline = 0.1
+cat_sev_mean = 2_000_000
+cat_sev_std = 1_500_000
 
-# Regular losses: 4-6 per year, typically $50K-$150K
-regular_frequency = 5.0 * (revenue / 10_000_000)  # Scale with revenue
-regular_generator = ClaimGenerator(
-    frequency=regular_frequency,
-    severity_mean=80_000,       # Mean claim size $80K
-    severity_std=50_000,        # Moderate variation
-    seed=42                     # For reproducibility
-)
+# For regular losses (mean $80K), most will be below $100K deductible
+# Calculate expected excess for lognormal distribution
 
-# Catastrophic losses: ~0.3 per year (once every 3 years), but can be $1M-$5M
-catastrophic_frequency = 0.3 * (revenue / 10_000_000)  # Also scales with revenue
-catastrophic_generator = ClaimGenerator(
-    frequency=catastrophic_frequency,
-    severity_mean=2_000_000,    # Mean catastrophic loss $2M
-    severity_std=1_500_000,     # High variation - can reach $5M+
-    seed=43                     # Different seed for independence
-)
+# Lognormal parameters for regular losses
+variance = regular_sev_std ** 2
+mean = regular_sev_mean
 
-# Generate sample losses to understand the risk profile
-regular_claims, _ = regular_generator.generate_enhanced_claims(
-    years=1,
-    revenue=revenue,
-    use_enhanced_distributions=False
-)
-catastrophic_claims, _ = catastrophic_generator.generate_enhanced_claims(
-    years=1,
-    revenue=revenue,
-    use_enhanced_distributions=False
-)
+sigma = np.sqrt(np.log(1 + variance / mean**2))
+mu = np.log(mean) - sigma**2 / 2
 
-all_sample_claims = regular_claims + catastrophic_claims
-sample_losses = [claim.amount for claim in all_sample_claims]
+# Generate sample to estimate excess over deductible
+regular_sample = np.random.lognormal(mu, sigma, 100_000)
+regular_excess = np.maximum(0, regular_sample - deductible)
+regular_excess_pure_premium = regular_excess.mean() * regular_freq_baseline
 
-print(f"\nAnnual Loss Profile (Revenue: ${revenue:,.0f}):")
-print(f"Regular Losses:")
-print(f"  Expected frequency: {regular_frequency:.1f} losses/year")
-print(f"  Actual regular losses: {len(regular_claims)}")
-if regular_claims:
-    regular_amounts = [c.amount for c in regular_claims]
-    print(f"  Range: ${min(regular_amounts):,.0f} - ${max(regular_amounts):,.0f}")
-    print(f"  Total regular: ${sum(regular_amounts):,.0f}")
+# For catastrophic losses (mean $2M), nearly all will exceed $100K deductible
+catastrophic_excess_pure_premium = (cat_sev_mean - deductible) * cat_freq_baseline
 
-print(f"\nCatastrophic Losses:")
-print(f"  Expected frequency: {catastrophic_frequency:.2f} losses/year (once every {1/catastrophic_frequency:.1f} years)")
-print(f"  Actual catastrophic losses: {len(catastrophic_claims)}")
-if catastrophic_claims:
-    cat_amounts = [c.amount for c in catastrophic_claims]
-    print(f"  Range: ${min(cat_amounts):,.0f} - ${max(cat_amounts):,.0f}")
-    print(f"  Total catastrophic: ${sum(cat_amounts):,.0f}")
+print(f"Baseline Revenue: {(config.initial_assets * config.asset_turnover_ratio):,.0f}")
+print(f"Baseline Retained Losses: {(regular_sev_mean * regular_freq_baseline + cat_sev_mean * cat_freq_baseline - catastrophic_excess_pure_premium):,.0f}")
 
-if sample_losses:
-    print(f"\nCombined Annual Losses:")
-    print(f"  Total events: {len(sample_losses)}")
-    print(f"  Total losses: ${sum(sample_losses):,.0f}")
-    print(f"  Expected annual losses: ~${int(regular_frequency * 80_000 + catastrophic_frequency * 2_000_000):,.0f}")
+# Add expense loading
+loss_ratio = 0.70
+annual_premium_baseline = (regular_excess_pure_premium + catastrophic_excess_pure_premium) / loss_ratio
+
+print(f"Baseline Annual Premium: {annual_premium_baseline:,.0f}")
 ```
 
 #### Expected Output:
 
 ```
-Annual Loss Profile (Revenue: $10,000,000):
-Regular Losses:
-  Expected frequency: 5.0 losses/year
-  Actual regular losses: 5
-  Range: $51,809 - $168,006
-  Total regular: $469,851
-
-Catastrophic Losses:
-  Expected frequency: 0.30 losses/year (once every 3.3 years)
-  Actual catastrophic losses: 0
-
-Combined Annual Losses:
-  Total events: 5
-  Total losses: $469,851
-  Expected annual losses: ~$1,000,000
+Baseline Revenue: 10,000,000
+Baseline Retained Losses: 170,000
+Baseline Annual Premium: 305,311
 ```
 
 ### Step 3: Run the Simulation
 
 ```python
-# Run simulations with different insurance scenarios
-years = 20  # Run longer to see catastrophic events
+bankruptcy_no_ins_scenarios = []
+bankruptcy_with_ins_scenarios = []
 
-# IMPORTANT: Generate claims for all years upfront (same for both scenarios)
-# This ensures fair comparison - both scenarios face identical losses.
-baseline_revenue = config.initial_assets * config.asset_turnover_ratio
+scenarios_no_insurance = []
+scenarios_with_insurance = []
 
-# Generate both regular and catastrophic losses for all years
-all_year_claims = []
-np.random.seed(42)  # Reset seed for reproducibility
+for scen in range(scenarios):
+    np.random.seed(42 + scen)  # Different seed per scenario but consistent between insurance/no-insurance
 
-for year in range(years):
-    # Generate regular losses for this year
-    regular_claims, _ = regular_generator.generate_enhanced_claims(
-        years=1,
-        revenue=baseline_revenue,
-        use_enhanced_distributions=False
-    )
+    ### Configuration 1: No insurance #######
+    all_scenario_claims_no_ins = []
+    manufacturer_no_ins = WidgetManufacturer(config)
+    wealth_no_insurance = [config.initial_assets]
 
-    # Generate catastrophic losses for this year
-    catastrophic_claims, _ = catastrophic_generator.generate_enhanced_claims(
-        years=1,
-        revenue=baseline_revenue,
-        use_enhanced_distributions=False
-    )
+    for year in range(years):
+        revenue = manufacturer_no_ins.calculate_revenue()  # Current revenue
+        revenue_scale = revenue / config.initial_assets
 
-    # Combine all losses for this year
-    year_claims = regular_claims + catastrophic_claims
-    all_year_claims.append(year_claims)
+        # Regular losses: 4-6 per year on average, typically $50K-$150K
+        regular_frequency = regular_freq_baseline * revenue_scale  # Scale with revenue
+        regular_generator = ClaimGenerator(
+            frequency=regular_frequency,
+            severity_mean=regular_sev_mean,
+            severity_std=regular_sev_std,
+        )
 
-# Show preview of losses over time
-print(f"\nLoss Preview (20 years):")
-total_by_year = [sum(c.amount for c in year_claims) for year_claims in all_year_claims]
-catastrophic_years = [i for i, claims in enumerate(all_year_claims)
-                      if any(c.amount > 1_000_000 for c in claims)]
-print(f"  Years with catastrophic losses (>$1M): {catastrophic_years}")
-print(f"  Maximum annual loss: ${max(total_by_year):,.0f} (Year {total_by_year.index(max(total_by_year))})")
-print(f"  Average annual loss: ${np.mean(total_by_year):,.0f}")
+        # Catastrophic losses: ~0.1 per year (once every 10 years), but can be $1M-$5M
+        catastrophic_frequency = cat_freq_baseline * revenue_scale  # Also scales with revenue
+        catastrophic_generator = ClaimGenerator(
+            frequency=catastrophic_frequency,
+            severity_mean=cat_sev_mean,
+            severity_std=cat_sev_std,
+        )
 
-# Scenario 1: No insurance
-manufacturer_no_ins = WidgetManufacturer(config)
-for year in range(years):
-    claims = all_year_claims[year]
+        # Generate regular losses for this year
+        regular_claims, _ = regular_generator.generate_enhanced_claims(
+            years=1,
+            revenue=revenue,
+            use_enhanced_distributions=False,
+        )
 
-    # For no insurance, company pays all losses directly
-    total_loss = sum(claim.amount for claim in claims)
-    if total_loss > 0:
-        manufacturer_no_ins.assets -= min(total_loss, manufacturer_no_ins.assets)
-        manufacturer_no_ins.equity -= min(total_loss, manufacturer_no_ins.equity)
+        # Generate catastrophic losses for this year
+        catastrophic_claims, _ = catastrophic_generator.generate_enhanced_claims(
+            years=1,
+            revenue=revenue,
+            use_enhanced_distributions=False
+        )
 
-    manufacturer_no_ins.step()
+        # Combine all losses for this year
+        year_claims = regular_claims + catastrophic_claims
 
-# Scenario 2: With insurance ($100K deductible, $5M limit)
-manufacturer_with_ins = WidgetManufacturer(config)
-annual_premium = 100_000  # Updated premium as requested
+        # For no insurance, company pays all losses over time without collateral
+        for claim in year_claims:
+            manufacturer_no_ins.process_uninsured_claim(claim.amount)
 
-for year in range(years):
-    claims = all_year_claims[year]  # Use same claims as no-insurance scenario
+        manufacturer_no_ins.step()
+        wealth_no_insurance.append(manufacturer_no_ins.assets)
 
-    # Calculate company's net loss after insurance
-    total_company_payment = 0
-    for claim in claims:
-        claim_amount = claim.amount
-        if claim_amount <= 100_000:
-            # Below deductible, company pays all
-            company_payment = claim_amount
-        else:
-            # Above deductible, company pays deductible, insurance covers rest up to limit
-            company_payment = 100_000  # Deductible
-            insurance_coverage = min(claim_amount - 100_000, 5_000_000 - 100_000)
-            # Company also pays any amount above the limit
-            if claim_amount > 5_000_000:
-                company_payment += claim_amount - 5_000_000
+    if manufacturer_no_ins.is_ruined:
+        bankruptcy_no_ins_scenarios.append(scen)
 
-        total_company_payment += company_payment
+    scenarios_no_insurance.append(wealth_no_insurance)
 
-    # Apply losses and premium
-    if total_company_payment > 0:
-        manufacturer_with_ins.assets -= min(total_company_payment, manufacturer_with_ins.assets)
-        manufacturer_with_ins.equity -= min(total_company_payment, manufacturer_with_ins.equity)
+    ### Configuration 2: With insurance ($100K deductible, $200M limit) #######
+    manufacturer_with_ins = WidgetManufacturer(config)
+    wealth_with_insurance = [config.initial_assets]
 
-    # Deduct premium
-    manufacturer_with_ins.assets -= annual_premium
-    manufacturer_with_ins.equity -= annual_premium
+    for year in range(years):
+        revenue = manufacturer_with_ins.calculate_revenue()  # Current revenue
+        revenue_scale = revenue / config.initial_assets
 
-    manufacturer_with_ins.step()
+        # Regular losses: 4-6 per year on average, typically $50K-$150K
+        regular_frequency = regular_freq_baseline * revenue_scale  # Scale with revenue
+        regular_generator = ClaimGenerator(
+            frequency=regular_frequency,
+            severity_mean=regular_sev_mean,       # Mean claim size $80K
+            severity_std=regular_sev_std,        # Moderate variation
+        )
 
-print(f"\nResults After {years} Years:")
-print(f"Without Insurance:")
-print(f"  Final Wealth: ${manufacturer_no_ins.assets:,.0f}")
-print(f"  Survived: {manufacturer_no_ins.assets > 0}")
-if manufacturer_no_ins.assets > 0:
-    print(f"  Annualized Growth: {((manufacturer_no_ins.assets / config.initial_assets) ** (1/years) - 1) * 100:.1f}%")
+        # Catastrophic losses: ~0.1 per year (once every 10 years), but can be $1M-$5M
+        catastrophic_frequency = cat_freq_baseline * revenue_scale  # Also scales with revenue
+        catastrophic_generator = ClaimGenerator(
+            frequency=catastrophic_frequency,
+            severity_mean=cat_sev_mean,    # Mean catastrophic loss $2M
+            severity_std=cat_sev_std,     # High variation - can reach $5M+
+        )
 
-print(f"\nWith Insurance ($100K deductible, $5M limit):")
-print(f"  Final Wealth: ${manufacturer_with_ins.assets:,.0f}")
-print(f"  Survived: {manufacturer_with_ins.assets > 0}")
-print(f"  Annual Premium: ${annual_premium:,.0f}")
-if manufacturer_with_ins.assets > 0:
-    print(f"  Annualized Growth: {((manufacturer_with_ins.assets / config.initial_assets) ** (1/years) - 1) * 100:.1f}%")
-    print(f"  Total Premiums Paid: ${annual_premium * years:,.0f}")
+        # Generate regular losses for this year
+        regular_claims, _ = regular_generator.generate_enhanced_claims(
+            years=1,
+            revenue=revenue,
+            use_enhanced_distributions=False,
+        )
 
-# Show the benefit of insurance
-if manufacturer_with_ins.assets > 0 and manufacturer_no_ins.assets <= 0:
-    print(f"\n⚠️ Insurance SAVED the company from bankruptcy!")
-elif manufacturer_with_ins.assets > manufacturer_no_ins.assets:
-    print(f"\n✅ Insurance resulted in ${manufacturer_with_ins.assets - manufacturer_no_ins.assets:,.0f} higher wealth")
-else:
-    print(f"\n📊 In this scenario, insurance cost exceeded benefits by ${manufacturer_no_ins.assets - manufacturer_with_ins.assets:,.0f}")
+        # Generate catastrophic losses for this year
+        catastrophic_claims, _ = catastrophic_generator.generate_enhanced_claims(
+            years=1,
+            revenue=revenue,
+            use_enhanced_distributions=False
+        )
+
+        # Combine all losses for this year
+        year_claims = regular_claims + catastrophic_claims
+
+        # Process each claim through insurance
+        for claim in year_claims:
+            company_payment, insurance_payment = manufacturer_with_ins.process_insurance_claim(
+                claim_amount=claim.amount,
+                deductible_amount=100_000,
+                insurance_limit=200_000_000
+            )
+
+        # Pay annual premium based on current revenue scale
+        current_revenue = manufacturer_with_ins.calculate_revenue()
+        revenue_scale = current_revenue / config.initial_assets
+        annual_premium = annual_premium_baseline * revenue_scale
+        manufacturer_with_ins.record_insurance_premium(annual_premium)
+
+        manufacturer_with_ins.step()
+        wealth_with_insurance.append(manufacturer_with_ins.assets)
+
+    if manufacturer_with_ins.is_ruined:
+        bankruptcy_with_ins_scenarios.append(scen)
+
+    scenarios_with_insurance.append(wealth_with_insurance)
+
+print(f"Bankruptcies (no insurance): {len(bankruptcy_no_ins_scenarios)}/{scenarios}")
+print(f"Bankruptcies (with insurance): {len(bankruptcy_with_ins_scenarios)}/{scenarios}")
 ```
 
-#### Expected Output:
+#### Sample Output:
 
 ```
-Company became insolvent with equity: $0.00
-Company is already insolvent, skipping step
-Company is already insolvent, skipping step
-
-Loss Preview (20 years):
-  Years with catastrophic losses (>$1M): [14, 17]
-  Maximum annual loss: $6,214,104 (Year 14)
-  Average annual loss: $932,290
-
-Results After 20 Years:
-Without Insurance:
-  Final Wealth: $0
-  Survived: False
-
-With Insurance ($100K deductible, $5M limit):
-  Final Wealth: $5,945,285
-  Survived: True
-  Annual Premium: $100,000
-  Annualized Growth: -2.6%
-  Total Premiums Paid: $2,000,000
-
-⚠️ Insurance SAVED the company from bankruptcy!
+<Several Insolvencies>
+Bankruptcies (no insurance): 35/100
+Bankruptcies (with insurance): 0/100
 ```
 
 ### Step 4: Visualize the Results
 
 ```python
-# Track wealth trajectories for visualization
-wealth_no_insurance = [config.initial_assets]
-wealth_with_insurance = [config.initial_assets]
-annual_losses = []
-
-# Use the same claims we generated before
-annual_premium = 100_000  # Updated premium as requested
-
-# Re-run simulations while tracking wealth
-manufacturer_no_ins = WidgetManufacturer(config)
-manufacturer_with_ins = WidgetManufacturer(config)
-
-for year in range(years):
-    claims = all_year_claims[year]  # Same claims for both scenarios
-    year_loss = sum(c.amount for c in claims)
-    annual_losses.append(year_loss)
-
-    # No insurance scenario - company pays all losses
-    if year_loss > 0:
-        manufacturer_no_ins.assets -= min(year_loss, manufacturer_no_ins.assets)
-        manufacturer_no_ins.equity -= min(year_loss, manufacturer_no_ins.equity)
-    manufacturer_no_ins.step()
-    wealth_no_insurance.append(manufacturer_no_ins.assets)
-
-    # With insurance scenario - calculate net company payment
-    total_company_payment = 0
-    for claim in claims:
-        claim_amount = claim.amount
-        if claim_amount <= 100_000:
-            company_payment = claim_amount
-        else:
-            company_payment = 100_000  # Deductible
-            if claim_amount > 5_000_000:
-                company_payment += claim_amount - 5_000_000  # Excess over limit
-        total_company_payment += company_payment
-
-    # Apply losses
-    if total_company_payment > 0:
-        manufacturer_with_ins.assets -= min(total_company_payment, manufacturer_with_ins.assets)
-        manufacturer_with_ins.equity -= min(total_company_payment, manufacturer_with_ins.equity)
-
-    # Deduct premium
-    manufacturer_with_ins.assets -= annual_premium
-    manufacturer_with_ins.equity -= annual_premium
-
-    manufacturer_with_ins.step()
-    wealth_with_insurance.append(manufacturer_with_ins.assets)
-
 # Create comprehensive visualization
-fig = plt.figure(figsize=(15, 10))
+fig = plt.figure(figsize=(15, 6))
 
-# Plot 1: Wealth trajectories comparison
-ax1 = plt.subplot(2, 2, 1)
-ax1.plot(range(len(wealth_no_insurance)), wealth_no_insurance,
-         label='No Insurance', linewidth=2, alpha=0.8)
-ax1.plot(range(len(wealth_with_insurance)), wealth_with_insurance,
-         label='With Insurance', linewidth=2, alpha=0.8)
-ax1.axhline(y=0, color='r', linestyle='--', alpha=0.5, label='Bankruptcy')
+### Plot 1: Wealth trajectories comparison #######
+ax1 = plt.subplot()
+
+bankrupt_no_ins = []
+bankrupt_with_ins = []
+
+# Plot all scenarios
+for idx, s in enumerate(scenarios_no_insurance):
+    if idx in bankruptcy_no_ins_scenarios:
+        ax1.plot(range(len(s)), s, color='red', alpha=0.1)
+        bankrupt_no_ins.append(s)
+    else:
+        ax1.plot(range(len(s)), s, color='orange', alpha=0.1)
+for idx, s in enumerate(scenarios_with_insurance):
+    if idx in bankruptcy_with_ins_scenarios:
+        bankrupt_with_ins.append(s)
+    ax1.plot(range(len(s)), s, color='blue', alpha=0.05)
+
+# Compute and overlay means
+no_ins_mean = np.average(np.array(scenarios_no_insurance, dtype=float), axis=0)
+with_ins_mean = np.average(np.array(scenarios_with_insurance, dtype=float), axis=0)
+
+ax1.plot(range(len(with_ins_mean)), with_ins_mean, color='blue', linewidth=2, alpha=0.8, label='With Insurance (mean)')
+ax1.plot(range(len(no_ins_mean)), no_ins_mean, color='orange', linewidth=2, alpha=0.8, label='No Insurance (mean)')
+ax1.axhline(y=100_000, color='r', linestyle='--', alpha=0.5, label='Bankruptcy')
 ax1.axhline(y=config.initial_assets, color='gray', linestyle=':', alpha=0.5)
-
-# Mark catastrophic loss years
-for i, loss in enumerate(annual_losses):
-    if loss > 1_000_000:
-        ax1.axvline(x=i+1, color='orange', alpha=0.3, linestyle=':')
-        ax1.text(i+1, ax1.get_ylim()[1]*0.95, f'Cat', rotation=90,
-                fontsize=8, color='orange', alpha=0.7)
 
 ax1.set_xlabel('Year')
 ax1.set_ylabel('Wealth ($)')
 ax1.set_title('Wealth Trajectories: Insurance vs No Insurance')
+ax1.set_ylim(0, 20_000_000)
 ax1.legend()
-ax1.grid(True, alpha=0.3)
+ax1.grid(True, alpha=0.15)
 
-# Plot 2: Annual losses
-ax2 = plt.subplot(2, 2, 2)
-bars = ax2.bar(range(1, len(annual_losses)+1), annual_losses,
-               color=['red' if l > 1_000_000 else 'blue' for l in annual_losses],
-               alpha=0.7)
-ax2.axhline(y=1_000_000, color='red', linestyle='--', alpha=0.5,
-            label='Catastrophic Threshold')
-ax2.axhline(y=annual_premium, color='green', linestyle='--', alpha=0.5,
-            label=f'Annual Premium (${annual_premium/1000:.0f}K)')
-ax2.set_xlabel('Year')
-ax2.set_ylabel('Loss Amount ($)')
-ax2.set_title('Annual Loss Distribution')
-ax2.legend()
-ax2.grid(True, alpha=0.3)
-
-# Plot 3: Cumulative growth comparison
-ax3 = plt.subplot(2, 2, 3)
-growth_no_ins = [(w/config.initial_assets - 1) * 100 for w in wealth_no_insurance]
-growth_with_ins = [(w/config.initial_assets - 1) * 100 for w in wealth_with_insurance]
-ax3.plot(growth_no_ins, label='No Insurance', linewidth=2)
-ax3.plot(growth_with_ins, label='With Insurance', linewidth=2)
-ax3.axhline(y=0, color='black', linestyle='-', alpha=0.3)
-ax3.set_xlabel('Year')
-ax3.set_ylabel('Cumulative Growth (%)')
-ax3.set_title('Growth Rate Comparison')
-ax3.legend()
-ax3.grid(True, alpha=0.3)
-
-# Plot 4: Insurance benefit analysis
-ax4 = plt.subplot(2, 2, 4)
-wealth_difference = [w_ins - w_no for w_ins, w_no in
-                    zip(wealth_with_insurance, wealth_no_insurance)]
-colors = ['green' if d > 0 else 'red' for d in wealth_difference]
-ax4.bar(range(len(wealth_difference)), wealth_difference, color=colors, alpha=0.7)
-ax4.axhline(y=0, color='black', linestyle='-', alpha=0.5)
-ax4.set_xlabel('Year')
-ax4.set_ylabel('Wealth Difference ($)')
-ax4.set_title('Insurance Benefit: (With Insurance) - (Without Insurance)')
-ax4.grid(True, alpha=0.3)
-
-plt.suptitle(f'Insurance Analysis: {years}-Year Simulation\n'
-            f'Premium: ${annual_premium:,.0f}/year | Deductible: $100K | Limit: $5M',
-            fontsize=14, fontweight='bold')
 plt.tight_layout()
 plt.show()
 ```
 
-#### Expected Output:
+#### Sample Output:
 
 ![Simulation Results](../../../assets/results/getting_started/output.png)
 
@@ -479,59 +363,42 @@ plt.show()
 This demonstration shows the true value of insurance: **protection against catastrophic losses that can bankrupt the company**.
 
 #### The Loss Structure
-1. **Regular Losses** (~5 per year, \$50K\$150K each)
+1. **Regular Losses** (~2 per year, \$50K\$150K each)
    - These are manageable without insurance
-   - Total ~$400K per year on average
+   - Total ~$160K per year on average
 
-2. **Catastrophic Losses** (~0.3 per year, \$1M-\$5M each)
-   - Occur roughly once every 3 years
+2. **Catastrophic Losses** (~0.1 per year, \$1M-\$5M each)
+   - Occur roughly once every 10 years
    - Can exceed annual profits by 2-5x
    - **These are what make insurance valuable**
-   - What's not shown here is that catastrophic attritional losses (below the retention) can also matter
+
+*What's not shown in this scenario is that catastrophic attritional losses (retaining too much below the deductible) can also matter, as can extremely large losses above the limit.*
 
 #### Key Insights
 
-1. **Insurance Premium vs Expected Losses**:
-   - Annual premium: \$100,000
-   - Expected regular losses: ~\$400,000/year
-   - Expected catastrophic losses: ~\$600,000/year
-   - Total expected losses: ~\$1,000,000/year
-   - **The premium is only 10% of expected losses!**
+1. **Not Buying Insurance Outperforms Insurance At First**:
+   - Ensemble Average dominates early on
+   - As catastrophic losses get averaged into scenarios over time, the value of insurance emerges
 
 2. **The Catastrophic Protection**:
    - Without insurance: A single loss can wipe out years of profits
    - With insurance: Maximum exposure is the deductible (\$100K) per event
-     - Barring a tail event
-   - The \$5M limit covers most catastrophic events
 
 3. **Long-term Growth Impact**:
    - Insurance smooths the growth trajectory
    - Prevents bankruptcy during catastrophic years
    - Enables compound growth over time
 
-### What to Look For in the Graphs
+### What to Look For in the Graph
 
 1. **Wealth Trajectories (Top Left)**:
-   - Orange vertical lines mark catastrophic events
-   - Notice how "No Insurance" drops sharply at these points
+   - Light Red lines designate scenarios without insurance that go bankrupt
+     - Notice that many of these outperform insurance early on
+   - Light Red and Orange lines with steep drops designate catastrophic events
+     - Notice how "No Insurance" drops sharply at these points
    - "With Insurance" shows smoother, more consistent growth
 
-2. **Annual Losses (Top Right)**:
-   - Red bars show catastrophic losses (>\$1M)
-   - Green line shows annual premium (\$100K)
-   - Insurance is valuable when red bars appear
-
-3. **Growth Comparison (Bottom Left)**:
-   - Shows cumulative growth percentage
-   - Insurance provides more stable, predictable growth
-   - No insurance shows higher volatility
-
-4. **Insurance Benefit (Bottom Right)**:
-   - Green bars: Insurance is ahead
-   - Red bars: No insurance is ahead
-   - Look for the trend over time, not individual years
-
-## Common Patterns You'll See
+## Common Patterns You'll See in Future Simulations
 
 1. **The Insurance Paradox**: Sometimes paying 2-3x expected losses in premiums is optimal!
 2. **Volatility Reduction**: Insurance smooths the wealth trajectory
