@@ -1,5 +1,2108 @@
-"""Manufacturer module - provides access to WidgetManufacturer."""
+# pylint: disable=too-many-lines
+"""Widget manufacturer financial model implementation.
 
-from .src.manufacturer import WidgetManufacturer
+This module implements the core financial model for a widget manufacturing
+company, providing comprehensive balance sheet management, insurance claim
+processing, and stochastic modeling capabilities. It serves as the central
+component of the ergodic insurance optimization framework.
 
-__all__ = ["WidgetManufacturer"]
+The manufacturer model simulates realistic business operations including:
+    - Asset-based revenue generation with configurable turnover ratios
+    - Operating income calculations with industry-standard margins
+    - Multi-layer insurance claim processing with deductibles and limits
+    - Letter of credit collateral management for claim liabilities
+    - Actuarial claim payment schedules over multiple years
+    - Dynamic balance sheet evolution with growth and volatility
+    - Integration with sophisticated stochastic processes
+    - Comprehensive financial metrics and ratio analysis
+
+Key Components:
+    - :class:`WidgetManufacturer`: Main financial model class
+    - :class:`ClaimLiability`: Actuarial claim payment tracking
+    - Integration with :mod:`~ergodic_insurance.src.config` for parameter management
+    - Integration with :mod:`~ergodic_insurance.src.stochastic_processes` for uncertainty
+
+Examples:
+    Basic manufacturer setup and simulation::
+
+        from ergodic_insurance.src.config_v2 import ManufacturerConfig
+        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+
+        # Configure manufacturer with realistic parameters
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,          # $10M starting assets
+            asset_turnover_ratio=0.8,           # 0.8x asset turnover
+            operating_margin=0.08,              # 8% operating margin
+            tax_rate=0.25,                      # 25% corporate tax rate
+            retention_ratio=0.7                 # Retain 70% of earnings
+        )
+
+        # Create manufacturer instance
+        manufacturer = WidgetManufacturer(config)
+
+        # Process insurance claim
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount=5_000_000,      # $5M total claim
+            deductible=1_000_000,        # $1M deductible
+            insurance_limit=10_000_000   # $10M coverage limit
+        )
+        print(f"Company pays: ${company_payment:,.2f}")
+        print(f"Insurance covers: ${insurance_payment:,.2f}")
+
+        # Run annual business operations
+        metrics = manufacturer.step(
+            working_capital_pct=0.2,         # 20% working capital
+            letter_of_credit_rate=0.015,     # 1.5% LoC rate
+            growth_rate=0.05                 # 5% annual growth
+        )
+
+        print(f"ROE: {metrics['roe']:.1%}")
+        print(f"Assets: ${metrics['assets']:,.2f}")
+        print(f"Equity: ${metrics['equity']:,.2f}")
+
+    Multi-year simulation with claims::
+
+        # Initialize for long-term simulation
+        manufacturer = WidgetManufacturer(config)
+
+        for year in range(20):
+            # Process annual claims (example: 1 large claim every 5 years)
+            if year % 5 == 0 and year > 0:
+                manufacturer.process_insurance_claim(
+                    claim_amount=8_000_000,
+                    deductible=2_000_000,
+                    insurance_limit=15_000_000
+                )
+                print(f"Year {year}: Large claim processed")
+
+            # Run annual operations
+            metrics = manufacturer.step(
+                working_capital_pct=0.18,
+                growth_rate=0.03
+            )
+
+            # Check for insolvency
+            if not metrics['is_solvent']:
+                print(f"Bankruptcy in year {year}")
+                break
+
+            print(f"Year {year}: ROE={metrics['roe']:.1%}, "
+                  f"Assets=${metrics['assets']:,.0f}")
+
+    Stochastic modeling with revenue volatility::
+
+        from ergodic_insurance.src.stochastic_processes import (
+            GeometricBrownianMotion, LognormalVolatility
+        )
+
+        # Create stochastic process for revenue volatility
+        gbm = GeometricBrownianMotion(
+            drift=0.03,        # 3% expected growth
+            volatility=0.15,   # 15% annual volatility
+            dt=1.0             # Annual time steps
+        )
+
+        # Initialize manufacturer with stochastic capability
+        stochastic_manufacturer = WidgetManufacturer(config, gbm)
+
+        # Run simulation with stochastic revenue
+        results = []
+        for simulation in range(1000):  # Monte Carlo
+            stochastic_manufacturer.reset()
+
+            for year in range(10):
+                metrics = stochastic_manufacturer.step(
+                    working_capital_pct=0.2,
+                    apply_stochastic=True  # Enable volatility
+                )
+
+                if not metrics['is_solvent']:
+                    break
+
+            results.append(stochastic_manufacturer.equity)
+
+        # Analyze results
+        import numpy as np
+        final_equity = np.array(results)
+        print(f"Mean final equity: ${np.mean(final_equity):,.0f}")
+        print(f"Std deviation: ${np.std(final_equity):,.0f}")
+        print(f"Bankruptcy rate: {np.mean(final_equity <= 0):.1%}")
+
+    Integration with claim development patterns::
+
+        from ergodic_insurance.src.claim_development import (
+            ClaimDevelopment, WorkersCompensation
+        )
+
+        # Enhanced claim processing with actuarial patterns
+        wc_pattern = WorkersCompensation()
+
+        company_paid, insurance_paid, claim_obj = manufacturer.process_insurance_claim_with_development(
+            claim_amount=3_000_000,
+            deductible=500_000,
+            insurance_limit=5_000_000,
+            development_pattern=wc_pattern,
+            claim_type="workers_compensation"
+        )
+
+        if claim_obj:
+            print(f"Claim created with ID: {claim_obj.claim_id}")
+            print(f"Development pattern: {claim_obj.development_pattern.pattern_name}")
+
+Financial Theory Background:
+    The manufacturer model implements several key financial concepts:
+
+    **Asset-Based Revenue Model**: Revenue = Assets × Turnover Ratio, accounting
+    for working capital requirements that tie up assets.
+
+    **Multi-Period Claim Liabilities**: Insurance claims follow actuarial payment
+    patterns over multiple years, requiring collateral management and cash flow
+    planning.
+
+    **Stochastic Business Dynamics**: Integration with geometric Brownian motion
+    and other stochastic processes enables realistic volatility modeling.
+
+    **Solvency Monitoring**: Continuous tracking of equity position with
+    bankruptcy detection when liabilities exceed assets.
+
+Performance Considerations:
+    - The model is optimized for Monte Carlo simulations with 1000+ iterations
+    - Memory efficient claim liability tracking automatically removes paid claims
+    - Configurable time resolution (annual/monthly) for different analysis needs
+    - Reset and copy methods enable parallel simulation scenarios
+
+Integration Points:
+    - :mod:`~ergodic_insurance.src.config_v2`: Parameter configuration and validation
+    - :mod:`~ergodic_insurance.src.stochastic_processes`: Uncertainty modeling
+    - :mod:`~ergodic_insurance.src.claim_generator`: Automated claim generation
+    - :mod:`~ergodic_insurance.src.insurance_program`: Multi-layer insurance structures
+    - :mod:`~ergodic_insurance.src.simulation`: High-level simulation orchestration
+
+See Also:
+    :class:`~ergodic_insurance.src.config_v2.ManufacturerConfig`: Configuration parameters
+    :mod:`~ergodic_insurance.src.stochastic_processes`: Stochastic modeling options
+    :mod:`~ergodic_insurance.src.claim_development`: Advanced actuarial patterns
+    :mod:`~ergodic_insurance.src.simulation`: Simulation framework integration
+
+Note:
+    This module forms the financial foundation for ergodic insurance optimization.
+    All business logic assumes a debt-free balance sheet where equity equals
+    net assets, simplifying the model while maintaining realistic cash flows.
+"""
+
+from dataclasses import dataclass, field
+import logging
+from typing import TYPE_CHECKING, Dict, List, Optional
+
+try:
+    # Try absolute import first (for installed package)
+    from ergodic_insurance.src.config import ManufacturerConfig
+    from ergodic_insurance.src.stochastic_processes import StochasticProcess
+except ImportError:
+    try:
+        # Try relative import (for package context)
+        from .config import ManufacturerConfig
+        from .stochastic_processes import StochasticProcess
+    except ImportError:
+        # Fall back to direct import (for notebooks/scripts)
+        from config import ManufacturerConfig
+        from stochastic_processes import StochasticProcess
+
+# Optional import for claim development integration
+if TYPE_CHECKING:
+    from .claim_development import Claim, ClaimDevelopment
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ClaimLiability:
+    """Represents an outstanding insurance claim liability with payment schedule.
+
+    This class tracks insurance claims that require multi-year payment
+    schedules and manages the collateral required to support them. It follows
+    standard actuarial claim development patterns for realistic cash flow modeling.
+
+    The default payment schedule follows a typical long-tail liability pattern
+    where claims are paid over 10 years, with higher percentages in early years
+    and gradually decreasing payments over time. This pattern is commonly observed
+    in general liability and workers' compensation claims.
+
+    Attributes:
+        original_amount (float): The original claim amount at inception.
+        remaining_amount (float): The unpaid balance of the claim.
+        year_incurred (int): The year when the claim was first incurred.
+        is_insured (bool): Whether this claim involves insurance coverage.
+            True for insured claims (company deductible), False for uninsured claims.
+        payment_schedule (List[float]): Payment percentages by year since inception.
+            Default follows a standard long-tail pattern:
+            - Years 1-3: Front-loaded payments (10%, 20%, 20%)
+            - Years 4-6: Moderate payments (15%, 10%, 8%)
+            - Years 7-10: Tail payments (7%, 5%, 3%, 2%)
+
+    Examples:
+        Create and track a claim liability::
+
+            # Create a $1M claim liability
+            claim = ClaimLiability(
+                original_amount=1_000_000,
+                remaining_amount=1_000_000,
+                year_incurred=2023
+            )
+
+            # Get payment due in year 2 (1 year after incurred)
+            payment_due = claim.get_payment(1)  # Returns 200,000 (20%)
+
+            # Make the payment
+            actual_payment = claim.make_payment(payment_due)
+            print(f"Remaining: ${claim.remaining_amount:,.2f}")
+
+        Custom payment schedule::
+
+            # Create claim with custom 3-year schedule
+            custom_claim = ClaimLiability(
+                original_amount=500_000,
+                remaining_amount=500_000,
+                year_incurred=2023,
+                payment_schedule=[0.5, 0.3, 0.2]  # 50%, 30%, 20%
+            )
+
+    Note:
+        The payment schedule percentages should sum to 1.0 for full claim payout.
+        Payments beyond the schedule length return 0.0.
+
+    See Also:
+        :class:`~ergodic_insurance.src.claim_development.ClaimDevelopment`: For more
+        sophisticated claim development patterns.
+        :class:`~ergodic_insurance.src.claim_development.Claim`: For comprehensive
+        claim tracking with reserving.
+    """
+
+    original_amount: float
+    remaining_amount: float
+    year_incurred: int
+    is_insured: bool = True  # Default to insured for backward compatibility
+    payment_schedule: List[float] = field(
+        default_factory=lambda: [
+            0.10,  # Year 1: 10%
+            0.20,  # Year 2: 20%
+            0.20,  # Year 3: 20%
+            0.15,  # Year 4: 15%
+            0.10,  # Year 5: 10%
+            0.08,  # Year 6: 8%
+            0.07,  # Year 7: 7%
+            0.05,  # Year 8: 5%
+            0.03,  # Year 9: 3%
+            0.02,  # Year 10: 2%
+        ]
+    )
+
+    def get_payment(self, years_since_incurred: int) -> float:
+        """Calculate payment due for a given year after claim incurred.
+
+        This method returns the scheduled payment amount based on the claim's
+        development pattern. It handles boundary conditions gracefully, returning
+        zero for negative years or years beyond the payment schedule.
+
+        Args:
+            years_since_incurred (int): Number of years since the claim was first
+                incurred. Must be >= 0. Year 0 represents the year of incurrence.
+
+        Returns:
+            float: Payment amount due for this year in absolute dollars. Returns
+                0.0 if years_since_incurred is negative or beyond the schedule.
+
+        Examples:
+            Calculate payments over time::
+
+                claim = ClaimLiability(1_000_000, 1_000_000, 2020)
+
+                # Year of incurrence (2020)
+                payment_0 = claim.get_payment(0)  # $100,000 (10%)
+
+                # One year later (2021)
+                payment_1 = claim.get_payment(1)  # $200,000 (20%)
+
+                # Beyond schedule
+                payment_20 = claim.get_payment(20)  # $0 (beyond 10-year schedule)
+
+        Note:
+            The method multiplies the original amount by the percentage from the
+            payment schedule. It does not check against remaining balance.
+        """
+        if years_since_incurred < 0 or years_since_incurred >= len(self.payment_schedule):
+            return 0.0
+        return self.original_amount * self.payment_schedule[years_since_incurred]
+
+    def make_payment(self, amount: float) -> float:
+        """Make a payment against the liability and update remaining balance.
+
+        This method processes a payment against the claim liability, reducing
+        the remaining amount. If the requested payment exceeds the remaining
+        balance, only the remaining amount is paid.
+
+        Args:
+            amount (float): Requested payment amount in dollars. Should be >= 0.
+                Negative amounts are treated as zero payment.
+
+        Returns:
+            float: Actual payment made in dollars. May be less than requested
+                if insufficient liability remains. Returns 0.0 if amount <= 0
+                or remaining_amount <= 0.
+
+        Examples:
+            Make payments and track remaining balance::
+
+                claim = ClaimLiability(1_000_000, 1_000_000, 2020)
+
+                # Make first scheduled payment
+                actual = claim.make_payment(100_000)  # Returns 100_000
+                assert claim.remaining_amount == 900_000
+
+                # Try to overpay
+                actual = claim.make_payment(2_000_000)  # Returns 900_000
+                assert claim.remaining_amount == 0
+
+                # No more payments possible
+                actual = claim.make_payment(50_000)  # Returns 0
+
+        Warning:
+            This method modifies the claim's remaining_amount. Use with caution
+            in concurrent scenarios.
+        """
+        payment = min(amount, self.remaining_amount)
+        self.remaining_amount -= payment
+        return payment
+
+
+class WidgetManufacturer:
+    """Financial model for a widget manufacturing company.
+
+    This class models the complete financial operations of a manufacturing
+    company including revenue generation, claim processing, collateral
+    management, and balance sheet evolution over time.
+
+    The manufacturer maintains a balance sheet with assets, equity, and tracks
+    insurance-related collateral. It can process insurance claims with multi-year
+    payment schedules and manages working capital requirements.
+
+    Attributes:
+        config: Manufacturing configuration parameters
+        stochastic_process: Optional stochastic process for revenue volatility
+        assets: Current total assets
+        collateral: Letter of credit collateral for insurance claims
+        restricted_assets: Assets restricted as collateral
+        equity: Current equity (assets minus liabilities)
+        year: Current simulation year
+        outstanding_liabilities: List of active claim liabilities
+        metrics_history: Historical metrics for each simulation period
+        bankruptcy: Whether the company has gone bankrupt
+        bankruptcy_year: Year when bankruptcy occurred (if applicable)
+
+    Example:
+        Running a multi-year simulation::
+
+            manufacturer = WidgetManufacturer(config)
+
+            for year in range(10):
+                # Generate claims for this year
+                claims = claim_generator.generate_claims()
+
+                # Process claims through insurance
+                for claim in claims:
+                    manufacturer.process_insurance_claim(
+                        claim.amount, deductible, limit
+                    )
+
+                # Run annual business operations
+                metrics = manufacturer.step(
+                    working_capital_pct=0.2,
+                    letter_of_credit_rate=0.015
+                )
+
+                print(f"Year {year}: ROE={metrics['roe']:.1%}")
+    """
+
+    def __init__(
+        self, config: ManufacturerConfig, stochastic_process: Optional[StochasticProcess] = None
+    ):
+        """Initialize manufacturer with configuration parameters.
+
+        Sets up the manufacturer's initial financial state based on the provided
+        configuration. All balance sheet items start with their configured values,
+        and the manufacturer begins in a solvent state with no outstanding claims.
+
+        Args:
+            config (ManufacturerConfig): Manufacturing configuration parameters
+                including initial assets, margins, tax rates, and financial ratios.
+                See :class:`~ergodic_insurance.src.config.ManufacturerConfig` for
+                complete parameter descriptions.
+            stochastic_process (Optional[StochasticProcess]): Optional stochastic
+                process for adding revenue volatility. If provided, enables
+                stochastic shocks to revenue calculations when apply_stochastic=True
+                in simulation methods. Defaults to None for deterministic modeling.
+
+        Examples:
+            Basic deterministic setup::
+
+                config = ManufacturerConfig(
+                    initial_assets=10_000_000,
+                    operating_margin=0.08,
+                    tax_rate=0.25
+                )
+                manufacturer = WidgetManufacturer(config)
+
+            With stochastic revenue modeling::
+
+                from ergodic_insurance.src.stochastic_processes import (
+                    GeometricBrownianMotion
+                )
+
+                gbm = GeometricBrownianMotion(
+                    drift=0.05, volatility=0.15, dt=1.0
+                )
+                manufacturer = WidgetManufacturer(config, gbm)
+
+        See Also:
+            :class:`~ergodic_insurance.src.config.ManufacturerConfig`: Configuration
+            parameters and validation.
+            :class:`~ergodic_insurance.src.stochastic_processes.StochasticProcess`:
+            Base class for stochastic modeling.
+        """
+        self.config = config
+        self.stochastic_process = stochastic_process
+
+        # Balance sheet items
+        self.assets = config.initial_assets
+        self.collateral = 0.0  # Letter of credit collateral for claims
+        self.restricted_assets = 0.0  # Assets restricted as collateral
+        self.equity = self.assets  # No debt, so equity = assets initially
+
+        # Operating parameters
+        self.asset_turnover_ratio = config.asset_turnover_ratio
+        self.operating_margin = config.operating_margin
+        self.tax_rate = config.tax_rate
+        self.retention_ratio = config.retention_ratio
+
+        # Claim tracking
+        self.claim_liabilities: List[ClaimLiability] = []
+        self.current_year = 0
+        self.current_month = 0  # Track months for monthly LoC payments
+
+        # Insurance cost tracking for tax purposes
+        self.period_insurance_premiums = 0.0  # Premiums paid this period
+        self.period_insurance_losses = 0.0  # Losses paid this period (deductibles)
+
+        # Solvency tracking
+        self.is_ruined = False
+
+        # Metrics tracking
+        self.metrics_history: List[Dict[str, float]] = []
+
+    @property
+    def net_assets(self) -> float:
+        """Calculate net assets (total assets minus restricted assets).
+
+        Net assets represent the portion of total assets that are available
+        for operational use. Restricted assets are those pledged as collateral
+        for insurance claims and cannot be used for general business purposes.
+
+        Returns:
+            float: Net assets in dollars. Always non-negative as restricted
+                assets cannot exceed total assets.
+
+        Examples:
+            Track net assets after claims::
+
+                manufacturer = WidgetManufacturer(config)
+                initial_net = manufacturer.net_assets  # $10,000,000
+
+                # Process claim requiring $2M collateral
+                manufacturer.process_insurance_claim(
+                    claim_amount=5_000_000,
+                    deductible=1_000_000,
+                    insurance_limit=10_000_000
+                )
+
+                reduced_net = manufacturer.net_assets  # $8,000,000
+
+        See Also:
+            :attr:`available_assets`: Alias for this property.
+            :attr:`restricted_assets`: Assets pledged as collateral.
+        """
+        return float(self.assets - self.restricted_assets)
+
+    def record_insurance_premium(self, premium_amount: float) -> None:
+        """Record insurance premium payment for tax deduction tracking.
+
+        This method tracks insurance premium payments during the current period
+        for proper tax treatment. Premiums are tax-deductible business expenses
+        that reduce taxable income.
+
+        Args:
+            premium_amount (float): Premium amount paid in the current period.
+                Must be >= 0.
+
+        Examples:
+            Record annual premium payment::
+
+                # Pay annual insurance premium
+                annual_premium = 250_000
+                manufacturer.record_insurance_premium(annual_premium)
+
+                # Premium will be tax-deductible in next net income calculation
+
+        Side Effects:
+            - Increases period_insurance_premiums by premium_amount
+            - Does NOT immediately reduce assets (handled through net income)
+
+        Note:
+            This method should be called whenever premium payments are made,
+            either directly or through insurance program calculations.
+            The premium expense will reduce assets through the net income
+            calculation in step(), providing proper tax treatment.
+
+        See Also:
+            :meth:`calculate_net_income`: Uses tracked premiums for tax calculations.
+        """
+        if premium_amount > 0:
+            self.period_insurance_premiums += premium_amount
+            # Do NOT reduce assets here - let it flow through net income calculation
+            # This ensures premiums are treated as operating expenses, not asset liquidation
+            logger.info(f"Recorded insurance premium expense: ${premium_amount:,.2f}")
+            logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
+
+    def record_insurance_loss(self, loss_amount: float) -> None:
+        """Record insurance loss (deductible/retention) for tax deduction tracking.
+
+        This method tracks insurance losses paid by the company during the current
+        period for proper tax treatment. Company-paid losses (deductibles, retentions,
+        excess over limits) are tax-deductible business expenses.
+
+        Args:
+            loss_amount (float): Loss amount paid by company in the current period.
+                Must be >= 0.
+
+        Examples:
+            Record deductible payment on claim::
+
+                # Company pays $500K deductible on claim
+                deductible_paid = 500_000
+                manufacturer.record_insurance_loss(deductible_paid)
+
+                # Loss will be tax-deductible in next net income calculation
+
+        Side Effects:
+            - Increases period_insurance_losses by loss_amount
+            - No immediate impact on assets/equity (handled by payment schedule)
+
+        Note:
+            This method is automatically called by process_insurance_claim()
+            for the company payment portion. The tax deduction is taken when
+            the loss is incurred (accrual basis), not when paid (cash basis).
+
+        See Also:
+            :meth:`calculate_net_income`: Uses tracked losses for tax calculations.
+            :meth:`process_insurance_claim`: Automatically records company losses.
+        """
+        if loss_amount > 0:
+            self.period_insurance_losses += loss_amount
+            logger.debug(f"Recorded insurance loss: ${loss_amount:,.2f}")
+            logger.debug(f"Period losses total: ${self.period_insurance_losses:,.2f}")
+
+    def reset_period_insurance_costs(self) -> None:
+        """Reset period insurance cost tracking for new period.
+
+        This method clears the accumulated insurance premiums and losses
+        from the current period, typically called at the end of each
+        simulation step to prepare for the next period.
+
+        Side Effects:
+            - Resets period_insurance_premiums to 0.0
+            - Resets period_insurance_losses to 0.0
+
+        Note:
+            Called automatically at the end of each step() to ensure
+            costs are only counted once per period.
+        """
+        self.period_insurance_premiums = 0.0
+        self.period_insurance_losses = 0.0
+
+    @property
+    def available_assets(self) -> float:
+        """Calculate available (unrestricted) assets for operations.
+
+        This property is an alias for net_assets, providing semantic clarity
+        when referring to assets available for business operations. These are
+        the assets the company can freely use without violating collateral
+        requirements.
+
+        Returns:
+            float: Available assets in dollars. Equal to total assets minus
+                restricted assets pledged as insurance collateral.
+
+        Examples:
+            Check operational capacity::
+
+                if manufacturer.available_assets < minimum_operating_cash:
+                    logger.warning("Low available assets for operations")
+
+                # Calculate maximum dividend possible
+                max_dividend = manufacturer.available_assets * 0.1
+
+        See Also:
+            :attr:`net_assets`: Identical calculation with different semantic meaning.
+            :attr:`restricted_assets`: Assets not available for operations.
+        """
+        return float(self.assets - self.restricted_assets)
+
+    @property
+    def total_claim_liabilities(self) -> float:
+        """Calculate total outstanding claim liabilities.
+
+        Sums the remaining unpaid amounts across all active claim liabilities.
+        This represents the company's total financial obligation for insurance
+        claims that are being paid over time according to development schedules.
+
+        Returns:
+            float: Total outstanding liability in dollars. Returns 0.0 if no
+                active claims exist.
+
+        Examples:
+            Monitor outstanding liabilities::
+
+                # Process several claims
+                manufacturer.process_insurance_claim(2_000_000, 500_000, 5_000_000)
+                manufacturer.process_insurance_claim(1_000_000, 200_000, 3_000_000)
+
+                # Check total outstanding
+                total = manufacturer.total_claim_liabilities
+                print(f"Outstanding claims: ${total:,.2f}")
+
+                # After payments in subsequent years
+                manufacturer.pay_claim_liabilities()
+                remaining = manufacturer.total_claim_liabilities
+
+        Note:
+            This amount should equal the total collateral posted for insurance
+            claims, as collateral is required dollar-for-dollar with claim
+            liabilities.
+
+        See Also:
+            :attr:`collateral`: Should equal this amount for consistency.
+            :meth:`pay_claim_liabilities`: Method that reduces these liabilities.
+        """
+        return sum(claim.remaining_amount for claim in self.claim_liabilities)
+
+    @property
+    def cash(self) -> float:
+        """Cash available (backward compatibility alias for assets).
+
+        This property provides backward compatibility for code that references
+        'cash' instead of 'assets'. In the manufacturer model, all assets are
+        treated as liquid for simplicity.
+
+        Returns:
+            float: Total assets, treated as cash equivalents.
+
+        Deprecated:
+            Use :attr:`assets` directly for new code. This alias is maintained
+            for backward compatibility only.
+        """
+        return float(self.assets)
+
+    @cash.setter
+    def cash(self, value: float):
+        """Set cash value (backward compatibility alias for assets).
+
+        Args:
+            value (float): New asset value to set.
+
+        Deprecated:
+            Use :attr:`assets` directly for new code. This setter is maintained
+            for backward compatibility only.
+        """
+        self.assets = value
+
+    def calculate_revenue(
+        self, working_capital_pct: float = 0.0, apply_stochastic: bool = False
+    ) -> float:
+        """Calculate revenue based on available assets and turnover ratio.
+
+        Revenue is calculated using the asset turnover ratio, which represents
+        how efficiently the company converts assets into sales. The calculation
+        accounts for working capital requirements and can include stochastic
+        shocks for realistic modeling.
+
+        The working capital adjustment recognizes that some portion of revenue
+        is tied up in inventory and receivables, reducing the effective assets
+        available for revenue generation.
+
+        Args:
+            working_capital_pct (float): Percentage of revenue tied up in working
+                capital (inventory + receivables - payables). Typical values
+                range from 0.15 to 0.25. Defaults to 0.0 for simplified modeling.
+            apply_stochastic (bool): Whether to apply stochastic shock to revenue
+                calculation. Requires stochastic_process to be initialized.
+                Defaults to False for deterministic calculation.
+
+        Returns:
+            float: Annual revenue in dollars. Always non-negative.
+
+        Raises:
+            ValueError: If working_capital_pct < 0 or >= 1.
+            RuntimeError: If apply_stochastic=True but no stochastic process provided.
+
+        Examples:
+            Basic revenue calculation::
+
+                # Deterministic revenue
+                revenue = manufacturer.calculate_revenue()
+                print(f"Base revenue: ${revenue:,.2f}")
+
+            With working capital::
+
+                # Account for 20% working capital
+                revenue_wc = manufacturer.calculate_revenue(
+                    working_capital_pct=0.2
+                )
+                # Revenue will be lower due to working capital tie-up
+
+            With stochastic shocks::
+
+                from ergodic_insurance.src.stochastic_processes import (
+                    LognormalVolatility
+                )
+
+                shock_process = LognormalVolatility(volatility=0.15)
+                manufacturer = WidgetManufacturer(config, shock_process)
+
+                # Revenue with random volatility
+                volatile_revenue = manufacturer.calculate_revenue(
+                    apply_stochastic=True
+                )
+
+        Note:
+            The asset turnover ratio can be modified during simulation to model
+            business growth or decline. Working capital adjustments follow the
+            formula: Effective Assets = Total Assets / (1 + Turnover * WC%).
+
+        See Also:
+            :attr:`asset_turnover_ratio`: Core parameter for revenue calculation.
+            :class:`~ergodic_insurance.src.stochastic_processes.StochasticProcess`:
+            For stochastic modeling options.
+        """
+        # Adjust for working capital if specified
+        available_assets = self.assets
+        if working_capital_pct > 0:
+            # Working capital reduces assets available for operations
+            # Revenue = Available Assets * Turnover, where
+            # Available Assets = Total Assets - Working Capital
+            # Working Capital = Revenue * working_capital_pct
+            # Solving: Revenue = Assets * Turnover / (1 + Turnover * WC%)
+            denominator = 1 + self.asset_turnover_ratio * working_capital_pct
+            available_assets = self.assets / denominator
+
+        revenue = available_assets * self.asset_turnover_ratio
+
+        # Apply stochastic shock if requested and process is available
+        if apply_stochastic and self.stochastic_process is not None:
+            shock = self.stochastic_process.generate_shock(revenue)
+            revenue *= shock
+            logger.debug(f"Applied stochastic shock: {shock:.4f}")
+
+        logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.assets:,.2f}")
+        return float(revenue)
+
+    def calculate_operating_income(self, revenue: float) -> float:
+        """Calculate operating income from revenue using operating margin.
+
+        Operating income represents earnings before interest and taxes (EBIT),
+        calculated by applying the configured operating margin to revenue.
+        This represents the core profitability of the manufacturing operations
+        before financing costs and taxes.
+
+        Args:
+            revenue (float): Annual revenue in dollars. Must be >= 0.
+
+        Returns:
+            float: Operating income in dollars. Equal to revenue * operating_margin.
+                Will be negative if revenue is negative (unusual but possible
+                with stochastic modeling).
+
+        Examples:
+            Calculate operating income::
+
+                revenue = manufacturer.calculate_revenue()
+                operating_income = manufacturer.calculate_operating_income(revenue)
+
+                margin = operating_income / revenue  # Should equal config.operating_margin
+
+        Note:
+            Operating margin is fixed at initialization from the configuration.
+            For dynamic margins, modify manufacturer.operating_margin directly
+            before calling this method.
+
+        See Also:
+            :attr:`operating_margin`: The margin percentage applied to revenue.
+            :meth:`calculate_net_income`: Includes financing costs and taxes.
+        """
+        operating_income = revenue * self.operating_margin
+        logger.debug(
+            f"Operating income: ${operating_income:,.2f} ({self.operating_margin:.1%} margin)"
+        )
+        return float(operating_income)
+
+    def calculate_collateral_costs(
+        self, letter_of_credit_rate: float = 0.015, time_period: str = "annual"
+    ) -> float:
+        """Calculate costs for letter of credit collateral.
+
+        Letter of credit costs represent the financing expense for collateral
+        posted to support insurance claim liabilities. These costs are similar
+        to interest expense and reduce the company's profitability.
+
+        Args:
+            letter_of_credit_rate (float): Annual interest rate for letter of
+                credit. Market rates typically range from 0.01 to 0.02 (1-2%).
+                Defaults to 0.015 (1.5%).
+            time_period (str): Time period for cost calculation. Must be "annual"
+                or "monthly". "monthly" scales rate by 1/12. Defaults to "annual".
+
+        Returns:
+            float: Collateral costs for the specified period in dollars.
+                Returns 0.0 if no collateral is posted.
+
+        Examples:
+            Calculate annual collateral costs::
+
+                # After processing claims with $5M insurance coverage
+                annual_cost = manufacturer.calculate_collateral_costs(
+                    letter_of_credit_rate=0.015
+                )
+                # If collateral = $5M, cost = $75,000 annually
+
+            Monthly cost tracking::
+
+                monthly_cost = manufacturer.calculate_collateral_costs(
+                    letter_of_credit_rate=0.015,
+                    time_period="monthly"
+                )
+                # Monthly cost = annual_cost / 12
+
+        Raises:
+            ValueError: If time_period not "annual" or "monthly".
+            ValueError: If letter_of_credit_rate < 0.
+
+        Note:
+            Collateral costs are calculated on the full collateral amount,
+            regardless of when individual claims will be paid. This reflects
+            the banking requirement to maintain full collateral availability.
+
+        See Also:
+            :attr:`collateral`: Amount of collateral posted.
+            :meth:`calculate_net_income`: Includes these costs in profit calculation.
+        """
+        if time_period == "monthly":
+            period_rate = letter_of_credit_rate / 12
+        else:
+            period_rate = letter_of_credit_rate
+
+        collateral_costs = self.collateral * period_rate
+        if collateral_costs > 0:
+            logger.debug(
+                f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
+            )
+        return collateral_costs
+
+    def calculate_net_income(
+        self,
+        operating_income: float,
+        collateral_costs: float,
+        insurance_premiums: float = 0.0,
+        insurance_losses: float = 0.0,
+    ) -> float:
+        """Calculate net income after collateral costs, insurance costs, and taxes.
+
+        Net income represents the final profitability available to shareholders
+        after all operating expenses, financing costs, insurance costs, and taxes.
+        This is the amount available for retention and dividend distribution.
+
+        Args:
+            operating_income (float): Operating income before financing costs
+                and taxes (EBIT). Can be negative if operations are unprofitable.
+            collateral_costs (float): Financing costs for letter of credit
+                collateral. Must be >= 0.
+            insurance_premiums (float): Insurance premium payments for the period.
+                Tax-deductible business expense. Defaults to 0.0.
+            insurance_losses (float): Insurance losses/claims paid by company.
+                Tax-deductible business expense. Defaults to 0.0.
+
+        Returns:
+            float: Net income after all expenses and taxes. Can be negative
+                if the company operates at a loss after financing costs and taxes.
+
+        Examples:
+            Calculate full income statement with insurance costs::
+
+                revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
+                operating_income = manufacturer.calculate_operating_income(revenue)
+                collateral_costs = manufacturer.calculate_collateral_costs(0.015)
+                net_income = manufacturer.calculate_net_income(
+                    operating_income, collateral_costs,
+                    insurance_premiums=500_000, insurance_losses=200_000
+                )
+
+                # Net margin
+                net_margin = net_income / revenue if revenue > 0 else 0
+
+        Note:
+            Tax treatment follows proper accounting principles:
+            - Insurance premiums are tax-deductible business expenses
+            - Insurance losses/claims are tax-deductible business expenses
+            - Collateral costs are tax-deductible financing expenses
+            - Taxes are only applied to positive pre-tax income
+            - Loss years generate no tax benefit in this model
+
+            The tax calculation is:
+            - Income before tax = operating_income - collateral_costs - insurance_premiums - insurance_losses
+            - Taxes = max(0, income_before_tax * tax_rate)
+            - Net income = income_before_tax - taxes
+
+        See Also:
+            :attr:`tax_rate`: Tax rate applied to positive income.
+            :attr:`retention_ratio`: Portion of net income retained vs. distributed.
+        """
+        # Deduct all tax-deductible expenses
+        income_before_tax = (
+            operating_income - collateral_costs - insurance_premiums - insurance_losses
+        )
+
+        # Calculate taxes (only on positive income)
+        taxes = max(0, income_before_tax * self.tax_rate)
+
+        net_income = income_before_tax - taxes
+
+        # Enhanced logging for tax calculation transparency
+        if insurance_premiums > 0 or insurance_losses > 0:
+            logger.debug(f"Tax calculation: Operating income ${operating_income:,.2f}")
+            logger.debug(f"  - Collateral costs: ${collateral_costs:,.2f}")
+            logger.debug(f"  - Insurance premiums (deductible): ${insurance_premiums:,.2f}")
+            logger.debug(f"  - Insurance losses (deductible): ${insurance_losses:,.2f}")
+            logger.debug(f"  = Income before tax: ${income_before_tax:,.2f}")
+            logger.debug(f"  - Taxes (@{self.tax_rate:.1%}): ${taxes:,.2f}")
+            logger.debug(f"  = Net income: ${net_income:,.2f}")
+        else:
+            logger.debug(f"Net income: ${net_income:,.2f} after ${taxes:,.2f} taxes")
+
+        return float(net_income)
+
+    def update_balance_sheet(self, net_income: float, growth_rate: float = 0.0) -> None:
+        """Update balance sheet with retained earnings and dividend distribution.
+
+        This method processes the financial results of a period by allocating
+        net income between retained earnings (which increase assets and equity)
+        and dividend payments (which are distributed to shareholders). The
+        allocation is controlled by the retention ratio configuration.
+
+        Args:
+            net_income (float): Net income for the period in dollars. Can be
+                negative for loss periods, which will reduce equity.
+            growth_rate (float): Revenue growth rate parameter. Currently unused
+                but maintained for interface compatibility. Defaults to 0.0.
+
+        Examples:
+            Process profitable period::
+
+                net_income = 800_000
+                initial_equity = manufacturer.equity
+
+                manufacturer.update_balance_sheet(net_income)
+
+                # With 70% retention ratio
+                retained = net_income * 0.7  # $560,000
+                dividends = net_income * 0.3  # $240,000
+
+                assert manufacturer.equity == initial_equity + retained
+
+            Handle loss period::
+
+                net_income = -200_000  # Operating loss
+                initial_equity = manufacturer.equity
+
+                manufacturer.update_balance_sheet(net_income)
+
+                # Loss reduces equity, no dividends paid
+                loss_retained = net_income * manufacturer.retention_ratio
+                assert manufacturer.equity == initial_equity + loss_retained
+
+        Side Effects:
+            - Increases assets by retained earnings amount
+            - Increases equity by retained earnings amount
+            - Implicitly distributes dividends (reduces available cash)
+            - Logs balance sheet changes and dividend payments
+
+        Note:
+            The method assumes no debt financing, so equity changes equal
+            asset changes. Dividend payments are implicitly handled by not
+            adding them to assets, rather than explicitly reducing cash.
+
+            For loss periods, the full loss (scaled by retention ratio) reduces
+            equity, reflecting the shareholders' absorption of losses.
+
+        See Also:
+            :attr:`retention_ratio`: Fraction of earnings retained vs. distributed.
+            :attr:`assets`: Total assets updated by retained earnings.
+            :attr:`equity`: Shareholder equity updated by retained earnings.
+        """
+        # Calculate retained earnings
+        retained_earnings = net_income * self.retention_ratio
+        dividends = net_income * (1 - self.retention_ratio)
+
+        # Add retained earnings to assets
+        self.assets += retained_earnings
+
+        # Update equity (no debt, so equity changes by retained earnings)
+        self.equity += retained_earnings
+
+        logger.debug(
+            f"Balance sheet updated: Assets=${self.assets:,.2f}, Equity=${self.equity:,.2f}"
+        )
+        if dividends > 0:
+            logger.debug(f"Dividends paid: ${dividends:,.2f}")
+
+    def process_insurance_claim(
+        self,
+        claim_amount: float,
+        deductible_amount: float = 0.0,
+        insurance_limit: float = float("inf"),
+        insurance_recovery: Optional[float] = None,
+    ) -> tuple[float, float]:
+        """Process an insurance claim with deductible and limit, setting up collateral.
+
+        This method handles the complete processing of an insurance claim,
+        including immediate cash flows and establishment of collateral for
+        the insurance portion. The company pays its deductible immediately,
+        while the insurance portion creates a liability with associated
+        letter of credit collateral.
+
+        The method supports both legacy parameter style (deductible/limit) and
+        preferred style (pre-calculated amounts) for integration with insurance
+        program calculations.
+
+        Args:
+            claim_amount (float): Total amount of the loss/claim in dollars.
+                Must be >= 0.
+            deductible_amount (float): Amount company must pay before insurance kicks in
+                (legacy parameter). Defaults to 0.0.
+            insurance_limit (float): Maximum amount insurance will pay per claim
+                (legacy parameter). Defaults to unlimited. Use insurance_recovery
+                instead for new code.
+            insurance_recovery (Optional[float]): Pre-calculated insurance recovery
+                amount (preferred). If provided, overrides deductible/limit
+                calculation. Should be the exact amount insurance will pay.
+
+        Returns:
+            tuple[float, float]: Tuple of (company_payment, insurance_payment)
+                where:
+                - company_payment: Amount paid immediately by the company
+                - insurance_payment: Amount covered by insurance (creates liability)
+
+        Examples:
+            Basic claim processing::
+
+                # $5M claim with $1M deductible, $10M limit
+                company_paid, insurance_paid = manufacturer.process_insurance_claim(
+                    claim_amount=5_000_000,
+                    deductible=1_000_000,
+                    insurance_limit=10_000_000
+                )
+                # company_paid = $1,000,000, insurance_paid = $4,000,000
+
+            Using preferred parameter style::
+
+                # Pre-calculated amounts from insurance program
+                company_paid, insurance_paid = manufacturer.process_insurance_claim(
+                    claim_amount=5_000_000,
+                    insurance_recovery=3_800_000,  # After all layers
+                    deductible_amount=1_200_000    # Company retention
+                )
+
+            Large claim exceeding limits::
+
+                # $50M claim with $25M total insurance limit
+                company_paid, insurance_paid = manufacturer.process_insurance_claim(
+                    claim_amount=50_000_000,
+                    deductible=1_000_000,
+                    insurance_limit=25_000_000
+                )
+                # company_paid = $26,000,000 (deductible + excess over limit)
+                # insurance_paid = $25,000,000
+
+        Side Effects:
+            - Increases collateral by company_payment amount (not insurance_payment)
+            - Increases restricted_assets by company_payment amount
+            - Creates ClaimLiability for company_payment with payment schedule
+            - Insurance payment has no impact on company balance sheet
+            - Assets/equity reduced over time as claim payments are made
+
+        Note:
+            The company portion creates a liability that will be paid over
+            multiple years according to the ClaimLiability payment schedule.
+            Collateral is posted immediately but released as payments are made.
+            The insurance portion has no financial impact on the company.
+
+        Warning:
+            Large company payments may require significant collateral, restricting
+            available assets for operations. Monitor available assets after
+            processing large claims with high deductibles.
+
+        See Also:
+            :class:`ClaimLiability`: For understanding payment schedules.
+            :meth:`pay_claim_liabilities`: For processing scheduled payments.
+            :class:`~ergodic_insurance.src.insurance_program.InsuranceProgram`:
+            For complex multi-layer insurance calculations.
+        """
+        # Handle new style parameters if provided
+        if insurance_recovery is not None:
+            # Use pre-calculated recovery
+            insurance_payment = insurance_recovery
+            company_payment = claim_amount - insurance_payment
+        else:
+            # Calculate insurance coverage
+            if claim_amount <= deductible_amount:
+                # Below deductible, company pays all
+                company_payment = claim_amount
+                insurance_payment = 0
+            else:
+                # Above deductible
+                company_payment = deductible_amount
+                insurance_payment = int(min(claim_amount - deductible_amount, insurance_limit))
+                # Company also pays any amount above the limit
+                if claim_amount > deductible_amount + insurance_limit:
+                    company_payment += claim_amount - deductible_amount - insurance_limit
+
+        # Company payment is collateralized and paid over time
+        if company_payment > 0:
+            # Post letter of credit as collateral for company payment
+            # Collateral restricts assets but we need to track the liability properly
+            self.collateral += company_payment
+            self.restricted_assets += company_payment
+
+            # Create claim liability with payment schedule for company portion
+            claim = ClaimLiability(
+                original_amount=company_payment,
+                remaining_amount=company_payment,
+                year_incurred=self.current_year,
+                is_insured=True,  # This is the company portion of an insured claim
+            )
+            self.claim_liabilities.append(claim)
+
+            # Record the company payment (deductible) immediately for tax purposes
+            # This ensures proper tax treatment in the same period as the claim
+            self.record_insurance_loss(company_payment)
+
+            logger.info(
+                f"Company portion: ${company_payment:,.2f} - collateralized with payment schedule"
+            )
+            logger.info(
+                f"Posted ${company_payment:,.2f} letter of credit as collateral for company portion"
+            )
+
+        # Insurance payment has no impact on company financials
+        if insurance_payment > 0:
+            logger.info(
+                f"Insurance covering ${insurance_payment:,.2f} - no impact on company financials"
+            )
+
+        logger.info(
+            f"Total claim: ${claim_amount:,.2f} (Company: ${company_payment:,.2f}, Insurance: ${insurance_payment:,.2f})"
+        )
+
+        return company_payment, insurance_payment
+
+    def process_uninsured_claim(
+        self, claim_amount: float, immediate_payment: bool = False
+    ) -> float:
+        """Process an uninsured claim paid by company over time without collateral.
+
+        This method handles claims where the company has no insurance coverage
+        and must pay the full amount over time. Unlike insured claims, no collateral
+        is required since there's no insurance company to secure payment to.
+
+        Args:
+            claim_amount (float): Total amount of the claim in dollars. Must be >= 0.
+            immediate_payment (bool): If True, pays entire amount immediately.
+                If False, creates liability with payment schedule. Defaults to False.
+
+        Returns:
+            float: The claim amount processed (for consistency with other methods).
+
+        Examples:
+            Process claim with payment schedule::
+
+                # $500K claim paid over default schedule
+                amount = manufacturer.process_uninsured_claim(500_000)
+                # Creates liability, no immediate asset reduction
+
+            Process claim with immediate payment::
+
+                # $500K claim paid immediately
+                amount = manufacturer.process_uninsured_claim(500_000, immediate_payment=True)
+                # Immediately reduces assets and equity by $500K
+
+        Side Effects:
+            - If immediate_payment=True: Reduces assets and equity immediately
+            - If immediate_payment=False: Creates ClaimLiability without collateral
+            - Records claim amount as tax-deductible insurance loss
+
+        Note:
+            Unlike process_insurance_claim(), this method does not require collateral
+            since there's no insurance company requiring security for payments.
+        """
+        if claim_amount <= 0:
+            return 0.0
+
+        if immediate_payment:
+            # Pay immediately - reduce assets and equity
+            actual_payment = min(claim_amount, self.assets)
+            self.assets -= actual_payment
+            self.equity -= actual_payment
+            # Record as tax-deductible loss
+            self.period_insurance_losses += actual_payment
+            logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
+            return float(actual_payment)
+
+        # Create liability without collateral for payment over time
+        claim = ClaimLiability(
+            original_amount=claim_amount,
+            remaining_amount=claim_amount,
+            year_incurred=self.current_year,
+            is_insured=False,  # This is an uninsured claim
+        )
+        self.claim_liabilities.append(claim)
+        logger.info(
+            f"Created uninsured claim liability: ${claim_amount:,.2f} (no collateral required)"
+        )
+        return claim_amount
+
+    def pay_claim_liabilities(self) -> float:
+        """Pay scheduled claim liabilities for the current year.
+
+        This method processes all scheduled claim payments based on each claim's
+        development pattern and the years elapsed since incurrence. It maintains
+        a minimum cash balance and reduces both collateral and restricted assets
+        as payments are made.
+
+        The method automatically removes fully paid claims from the active
+        liability list to maintain clean accounting records.
+
+        Returns:
+            float: Total amount paid toward claims in dollars. May be less than
+                scheduled if insufficient cash is available.
+
+        Examples:
+            Process annual claim payments::
+
+                # After several years of operations
+                initial_liabilities = manufacturer.total_claim_liabilities
+
+                payments_made = manufacturer.pay_claim_liabilities()
+
+                remaining_liabilities = manufacturer.total_claim_liabilities
+                print(f"Paid ${payments_made:,.2f} toward claims")
+                print(f"Remaining: ${remaining_liabilities:,.2f}")
+
+            Check payment capacity::
+
+                available_cash = manufacturer.assets - 100_000  # Minimum cash
+                scheduled_payments = sum(
+                    claim.get_payment(
+                        manufacturer.current_year - claim.year_incurred
+                    ) for claim in manufacturer.claim_liabilities
+                )
+
+                # Payments limited by cash availability
+                expected_payment = min(available_cash, scheduled_payments)
+
+        Side Effects:
+            - Reduces assets by payment amounts
+            - Reduces equity by payment amounts
+            - Reduces collateral by payment amounts
+            - Reduces restricted_assets by payment amounts
+            - Updates remaining_amount for each claim
+            - Removes fully paid claims from claim_liabilities list
+
+        Note:
+            The method maintains a minimum cash balance of $100,000 to ensure
+            operational continuity. In severe cash constraints, this may result
+            in deferred claim payments.
+
+        Warning:
+            Large scheduled payments may strain cash flow, especially if the
+            company has limited assets relative to outstanding liabilities.
+            Monitor solvency after calling this method.
+
+        See Also:
+            :class:`ClaimLiability`: Understanding payment schedules.
+            :attr:`claim_liabilities`: List of active claims.
+            :attr:`total_claim_liabilities`: Total outstanding amount.
+        """
+        total_paid = 0.0
+
+        for claim in self.claim_liabilities:
+            years_since = self.current_year - claim.year_incurred
+            scheduled_payment = claim.get_payment(years_since)
+
+            if scheduled_payment > 0:
+                # Pay from available assets
+                available_for_payment = max(0, self.assets - 100_000)  # Keep minimum cash
+                actual_payment = min(scheduled_payment, available_for_payment)
+
+                if actual_payment > 0:
+                    claim.make_payment(actual_payment)
+                    self.assets -= actual_payment
+                    self.equity -= actual_payment  # Reduce equity when paying claims
+                    total_paid += actual_payment
+
+                    # Different treatment for insured vs uninsured claims
+                    if claim.is_insured:
+                        # For insured claims: reduce collateral (tax deduction already taken when claim incurred)
+                        self.collateral -= actual_payment
+                        self.restricted_assets -= actual_payment
+                        logger.debug(
+                            f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
+                        )
+                        # Do NOT record as tax-deductible loss here - already recorded when claim incurred
+                    else:
+                        # For uninsured claims: just a regular business expense (no collateral to reduce)
+                        logger.debug(
+                            f"Paid ${actual_payment:,.2f} toward uninsured claim (regular business expense)"
+                        )
+
+        # Remove fully paid claims
+        self.claim_liabilities = [c for c in self.claim_liabilities if c.remaining_amount > 0]
+
+        if total_paid > 0:
+            logger.info(f"Paid ${total_paid:,.2f} toward claim liabilities")
+
+        return total_paid
+
+    def process_insurance_claim_with_development(
+        self,
+        claim_amount: float,
+        deductible: float = 0.0,
+        insurance_limit: float = float("inf"),
+        development_pattern: Optional["ClaimDevelopment"] = None,
+        claim_type: str = "general_liability",
+    ) -> tuple[float, float, Optional["Claim"]]:
+        """Process an insurance claim with custom development pattern integration.
+
+        This enhanced method extends basic claim processing to support custom
+        claim development patterns from the claim_development module. It provides
+        more sophisticated actuarial modeling while maintaining compatibility
+        with the basic claim processing workflow.
+
+        The method first processes the immediate financial impact using standard
+        logic, then optionally creates a detailed Claim object with custom
+        development patterns for advanced cash flow modeling.
+
+        Args:
+            claim_amount (float): Total amount of the loss/claim in dollars.
+                Must be >= 0.
+            deductible (float): Amount company must pay before insurance coverage
+                begins. Defaults to 0.0 for full coverage.
+            insurance_limit (float): Maximum amount insurance will pay per claim.
+                Defaults to unlimited coverage.
+            development_pattern (Optional[ClaimDevelopment]): Custom actuarial
+                development pattern for the claim. If None, uses default
+                ClaimLiability schedule. Enables sophisticated reserving and
+                payment modeling.
+            claim_type (str): Classification of claim type for actuarial analysis.
+                Common types: "general_liability", "product_liability",
+                "workers_compensation", "property". Defaults to "general_liability".
+
+        Returns:
+            tuple[float, float, Optional[Claim]]: Three-element tuple containing:
+                - company_payment (float): Amount paid immediately by company
+                - insurance_payment (float): Amount covered by insurance
+                - claim_object (Optional[Claim]): Detailed claim tracking object
+                  with development pattern. None if no development_pattern provided
+                  or insurance_payment is 0.
+
+        Examples:
+            Basic enhanced claim processing::
+
+                from ergodic_insurance.src.claim_development import (
+                    ClaimDevelopment, WorkersCompensation
+                )
+
+                # Custom development pattern for workers' comp
+                wc_pattern = WorkersCompensation()
+
+                company_paid, insurance_paid, claim_obj = manufacturer.process_insurance_claim_with_development(
+                    claim_amount=2_000_000,
+                    deductible=250_000,
+                    insurance_limit=5_000_000,
+                    development_pattern=wc_pattern,
+                    claim_type="workers_compensation"
+                )
+
+                if claim_obj:
+                    print(f"Claim ID: {claim_obj.claim_id}")
+                    print(f"Development pattern: {claim_obj.development_pattern.pattern_name}")
+
+            Fallback to basic processing::
+
+                # Without development pattern, behaves like basic method
+                company_paid, insurance_paid, claim_obj = manufacturer.process_insurance_claim_with_development(
+                    claim_amount=1_000_000,
+                    deductible=100_000
+                )
+
+                assert claim_obj is None  # No enhanced tracking
+
+        Side Effects:
+            Same as :meth:`process_insurance_claim` plus:
+            - Creates Claim object with unique ID if development_pattern provided
+            - Enables integration with claim_development module workflows
+            - Provides enhanced claim tracking for actuarial analysis
+
+        Note:
+            The claim_object provides additional functionality beyond basic
+            ClaimLiability tracking, including reserving calculations,
+            development factor analysis, and integration with external
+            actuarial systems.
+
+        Warning:
+            This method requires the claim_development module to be available
+            when development_pattern is provided. Import errors will be raised
+            if the module is not accessible.
+
+        See Also:
+            :meth:`process_insurance_claim`: Basic claim processing without
+            development patterns.
+            :class:`~ergodic_insurance.src.claim_development.ClaimDevelopment`:
+            Base class for development patterns.
+            :class:`~ergodic_insurance.src.claim_development.Claim`: Enhanced
+            claim tracking with reserving capabilities.
+        """
+        # Process the immediate financial impact
+        company_payment, insurance_payment = self.process_insurance_claim(
+            claim_amount, deductible, insurance_limit
+        )
+
+        # If a development pattern is provided, create a Claim object
+        claim_object = None
+        if development_pattern is not None and insurance_payment > 0:
+            # Import here to avoid circular dependency
+            from .claim_development import Claim
+
+            claim_object = Claim(
+                claim_id=f"CL_{self.current_year}_{len(self.claim_liabilities):04d}",
+                accident_year=self.current_year,
+                reported_year=self.current_year,
+                initial_estimate=insurance_payment,
+                claim_type=claim_type,
+                development_pattern=development_pattern,
+            )
+
+            # The claim is already added to liabilities in process_insurance_claim
+            # but we can enhance the tracking with the Claim object
+            logger.info(
+                f"Created claim with {development_pattern.pattern_name} development pattern"
+            )
+
+        return company_payment, insurance_payment, claim_object
+
+    def check_solvency(self) -> bool:
+        """Check if the company is solvent and update ruin status.
+
+        Evaluates the company's financial solvency based on both equity position
+        and payment capacity. A company is considered insolvent (ruined) when:
+        1. Equity falls to zero or below (traditional balance sheet insolvency)
+        2. Scheduled claim payments exceed sustainable cash flow capacity (payment insolvency)
+
+        Payment insolvency occurs when the company cannot realistically service
+        its claim payment obligations given its revenue-generating capacity.
+
+        Returns:
+            bool: True if company is solvent, False if insolvent.
+                Once False, the company remains ruined for the simulation.
+
+        Examples:
+            Monitor solvency during simulation::
+
+                # After processing large claim
+                manufacturer.process_insurance_claim(
+                    claim_amount=15_000_000,
+                    deductible=5_000_000
+                )
+
+                if not manufacturer.check_solvency():
+                    print(f"Company became insolvent")
+                    break  # Exit simulation
+
+            Solvency-aware simulation loop::
+
+                for year in range(simulation_years):
+                    # Process annual events
+                    metrics = manufacturer.step()
+
+                    # Check solvency (already called in step())
+                    if not manufacturer.check_solvency():
+                        print(f"Bankruptcy in year {year}")
+                        break
+
+        Side Effects:
+            - Updates :attr:`is_ruined` to True if insolvent
+            - Logs warning message when insolvency first detected
+            - Once ruined, company remains ruined for simulation duration
+
+        Note:
+            This method is automatically called during :meth:`step` execution.
+            Payment insolvency is detected when scheduled claim payments exceed
+            80% of revenue, indicating unsustainable claim service burden.
+
+        Warning:
+            Insolvency is an absorbing state - once ruined, the company cannot
+            recover within the same simulation run. Use :meth:`reset` to
+            restore solvency for new simulation scenarios.
+
+        See Also:
+            :attr:`is_ruined`: Current ruin status flag.
+            :attr:`equity`: Financial equity determining solvency.
+            :meth:`step`: Automatically includes solvency checking.
+        """
+        # Traditional balance sheet insolvency
+        if self.equity <= 0:
+            if not self.is_ruined:  # Only log once
+                self.is_ruined = True
+                logger.warning(f"Company became insolvent - negative equity: ${self.equity:,.2f}")
+            return False
+
+        # Payment insolvency - check if claim payment obligations are unsustainable
+        if self.claim_liabilities:
+            # Calculate scheduled payments for the current year
+            current_year_payments = 0.0
+            for claim in self.claim_liabilities:
+                years_since = self.current_year - claim.year_incurred
+                scheduled_payment = claim.get_payment(years_since)
+                current_year_payments += scheduled_payment
+
+            # Check if payments are sustainable relative to revenue capacity
+            if current_year_payments > 0:
+                current_revenue = self.calculate_revenue()
+                payment_burden_ratio = (
+                    current_year_payments / current_revenue if current_revenue > 0 else float("inf")
+                )
+
+                # Company is insolvent if claim payments exceed 80% of revenue
+                # This threshold represents realistic maximum debt service capacity
+                if payment_burden_ratio > 0.80:
+                    if not self.is_ruined:  # Only log once
+                        self.is_ruined = True
+                        logger.warning(
+                            f"Company became insolvent - unsustainable payment burden: "
+                            f"${current_year_payments:,.0f} payments vs ${current_revenue:,.0f} revenue "
+                            f"({payment_burden_ratio:.1%} burden ratio)"
+                        )
+                    return False
+
+        return True
+
+    def calculate_metrics(self) -> Dict[str, float]:
+        """Calculate comprehensive financial metrics for analysis.
+
+        This method computes a complete set of financial metrics including
+        balance sheet items, income statement components, and financial ratios.
+        It provides a standardized view of the company's financial performance
+        and position for simulation analysis.
+
+        Returns:
+            Dict[str, float]: Comprehensive metrics dictionary with keys:
+
+                Balance Sheet Metrics:
+                - 'assets': Total company assets
+                - 'equity': Shareholder equity
+                - 'collateral': Letter of credit collateral posted
+                - 'restricted_assets': Assets pledged as collateral
+                - 'available_assets': Assets available for operations
+                - 'net_assets': Total assets minus restricted assets
+                - 'claim_liabilities': Outstanding claim payment obligations
+
+                Income Statement Metrics:
+                - 'revenue': Annual revenue
+                - 'operating_income': Earnings before interest and taxes
+                - 'net_income': Final profit after all expenses
+
+                Financial Ratios:
+                - 'roe': Return on equity (net_income / equity)
+                - 'roa': Return on assets (net_income / assets)
+                - 'asset_turnover': Revenue efficiency (revenue / assets)
+                - 'operating_margin': Operating profit margin
+                - 'collateral_to_equity': Leverage from collateral requirements
+                - 'collateral_to_assets': Asset restriction from collateral
+
+                Status Indicators:
+                - 'is_solvent': Boolean indicating company solvency
+
+        Examples:
+            Analyze financial performance::
+
+                metrics = manufacturer.calculate_metrics()
+
+                print(f"ROE: {metrics['roe']:.1%}")
+                print(f"ROA: {metrics['roa']:.1%}")
+                print(f"Asset Turnover: {metrics['asset_turnover']:.2f}x")
+                print(f"Solvency: {metrics['is_solvent']}")
+
+            Track key balance sheet ratios::
+
+                collateral_leverage = metrics['collateral_to_equity']
+                asset_restriction = metrics['collateral_to_assets']
+
+                if collateral_leverage > 2.0:
+                    print("High collateral leverage")
+
+                if asset_restriction > 0.5:
+                    print("Significant asset restrictions")
+
+            Monitor operational efficiency::
+
+                if metrics['operating_margin'] < 0:
+                    print("Operating losses")
+
+                if metrics['asset_turnover'] < 0.5:
+                    print("Low asset utilization")
+
+        Note:
+            Financial ratios handle division by zero gracefully by returning 0.
+            All monetary amounts are in dollars. Ratios are in decimal form
+            (0.08 = 8%).
+
+        Warning:
+            Metrics are calculated based on current state and may not reflect
+            cash flows or timing differences in actual business operations.
+
+        See Also:
+            :meth:`step`: Updates metrics automatically during simulation.
+            :attr:`metrics_history`: Historical metrics storage.
+        """
+        metrics = {}
+
+        # Basic balance sheet metrics
+        metrics["assets"] = self.assets
+        metrics["collateral"] = self.collateral
+        metrics["restricted_assets"] = self.restricted_assets
+        metrics["available_assets"] = self.available_assets
+        metrics["equity"] = self.equity
+        metrics["net_assets"] = self.net_assets
+        metrics["claim_liabilities"] = self.total_claim_liabilities
+        metrics["is_solvent"] = not self.is_ruined
+
+        # Calculate operating metrics for current state
+        revenue = self.calculate_revenue()
+        operating_income = self.calculate_operating_income(revenue)
+        collateral_costs = self.calculate_collateral_costs()
+        net_income = self.calculate_net_income(
+            operating_income,
+            collateral_costs,
+            0.0,  # No period premiums in metrics calculation
+            0.0,  # No period losses in metrics calculation
+        )
+
+        metrics["revenue"] = revenue
+        metrics["operating_income"] = operating_income
+        metrics["net_income"] = net_income
+
+        # Financial ratios
+        metrics["asset_turnover"] = revenue / self.assets if self.assets > 0 else 0
+        metrics["operating_margin"] = self.operating_margin
+        metrics["roe"] = net_income / self.equity if self.equity > 0 else 0
+        metrics["roa"] = net_income / self.assets if self.assets > 0 else 0
+
+        # Leverage metrics (collateral-based instead of debt)
+        metrics["collateral_to_equity"] = self.collateral / self.equity if self.equity > 0 else 0
+        metrics["collateral_to_assets"] = self.collateral / self.assets if self.assets > 0 else 0
+
+        return metrics
+
+    def _handle_insolvent_step(self, time_resolution: str) -> Dict[str, float]:
+        """Handle a simulation step when the company is already insolvent.
+
+        Args:
+            time_resolution: "annual" or "monthly" for simulation step.
+
+        Returns:
+            Dictionary of metrics for this time step.
+        """
+        logger.warning("Company is already insolvent, skipping step")
+        metrics = self.calculate_metrics()
+        metrics["year"] = self.current_year
+        metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
+        self._increment_time(time_resolution)
+        return metrics
+
+    def _increment_time(self, time_resolution: str) -> None:
+        """Increment the current time based on resolution.
+
+        Args:
+            time_resolution: "annual" or "monthly" for simulation step.
+        """
+        if time_resolution == "monthly":
+            self.current_month += 1
+            if self.current_month >= 12:
+                self.current_month = 0
+                self.current_year += 1
+        else:
+            self.current_year += 1
+
+    def _apply_growth(
+        self, growth_rate: float, time_resolution: str, apply_stochastic: bool
+    ) -> None:
+        """Apply revenue growth by adjusting asset turnover ratio.
+
+        Args:
+            growth_rate: Revenue growth rate for the period.
+            time_resolution: "annual" or "monthly" for simulation step.
+            apply_stochastic: Whether to apply stochastic shocks.
+        """
+        if growth_rate == 0 or not (time_resolution == "annual" or self.current_month == 11):
+            return
+
+        base_growth = 1 + growth_rate
+
+        # Add stochastic component to growth if enabled
+        if apply_stochastic and self.stochastic_process is not None:
+            # Use a separate shock for growth rate
+            growth_shock = self.stochastic_process.generate_shock(1.0)
+            # Combine deterministic and stochastic growth
+            total_growth = base_growth * growth_shock
+            self.asset_turnover_ratio *= total_growth
+            logger.debug(
+                f"Applied growth: {total_growth:.4f} (base={base_growth:.4f}, shock={growth_shock:.4f})"
+            )
+        else:
+            self.asset_turnover_ratio *= base_growth
+
+    def step(
+        self,
+        working_capital_pct: float = 0.2,
+        letter_of_credit_rate: float = 0.015,
+        growth_rate: float = 0.0,
+        time_resolution: str = "annual",
+        apply_stochastic: bool = False,
+    ) -> Dict[str, float]:
+        """Execute one time step of the financial model simulation.
+
+        This is the main simulation method that advances the manufacturer's
+        financial state by one time period. It processes all business operations
+        including revenue generation, expense payment, claim liability payments,
+        growth application, and solvency checking.
+
+        The method supports both annual and monthly time resolution for flexible
+        modeling. Monthly resolution provides more granular cash flow tracking
+        but requires careful scaling of annual parameters.
+
+        Args:
+            working_capital_pct (float): Working capital as percentage of sales.
+                Represents inventory and receivables minus payables. Typical
+                manufacturing values: 0.15-0.25. Defaults to 0.2 (20%).
+            letter_of_credit_rate (float): Annual interest rate for letter of
+                credit collateral. Market rates typically 0.01-0.02 (1-2%).
+                Defaults to 0.015 (1.5%).
+            growth_rate (float): Revenue growth rate for the period. Applied
+                annually or when current_month=11 for monthly resolution.
+                Defaults to 0.0 for no growth.
+            time_resolution (str): Time step resolution. Must be "annual" or
+                "monthly". Annual is standard for most analyses. Monthly provides
+                granular cash flow modeling. Defaults to "annual".
+            apply_stochastic (bool): Whether to apply stochastic shocks to
+                revenue and growth. Requires stochastic_process to be initialized.
+                Defaults to False for deterministic modeling.
+
+        Returns:
+            Dict[str, float]: Comprehensive financial metrics dictionary containing:
+                - Balance sheet items: assets, equity, collateral, etc.
+                - Income statement: revenue, operating_income, net_income
+                - Financial ratios: roe, roa, operating_margin, etc.
+                - Solvency indicators: is_solvent
+                - Time tracking: year, month (if monthly resolution)
+
+        Examples:
+            Basic annual simulation step::
+
+                # Standard annual step with 20% working capital
+                metrics = manufacturer.step(
+                    working_capital_pct=0.2,
+                    letter_of_credit_rate=0.015
+                )
+
+                print(f"ROE: {metrics['roe']:.1%}")
+                print(f"Assets: ${metrics['assets']:,.2f}")
+
+            Monthly simulation with growth::
+
+                # Monthly steps with 5% annual growth
+                for month in range(12):
+                    metrics = manufacturer.step(
+                        working_capital_pct=0.18,
+                        growth_rate=0.05,
+                        time_resolution="monthly"
+                    )
+
+                    if month == 11:  # Growth applied in December
+                        print(f"Growth applied: {metrics['asset_turnover']}")
+
+            Stochastic simulation::
+
+                # With revenue volatility
+                metrics = manufacturer.step(
+                    working_capital_pct=0.2,
+                    apply_stochastic=True
+                )
+
+                # Revenue will vary based on stochastic process
+
+        Side Effects:
+            - Updates current_year and/or current_month
+            - Modifies balance sheet (assets, equity, collateral)
+            - Processes scheduled claim payments
+            - May trigger insolvency if losses exceed equity
+            - Appends metrics to metrics_history
+            - Applies growth by modifying asset_turnover_ratio
+
+        Raises:
+            ValueError: If time_resolution not "annual" or "monthly".
+            ValueError: If working_capital_pct < 0 or >= 1.
+            RuntimeError: If apply_stochastic=True but no stochastic process.
+
+        Note:
+            If the company is already insolvent, the method returns immediately
+            with minimal processing. Monthly resolution scales revenue and
+            operating income by 1/12 but keeps collateral costs as calculated
+            monthly rates.
+
+        Warning:
+            Growth is applied cumulatively to asset_turnover_ratio. In long
+            simulations with high growth rates, monitor for unrealistic values.
+
+        See Also:
+            :meth:`calculate_revenue`: Core revenue calculation logic.
+            :meth:`pay_claim_liabilities`: Claim payment processing.
+            :meth:`check_solvency`: Solvency evaluation.
+            :meth:`calculate_metrics`: Metrics calculation details.
+        """
+        # Check if already ruined
+        if self.is_ruined:
+            return self._handle_insolvent_step(time_resolution)
+
+        # Pay scheduled claim liabilities first (annual payments)
+        if time_resolution == "annual" or self.current_month == 0:
+            self.pay_claim_liabilities()
+
+        # Calculate financial performance
+        revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
+        operating_income = self.calculate_operating_income(revenue)
+
+        # Calculate collateral costs (monthly if specified)
+        if time_resolution == "monthly":
+            # Monthly collateral costs
+            collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "monthly")
+            # Scale other flows to monthly
+            revenue = revenue / 12
+            operating_income = operating_income / 12
+        else:
+            # Annual collateral costs (sum of 12 monthly payments)
+            collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
+
+        # Calculate net income with proper tax treatment of insurance costs
+        net_income = self.calculate_net_income(
+            operating_income,
+            collateral_costs,
+            self.period_insurance_premiums,
+            self.period_insurance_losses,
+        )
+
+        # Update balance sheet with retained earnings
+        self.update_balance_sheet(net_income, growth_rate)
+
+        # Apply revenue growth by adjusting asset turnover ratio
+        self._apply_growth(growth_rate, time_resolution, apply_stochastic)
+
+        # Check solvency
+        self.check_solvency()
+
+        # Calculate and store metrics
+        metrics = self.calculate_metrics()
+        metrics["year"] = self.current_year
+        metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
+        self.metrics_history.append(metrics)
+
+        # Increment time
+        self._increment_time(time_resolution)
+
+        # Reset period insurance costs for next period
+        self.reset_period_insurance_costs()
+
+        return metrics
+
+    def reset(self) -> None:
+        """Reset the manufacturer to initial state for new simulation.
+
+        This method restores all financial parameters to their configured
+        initial values and clears historical data, enabling fresh simulation
+        runs from the same starting point. It is essential for Monte Carlo
+        analysis and parameter sensitivity studies.
+
+        Side Effects:
+            - Resets assets to config.initial_assets
+            - Clears all collateral and restricted assets
+            - Restores equity to initial assets (no debt assumption)
+            - Resets asset_turnover_ratio to config value
+            - Clears all outstanding claim liabilities
+            - Resets time tracking to year 0, month 0
+            - Restores solvency status to healthy
+            - Clears metrics_history
+            - Resets stochastic process (if present) to initial state
+
+        Examples:
+            Run multiple simulations::
+
+                results = []
+                for seed in range(100):
+                    manufacturer.reset()
+
+                    # Set different random seed for each run
+                    if manufacturer.stochastic_process:
+                        manufacturer.stochastic_process.seed = seed
+
+                    # Run simulation
+                    for year in range(20):
+                        metrics = manufacturer.step(apply_stochastic=True)
+
+                    results.append(manufacturer.metrics_history)
+
+            Parameter sensitivity analysis::
+
+                base_config = manufacturer.config
+                margins = [0.06, 0.08, 0.10]
+                results = {}
+
+                for margin in margins:
+                    manufacturer.reset()
+                    manufacturer.operating_margin = margin
+
+                    # Run simulation with different margin
+                    final_metrics = manufacturer.step()
+                    results[margin] = final_metrics['roe']
+
+        Note:
+            The reset method creates a clean slate but preserves the original
+            configuration. Any runtime modifications to parameters (like
+            operating_margin) will need to be reapplied after reset.
+
+        See Also:
+            :meth:`copy`: Create independent manufacturer instances.
+            :attr:`config`: Original configuration parameters.
+        """
+        self.assets = self.config.initial_assets
+        self.collateral = 0.0
+        self.restricted_assets = 0.0
+        self.equity = self.assets
+        self.asset_turnover_ratio = self.config.asset_turnover_ratio
+        self.claim_liabilities = []
+        self.current_year = 0
+        self.current_month = 0
+        self.is_ruined = False
+        self.metrics_history = []
+
+        # Reset period insurance cost tracking
+        self.period_insurance_premiums = 0.0
+        self.period_insurance_losses = 0.0
+
+        # Reset stochastic process if present
+        if self.stochastic_process is not None:
+            self.stochastic_process.reset()
+
+        logger.info("Manufacturer reset to initial state")
+
+    def copy(self) -> "WidgetManufacturer":
+        """Create a deep copy of the manufacturer for parallel simulations.
+
+        This method creates a completely independent manufacturer instance
+        with the same configuration but fresh initial state. It is designed
+        for parallel simulation scenarios where multiple independent paths
+        need to be explored simultaneously.
+
+        Returns:
+            WidgetManufacturer: A new manufacturer instance with:
+                - Same configuration parameters
+                - Deep copy of stochastic process (if present)
+                - Reset to initial financial state
+                - Independent random number generation
+
+        Examples:
+            Parallel Monte Carlo simulation::
+
+                base_manufacturer = WidgetManufacturer(config, stochastic_process)
+
+                # Create multiple independent copies
+                manufacturers = [base_manufacturer.copy() for _ in range(1000)]
+
+                # Run parallel simulations
+                results = []
+                for i, mfg in enumerate(manufacturers):
+                    # Each has independent random sequence
+                    if mfg.stochastic_process:
+                        mfg.stochastic_process.seed = i
+
+                    # Run independent simulation
+                    for year in range(10):
+                        mfg.step(apply_stochastic=True)
+
+                    results.append(mfg.equity)
+
+            Scenario analysis::
+
+                base_case = manufacturer.copy()
+                stress_case = manufacturer.copy()
+
+                # Apply different parameters to each
+                stress_case.operating_margin = 0.04  # Stress scenario
+
+                # Run independent simulations
+                base_result = base_case.step()
+                stress_result = stress_case.step()
+
+        Note:
+            The copy starts in initial state regardless of the original
+            manufacturer's current state. This ensures consistent starting
+            points for comparative analysis.
+
+        Warning:
+            Stochastic processes are deep copied, which means each copy will
+            have independent random number generation. Set different seeds
+            if you want truly independent random sequences.
+
+        See Also:
+            :meth:`reset`: Reset existing instance instead of copying.
+            :class:`~ergodic_insurance.src.stochastic_processes.StochasticProcess`:
+            For stochastic process copying behavior.
+        """
+        import copy
+
+        # Create a new instance with the same config
+        new_manufacturer = WidgetManufacturer(
+            config=self.config,
+            stochastic_process=copy.deepcopy(self.stochastic_process)
+            if self.stochastic_process
+            else None,
+        )
+
+        # The new manufacturer starts fresh at initial state
+        # No need to copy current state since we want independent simulations
+
+        logger.debug("Created copy of manufacturer")
+        return new_manufacturer

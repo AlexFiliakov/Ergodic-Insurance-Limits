@@ -8,10 +8,6 @@ ergodic_insurance/src/ergodic_insurance.egg-info/dependency_links.txt
 ergodic_insurance/src/ergodic_insurance.egg-info/not-zip-safe
 ergodic_insurance/src/ergodic_insurance.egg-info/requires.txt
 ergodic_insurance/src/ergodic_insurance.egg-info/top_level.txt
-ergodic_insurance/src/ergodic_insurance/__init__.py
-ergodic_insurance/src/ergodic_insurance/claim_generator.py
-ergodic_insurance/src/ergodic_insurance/config_v2.py
-ergodic_insurance/src/ergodic_insurance/manufacturer.py
 ergodic_insurance/src/ergodic_insurance.egg-info/PKG-INFO
 ergodic_insurance/src/ergodic_insurance.egg-info/SOURCES.txt
 ergodic_insurance/src/ergodic_insurance.egg-info/dependency_links.txt

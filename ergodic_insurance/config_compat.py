@@ -23,9 +23,9 @@ except ImportError:
         from .config_v2 import ConfigV2
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config import Config  # type: ignore[no-redef]
-        from config_manager import ConfigManager  # type: ignore[no-redef]
-        from config_v2 import ConfigV2  # type: ignore[no-redef]
+        from config import Config
+        from config_manager import ConfigManager
+        from config_v2 import ConfigV2
 
 
 class LegacyConfigAdapter:
@@ -79,7 +79,7 @@ class LegacyConfigAdapter:
 
         # Load using new system
         try:
-            config_v2 = self.config_manager.load_profile(profile_name, **overrides)  # type: ignore
+            config_v2 = self.config_manager.load_profile(profile_name, **overrides)
 
             # Convert to legacy Config format
             return self._convert_to_legacy(config_v2)
@@ -143,7 +143,7 @@ class LegacyConfigAdapter:
                 )
             except ImportError:
                 # Fall back to direct import (for notebooks/scripts)
-                from config import (  # type: ignore
+                from config import (
                     Config,
                     DebtConfig,
                     GrowthConfig,

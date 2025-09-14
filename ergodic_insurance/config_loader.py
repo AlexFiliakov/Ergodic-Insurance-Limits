@@ -102,7 +102,7 @@ class ConfigLoader:
             return self._cache[cache_key]
 
         # Load using adapter and cache result
-        config = self._adapter.load(config_name, overrides, **kwargs)
+        config: Config = self._adapter.load(config_name, overrides, **kwargs)
         self._cache[cache_key] = config
         return config
 

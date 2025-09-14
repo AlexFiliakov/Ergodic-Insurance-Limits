@@ -18,44 +18,44 @@ The `Manufacturer` class models a company's financial dynamics. Let's explore it
 ### Basic Configuration
 
 ```python
-from ergodic_insurance.src.manufacturer import Manufacturer
 import numpy as np
 
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.config_v2 import ManufacturerConfig, WorkingCapitalConfig
+
 # Create a medium-sized manufacturer
-manufacturer = Manufacturer(
-    initial_assets=10_000_000,     # \$10M starting assets
-    asset_turnover=1.0,             # Revenue = 1x assets
-    operating_margin=0.08,          # 8% operating margin
-    tax_rate=0.25,                  # 25% corporate tax
-    working_capital_ratio=0.20      # 20% of revenue tied up in WC
+mfg_config = ManufacturerConfig(
+    initial_assets=10_000_000,    # Starting with $10M
+    asset_turnover_ratio=1.0,     # Generate revenue equal to assets
+    operating_margin=0.12,        # protif margin before losses (~8% margin after losses)
+    tax_rate=0.25,                # 25% corporate tax
+    retention_ratio=0.7           # Retain 70% of earnings
 )
 
+mfg_working_capital_config = WorkingCapitalConfig(
+    percent_of_sales=0.20  # 20% of revenue tied up in WC
+)
+
+manufacturer = WidgetManufacturer(mfg_config, mfg_working_capital_config)
+
 # Calculate key metrics
-annual_revenue = manufacturer.initial_assets * manufacturer.asset_turnover
+annual_revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
 operating_income = annual_revenue * manufacturer.operating_margin
 net_income = operating_income * (1 - manufacturer.tax_rate)
 
 print(f"Company Financial Profile:")
-print(f"  Assets: ${manufacturer.initial_assets:,.0f}")
+print(f"  Assets: ${manufacturer.assets:,.0f}")
 print(f"  Annual Revenue: ${annual_revenue:,.0f}")
 print(f"  Operating Income: ${operating_income:,.0f}")
 print(f"  Net Income: ${net_income:,.0f}")
-print(f"  ROA: {net_income / manufacturer.initial_assets:.1%}")
+print(f"  ROA: {net_income / manufacturer.assets:.1%}")
 ```
 
-### Industry-Specific Configurations
+### Sector-Specific Configurations
 
-Different industries have different financial characteristics:
+Different manufacturing sectors have different financial characteristics:
 
 ```python
-# High-margin software company
-software_company = Manufacturer(
-    initial_assets=5_000_000,
-    asset_turnover=2.0,      # High efficiency
-    operating_margin=0.25,   # 25% margins
-    tax_rate=0.21
-)
-
 # Capital-intensive manufacturing
 heavy_industry = Manufacturer(
     initial_assets=50_000_000,
@@ -64,22 +64,20 @@ heavy_industry = Manufacturer(
     tax_rate=0.25
 )
 
-# Retail business
-retail_store = Manufacturer(
-    initial_assets=2_000_000,
-    asset_turnover=4.0,      # Very high turnover
-    operating_margin=0.03,   # 3% margins
-    tax_rate=0.25
-)
+# Additional sectors
 
 # Compare profitability
-for company, name in [(software_company, "Software"),
-                      (heavy_industry, "Heavy Industry"),
-                      (retail_store, "Retail")]:
-    revenue = company.initial_assets * company.asset_turnover
+for company, name in [(heavy_industry, "Heavy Industry")]:
+    revenue = company.assets * company.asset_turnover_ratio
     profit = revenue * company.operating_margin * (1 - company.tax_rate)
     roe = profit / company.initial_assets
     print(f"{name}: ROE = {roe:.1%}")
+```
+
+#### Expected Output
+
+```
+...
 ```
 
 ## Generating Losses

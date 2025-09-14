@@ -753,7 +753,7 @@ class InsuranceDecisionEngine:
             cost_obj = weights["cost"] * (premium / assets) * 10  # Scale
 
             total = growth_obj + risk_obj + cost_obj
-            return total
+            return float(total)
 
         except Exception as e:
             logger.error(f"Error calculating objective: {e}")
@@ -798,7 +798,7 @@ class InsuranceDecisionEngine:
         # Ergodic growth benefit
         growth_benefit = volatility_reduction * 0.5  # Simplified
 
-        return base_growth + growth_benefit
+        return float(base_growth + growth_benefit)
 
     def _calculate_cvar(self, losses: np.ndarray, percentile: float) -> float:
         """Calculate Conditional Value at Risk (CVaR).

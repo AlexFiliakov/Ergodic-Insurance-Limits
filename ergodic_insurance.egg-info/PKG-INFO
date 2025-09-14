@@ -1,3 +1,48 @@
+Metadata-Version: 2.4
+Name: ergodic-insurance
+Version: 0.1.0
+Summary: Financial modeling for widget manufacturers with ergodic insurance limits
+Home-page: https://github.com/yourusername/ergodic-insurance-limits
+Author: Alex Filiakov
+Author-email: Alex Filiakov <alexfiliakov@gmail.com>
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=2.3.2
+Requires-Dist: pandas>=2.3.2
+Requires-Dist: pydantic>=2.11.7
+Requires-Dist: pyyaml>=6.0.2
+Requires-Dist: matplotlib>=3.10.5
+Requires-Dist: seaborn>=0.13.2
+Requires-Dist: scipy>=1.16.1
+Requires-Dist: jinja2>=3.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.4.1; extra == "dev"
+Requires-Dist: pytest-cov>=6.2.1; extra == "dev"
+Requires-Dist: coverage>=7.7.0; extra == "dev"
+Requires-Dist: pytest-xdist>=3.8.0; extra == "dev"
+Requires-Dist: pylint>=3.3.8; extra == "dev"
+Requires-Dist: black>=25.1.0; extra == "dev"
+Requires-Dist: mypy>=1.17.1; extra == "dev"
+Requires-Dist: isort>=6.0.1; extra == "dev"
+Requires-Dist: types-PyYAML>=6.0.0; extra == "dev"
+Requires-Dist: pre-commit>=3.6.0; extra == "dev"
+Provides-Extra: notebooks
+Requires-Dist: jupyter>=1.1.1; extra == "notebooks"
+Requires-Dist: notebook>=7.4.5; extra == "notebooks"
+Requires-Dist: ipykernel>=6.30.1; extra == "notebooks"
+Requires-Dist: nbformat>=5.10.4; extra == "notebooks"
+Dynamic: author
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-python
+
 # Ergodic Insurance Limits
 
 Rationalizing and optimizing insurance purchasing decisions.

@@ -55,7 +55,7 @@ except ImportError:
         from .config_v2 import ConfigV2, PresetLibrary
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config_v2 import ConfigV2, PresetLibrary  # type: ignore[no-redef]
+        from config_v2 import ConfigV2, PresetLibrary
 
 
 class ConfigManager:
@@ -401,7 +401,7 @@ class ConfigManager:
         Returns:
             List of validation issues, empty if valid.
         """
-        issues = config.validate_completeness()
+        issues: List[str] = config.validate_completeness()
 
         # Additional validation logic
         if config.simulation.time_horizon_years > 1000:

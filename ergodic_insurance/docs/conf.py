@@ -8,8 +8,8 @@ import sys
 
 # Add the parent directory to the path to import ergodic_insurance package
 sys.path.insert(0, os.path.abspath("../.."))
-# Also add the src directory for direct imports
-sys.path.insert(0, os.path.abspath("../src"))
+# Add the ergodic_insurance directory for direct imports
+sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information

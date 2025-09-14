@@ -792,7 +792,7 @@ class BusinessOptimizer:
         elif metric == "equity":
             adjusted_growth *= 1.1  # Equity can grow faster with good ROE
 
-        return max(0, adjusted_growth)
+        return float(max(0, adjusted_growth))
 
     def _calculate_capital_efficiency(
         self, coverage_limit: float, deductible: float, premium_rate: float
@@ -808,7 +808,7 @@ class BusinessOptimizer:
         net_benefit = risk_transfer_benefit - insurance_capital
         efficiency_ratio = 1 + (net_benefit / self.manufacturer.assets)
 
-        return max(0, efficiency_ratio)
+        return float(max(0, efficiency_ratio))
 
     def _estimate_insurance_return(self) -> float:
         """Estimate return on insurance investment."""
@@ -850,7 +850,7 @@ class BusinessOptimizer:
         # Recalculate with reduced volatility
         ergodic_growth = ensemble_growth - 0.5 * adjusted_volatility**2
 
-        return ergodic_growth
+        return float(ergodic_growth)
 
     def _categorize_horizon(self, years: int) -> str:
         """Categorize time horizon."""

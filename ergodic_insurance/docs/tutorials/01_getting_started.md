@@ -92,7 +92,7 @@ np.random.seed(42)
 config = ManufacturerConfig(
     initial_assets=10_000_000,    # Starting with $10M
     asset_turnover_ratio=1.0,     # Generate revenue equal to assets
-    operating_margin=0.12,        # protif margin before losses (~8% margin after losses)
+    operating_margin=0.12,        # Profit margin before losses (~8% margin after losses)
     tax_rate=0.25,                # 25% corporate tax
     retention_ratio=0.7           # Retain 70% of earnings
 )

@@ -1,101 +1,256 @@
-"""Ergodic Insurance Limits"""
+"""Ergodic Insurance Limits - Core Package.
 
-from ._version import __version__
+This module provides the main entry point for the Ergodic Insurance Limits
+package, exposing the key classes and functions for insurance simulation
+and analysis using ergodic theory. The framework helps optimize insurance
+retentions and limits for businesses by analyzing time-average outcomes
+rather than traditional ensemble approaches.
 
-# Use lazy imports to avoid import issues during test discovery
-# Direct imports are defined but modules are imported only when accessed
+Key Features:
+    - Ergodic analysis of insurance decisions
+    - Business optimization with insurance constraints
+    - Monte Carlo simulation with trajectory storage
+    - Insurance strategy backtesting and validation
+    - Performance optimization and benchmarking
+    - Comprehensive visualization and reporting
 
+Examples:
+    Basic simulation::
+
+        from ergodic_insurance import Simulation, Config
+
+        config = Config()
+        sim = Simulation(config)
+        results = sim.run(years=50)
+
+    Business optimization::
+
+        from ergodic_insurance import BusinessOptimizer, BusinessObjective
+
+        optimizer = BusinessOptimizer()
+        result = optimizer.optimize(
+            objective=BusinessObjective.MAXIMIZE_GROWTH,
+            constraints=BusinessConstraints(min_survival_prob=0.95)
+        )
+
+Note:
+    This module uses lazy imports to avoid circular dependencies during
+    test discovery. All public API classes are accessible through the
+    module's __all__ list.
+
+Since:
+    Version 0.1.0
+"""
+# pylint: disable=undefined-all-variable
+
+__version__ = "0.1.0"
 __all__ = [
     "__version__",
+    "BusinessObjective",
+    "BusinessConstraints",
+    "OptimalStrategy",
+    "BusinessOptimizationResult",
+    "BusinessOptimizer",
     "ClaimEvent",
     "ClaimGenerator",
     "Config",
-    "ConfigLoader",
-    "DecisionMetrics",
-    "EnhancedInsuranceLayer",
-    "ErgodicAnalyzer",
-    "InsuranceDecision",
-    "InsuranceDecisionEngine",
-    "InsuranceLayer",
-    "InsurancePolicy",
-    "InsuranceProgram",
-    "LossDistribution",
     "ManufacturerConfig",
-    "ManufacturingLossGenerator",
-    "MonteCarloEngine",
-    "OptimizationConstraints",
-    "RiskMetrics",
-    "Simulation",
-    "SimulationConfig",
-    "SimulationResults",
-    "WSJ_COLORS",
+    "ErgodicAnalyzer",
     "WidgetManufacturer",
-    "format_currency",
+    "Simulation",
+    "SimulationResults",
+    "ValidationMetrics",
+    "MetricCalculator",
+    "PerformanceTargets",
+    "InsuranceStrategy",
+    "NoInsuranceStrategy",
+    "ConservativeFixedStrategy",
+    "AggressiveFixedStrategy",
+    "OptimizedStaticStrategy",
+    "AdaptiveStrategy",
+    "StrategyBacktester",
+    "WalkForwardValidator",
+    "PerformanceOptimizer",
+    "OptimizationConfig",
+    "ProfileResult",
+    "SmartCache",
+    "VectorizedOperations",
+    "AccuracyValidator",
+    "ValidationResult",
+    "ReferenceImplementations",
+    "EdgeCaseTester",
+    "BenchmarkSuite",
+    "BenchmarkConfig",
+    "BenchmarkResult",
+    "BenchmarkMetrics",
+    "SystemProfiler",
+    "StyleManager",
+    "Theme",
+    "FigureFactory",
+    "SensitivityAnalyzer",
+    "SensitivityResult",
+    "TwoWaySensitivityResult",
 ]
 
 
 def __getattr__(name):
-    """Lazy import modules to avoid circular dependencies during test discovery."""
-    if name == "ClaimEvent" or name == "ClaimGenerator":
-        from .src.claim_generator import ClaimEvent, ClaimGenerator
+    """Lazy import modules to avoid circular dependencies during test discovery.
 
-        return locals()[name]
-    elif name == "Config" or name == "ManufacturerConfig":
-        from .src.config import Config, ManufacturerConfig
+    This function implements PEP 562 for lazy loading of submodules, which helps
+    reduce import time and avoid circular dependencies during test discovery.
 
-        return locals()[name]
-    elif name == "ConfigLoader":
-        from .src.config_loader import ConfigLoader
+    Args:
+        name: The name of the attribute to retrieve.
 
-        return ConfigLoader
-    elif name in [
-        "DecisionMetrics",
-        "InsuranceDecision",
-        "InsuranceDecisionEngine",
-        "OptimizationConstraints",
-    ]:
-        from .src.decision_engine import (
-            DecisionMetrics,
-            InsuranceDecision,
-            InsuranceDecisionEngine,
-            OptimizationConstraints,
+    Returns:
+        The requested module, class, or function.
+
+    Raises:
+        AttributeError: If the requested attribute does not exist in the module.
+
+    Note:
+        This function is called automatically by Python when accessing module
+        attributes that are not yet loaded. It should not be called directly.
+    """
+    if name in (
+        "BusinessObjective",
+        "BusinessConstraints",
+        "OptimalStrategy",
+        "BusinessOptimizationResult",
+        "BusinessOptimizer",
+    ):
+        from .business_optimizer import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            BusinessConstraints,
+            BusinessObjective,
+            BusinessOptimizationResult,
+            BusinessOptimizer,
+            OptimalStrategy,
         )
 
         return locals()[name]
-    elif name == "ErgodicAnalyzer":
-        from .src.ergodic_analyzer import ErgodicAnalyzer
+    if name in ("ClaimEvent", "ClaimGenerator"):
+        from .claim_generator import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            ClaimEvent,
+            ClaimGenerator,
+        )
+
+        return locals()[name]
+    if name in ("Config", "ManufacturerConfig"):
+        from .config import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            Config,
+            ManufacturerConfig,
+        )
+
+        return locals()[name]
+    if name == "ErgodicAnalyzer":
+        from .ergodic_analyzer import ErgodicAnalyzer  # pylint: disable=import-outside-toplevel
 
         return ErgodicAnalyzer
-    elif name == "InsuranceLayer" or name == "InsurancePolicy":
-        from .src.insurance import InsuranceLayer, InsurancePolicy
-
-        return locals()[name]
-    elif name == "EnhancedInsuranceLayer" or name == "InsuranceProgram":
-        from .src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-
-        return locals()[name]
-    elif name == "LossDistribution" or name == "ManufacturingLossGenerator":
-        from .src.loss_distributions import LossDistribution, ManufacturingLossGenerator
-
-        return locals()[name]
-    elif name == "WidgetManufacturer":
-        from .src.manufacturer import WidgetManufacturer
+    if name == "WidgetManufacturer":
+        from .manufacturer import WidgetManufacturer  # pylint: disable=import-outside-toplevel
 
         return WidgetManufacturer
-    elif name == "MonteCarloEngine" or name == "SimulationConfig":
-        from .src.monte_carlo import MonteCarloEngine, SimulationConfig
+    if name in ("Simulation", "SimulationResults"):
+        from .simulation import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            Simulation,
+            SimulationResults,
+        )
 
         return locals()[name]
-    elif name == "RiskMetrics":
-        from .src.risk_metrics import RiskMetrics
-
-        return RiskMetrics
-    elif name == "Simulation" or name == "SimulationResults":
-        from .src.simulation import Simulation, SimulationResults
+    if name in ("ValidationMetrics", "MetricCalculator", "PerformanceTargets"):
+        from .validation_metrics import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            MetricCalculator,
+            PerformanceTargets,
+            ValidationMetrics,
+        )
 
         return locals()[name]
-    elif name == "WSJ_COLORS" or name == "format_currency":
-        from .src.visualization import WSJ_COLORS, format_currency
+    if name in (
+        "InsuranceStrategy",
+        "NoInsuranceStrategy",
+        "ConservativeFixedStrategy",
+        "AggressiveFixedStrategy",
+        "OptimizedStaticStrategy",
+        "AdaptiveStrategy",
+        "StrategyBacktester",
+    ):
+        from .strategy_backtester import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AdaptiveStrategy,
+            AggressiveFixedStrategy,
+            ConservativeFixedStrategy,
+            InsuranceStrategy,
+            NoInsuranceStrategy,
+            OptimizedStaticStrategy,
+            StrategyBacktester,
+        )
+
+        return locals()[name]
+    if name == "WalkForwardValidator":
+        from .walk_forward_validator import (  # pylint: disable=import-outside-toplevel
+            WalkForwardValidator,
+        )
+
+        return WalkForwardValidator
+    if name in (
+        "PerformanceOptimizer",
+        "OptimizationConfig",
+        "ProfileResult",
+        "SmartCache",
+        "VectorizedOperations",
+    ):
+        from .performance_optimizer import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            OptimizationConfig,
+            PerformanceOptimizer,
+            ProfileResult,
+            SmartCache,
+            VectorizedOperations,
+        )
+
+        return locals()[name]
+    if name in (
+        "AccuracyValidator",
+        "ValidationResult",
+        "ReferenceImplementations",
+        "EdgeCaseTester",
+    ):
+        from .accuracy_validator import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AccuracyValidator,
+            EdgeCaseTester,
+            ReferenceImplementations,
+            ValidationResult,
+        )
+
+        return locals()[name]
+    if name in (
+        "BenchmarkSuite",
+        "BenchmarkConfig",
+        "BenchmarkResult",
+        "BenchmarkMetrics",
+        "SystemProfiler",
+    ):
+        from .benchmarking import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            BenchmarkConfig,
+            BenchmarkMetrics,
+            BenchmarkResult,
+            BenchmarkSuite,
+            SystemProfiler,
+        )
+
+        return locals()[name]
+    if name in ("StyleManager", "Theme", "FigureFactory"):
+        from .visualization import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            FigureFactory,
+            StyleManager,
+            Theme,
+        )
+
+        return locals()[name]
+    if name in ("SensitivityAnalyzer", "SensitivityResult", "TwoWaySensitivityResult"):
+        from .sensitivity import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            SensitivityAnalyzer,
+            SensitivityResult,
+            TwoWaySensitivityResult,
+        )
 
         return locals()[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

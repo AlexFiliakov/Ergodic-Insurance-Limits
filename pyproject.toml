@@ -51,10 +51,10 @@ notebooks = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["ergodic_insurance/src"]
+where = ["."]
 
-[tool.setuptools.package-dir]
-"" = "ergodic_insurance/src"
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json"]
 
 [tool.coverage.run]
 source = ["ergodic_insurance"]
