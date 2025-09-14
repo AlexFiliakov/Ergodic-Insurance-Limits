@@ -593,12 +593,12 @@ class WidgetManufacturer:
 
         Side Effects:
             - Increases period_insurance_losses by loss_amount
-            - Assets and equity already reduced by process_insurance_claim()
+            - No immediate impact on assets/equity (handled by payment schedule)
 
         Note:
             This method is automatically called by process_insurance_claim()
-            for the company payment portion, but can be called manually for
-            other loss payments.
+            for the company payment portion. The tax deduction is taken when
+            the loss is incurred (accrual basis), not when paid (cash basis).
 
         See Also:
             :meth:`calculate_net_income`: Uses tracked losses for tax calculations.
@@ -1181,10 +1181,10 @@ class WidgetManufacturer:
                 if claim_amount > deductible_amount + insurance_limit:
                     company_payment += claim_amount - deductible_amount - insurance_limit
 
-        # Company payment is collateralized and paid over time (not immediately)
+        # Company payment is collateralized and paid over time
         if company_payment > 0:
             # Post letter of credit as collateral for company payment
-            # This restricts assets but doesn't change total assets or equity initially
+            # Collateral restricts assets but we need to track the liability properly
             self.collateral += company_payment
             self.restricted_assets += company_payment
 
@@ -1197,7 +1197,8 @@ class WidgetManufacturer:
             )
             self.claim_liabilities.append(claim)
 
-            # Record the loss for tax tracking
+            # Record the company payment (deductible) immediately for tax purposes
+            # This ensures proper tax treatment in the same period as the claim
             self.record_insurance_loss(company_payment)
 
             logger.info(
@@ -1365,16 +1366,13 @@ class WidgetManufacturer:
 
                     # Different treatment for insured vs uninsured claims
                     if claim.is_insured:
-                        # For insured claims: record as tax-deductible insurance loss & reduce collateral
-                        self.period_insurance_losses += actual_payment
+                        # For insured claims: reduce collateral (tax deduction already taken when claim incurred)
                         self.collateral -= actual_payment
                         self.restricted_assets -= actual_payment
                         logger.debug(
                             f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
                         )
-                        logger.debug(
-                            f"Recorded ${actual_payment:,.2f} as tax-deductible insurance loss"
-                        )
+                        # Do NOT record as tax-deductible loss here - already recorded when claim incurred
                     else:
                         # For uninsured claims: just a regular business expense (no collateral to reduce)
                         logger.debug(

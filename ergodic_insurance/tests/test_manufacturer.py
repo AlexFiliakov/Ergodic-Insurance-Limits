@@ -620,3 +620,259 @@ class TestWidgetManufacturer:
         else:
             # Company survived - should have positive equity
             assert manufacturer.equity > 0
+
+    def test_insurance_premium_tax_treatment(self, manufacturer):
+        """Test that insurance premiums are properly tax-deductible.
+
+        Regression test for issue where premiums weren't reducing taxable income.
+        """
+        # Calculate baseline metrics
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        # Calculate net income without insurance premium
+        net_income_no_premium = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+
+        # Calculate net income with insurance premium
+        premium = 300_000
+        net_income_with_premium = manufacturer.calculate_net_income(operating_income, 0, premium, 0)
+
+        # Premium should reduce net income by (premium * (1 - tax_rate))
+        expected_reduction = premium * (1 - manufacturer.tax_rate)
+        actual_reduction = net_income_no_premium - net_income_with_premium
+
+        assert actual_reduction == pytest.approx(expected_reduction)
+
+        # Verify tax savings
+        tax_savings = premium * manufacturer.tax_rate
+        assert tax_savings == pytest.approx(75_000)  # 25% of 300K
+
+    def test_deductible_tax_treatment_on_incurrence(self, manufacturer):
+        """Test that deductibles are tax-deductible when incurred, not when paid.
+
+        Regression test for issue where deductibles were only deductible when paid,
+        causing timing mismatches and double counting.
+        """
+        initial_assets = manufacturer.assets
+
+        # Process claim with deductible
+        deductible = 500_000
+        company_payment, insurance_payment = manufacturer.process_insurance_claim(
+            claim_amount=2_000_000, deductible_amount=deductible, insurance_limit=10_000_000
+        )
+
+        # Verify deductible is recorded for tax purposes immediately
+        assert manufacturer.period_insurance_losses == deductible
+
+        # Assets should not be reduced immediately (only collateralized)
+        assert manufacturer.assets == initial_assets
+        assert manufacturer.collateral == deductible
+        assert manufacturer.restricted_assets == deductible
+
+        # Verify tax deduction in net income calculation
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        net_income = manufacturer.calculate_net_income(
+            operating_income,
+            0,  # No collateral costs for this test
+            0,  # No premiums
+            manufacturer.period_insurance_losses,
+        )
+
+        # Compare with net income without the deductible
+        net_income_no_loss = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+
+        # Deductible should reduce net income by (deductible * (1 - tax_rate))
+        expected_reduction = deductible * (1 - manufacturer.tax_rate)
+        actual_reduction = net_income_no_loss - net_income
+
+        assert actual_reduction == pytest.approx(expected_reduction)
+
+    def test_no_double_counting_of_deductibles(self, manufacturer):
+        """Test that deductibles are not double-counted for tax purposes.
+
+        Regression test to ensure deductibles are only tax-deductible once
+        (when incurred) and not again when paid.
+        """
+        # Process claim with deductible
+        deductible = 1_000_000
+        manufacturer.process_insurance_claim(
+            claim_amount=5_000_000, deductible_amount=deductible, insurance_limit=10_000_000
+        )
+
+        # Record initial period losses
+        initial_period_losses = manufacturer.period_insurance_losses
+        assert initial_period_losses == deductible
+
+        # Reset period costs (as would happen at end of step)
+        manufacturer.reset_period_insurance_costs()
+        assert manufacturer.period_insurance_losses == 0
+
+        # Pay claim liabilities (first year payment)
+        manufacturer.current_year = 1  # Advance time for payment
+        payments_made = manufacturer.pay_claim_liabilities()
+
+        # Verify payment was made
+        assert payments_made > 0
+
+        # Period losses should still be 0 (not double-counted)
+        assert manufacturer.period_insurance_losses == 0
+
+        # Verify collateral was reduced
+        expected_collateral = deductible - payments_made
+        assert manufacturer.collateral == pytest.approx(expected_collateral)
+
+    def test_combined_premium_and_deductible_tax_treatment(self, manufacturer):
+        """Test combined tax treatment of premiums and deductibles.
+
+        Integration test for the full insurance cost tax treatment.
+        """
+        # Process claim with deductible
+        deductible = 200_000
+        manufacturer.process_insurance_claim(
+            claim_amount=1_000_000, deductible_amount=deductible, insurance_limit=5_000_000
+        )
+
+        # Pay premium
+        premium = 150_000
+        manufacturer.record_insurance_premium(premium)
+
+        # Verify both are recorded
+        assert manufacturer.period_insurance_premiums == premium
+        assert manufacturer.period_insurance_losses == deductible
+
+        # Calculate net income with both costs
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+        collateral_costs = manufacturer.calculate_collateral_costs(0.015)
+
+        net_income = manufacturer.calculate_net_income(
+            operating_income,
+            collateral_costs,
+            manufacturer.period_insurance_premiums,
+            manufacturer.period_insurance_losses,
+        )
+
+        # Calculate baseline without insurance costs
+        net_income_baseline = manufacturer.calculate_net_income(
+            operating_income, collateral_costs, 0, 0
+        )
+
+        # Total insurance costs should reduce net income by (costs * (1 - tax_rate))
+        total_insurance_costs = premium + deductible
+        expected_reduction = total_insurance_costs * (1 - manufacturer.tax_rate)
+        actual_reduction = net_income_baseline - net_income
+
+        assert actual_reduction == pytest.approx(expected_reduction)
+
+    def test_step_with_insurance_costs(self, manufacturer):
+        """Test that step() properly handles insurance costs and tax treatment.
+
+        End-to-end test of the step function with insurance.
+        """
+        # Process claim and pay premium before step
+        deductible = 300_000
+        manufacturer.process_insurance_claim(
+            claim_amount=2_000_000, deductible_amount=deductible, insurance_limit=5_000_000
+        )
+
+        premium = 250_000
+        manufacturer.record_insurance_premium(premium)
+
+        # Store initial state
+        initial_equity = manufacturer.equity
+
+        # Run step
+        metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+
+        # Verify period costs were reset after step
+        assert manufacturer.period_insurance_premiums == 0
+        assert manufacturer.period_insurance_losses == 0
+
+        # Verify metrics include the insurance impact
+        # After step, first year payment has been made, so collateral is reduced
+        first_year_payment = deductible * 0.10  # 10% first year payment
+        assert metrics["collateral"] == pytest.approx(deductible - first_year_payment)
+        assert metrics["restricted_assets"] == pytest.approx(deductible - first_year_payment)
+
+        # Net income should reflect tax benefits
+        # With 25% tax rate, the tax benefit is 0.25 * (premium + deductible)
+        tax_benefit = (premium + deductible) * manufacturer.tax_rate
+
+        # Equity change should reflect premium payment and tax benefits
+        equity_change = manufacturer.equity - initial_equity
+
+        # The equity change should account for:
+        # - Premium paid (reduces equity)
+        # - Net income (increases equity based on operations minus costs plus tax benefits)
+        # This is complex to calculate exactly, but equity should have decreased
+        # less than the premium amount due to tax benefits
+        assert equity_change > -premium  # Tax benefits partially offset premium cost
+
+    def test_uninsured_vs_insured_claim_tax_treatment(self, manufacturer):
+        """Test that uninsured and insured claims have consistent tax treatment.
+
+        Both should be tax-deductible, but timing may differ.
+        """
+        # Test insured claim
+        manufacturer_insured = WidgetManufacturer(manufacturer.config)
+        deductible = 100_000
+        manufacturer_insured.process_insurance_claim(
+            claim_amount=500_000, deductible_amount=deductible, insurance_limit=1_000_000
+        )
+
+        # Test uninsured claim (immediate payment)
+        manufacturer_uninsured = WidgetManufacturer(manufacturer.config)
+        manufacturer_uninsured.process_uninsured_claim(100_000, immediate_payment=True)
+
+        # Both should have tax-deductible losses
+        assert manufacturer_insured.period_insurance_losses == deductible
+        assert manufacturer_uninsured.period_insurance_losses == 100_000
+
+        # Calculate net income for both
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        net_income_insured = manufacturer_insured.calculate_net_income(
+            operating_income, 0, 0, manufacturer_insured.period_insurance_losses
+        )
+
+        net_income_uninsured = manufacturer_uninsured.calculate_net_income(
+            operating_income, 0, 0, manufacturer_uninsured.period_insurance_losses
+        )
+
+        # Both should have same net income (same loss amount)
+        assert net_income_insured == net_income_uninsured
+
+    def test_collateral_costs_are_tax_deductible(self, manufacturer):
+        """Test that letter of credit collateral costs are tax-deductible.
+
+        Ensures collateral financing costs reduce taxable income.
+        """
+        # Process claim to create collateral
+        manufacturer.process_insurance_claim(
+            claim_amount=3_000_000, deductible_amount=1_000_000, insurance_limit=5_000_000
+        )
+
+        # Calculate collateral costs
+        loc_rate = 0.02
+        collateral_costs = manufacturer.calculate_collateral_costs(loc_rate)
+        expected_costs = 1_000_000 * loc_rate
+        assert collateral_costs == expected_costs
+
+        # Calculate net income with and without collateral costs
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        net_income_with_costs = manufacturer.calculate_net_income(
+            operating_income, collateral_costs, 0, 0
+        )
+
+        net_income_without_costs = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+
+        # Collateral costs should reduce net income by (costs * (1 - tax_rate))
+        expected_reduction = collateral_costs * (1 - manufacturer.tax_rate)
+        actual_reduction = net_income_without_costs - net_income_with_costs
+
+        assert actual_reduction == pytest.approx(expected_reduction)
