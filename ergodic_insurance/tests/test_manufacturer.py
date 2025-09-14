@@ -876,3 +876,181 @@ class TestWidgetManufacturer:
         actual_reduction = net_income_without_costs - net_income_with_costs
 
         assert actual_reduction == pytest.approx(expected_reduction)
+
+    def test_premium_does_not_reduce_productive_assets(self, manufacturer):
+        """Test that insurance premiums don't immediately reduce productive assets.
+
+        Regression test for issue where premiums were liquidating productive assets,
+        causing revenue decline and negative ROI for insurance scenarios.
+        """
+        initial_assets = manufacturer.assets
+        initial_equity = manufacturer.equity
+        premium = 500_000
+
+        # Record premium
+        manufacturer.record_insurance_premium(premium)
+
+        # Assets should NOT be immediately reduced
+        assert manufacturer.assets == initial_assets
+        # Period premiums should be recorded for tax deduction
+        assert manufacturer.period_insurance_premiums == premium
+
+        # The premium expense will only affect assets through net income in step()
+
+    def test_revenue_generation_after_premium_payment(self, manufacturer):
+        """Test that revenue generation is not affected by premium payments.
+
+        Ensures that paying premiums doesn't reduce the company's ability
+        to generate revenue from its productive assets.
+        """
+        # Calculate baseline revenue before any premiums
+        baseline_revenue = manufacturer.calculate_revenue()
+
+        # Pay a large premium
+        large_premium = 1_000_000
+        manufacturer.record_insurance_premium(large_premium)
+
+        # Revenue should still be based on full assets, not reduced by premium
+        revenue_after_premium = manufacturer.calculate_revenue()
+        assert revenue_after_premium == baseline_revenue
+
+        # Revenue = Assets × Turnover Ratio, and should not change
+        expected_revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
+        assert revenue_after_premium == expected_revenue
+
+    def test_premium_flows_through_net_income(self, manufacturer):
+        """Test that premiums properly flow through net income calculation.
+
+        Verifies that premiums reduce net income (with tax benefits) but don't
+        directly liquidate assets.
+        """
+        premium = 400_000
+        manufacturer.record_insurance_premium(premium)
+
+        # Calculate financial metrics
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        # Net income without considering the premium
+        net_income_no_premium = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+
+        # Net income with the premium expense
+        net_income_with_premium = manufacturer.calculate_net_income(
+            operating_income, 0, manufacturer.period_insurance_premiums, 0
+        )
+
+        # Premium should reduce net income by (premium × (1 - tax_rate))
+        expected_reduction = premium * (1 - manufacturer.tax_rate)
+        actual_reduction = net_income_no_premium - net_income_with_premium
+
+        assert actual_reduction == pytest.approx(expected_reduction)
+
+    def test_comparative_scenarios_with_premiums(self, manufacturer):
+        """Test that insurance scenarios maintain revenue capacity.
+
+        Comprehensive test comparing scenarios with and without insurance
+        to ensure premiums don't create an unfair disadvantage.
+        """
+        # Create two identical manufacturers
+        no_insurance = WidgetManufacturer(manufacturer.config)
+        with_insurance = WidgetManufacturer(manufacturer.config)
+
+        # Insurance company pays premium
+        annual_premium = 300_000
+        with_insurance.record_insurance_premium(annual_premium)
+
+        # Both should generate same revenue initially
+        revenue_no_ins = no_insurance.calculate_revenue()
+        revenue_with_ins = with_insurance.calculate_revenue()
+        assert revenue_no_ins == revenue_with_ins
+
+        # Run a step for both
+        metrics_no_ins = no_insurance.step()
+        metrics_with_ins = with_insurance.step()
+
+        # With insurance should have lower assets due to premium expense
+        # but the difference should be the after-tax cost, not the full premium
+        asset_difference = metrics_no_ins["assets"] - metrics_with_ins["assets"]
+        after_tax_premium = annual_premium * (1 - with_insurance.tax_rate)
+
+        # The difference should be approximately the after-tax premium cost
+        # (some small difference due to compounding effects)
+        assert asset_difference == pytest.approx(after_tax_premium, rel=0.01)
+
+        # Both should have positive ROE
+        assert metrics_no_ins["roe"] > 0
+        assert metrics_with_ins["roe"] > 0
+
+    def test_multi_year_premium_impact(self, manufacturer):
+        """Test multi-year impact of premiums on business growth.
+
+        Ensures that insurance premiums don't create a death spiral
+        where reduced assets lead to reduced revenue in future years.
+        """
+        # Create two manufacturers
+        no_insurance = WidgetManufacturer(manufacturer.config)
+        with_insurance = WidgetManufacturer(manufacturer.config)
+
+        annual_premium = 250_000
+        years = 5
+
+        # Track metrics over multiple years
+        for year in range(years):
+            # Insurance company pays premium each year
+            with_insurance.record_insurance_premium(annual_premium)
+
+            # Step both
+            metrics_no_ins = no_insurance.step()
+            metrics_with_ins = with_insurance.step()
+
+            # Both should remain solvent
+            assert metrics_no_ins["is_solvent"]
+            assert metrics_with_ins["is_solvent"]
+
+            # Both should have positive net income
+            assert metrics_no_ins["net_income"] > 0
+            assert metrics_with_ins["net_income"] > 0
+
+        # After 5 years, the gap should be roughly the cumulative after-tax premiums
+        total_premiums_paid = annual_premium * years
+        after_tax_total = total_premiums_paid * (1 - manufacturer.tax_rate)
+
+        asset_gap = no_insurance.assets - with_insurance.assets
+
+        # The gap should be reasonably close to cumulative after-tax premiums
+        # Allow 20% tolerance for compounding effects
+        assert asset_gap < after_tax_total * 1.2
+
+    def test_premium_with_claims_integration(self, manufacturer):
+        """Test that premiums and claims work correctly together.
+
+        Integration test ensuring premiums don't interfere with claim processing
+        and both contribute properly to tax calculations.
+        """
+        # Process a claim with deductible
+        deductible = 150_000
+        manufacturer.process_insurance_claim(
+            claim_amount=1_000_000, deductible_amount=deductible, insurance_limit=5_000_000
+        )
+
+        # Pay premium
+        premium = 200_000
+        manufacturer.record_insurance_premium(premium)
+
+        # Both should be recorded for tax purposes
+        assert manufacturer.period_insurance_premiums == premium
+        assert manufacturer.period_insurance_losses == deductible
+
+        # Assets should not be reduced by premium
+        # (deductible creates collateral, not immediate asset reduction)
+        assert manufacturer.collateral == deductible
+
+        # Run step to process everything
+        metrics = manufacturer.step()
+
+        # Should remain solvent despite both costs
+        assert metrics["is_solvent"]
+
+        # Period costs should be reset after step
+        assert manufacturer.period_insurance_premiums == 0
+        assert manufacturer.period_insurance_losses == 0

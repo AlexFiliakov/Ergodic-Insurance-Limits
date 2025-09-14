@@ -554,21 +554,22 @@ class WidgetManufacturer:
 
         Side Effects:
             - Increases period_insurance_premiums by premium_amount
-            - Reduces assets and equity by premium_amount
+            - Does NOT immediately reduce assets (handled through net income)
 
         Note:
             This method should be called whenever premium payments are made,
             either directly or through insurance program calculations.
+            The premium expense will reduce assets through the net income
+            calculation in step(), providing proper tax treatment.
 
         See Also:
             :meth:`calculate_net_income`: Uses tracked premiums for tax calculations.
         """
         if premium_amount > 0:
             self.period_insurance_premiums += premium_amount
-            # Reduce assets and equity for premium payment
-            self.assets -= premium_amount
-            self.equity -= premium_amount
-            logger.info(f"Recorded insurance premium payment: ${premium_amount:,.2f}")
+            # Do NOT reduce assets here - let it flow through net income calculation
+            # This ensures premiums are treated as operating expenses, not asset liquidation
+            logger.info(f"Recorded insurance premium expense: ${premium_amount:,.2f}")
             logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
 
     def record_insurance_loss(self, loss_amount: float) -> None:
