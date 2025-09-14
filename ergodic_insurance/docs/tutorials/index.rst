@@ -42,6 +42,7 @@ Tutorials
 ---------
 
 .. toctree::
+   :numbered:
    :maxdepth: 2
    :caption: Step-by-Step Tutorials:
 
