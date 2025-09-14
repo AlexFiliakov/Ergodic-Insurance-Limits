@@ -2,17 +2,8 @@
 
 This diagram shows the detailed module structure and dependencies within the Ergodic Insurance framework.
 
-.. mermaid diagram (pre-rendered as SVG)
-.. raw:: html
-
-   <div class="mermaid-diagram">
-   <img src="/_static/mermaid/module_overview_diagram_0_481f17c4.svg" alt="Diagram 1" style="max-width: 100%; height: auto;">
-   </div>
-
-.. code-block:: text
-   :class: mermaid-source
-
-   graph LR
+```{mermaid}
+graph LR
        %% Configuration Layer
        subgraph Config["Configuration Management"]
            CONFIG_BASE["config.py<br/>Base Configuration"]
@@ -168,6 +159,7 @@ This diagram shows the detailed module structure and dependencies within the Erg
        class VIZ_LEGACY,EXCEL_REPORT,SUMMARY_STATS,RESULT_AGG,FINANCIAL_STMT reporting
        class VIZ_CORE,VIZ_EXEC,VIZ_TECH,VIZ_ANNOT,VIZ_STYLE,VIZ_FACTORY,VIZ_EXPORT viz
        class CONVERGENCE,CONV_ADV,CONV_PLOTS,ADAPTIVE_STOP,SCENARIO_MGR,BENCHMARKING advanced
+```
 
 ## Module Categories
 

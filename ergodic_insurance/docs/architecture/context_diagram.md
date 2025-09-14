@@ -6,17 +6,8 @@ The Ergodic Insurance Limits framework analyzes insurance decisions using time-a
 
 ### Simplified System Architecture
 
-.. mermaid diagram (pre-rendered as SVG)
-.. raw:: html
-
-   <div class="mermaid-diagram">
-   <img src="/_static/mermaid/context_diagram_diagram_0_9aae6fbf.svg" alt="Diagram 1" style="max-width: 100%; height: auto;">
-   </div>
-
-.. code-block:: text
-   :class: mermaid-source
-
-   flowchart LR
+```{mermaid}
+flowchart LR
        %% Simplified Executive View
        INPUT[("📊 Market Data<br/>& Configuration")]
        BUSINESS[("🏭 Business<br/>Simulation")]
@@ -37,6 +28,7 @@ The Ergodic Insurance Limits framework analyzes insurance decisions using time-a
        class INPUT inputStyle
        class BUSINESS,ERGODIC,OPTIMIZE processStyle
        class OUTPUT outputStyle
+```
 
 **Key Innovation**: By comparing time-average growth (what one business experiences over time) with ensemble-average growth (statistical average across many businesses), the framework demonstrates that insurance fundamentally transforms the growth dynamics of volatile businesses.
 
@@ -44,17 +36,8 @@ The Ergodic Insurance Limits framework analyzes insurance decisions using time-a
 
 The actual implementation follows a sophisticated multi-layer architecture:
 
-.. mermaid diagram (pre-rendered as SVG)
-.. raw:: html
-
-   <div class="mermaid-diagram">
-   <img src="/_static/mermaid/context_diagram_diagram_1_0fde5d9b.svg" alt="Diagram 2" style="max-width: 100%; height: auto;">
-   </div>
-
-.. code-block:: text
-   :class: mermaid-source
-
-   graph TB
+```{mermaid}
+graph TB
        %% Input Layer
        subgraph Inputs["📥 Input Layer"]
            CONF["Configuration<br/>(YAML/JSON)"]
@@ -109,6 +92,7 @@ The actual implementation follows a sophisticated multi-layer architecture:
        class MANU,CLAIM,INS,SIM coreClass
        class MONTE,ERGODIC,OPT,SENS analysisClass
        class EXCEL,VIZ,METRICS,STRATEGY outputClass
+```
 
 ### Reference to System Architecture Diagram
 
@@ -120,17 +104,8 @@ The PNG diagram shows the simplified flow, while the detailed architecture above
 
 This diagram shows the overall architecture of the Ergodic Insurance Limits framework, including the main components, external dependencies, and data flow between major modules.
 
-.. mermaid diagram (pre-rendered as SVG)
-.. raw:: html
-
-   <div class="mermaid-diagram">
-   <img src="/_static/mermaid/context_diagram_diagram_2_9e5579ef.svg" alt="Diagram 3" style="max-width: 100%; height: auto;">
-   </div>
-
-.. code-block:: text
-   :class: mermaid-source
-
-   flowchart TB
+```{mermaid}
+flowchart TB
        %% External Inputs and Configurations
        subgraph External["External Inputs"]
            CONFIG[("Configuration Files<br/>YAML/JSON")]
@@ -232,6 +207,7 @@ This diagram shows the overall architecture of the Ergodic Insurance Limits fram
        class ACC,BACK,WALK,CONV validation
        class BATCH,PARALLEL,CACHE,STORAGE infra
        class VIZ,EXCEL,STATS,METRICS output
+```
 
 ## System Overview
 
