@@ -143,8 +143,8 @@ autodoc_inherit_docstrings = True
 add_module_names = False
 
 # -- Options for autosummary extension --------------------------------------
-autosummary_generate = True
-autosummary_generate_overwrite = True
+autosummary_generate = False
+autosummary_generate_overwrite = False
 
 # -- Options for napoleon extension -----------------------------------------
 napoleon_google_docstring = True
@@ -166,8 +166,8 @@ typehints_document_rtype = True
 typehints_use_signature = True
 typehints_use_signature_return = True
 autodoc_type_aliases = {
-    "InsuranceProgram": "ergodic_insurance.src.insurance_program.InsuranceProgram",
-    "ErgodicData": "ergodic_insurance.src.ergodic_analyzer.ErgodicData",
+    "InsuranceProgram": "ergodic_insurance.insurance_program.InsuranceProgram",
+    "ErgodicData": "ergodic_insurance.ergodic_analyzer.ErgodicData",
 }
 
 # -- Options for intersphinx extension ---------------------------------------
