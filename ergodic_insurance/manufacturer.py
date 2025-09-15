@@ -1705,21 +1705,31 @@ class WidgetManufacturer:
         revenue = self.calculate_revenue()
         operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs()
+        # Include actual period insurance costs for accurate ROE calculation
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            0.0,  # No period premiums in metrics calculation
-            0.0,  # No period losses in metrics calculation
+            self.period_insurance_premiums,  # Include actual premiums paid
+            self.period_insurance_losses,  # Include actual losses/deductibles paid
         )
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income
         metrics["net_income"] = net_income
 
-        # Financial ratios
+        # Track insurance expenses for transparency
+        metrics["insurance_premiums"] = self.period_insurance_premiums
+        metrics["insurance_losses"] = self.period_insurance_losses
+        metrics["total_insurance_costs"] = (
+            self.period_insurance_premiums + self.period_insurance_losses
+        )
+
+        # Financial ratios - ROE now includes all expenses
         metrics["asset_turnover"] = revenue / self.assets if self.assets > 0 else 0
         metrics["operating_margin"] = self.operating_margin
-        metrics["roe"] = net_income / self.equity if self.equity > 0 else 0
+        metrics["roe"] = (
+            net_income / self.equity if self.equity > 0 else 0
+        )  # True ROE with all costs
         metrics["roa"] = net_income / self.assets if self.assets > 0 else 0
 
         # Leverage metrics (collateral-based instead of debt)

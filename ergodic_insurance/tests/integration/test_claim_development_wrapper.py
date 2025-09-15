@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from ergodic_insurance.src.claim_generator import ClaimEvent
+from ergodic_insurance.claim_generator import ClaimEvent
 
 
 class ClaimDevelopmentWrapper:

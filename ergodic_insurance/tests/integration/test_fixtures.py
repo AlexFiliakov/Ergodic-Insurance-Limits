@@ -11,9 +11,9 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.claim_development import ClaimDevelopment
-from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
-from ergodic_insurance.src.config import (
+from ergodic_insurance.claim_development import ClaimDevelopment
+from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
+from ergodic_insurance.config import (
     DebtConfig,
     GrowthConfig,
     LoggingConfig,
@@ -22,19 +22,19 @@ from ergodic_insurance.src.config import (
     SimulationConfig,
     WorkingCapitalConfig,
 )
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_v2 import (
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.config_v2 import (
     ConfigV2,
     InsuranceConfig,
     InsuranceLayerConfig,
     ProfileMetadata,
 )
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine
-from ergodic_insurance.src.stochastic_processes import (
+from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine
+from ergodic_insurance.stochastic_processes import (
     GeometricBrownianMotion,
     LognormalVolatility,
     MeanRevertingProcess,
@@ -425,7 +425,7 @@ def monte_carlo_engine(
     Returns:
         MonteCarloEngine: Configured engine for testing.
     """
-    from ergodic_insurance.src.monte_carlo import SimulationConfig as MonteCarloSimConfig
+    from ergodic_insurance.monte_carlo import SimulationConfig as MonteCarloSimConfig
 
     # Use smaller numbers for testing
     config = MonteCarloSimConfig(
