@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src import visualization
+from ergodic_insurance import visualization
 
 
 class TestVisualizationModule:

@@ -17,14 +17,14 @@ sys.path.insert(0, os.path.abspath("../.."))
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ergodic_insurance.src.visualization.annotations import (
+from ergodic_insurance.visualization.annotations import (
     SmartAnnotationPlacer,
     add_benchmark_line,
     add_shaded_region,
     auto_annotate_peaks_valleys,
     create_leader_line,
 )
-from ergodic_insurance.src.visualization.core import set_wsj_style
+from ergodic_insurance.visualization.core import set_wsj_style
 
 
 def test_annotation_improvements():

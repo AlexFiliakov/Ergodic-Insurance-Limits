@@ -9,13 +9,13 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.insurance import InsurancePolicy
-from ergodic_insurance.src.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.simulation import Simulation, SimulationResults
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.insurance import InsurancePolicy
+from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.simulation import Simulation, SimulationResults
 
 print("=" * 80)
 print("COMPREHENSIVE NOTEBOOK PRICING VERIFICATION")
