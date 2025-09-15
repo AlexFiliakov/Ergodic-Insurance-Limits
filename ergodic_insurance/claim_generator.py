@@ -169,7 +169,7 @@ class ClaimGenerator:
         self.severity_std = severity_std
         self.rng = np.random.RandomState(seed)
 
-    def generate_claims(self, years: int) -> List[ClaimEvent]:
+    def generate_claims(self, years: int = 1) -> List[ClaimEvent]:
         """Generate claims for a simulation period.
 
         Generates claims for each year using Poisson frequency and lognormal

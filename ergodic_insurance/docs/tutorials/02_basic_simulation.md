@@ -27,7 +27,7 @@ from ergodic_insurance.config_v2 import ManufacturerConfig, WorkingCapitalConfig
 mfg_config = ManufacturerConfig(
     initial_assets=10_000_000,    # Starting with $10M
     asset_turnover_ratio=1.0,     # Generate revenue equal to assets
-    operating_margin=0.12,        # protif margin before losses (~8% margin after losses)
+    operating_margin=0.12,        # Profit margin before losses
     tax_rate=0.25,                # 25% corporate tax
     retention_ratio=0.7           # Retain 70% of earnings
 )
@@ -56,28 +56,72 @@ print(f"  ROA: {net_income / manufacturer.assets:.1%}")
 Different manufacturing sectors have different financial characteristics:
 
 ```python
-# Capital-intensive manufacturing
-heavy_industry = Manufacturer(
-    initial_assets=50_000_000,
-    asset_turnover=0.5,      # Low turnover
-    operating_margin=0.05,   # 5% margins
-    tax_rate=0.25
-)
+import numpy as np
 
-# Additional sectors
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.config_v2 import ManufacturerConfig
+
+# Capital-intensive manufacturing
+heavy_industry = WidgetManufacturer(ManufacturerConfig(
+    initial_assets=50_000_000,
+    asset_turnover_ratio=0.5,  # Low turnover
+    operating_margin=0.05,     # 5% margins
+    tax_rate=0.25,
+    retention_ratio=0.7
+))
+
+# High-efficiency light manufacturer (e.g., consumer goods, textiles)
+light_manufacturer = WidgetManufacturer(ManufacturerConfig(
+    initial_assets=5_000_000,
+    asset_turnover_ratio=2.0,  # High turnover - efficient asset use
+    operating_margin=0.08,     # Moderate margins
+    tax_rate=0.25,
+    retention_ratio=0.6        # Lower retention due to distribution needs
+))
+
+# High-tech manufacturer (e.g., semiconductors, medical devices)
+high_tech = WidgetManufacturer(ManufacturerConfig(
+    initial_assets=25_000_000,  # Capital intensive
+    asset_turnover_ratio=0.8,   # Moderate turnover
+    operating_margin=0.35,       # High margins from IP/technology
+    tax_rate=0.21,              # Lower effective tax rate
+    retention_ratio=0.85        # High retention for R&D investment
+))
 
 # Compare profitability
-for company, name in [(heavy_industry, "Heavy Industry")]:
+for company, name in [
+    (heavy_industry, "Heavy Industry"),
+    (light_manufacturer, "Light Manufacturer"),
+    (high_tech, "High-Tech")
+]:
     revenue = company.assets * company.asset_turnover_ratio
     profit = revenue * company.operating_margin * (1 - company.tax_rate)
-    roe = profit / company.initial_assets
-    print(f"{name}: ROE = {roe:.1%}")
+    roe = profit / company.assets
+    print(f"{name}:")
+    print(f"  Assets: ${company.assets:,.0f}")
+    print(f"  Revenue: ${revenue:,.0f}")
+    print(f"  ROE: {roe:.1%}")
+    print()
 ```
 
 #### Expected Output
 
 ```
-...
+Warning: Operating margin 35.0% is unusually high
+Heavy Industry:
+  Assets: $50,000,000
+  Revenue: $25,000,000
+  ROE: 1.9%
+
+Light Manufacturer:
+  Assets: $5,000,000
+  Revenue: $10,000,000
+  ROE: 12.0%
+
+High-Tech:
+  Assets: $25,000,000
+  Revenue: $20,000,000
+  ROE: 22.1%
 ```
 
 ## Generating Losses
@@ -87,40 +131,54 @@ The `ClaimGenerator` creates realistic loss scenarios. Let's explore different l
 ### Basic Loss Generation
 
 ```python
-from ergodic_insurance.src.claim_generator import ClaimGenerator
+import numpy as np
+
+from ergodic_insurance.claim_generator import ClaimGenerator
 
 # Standard loss generator
 standard_losses = ClaimGenerator(
-    frequency=5,           # 5 losses per year on average
-    severity_mu=10.0,      # Log-mean (median ~\$22K)
-    severity_sigma=1.5     # Log-std (high variability)
+    frequency=5,
+    severity_mean=80_000,
+    severity_std=65_000
 )
 
 # Generate 5 years of losses
-np.random.seed(42)
-losses_by_year = []
-for year in range(5):
-    annual_losses = standard_losses.generate_claims(years=1)
-    losses_by_year.append(annual_losses)
-    total = sum(annual_losses) if annual_losses else 0
-    print(f"Year {year+1}: {len(annual_losses)} losses, Total: ${total:,.0f}")
+sim_years = 5
+standard_losses.rng.seed(42)  # For reproducibility
+losses_by_year = standard_losses.generate_claims(years=sim_years)
+for year in range(sim_years):
+    annual_losses = [loss for loss in losses_by_year if loss.year == year]
+    annual_total = sum(loss.amount for loss in annual_losses)
+    print(f"Year {year+1}: {len(annual_losses)} losses, Total: ${annual_total:,.0f}")
+```
+
+#### Sample Output
+
+```
+Year 1: 5 losses, Total: $478,808
+Year 2: 5 losses, Total: $328,959
+Year 3: 3 losses, Total: $148,976
+Year 4: 4 losses, Total: $210,324
+Year 5: 9 losses, Total: $488,578
 ```
 
 ### Different Risk Profiles
 
 ```python
+from ergodic_insurance.claim_generator import ClaimGenerator
+
 # Low frequency, high severity (catastrophic risk)
 catastrophic_risk = ClaimGenerator(
     frequency=0.5,         # One loss every 2 years
-    severity_mu=14.0,      # Much larger losses
-    severity_sigma=2.0     # More variability
+    severity_mean=1_000_000,      # Much larger losses
+    severity_std=500_000     # More variability
 )
 
 # High frequency, low severity (operational risk)
 operational_risk = ClaimGenerator(
     frequency=20,          # Many small losses
-    severity_mu=8.0,       # Smaller losses
-    severity_sigma=0.5     # Less variability
+    severity_mean=3_000,       # Smaller losses
+    severity_std=1_000     # Less variability
 )
 
 # Simulate and compare
@@ -134,16 +192,39 @@ risk_profiles = {
 
 for name, generator in risk_profiles.items():
     all_losses = []
-    for _ in range(years):
-        annual = generator.generate_claims(years=1)
+    for year in range(years):
+        generator.rng.seed(42 + year)  # Different seed each year
+        annual = generator.generate_year(year=year)
         all_losses.extend(annual)
 
     if all_losses:
         print(f"\n{name} Risk Profile ({years} years):")
         print(f"  Total losses: {len(all_losses)}")
-        print(f"  Average loss: ${np.mean(all_losses):,.0f}")
-        print(f"  Largest loss: ${max(all_losses):,.0f}")
-        print(f"  Total amount: ${sum(all_losses):,.0f}")
+        print(f"  Average loss: ${np.mean([loss.amount for loss in all_losses]):,.0f}")
+        print(f"  Largest loss: ${max(loss.amount for loss in all_losses):,.0f}")
+        print(f"  Total amount: ${sum(loss.amount for loss in all_losses):,.0f}")
+```
+
+#### Sample Output
+
+```
+Standard Risk Profile (10 years):
+  Total losses: 46
+  Average loss: $76,491
+  Largest loss: $233,220
+  Total amount: $3,518,578
+
+Catastrophic Risk Profile (10 years):
+  Total losses: 4
+  Average loss: $1,075,799
+  Largest loss: $1,614,911
+  Total amount: $4,303,197
+
+Operational Risk Profile (10 years):
+  Total losses: 202
+  Average loss: $2,936
+  Largest loss: $8,345
+  Total amount: $593,058
 ```
 
 ## Running Simulations
@@ -153,29 +234,54 @@ Now let's run comprehensive simulations with different scenarios:
 ### Single Path Simulation
 
 ```python
-from ergodic_insurance.src.simulation import Simulation
+from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+from ergodic_insurance.simulation import Simulation
 
-# Create simulation
+### Using previously defined manufacturer and losses #######
+
+# Policy parameters
+deductible = 200_000
+limit = 40_000_000
+
+### Calculate a fair premium #######
+# Calculate pure premium
+total_covered_losses = sum(min(max(0, loss.amount - deductible), limit) \
+                            for loss in all_losses)
+pure_premium = total_covered_losses / years  # As a fraction of assets
+loss_ratio = 0.70  # 70% of premiums go towards losses
+reasonable_premium = pure_premium / loss_ratio
+reasonable_rate = reasonable_premium / limit
+print(f"Calculated Reasonable Premium: ${reasonable_premium:,.0f}")
+
+### Set up the policy #######
+single_layer = InsuranceLayer(
+    attachment_point=deductible,
+    limit=limit,
+    rate=reasonable_rate
+)
+
+insurance_policy = InsurancePolicy(
+    layers=[single_layer],
+    deductible=deductible
+)
+
+### Set up the simulation #######
 sim = Simulation(
     manufacturer=manufacturer,
-    claim_generator=standard_losses
+    claim_generator=standard_losses,
+    insurance_policy=insurance_policy,
+    time_horizon=20,  # 20-year simulation
+    seed=42
 )
 
-# Run single 20-year simulation
-np.random.seed(42)
-result = sim.run(
-    n_years=20,
-    retention=1_000_000,    # \$1M deductible
-    limit=10_000_000,       # \$10M coverage
-    premium_rate=0.02       # 2% of limit
-)
+results = sim.run()
+result_summary = results.summary_stats()
 
 print(f"20-Year Simulation Results:")
-print(f"  Starting Wealth: ${manufacturer.initial_assets:,.0f}")
-print(f"  Final Wealth: ${result.final_wealth:,.0f}")
-print(f"  Annualized Growth: {result.growth_rate:.2%}")
-print(f"  Survived: {result.survived}")
-print(f"  Max Drawdown: ${min(result.wealth_trajectory) - manufacturer.initial_assets:,.0f}")
+print(f"Starting Assets: ${mfg_config.initial_assets:,.0f}")
+print(f"Final Assets: ${result_summary['final_assets']:,.0f}")
+print(f"Final Assets: ${result_summary['final_assets']:,.0f}")
+print(f"Time-Weighted ROE: {result_summary['time_weighted_roe']:.2%}")
 ```
 
 ### Monte Carlo Simulation
