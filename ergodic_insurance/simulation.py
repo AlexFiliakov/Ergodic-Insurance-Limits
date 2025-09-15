@@ -49,7 +49,7 @@ from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -465,7 +465,7 @@ class Simulation:
     def __init__(
         self,
         manufacturer: WidgetManufacturer,
-        claim_generator: Optional[ClaimGenerator] = None,
+        claim_generator: Optional[Union[ClaimGenerator, List[ClaimGenerator]]] = None,
         insurance_policy: Optional[InsurancePolicy] = None,
         time_horizon: int = 100,
         seed: Optional[int] = None,
@@ -475,12 +475,14 @@ class Simulation:
         Args:
             manufacturer: WidgetManufacturer instance to simulate. This object
                 maintains the financial state and is modified during simulation.
-            claim_generator: ClaimGenerator for creating insurance claims. If None,
-                a default generator with standard parameters is created.
+            claim_generator: ClaimGenerator or list of ClaimGenerators for creating
+                insurance claims. If a list is provided, claims from all generators
+                are combined. If None, a default generator with standard parameters
+                is created.
             insurance_policy: Insurance policy for claim processing. If None,
                 legacy claim processing is used with fixed parameters.
             time_horizon: Number of years to simulate. Must be positive.
-            seed: Random seed for reproducibility. Passed to claim generator.
+            seed: Random seed for reproducibility. Passed to claim generator(s).
 
         Note:
             The manufacturer object is modified in-place during simulation.
@@ -502,9 +504,26 @@ class Simulation:
                     insurance_policy=policy,
                     time_horizon=50
                 )
+
+            Setup with multiple claim generators::
+
+                sim = Simulation(
+                    manufacturer=manufacturer,
+                    claim_generator=[standard_losses, catastrophic_risk, operational_risk],
+                    insurance_policy=policy,
+                    time_horizon=20
+                )
         """
         self.manufacturer = manufacturer
-        self.claim_generator = claim_generator or ClaimGenerator(seed=seed)
+
+        # Handle single generator or list of generators
+        if claim_generator is None:
+            self.claim_generators = [ClaimGenerator(seed=seed)]
+        elif isinstance(claim_generator, list):
+            self.claim_generators = claim_generator
+        else:
+            self.claim_generators = [claim_generator]
+
         self.insurance_policy = insurance_policy
         self.time_horizon = time_horizon
         self.seed = seed
@@ -647,8 +666,11 @@ class Simulation:
         """
         start_time = time.time()
 
-        # Generate all claims upfront for efficiency
-        all_claims = self.claim_generator.generate_claims(self.time_horizon)
+        # Generate all claims upfront for efficiency from all generators
+        all_claims = []
+        for generator in self.claim_generators:
+            claims = generator.generate_claims(self.time_horizon)
+            all_claims.extend(claims)
 
         # Group claims by year
         claims_by_year: Dict[int, List[ClaimEvent]] = {
