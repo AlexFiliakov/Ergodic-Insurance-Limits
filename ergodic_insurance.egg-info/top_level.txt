@@ -5,6 +5,7 @@ assets
 build
 cache
 checkpoints
+data
 ergodic_insurance
 htmlcov
 issues

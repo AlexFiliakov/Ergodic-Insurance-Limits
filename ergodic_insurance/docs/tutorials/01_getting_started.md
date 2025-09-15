@@ -59,7 +59,7 @@ print("✅ Framework imported successfully!")
 config = ManufacturerConfig(
     initial_assets=10_000_000,
     asset_turnover_ratio=1.0,
-    operatingbase_operating_margin_margin=0.08,
+    base_operating_margin=0.08,
     tax_rate=0.25,
     retention_ratio=0.7
 )
@@ -177,8 +177,6 @@ scenarios_no_insurance = []
 scenarios_with_insurance = []
 
 for scen in range(scenarios):
-    np.random.seed(42 + scen)  # Different seed per scenario but consistent between insurance/no-insurance
-
     ### Configuration 1: No insurance #######
     all_scenario_claims_no_ins = []
     manufacturer_no_ins = WidgetManufacturer(config)
