@@ -31,7 +31,7 @@ constraints:
   max_expected_shortfall: 0.15
   min_roe_threshold: 0.1
   min_roa_threshold: 0.06
-  min_operating_margin: 0.08
+  min_base_operating_margin: 0.08
   max_leverage_ratio: 2.5
   min_liquidity_ratio: 1.3
   min_quick_ratio: 1.0

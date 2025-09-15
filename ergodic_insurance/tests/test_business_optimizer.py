@@ -577,7 +577,7 @@ class TestIntegration:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.5,
-            operating_margin=0.10,
+            base_operating_margin=0.10,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -652,7 +652,7 @@ class TestIntegration:
         config = ManufacturerConfig(
             initial_assets=15_000_000,
             asset_turnover_ratio=0.53,  # To get ~8M revenue
-            operating_margin=0.10,
+            base_operating_margin=0.10,
             tax_rate=0.25,
             retention_ratio=0.7,
         )

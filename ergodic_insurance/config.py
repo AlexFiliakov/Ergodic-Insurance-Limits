@@ -70,8 +70,9 @@ class ManufacturerConfig(BaseModel):
         initial_assets: Starting asset value in dollars. Must be positive.
         asset_turnover_ratio: Revenue per dollar of assets. Typically 0.5-2.0
             for manufacturing companies.
-        operating_margin: Operating income as percentage of revenue. Typically
-            5-15% for healthy manufacturers.
+        base_operating_margin: Core operating margin before insurance costs
+            (EBIT before insurance / Revenue). Typically 5-15% for healthy
+            manufacturers.
         tax_rate: Corporate tax rate. Typically 20-30% depending on jurisdiction.
         retention_ratio: Portion of earnings retained vs distributed as dividends.
             Higher retention supports faster growth.
@@ -82,7 +83,7 @@ class ManufacturerConfig(BaseModel):
             config = ManufacturerConfig(
                 initial_assets=5_000_000,
                 asset_turnover_ratio=0.6,  # Low turnover
-                operating_margin=0.05,      # 5% margin
+                base_operating_margin=0.05,      # 5% base margin
                 tax_rate=0.25,
                 retention_ratio=0.9         # High retention
             )
@@ -92,44 +93,55 @@ class ManufacturerConfig(BaseModel):
             config = ManufacturerConfig(
                 initial_assets=20_000_000,
                 asset_turnover_ratio=1.2,  # High turnover
-                operating_margin=0.12,      # 12% margin
+                base_operating_margin=0.12,      # 12% base margin
                 tax_rate=0.25,
                 retention_ratio=1.0         # Full retention
             )
 
     Note:
-        The asset turnover ratio and operating margin together determine
-        the return on assets (ROA) before taxes.
+        The asset turnover ratio and base operating margin together determine
+        the core return on assets (ROA) before insurance costs and taxes.
+        Actual operating margins will be lower when insurance costs are included.
     """
 
     initial_assets: float = Field(gt=0, description="Starting asset value in dollars")
     asset_turnover_ratio: float = Field(gt=0, le=5, description="Revenue per dollar of assets")
-    operating_margin: float = Field(
-        gt=-1, lt=1, description="Operating income as percentage of revenue"
+    base_operating_margin: float = Field(
+        gt=-1,
+        lt=1,
+        description="Core operating margin before insurance costs (EBIT before insurance / Revenue)",
     )
     tax_rate: float = Field(ge=0, le=1, description="Corporate tax rate")
     retention_ratio: float = Field(ge=0, le=1, description="Portion of earnings retained")
 
-    @field_validator("operating_margin")
+    @field_validator("base_operating_margin")
     @classmethod
     def validate_margin(cls, v: float) -> float:
-        """Warn if operating margin is unusually high or negative.
+        """Warn if base operating margin is unusually high or negative.
 
         Args:
-            v: Operating margin value to validate (as decimal, e.g., 0.1 for 10%).
+            v: Base operating margin value to validate (as decimal, e.g., 0.1 for 10%).
 
         Returns:
-            float: The validated operating margin value.
+            float: The validated base operating margin value.
 
         Note:
             Margins above 30% are flagged as unusual for manufacturing.
-            Negative margins indicate unprofitable operations.
+            Negative margins indicate unprofitable operations before insurance.
         """
         if v > 0.3:
-            print(f"Warning: Operating margin {v:.1%} is unusually high")
+            print(f"Warning: Base operating margin {v:.1%} is unusually high")
         elif v < 0:
-            print(f"Warning: Operating margin {v:.1%} is negative")
+            print(f"Warning: Base operating margin {v:.1%} is negative")
         return v
+
+    @property
+    def operating_margin(self) -> float:
+        """Backward compatibility property mapping to base_operating_margin.
+
+        Deprecated: Use base_operating_margin instead.
+        """
+        return self.base_operating_margin
 
 
 class WorkingCapitalConfig(BaseModel):

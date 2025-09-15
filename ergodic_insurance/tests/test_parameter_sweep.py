@@ -513,7 +513,7 @@ class TestParameterSweeper:
 
         # Check that manufacturer was created with config
         assert manufacturer.assets == 20e6
-        assert manufacturer.config.operating_margin == 0.10
+        assert manufacturer.config.base_operating_margin == 0.10
         assert manufacturer.config.asset_turnover_ratio == 1.2
         assert manufacturer.config.tax_rate == 0.30
 

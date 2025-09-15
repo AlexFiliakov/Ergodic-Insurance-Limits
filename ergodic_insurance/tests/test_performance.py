@@ -85,7 +85,7 @@ class TestPerformanceBenchmarks:
         manufacturer_config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.5,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.8,
         )
@@ -520,7 +520,7 @@ class TestBenchmarking:
         manufacturer_config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.5,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.8,
         )
@@ -669,7 +669,7 @@ class TestIntegration:
         manufacturer_config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.5,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.8,
         )

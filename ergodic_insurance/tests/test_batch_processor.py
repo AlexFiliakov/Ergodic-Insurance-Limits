@@ -378,7 +378,7 @@ class TestBatchProcessor:
     def test_process_scenario_with_overrides(self, temp_checkpoint_dir, mock_components):
         """Test scenario processing with parameter overrides."""
         loss_gen, insurance, manufacturer = mock_components
-        manufacturer.operating_margin = 0.08
+        manufacturer.base_operating_margin = 0.08
 
         processor = BatchProcessor(
             loss_generator=loss_gen,
@@ -400,7 +400,7 @@ class TestBatchProcessor:
 
             # Check that override was applied to the copy
             called_manufacturer = MockEngine.call_args[1]["manufacturer"]
-            assert called_manufacturer.operating_margin == 0.12
+            assert called_manufacturer.base_operating_margin == 0.12
 
     def test_process_scenario_failure(self, temp_checkpoint_dir, mock_components):
         """Test scenario processing failure."""

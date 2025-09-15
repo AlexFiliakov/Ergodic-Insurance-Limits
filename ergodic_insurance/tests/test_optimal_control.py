@@ -307,7 +307,7 @@ class TestOptimalController:
         config = ManufacturerConfig(
             initial_assets=1e7,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.6,
         )
@@ -418,7 +418,7 @@ class TestCreateHJBController:
         config = ManufacturerConfig(
             initial_assets=1e7,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.6,
         )

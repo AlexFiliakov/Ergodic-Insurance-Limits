@@ -39,7 +39,7 @@ class TestCompleteManufacturerLifecycle:
         startup_manufacturer = TestDataGenerator.create_small_manufacturer(
             initial_assets=500_000,  # Small startup
             asset_turnover=0.8,  # Lower efficiency initially
-            operating_margin=0.08,  # Improved margins to support growth
+            base_operating_margin=0.08,  # Improved margins to support growth
         )
 
         # Phase 2: Create realistic loss environment

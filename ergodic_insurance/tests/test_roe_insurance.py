@@ -23,7 +23,7 @@ class TestROEWithInsurance:
         return ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.12,
+            base_operating_margin=0.12,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -298,7 +298,7 @@ class TestROEEdgeCases:
         config = ManufacturerConfig(
             initial_assets=1_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.05,  # Low margin
+            base_operating_margin=0.05,  # Low margin
             tax_rate=0.25,
             retention_ratio=0.7,
         )

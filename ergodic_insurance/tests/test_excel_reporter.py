@@ -81,7 +81,7 @@ class TestExcelReporter:
             initial_assets=10_000_000,
             asset_turnover_ratio=0.5,
             retention_ratio=0.6,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
         )
 

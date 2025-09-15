@@ -5,7 +5,7 @@ profile:
 manufacturer:
   initial_assets: 10000000
   asset_turnover_ratio: 1.2
-  operating_margin: 0.1
+  base_operating_margin: 0.1
   tax_rate: 0.25
   retention_ratio: 0.7
 working_capital:

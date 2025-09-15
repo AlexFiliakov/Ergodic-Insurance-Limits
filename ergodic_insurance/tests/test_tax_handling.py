@@ -25,7 +25,7 @@ class TestTaxHandling:
         return ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.15,
+            base_operating_margin=0.15,
             tax_rate=0.25,
             retention_ratio=0.7,
         )

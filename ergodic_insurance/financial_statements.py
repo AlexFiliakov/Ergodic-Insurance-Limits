@@ -362,7 +362,17 @@ class FinancialStatementGenerator:
         # Key metrics
         data.append(("", "", "", ""))
         data.append(("KEY METRICS", "", "", ""))
-        data.append(("  Operating Margin %", metrics.get("operating_margin", 0) * 100, "%", ""))
+        data.append(
+            ("  Base Operating Margin %", metrics.get("base_operating_margin", 0) * 100, "%", "")
+        )
+        data.append(
+            (
+                "  Actual Operating Margin %",
+                metrics.get("actual_operating_margin", 0) * 100,
+                "%",
+                "",
+            )
+        )
         data.append(("  Net Margin %", (net_income / revenue * 100) if revenue > 0 else 0, "%", ""))
         data.append(("  ROE %", metrics.get("roe", 0) * 100, "%", ""))
         data.append(("  ROA %", metrics.get("roa", 0) * 100, "%", ""))

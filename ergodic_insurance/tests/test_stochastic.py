@@ -146,7 +146,7 @@ class TestStochasticManufacturer:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )
@@ -165,7 +165,7 @@ class TestStochasticManufacturer:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )
@@ -190,7 +190,7 @@ class TestStochasticManufacturer:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )
@@ -218,7 +218,7 @@ class TestStochasticManufacturer:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )
@@ -242,7 +242,7 @@ class TestStochasticManufacturer:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )

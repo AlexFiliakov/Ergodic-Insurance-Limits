@@ -75,7 +75,7 @@ def default_config_v2() -> ConfigV2:
         manufacturer=ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.10,
+            base_operating_margin=0.10,
             tax_rate=0.25,
             retention_ratio=0.70,  # 1 - dividend_payout_ratio
         ),
@@ -172,7 +172,7 @@ def startup_manufacturer(default_config_v2) -> WidgetManufacturer:
     config = default_config_v2.model_copy()
     config.manufacturer.initial_assets = 1_000_000
     config.manufacturer.asset_turnover_ratio = 0.8
-    config.manufacturer.operating_margin = 0.05
+    config.manufacturer.base_operating_margin = 0.05
     config.manufacturer.retention_ratio = 0.90
     return WidgetManufacturer(config.manufacturer)
 
@@ -187,7 +187,7 @@ def mature_manufacturer(default_config_v2) -> WidgetManufacturer:
     config = default_config_v2.model_copy()
     config.manufacturer.initial_assets = 50_000_000
     config.manufacturer.asset_turnover_ratio = 1.5
-    config.manufacturer.operating_margin = 0.15
+    config.manufacturer.base_operating_margin = 0.15
     config.manufacturer.retention_ratio = 0.50
     return WidgetManufacturer(config.manufacturer)
 

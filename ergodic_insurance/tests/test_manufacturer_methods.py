@@ -15,7 +15,7 @@ class TestProcessInsuranceClaim:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.1,
+            base_operating_margin=0.1,
             tax_rate=0.25,
             retention_ratio=0.5,
         )
@@ -318,7 +318,7 @@ class TestStepMethod:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.1,
+            base_operating_margin=0.1,
             tax_rate=0.25,
             retention_ratio=0.5,
         )
@@ -581,7 +581,7 @@ class TestStepMethod:
     def test_edge_case_scenarios(self, manufacturer):
         """Test various edge case scenarios."""
         # Test with zero operating margin
-        manufacturer.operating_margin = 0.0
+        manufacturer.base_operating_margin = 0.0
         metrics = manufacturer.step()
 
         # Should still function but with no operating income

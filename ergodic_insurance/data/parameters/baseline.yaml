@@ -12,7 +12,7 @@ manufacturer:
 
   # Profitability metric (Operating Income/Revenue)
   # 0.10 means 10% EBIT margin (before losses)
-  operating_margin: 0.10
+  base_operating_margin: 0.10
 
   # Corporate tax rate (25% standard rate)
   tax_rate: 0.25

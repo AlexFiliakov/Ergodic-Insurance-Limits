@@ -234,7 +234,7 @@ class TestConfigManager:
 
         # Should have parent values except for overridden ones
         assert config.manufacturer.initial_assets == 10000000  # From parent
-        assert config.manufacturer.operating_margin == 0.10  # Overridden
+        assert config.manufacturer.base_operating_margin == 0.10  # Overridden
 
     def test_load_profile_invalid_yaml(self, temp_config_dir):
         """Test loading profile with invalid YAML."""
@@ -304,10 +304,10 @@ class TestConfigManager:
 
         # Test configuration merging through public API
         config = manager.load_profile(
-            "test", manufacturer__operating_margin=0.10, simulation__time_horizon_years=50
+            "test", manufacturer__base_operating_margin=0.10, simulation__time_horizon_years=50
         )
         assert config.manufacturer.initial_assets == 10000000  # Preserved
-        assert config.manufacturer.operating_margin == 0.10  # Overridden
+        assert config.manufacturer.base_operating_margin == 0.10  # Overridden
         assert config.growth.annual_growth_rate == 0.05  # Preserved
         assert config.simulation.time_horizon_years == 50  # New
 
@@ -445,7 +445,7 @@ class TestConfigManager:
 
         # Check inheritance worked
         assert config.manufacturer.initial_assets == 5000000  # From parent
-        assert config.manufacturer.operating_margin == 0.08  # From child
+        assert config.manufacturer.base_operating_margin == 0.08  # From child
 
         # Check overrides were applied
         assert config.manufacturer.asset_turnover_ratio == 1.2
@@ -524,7 +524,7 @@ class TestConfigManager:
 
         # Test with extreme values
         config.simulation.time_horizon_years = 5000
-        config.manufacturer.operating_margin = 0.8
+        config.manufacturer.base_operating_margin = 0.8
 
         issues = manager.validate(config)
         assert len(issues) > 0
@@ -593,7 +593,7 @@ class TestConfigManager:
 
         # Should have parent values except for overridden fields
         assert config.manufacturer.initial_assets == 8000000  # From child
-        assert config.manufacturer.operating_margin == 0.07  # From parent
+        assert config.manufacturer.base_operating_margin == 0.07  # From parent
         assert config.simulation.time_horizon_years == 50  # From parent
 
     @pytest.mark.filterwarnings("ignore:Configuration issues:UserWarning")

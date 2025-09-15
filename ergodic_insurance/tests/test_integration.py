@@ -31,7 +31,7 @@ class TestIntegration:
         config = ManufacturerConfig(
             initial_assets=initial_assets,
             asset_turnover_ratio=kwargs.get("asset_turnover", 1.2),  # $12M revenue on $10M assets
-            operating_margin=kwargs.get("operating_margin", 0.10),  # 10% EBIT margin
+            base_operating_margin=kwargs.get("operating_margin", 0.10),  # 10% EBIT margin
             tax_rate=kwargs.get("tax_rate", 0.25),  # 25% corporate tax
             retention_ratio=kwargs.get("retention_ratio", 0.70),  # 70% retention for growth
         )
@@ -217,7 +217,7 @@ class TestIntegration:
             insured_mfg = self.create_manufacturer(
                 initial_assets=base_config["initial_assets"],
                 asset_turnover=1.2,
-                operating_margin=0.1,
+                base_operating_margin=0.1,
             )
             insured_simulation = Simulation(
                 manufacturer=insured_mfg,
@@ -233,7 +233,7 @@ class TestIntegration:
             uninsured_mfg = self.create_manufacturer(
                 initial_assets=base_config["initial_assets"],
                 asset_turnover=1.2,
-                operating_margin=0.1,
+                base_operating_margin=0.1,
             )
             uninsured_simulation = Simulation(
                 manufacturer=uninsured_mfg,
@@ -334,7 +334,7 @@ class TestIntegration:
             config = ManufacturerConfig(
                 initial_assets=-1000,  # Negative assets
                 asset_turnover_ratio=1.0,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.7,
             )

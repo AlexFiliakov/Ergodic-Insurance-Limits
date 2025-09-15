@@ -143,13 +143,15 @@ class TestConfigLoader:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
                 config = loader.load(
-                    "baseline", manufacturer__operating_margin=0.12, growth__annual_growth_rate=0.08
+                    "baseline",
+                    manufacturer__base_operating_margin=0.12,
+                    growth__annual_growth_rate=0.08,
                 )
 
             mock_load.assert_called_once_with(
                 "baseline",
                 None,
-                manufacturer__operating_margin=0.12,
+                manufacturer__base_operating_margin=0.12,
                 growth__annual_growth_rate=0.08,
             )
 
@@ -455,7 +457,7 @@ class TestConfigLoader:
 
         mock_config = MagicMock(spec=Config)
         mock_config.manufacturer = MagicMock()
-        mock_config.manufacturer.operating_margin = 0.08
+        mock_config.manufacturer.base_operating_margin = 0.08
         mock_config.manufacturer.retention_ratio = 0.5
         # Add required simulation attributes
         mock_config.simulation = MagicMock()

@@ -30,7 +30,7 @@ class TestCVaREdgeCases:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -77,7 +77,7 @@ class TestNoInsuranceLayersScenario:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -123,7 +123,7 @@ class TestWeightedSumOptimization:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -173,7 +173,7 @@ class TestObjectiveCalculationErrors:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -228,7 +228,7 @@ class TestMonteCarloEnginePathInBankruptcy:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -293,7 +293,7 @@ class TestCoverageRatioEdgeCases:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -372,7 +372,7 @@ class TestDecisionValidationFailures:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -488,7 +488,7 @@ class TestMissingROEDataFallback:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -546,7 +546,7 @@ class TestBankruptcyAndNegativeEquityScenarios:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.01,  # Very low margin to trigger bankruptcy
+            base_operating_margin=0.01,  # Very low margin to trigger bankruptcy
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -592,7 +592,7 @@ class TestBankruptcyAndNegativeEquityScenarios:
         )
 
         # Set up for guaranteed negative equity
-        engine.manufacturer.operating_margin = -0.1  # Negative margin
+        engine.manufacturer.base_operating_margin = -0.1  # Negative margin
 
         results = engine._run_simulation(decision, n_simulations=5, time_horizon=3)
 
@@ -609,7 +609,7 @@ class TestParameterModificationInSensitivity:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -669,7 +669,7 @@ class TestRecommendationGenerationEdgeCases:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -909,7 +909,7 @@ class TestLayerRateDetermination:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -951,7 +951,7 @@ class TestDifferentialEvolutionPenalties:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
