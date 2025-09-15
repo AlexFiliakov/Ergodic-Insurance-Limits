@@ -421,7 +421,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -617,7 +617,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -642,7 +642,7 @@ class TestConfigV2:
 
         with patch("builtins.open", mock_open(read_data=yaml_content)):
             config.apply_module(Path("module.yaml"))
-            assert config.manufacturer.operating_margin == 0.10
+            assert config.manufacturer.base_operating_margin == 0.10
             assert config.custom_modules == {
                 "risk": {"module_name": "risk", "module_version": "1.0.0"}
             }
@@ -654,7 +654,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -677,7 +677,7 @@ class TestConfigV2:
 
         config.apply_preset("aggressive", preset_data)
 
-        assert config.manufacturer.operating_margin == 0.12
+        assert config.manufacturer.base_operating_margin == 0.12
         assert config.growth.annual_growth_rate == 0.08
         assert "aggressive" in config.applied_presets
 
@@ -688,7 +688,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -707,12 +707,12 @@ class TestConfigV2:
         # Test nested overrides
         new_config = config.with_overrides(
             manufacturer__initial_assets=20000000,
-            manufacturer__operating_margin=0.10,
+            manufacturer__base_operating_margin=0.10,
             simulation__time_horizon_years=20,
         )
 
         assert new_config.manufacturer.initial_assets == 20000000
-        assert new_config.manufacturer.operating_margin == 0.10
+        assert new_config.manufacturer.base_operating_margin == 0.10
         assert new_config.simulation.time_horizon_years == 20
         assert new_config.overrides == {
             "manufacturer__initial_assets": 20000000,
@@ -730,7 +730,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -764,7 +764,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -805,7 +805,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),
@@ -841,7 +841,7 @@ class TestConfigV2:
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=0.8,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.6,
             ),

@@ -27,7 +27,7 @@ class TestRealWorldScenarios:
         config = ManufacturerConfig(
             initial_assets=2_000_000,  # Small startup
             asset_turnover_ratio=1.5,  # High efficiency
-            operating_margin=0.05,  # Low initial margins
+            base_operating_margin=0.05,  # Low initial margins
             tax_rate=0.21,  # Lower corporate rate
             retention_ratio=0.8,  # Retain most earnings
         )
@@ -77,7 +77,7 @@ class TestRealWorldScenarios:
         config = ManufacturerConfig(
             initial_assets=100_000_000,  # Large corporation
             asset_turnover_ratio=0.8,  # Stable, not high growth
-            operating_margin=0.12,  # Good margins
+            base_operating_margin=0.12,  # Good margins
             tax_rate=0.25,  # Full corporate rate
             retention_ratio=0.4,  # Pays dividends
         )
@@ -125,7 +125,7 @@ class TestRealWorldScenarios:
         config = ManufacturerConfig(
             initial_assets=20_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.15,  # Good margins to offset risk
+            base_operating_margin=0.15,  # Good margins to offset risk
             tax_rate=0.25,
             retention_ratio=0.6,
         )
@@ -176,7 +176,7 @@ class TestRealWorldScenarios:
         config = ManufacturerConfig(
             initial_assets=15_000_000,
             asset_turnover_ratio=0.6,  # Reduced sales
-            operating_margin=0.03,  # Compressed margins
+            base_operating_margin=0.03,  # Compressed margins
             tax_rate=0.25,
             retention_ratio=0.9,  # Preserve capital
         )
@@ -232,7 +232,7 @@ class TestMultiYearOptimizationScenarios:
         config = ManufacturerConfig(
             initial_assets=5_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.10,
+            base_operating_margin=0.10,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
@@ -283,7 +283,7 @@ class TestMultiYearOptimizationScenarios:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.6,
         )
@@ -334,7 +334,7 @@ class TestRegulatoryComplianceScenarios:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.6,
         )
@@ -375,7 +375,7 @@ class TestRegulatoryComplianceScenarios:
         config = ManufacturerConfig(
             initial_assets=20_000_000,
             asset_turnover_ratio=1.1,
-            operating_margin=0.09,
+            base_operating_margin=0.09,
             tax_rate=0.25,
             retention_ratio=0.5,
         )
@@ -420,7 +420,7 @@ class TestCatastrophicEventScenarios:
         config = ManufacturerConfig(
             initial_assets=30_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.10,
+            base_operating_margin=0.10,
             tax_rate=0.25,
             retention_ratio=0.6,
         )
@@ -475,7 +475,7 @@ class TestCatastrophicEventScenarios:
         config = ManufacturerConfig(
             initial_assets=25_000_000,
             asset_turnover_ratio=1.2,
-            operating_margin=0.11,
+            base_operating_margin=0.11,
             tax_rate=0.25,
             retention_ratio=0.55,
         )
@@ -520,7 +520,7 @@ class TestPortfolioOptimizationScenarios:
         config = ManufacturerConfig(
             initial_assets=50_000_000,
             asset_turnover_ratio=0.9,
-            operating_margin=0.09,
+            base_operating_margin=0.09,
             tax_rate=0.25,
             retention_ratio=0.5,
         )
@@ -576,7 +576,7 @@ class TestSensitivityAnalysisScenarios:
         config = ManufacturerConfig(
             initial_assets=15_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.6,
         )

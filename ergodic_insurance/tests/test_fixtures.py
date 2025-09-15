@@ -50,7 +50,7 @@ class TestDataGenerator:
         config = ManufacturerConfig(
             initial_assets=initial_assets,
             asset_turnover_ratio=asset_turnover,
-            operating_margin=operating_margin,
+            base_operating_margin=operating_margin,
             tax_rate=kwargs.get("tax_rate", 0.25),
             retention_ratio=kwargs.get("retention_ratio", 0.8),
         )
@@ -248,7 +248,7 @@ class ScenarioBuilder:
             name="ruin",
             manufacturer=TestDataGenerator.create_small_manufacturer(
                 initial_assets=50_000,  # Very low initial assets
-                operating_margin=0.02,  # Very low margin
+                base_operating_margin=0.02,  # Very low margin
             ),
             loss_generator=TestDataGenerator.create_test_loss_generator(
                 frequency_scale=2.0, severity_scale=1.0, seed=666  # High frequency  # High severity
@@ -273,7 +273,7 @@ class ScenarioBuilder:
         return SimulationScenario(
             name="growth",
             manufacturer=TestDataGenerator.create_small_manufacturer(
-                initial_assets=1_000_000, asset_turnover=1.2, operating_margin=0.15
+                initial_assets=1_000_000, asset_turnover=1.2, base_operating_margin=0.15
             ),
             loss_generator=TestDataGenerator.create_test_loss_generator(
                 frequency_scale=0.1, severity_scale=0.01, seed=777

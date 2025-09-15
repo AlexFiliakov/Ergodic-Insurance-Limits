@@ -40,12 +40,12 @@ class TestManufacturerConfig:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )
         assert config.initial_assets == 10_000_000
-        assert config.operating_margin == 0.08
+        assert config.base_operating_margin == 0.08
 
     def test_invalid_initial_assets(self):
         """Test that negative initial assets are rejected.
@@ -57,7 +57,7 @@ class TestManufacturerConfig:
             ManufacturerConfig(
                 initial_assets=-1000,
                 asset_turnover_ratio=1.0,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=1.0,
             )
@@ -73,7 +73,7 @@ class TestManufacturerConfig:
             ManufacturerConfig(
                 initial_assets=10_000_000,
                 asset_turnover_ratio=1.0,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=1.5,  # > 1
                 retention_ratio=1.0,
             )
@@ -90,7 +90,7 @@ class TestManufacturerConfig:
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.4,  # 40% - unusually high
+            base_operating_margin=0.4,  # 40% - unusually high
             tax_rate=0.25,
             retention_ratio=1.0,
         )
@@ -273,14 +273,14 @@ class TestCompleteConfig:
 
         # Override using dot notation
         new_config = config.override(
-            manufacturer__operating_margin=0.1,
+            manufacturer__base_operating_margin=0.1,
             simulation__time_horizon_years=200,
         )
 
-        assert new_config.manufacturer.operating_margin == 0.1
+        assert new_config.manufacturer.base_operating_margin == 0.1
         assert new_config.simulation.time_horizon_years == 200
         # Original should be unchanged
-        assert config.manufacturer.operating_margin == 0.08
+        assert config.manufacturer.base_operating_margin == 0.08
 
     def test_config_from_dict_with_base(self, sample_config_dict):
         """Test creating config from dict with base config."""
@@ -294,7 +294,7 @@ class TestCompleteConfig:
 
         new_config = Config.from_dict(override_dict, base_config=base_config)
 
-        assert new_config.manufacturer.operating_margin == 0.12
+        assert new_config.manufacturer.base_operating_margin == 0.12
         assert new_config.growth.annual_growth_rate == 0.08
         # Unchanged values should remain
         assert new_config.manufacturer.initial_assets == 10_000_000
@@ -324,19 +324,19 @@ class TestConfigLoader:
         """Test loading baseline configuration."""
         config = config_loader.load("baseline")
         assert config.manufacturer.initial_assets == 10_000_000
-        assert config.manufacturer.operating_margin == 0.10
+        assert config.manufacturer.base_operating_margin == 0.10
 
     def test_load_conservative(self, config_loader):
         """Test loading conservative configuration."""
         config = config_loader.load("conservative")
         assert config.growth.annual_growth_rate == 0.03  # Conservative growth
-        assert config.manufacturer.operating_margin == 0.06  # Lower margin
+        assert config.manufacturer.base_operating_margin == 0.06  # Lower margin
 
     def test_load_optimistic(self, config_loader):
         """Test loading optimistic configuration."""
         config = config_loader.load("optimistic")
         assert config.growth.annual_growth_rate == 0.08  # Optimistic growth
-        assert config.manufacturer.operating_margin == 0.12  # Higher margin
+        assert config.manufacturer.base_operating_margin == 0.12  # Higher margin
 
     def test_load_with_overrides(self, config_loader):
         """Test loading config with overrides."""
@@ -345,7 +345,7 @@ class TestConfigLoader:
             overrides={"manufacturer": {"operating_margin": 0.10}},
             simulation__time_horizon_years=200,
         )
-        assert config.manufacturer.operating_margin == 0.10
+        assert config.manufacturer.base_operating_margin == 0.10
         assert config.simulation.time_horizon_years == 200
 
     def test_load_scenario(self, config_loader):
@@ -420,7 +420,7 @@ class TestConfigValidation:
             manufacturer=ManufacturerConfig(
                 initial_assets=10_000_000,
                 asset_turnover_ratio=1.0,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=1.0,
             ),
@@ -475,5 +475,5 @@ class TestQuickLoad:
 
     def test_load_config_with_overrides(self):
         """Test quick load with overrides."""
-        config = load_config("baseline", manufacturer__operating_margin=0.15)
-        assert config.manufacturer.operating_margin == 0.15
+        config = load_config("baseline", manufacturer__base_operating_margin=0.15)
+        assert config.manufacturer.base_operating_margin == 0.15

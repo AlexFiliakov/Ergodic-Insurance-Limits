@@ -10,8 +10,8 @@ from typing import Dict
 
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.manufacturer import ClaimLiability, WidgetManufacturer
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.manufacturer import ClaimLiability, WidgetManufacturer
 
 
 class TestClaimLiability:
@@ -94,7 +94,7 @@ class TestWidgetManufacturer:
         return ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
         )
@@ -125,7 +125,7 @@ class TestWidgetManufacturer:
         assert manufacturer.restricted_assets == 0
         assert manufacturer.equity == 10_000_000
         assert manufacturer.asset_turnover_ratio == 1.0
-        assert manufacturer.operating_margin == 0.08
+        assert manufacturer.base_operating_margin == 0.08
         assert manufacturer.tax_rate == 0.25
         assert manufacturer.retention_ratio == 1.0
         assert manufacturer.current_year == 0

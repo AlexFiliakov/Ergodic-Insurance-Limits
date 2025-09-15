@@ -251,7 +251,7 @@ class TestParameterCombinations:
         max_config["growth"]["annual_growth_rate"] = 0.20
 
         config = Config(**max_config)
-        assert config.manufacturer.operating_margin == 0.30
+        assert config.manufacturer.base_operating_margin == 0.30
 
     def test_invalid_combinations(self):
         """Test that invalid parameter combinations are rejected."""
@@ -521,7 +521,7 @@ class TestParameterValidationRules:
         config_dict = self._create_base_config()
         config_dict["manufacturer"]["operating_margin"] = 0.35  # High but valid
         config = Config(**config_dict)
-        assert config.manufacturer.operating_margin == 0.35
+        assert config.manufacturer.base_operating_margin == 0.35
 
     def test_growth_volatility_constraints(self):
         """Test growth and volatility parameter constraints."""

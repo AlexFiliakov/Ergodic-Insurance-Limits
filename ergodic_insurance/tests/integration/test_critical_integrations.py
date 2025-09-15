@@ -221,7 +221,7 @@ class TestConfigurationIntegration:
         base_config = default_config_v2.model_copy()
 
         # Apply runtime override
-        base_config.manufacturer.operating_margin = 0.15
+        base_config.manufacturer.base_operating_margin = 0.15
 
         # Create modules with configuration
         manufacturer = WidgetManufacturer(base_config.manufacturer)
@@ -268,8 +268,8 @@ class TestConfigurationIntegration:
         )
 
         # Verify override propagated
-        assert manufacturer.operating_margin == 0.15
-        assert optimizer.manufacturer.operating_margin == 0.15
+        assert manufacturer.base_operating_margin == 0.15
+        assert optimizer.manufacturer.base_operating_margin == 0.15
 
         # Verify other settings maintained
         assert manufacturer.tax_rate == base_config.manufacturer.tax_rate
@@ -337,7 +337,7 @@ class TestConfigurationIntegration:
         # Verify values transferred
         assert manufacturer.assets == legacy_config["initial_assets"]
         assert manufacturer.asset_turnover_ratio == legacy_config["asset_turnover_ratio"]
-        assert manufacturer.operating_margin == legacy_config["operating_margin"]
+        assert manufacturer.base_operating_margin == legacy_config["operating_margin"]
 
 
 class TestOptimizationWorkflow:
@@ -519,7 +519,7 @@ class TestStochasticIntegration:
             # Apply mean-reverting shock to margin
             shock = mean_reverting_process.generate_shock(current_margin_ratio)
             current_margin_ratio = shock
-            manufacturer2.operating_margin = target_margin * current_margin_ratio
+            manufacturer2.base_operating_margin = target_margin * current_margin_ratio
             manufacturer2.step()
 
         # Final margin should be closer to target
@@ -687,7 +687,7 @@ class TestEndToEndScenarios:
         config = default_config_v2.model_copy()
         config.manufacturer.initial_assets = 1_000_000
         config.manufacturer.asset_turnover_ratio = 0.8
-        config.manufacturer.operating_margin = 0.05
+        config.manufacturer.base_operating_margin = 0.05
         # Note: growth_capex_ratio not available in current config
 
         config.insurance.deductible = 25_000
@@ -777,7 +777,7 @@ class TestEndToEndScenarios:
         config = default_config_v2.model_copy()
         config.manufacturer.initial_assets = 50_000_000
         config.manufacturer.asset_turnover_ratio = 1.5
-        config.manufacturer.operating_margin = 0.15
+        config.manufacturer.base_operating_margin = 0.15
         # Note: dividend_payout_ratio not available in current config
 
         config.insurance.deductible = 250_000
@@ -855,7 +855,7 @@ class TestEndToEndScenarios:
         config = default_config_v2.model_copy()
         config.manufacturer.initial_assets = 20_000_000
         config.manufacturer.asset_turnover_ratio = 1.2
-        config.manufacturer.operating_margin = 0.08
+        config.manufacturer.base_operating_margin = 0.08
 
         config.insurance.deductible = 100_000
         config.insurance.layers[0].limit = 5_000_000
@@ -956,7 +956,7 @@ class TestEndToEndScenarios:
         config = default_config_v2.model_copy()
         config.manufacturer.initial_assets = 5_000_000
         config.manufacturer.asset_turnover_ratio = 1.0
-        config.manufacturer.operating_margin = 0.12
+        config.manufacturer.base_operating_margin = 0.12
         # Note: growth_capex_ratio and dividend_payout_ratio not available in current config
         # Using retention_ratio as a proxy for growth investment
         config.manufacturer.retention_ratio = 0.90  # High retention for growth

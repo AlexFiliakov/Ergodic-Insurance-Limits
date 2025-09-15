@@ -18,7 +18,7 @@ manufacturer:
   asset_turnover_ratio: 1.2
 
   # Higher profit margins (premium product/efficiency)
-  operating_margin: *high_margin
+  base_operating_margin: *high_margin
 
   # Lower tax rate (tax optimization strategies)
   tax_rate: 0.21

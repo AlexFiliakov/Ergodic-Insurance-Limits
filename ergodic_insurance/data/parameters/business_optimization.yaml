@@ -44,7 +44,7 @@ constraints:
   # Return constraints
   min_roe_threshold: 0.10  # 10% minimum ROE
   min_roa_threshold: 0.06  # 6% minimum ROA
-  min_operating_margin: 0.08  # 8% minimum margin
+  min_base_operating_margin: 0.08  # 8% minimum margin
 
   # Capital structure constraints
   max_leverage_ratio: 2.5  # 2.5:1 debt-to-equity

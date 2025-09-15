@@ -18,7 +18,7 @@ manufacturer:
   asset_turnover_ratio: 0.9
 
   # Lower profit margins (more competitive market)
-  operating_margin: *low_margin
+  base_operating_margin: *low_margin
 
   # Higher tax rate assumption (conservative planning)
   tax_rate: 0.28

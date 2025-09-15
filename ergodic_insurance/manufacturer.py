@@ -480,9 +480,11 @@ class WidgetManufacturer:
 
         # Operating parameters
         self.asset_turnover_ratio = config.asset_turnover_ratio
-        self.operating_margin = config.operating_margin
+        self.base_operating_margin = config.base_operating_margin
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
+
+        # Backward compatibility - operating_margin property defined below
 
         # Claim tracking
         self.claim_liabilities: List[ClaimLiability] = []
@@ -498,6 +500,17 @@ class WidgetManufacturer:
 
         # Metrics tracking
         self.metrics_history: List[Dict[str, float]] = []
+
+    @property
+    def operating_margin(self) -> float:
+        """Backward compatibility property for base_operating_margin.
+
+        Deprecated: Use base_operating_margin instead.
+
+        Returns:
+            float: The base operating margin before insurance costs.
+        """
+        return self.base_operating_margin
 
     @property
     def net_assets(self) -> float:
@@ -815,43 +828,51 @@ class WidgetManufacturer:
         return float(revenue)
 
     def calculate_operating_income(self, revenue: float) -> float:
-        """Calculate operating income from revenue using operating margin.
+        """Calculate operating income including insurance as operating expense.
 
         Operating income represents earnings before interest and taxes (EBIT),
-        calculated by applying the configured operating margin to revenue.
-        This represents the core profitability of the manufacturing operations
-        before financing costs and taxes.
+        calculated by applying the base operating margin to revenue and then
+        subtracting insurance costs (premiums and losses). This reflects the
+        true operating profitability after insurance expenses.
 
         Args:
             revenue (float): Annual revenue in dollars. Must be >= 0.
 
         Returns:
-            float: Operating income in dollars. Equal to revenue * operating_margin.
-                Will be negative if revenue is negative (unusual but possible
-                with stochastic modeling).
+            float: Operating income in dollars after insurance costs.
+                Equal to (revenue * base_operating_margin) - insurance costs.
 
         Examples:
-            Calculate operating income::
+            Calculate operating income with insurance::
 
                 revenue = manufacturer.calculate_revenue()
                 operating_income = manufacturer.calculate_operating_income(revenue)
 
-                margin = operating_income / revenue  # Should equal config.operating_margin
+                # Actual margin will be lower than base margin due to insurance
+                actual_margin = operating_income / revenue
 
         Note:
-            Operating margin is fixed at initialization from the configuration.
-            For dynamic margins, modify manufacturer.operating_margin directly
-            before calling this method.
+            The base operating margin represents the core margin before insurance.
+            Actual operating margins will be lower when insurance costs are included.
 
         See Also:
-            :attr:`operating_margin`: The margin percentage applied to revenue.
+            :attr:`base_operating_margin`: The core margin percentage before insurance.
             :meth:`calculate_net_income`: Includes financing costs and taxes.
         """
-        operating_income = revenue * self.operating_margin
-        logger.debug(
-            f"Operating income: ${operating_income:,.2f} ({self.operating_margin:.1%} margin)"
+        # Calculate base operating income using base margin
+        base_operating_income = revenue * self.base_operating_margin
+
+        # Subtract insurance costs to get actual operating income
+        actual_operating_income = (
+            base_operating_income - self.period_insurance_premiums - self.period_insurance_losses
         )
-        return float(operating_income)
+
+        logger.debug(
+            f"Operating income: ${actual_operating_income:,.2f} "
+            f"(base: ${base_operating_income:,.2f}, insurance: "
+            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f})"
+        )
+        return float(actual_operating_income)
 
     def calculate_collateral_costs(
         self, letter_of_credit_rate: float = 0.015, time_period: str = "annual"
@@ -922,21 +943,22 @@ class WidgetManufacturer:
         insurance_premiums: float = 0.0,
         insurance_losses: float = 0.0,
     ) -> float:
-        """Calculate net income after collateral costs, insurance costs, and taxes.
+        """Calculate net income after collateral costs and taxes.
 
         Net income represents the final profitability available to shareholders
-        after all operating expenses, financing costs, insurance costs, and taxes.
-        This is the amount available for retention and dividend distribution.
+        after all operating expenses, financing costs, and taxes. Note that
+        insurance costs are now included in operating income, so the insurance
+        parameters are kept for backward compatibility but not used in calculation.
 
         Args:
-            operating_income (float): Operating income before financing costs
-                and taxes (EBIT). Can be negative if operations are unprofitable.
+            operating_income (float): Operating income after insurance costs (EBIT).
+                Can be negative if operations are unprofitable.
             collateral_costs (float): Financing costs for letter of credit
                 collateral. Must be >= 0.
-            insurance_premiums (float): Insurance premium payments for the period.
-                Tax-deductible business expense. Defaults to 0.0.
-            insurance_losses (float): Insurance losses/claims paid by company.
-                Tax-deductible business expense. Defaults to 0.0.
+            insurance_premiums (float): Deprecated - insurance is now in operating income.
+                Kept for backward compatibility. Defaults to 0.0.
+            insurance_losses (float): Deprecated - insurance is now in operating income.
+                Kept for backward compatibility. Defaults to 0.0.
 
         Returns:
             float: Net income after all expenses and taxes. Can be negative
@@ -965,7 +987,8 @@ class WidgetManufacturer:
             - Loss years generate no tax benefit in this model
 
             The tax calculation is:
-            - Income before tax = operating_income - collateral_costs - insurance_premiums - insurance_losses
+            - Income before tax = operating_income - collateral_costs
+              (Note: insurance costs are already included in operating_income)
             - Taxes = max(0, income_before_tax * tax_rate)
             - Net income = income_before_tax - taxes
 
@@ -973,10 +996,8 @@ class WidgetManufacturer:
             :attr:`tax_rate`: Tax rate applied to positive income.
             :attr:`retention_ratio`: Portion of net income retained vs. distributed.
         """
-        # Deduct all tax-deductible expenses
-        income_before_tax = (
-            operating_income - collateral_costs - insurance_premiums - insurance_losses
-        )
+        # Deduct collateral costs (insurance already in operating income)
+        income_before_tax = operating_income - collateral_costs
 
         # Calculate taxes (only on positive income)
         taxes = max(0, income_before_tax * self.tax_rate)
@@ -984,16 +1005,13 @@ class WidgetManufacturer:
         net_income = income_before_tax - taxes
 
         # Enhanced logging for tax calculation transparency
-        if insurance_premiums > 0 or insurance_losses > 0:
-            logger.debug(f"Tax calculation: Operating income ${operating_income:,.2f}")
-            logger.debug(f"  - Collateral costs: ${collateral_costs:,.2f}")
-            logger.debug(f"  - Insurance premiums (deductible): ${insurance_premiums:,.2f}")
-            logger.debug(f"  - Insurance losses (deductible): ${insurance_losses:,.2f}")
-            logger.debug(f"  = Income before tax: ${income_before_tax:,.2f}")
-            logger.debug(f"  - Taxes (@{self.tax_rate:.1%}): ${taxes:,.2f}")
-            logger.debug(f"  = Net income: ${net_income:,.2f}")
-        else:
-            logger.debug(f"Net income: ${net_income:,.2f} after ${taxes:,.2f} taxes")
+        logger.debug(
+            f"Tax calculation: Operating income ${operating_income:,.2f} (includes insurance)"
+        )
+        logger.debug(f"  - Collateral costs: ${collateral_costs:,.2f}")
+        logger.debug(f"  = Income before tax: ${income_before_tax:,.2f}")
+        logger.debug(f"  - Taxes (@{self.tax_rate:.1%}): ${taxes:,.2f}")
+        logger.debug(f"  = Net income: ${net_income:,.2f}")
 
         return float(net_income)
 
@@ -1726,7 +1744,17 @@ class WidgetManufacturer:
 
         # Financial ratios - ROE now includes all expenses
         metrics["asset_turnover"] = revenue / self.assets if self.assets > 0 else 0
-        metrics["operating_margin"] = self.operating_margin
+
+        # Report both base and actual operating margins for transparency
+        metrics["base_operating_margin"] = self.base_operating_margin
+        metrics["actual_operating_margin"] = operating_income / revenue if revenue > 0 else 0
+        metrics["insurance_impact_on_margin"] = (
+            metrics["base_operating_margin"] - metrics["actual_operating_margin"]
+        )
+
+        # Backward compatibility - deprecated
+        metrics["operating_margin"] = self.base_operating_margin
+
         metrics["roe"] = (
             net_income / self.equity if self.equity > 0 else 0
         )  # True ROE with all costs
