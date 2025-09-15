@@ -22,12 +22,14 @@ graph LR
            INS_PRICING["insurance_pricing.py<br/>Pricing Models"]
            CLAIM_GEN["claim_generator.py<br/>Claim Events"]
            CLAIM_DEV["claim_development.py<br/>Claim Development"]
+           EXPOSURE["exposure_base.py<br/>Exposure Models"]
        end
 
        %% Simulation Engine
        subgraph Simulation["Simulation Core"]
            SIM_CORE["simulation.py<br/>Main Engine"]
            MONTE_CARLO["monte_carlo.py<br/>Monte Carlo"]
+           MONTE_WORKER["monte_carlo_worker.py<br/>MC Worker"]
            STOCHASTIC["stochastic_processes.py<br/>Stochastic Models"]
            LOSS_DIST["loss_distributions.py<br/>Loss Distributions"]
        end
@@ -56,6 +58,7 @@ graph LR
            RISK_METRICS["risk_metrics.py<br/>Risk Metrics"]
            RUIN_PROB["ruin_probability.py<br/>Ruin Analysis"]
            SENSITIVITY["sensitivity.py<br/>Sensitivity Analysis"]
+           SENS_VIZ["sensitivity_visualization.py<br/>Sensitivity Viz"]
            PARETO["pareto_frontier.py<br/>Pareto Analysis"]
            BOOTSTRAP["bootstrap_analysis.py<br/>Bootstrap Methods"]
        end
@@ -88,6 +91,23 @@ graph LR
            VIZ_STYLE["style_manager.py<br/>Styling"]
            VIZ_FACTORY["figure_factory.py<br/>Figure Factory"]
            VIZ_EXPORT["export.py<br/>Export Tools"]
+           VIZ_BATCH["batch_plots.py<br/>Batch Plotting"]
+           VIZ_INTERACT["interactive_plots.py<br/>Interactive Plots"]
+           VIZ_TOWER["improved_tower_plot.py<br/>Tower Plots"]
+       end
+
+       %% Reporting Submodule
+       subgraph ReportModule["reporting/"]
+           REP_BUILDER["report_builder.py<br/>Report Builder"]
+           REP_EXEC["executive_report.py<br/>Executive Reports"]
+           REP_TECH["technical_report.py<br/>Technical Reports"]
+           REP_SCENARIO["scenario_comparator.py<br/>Scenario Compare"]
+           REP_TABLE["table_generator.py<br/>Table Generator"]
+           REP_INSIGHT["insight_extractor.py<br/>Insights"]
+           REP_FORMAT["formatters.py<br/>Formatters"]
+           REP_CACHE["cache_manager.py<br/>Cache Manager"]
+           REP_VALID["validator.py<br/>Report Validator"]
+           REP_CONFIG["config.py<br/>Report Config"]
        end
 
        %% Advanced Features
@@ -102,15 +122,19 @@ graph LR
 
        %% Key Dependencies
        CONFIG_BASE --> MANUFACTURER
-       CONFIG_V2 --> MANUFACTURER
+       CONFIG_V2 --> CONFIG_MGR
        CONFIG_MGR --> CONFIG_LOADER
+       CONFIG_COMPAT --> CONFIG_MGR
 
        MANUFACTURER --> SIM_CORE
        INSURANCE --> INS_PROGRAM
        INS_PRICING --> INS_PROGRAM
        CLAIM_GEN --> SIM_CORE
+       CLAIM_DEV --> CLAIM_GEN
+       EXPOSURE --> MANUFACTURER
 
        SIM_CORE --> MONTE_CARLO
+       MONTE_CARLO --> MONTE_WORKER
        STOCHASTIC --> MONTE_CARLO
        LOSS_DIST --> CLAIM_GEN
 
@@ -124,6 +148,7 @@ graph LR
        ERGODIC_ANALYZER --> RISK_METRICS
        RISK_METRICS --> RUIN_PROB
        SENSITIVITY --> PARETO
+       SENSITIVITY --> SENS_VIZ
 
        BATCH_PROC --> PARALLEL_EXEC
        PARALLEL_EXEC --> MONTE_CARLO
@@ -136,6 +161,17 @@ graph LR
        VIZ_STYLE --> VIZ_EXEC
        VIZ_STYLE --> VIZ_TECH
        VIZ_FACTORY --> VIZ_EXPORT
+       VIZ_BATCH --> VIZ_CORE
+       VIZ_INTERACT --> VIZ_CORE
+       VIZ_TOWER --> VIZ_STYLE
+
+       REP_BUILDER --> REP_EXEC
+       REP_BUILDER --> REP_TECH
+       REP_SCENARIO --> REP_TABLE
+       REP_INSIGHT --> REP_EXEC
+       REP_FORMAT --> REP_TABLE
+       REP_CACHE --> REP_BUILDER
+       REP_VALID --> REP_BUILDER
 
        %% Styling
        classDef config fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
@@ -147,17 +183,19 @@ graph LR
        classDef infra fill:#e0f2f1,stroke:#00695c,stroke-width:2px
        classDef reporting fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
        classDef viz fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+       classDef report fill:#fff8e1,stroke:#f9a825,stroke-width:2px
        classDef advanced fill:#fafafa,stroke:#424242,stroke-width:2px
 
        class CONFIG_BASE,CONFIG_V2,CONFIG_MGR,CONFIG_LOADER,CONFIG_COMPAT,CONFIG_MIG config
-       class MANUFACTURER,INSURANCE,INS_PROGRAM,INS_PRICING,CLAIM_GEN,CLAIM_DEV business
-       class SIM_CORE,MONTE_CARLO,STOCHASTIC,LOSS_DIST simulation
+       class MANUFACTURER,INSURANCE,INS_PROGRAM,INS_PRICING,CLAIM_GEN,CLAIM_DEV,EXPOSURE business
+       class SIM_CORE,MONTE_CARLO,MONTE_WORKER,STOCHASTIC,LOSS_DIST simulation
        class ERGODIC_ANALYZER,BUSINESS_OPT,DECISION_ENGINE,OPTIMIZATION,HJB_SOLVER,OPTIMAL_CTRL analysis
        class ACCURACY_VAL,STRATEGY_BACK,WALK_FORWARD,VALIDATION_METRICS,STATISTICAL_TESTS validation
-       class RISK_METRICS,RUIN_PROB,SENSITIVITY,PARETO,BOOTSTRAP risk
+       class RISK_METRICS,RUIN_PROB,SENSITIVITY,SENS_VIZ,PARETO,BOOTSTRAP risk
        class BATCH_PROC,PARALLEL_EXEC,PERF_OPT,TRAJ_STORAGE,PROGRESS_MON,PARAM_SWEEP infra
        class VIZ_LEGACY,EXCEL_REPORT,SUMMARY_STATS,RESULT_AGG,FINANCIAL_STMT reporting
-       class VIZ_CORE,VIZ_EXEC,VIZ_TECH,VIZ_ANNOT,VIZ_STYLE,VIZ_FACTORY,VIZ_EXPORT viz
+       class VIZ_CORE,VIZ_EXEC,VIZ_TECH,VIZ_ANNOT,VIZ_STYLE,VIZ_FACTORY,VIZ_EXPORT,VIZ_BATCH,VIZ_INTERACT,VIZ_TOWER viz
+       class REP_BUILDER,REP_EXEC,REP_TECH,REP_SCENARIO,REP_TABLE,REP_INSIGHT,REP_FORMAT,REP_CACHE,REP_VALID,REP_CONFIG report
        class CONVERGENCE,CONV_ADV,CONV_PLOTS,ADAPTIVE_STOP,SCENARIO_MGR,BENCHMARKING advanced
 ```
 
