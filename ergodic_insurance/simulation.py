@@ -575,29 +575,26 @@ class Simulation:
         # Apply insurance
         if self.insurance_policy:
             for claim in claims:
-                company_payment, insurance_recovery = self.insurance_policy.process_claim(
-                    claim.amount
+                # Use manufacturer's built-in claim processing which handles collateral and payment schedules
+                company_payment, insurance_recovery = self.manufacturer.process_insurance_claim(
+                    claim_amount=claim.amount,
+                    deductible_amount=self.insurance_policy.deductible,
+                    insurance_limit=self.insurance_policy.get_total_coverage(),
                 )
-                # Deduct company payment (deductible) from assets and track as loss
-                self.manufacturer.assets -= company_payment
-                # Track as period loss for proper tax treatment (DO NOT deduct from equity directly)
-                self.manufacturer.period_insurance_losses += company_payment
                 total_company_payment += company_payment
                 total_insurance_recovery += insurance_recovery
 
-            # Pay annual premium (deduct from assets, track as expense)
+            # Record annual premium (will be handled in manufacturer's step method)
             annual_premium = self.insurance_policy.calculate_premium()
-            self.manufacturer.assets -= annual_premium
-            # Track as period expense for proper tax treatment (DO NOT deduct from equity directly)
-            self.manufacturer.period_insurance_premiums += annual_premium
+            self.manufacturer.record_insurance_premium(annual_premium)
         else:
-            # Legacy behavior - process claims without policy
+            # No insurance - process as uninsured claims
             for claim in claims:
-                self.manufacturer.process_insurance_claim(
-                    claim_amount=claim.amount,
-                    deductible_amount=1_000_000,
-                    insurance_limit=10_000_000,
+                # Company pays full amount with no insurance coverage
+                self.manufacturer.process_uninsured_claim(
+                    claim_amount=claim.amount, immediate_payment=False  # Use payment schedule
                 )
+                total_company_payment += claim.amount
 
         # Step manufacturer forward
         metrics = self.manufacturer.step(
