@@ -577,15 +577,6 @@ class TestStochasticExposure:
 class TestClaimGeneratorIntegration:
     """Integration tests for ClaimGenerator with ExposureBase."""
 
-    def test_backward_compatibility(self):
-        """Verify old interface still works with deprecation warning."""
-        with pytest.warns(DeprecationWarning, match="Parameter 'frequency' is deprecated"):
-            gen = ClaimGenerator(frequency=0.5, seed=42)
-
-        claims = gen.generate_claims(years=10)
-
-        # Should generate claims as before
-        assert len(claims) > 0
 
     def test_basic_exposure_integration(self):
         """Test basic integration with exposure base."""
@@ -797,12 +788,6 @@ class TestStatisticalValidation:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_cannot_specify_both_frequency_params(self):
-        """Test that specifying both frequency and base_frequency raises error."""
-        with pytest.raises(
-            ValueError, match="Cannot specify both 'frequency' and 'base_frequency'"
-        ):
-            ClaimGenerator(frequency=0.5, base_frequency=0.5)
 
     def test_very_high_growth_rate(self):
         """Test handling of very high growth rates."""

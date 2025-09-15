@@ -45,7 +45,6 @@ Since:
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
 
 import numpy as np
 
@@ -105,7 +104,6 @@ class ClaimGenerator:
     - Catastrophes: Bernoulli trials with separate severity distribution
 
     Attributes:
-        frequency: Expected number of claims per year (deprecated, use base_frequency).
         base_frequency: Base expected number of claims per year (Poisson lambda).
         exposure_base: Optional exposure base for dynamic frequency scaling.
         severity_mean: Mean claim size in dollars.
@@ -116,7 +114,7 @@ class ClaimGenerator:
         Generate claims for a decade::
 
             generator = ClaimGenerator(
-                frequency=0.2,  # 20% expected frequency
+                base_frequency=0.2,  # 20% expected frequency
                 severity_mean=10_000_000,
                 seed=42
             )
@@ -140,8 +138,7 @@ class ClaimGenerator:
 
     def __init__(
         self,
-        frequency: Optional[float] = None,  # Deprecated parameter
-        base_frequency: Optional[float] = None,  # Expected claims per year at base exposure
+        base_frequency: float = 0.1,  # Expected claims per year at base exposure
         exposure_base: Optional["ExposureBase"] = None,  # Dynamic exposure calculator
         severity_mean: float = 5_000_000,  # Mean claim size
         severity_std: float = 2_000_000,  # Std dev of claim size
@@ -150,8 +147,6 @@ class ClaimGenerator:
         """Initialize claim generator with optional dynamic exposure.
 
         Args:
-            frequency: Legacy static frequency parameter (deprecated).
-                Use base_frequency with exposure_base instead.
             base_frequency: Base expected number of claims per year at reference
                 exposure level. Must be non-negative. Default is 0.1.
             exposure_base: Optional dynamic exposure calculator for frequency scaling.
@@ -163,10 +158,10 @@ class ClaimGenerator:
             seed: Random seed for reproducibility. If None, uses random state.
 
         Raises:
-            ValueError: If frequency is negative or severity parameters are invalid.
+            ValueError: If base_frequency is negative or severity parameters are invalid.
 
         Examples:
-            Create generator with static frequency (legacy)::
+            Create generator with static frequency::
 
                 generator = ClaimGenerator(
                     base_frequency=0.15,  # 15% base frequency
@@ -189,28 +184,9 @@ class ClaimGenerator:
                     severity_mean=5_000_000
                 )
         """
-        # Handle backward compatibility
-        if frequency is not None and base_frequency is None:
-            warnings.warn(
-                "Parameter 'frequency' is deprecated. Use 'base_frequency' instead. "
-                "For dynamic frequency scaling, use 'base_frequency' with 'exposure_base'.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            base_frequency = frequency
-            self.frequency = frequency  # Keep for backward compatibility
-        elif frequency is not None and base_frequency is not None:
-            raise ValueError(
-                "Cannot specify both 'frequency' and 'base_frequency'. Use 'base_frequency' only."
-            )
-        else:
-            self.frequency = base_frequency  # For backward compatibility
-
         # Validate parameters
-        if base_frequency is None:
-            base_frequency = 0.1
         if base_frequency < 0:
-            raise ValueError(f"Frequency must be non-negative, got {base_frequency}")
+            raise ValueError(f"Base frequency must be non-negative, got {base_frequency}")
         if severity_mean <= 0:
             raise ValueError(f"Severity mean must be positive, got {severity_mean}")
         if severity_std < 0:

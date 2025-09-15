@@ -26,12 +26,12 @@ class TestClaimGenerator:
     def test_init(self):
         """Test generator initialization."""
         gen = ClaimGenerator(
-            frequency=0.5,
+            base_frequency=0.5,
             severity_mean=1_000_000,
             severity_std=500_000,
             seed=42,
         )
-        assert gen.frequency == 0.5
+        assert gen.base_frequency == 0.5
         assert gen.severity_mean == 1_000_000
         assert gen.severity_std == 500_000
         assert gen.rng is not None
@@ -64,13 +64,13 @@ class TestClaimGenerator:
 
     def test_generate_claims_statistical_properties(self):
         """Test that generated claims match expected statistical properties."""
-        frequency = 2.0  # Average 2 claims per year
+        base_frequency = 2.0  # Average 2 claims per year
         severity_mean = 1_000_000
         severity_std = 200_000
         years = 1000  # Large sample for statistical testing
 
         gen = ClaimGenerator(
-            frequency=frequency,
+            base_frequency=frequency,
             severity_mean=severity_mean,
             severity_std=severity_std,
             seed=42,
@@ -86,8 +86,8 @@ class TestClaimGenerator:
         counts = [claims_per_year.get(y, 0) for y in range(years)]
         mean_count = np.mean(counts)
 
-        # Mean should be close to frequency parameter
-        assert mean_count == pytest.approx(frequency, rel=0.1)
+        # Mean should be close to base_frequency parameter
+        assert mean_count == pytest.approx(base_frequency, rel=0.1)
 
         # Test severity (Lognormal distribution)
         if claims:
@@ -134,19 +134,19 @@ class TestClaimGenerator:
         assert claims == []
 
         # Zero frequency
-        gen_zero = ClaimGenerator(frequency=0, seed=42)
+        gen_zero = ClaimGenerator(base_frequency=0, seed=42)
         claims = gen_zero.generate_claims(10)
         assert claims == []
 
         # Very high frequency
-        gen_high = ClaimGenerator(frequency=100, seed=42)
+        gen_high = ClaimGenerator(base_frequency=100, seed=42)
         claims = gen_high.generate_claims(1)
         assert len(claims) > 50  # Should have many claims
 
     def test_generate_all_claims(self):
         """Test batch generation of regular and catastrophic claims."""
         gen = ClaimGenerator(
-            frequency=1.0,
+            base_frequency=1.0,
             severity_mean=100_000,
             severity_std=50_000,
             seed=42,
@@ -186,7 +186,7 @@ class TestClaimGenerator:
     def test_performance(self):
         """Test that generation meets performance requirements."""
         gen = ClaimGenerator(
-            frequency=3.0,  # Moderate frequency
+            base_frequency=3.0,  # Moderate frequency
             severity_mean=500_000,
             severity_std=250_000,
             seed=42,
@@ -215,7 +215,7 @@ class TestClaimGenerator:
 
     def test_claim_years_in_range(self):
         """Test that all claims are generated within the specified year range."""
-        gen = ClaimGenerator(frequency=2.0, seed=42)
+        gen = ClaimGenerator(base_frequency=2.0, seed=42)
         years = 50
 
         claims = gen.generate_claims(years)
@@ -231,8 +231,8 @@ class TestClaimGenerator:
     def test_negative_parameters(self):
         """Test handling of invalid parameters."""
         # Test that negative frequency raises ValueError
-        with pytest.raises(ValueError, match="Frequency must be non-negative"):
-            ClaimGenerator(frequency=-1.0)
+        with pytest.raises(ValueError, match="Base frequency must be non-negative"):
+            ClaimGenerator(base_frequency=-1.0)
 
         # Test that negative severity_mean raises ValueError
         with pytest.raises(ValueError, match="Severity mean must be positive"):
@@ -243,19 +243,19 @@ class TestClaimGenerator:
             ClaimGenerator(severity_std=-100)
 
         # Test that generation with negative years should handle gracefully
-        gen = ClaimGenerator(frequency=1.0)
+        gen = ClaimGenerator(base_frequency=1.0)
         claims = gen.generate_claims(-5)
         assert claims == []
 
         # Zero frequency should produce no claims
-        gen_zero = ClaimGenerator(frequency=0.0)
+        gen_zero = ClaimGenerator(base_frequency=0.0)
         claims = gen_zero.generate_claims(10)
         assert claims == []
 
     def test_generate_enhanced_claims_fallback(self):
         """Test generate_enhanced_claims falls back to standard generation."""
         gen = ClaimGenerator(
-            frequency=1.0,
+            base_frequency=1.0,
             severity_mean=100_000,
             severity_std=50_000,
             seed=42,
@@ -325,7 +325,7 @@ class TestClaimGenerator:
     def test_generate_loss_data(self):
         """Test generate_loss_data method."""
         gen = ClaimGenerator(
-            frequency=2.0,
+            base_frequency=2.0,
             severity_mean=100_000,
             severity_std=50_000,
             seed=42,
@@ -347,7 +347,7 @@ class TestClaimGenerator:
     def test_generate_enhanced_claims_with_enhanced_distributions(self):
         """Test generate_enhanced_claims uses enhanced distributions when available."""
         gen = ClaimGenerator(
-            frequency=1.0,
+            base_frequency=1.0,
             severity_mean=500_000,
             severity_std=100_000,
             seed=42,
