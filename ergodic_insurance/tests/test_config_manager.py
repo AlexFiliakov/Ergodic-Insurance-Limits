@@ -1,5 +1,6 @@
 """Tests for the new ConfigManager system."""
 
+import logging
 from pathlib import Path
 import shutil
 import tempfile
@@ -143,22 +144,43 @@ class TestConfigManager:
 
         assert "market" in presets
 
-    def test_init_missing_directory(self):
-        """Test initialization with missing directory."""
-        non_existent = Path("/non/existent/path")
-        with pytest.raises(FileNotFoundError, match="Configuration directory not found"):
-            ConfigManager(config_dir=non_existent)
+    def test_init_missing_directory(self, caplog):
+        """Test initialization with missing directory - should create it."""
+        # Create a temporary path that doesn't exist
+        temp_base = Path(tempfile.gettempdir())
+        non_existent = temp_base / "test_missing_config_dir"
 
-    def test_init_missing_subdirectories(self, temp_config_dir):
-        """Test initialization with missing subdirectories."""
+        # Ensure it doesn't exist
+        if non_existent.exists():
+            shutil.rmtree(non_existent)
+
+        # Should create the directory with a warning
+        with caplog.at_level(logging.WARNING):
+            manager = ConfigManager(config_dir=non_existent)
+
+        # Verify the directory was created
+        assert non_existent.exists()
+        assert "Configuration directory not found, creating" in caplog.text
+
+        # Clean up
+        shutil.rmtree(non_existent)
+
+    def test_init_missing_subdirectories(self, temp_config_dir, caplog):
+        """Test initialization with missing subdirectories - should log debug messages."""
         # Remove subdirectories
         shutil.rmtree(temp_config_dir / "profiles")
         shutil.rmtree(temp_config_dir / "modules")
         shutil.rmtree(temp_config_dir / "presets")
 
-        with pytest.warns(UserWarning):
+        # Should initialize without warnings but with debug logs
+        with caplog.at_level(logging.DEBUG):
             manager = ConfigManager(config_dir=temp_config_dir)
+
         assert manager is not None
+        # Check that debug messages were logged
+        assert "Profiles directory not found" in caplog.text
+        assert "Modules directory not found" in caplog.text
+        assert "Presets directory not found" in caplog.text
 
     def test_load_profile_with_cache(self, temp_config_dir):
         """Test profile loading with cache."""

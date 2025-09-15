@@ -207,7 +207,7 @@ class TestLegacyConfigAdapter:
                         mock_convert.return_value = MagicMock(spec=Config)
 
                         legacy_adapter.load(old_name)
-                        mock_load.assert_called_with(new_name)
+                        mock_load.assert_called_with(new_name, use_cache=True)
 
     def test_load_with_overrides(self, legacy_adapter):
         """Test loading with override parameters."""
@@ -305,10 +305,11 @@ class TestLegacyConfigAdapter:
         with open(config_file, "w") as f:
             yaml.dump(config_with_anchors, f)
 
-        # Mock Path to use our temp directory
-        with patch("ergodic_insurance.config_compat.Path") as mock_path:
-            mock_path.return_value = legacy_dir
-
+        # Mock __file__ to point to our temp directory
+        with patch(
+            "ergodic_insurance.config_compat.__file__",
+            str(tmp_path / "ergodic_insurance" / "config_compat.py"),
+        ):
             result = legacy_adapter._load_legacy_direct("test", {})
 
             assert isinstance(result, Config)
@@ -331,9 +332,11 @@ class TestLegacyConfigAdapter:
             "new_section__new_field": "new_value",  # This will create a new section
         }
 
-        with patch("ergodic_insurance.config_compat.Path") as mock_path:
-            mock_path.return_value = legacy_dir
-
+        # Mock __file__ to point to our temp directory
+        with patch(
+            "ergodic_insurance.config_compat.__file__",
+            str(tmp_path / "ergodic_insurance" / "config_compat.py"),
+        ):
             result = legacy_adapter._load_legacy_direct("test", overrides)
 
             assert result.manufacturer.initial_assets == 15_000_000

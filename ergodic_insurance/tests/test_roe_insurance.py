@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.claim_generator import ClaimGenerator
-from ergodic_insurance.config_v2 import ManufacturerConfig, WorkingCapitalConfig
+from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.simulation import Simulation
@@ -29,14 +29,9 @@ class TestROEWithInsurance:
         )
 
     @pytest.fixture
-    def working_capital_config(self):
-        """Create working capital configuration."""
-        return WorkingCapitalConfig(percent_of_sales=0.20)
-
-    @pytest.fixture
-    def manufacturer(self, manufacturer_config, working_capital_config):
+    def manufacturer(self, manufacturer_config):
         """Create a fresh manufacturer for each test."""
-        return WidgetManufacturer(manufacturer_config, working_capital_config)
+        return WidgetManufacturer(manufacturer_config)
 
     def test_roe_without_insurance(self, manufacturer):
         """Test that ROE without insurance matches expected operating ROE."""
@@ -142,10 +137,10 @@ class TestROEWithInsurance:
         assert metrics["net_income"] < 0
         assert metrics["roe"] == pytest.approx(net_income / manufacturer.equity, rel=0.01)
 
-    def test_roe_in_simulation(self, manufacturer_config, working_capital_config):
+    def test_roe_in_simulation(self, manufacturer_config):
         """Test that simulation ROE includes insurance costs."""
         # Create a new manufacturer for simulation
-        manufacturer = WidgetManufacturer(manufacturer_config, working_capital_config)
+        manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create claim generator with moderate losses
         claim_gen = ClaimGenerator(frequency=2, severity_mean=150_000, severity_std=50_000)
@@ -223,9 +218,9 @@ class TestROEWithInsurance:
         assert metrics2["total_insurance_costs"] == 0
         assert metrics2["roe"] > metrics1["roe"]  # ROE should improve
 
-    def test_roe_with_multiple_generators(self, manufacturer_config, working_capital_config):
+    def test_roe_with_multiple_generators(self, manufacturer_config):
         """Test ROE calculation with multiple claim generators."""
-        manufacturer = WidgetManufacturer(manufacturer_config, working_capital_config)
+        manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create multiple risk profiles
         standard = ClaimGenerator(frequency=2, severity_mean=50_000, severity_std=20_000)
@@ -302,8 +297,8 @@ class TestROEEdgeCases:
             tax_rate=0.25,
             retention_ratio=0.7,
         )
-        wc_config = WorkingCapitalConfig(percent_of_sales=0.20)
-        return WidgetManufacturer(config, wc_config)
+        # WorkingCapitalConfig is no longer used in WidgetManufacturer initialization
+        return WidgetManufacturer(config)
 
     def test_roe_with_zero_equity(self, manufacturer):
         """Test ROE calculation when equity approaches zero."""

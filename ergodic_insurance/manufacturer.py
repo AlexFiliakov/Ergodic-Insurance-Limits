@@ -1713,12 +1713,12 @@ class WidgetManufacturer:
         revenue = self.calculate_revenue()
         operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs()
-        # Include actual period insurance costs for accurate ROE calculation
+        # Insurance costs already deducted in calculate_operating_income
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            self.period_insurance_premiums,  # Include actual premiums paid
-            self.period_insurance_losses,  # Include actual losses/deductibles paid
+            0,  # Insurance premiums already deducted in operating_income
+            0,  # Insurance losses already deducted in operating_income
         )
 
         metrics["revenue"] = revenue
@@ -1742,9 +1742,13 @@ class WidgetManufacturer:
             metrics["base_operating_margin"] - metrics["actual_operating_margin"]
         )
 
+        # Define minimum equity threshold for meaningful ROE calculation
+        # When equity is <= 100, ROE becomes meaningless (approaches infinity)
+        MIN_EQUITY_THRESHOLD = 100
+
         metrics["roe"] = (
-            net_income / self.equity if self.equity > 0 else 0
-        )  # True ROE with all costs
+            net_income / self.equity if self.equity > MIN_EQUITY_THRESHOLD else 0
+        )  # Return 0 for very small or negative equity to avoid extreme values
         metrics["roa"] = net_income / self.assets if self.assets > 0 else 0
 
         # Leverage metrics (collateral-based instead of debt)

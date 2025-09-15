@@ -197,7 +197,8 @@ class TestTaxHandling:
         """Test that premium tracking works correctly.
 
         Verifies that the record_insurance_premium method properly
-        tracks premiums and affects assets and equity.
+        tracks premiums and that they flow through the income statement
+        when step() is called.
         """
         initial_assets = manufacturer.assets
         initial_equity = manufacturer.equity
@@ -208,16 +209,43 @@ class TestTaxHandling:
         # Check tracking
         assert manufacturer.period_insurance_premiums == premium
 
-        # Check balance sheet impact
-        assert manufacturer.assets == initial_assets - premium
-        assert manufacturer.equity == initial_equity - premium
+        # Assets shouldn't change immediately - premiums flow through income statement
+        assert manufacturer.assets == initial_assets
+        assert manufacturer.equity == initial_equity
 
         # Test multiple premiums accumulate
         additional_premium = 200_000
         manufacturer.record_insurance_premium(additional_premium)
 
         assert manufacturer.period_insurance_premiums == premium + additional_premium
-        assert manufacturer.assets == initial_assets - premium - additional_premium
+        assert manufacturer.assets == initial_assets  # Still no immediate change
+
+        # Now run step() to see the premium flow through income statement
+        metrics = manufacturer.step()
+
+        # Check that premiums were included in the metrics
+        assert metrics["insurance_premiums"] == premium + additional_premium
+
+        # Compare what assets would have been WITHOUT the premiums
+        # Calculate expected net income impact
+        total_premiums = premium + additional_premium
+
+        # Net income should be lower due to premiums (tax-deductible expense)
+        # The premiums reduce pre-tax income, which reduces taxes, so the net impact
+        # is premiums * (1 - tax_rate) * retention_ratio
+        tax_rate = manufacturer.tax_rate
+        retention_ratio = manufacturer.retention_ratio
+
+        # Expected reduction in retained earnings due to premiums
+        premium_impact = total_premiums * (1 - tax_rate) * retention_ratio
+
+        # Without premiums, assets would have been higher
+        # We can't directly test final assets since we don't know all the other income/expenses
+        # But we can verify the premiums were processed
+        assert metrics["total_insurance_costs"] == total_premiums
+
+        # Verify premiums were reset after step
+        assert manufacturer.period_insurance_premiums == 0
 
     def test_period_loss_tracking(self, manufacturer):
         """Test that loss tracking works correctly.
