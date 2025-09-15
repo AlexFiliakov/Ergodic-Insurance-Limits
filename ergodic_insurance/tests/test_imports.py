@@ -19,7 +19,8 @@ class TestImportPatterns:
 
     def test_module_class_naming_consistency(self):
         """Verify that module names align with their primary class names."""
-        src_dir = Path(__file__).parent.parent / "src"
+        # Modules are now directly in ergodic_insurance/, not in src/
+        package_dir = Path(__file__).parent.parent
 
         # Expected naming patterns (module_name: primary_class)
         expected_patterns = {
@@ -37,10 +38,10 @@ class TestImportPatterns:
         }
 
         for module_name, expected_class in expected_patterns.items():
-            module_path = src_dir / f"{module_name}.py"
+            module_path = package_dir / f"{module_name}.py"
             if module_path.exists():
                 # Import the module dynamically
-                module = importlib.import_module(f"ergodic_insurance.src.{module_name}")
+                module = importlib.import_module(f"ergodic_insurance.{module_name}")
 
                 # Check if the expected class exists
                 assert hasattr(
@@ -126,7 +127,7 @@ class TestImportPatterns:
 
         for module_name in modules_to_test:
             try:
-                importlib.import_module(f"ergodic_insurance.src.{module_name}")
+                importlib.import_module(f"ergodic_insurance.{module_name}")
             except ImportError as e:
                 # Allow ImportError for optional dependencies like matplotlib
                 if "matplotlib" not in str(e) and "seaborn" not in str(e):
@@ -162,12 +163,13 @@ class TestImportPatterns:
                     if ".tests.test_fixtures" in line:
                         continue  # Test fixtures are allowed to be imported directly
 
-                    # Should use .src. pattern for module imports
-                    # Allow both "from ergodic_insurance.module import ..." and
-                    # "from ergodic_insurance.src import module"
-                    assert (
-                        ".src" in line or "from ergodic_insurance import" in line
-                    ), f"Inconsistent import pattern in {test_file.name}: {line}"
+                    # After moving from src/, imports should be directly from ergodic_insurance
+                    # Valid patterns:
+                    # - from ergodic_insurance import ...
+                    # - from ergodic_insurance.module import ...
+                    # Invalid patterns:
+                    # - from ergodic_insurance.src import ... (old structure)
+                    assert ".src" not in line, f"Old src/ pattern found in {test_file.name}: {line}"
 
                     # Should not use old naming
                     assert (

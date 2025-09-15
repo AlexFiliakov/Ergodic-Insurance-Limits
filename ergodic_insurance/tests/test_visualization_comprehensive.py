@@ -354,7 +354,7 @@ class TestBatchPlots:
         mock_results.batch_results = batch_results
 
         # Test with plotly mock
-        with patch("ergodic_insurance.src.visualization.batch_plots.go.Figure") as mock_fig:
+        with patch("ergodic_insurance.visualization.batch_plots.go.Figure") as mock_fig:
             fig = batch_plots.plot_parameter_sweep_3d(
                 mock_results, param1="param1", param2="param2", metric="mean_growth_rate"
             )
@@ -689,7 +689,7 @@ class TestInteractivePlots:
         )
 
         # Mock the plotly Figure to avoid actual rendering
-        with patch("ergodic_insurance.src.visualization.interactive_plots.go.Figure") as mock_fig:
+        with patch("ergodic_insurance.visualization.interactive_plots.go.Figure") as mock_fig:
             fig = interactive_plots.create_interactive_dashboard(
                 simulations, title="Test Dashboard"
             )
@@ -707,7 +707,7 @@ class TestInteractivePlots:
             }
         )
 
-        with patch("ergodic_insurance.src.visualization.interactive_plots.go.Figure") as mock_fig:
+        with patch("ergodic_insurance.visualization.interactive_plots.go.Figure") as mock_fig:
             mock_fig.return_value = MagicMock()
             fig = interactive_plots.create_time_series_dashboard(
                 data,
@@ -722,7 +722,7 @@ class TestInteractivePlots:
         # Create mock correlation data
         data = pd.DataFrame(np.random.randn(100, 5), columns=["A", "B", "C", "D", "E"])
 
-        with patch("ergodic_insurance.src.visualization.interactive_plots.go.Figure") as mock_fig:
+        with patch("ergodic_insurance.visualization.interactive_plots.go.Figure") as mock_fig:
             fig = interactive_plots.create_correlation_heatmap(data, title="Correlation Matrix")
             assert mock_fig.called or fig is not None
 
@@ -739,7 +739,7 @@ class TestInteractivePlots:
         )
 
         with patch(
-            "ergodic_insurance.src.visualization.interactive_plots.make_subplots"
+            "ergodic_insurance.visualization.interactive_plots.make_subplots"
         ) as mock_subplots:
             mock_subplots.return_value = MagicMock()
             fig = interactive_plots.create_risk_dashboard(risk_metrics, title="Risk Dashboard")  # type: ignore[arg-type]

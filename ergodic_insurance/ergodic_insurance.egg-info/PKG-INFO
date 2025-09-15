@@ -150,7 +150,7 @@ The project uses a modern 3-tier configuration architecture for maximum flexibil
 
 ### Quick Start
 ```python
-from ergodic_insurance.src.config_manager import ConfigManager
+from ergodic_insurance.config_manager import ConfigManager
 
 # Load a configuration profile
 manager = ConfigManager()
@@ -191,7 +191,7 @@ The enhanced parallel Monte Carlo engine provides optimal performance on budget 
 
 ### Quick Start
 ```python
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
 
 # Configure for enhanced parallel execution
 config = SimulationConfig(

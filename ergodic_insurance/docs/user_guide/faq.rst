@@ -59,7 +59,7 @@ Check convergence using:
 .. code-block:: python
 
    # Test if results have stabilized
-   from ergodic_insurance.src.convergence import test_convergence
+   from ergodic_insurance.convergence import test_convergence
 
    stable = test_convergence(results, window=1000, tolerance=0.001)
    if not stable:

@@ -7,7 +7,7 @@ and parameter impact charts.
 Example:
     Creating a tornado diagram::
 
-        from ergodic_insurance.src.sensitivity_visualization import plot_tornado_diagram
+        from ergodic_insurance.sensitivity_visualization import plot_tornado_diagram
 
         # Assuming tornado_data is a DataFrame from SensitivityAnalyzer
         fig = plot_tornado_diagram(
@@ -31,7 +31,7 @@ import pandas as pd
 import seaborn as sns
 
 if TYPE_CHECKING:
-    from ergodic_insurance.src.sensitivity import (
+    from ergodic_insurance.sensitivity import (
         SensitivityAnalyzer,
         SensitivityResult,
         TwoWaySensitivityResult,

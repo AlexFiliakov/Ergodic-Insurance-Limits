@@ -254,7 +254,7 @@ class TestMonteCarloEnginePathInBankruptcy:
         mock_results = Mock()
         mock_results.ruin_probabilities = [0.015]
 
-        with patch("ergodic_insurance.src.monte_carlo.MonteCarloEngine") as mock_mc_class:
+        with patch("ergodic_insurance.monte_carlo.MonteCarloEngine") as mock_mc_class:
             mock_mc_instance = Mock()
             mock_mc_instance.estimate_ruin_probability.return_value = mock_results
             mock_mc_class.return_value = mock_mc_instance
@@ -271,7 +271,7 @@ class TestMonteCarloEnginePathInBankruptcy:
 
         x = np.array([1_000_000, 5_000_000, 10_000_000])
 
-        with patch("ergodic_insurance.src.monte_carlo.MonteCarloEngine") as mock_mc_class:
+        with patch("ergodic_insurance.monte_carlo.MonteCarloEngine") as mock_mc_class:
             mock_mc_instance = Mock()
             mock_mc_instance.estimate_ruin_probability.side_effect = Exception("MC failed")
             mock_mc_class.return_value = mock_mc_instance
@@ -986,7 +986,7 @@ class TestDifferentialEvolutionPenalties:
             return original_objective(x, weights)
 
         with patch.object(engine, "_calculate_objective", side_effect=track_objective):
-            with patch("ergodic_insurance.src.decision_engine.differential_evolution") as mock_de:
+            with patch("ergodic_insurance.decision_engine.differential_evolution") as mock_de:
                 # Mock the differential evolution to test penalty calculation
                 def de_with_penalty(func, bounds, **kwargs):
                     # Test the penalty function with excessive coverage

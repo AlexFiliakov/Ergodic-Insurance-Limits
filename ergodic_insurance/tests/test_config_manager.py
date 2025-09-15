@@ -529,7 +529,7 @@ class TestConfigManager:
         issues = manager.validate(config)
         assert len(issues) > 0
         assert any("Time horizon" in issue for issue in issues)
-        assert any("Operating margin" in issue for issue in issues)
+        assert any("Base operating margin" in issue for issue in issues)
 
     def test_profile_inheritance(self, temp_config_dir):
         """Test profile inheritance."""

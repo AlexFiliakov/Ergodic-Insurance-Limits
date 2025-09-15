@@ -261,7 +261,7 @@ class TestSystemProfiler:
 
     def test_initialization(self):
         """Test SystemProfiler initialization."""
-        with patch("ergodic_insurance.src.benchmarking.psutil.Process") as MockProcess:
+        with patch("ergodic_insurance.benchmarking.psutil.Process") as MockProcess:
             mock_process = MockProcess.return_value
             profiler = SystemProfiler()
             assert profiler.process == mock_process
@@ -271,7 +271,7 @@ class TestSystemProfiler:
 
     def test_start(self):
         """Test profiling start."""
-        with patch("ergodic_insurance.src.benchmarking.psutil.Process") as MockProcess:
+        with patch("ergodic_insurance.benchmarking.psutil.Process") as MockProcess:
             mock_process = MockProcess.return_value
             mock_process.memory_info.return_value.rss = 256 * 1024 * 1024  # 256 MB
 
@@ -287,7 +287,7 @@ class TestSystemProfiler:
 
     def test_sample(self):
         """Test taking resource samples."""
-        with patch("ergodic_insurance.src.benchmarking.psutil.Process") as MockProcess:
+        with patch("ergodic_insurance.benchmarking.psutil.Process") as MockProcess:
             mock_process = MockProcess.return_value
             mock_process.cpu_percent.return_value = 75.5
             mock_process.memory_info.return_value.rss = 512 * 1024 * 1024  # 512 MB
@@ -308,7 +308,7 @@ class TestSystemProfiler:
 
     def test_get_metrics_empty(self):
         """Test getting metrics with no samples."""
-        with patch("ergodic_insurance.src.benchmarking.psutil.Process"):
+        with patch("ergodic_insurance.benchmarking.psutil.Process"):
             profiler = SystemProfiler()
             profiler.initial_memory = 100.0
             avg_cpu, peak_memory, avg_memory = profiler.get_metrics()
@@ -318,7 +318,7 @@ class TestSystemProfiler:
 
     def test_get_metrics_with_samples(self):
         """Test getting metrics with samples."""
-        with patch("ergodic_insurance.src.benchmarking.psutil.Process"):
+        with patch("ergodic_insurance.benchmarking.psutil.Process"):
             profiler = SystemProfiler()
             profiler.initial_memory = 100.0
             profiler.cpu_samples = [50.0, 60.0, 70.0, 80.0]
@@ -355,7 +355,7 @@ class TestBenchmarkSuite:
 
     def test_get_system_info(self):
         """Test system information collection."""
-        with patch("ergodic_insurance.src.benchmarking.psutil") as mock_psutil:
+        with patch("ergodic_insurance.benchmarking.psutil") as mock_psutil:
             mock_psutil.cpu_count.return_value = 8
             mock_psutil.virtual_memory.return_value.total = 16 * 1024**3
             mock_psutil.cpu_freq.return_value.current = 3500
@@ -684,7 +684,7 @@ class TestBenchmarkSuite:
         mock_engine.config = MagicMock()
         mock_engine.run.return_value = MagicMock(n_simulations=10000)
 
-        with patch("ergodic_insurance.src.benchmarking.BenchmarkRunner") as MockRunner:
+        with patch("ergodic_insurance.benchmarking.BenchmarkRunner") as MockRunner:
             mock_runner = MockRunner.return_value
             mock_runner.run_single_benchmark.return_value = BenchmarkMetrics(
                 execution_time=5.0,

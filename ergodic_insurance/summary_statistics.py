@@ -448,10 +448,10 @@ class SummaryStatistics:
         lower_tail = data[data <= threshold_lower]
         upper_tail = data[data >= threshold_upper]
 
-        if len(lower_tail) > 1:
+        if len(lower_tail) > 1 and np.mean(lower_tail) != 0:
             extreme_stats["lower_tail_index"] = float(np.std(lower_tail) / np.mean(lower_tail))
 
-        if len(upper_tail) > 1:
+        if len(upper_tail) > 1 and np.mean(upper_tail) != 0:
             extreme_stats["upper_tail_index"] = float(np.std(upper_tail) / np.mean(upper_tail))
 
         # Expected shortfall (CVaR)

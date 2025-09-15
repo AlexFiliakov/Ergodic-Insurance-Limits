@@ -172,7 +172,7 @@ class TestParameterSweeper:
             mock_manufacturer.assets = 10e6  # Add assets attribute for BusinessOptimizer
             mock_create.return_value = mock_manufacturer
 
-            with patch("ergodic_insurance.src.parameter_sweep.BusinessOptimizer") as MockOptimizer:
+            with patch("ergodic_insurance.parameter_sweep.BusinessOptimizer") as MockOptimizer:
                 mock_opt_instance = MockOptimizer.return_value
                 mock_opt_instance.maximize_roe_with_insurance.side_effect = Exception(
                     "Optimization failed"

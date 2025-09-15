@@ -19,14 +19,14 @@ The manufacturer model simulates realistic business operations including:
 Key Components:
     - :class:`WidgetManufacturer`: Main financial model class
     - :class:`ClaimLiability`: Actuarial claim payment tracking
-    - Integration with :mod:`~ergodic_insurance.src.config` for parameter management
-    - Integration with :mod:`~ergodic_insurance.src.stochastic_processes` for uncertainty
+    - Integration with :mod:`~ergodic_insurance.config` for parameter management
+    - Integration with :mod:`~ergodic_insurance.stochastic_processes` for uncertainty
 
 Examples:
     Basic manufacturer setup and simulation::
 
-        from ergodic_insurance.src.config_v2 import ManufacturerConfig
-        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+        from ergodic_insurance.config_v2 import ManufacturerConfig
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Configure manufacturer with realistic parameters
         config = ManufacturerConfig(
@@ -91,7 +91,7 @@ Examples:
 
     Stochastic modeling with revenue volatility::
 
-        from ergodic_insurance.src.stochastic_processes import (
+        from ergodic_insurance.stochastic_processes import (
             GeometricBrownianMotion, LognormalVolatility
         )
 
@@ -130,7 +130,7 @@ Examples:
 
     Integration with claim development patterns::
 
-        from ergodic_insurance.src.claim_development import (
+        from ergodic_insurance.claim_development import (
             ClaimDevelopment, WorkersCompensation
         )
 
@@ -172,17 +172,17 @@ Performance Considerations:
     - Reset and copy methods enable parallel simulation scenarios
 
 Integration Points:
-    - :mod:`~ergodic_insurance.src.config_v2`: Parameter configuration and validation
-    - :mod:`~ergodic_insurance.src.stochastic_processes`: Uncertainty modeling
-    - :mod:`~ergodic_insurance.src.claim_generator`: Automated claim generation
-    - :mod:`~ergodic_insurance.src.insurance_program`: Multi-layer insurance structures
-    - :mod:`~ergodic_insurance.src.simulation`: High-level simulation orchestration
+    - :mod:`~ergodic_insurance.config_v2`: Parameter configuration and validation
+    - :mod:`~ergodic_insurance.stochastic_processes`: Uncertainty modeling
+    - :mod:`~ergodic_insurance.claim_generator`: Automated claim generation
+    - :mod:`~ergodic_insurance.insurance_program`: Multi-layer insurance structures
+    - :mod:`~ergodic_insurance.simulation`: High-level simulation orchestration
 
 See Also:
-    :class:`~ergodic_insurance.src.config_v2.ManufacturerConfig`: Configuration parameters
-    :mod:`~ergodic_insurance.src.stochastic_processes`: Stochastic modeling options
-    :mod:`~ergodic_insurance.src.claim_development`: Advanced actuarial patterns
-    :mod:`~ergodic_insurance.src.simulation`: Simulation framework integration
+    :class:`~ergodic_insurance.config_v2.ManufacturerConfig`: Configuration parameters
+    :mod:`~ergodic_insurance.stochastic_processes`: Stochastic modeling options
+    :mod:`~ergodic_insurance.claim_development`: Advanced actuarial patterns
+    :mod:`~ergodic_insurance.simulation`: Simulation framework integration
 
 Note:
     This module forms the financial foundation for ergodic insurance optimization.
@@ -196,8 +196,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.src.config import ManufacturerConfig
-    from ergodic_insurance.src.stochastic_processes import StochasticProcess
+    from ergodic_insurance.config import ManufacturerConfig
+    from ergodic_insurance.stochastic_processes import StochasticProcess
 except ImportError:
     try:
         # Try relative import (for package context)
@@ -205,8 +205,8 @@ except ImportError:
         from .stochastic_processes import StochasticProcess
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config import ManufacturerConfig
-        from stochastic_processes import StochasticProcess
+        from config import ManufacturerConfig  # type: ignore[no-redef]
+        from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
 
 # Optional import for claim development integration
 if TYPE_CHECKING:
@@ -272,9 +272,9 @@ class ClaimLiability:
         Payments beyond the schedule length return 0.0.
 
     See Also:
-        :class:`~ergodic_insurance.src.claim_development.ClaimDevelopment`: For more
+        :class:`~ergodic_insurance.claim_development.ClaimDevelopment`: For more
         sophisticated claim development patterns.
-        :class:`~ergodic_insurance.src.claim_development.Claim`: For comprehensive
+        :class:`~ergodic_insurance.claim_development.Claim`: For comprehensive
         claim tracking with reserving.
     """
 
@@ -435,7 +435,7 @@ class WidgetManufacturer:
         Args:
             config (ManufacturerConfig): Manufacturing configuration parameters
                 including initial assets, margins, tax rates, and financial ratios.
-                See :class:`~ergodic_insurance.src.config.ManufacturerConfig` for
+                See :class:`~ergodic_insurance.config.ManufacturerConfig` for
                 complete parameter descriptions.
             stochastic_process (Optional[StochasticProcess]): Optional stochastic
                 process for adding revenue volatility. If provided, enables
@@ -454,7 +454,7 @@ class WidgetManufacturer:
 
             With stochastic revenue modeling::
 
-                from ergodic_insurance.src.stochastic_processes import (
+                from ergodic_insurance.stochastic_processes import (
                     GeometricBrownianMotion
                 )
 
@@ -464,9 +464,9 @@ class WidgetManufacturer:
                 manufacturer = WidgetManufacturer(config, gbm)
 
         See Also:
-            :class:`~ergodic_insurance.src.config.ManufacturerConfig`: Configuration
+            :class:`~ergodic_insurance.config.ManufacturerConfig`: Configuration
             parameters and validation.
-            :class:`~ergodic_insurance.src.stochastic_processes.StochasticProcess`:
+            :class:`~ergodic_insurance.stochastic_processes.StochasticProcess`:
             Base class for stochastic modeling.
         """
         self.config = config
@@ -554,7 +554,7 @@ class WidgetManufacturer:
 
         Side Effects:
             - Increases period_insurance_premiums by premium_amount
-            - Does NOT immediately reduce assets (handled through net income)
+            - Does NOT immediately reduce assets (handled through net income calculation)
 
         Note:
             This method should be called whenever premium payments are made,
@@ -567,8 +567,8 @@ class WidgetManufacturer:
         """
         if premium_amount > 0:
             self.period_insurance_premiums += premium_amount
-            # Do NOT reduce assets here - let it flow through net income calculation
-            # This ensures premiums are treated as operating expenses, not asset liquidation
+            # Do NOT reduce assets here - premiums are handled through net income calculation
+            # to avoid double-counting (they reduce operating income -> net income -> equity)
             logger.info(f"Recorded insurance premium expense: ${premium_amount:,.2f}")
             logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
 
@@ -770,7 +770,7 @@ class WidgetManufacturer:
 
             With stochastic shocks::
 
-                from ergodic_insurance.src.stochastic_processes import (
+                from ergodic_insurance.stochastic_processes import (
                     LognormalVolatility
                 )
 
@@ -789,7 +789,7 @@ class WidgetManufacturer:
 
         See Also:
             :attr:`asset_turnover_ratio`: Core parameter for revenue calculation.
-            :class:`~ergodic_insurance.src.stochastic_processes.StochasticProcess`:
+            :class:`~ergodic_insurance.stochastic_processes.StochasticProcess`:
             For stochastic modeling options.
         """
         # Adjust for working capital if specified
@@ -933,19 +933,20 @@ class WidgetManufacturer:
         """Calculate net income after collateral costs and taxes.
 
         Net income represents the final profitability available to shareholders
-        after all operating expenses, financing costs, and taxes. Note that
-        insurance costs are now included in operating income, so the insurance
-        parameters are kept for backward compatibility but not used in calculation.
+        after all operating expenses, financing costs, and taxes. Insurance costs
+        can be handled in two ways for backward compatibility:
+        1. New way: Already included in operating_income via calculate_operating_income()
+        2. Legacy way: Passed as separate parameters to this method
 
         Args:
-            operating_income (float): Operating income after insurance costs (EBIT).
-                Can be negative if operations are unprofitable.
+            operating_income (float): Operating income (EBIT). May or may not include
+                insurance costs depending on how it was calculated.
             collateral_costs (float): Financing costs for letter of credit
                 collateral. Must be >= 0.
-            insurance_premiums (float): Deprecated - insurance is now in operating income.
-                Kept for backward compatibility. Defaults to 0.0.
-            insurance_losses (float): Deprecated - insurance is now in operating income.
-                Kept for backward compatibility. Defaults to 0.0.
+            insurance_premiums (float): Insurance premium costs to deduct. If operating_income
+                already includes these, pass 0. Defaults to 0.0.
+            insurance_losses (float): Insurance loss/deductible costs to deduct. If operating_income
+                already includes these, pass 0. Defaults to 0.0.
 
         Returns:
             float: Net income after all expenses and taxes. Can be negative
@@ -983,8 +984,10 @@ class WidgetManufacturer:
             :attr:`tax_rate`: Tax rate applied to positive income.
             :attr:`retention_ratio`: Portion of net income retained vs. distributed.
         """
-        # Deduct collateral costs (insurance already in operating income)
-        income_before_tax = operating_income - collateral_costs
+        # Deduct all costs from operating income
+        # For backward compatibility, also deduct insurance costs if provided as parameters
+        total_insurance_costs = insurance_premiums + insurance_losses
+        income_before_tax = operating_income - collateral_costs - total_insurance_costs
 
         # Calculate taxes (only on positive income)
         taxes = max(0, income_before_tax * self.tax_rate)
@@ -992,9 +995,9 @@ class WidgetManufacturer:
         net_income = income_before_tax - taxes
 
         # Enhanced logging for tax calculation transparency
-        logger.debug(
-            f"Tax calculation: Operating income ${operating_income:,.2f} (includes insurance)"
-        )
+        logger.debug(f"Tax calculation: Operating income ${operating_income:,.2f}")
+        if total_insurance_costs > 0:
+            logger.debug(f"  - Insurance costs: ${total_insurance_costs:,.2f}")
         logger.debug(f"  - Collateral costs: ${collateral_costs:,.2f}")
         logger.debug(f"  = Income before tax: ${income_before_tax:,.2f}")
         logger.debug(f"  - Taxes (@{self.tax_rate:.1%}): ${taxes:,.2f}")
@@ -1165,7 +1168,7 @@ class WidgetManufacturer:
         See Also:
             :class:`ClaimLiability`: For understanding payment schedules.
             :meth:`pay_claim_liabilities`: For processing scheduled payments.
-            :class:`~ergodic_insurance.src.insurance_program.InsuranceProgram`:
+            :class:`~ergodic_insurance.insurance_program.InsuranceProgram`:
             For complex multi-layer insurance calculations.
         """
         # Handle new style parameters if provided
@@ -1438,7 +1441,7 @@ class WidgetManufacturer:
         Examples:
             Basic enhanced claim processing::
 
-                from ergodic_insurance.src.claim_development import (
+                from ergodic_insurance.claim_development import (
                     ClaimDevelopment, WorkersCompensation
                 )
 
@@ -1487,9 +1490,9 @@ class WidgetManufacturer:
         See Also:
             :meth:`process_insurance_claim`: Basic claim processing without
             development patterns.
-            :class:`~ergodic_insurance.src.claim_development.ClaimDevelopment`:
+            :class:`~ergodic_insurance.claim_development.ClaimDevelopment`:
             Base class for development patterns.
-            :class:`~ergodic_insurance.src.claim_development.Claim`: Enhanced
+            :class:`~ergodic_insurance.claim_development.Claim`: Enhanced
             claim tracking with reserving capabilities.
         """
         # Process the immediate financial impact
@@ -1939,12 +1942,12 @@ class WidgetManufacturer:
             # Annual collateral costs (sum of 12 monthly payments)
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
 
-        # Calculate net income with proper tax treatment of insurance costs
+        # Calculate net income (insurance costs already included in operating_income)
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            self.period_insurance_premiums,
-            self.period_insurance_losses,
+            0,  # Insurance premiums already deducted in operating_income
+            0,  # Insurance losses already deducted in operating_income
         )
 
         # Update balance sheet with retained earnings
@@ -2110,7 +2113,7 @@ class WidgetManufacturer:
 
         See Also:
             :meth:`reset`: Reset existing instance instead of copying.
-            :class:`~ergodic_insurance.src.stochastic_processes.StochasticProcess`:
+            :class:`~ergodic_insurance.stochastic_processes.StochasticProcess`:
             For stochastic process copying behavior.
         """
         import copy

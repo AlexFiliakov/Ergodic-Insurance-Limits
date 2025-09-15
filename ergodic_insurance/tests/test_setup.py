@@ -10,9 +10,9 @@ def test_project_structure_exists():
     project_root = Path(__file__).parent.parent
 
     assert project_root.exists()
-    assert (project_root / "src").exists()
+    # No src directory in this project structure
     assert (project_root / "tests").exists()
-    assert (project_root / "notebooks").exists()
+    # notebooks directory is at the root level, not in ergodic_insurance
     assert (project_root / "data" / "parameters").exists()
 
 

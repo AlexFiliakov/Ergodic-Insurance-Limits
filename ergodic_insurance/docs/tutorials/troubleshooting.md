@@ -74,7 +74,7 @@ pip install numpy scipy --platform macosx_11_0_arm64
 
 **Symptoms:**
 ```python
->>> from ergodic_insurance.src.manufacturer import Manufacturer
+>>> from ergodic_insurance.manufacturer import Manufacturer
 ModuleNotFoundError: No module named 'ergodic_insurance'
 ```
 
@@ -102,7 +102,7 @@ ImportError: cannot import name 'ClaimGenerator' from 'ergodic_insurance.src'
 **Solution:**
 ```python
 # Use correct import path
-from ergodic_insurance.src.claim_generator import ClaimGenerator
+from ergodic_insurance.claim_generator import ClaimGenerator
 
 # Check available modules
 import ergodic_insurance.src
@@ -243,7 +243,7 @@ quick_test = mc_analyzer.run_simulations(
 )
 
 # 2. Use parallel processing
-from ergodic_insurance.src.parallel_executor import ParallelExecutor
+from ergodic_insurance.parallel_executor import ParallelExecutor
 
 executor = ParallelExecutor(n_workers=4)
 results = executor.run_parallel_monte_carlo(
@@ -335,7 +335,7 @@ def run_large_simulation(n_total, batch_size=1000):
     return all_results
 
 # 2. Use memory-efficient storage
-from ergodic_insurance.src.trajectory_storage import TrajectoryStorage
+from ergodic_insurance.trajectory_storage import TrajectoryStorage
 
 storage = TrajectoryStorage(
     storage_type='disk',  # Use disk instead of memory
@@ -534,7 +534,7 @@ ValidationError: 1 validation error for ManufacturerConfig
 **Solution:**
 ```python
 # 1. Check required fields
-from ergodic_insurance.src.config_v2 import ManufacturerConfig
+from ergodic_insurance.config_v2 import ManufacturerConfig
 
 # See what's required
 print(ManufacturerConfig.schema())

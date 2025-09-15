@@ -37,7 +37,7 @@ class ConfigLoader:
     while using the new ConfigManager internally.
     """
 
-    DEFAULT_CONFIG_DIR = Path(__file__).parent.parent / "data" / "parameters"
+    DEFAULT_CONFIG_DIR = Path(__file__).parent / "data" / "parameters"
     DEFAULT_CONFIG_FILE = "baseline.yaml"
 
     def __init__(self, config_dir: Optional[Path] = None):

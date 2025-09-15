@@ -337,8 +337,8 @@ class TestBatchProcessor:
         assert processor.n_workers == 4
         assert processor.checkpoint_dir.exists()
 
-    @patch("ergodic_insurance.src.batch_processor.time")
-    @patch("ergodic_insurance.src.batch_processor.MonteCarloEngine")
+    @patch("ergodic_insurance.batch_processor.time")
+    @patch("ergodic_insurance.batch_processor.MonteCarloEngine")
     def test_process_single_scenario(
         self,
         mock_engine_class,
@@ -373,7 +373,7 @@ class TestBatchProcessor:
         assert result.simulation_results == mock_simulation_results
         assert result.execution_time == 1.5  # 101.5 - 100.0
 
-    @patch("ergodic_insurance.src.batch_processor.MonteCarloEngine")
+    @patch("ergodic_insurance.batch_processor.MonteCarloEngine")
     def test_process_batch_serial(
         self, mock_engine_class, mock_components, scenario_manager, mock_simulation_results
     ):
@@ -407,8 +407,8 @@ class TestBatchProcessor:
         assert not results.summary_statistics.empty
         assert results.execution_summary["completed"] == 3
 
-    @patch("ergodic_insurance.src.batch_processor.ProcessPoolExecutor")
-    @patch("ergodic_insurance.src.batch_processor.MonteCarloEngine")
+    @patch("ergodic_insurance.batch_processor.ProcessPoolExecutor")
+    @patch("ergodic_insurance.batch_processor.MonteCarloEngine")
     def test_process_batch_parallel(
         self,
         mock_engine_class,
@@ -453,7 +453,7 @@ class TestBatchProcessor:
         )
 
         # Mock as_completed to return futures
-        with patch("ergodic_insurance.src.batch_processor.as_completed") as mock_as_completed:
+        with patch("ergodic_insurance.batch_processor.as_completed") as mock_as_completed:
             mock_as_completed.return_value = [mock_future] * 3
 
             # Process batch
@@ -680,7 +680,7 @@ class TestAggregatedResults:
 class TestIntegration:
     """Integration tests for the batch processing framework."""
 
-    @patch("ergodic_insurance.src.batch_processor.MonteCarloEngine")
+    @patch("ergodic_insurance.batch_processor.MonteCarloEngine")
     def test_end_to_end_workflow(self, mock_engine_class, mock_components, mock_simulation_results):
         """Test complete workflow from scenario creation to results."""
         loss_gen, insurance, manufacturer = mock_components

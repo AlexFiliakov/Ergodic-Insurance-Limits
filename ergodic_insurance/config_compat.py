@@ -12,9 +12,9 @@ import yaml
 
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.src.config import Config
-    from ergodic_insurance.src.config_manager import ConfigManager
-    from ergodic_insurance.src.config_v2 import ConfigV2
+    from ergodic_insurance.config import Config
+    from ergodic_insurance.config_manager import ConfigManager
+    from ergodic_insurance.config_v2 import ConfigV2
 except ImportError:
     try:
         # Try relative import (for package context)
@@ -23,9 +23,9 @@ except ImportError:
         from .config_v2 import ConfigV2
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config import Config
-        from config_manager import ConfigManager
-        from config_v2 import ConfigV2
+        from config import Config  # type: ignore[no-redef]
+        from config_manager import ConfigManager  # type: ignore[no-redef]
+        from config_v2 import ConfigV2  # type: ignore[no-redef]
 
 
 class LegacyConfigAdapter:
@@ -33,7 +33,9 @@ class LegacyConfigAdapter:
 
     def __init__(self):
         """Initialize the legacy adapter."""
-        self.config_manager = ConfigManager()
+        # Use the correct config directory with profiles subdirectory
+        config_dir = Path(__file__).parent / "data" / "config"
+        self.config_manager = ConfigManager(config_dir)
         self._profile_mapping = {
             "baseline": "default",
             "conservative": "conservative",
@@ -79,7 +81,7 @@ class LegacyConfigAdapter:
 
         # Load using new system
         try:
-            config_v2 = self.config_manager.load_profile(profile_name, **overrides)
+            config_v2 = self.config_manager.load_profile(profile_name, use_cache=True, **overrides)
 
             # Convert to legacy Config format
             return self._convert_to_legacy(config_v2)
@@ -118,7 +120,7 @@ class LegacyConfigAdapter:
         # Extract the sections needed for legacy Config
         try:
             # Try absolute import first (for installed package)
-            from ergodic_insurance.src.config import (
+            from ergodic_insurance.config import (
                 Config,
                 DebtConfig,
                 GrowthConfig,
@@ -143,7 +145,7 @@ class LegacyConfigAdapter:
                 )
             except ImportError:
                 # Fall back to direct import (for notebooks/scripts)
-                from config import (
+                from config import (  # type: ignore[no-redef]
                     Config,
                     DebtConfig,
                     GrowthConfig,
@@ -176,7 +178,7 @@ class LegacyConfigAdapter:
         """
         # Try to find legacy config file
         # Use absolute path based on current module location
-        module_path = Path(__file__).parent.parent
+        module_path = Path(__file__).parent
         legacy_dir = module_path / "data" / "parameters"
         config_file = legacy_dir / f"{config_name}.yaml"
 
@@ -270,12 +272,12 @@ def migrate_config_usage(file_path: Path) -> None:
 
     # Replace imports
     content = content.replace(
-        "from ergodic_insurance.src.config_loader import ConfigLoader",
-        "from ergodic_insurance.src.config_manager import ConfigManager",
+        "from ergodic_insurance.config_loader import ConfigLoader",
+        "from ergodic_insurance.config_manager import ConfigManager",
     )
     content = content.replace(
-        "from ergodic_insurance.src.config_loader import load_config",
-        "from ergodic_insurance.src.config_compat import load_config  # TODO: Migrate to ConfigManager",
+        "from ergodic_insurance.config_loader import load_config",
+        "from ergodic_insurance.config_compat import load_config  # TODO: Migrate to ConfigManager",
     )
 
     # Replace ConfigLoader usage

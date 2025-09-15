@@ -289,7 +289,7 @@ print(f"Time-Weighted ROE: {result_summary['time_weighted_roe']:.2%}")
 For robust analysis, we need multiple simulation paths:
 
 ```python
-from ergodic_insurance.src.monte_carlo import MonteCarloAnalyzer
+from ergodic_insurance.monte_carlo import MonteCarloAnalyzer
 
 # Create Monte Carlo analyzer
 mc_analyzer = MonteCarloAnalyzer(
@@ -460,7 +460,7 @@ plt.show()
 ### Using Different Random Processes
 
 ```python
-from ergodic_insurance.src.stochastic_processes import GeometricBrownianMotion
+from ergodic_insurance.stochastic_processes import GeometricBrownianMotion
 
 # Add market volatility to assets
 gbm = GeometricBrownianMotion(
@@ -475,7 +475,7 @@ gbm = GeometricBrownianMotion(
 ### Parallel Processing
 
 ```python
-from ergodic_insurance.src.parallel_executor import ParallelExecutor
+from ergodic_insurance.parallel_executor import ParallelExecutor
 
 # Use parallel processing for large simulations
 executor = ParallelExecutor(n_workers=4)

@@ -11,7 +11,7 @@ The caching system achieves:
     - Support for both local and cloud storage backends
 
 Example:
-    >>> from ergodic_insurance.src.reporting import CacheManager
+    >>> from ergodic_insurance.reporting import CacheManager
     >>> cache = CacheManager()
     >>> # Cache expensive simulation
     >>> key = cache.cache_simulation_paths(

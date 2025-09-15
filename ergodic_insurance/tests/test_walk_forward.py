@@ -238,7 +238,7 @@ class TestStrategyBacktester:
         assert isinstance(program, InsuranceProgram)
         assert strategy.optimized_params is not None
 
-    @patch("ergodic_insurance.src.strategy_backtester.MonteCarloEngine")
+    @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
     def test_strategy_backtester(self, mock_mc_engine):
         """Test StrategyBacktester."""
         # Mock Monte Carlo engine
@@ -274,7 +274,7 @@ class TestStrategyBacktester:
         assert result.strategy_name == "No Insurance"
         assert isinstance(result.metrics, ValidationMetrics)
 
-    @patch("ergodic_insurance.src.strategy_backtester.MonteCarloEngine")
+    @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
     def test_multiple_strategies_comparison(self, mock_mc_engine):
         """Test comparing multiple strategies."""
         # Mock results
@@ -342,7 +342,7 @@ class TestWalkForwardValidator:
         assert window.get_test_years() == 3
         assert "Train[0-7]" in str(window)
 
-    @patch("ergodic_insurance.src.walk_forward_validator.StrategyBacktester")
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
     def test_process_window(self, mock_backtester):
         """Test processing a single window."""
         # Setup mocks
@@ -421,7 +421,7 @@ class TestWalkForwardValidator:
         assert "No Insurance" in result.strategy_performances
         assert result.strategy_performances["No Insurance"].overfitting_score > 0
 
-    @patch("ergodic_insurance.src.walk_forward_validator.StrategyBacktester")
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
     def test_validate_strategies(self, mock_backtester):
         """Test full validation process."""
         # Setup mocks
@@ -621,7 +621,7 @@ class TestWalkForwardValidator:
 class TestIntegration:
     """Integration tests for the walk-forward validation system."""
 
-    @patch("ergodic_insurance.src.strategy_backtester.MonteCarloEngine")
+    @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
     def test_end_to_end_validation(self, mock_mc_engine):
         """Test complete validation workflow."""
         # Setup mock results

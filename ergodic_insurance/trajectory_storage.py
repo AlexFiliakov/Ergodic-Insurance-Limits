@@ -15,7 +15,7 @@ Features:
     - <1GB disk usage with sampling
 
 Example:
-    >>> from ergodic_insurance.src.trajectory_storage import TrajectoryStorage
+    >>> from ergodic_insurance.trajectory_storage import TrajectoryStorage
     >>> storage = TrajectoryStorage(
     ...     storage_dir="./trajectories",
     ...     sample_interval=5,  # Store every 5th year

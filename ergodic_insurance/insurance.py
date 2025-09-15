@@ -18,7 +18,7 @@ Key Features:
 Examples:
     Simple single-layer policy::
 
-        from ergodic_insurance.src.insurance import InsurancePolicy, InsuranceLayer
+        from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
 
         # $5M excess $1M with 3% rate
         layer = InsuranceLayer(
@@ -247,7 +247,7 @@ class InsurancePolicy:
         Examples:
             Create policy with dynamic pricing::
 
-                from ergodic_insurance.src.insurance_pricing import InsurancePricer
+                from ergodic_insurance.insurance_pricing import InsurancePricer
 
                 pricer = InsurancePricer(base_rate=0.02)
 

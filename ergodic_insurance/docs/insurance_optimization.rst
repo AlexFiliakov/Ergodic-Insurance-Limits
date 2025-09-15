@@ -23,7 +23,7 @@ For basic insurance programs with a single layer:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.insurance import optimize_insurance_limit
+   from ergodic_insurance.insurance import optimize_insurance_limit
 
    optimal_limit = optimize_insurance_limit(
        manufacturer=manufacturer,
@@ -44,8 +44,8 @@ For sophisticated insurance programs with multiple layers:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.insurance_program import InsuranceProgram
-   from ergodic_insurance.src.optimization import optimize_program_structure
+   from ergodic_insurance.insurance_program import InsuranceProgram
+   from ergodic_insurance.optimization import optimize_program_structure
 
    # Define layer structure
    layers = [
@@ -112,7 +112,7 @@ Multi-objective optimization balancing growth and risk:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.pareto_frontier import ParetoFrontier
+   from ergodic_insurance.pareto_frontier import ParetoFrontier
 
    frontier = ParetoFrontier()
 
@@ -137,7 +137,7 @@ For time-varying insurance decisions:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.optimal_control import DynamicInsuranceOptimizer
+   from ergodic_insurance.optimal_control import DynamicInsuranceOptimizer
 
    optimizer = DynamicInsuranceOptimizer()
 
@@ -160,7 +160,7 @@ Incorporating uncertainty in optimization:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.optimization import StochasticOptimizer
+   from ergodic_insurance.optimization import StochasticOptimizer
 
    optimizer = StochasticOptimizer()
 
@@ -299,7 +299,7 @@ Step 2: Set Up Optimization
 
 .. code-block:: python
 
-   from ergodic_insurance.src.decision_engine import InsuranceDecisionEngine
+   from ergodic_insurance.decision_engine import InsuranceDecisionEngine
 
    engine = InsuranceDecisionEngine(
        manufacturer=manufacturer,

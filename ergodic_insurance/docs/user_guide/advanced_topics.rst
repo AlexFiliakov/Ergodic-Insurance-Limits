@@ -14,7 +14,7 @@ Different industries have unique loss patterns. Here's how to customize the dist
 .. code-block:: python
    :caption: Custom loss distribution for cyber risks
 
-   from ergodic_insurance.src.loss_distributions import CustomLossDistribution
+   from ergodic_insurance.loss_distributions import CustomLossDistribution
    import numpy as np
    from scipy import stats
 
@@ -53,7 +53,7 @@ Use your actual loss history to calibrate distributions:
 .. code-block:: python
    :caption: Calibrating distributions from data
 
-   from ergodic_insurance.src.loss_distributions import fit_distribution
+   from ergodic_insurance.loss_distributions import fit_distribution
    import pandas as pd
    from scipy import stats
 
@@ -107,7 +107,7 @@ Losses often correlate with economic conditions:
 .. code-block:: python
    :caption: Implementing correlation between revenue and losses
 
-   from ergodic_insurance.src.stochastic_processes import CorrelatedShocks
+   from ergodic_insurance.stochastic_processes import CorrelatedShocks
 
    class CorrelatedRiskModel:
        """Model correlation between business performance and losses."""

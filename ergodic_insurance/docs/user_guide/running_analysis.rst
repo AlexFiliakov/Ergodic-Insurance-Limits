@@ -43,8 +43,8 @@ Edit your configuration file with company-specific parameters:
 .. code-block:: python
    :caption: Setting up your manufacturer model
 
-   from ergodic_insurance.src.manufacturer import WidgetManufacturer
-   from ergodic_insurance.src.config import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance.config import ManufacturerConfig
 
    # Option 1: Direct instantiation
    manufacturer = WidgetManufacturer(
@@ -59,7 +59,7 @@ Edit your configuration file with company-specific parameters:
    )
 
    # Option 2: Using configuration
-   from ergodic_insurance.src.config_loader import load_config
+   from ergodic_insurance.config_loader import load_config
 
    config = load_config('my_baseline.yaml')
    manufacturer = WidgetManufacturer.from_config(config.manufacturer)
@@ -72,7 +72,7 @@ Choose between deterministic and stochastic revenue models:
 .. code-block:: python
    :caption: Revenue modeling options
 
-   from ergodic_insurance.src.stochastic_processes import (
+   from ergodic_insurance.stochastic_processes import (
        GeometricBrownianMotion,
        LognormalShock,
        MeanRevertingProcess
@@ -105,7 +105,7 @@ If you have loss history, calibrate distributions:
 .. code-block:: python
    :caption: Calibrating from historical losses
 
-   from ergodic_insurance.src.loss_distributions import (
+   from ergodic_insurance.loss_distributions import (
        AttritionalLosses,
        LargeLosses,
        CatastrophicLosses
@@ -183,8 +183,8 @@ First, establish your baseline risk:
 .. code-block:: python
    :caption: Baseline simulation without insurance
 
-   from ergodic_insurance.src.monte_carlo import MonteCarloEngine
-   from ergodic_insurance.src.claim_generator import ClaimGenerator
+   from ergodic_insurance.monte_carlo import MonteCarloEngine
+   from ergodic_insurance.claim_generator import ClaimGenerator
 
    # Set up claim generator
    claim_gen = ClaimGenerator(
@@ -217,7 +217,7 @@ Evaluate different insurance configurations:
 .. code-block:: python
    :caption: Comparing insurance structures
 
-   from ergodic_insurance.src.insurance_program import InsuranceProgram
+   from ergodic_insurance.insurance_program import InsuranceProgram
    import numpy as np
 
    # Test different retention levels
@@ -272,7 +272,7 @@ Test sensitivity to key assumptions:
 .. code-block:: python
    :caption: Sensitivity analysis
 
-   from ergodic_insurance.src.visualization import create_sensitivity_plot
+   from ergodic_insurance.visualization import create_sensitivity_plot
 
    # Parameters to test
    sensitivity_params = {
@@ -326,7 +326,7 @@ Compare time-average vs ensemble-average performance:
 .. code-block:: python
    :caption: Ergodic analysis
 
-   from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
    analyzer = ErgodicAnalyzer()
 
@@ -350,7 +350,7 @@ Calculate comprehensive risk measures:
 .. code-block:: python
    :caption: Risk metric calculation
 
-   from ergodic_insurance.src.risk_metrics import RiskMetrics
+   from ergodic_insurance.risk_metrics import RiskMetrics
 
    risk_calc = RiskMetrics()
 
@@ -373,7 +373,7 @@ Create comprehensive visualizations:
 .. code-block:: python
    :caption: Creating analysis visualizations
 
-   from ergodic_insurance.src.visualization import (
+   from ergodic_insurance.visualization import (
        plot_wealth_paths,
        plot_survival_curves,
        plot_growth_distribution,
@@ -468,7 +468,7 @@ Create professional reports for stakeholders:
 .. code-block:: python
    :caption: Generating analysis report
 
-   from ergodic_insurance.src.reporting import ReportGenerator
+   from ergodic_insurance.reporting import ReportGenerator
 
    # Initialize report generator
    report = ReportGenerator(
@@ -526,7 +526,7 @@ Simulation Guidelines
 .. code-block:: python
 
    # Check if results have converged
-   from ergodic_insurance.src.convergence import check_convergence
+   from ergodic_insurance.convergence import check_convergence
 
    converged = check_convergence(
        results.growth_rates,

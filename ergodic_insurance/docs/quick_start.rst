@@ -11,7 +11,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from ergodic_insurance.src.config_manager import ConfigManager
+   from ergodic_insurance.config_manager import ConfigManager
 
    # Initialize configuration manager
    manager = ConfigManager()
@@ -24,7 +24,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from ergodic_insurance.src.manufacturer import WidgetManufacturer
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
    # Create manufacturer with configuration
    manufacturer = WidgetManufacturer(config.manufacturer)
@@ -37,7 +37,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from ergodic_insurance.src.claim_generator import ClaimGenerator
+   from ergodic_insurance.claim_generator import ClaimGenerator
 
    # Set up claim generator
    generator = ClaimGenerator()
@@ -54,7 +54,7 @@ Basic Usage
 
 .. code-block:: python
 
-   from ergodic_insurance.src.simulation import Simulation
+   from ergodic_insurance.simulation import Simulation
 
    # Create and run simulation
    sim = Simulation(
@@ -75,10 +75,10 @@ Here's a complete example that demonstrates the key features:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.config_manager import ConfigManager
-   from ergodic_insurance.src.manufacturer import WidgetManufacturer
-   from ergodic_insurance.src.claim_generator import ClaimGenerator
-   from ergodic_insurance.src.insurance import optimize_insurance_limit
+   from ergodic_insurance.config_manager import ConfigManager
+   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance.claim_generator import ClaimGenerator
+   from ergodic_insurance.insurance import optimize_insurance_limit
 
    # Configuration
    manager = ConfigManager()
@@ -152,7 +152,7 @@ Compare time-average vs ensemble-average growth:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
    analyzer = ErgodicAnalyzer()
 
@@ -184,7 +184,7 @@ Quick visualizations of results:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.visualization import plot_simulation_results
+   from ergodic_insurance.visualization import plot_simulation_results
 
    # Run simulation
    results = sim.run(years=20)

@@ -16,7 +16,7 @@ Key Features:
     - Configurable storage backends
 
 Example:
-    >>> from ergodic_insurance.src.reporting import ExecutiveReport, CacheManager
+    >>> from ergodic_insurance.reporting import ExecutiveReport, CacheManager
     >>> # Generate executive report
     >>> report = ExecutiveReport(results={'roe': 0.18, 'ruin_probability': 0.01})
     >>> report_path = report.generate()

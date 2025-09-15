@@ -26,9 +26,9 @@ Quick Start with Configuration v2
 
 .. code-block:: python
 
-   from ergodic_insurance.src.config_manager import ConfigManager
-   from ergodic_insurance.src.manufacturer import WidgetManufacturer
-   from ergodic_insurance.src.simulation import run_simulation
+   from ergodic_insurance.config_manager import ConfigManager
+   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance.simulation import run_simulation
 
    # Load configuration using the new system
    manager = ConfigManager()
@@ -213,7 +213,7 @@ Example: Ergodic Analysis
 
 .. code-block:: python
 
-   from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
    # Run ergodic analysis
    analyzer = ErgodicAnalyzer()

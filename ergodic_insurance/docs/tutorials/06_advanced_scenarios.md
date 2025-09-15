@@ -21,10 +21,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.stats import multivariate_normal
-from ergodic_insurance.src.manufacturer import Manufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.monte_carlo import MonteCarloAnalyzer
+from ergodic_insurance.manufacturer import Manufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.insurance_program import InsuranceProgram
+from ergodic_insurance.monte_carlo import MonteCarloAnalyzer
 
 # Define multiple perils
 class MultiPerilGenerator:

@@ -23,13 +23,13 @@ from typing import Any, Dict, List, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_migrator import ConfigMigrator
-from ergodic_insurance.src.config_v2 import ConfigV2
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.config_migrator import ConfigMigrator
+from ergodic_insurance.config_v2 import ConfigV2
+from ergodic_insurance.insurance_program import InsuranceProgram
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
 
 
 def demo_scenario_comparison():

@@ -576,8 +576,8 @@ class TestRuinProbabilityAnalyzer:
             n_workers=2,
         )
 
-        with patch("ergodic_insurance.src.ruin_probability.ProcessPoolExecutor") as mock_executor:
-            with patch("ergodic_insurance.src.ruin_probability.tqdm") as mock_tqdm:
+        with patch("ergodic_insurance.ruin_probability.ProcessPoolExecutor") as mock_executor:
+            with patch("ergodic_insurance.ruin_probability.tqdm") as mock_tqdm:
                 # Setup mock executor
                 mock_future = Mock(spec=Future)
                 mock_future.result.return_value = {
@@ -594,9 +594,7 @@ class TestRuinProbabilityAnalyzer:
                 mock_executor_instance.submit.return_value = mock_future
 
                 # Mock as_completed to return our futures
-                with patch(
-                    "ergodic_insurance.src.ruin_probability.as_completed"
-                ) as mock_as_completed:
+                with patch("ergodic_insurance.ruin_probability.as_completed") as mock_as_completed:
                     mock_as_completed.return_value = [mock_future]
 
                     result = analyzer._run_ruin_simulations_parallel(config)

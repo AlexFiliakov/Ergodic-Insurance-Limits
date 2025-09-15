@@ -222,7 +222,7 @@ class WalkForwardValidator:
 
         # Initialize manufacturer and config if not provided
         if manufacturer is None:
-            from ergodic_insurance.src.config import ManufacturerConfig
+            from ergodic_insurance.config import ManufacturerConfig
 
             default_mfg_config = ManufacturerConfig(
                 initial_assets=10000000,
@@ -233,7 +233,7 @@ class WalkForwardValidator:
             )
             manufacturer = WidgetManufacturer(default_mfg_config)
         if config is None:
-            from ergodic_insurance.src.config import (
+            from ergodic_insurance.config import (
                 Config,
                 DebtConfig,
                 GrowthConfig,
@@ -241,8 +241,8 @@ class WalkForwardValidator:
                 ManufacturerConfig,
                 OutputConfig,
             )
-            from ergodic_insurance.src.config import SimulationConfig as SimConfig
-            from ergodic_insurance.src.config import WorkingCapitalConfig
+            from ergodic_insurance.config import SimulationConfig as SimConfig
+            from ergodic_insurance.config import WorkingCapitalConfig
 
             config = Config(
                 manufacturer=ManufacturerConfig(

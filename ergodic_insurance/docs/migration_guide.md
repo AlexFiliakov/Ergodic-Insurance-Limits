@@ -26,12 +26,12 @@ Use the new `ConfigManager` for all new code:
 
 ```python
 # Old way (deprecated)
-from ergodic_insurance.src.config_loader import ConfigLoader
+from ergodic_insurance.config_loader import ConfigLoader
 loader = ConfigLoader()
 config = loader.load("baseline")
 
 # New way (recommended)
-from ergodic_insurance.src.config_manager import ConfigManager
+from ergodic_insurance.config_manager import ConfigManager
 manager = ConfigManager()
 config = manager.load_profile("default")  # Note: "baseline" → "default"
 ```
@@ -41,7 +41,7 @@ Existing code continues to work with deprecation warnings:
 
 ```python
 # This still works but shows a deprecation warning
-from ergodic_insurance.src.config_loader import ConfigLoader
+from ergodic_insurance.config_loader import ConfigLoader
 loader = ConfigLoader()
 config = loader.load("baseline")  # Automatically mapped to new system
 ```
@@ -52,7 +52,7 @@ config = loader.load("baseline")  # Automatically mapped to new system
 
 **Old:**
 ```python
-from ergodic_insurance.src.config_loader import ConfigLoader
+from ergodic_insurance.config_loader import ConfigLoader
 
 loader = ConfigLoader()
 config = loader.load("baseline")
@@ -60,7 +60,7 @@ config = loader.load("baseline")
 
 **New:**
 ```python
-from ergodic_insurance.src.config_manager import ConfigManager
+from ergodic_insurance.config_manager import ConfigManager
 
 manager = ConfigManager()
 config = manager.load_profile("default")
@@ -186,7 +186,7 @@ variant = config.with_overrides(
 
 ```python
 # Validate a configuration
-from ergodic_insurance.src.config_v2 import ConfigV2
+from ergodic_insurance.config_v2 import ConfigV2
 
 config = manager.load_profile("default")
 assert isinstance(config, ConfigV2)  # New config type
@@ -235,9 +235,9 @@ Here's a complete example showing old vs new approaches:
 
 ### Old Approach
 ```python
-from ergodic_insurance.src.config_loader import ConfigLoader
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.simulation import run_simulation
+from ergodic_insurance.config_loader import ConfigLoader
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.simulation import run_simulation
 
 # Load configuration
 loader = ConfigLoader()
@@ -255,9 +255,9 @@ results = run_simulation(manufacturer, config.simulation)
 
 ### New Approach
 ```python
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.simulation import run_simulation
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.simulation import run_simulation
 
 # Load configuration with new system
 manager = ConfigManager()

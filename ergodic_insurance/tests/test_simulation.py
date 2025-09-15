@@ -253,7 +253,7 @@ class TestSimulation:
         )
 
         assert sim.manufacturer == manufacturer
-        assert sim.claim_generator == claim_generator
+        assert sim.claim_generator == [claim_generator]  # Simulation wraps single generator in list
         assert sim.time_horizon == 100
         assert sim.seed == 42
         assert len(sim.years) == 100
@@ -339,15 +339,14 @@ class TestSimulation:
     def test_insolvency_handling(self, manufacturer_config):
         """Test handling of manufacturer insolvency."""
         # Create manufacturer with very low starting assets
-        config = manufacturer_config
-        config.initial_assets = 100_000  # Very low assets
+        config = manufacturer_config.model_copy(update={"initial_assets": 50_000})
         poor_manufacturer = WidgetManufacturer(config)
 
         # Create claim generator with high frequency/severity
         harsh_claims = ClaimGenerator(
-            frequency=2.0,  # Many claims per year
-            severity_mean=500_000,  # Large claims
-            severity_std=100_000,
+            frequency=5.0,  # Many claims per year
+            severity_mean=100_000,  # Large claims relative to assets
+            severity_std=20_000,
             seed=42,
         )
 

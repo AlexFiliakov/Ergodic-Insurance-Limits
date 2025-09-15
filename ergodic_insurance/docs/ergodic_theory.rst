@@ -67,7 +67,7 @@ The ErgodicAnalyzer class implements these concepts:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
    analyzer = ErgodicAnalyzer()
 

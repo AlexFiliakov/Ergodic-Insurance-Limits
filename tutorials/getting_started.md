@@ -54,12 +54,12 @@ Traditional analysis would compare premium costs to expected losses. The ergodic
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.config_v2 import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.insurance_program import InsuranceProgram
+from ergodic_insurance.monte_carlo import MonteCarloEngine
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.config_v2 import ManufacturerConfig
 from ergodic_insurance.src import visualization
 
 # Set random seed for reproducibility

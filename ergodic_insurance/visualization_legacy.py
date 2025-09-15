@@ -4,7 +4,7 @@ This module provides standardized plotting functions with Wall Street Journal
 aesthetic for insurance analysis and risk metrics visualization.
 
 NOTE: This module now acts as a facade for the new modular visualization package.
-New code should import directly from ergodic_insurance.src.visualization.
+New code should import directly from ergodic_insurance.visualization.
 """
 
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -141,12 +141,12 @@ def set_wsj_style(use_factory: bool = False, theme: Optional["Theme"] = None):
         theme: Optional theme to use with factory (defaults to DEFAULT)
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.set_wsj_style` instead.
+        Use :func:`ergodic_insurance.visualization.set_wsj_style` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         warnings.warn(
             "visualization.set_wsj_style is deprecated. "
-            "Use ergodic_insurance.src.visualization.set_wsj_style instead.",
+            "Use ergodic_insurance.visualization.set_wsj_style instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -197,7 +197,7 @@ def format_currency(value: float, decimals: int = 0, abbreviate: bool = False) -
         Formatted string (e.g., "$1,000" or "$1K" if abbreviate=True)
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.format_currency` instead.
+        Use :func:`ergodic_insurance.visualization.format_currency` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         return _new_format_currency(value, decimals, abbreviate)
@@ -227,7 +227,7 @@ def format_percentage(value: float, decimals: int = 1) -> str:
         Formatted string (e.g., "5.0%")
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.format_percentage` instead.
+        Use :func:`ergodic_insurance.visualization.format_percentage` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         return _new_format_percentage(value, decimals)
@@ -239,14 +239,14 @@ class WSJFormatter:
     """Formatter for WSJ-style axis labels.
 
     .. deprecated:: 2.0.0
-        Use :class:`ergodic_insurance.src.visualization.WSJFormatter` instead.
+        Use :class:`ergodic_insurance.visualization.WSJFormatter` instead.
     """
 
     def __init__(self):
         if _NEW_MODULE_AVAILABLE:
             warnings.warn(
                 "WSJFormatter is deprecated. "
-                "Use ergodic_insurance.src.visualization.WSJFormatter instead.",
+                "Use ergodic_insurance.visualization.WSJFormatter instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -380,12 +380,12 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
         Matplotlib figure
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.plot_loss_distribution` instead.
+        Use :func:`ergodic_insurance.visualization.plot_loss_distribution` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         warnings.warn(
             "visualization.plot_loss_distribution is deprecated. "
-            "Use ergodic_insurance.src.visualization.plot_loss_distribution instead.",
+            "Use ergodic_insurance.visualization.plot_loss_distribution instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -533,12 +533,12 @@ def plot_return_period_curve(  # pylint: disable=too-many-locals
         Matplotlib figure
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.plot_return_period_curve` instead.
+        Use :func:`ergodic_insurance.visualization.plot_return_period_curve` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         warnings.warn(
             "visualization.plot_return_period_curve is deprecated. "
-            "Use ergodic_insurance.src.visualization.plot_return_period_curve instead.",
+            "Use ergodic_insurance.visualization.plot_return_period_curve instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -655,12 +655,12 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
         Matplotlib figure
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.plot_insurance_layers` instead.
+        Use :func:`ergodic_insurance.visualization.plot_insurance_layers` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         warnings.warn(
             "visualization.plot_insurance_layers is deprecated. "
-            "Use ergodic_insurance.src.visualization.plot_insurance_layers instead.",
+            "Use ergodic_insurance.visualization.plot_insurance_layers instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -902,12 +902,12 @@ def create_interactive_dashboard(
         Plotly figure
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.create_interactive_dashboard` instead.
+        Use :func:`ergodic_insurance.visualization.create_interactive_dashboard` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         warnings.warn(
             "visualization.create_interactive_dashboard is deprecated. "
-            "Use ergodic_insurance.src.visualization.create_interactive_dashboard instead.",
+            "Use ergodic_insurance.visualization.create_interactive_dashboard instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -1072,12 +1072,12 @@ def plot_convergence_diagnostics(  # pylint: disable=too-many-locals
         Matplotlib figure
 
     .. deprecated:: 2.0.0
-        Use :func:`ergodic_insurance.src.visualization.plot_convergence_diagnostics` instead.
+        Use :func:`ergodic_insurance.visualization.plot_convergence_diagnostics` instead.
     """
     if _NEW_MODULE_AVAILABLE:
         warnings.warn(
             "visualization.plot_convergence_diagnostics is deprecated. "
-            "Use ergodic_insurance.src.visualization.plot_convergence_diagnostics instead.",
+            "Use ergodic_insurance.visualization.plot_convergence_diagnostics instead.",
             DeprecationWarning,
             stacklevel=2,
         )

@@ -59,7 +59,7 @@ Examples:
     Basic ergodic comparison between insured and uninsured scenarios::
 
         import numpy as np
-        from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+        from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
         # Initialize analyzer
         analyzer = ErgodicAnalyzer(convergence_threshold=0.01)
@@ -91,7 +91,7 @@ Examples:
 
     Monte Carlo analysis with convergence checking::
 
-        from ergodic_insurance.src.simulation import run_monte_carlo
+        from ergodic_insurance.simulation import run_monte_carlo
 
         # Run Monte Carlo simulations (pseudo-code)
         simulation_results = run_monte_carlo(
@@ -113,9 +113,9 @@ Examples:
 
     Integration with loss modeling::
 
-        from ergodic_insurance.src.loss_distributions import LossData
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
-        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+        from ergodic_insurance.loss_distributions import LossData
+        from ergodic_insurance.insurance_program import InsuranceProgram
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Set up integrated analysis
         loss_data = LossData.from_distribution(
@@ -164,10 +164,10 @@ References:
     - Kelly, J. L. (1956). "A new interpretation of information rate." Bell System Technical Journal, 35(4), 917-926.
 
 See Also:
-    :mod:`~ergodic_insurance.src.simulation`: Monte Carlo simulation framework
-    :mod:`~ergodic_insurance.src.manufacturer`: Financial model for business dynamics
-    :mod:`~ergodic_insurance.src.insurance_program`: Insurance structure modeling
-    :mod:`~ergodic_insurance.src.optimization`: Optimization algorithms using ergodic metrics
+    :mod:`~ergodic_insurance.simulation`: Monte Carlo simulation framework
+    :mod:`~ergodic_insurance.manufacturer`: Financial model for business dynamics
+    :mod:`~ergodic_insurance.insurance_program`: Insurance structure modeling
+    :mod:`~ergodic_insurance.optimization`: Optimization algorithms using ergodic metrics
 """
 
 from dataclasses import dataclass, field
@@ -514,7 +514,7 @@ class ErgodicAnalyzer:
     Examples:
         Basic analyzer setup and usage::
 
-            from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+            from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
             import numpy as np
 
             # Initialize with tight convergence criteria
@@ -2022,10 +2022,10 @@ class ErgodicAnalyzer:
 
             .. code-block:: python
 
-                from ergodic_insurance.src.loss_distributions import LossData
-                from ergodic_insurance.src.insurance_program import InsuranceProgram
-                from ergodic_insurance.src.manufacturer import WidgetManufacturer
-                from ergodic_insurance.src.config_v2 import ManufacturerConfig
+                from ergodic_insurance.loss_distributions import LossData
+                from ergodic_insurance.insurance_program import InsuranceProgram
+                from ergodic_insurance.manufacturer import WidgetManufacturer
+                from ergodic_insurance.config_v2 import ManufacturerConfig
 
                 # Set up loss data
                 loss_data = LossData.from_poisson_lognormal(
@@ -2199,8 +2199,8 @@ class ErgodicAnalyzer:
 
         See Also:
             :class:`ErgodicAnalysisResults`: Detailed results format
-            :class:`~ergodic_insurance.src.loss_distributions.LossData`: Loss data requirements
-            :class:`~ergodic_insurance.src.insurance_program.InsuranceProgram`: Insurance setup
+            :class:`~ergodic_insurance.loss_distributions.LossData`: Loss data requirements
+            :class:`~ergodic_insurance.insurance_program.InsuranceProgram`: Insurance setup
             :meth:`validate_insurance_ergodic_impact`: Additional validation methods
         """
         from .claim_generator import ClaimEvent
@@ -2508,7 +2508,7 @@ class ErgodicAnalyzer:
             :class:`ValidationResults`: Detailed validation results format
             :meth:`compare_scenarios`: Main scenario comparison method
             :meth:`integrate_loss_ergodic_analysis`: End-to-end analysis pipeline
-            :class:`~ergodic_insurance.src.insurance_program.InsuranceProgram`: Insurance modeling
+            :class:`~ergodic_insurance.insurance_program.InsuranceProgram`: Insurance modeling
         """
         details = {}
 

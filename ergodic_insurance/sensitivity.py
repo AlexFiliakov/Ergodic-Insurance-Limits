@@ -7,9 +7,9 @@ and two-way sensitivity analysis with efficient caching.
 Example:
     Basic sensitivity analysis for a single parameter::
 
-        from ergodic_insurance.src.sensitivity import SensitivityAnalyzer
-        from ergodic_insurance.src.business_optimizer import BusinessOptimizer
-        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+        from ergodic_insurance.sensitivity import SensitivityAnalyzer
+        from ergodic_insurance.business_optimizer import BusinessOptimizer
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Setup optimizer
         manufacturer = WidgetManufacturer(initial_assets=10_000_000)

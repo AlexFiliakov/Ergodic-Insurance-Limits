@@ -80,15 +80,15 @@ class TestParallelProcessing:
             "retained_losses": np.zeros((5_000, 5)),
         }
 
-        with patch("ergodic_insurance.src.monte_carlo.ProcessPoolExecutor") as mock_executor_class:
+        with patch("ergodic_insurance.monte_carlo.ProcessPoolExecutor") as mock_executor_class:
             mock_executor = MagicMock()
             mock_executor_class.return_value.__enter__.return_value = mock_executor
             mock_executor.submit.return_value = mock_future
 
-            with patch("ergodic_insurance.src.monte_carlo.as_completed") as mock_as_completed:
+            with patch("ergodic_insurance.monte_carlo.as_completed") as mock_as_completed:
                 mock_as_completed.return_value = [mock_future] * 4  # 4 chunks
 
-                with patch("ergodic_insurance.src.monte_carlo.tqdm") as mock_tqdm:
+                with patch("ergodic_insurance.monte_carlo.tqdm") as mock_tqdm:
                     mock_pbar = Mock()
                     mock_tqdm.return_value = mock_pbar
 
@@ -314,17 +314,15 @@ class TestParallelRuinProbability:
             },
         }
 
-        with patch(
-            "ergodic_insurance.src.ruin_probability.ProcessPoolExecutor"
-        ) as mock_executor_class:
+        with patch("ergodic_insurance.ruin_probability.ProcessPoolExecutor") as mock_executor_class:
             mock_executor = MagicMock()
             mock_executor_class.return_value.__enter__.return_value = mock_executor
             mock_executor.submit.return_value = mock_future
 
-            with patch("ergodic_insurance.src.ruin_probability.as_completed") as mock_as_completed:
+            with patch("ergodic_insurance.ruin_probability.as_completed") as mock_as_completed:
                 mock_as_completed.return_value = [mock_future] * 10  # 10 chunks
 
-                with patch("ergodic_insurance.src.ruin_probability.tqdm") as mock_tqdm:
+                with patch("ergodic_insurance.ruin_probability.tqdm") as mock_tqdm:
                     mock_pbar = Mock()
                     mock_tqdm.return_value = mock_pbar
 
@@ -356,7 +354,7 @@ class TestParallelRuinProbability:
             config=engine.config,
         )
 
-        with patch("ergodic_insurance.src.ruin_probability.tqdm") as mock_tqdm:
+        with patch("ergodic_insurance.ruin_probability.tqdm") as mock_tqdm:
             mock_pbar = Mock()
             mock_pbar.__iter__ = lambda self: iter(range(10))
             mock_tqdm.return_value = mock_pbar

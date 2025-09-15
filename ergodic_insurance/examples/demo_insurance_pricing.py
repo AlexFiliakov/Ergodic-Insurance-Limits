@@ -23,13 +23,13 @@ from rich.panel import Panel
 from rich.progress import track
 from rich.table import Table
 
-from ergodic_insurance.src.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
-from ergodic_insurance.src.insurance_program import (
+from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
+from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,
     ReinstatementType,
 )
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 console = Console()
 

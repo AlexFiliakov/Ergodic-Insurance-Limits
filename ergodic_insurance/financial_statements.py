@@ -8,8 +8,8 @@ reconciliation capabilities.
 Example:
     Generate financial statements from a manufacturer simulation::
 
-        from ergodic_insurance.src.manufacturer import WidgetManufacturer
-        from ergodic_insurance.src.financial_statements import FinancialStatementGenerator
+        from ergodic_insurance.manufacturer import WidgetManufacturer
+        from ergodic_insurance.financial_statements import FinancialStatementGenerator
 
         # Run simulation
         manufacturer = WidgetManufacturer(config)

@@ -40,7 +40,7 @@ profile:
 ## Usage
 
 ```python
-from ergodic_insurance.src.config_manager import ConfigManager
+from ergodic_insurance.config_manager import ConfigManager
 
 # Load a profile
 config = ConfigManager().load_profile("conservative")

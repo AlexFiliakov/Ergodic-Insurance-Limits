@@ -20,10 +20,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import stats
-from ergodic_insurance.src.manufacturer import Manufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.monte_carlo import MonteCarloAnalyzer
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.manufacturer import Manufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.monte_carlo import MonteCarloAnalyzer
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
 # Setup
 manufacturer = Manufacturer(
@@ -119,7 +119,7 @@ plt.show()
 ### Risk Metrics
 
 ```python
-from ergodic_insurance.src.risk_metrics import RiskMetrics
+from ergodic_insurance.risk_metrics import RiskMetrics
 
 def calculate_risk_metrics(results):
     """Calculate comprehensive risk metrics."""

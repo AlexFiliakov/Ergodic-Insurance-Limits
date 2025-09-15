@@ -18,15 +18,15 @@ import numpy as np
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.excel_reporter import ExcelReportConfig, ExcelReporter
-from ergodic_insurance.src.financial_statements import (
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.excel_reporter import ExcelReportConfig, ExcelReporter
+from ergodic_insurance.financial_statements import (
     FinancialStatementConfig,
     FinancialStatementGenerator,
 )
-from ergodic_insurance.src.insurance import InsurancePolicy
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.insurance import InsurancePolicy
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufacturer:

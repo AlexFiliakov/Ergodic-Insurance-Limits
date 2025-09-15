@@ -21,8 +21,8 @@ Examples:
     Basic simulation::
 
         from ergodic_insurance.src import Simulation, Config
-        from ergodic_insurance.src.manufacturer import WidgetManufacturer
-        from ergodic_insurance.src.claim_generator import ClaimGenerator
+        from ergodic_insurance.manufacturer import WidgetManufacturer
+        from ergodic_insurance.claim_generator import ClaimGenerator
 
         config = Config()
         manufacturer = WidgetManufacturer(config.manufacturer)
@@ -405,11 +405,11 @@ class Simulation:
     Examples:
         Basic simulation setup and execution::
 
-            from ergodic_insurance.src.config import ManufacturerConfig
-            from ergodic_insurance.src.manufacturer import WidgetManufacturer
-            from ergodic_insurance.src.claim_generator import ClaimGenerator
-            from ergodic_insurance.src.insurance import InsurancePolicy
-            from ergodic_insurance.src.simulation import Simulation
+            from ergodic_insurance.config import ManufacturerConfig
+            from ergodic_insurance.manufacturer import WidgetManufacturer
+            from ergodic_insurance.claim_generator import ClaimGenerator
+            from ergodic_insurance.insurance import InsurancePolicy
+            from ergodic_insurance.simulation import Simulation
 
             # Create manufacturer
             config = ManufacturerConfig(initial_assets=10_000_000)
@@ -491,7 +491,7 @@ class Simulation:
         Examples:
             Setup with custom insurance::
 
-                from ergodic_insurance.src.insurance import InsurancePolicy
+                from ergodic_insurance.insurance import InsurancePolicy
 
                 policy = InsurancePolicy(
                     deductible=1_000_000,
@@ -518,11 +518,11 @@ class Simulation:
 
         # Handle single generator or list of generators
         if claim_generator is None:
-            self.claim_generators = [ClaimGenerator(seed=seed)]
+            self.claim_generator = [ClaimGenerator(seed=seed)]
         elif isinstance(claim_generator, list):
-            self.claim_generators = claim_generator
+            self.claim_generator = claim_generator
         else:
-            self.claim_generators = [claim_generator]
+            self.claim_generator = [claim_generator]
 
         self.insurance_policy = insurance_policy
         self.time_horizon = time_horizon
@@ -592,7 +592,8 @@ class Simulation:
             for claim in claims:
                 # Company pays full amount with no insurance coverage
                 self.manufacturer.process_uninsured_claim(
-                    claim_amount=claim.amount, immediate_payment=False  # Use payment schedule
+                    claim_amount=claim.amount,
+                    immediate_payment=True,  # Pay immediately when uninsured
                 )
                 total_company_payment += claim.amount
 
@@ -665,7 +666,7 @@ class Simulation:
 
         # Generate all claims upfront for efficiency from all generators
         all_claims = []
-        for generator in self.claim_generators:
+        for generator in self.claim_generator:
             claims = generator.generate_claims(self.time_horizon)
             all_claims.extend(claims)
 

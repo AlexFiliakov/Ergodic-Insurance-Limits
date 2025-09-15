@@ -91,7 +91,7 @@ State variables define the problem dimensions:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.hjb_solver import StateVariable, BoundaryCondition
+   from ergodic_insurance.hjb_solver import StateVariable, BoundaryCondition
 
    # Wealth state with logarithmic spacing
    wealth = StateVariable(
@@ -125,7 +125,7 @@ Control variables represent decisions:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.hjb_solver import ControlVariable
+   from ergodic_insurance.hjb_solver import ControlVariable
 
    # Insurance limit control
    insurance_limit = ControlVariable(
@@ -156,7 +156,7 @@ The solver includes several built-in utility functions:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.hjb_solver import (
+   from ergodic_insurance.hjb_solver import (
        LogUtility,
        PowerUtility,
        ExpectedWealth,
@@ -200,7 +200,7 @@ Consider a manufacturing firm optimizing its insurance program to maximize long-
 .. code-block:: python
 
    import numpy as np
-   from ergodic_insurance.src.hjb_solver import (
+   from ergodic_insurance.hjb_solver import (
        StateVariable, StateSpace,
        ControlVariable,
        HJBProblem, HJBSolver, HJBSolverConfig,
@@ -534,7 +534,7 @@ Integrate HJB solutions with the simulation framework:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.optimal_control import (
+   from ergodic_insurance.optimal_control import (
        HJBFeedbackControl,
        OptimalController,
        ControlSpace

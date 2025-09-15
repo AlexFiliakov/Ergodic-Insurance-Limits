@@ -36,7 +36,7 @@ def plot_scenario_comparison(  # pylint: disable=too-many-locals
         Matplotlib figure with scenario comparisons
 
     Examples:
-        >>> from ergodic_insurance.src.batch_processor import AggregatedResults
+        >>> from ergodic_insurance.batch_processor import AggregatedResults
         >>> results = AggregatedResults(batch_results)
         >>> fig = plot_scenario_comparison(results, metrics=["mean_growth_rate"])
     """

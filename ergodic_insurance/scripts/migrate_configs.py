@@ -8,8 +8,8 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_migrator import ConfigMigrator
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.config_migrator import ConfigMigrator
 
 
 def main():

@@ -144,11 +144,11 @@ Now let's run a basic simulation using Python:
 .. code-block:: python
    :caption: first_simulation.py
 
-   from ergodic_insurance.src.config_loader import load_config
-   from ergodic_insurance.src.manufacturer import WidgetManufacturer
-   from ergodic_insurance.src.insurance_program import InsuranceProgram
-   from ergodic_insurance.src.monte_carlo import MonteCarloEngine
-   from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
+   from ergodic_insurance.config_loader import load_config
+   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance.insurance_program import InsuranceProgram
+   from ergodic_insurance.monte_carlo import MonteCarloEngine
+   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
    # Load your configuration
    config = load_config('my_company.yaml')

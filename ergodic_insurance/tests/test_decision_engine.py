@@ -259,7 +259,7 @@ class TestInsuranceDecisionEngine:
     @pytest.fixture
     def engine(self, mock_manufacturer, mock_loss_distribution):
         """Create decision engine with mocks."""
-        with patch("ergodic_insurance.src.decision_engine.ConfigLoader") as mock_loader:
+        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
             # Mock the config loader and pricing config
             mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
                 primary_layer_rate=0.01,
@@ -585,7 +585,7 @@ class TestIntegration:
         loss_dist.expected_value = Mock(return_value=100_000)
 
         # Create engine
-        with patch("ergodic_insurance.src.decision_engine.ConfigLoader") as mock_loader:
+        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
             mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
                 primary_layer_rate=0.01,
                 first_excess_rate=0.005,
@@ -654,7 +654,7 @@ class TestIntegration:
         decisions = {}
 
         for scenario in ["inexpensive", "baseline", "expensive"]:
-            with patch("ergodic_insurance.src.decision_engine.ConfigLoader") as mock_loader:
+            with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
                 # Mock different rates for each scenario
                 rates = {
                     "inexpensive": (0.005, 0.003, 0.001),

@@ -18,7 +18,7 @@ Quantile-based risk measure for potential losses:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.risk_metrics import RiskMetrics
+   from ergodic_insurance.risk_metrics import RiskMetrics
 
    metrics = RiskMetrics()
    var_95 = metrics.calculate_var(returns, confidence=0.95)
@@ -136,7 +136,7 @@ Tail Risk Analysis
 
 .. code-block:: python
 
-   from ergodic_insurance.src.risk_metrics import TailRiskAnalyzer
+   from ergodic_insurance.risk_metrics import TailRiskAnalyzer
 
    analyzer = TailRiskAnalyzer()
 
@@ -154,7 +154,7 @@ Stress Testing
 
 .. code-block:: python
 
-   from ergodic_insurance.src.risk_metrics import StressTester
+   from ergodic_insurance.risk_metrics import StressTester
 
    tester = StressTester()
 
@@ -176,7 +176,7 @@ Risk Attribution
 
 .. code-block:: python
 
-   from ergodic_insurance.src.risk_metrics import RiskAttribution
+   from ergodic_insurance.risk_metrics import RiskAttribution
 
    attribution = RiskAttribution()
 
@@ -197,7 +197,7 @@ Risk Dashboard
 
 .. code-block:: python
 
-   from ergodic_insurance.src.visualization import plot_risk_dashboard
+   from ergodic_insurance.visualization import plot_risk_dashboard
 
    plot_risk_dashboard(
        metrics={
@@ -214,7 +214,7 @@ Distribution Analysis
 
 .. code-block:: python
 
-   from ergodic_insurance.src.visualization import plot_loss_distribution
+   from ergodic_insurance.visualization import plot_loss_distribution
 
    plot_loss_distribution(
        losses=loss_data,

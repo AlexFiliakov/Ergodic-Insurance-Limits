@@ -83,8 +83,8 @@ Or test from Python:
 
 .. code-block:: python
 
-   from ergodic_insurance.src.config_manager import ConfigManager
-   from ergodic_insurance.src.manufacturer import WidgetManufacturer
+   from ergodic_insurance.config_manager import ConfigManager
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
    # Load configuration
    manager = ConfigManager()

@@ -254,7 +254,7 @@ class TestLegacyConfigAdapter:
                 mock_load.side_effect = FileNotFoundError("Profile not found")
 
                 # Mock Path to use our temp directory
-                with patch("ergodic_insurance.src.config_compat.Path") as mock_path:
+                with patch("ergodic_insurance.config_compat.Path") as mock_path:
                     mock_path.return_value = tmp_path / "ergodic_insurance" / "data" / "parameters"
 
                     with patch.object(legacy_adapter, "_load_legacy_direct") as mock_legacy:
@@ -306,7 +306,7 @@ class TestLegacyConfigAdapter:
             yaml.dump(config_with_anchors, f)
 
         # Mock Path to use our temp directory
-        with patch("ergodic_insurance.src.config_compat.Path") as mock_path:
+        with patch("ergodic_insurance.config_compat.Path") as mock_path:
             mock_path.return_value = legacy_dir
 
             result = legacy_adapter._load_legacy_direct("test", {})
@@ -331,7 +331,7 @@ class TestLegacyConfigAdapter:
             "new_section__new_field": "new_value",  # This will create a new section
         }
 
-        with patch("ergodic_insurance.src.config_compat.Path") as mock_path:
+        with patch("ergodic_insurance.config_compat.Path") as mock_path:
             mock_path.return_value = legacy_dir
 
             result = legacy_adapter._load_legacy_direct("test", overrides)
@@ -402,7 +402,7 @@ class TestModuleFunctions:
 
     def test_load_config_function(self):
         """Test the global load_config function."""
-        with patch("ergodic_insurance.src.config_compat._adapter") as mock_adapter:
+        with patch("ergodic_insurance.config_compat._adapter") as mock_adapter:
             mock_adapter.load.return_value = MagicMock(spec=Config)
 
             result = load_config("test", {"override": "value"}, extra="param")
@@ -646,6 +646,6 @@ class TestIntegrationScenarios:
                     # Verify all nested overrides were flattened
                     call_kwargs = mock_load.call_args[1]
                     assert call_kwargs["manufacturer__initial_assets"] == 15_000_000
-                    assert call_kwargs["manufacturer__operating_margin"] == 0.10
+                    assert call_kwargs["manufacturer__base_operating_margin"] == 0.10
                     assert call_kwargs["simulation__time_horizon_years"] == 100
                     assert call_kwargs["simulation__num_simulations"] == 5000

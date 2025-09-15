@@ -20,7 +20,7 @@ Key Features:
 Examples:
     Basic configuration setup::
 
-        from ergodic_insurance.src.config import Config, ManufacturerConfig
+        from ergodic_insurance.config import Config, ManufacturerConfig
 
         # Create manufacturer config
         manufacturer = ManufacturerConfig(

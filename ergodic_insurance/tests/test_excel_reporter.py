@@ -391,7 +391,7 @@ class TestExcelReporter:
                     assert df["Category"].nunique() > 1
                     assert df["Metric"].nunique() > 1
 
-    @patch("ergodic_insurance.src.excel_reporter.FinancialStatementGenerator")
+    @patch("ergodic_insurance.excel_reporter.FinancialStatementGenerator")
     def test_monte_carlo_report_placeholder(self, mock_generator_class, reporter_config):
         """Test Monte Carlo report generation (placeholder test)."""
         reporter = ExcelReporter(reporter_config)

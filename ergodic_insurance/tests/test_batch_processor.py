@@ -359,7 +359,7 @@ class TestBatchProcessor:
         )
 
         # Mock MonteCarloEngine
-        with patch("ergodic_insurance.src.batch_processor.MonteCarloEngine") as MockEngine:
+        with patch("ergodic_insurance.batch_processor.MonteCarloEngine") as MockEngine:
             mock_engine = MockEngine.return_value
             mock_results = MagicMock(spec=SimulationResults)
             mock_engine.run.return_value = mock_results
@@ -393,7 +393,7 @@ class TestBatchProcessor:
             parameter_overrides={"manufacturer.base_operating_margin": 0.12},
         )
 
-        with patch("ergodic_insurance.src.batch_processor.MonteCarloEngine") as MockEngine:
+        with patch("ergodic_insurance.batch_processor.MonteCarloEngine") as MockEngine:
             mock_engine = MockEngine.return_value
             mock_results = MagicMock(spec=SimulationResults)
             mock_engine.run.return_value = mock_results
@@ -417,7 +417,7 @@ class TestBatchProcessor:
         scenario = ScenarioConfig("test_id", "Test Scenario")
 
         # Mock MonteCarloEngine to raise an error
-        with patch("ergodic_insurance.src.batch_processor.MonteCarloEngine") as MockEngine:
+        with patch("ergodic_insurance.batch_processor.MonteCarloEngine") as MockEngine:
             MockEngine.side_effect = ValueError("Test error")
             result = processor._process_scenario(scenario)
 

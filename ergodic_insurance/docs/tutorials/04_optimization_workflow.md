@@ -18,9 +18,9 @@ By the end of this tutorial, you will be able to:
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from ergodic_insurance.src.manufacturer import Manufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.optimization import InsuranceOptimizer
+from ergodic_insurance.manufacturer import Manufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.optimization import InsuranceOptimizer
 
 # Setup
 manufacturer = Manufacturer(
@@ -217,7 +217,7 @@ print(f"  Sharpe: {best_sr['sharpe_ratio']:.2f}")
 ### Pareto Frontier Analysis
 
 ```python
-from ergodic_insurance.src.pareto_frontier import ParetoFrontier
+from ergodic_insurance.pareto_frontier import ParetoFrontier
 
 # Create Pareto frontier analyzer
 pareto = ParetoFrontier(

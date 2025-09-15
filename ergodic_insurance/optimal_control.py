@@ -776,8 +776,8 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         ValueError: If utility_type is not recognized.
 
     Example:
-        >>> from ergodic_insurance.src.manufacturer import WidgetManufacturer
-        >>> from ergodic_insurance.src.config import ManufacturerConfig
+        >>> from ergodic_insurance.manufacturer import WidgetManufacturer
+        >>> from ergodic_insurance.config import ManufacturerConfig
         >>>
         >>> # Set up manufacturer
         >>> config = ManufacturerConfig()

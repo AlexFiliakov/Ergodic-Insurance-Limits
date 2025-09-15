@@ -7,8 +7,8 @@ Monte Carlo aggregations with advanced formatting and validation.
 Example:
     Generate Excel report from simulation::
 
-        from ergodic_insurance.src.excel_reporter import ExcelReporter, ExcelReportConfig
-        from ergodic_insurance.src.manufacturer import WidgetManufacturer
+        from ergodic_insurance.excel_reporter import ExcelReporter, ExcelReportConfig
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Configure report
         config = ExcelReportConfig(

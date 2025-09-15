@@ -66,10 +66,10 @@ plt.show()
 ### Basic Configuration
 
 ```python
-from ergodic_insurance.src.insurance import InsuranceLayer
-from ergodic_insurance.src.manufacturer import Manufacturer
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.simulation import Simulation
+from ergodic_insurance.insurance import InsuranceLayer
+from ergodic_insurance.manufacturer import Manufacturer
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.simulation import Simulation
 
 # Create manufacturer and claim generator
 manufacturer = Manufacturer(
@@ -157,7 +157,7 @@ plt.show()
 ### Configuring Multiple Layers
 
 ```python
-from ergodic_insurance.src.insurance_program import InsuranceProgram
+from ergodic_insurance.insurance_program import InsuranceProgram
 
 # Create a 3-layer insurance program
 insurance_program = InsuranceProgram()
@@ -383,7 +383,7 @@ print(f"  Effective Rate: {adjusted_prem/company_revenue:.3%}")
 ### Finding Optimal Retention
 
 ```python
-from ergodic_insurance.src.optimization import optimize_retention
+from ergodic_insurance.optimization import optimize_retention
 
 # Test different retention levels
 retention_levels = np.linspace(100_000, 3_000_000, 20)

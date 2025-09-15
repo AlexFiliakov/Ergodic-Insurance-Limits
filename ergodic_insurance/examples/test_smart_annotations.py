@@ -199,7 +199,9 @@ def test_annotation_improvements():
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"Test plot saved to: {output_path}")
 
-    plt.show()
+    # Don't show in non-interactive mode (e.g., during tests)
+    if plt.get_backend() != "Agg":
+        plt.show()
 
     print("\n" + "=" * 60)
     print("SMART ANNOTATION SYSTEM TEST COMPLETE")

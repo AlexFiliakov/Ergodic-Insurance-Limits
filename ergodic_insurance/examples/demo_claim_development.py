@@ -10,15 +10,15 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.src.claim_development import (
+from ergodic_insurance.claim_development import (
     CashFlowProjector,
     Claim,
     ClaimCohort,
     ClaimDevelopment,
     load_development_patterns,
 )
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 def demo_basic_development_patterns():

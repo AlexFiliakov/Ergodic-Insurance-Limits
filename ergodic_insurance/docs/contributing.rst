@@ -164,7 +164,7 @@ All code must have tests:
    # test_my_feature.py
    import pytest
    import numpy as np
-   from ergodic_insurance.src.my_module import MyClass
+   from ergodic_insurance.my_module import MyClass
 
    class TestMyClass:
        """Test cases for MyClass."""
@@ -240,7 +240,7 @@ Every module needs comprehensive docstrings:
        calculate_cvar: Compute Conditional Value at Risk.
 
    Example:
-       >>> from ergodic_insurance.src.risk import RiskCalculator
+       >>> from ergodic_insurance.risk import RiskCalculator
        >>> calc = RiskCalculator()
        >>> var_95 = calc.calculate_var(returns, confidence=0.95)
    """

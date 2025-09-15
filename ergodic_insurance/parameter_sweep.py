@@ -15,8 +15,8 @@ Features:
     - Progress tracking and resumption capabilities
 
 Example:
-    >>> from ergodic_insurance.src.parameter_sweep import ParameterSweeper, SweepConfig
-    >>> from ergodic_insurance.src.business_optimizer import BusinessOptimizer
+    >>> from ergodic_insurance.parameter_sweep import ParameterSweeper, SweepConfig
+    >>> from ergodic_insurance.business_optimizer import BusinessOptimizer
     >>>
     >>> # Create optimizer
     >>> optimizer = BusinessOptimizer(manufacturer)

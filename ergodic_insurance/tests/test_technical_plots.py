@@ -287,7 +287,7 @@ class TestEnhancedConvergenceDiagnostics:
         assert len(trace_ax.get_lines()) >= 4  # At least 4 chains
         plt.close(fig)
 
-    @patch("ergodic_insurance.src.convergence.ConvergenceDiagnostics")
+    @patch("ergodic_insurance.convergence.ConvergenceDiagnostics")
     def test_enhanced_convergence_diagnostics_calculations(self, mock_conv_diag):
         """Test that convergence diagnostics are calculated correctly."""
         # Setup mock

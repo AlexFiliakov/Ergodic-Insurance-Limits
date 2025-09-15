@@ -59,11 +59,11 @@ From v1.x to v2.0:
 .. code-block:: python
 
    # Old way (still supported but deprecated)
-   from ergodic_insurance.src.config_loader import ConfigLoader
+   from ergodic_insurance.config_loader import ConfigLoader
    config = ConfigLoader.load_config("baseline")
 
    # New way
-   from ergodic_insurance.src.config_manager import ConfigManager
+   from ergodic_insurance.config_manager import ConfigManager
    manager = ConfigManager()
    config = manager.load_profile("default")
 

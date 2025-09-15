@@ -8,8 +8,8 @@ existing loss generators and insurance structures.
 Example:
     Basic usage for pricing an insurance program::
 
-        from ergodic_insurance.src.insurance_pricing import InsurancePricer, MarketCycle
-        from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+        from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle
+        from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
         # Initialize loss generator and pricer
         loss_gen = ManufacturingLossGenerator()

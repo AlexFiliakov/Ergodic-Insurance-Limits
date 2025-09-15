@@ -716,7 +716,7 @@ class TestConfigV2:
         assert new_config.simulation.time_horizon_years == 20
         assert new_config.overrides == {
             "manufacturer__initial_assets": 20000000,
-            "manufacturer__operating_margin": 0.10,
+            "manufacturer__base_operating_margin": 0.10,
             "simulation__time_horizon_years": 20,
         }
 

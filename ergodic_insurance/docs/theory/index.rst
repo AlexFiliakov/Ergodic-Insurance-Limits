@@ -86,11 +86,11 @@ Connection to Implementation
 
 The theoretical concepts documented here are implemented in the codebase:
 
-- :mod:`ergodic_insurance.src.ergodic_analyzer` - Ergodic theory calculations
-- :mod:`ergodic_insurance.src.manufacturer` - Multiplicative business dynamics
-- :mod:`ergodic_insurance.src.insurance_program` - Insurance mathematics
-- :mod:`ergodic_insurance.src.optimization` - Optimization algorithms
-- :mod:`ergodic_insurance.src.monte_carlo` - Statistical methods
+- :mod:`ergodic_insurance.ergodic_analyzer` - Ergodic theory calculations
+- :mod:`ergodic_insurance.manufacturer` - Multiplicative business dynamics
+- :mod:`ergodic_insurance.insurance_program` - Insurance mathematics
+- :mod:`ergodic_insurance.optimization` - Optimization algorithms
+- :mod:`ergodic_insurance.monte_carlo` - Statistical methods
 
 For visual representations of the system architecture and how these theoretical concepts are implemented, see the :doc:`Architectural Diagrams </architecture/index>` section.
 

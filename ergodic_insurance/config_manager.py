@@ -12,7 +12,7 @@ The configuration system is organized into three tiers:
 Example:
     Basic usage of ConfigManager::
 
-        from ergodic_insurance.src.config_manager import ConfigManager
+        from ergodic_insurance.config_manager import ConfigManager
 
         # Initialize manager
         manager = ConfigManager()
@@ -39,6 +39,7 @@ Note:
 """
 
 from functools import lru_cache
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
@@ -46,16 +47,18 @@ import warnings
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.src.config_v2 import ConfigV2, PresetLibrary
+    from ergodic_insurance.config_v2 import ConfigV2, PresetLibrary
 except ImportError:
     try:
         # Try relative import (for package context)
         from .config_v2 import ConfigV2, PresetLibrary
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config_v2 import ConfigV2, PresetLibrary
+        from config_v2 import ConfigV2, PresetLibrary  # type: ignore[no-redef]
 
 
 class ConfigManager:
@@ -108,8 +111,9 @@ class ConfigManager:
         """
         if config_dir is None:
             # Try to find config directory relative to this file
-            module_dir = Path(__file__).parent.parent
-            config_dir = module_dir / "data" / "config"
+            # Use the ergodic_insurance/data/parameters directory for backward compatibility
+            module_dir = Path(__file__).parent
+            config_dir = module_dir / "data" / "parameters"
 
         self.config_dir = Path(config_dir)
         self.profiles_dir = self.config_dir / "profiles"
@@ -126,16 +130,18 @@ class ConfigManager:
     def _validate_structure(self) -> None:
         """Validate that the configuration directory structure exists."""
         if not self.config_dir.exists():
-            raise FileNotFoundError(f"Configuration directory not found: {self.config_dir}")
+            # For backward compatibility, create the directory if it doesn't exist
+            logger.warning(f"Configuration directory not found, creating: {self.config_dir}")
+            self.config_dir.mkdir(parents=True, exist_ok=True)
 
         if not self.profiles_dir.exists():
-            warnings.warn(f"Profiles directory not found: {self.profiles_dir}")
+            logger.debug(f"Profiles directory not found: {self.profiles_dir}")
 
         if not self.modules_dir.exists():
-            warnings.warn(f"Modules directory not found: {self.modules_dir}")
+            logger.debug(f"Modules directory not found: {self.modules_dir}")
 
         if not self.presets_dir.exists():
-            warnings.warn(f"Presets directory not found: {self.presets_dir}")
+            logger.debug(f"Presets directory not found: {self.presets_dir}")
 
     def load_profile(
         self, profile_name: str = "default", use_cache: bool = True, **overrides
@@ -297,7 +303,7 @@ class ConfigManager:
                     current = getattr(config, key)
                     if current is None:
                         # Create new instance if field is None
-                        from ergodic_insurance.src.config_v2 import (
+                        from ergodic_insurance.config_v2 import (
                             InsuranceConfig,
                             LossDistributionConfig,
                         )

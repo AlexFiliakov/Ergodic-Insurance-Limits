@@ -191,7 +191,7 @@ The enhanced parallel Monte Carlo engine provides optimal performance on budget 
 
 ### Quick Start
 ```python
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
 
 # Configure for enhanced parallel execution
 config = SimulationConfig(

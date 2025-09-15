@@ -12,7 +12,7 @@ Features:
     - Memory-efficient execution (<4GB for 100K simulations)
 
 Example:
-    >>> from ergodic_insurance.src.parallel_executor import ParallelExecutor
+    >>> from ergodic_insurance.parallel_executor import ParallelExecutor
     >>> executor = ParallelExecutor(n_workers=4)
     >>> results = executor.map_reduce(
     ...     work_function=simulate_path,
