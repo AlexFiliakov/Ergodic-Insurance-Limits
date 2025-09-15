@@ -322,9 +322,11 @@ class FinancialStatementGenerator:
         # Other Income/Expenses
         data.append(("OTHER INCOME (EXPENSES)", "", "", ""))
 
-        # Insurance costs - estimate from metrics
-        insurance_premium = 0  # Would need to track separately
-        insurance_claims = 0  # Company portion of claims
+        # Pull actual insurance costs from metrics
+        # These values are tracked in manufacturer.py via period_insurance_premiums
+        # and period_insurance_losses, and included in the metrics dictionary
+        insurance_premium = metrics.get("insurance_premiums", 0)
+        insurance_claims = metrics.get("insurance_losses", 0)
 
         data.append(("  Insurance Premiums", -insurance_premium, "", ""))
         data.append(("  Insurance Claim Expenses", -insurance_claims, "", ""))
