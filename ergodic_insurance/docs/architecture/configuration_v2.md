@@ -6,45 +6,154 @@ The configuration system has been completely redesigned in v2.0 to provide a mod
 
 ## Architecture Diagram
 
+```{mermaid}
+graph TB
+    %% Main Components
+    subgraph ConfigSystem["Configuration System v2.0"]
+        CM["ConfigManager<br/>Main Interface"]
+        CV2["ConfigV2<br/>Pydantic Models"]
+        COMPAT["ConfigCompat<br/>Legacy Support"]
+    end
+
+    %% File Structure
+    subgraph FileSystem["File System"]
+        subgraph Profiles["Profiles/"]
+            DEFAULT["default.yaml"]
+            CONSERV["conservative.yaml"]
+            AGGRESS["aggressive.yaml"]
+            CUSTOM["custom/*.yaml"]
+        end
+
+        subgraph Modules["Modules/"]
+            MOD_INS["insurance.yaml"]
+            MOD_LOSS["losses.yaml"]
+            MOD_STOCH["stochastic.yaml"]
+            MOD_BUS["business.yaml"]
+        end
+
+        subgraph Presets["Presets/"]
+            PRE_MARKET["market_conditions.yaml"]
+            PRE_LAYER["layer_structures.yaml"]
+            PRE_RISK["risk_scenarios.yaml"]
+        end
+    end
+
+    %% Data Models
+    subgraph Models["Configuration Models"]
+        PROF_META["ProfileMetadata"]
+        MANU_CFG["ManufacturerConfig"]
+        INS_CFG["InsuranceConfig"]
+        SIM_CFG["SimulationConfig"]
+        LOSS_CFG["LossConfig"]
+        GROWTH_CFG["GrowthConfig"]
+    end
+
+    %% Relationships
+    CM --> CV2
+    CM --> COMPAT
+    CM --> Profiles
+
+    Profiles --> DEFAULT
+    Profiles --> CONSERV
+    Profiles --> AGGRESS
+    Profiles --> CUSTOM
+
+    DEFAULT -.includes.-> Modules
+    CONSERV -.includes.-> Modules
+    AGGRESS -.includes.-> Modules
+
+    Modules --> MOD_INS
+    Modules --> MOD_LOSS
+    Modules --> MOD_STOCH
+    Modules --> MOD_BUS
+
+    DEFAULT -.applies.-> Presets
+    CONSERV -.applies.-> Presets
+    AGGRESS -.applies.-> Presets
+
+    CV2 --> Models
+    Models --> PROF_META
+    Models --> MANU_CFG
+    Models --> INS_CFG
+    Models --> SIM_CFG
+    Models --> LOSS_CFG
+    Models --> GROWTH_CFG
+
+    %% Styling
+    classDef manager fill:#e3f2fd,stroke:#1565c0,stroke-width:3px
+    classDef profiles fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef modules fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef presets fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef models fill:#ffebee,stroke:#c62828,stroke-width:2px
+
+    class CM manager
+    class DEFAULT,CONSERV,AGGRESS,CUSTOM profiles
+    class MOD_INS,MOD_LOSS,MOD_STOCH,MOD_BUS modules
+    class PRE_MARKET,PRE_LAYER,PRE_RISK presets
+    class PROF_META,MANU_CFG,INS_CFG,SIM_CFG,LOSS_CFG,GROWTH_CFG models
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     ConfigManager                           │
-│                  (Main Interface)                           │
-├─────────────────────────────────────────────────────────────┤
-│  - load_profile()                                           │
-│  - list_profiles()                                          │
-│  - validate_config()                                        │
-│  - _cache: Dict[str, ConfigV2]                             │
-└──────────┬──────────────────────────────┬───────────────────┘
-           │                              │
-           ▼                              ▼
-┌──────────────────────┐      ┌──────────────────────┐
-│      Profiles        │      │     ConfigV2         │
-│   (YAML Files)       │      │  (Pydantic Models)   │
-├──────────────────────┤      ├──────────────────────┤
-│ - default.yaml       │      │ - ProfileMetadata    │
-│ - conservative.yaml  │      │ - ManufacturerConfig │
-│ - aggressive.yaml    │      │ - InsuranceConfig    │
-│ - custom/*.yaml      │      │ - SimulationConfig   │
-└──────────┬───────────┘      └──────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────┐
-│                  3-Tier Structure                     │
-├──────────────────────────────────────────────────────┤
-│  Profiles ──extends──> Base Profile                   │
-│     │                                                 │
-│     ├──includes──> Modules                          │
-│     │              - insurance.yaml                  │
-│     │              - losses.yaml                     │
-│     │              - stochastic.yaml                 │
-│     │              - business.yaml                   │
-│     │                                                │
-│     └──applies──> Presets                           │
-│                    - market_conditions.yaml          │
-│                    - layer_structures.yaml           │
-│                    - risk_scenarios.yaml             │
-└──────────────────────────────────────────────────────┘
+
+## Three-Tier Configuration Architecture
+
+```{mermaid}
+graph LR
+    %% Tier 1: Profiles
+    subgraph Tier1["Tier 1: Profiles"]
+        P1["Complete Configuration Sets"]
+        P2["Default Profile"]
+        P3["Conservative Profile"]
+        P4["Aggressive Profile"]
+        P5["Custom Profiles"]
+    end
+
+    %% Tier 2: Modules
+    subgraph Tier2["Tier 2: Modules"]
+        M1["Reusable Components"]
+        M2["Insurance Module"]
+        M3["Loss Module"]
+        M4["Stochastic Module"]
+        M5["Business Module"]
+    end
+
+    %% Tier 3: Presets
+    subgraph Tier3["Tier 3: Presets"]
+        PR1["Quick-Apply Templates"]
+        PR2["Market Conditions"]
+        PR3["Layer Structures"]
+        PR4["Risk Scenarios"]
+    end
+
+    %% Relationships
+    P1 --> P2
+    P1 --> P3
+    P1 --> P4
+    P1 --> P5
+
+    P2 -.includes.-> M1
+    P3 -.includes.-> M1
+    P4 -.includes.-> M1
+
+    M1 --> M2
+    M1 --> M3
+    M1 --> M4
+    M1 --> M5
+
+    P2 -.applies.-> PR1
+    P3 -.applies.-> PR1
+    P4 -.applies.-> PR1
+
+    PR1 --> PR2
+    PR1 --> PR3
+    PR1 --> PR4
+
+    %% Styling
+    classDef tier1 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef tier2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef tier3 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+
+    class P1,P2,P3,P4,P5 tier1
+    class M1,M2,M3,M4,M5 tier2
+    class PR1,PR2,PR3,PR4 tier3
 ```
 
 ## Component Descriptions

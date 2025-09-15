@@ -59,6 +59,15 @@ except ImportError:
     ENHANCED_DISTRIBUTIONS_AVAILABLE = False
     LossData = None  # type: ignore
 
+# Import exposure base for dynamic frequency scaling
+try:
+    from .exposure_base import ExposureBase
+
+    EXPOSURE_BASE_AVAILABLE = True
+except ImportError:
+    EXPOSURE_BASE_AVAILABLE = False
+    ExposureBase = None  # type: ignore
+
 
 @dataclass
 class ClaimEvent:
@@ -95,7 +104,8 @@ class ClaimGenerator:
     - Catastrophes: Bernoulli trials with separate severity distribution
 
     Attributes:
-        frequency: Expected number of claims per year (Poisson lambda).
+        base_frequency: Base expected number of claims per year (Poisson lambda).
+        exposure_base: Optional exposure base for dynamic frequency scaling.
         severity_mean: Mean claim size in dollars.
         severity_std: Standard deviation of claim size.
         rng: Random number generator for reproducibility.
@@ -104,7 +114,7 @@ class ClaimGenerator:
         Generate claims for a decade::
 
             generator = ClaimGenerator(
-                frequency=0.2,  # 20% expected frequency
+                base_frequency=0.2,  # 20% expected frequency
                 severity_mean=10_000_000,
                 seed=42
             )
@@ -128,16 +138,19 @@ class ClaimGenerator:
 
     def __init__(
         self,
-        frequency: float = 0.1,  # Expected claims per year
+        base_frequency: float = 0.1,  # Expected claims per year at base exposure
+        exposure_base: Optional["ExposureBase"] = None,  # Dynamic exposure calculator
         severity_mean: float = 5_000_000,  # Mean claim size
         severity_std: float = 2_000_000,  # Std dev of claim size
         seed: Optional[int] = None,
     ):
-        """Initialize claim generator.
+        """Initialize claim generator with optional dynamic exposure.
 
         Args:
-            frequency: Expected number of claims per year (Poisson parameter).
-                Must be non-negative. Default is 0.1 (10% expected frequency).
+            base_frequency: Base expected number of claims per year at reference
+                exposure level. Must be non-negative. Default is 0.1.
+            exposure_base: Optional dynamic exposure calculator for frequency scaling.
+                When provided, actual frequency = base_frequency * exposure_multiplier.
             severity_mean: Mean claim size in dollars (lognormal parameter).
                 Must be positive. Default is $5M.
             severity_std: Standard deviation of claim size. Must be non-negative.
@@ -145,26 +158,42 @@ class ClaimGenerator:
             seed: Random seed for reproducibility. If None, uses random state.
 
         Raises:
-            ValueError: If frequency is negative or severity parameters are invalid.
+            ValueError: If base_frequency is negative or severity parameters are invalid.
 
         Examples:
-            Create generator with custom parameters::
+            Create generator with static frequency::
 
                 generator = ClaimGenerator(
-                    frequency=0.15,  # 15% frequency
+                    base_frequency=0.15,  # 15% base frequency
                     severity_mean=8_000_000,  # $8M mean
-                    severity_std=4_000_000,  # $4M std dev
                     seed=12345
                 )
+
+            Create generator with dynamic exposure::
+
+                from ergodic_insurance.exposure_base import RevenueExposure
+
+                exposure = RevenueExposure(
+                    base_revenue=10_000_000,
+                    growth_rate=0.10
+                )
+
+                generator = ClaimGenerator(
+                    base_frequency=0.1,  # 10% at base revenue
+                    exposure_base=exposure,
+                    severity_mean=5_000_000
+                )
         """
-        if frequency < 0:
-            raise ValueError(f"Frequency must be non-negative, got {frequency}")
+        # Validate parameters
+        if base_frequency < 0:
+            raise ValueError(f"Base frequency must be non-negative, got {base_frequency}")
         if severity_mean <= 0:
             raise ValueError(f"Severity mean must be positive, got {severity_mean}")
         if severity_std < 0:
             raise ValueError(f"Severity std must be non-negative, got {severity_std}")
 
-        self.frequency = frequency
+        self.base_frequency = base_frequency
+        self.exposure_base = exposure_base
         self.severity_mean = severity_mean
         self.severity_std = severity_std
         self.rng = np.random.RandomState(seed)
@@ -204,12 +233,13 @@ class ClaimGenerator:
         claims: List[ClaimEvent] = []
 
         # Handle edge cases
-        if years <= 0 or self.frequency <= 0:
+        if years <= 0 or self.base_frequency <= 0:
             return claims
 
         for year in range(years):
-            # Number of claims this year (Poisson distribution)
-            n_claims = self.rng.poisson(self.frequency)
+            # Number of claims this year (Poisson distribution with exposure adjustment)
+            adjusted_frequency = self.get_adjusted_frequency(year)
+            n_claims = self.rng.poisson(adjusted_frequency)
 
             for _ in range(n_claims):
                 # Claim severity (lognormal distribution)
@@ -225,6 +255,30 @@ class ClaimGenerator:
                 claims.append(ClaimEvent(year=year, amount=amount))
 
         return claims
+
+    def get_adjusted_frequency(self, year: int) -> float:
+        """Get frequency adjusted for exposure at given year.
+
+        Args:
+            year: Year number (0-indexed) for frequency calculation.
+
+        Returns:
+            float: Adjusted frequency for the specified year.
+                If no exposure_base is set, returns base_frequency.
+
+        Examples:
+            Check frequency scaling::
+
+                # With exposure that doubles over 10 years
+                freq_0 = generator.get_adjusted_frequency(0)  # Base frequency
+                freq_10 = generator.get_adjusted_frequency(10)  # Scaled frequency
+                print(f"Frequency scaling: {freq_10 / freq_0:.2f}x")
+        """
+        if self.exposure_base is None:
+            return self.base_frequency
+
+        multiplier = self.exposure_base.get_frequency_multiplier(float(year))
+        return self.base_frequency * multiplier
 
     def generate_year(self, year: int = 0) -> List[ClaimEvent]:
         """Generate claims for a single year.
@@ -248,8 +302,9 @@ class ClaimGenerator:
             This method is useful for step-by-step simulation where claims
             are needed one year at a time, rather than pre-generating all.
         """
-        # Generate number of claims for the year
-        n_claims = self.rng.poisson(self.frequency)
+        # Generate number of claims for the year with exposure adjustment
+        adjusted_frequency = self.get_adjusted_frequency(year)
+        n_claims = self.rng.poisson(adjusted_frequency)
 
         claims = []
         for _ in range(n_claims):
