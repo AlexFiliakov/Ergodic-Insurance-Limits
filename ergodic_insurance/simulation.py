@@ -559,16 +559,18 @@ class Simulation:
                 company_payment, insurance_recovery = self.insurance_policy.process_claim(
                     claim.amount
                 )
-                # Deduct company payment from both assets and equity
+                # Deduct company payment (deductible) from assets and track as loss
                 self.manufacturer.assets -= company_payment
-                self.manufacturer.equity -= company_payment  # Maintain balance sheet
+                # Track as period loss for proper tax treatment (DO NOT deduct from equity directly)
+                self.manufacturer.period_insurance_losses += company_payment
                 total_company_payment += company_payment
                 total_insurance_recovery += insurance_recovery
 
-            # Pay annual premium (must deduct from both assets and equity)
+            # Pay annual premium (deduct from assets, track as expense)
             annual_premium = self.insurance_policy.calculate_premium()
             self.manufacturer.assets -= annual_premium
-            self.manufacturer.equity -= annual_premium  # Critical: maintain balance sheet integrity
+            # Track as period expense for proper tax treatment (DO NOT deduct from equity directly)
+            self.manufacturer.period_insurance_premiums += annual_premium
         else:
             # Legacy behavior - process claims without policy
             for claim in claims:
