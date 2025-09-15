@@ -217,6 +217,47 @@ class TestFinancialStatementGenerator:
         assert any("ROE" in str(item) for item in items)
         assert any("ROA" in str(item) for item in items)
 
+    def test_income_statement_insurance_costs(self, generator):
+        """Test that insurance costs appear correctly in income statement."""
+        # Ensure some metrics have insurance costs
+        generator.metrics_history[2]["insurance_premiums"] = 500_000
+        generator.metrics_history[2]["insurance_losses"] = 200_000
+
+        df = generator.generate_income_statement(year=2)
+
+        # Check that insurance costs appear in the statement
+        items = df["Item"].values
+        values = df["Year 2"].values
+
+        # Find insurance premium row
+        premium_row = None
+        losses_row = None
+        for i, item in enumerate(items):
+            if "Insurance Premium" in str(item):
+                premium_row = i
+            elif "Insurance Claim Expense" in str(item):
+                losses_row = i
+
+        # Verify insurance costs are displayed (negative values in statement)
+        assert premium_row is not None, "Insurance premiums should appear in income statement"
+        assert losses_row is not None, "Insurance losses should appear in income statement"
+
+        # Check values are correct (shown as negative expenses)
+        assert values[premium_row] == -500_000, "Insurance premium should be -500,000"
+        assert values[losses_row] == -200_000, "Insurance losses should be -200,000"
+
+        # Verify total other expenses includes insurance costs
+        total_other_row = None
+        for i, item in enumerate(items):
+            if "Total Other" in str(item):
+                total_other_row = i
+                break
+
+        assert total_other_row is not None
+        assert (
+            values[total_other_row] == -700_000
+        ), "Total other expenses should include insurance costs"
+
     def test_generate_cash_flow_statement_indirect(self, generator):
         """Test cash flow statement generation using indirect method."""
         df = generator.generate_cash_flow_statement(year=2, method="indirect")
