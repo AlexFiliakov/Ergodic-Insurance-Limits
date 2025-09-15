@@ -3,12 +3,7 @@
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.pareto_frontier import (
-    Objective,
-    ObjectiveType,
-    ParetoFrontier,
-    ParetoPoint,
-)
+from ergodic_insurance.pareto_frontier import Objective, ObjectiveType, ParetoFrontier, ParetoPoint
 
 
 class TestParetoPoint:

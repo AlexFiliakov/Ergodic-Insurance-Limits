@@ -14,9 +14,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.config import Config
-from ergodic_insurance.src.monte_carlo import SimulationConfig
-from ergodic_insurance.src.scenario_manager import (
+from ergodic_insurance.config import Config
+from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.scenario_manager import (
     ParameterSpec,
     ScenarioConfig,
     ScenarioManager,

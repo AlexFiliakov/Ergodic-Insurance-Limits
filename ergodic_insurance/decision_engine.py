@@ -1164,7 +1164,7 @@ class InsuranceDecisionEngine:
                             break
 
                 # Calculate net income
-                operating_income = revenue * self.manufacturer.operating_margin
+                operating_income = revenue * self.manufacturer.base_operating_margin
                 net_losses = retained_losses + max(annual_losses - decision.total_coverage, 0)
                 net_income = operating_income - net_losses - decision.total_premium
 

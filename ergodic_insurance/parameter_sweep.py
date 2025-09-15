@@ -28,7 +28,7 @@ Example:
     >>> config = SweepConfig(
     ...     parameters={
     ...         "initial_assets": [1e6, 10e6, 100e6],
-    ...         "operating_margin": [0.05, 0.08, 0.12],
+    ...         "base_operating_margin": [0.05, 0.08, 0.12],
     ...         "loss_frequency": [3, 5, 8]
     ...     },
     ...     fixed_params={"time_horizon": 10},
@@ -390,7 +390,7 @@ class ParameterSweeper:
         config = ManufacturerConfig(
             initial_assets=params.get("initial_assets", 10e6),
             asset_turnover_ratio=params.get("asset_turnover", 1.0),
-            operating_margin=params.get("operating_margin", 0.08),
+            base_operating_margin=params.get("base_operating_margin", 0.08),
             tax_rate=params.get("tax_rate", 0.25),
             retention_ratio=params.get("retention_ratio", 0.6),
         )
@@ -412,7 +412,7 @@ class ParameterSweeper:
             parameters={
                 "initial_assets": [1e6, 10e6, 100e6],
                 "asset_turnover": [0.5, 1.0, 1.5],
-                "operating_margin": [0.05, 0.08, 0.12],
+                "base_operating_margin": [0.05, 0.08, 0.12],
             },
             fixed_params={
                 "loss_frequency": 5.0,

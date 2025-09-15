@@ -112,7 +112,7 @@ manager = ConfigManager()
 config = manager.load_profile("default")  # or "conservative", "aggressive"
 
 # Access configuration values
-print(f"Operating margin: {config.manufacturer.operating_margin:.1%}")
+print(f"Operating margin: {config.manufacturer.base_operating_margin:.1%}")
 print(f"Growth rate: {config.growth.annual_growth_rate:.1%}")
 ```
 
@@ -121,7 +121,7 @@ print(f"Growth rate: {config.growth.annual_growth_rate:.1%}")
 # Override parameters at runtime
 config = manager.load_profile(
     "conservative",
-    manufacturer={"operating_margin": 0.12},
+    manufacturer={"base_operating_margin": 0.12},
     growth={"annual_growth_rate": 0.08}
 )
 

@@ -14,15 +14,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.excel_reporter import (
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.excel_reporter import (
     OPENPYXL_AVAILABLE,
     XLSXWRITER_AVAILABLE,
     ExcelReportConfig,
     ExcelReporter,
 )
-from ergodic_insurance.src.financial_statements import FinancialStatementGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.financial_statements import FinancialStatementGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestExcelReportConfig:
@@ -100,7 +100,7 @@ class TestExcelReporter:
                 "available_assets": 10_000_000 * (1.03**year) - 100_000 * year,
                 "claim_liabilities": 50_000 * year if year > 0 else 0,
                 "is_solvent": True,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,
@@ -281,7 +281,7 @@ class TestExcelReporter:
 
         assert reporter._categorize_metric("roe") == "Ratios"
         assert reporter._categorize_metric("roa") == "Ratios"
-        assert reporter._categorize_metric("operating_margin") == "Ratios"
+        assert reporter._categorize_metric("base_operating_margin") == "Ratios"
         assert reporter._categorize_metric("asset_turnover") == "Ratios"
 
         assert reporter._categorize_metric("claim_liabilities") == "Liabilities"

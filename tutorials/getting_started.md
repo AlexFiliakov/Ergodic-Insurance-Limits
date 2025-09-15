@@ -73,7 +73,7 @@ np.random.seed(42)
 config = ManufacturerConfig(
     initial_assets=10_000_000,
     asset_turnover_ratio=1.5,  # Revenue = 1.5x assets
-    operating_margin=0.08,
+    base_operating_margin=0.08,
     tax_rate=0.25,
     retention_ratio=0.7  # Retain 70% of earnings
 )
@@ -83,7 +83,7 @@ manufacturer = WidgetManufacturer(config)
 
 print(f"Starting assets: ${manufacturer.assets:,.0f}")
 print(f"Expected annual revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
-print(f"Expected annual profit: ${manufacturer.assets * config.asset_turnover_ratio * config.operating_margin * (1 - config.tax_rate):,.0f}")
+print(f"Expected annual profit: ${manufacturer.assets * config.asset_turnover_ratio * config.base_operating_margin * (1 - config.tax_rate):,.0f}")
 ```
 
 ### Step 3: Define Loss Characteristics
@@ -254,7 +254,7 @@ The optimal insurance strategy:
 tech_company = Manufacturer(
     starting_assets=2_000_000,
     base_revenue=5_000_000,
-    operating_margin=0.15,  # Higher margins
+    base_operating_margin=0.15,  # Higher margins
     growth_rate=0.25,        # 25% growth
     volatility=0.35          # Higher uncertainty
 )

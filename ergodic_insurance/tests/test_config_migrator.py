@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from ergodic_insurance.src.config_migrator import ConfigMigrator
+from ergodic_insurance.config_migrator import ConfigMigrator
 
 
 class TestConfigMigrator:
@@ -62,7 +62,7 @@ simulation:
         with patch("builtins.open", create=True) as mock_open:
             with patch("yaml.safe_load") as mock_yaml:
                 mock_yaml.return_value = {
-                    "manufacturer": {"initial_assets": 15000000, "operating_margin": 0.06}
+                    "manufacturer": {"initial_assets": 15000000, "base_operating_margin": 0.06}
                 }
 
                 result = migrator.convert_conservative()

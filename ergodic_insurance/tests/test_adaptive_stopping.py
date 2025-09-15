@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.adaptive_stopping import (
+from ergodic_insurance.adaptive_stopping import (
     AdaptiveStoppingMonitor,
     ConvergenceStatus,
     StoppingCriteria,

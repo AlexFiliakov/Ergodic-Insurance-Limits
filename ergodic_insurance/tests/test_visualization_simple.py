@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 # Import from the visualization.py module
-from ergodic_insurance.src.visualization import (
+from ergodic_insurance.visualization import (
     WSJFormatter,
     create_interactive_dashboard,
     format_currency,

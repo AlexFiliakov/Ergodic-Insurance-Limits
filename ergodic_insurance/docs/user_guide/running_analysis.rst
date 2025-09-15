@@ -50,7 +50,7 @@ Edit your configuration file with company-specific parameters:
    manufacturer = WidgetManufacturer(
        starting_assets=10_000_000,
        base_revenue=15_000_000,
-       operating_margin=0.08,
+       base_operating_margin=0.08,
        tax_rate=0.25,
        working_capital_pct=0.20,
        dividend_rate=0.30,  # 30% of profits as dividends

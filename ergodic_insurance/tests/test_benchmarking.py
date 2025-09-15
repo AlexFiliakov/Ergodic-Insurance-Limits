@@ -13,7 +13,7 @@ import numpy as np
 import psutil
 import pytest
 
-from ergodic_insurance.src.benchmarking import (
+from ergodic_insurance.benchmarking import (
     BenchmarkConfig,
     BenchmarkMetrics,
     BenchmarkResult,

@@ -199,13 +199,13 @@ mean_growth = np.mean([r['mean_growth_rate'] for r in all_results])
 manufacturer = Manufacturer(
     initial_assets=10_000_000,
     asset_turnover=1.0,
-    operating_margin=0.08,
+    base_operating_margin=0.08,
     tax_rate=0.25
 )
 
 # Calculate base ROE
 revenue = manufacturer.initial_assets * manufacturer.asset_turnover
-operating_income = revenue * manufacturer.operating_margin
+operating_income = revenue * manufacturer.base_operating_margin
 net_income = operating_income * (1 - manufacturer.tax_rate)
 base_roe = net_income / manufacturer.initial_assets
 
@@ -218,7 +218,7 @@ if base_roe < 0.05:
     manufacturer = Manufacturer(
         initial_assets=10_000_000,
         asset_turnover=1.2,      # Increased
-        operating_margin=0.10,   # Increased
+        base_operating_margin=0.10,   # Increased
         tax_rate=0.21           # Reduced
     )
 ```
@@ -402,7 +402,7 @@ def safe_growth_rate(final_wealth, initial_wealth, n_years):
 # 2. Check for extreme values
 def validate_inputs(manufacturer, claim_generator):
     assert manufacturer.initial_assets > 0
-    assert 0 < manufacturer.operating_margin < 1
+    assert 0 < manufacturer.base_operating_margin < 1
     assert 0 < manufacturer.tax_rate < 1
     assert claim_generator.frequency >= 0
     assert claim_generator.severity_sigma > 0
@@ -543,12 +543,12 @@ print(ManufacturerConfig.schema())
 config = ManufacturerConfig(
     initial_assets=10_000_000,  # Required
     asset_turnover=1.0,          # Has default
-    operating_margin=0.08,       # Has default
+    base_operating_margin=0.08,       # Has default
     # ... other fields
 )
 
 # 3. Check value constraints
-# E.g., operating_margin must be between 0 and 1
+# E.g., base_operating_margin must be between 0 and 1
 ```
 
 ## Common Parameter Issues
@@ -562,7 +562,7 @@ config = ManufacturerConfig(
 # Reasonable parameter ranges
 reasonable_ranges = {
     'asset_turnover': (0.5, 3.0),      # Industry dependent
-    'operating_margin': (0.02, 0.25),   # 2-25%
+    'base_operating_margin': (0.02, 0.25),   # 2-25%
     'tax_rate': (0.15, 0.35),          # 15-35%
     'retention_ratio': (0.01, 0.20),    # 1-20% of assets
     'premium_rate': (0.01, 0.05),       # 1-5% of limit

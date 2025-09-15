@@ -10,8 +10,8 @@ import warnings
 import pytest
 import yaml
 
-from ergodic_insurance.src.config import Config
-from ergodic_insurance.src.config_loader import ConfigLoader
+from ergodic_insurance.config import Config
+from ergodic_insurance.config_loader import ConfigLoader
 
 
 class TestConfigLoader:
@@ -26,7 +26,7 @@ class TestConfigLoader:
             baseline_config = {
                 "manufacturer": {
                     "initial_assets": 10000000,
-                    "operating_margin": 0.08,
+                    "base_operating_margin": 0.08,
                     "tax_rate": 0.25,
                     "fixed_costs": 500000,
                     "working_capital_ratio": 0.2,
@@ -71,7 +71,7 @@ class TestConfigLoader:
 
             # Create a conservative.yaml file
             conservative_config = copy.deepcopy(baseline_config)
-            conservative_config["manufacturer"]["operating_margin"] = 0.06  # type: ignore[index]
+            conservative_config["manufacturer"]["base_operating_margin"] = 0.06  # type: ignore[index]
             conservative_config["growth"]["annual_growth_rate"] = 0.05  # type: ignore[index]
             conservative_path = config_dir / "conservative.yaml"
             with open(conservative_path, "w") as f:
@@ -79,7 +79,7 @@ class TestConfigLoader:
 
             # Create an optimistic.yaml file
             optimistic_config = copy.deepcopy(baseline_config)
-            optimistic_config["manufacturer"]["operating_margin"] = 0.10  # type: ignore[index]
+            optimistic_config["manufacturer"]["base_operating_margin"] = 0.10  # type: ignore[index]
             optimistic_config["growth"]["annual_growth_rate"] = 0.09  # type: ignore[index]
             optimistic_path = config_dir / "optimistic.yaml"
             with open(optimistic_path, "w") as f:
@@ -124,7 +124,7 @@ class TestConfigLoader:
             mock_config = MagicMock(spec=Config)
             mock_load.return_value = mock_config
 
-            overrides = {"manufacturer": {"operating_margin": 0.12}}
+            overrides = {"manufacturer": {"base_operating_margin": 0.12}}
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
@@ -290,7 +290,7 @@ class TestConfigLoader:
             mock_config = MagicMock(spec=Config)
             mock_load.return_value = mock_config
 
-            overrides = {"manufacturer": {"operating_margin": 0.12}}
+            overrides = {"manufacturer": {"base_operating_margin": 0.12}}
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
@@ -305,13 +305,13 @@ class TestConfigLoader:
         with patch.object(loader, "load") as mock_load:
             mock_config1 = MagicMock(spec=Config)
             mock_config1.model_dump.return_value = {
-                "manufacturer": {"operating_margin": 0.08},
+                "manufacturer": {"base_operating_margin": 0.08},
                 "growth": {"annual_growth_rate": 0.07},
             }
 
             mock_config2 = MagicMock(spec=Config)
             mock_config2.model_dump.return_value = {
-                "manufacturer": {"operating_margin": 0.06},
+                "manufacturer": {"base_operating_margin": 0.06},
                 "growth": {"annual_growth_rate": 0.05},
             }
 
@@ -321,9 +321,9 @@ class TestConfigLoader:
                 warnings.simplefilter("ignore", DeprecationWarning)
                 diff = loader.compare_configs("baseline", "conservative")
 
-            assert "manufacturer.operating_margin" in diff
-            assert diff["manufacturer.operating_margin"]["config1"] == 0.08
-            assert diff["manufacturer.operating_margin"]["config2"] == 0.06
+            assert "manufacturer.base_operating_margin" in diff
+            assert diff["manufacturer.base_operating_margin"]["config1"] == 0.08
+            assert diff["manufacturer.base_operating_margin"]["config2"] == 0.06
             assert "growth.annual_growth_rate" in diff
             assert diff["growth.annual_growth_rate"]["config1"] == 0.07
             assert diff["growth.annual_growth_rate"]["config2"] == 0.05
@@ -333,18 +333,18 @@ class TestConfigLoader:
         loader = ConfigLoader(config_dir=temp_config_dir)
 
         mock_config1 = MagicMock(spec=Config)
-        mock_config1.model_dump.return_value = {"manufacturer": {"operating_margin": 0.08}}
+        mock_config1.model_dump.return_value = {"manufacturer": {"base_operating_margin": 0.08}}
 
         mock_config2 = MagicMock(spec=Config)
-        mock_config2.model_dump.return_value = {"manufacturer": {"operating_margin": 0.06}}
+        mock_config2.model_dump.return_value = {"manufacturer": {"base_operating_margin": 0.06}}
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             diff = loader.compare_configs(mock_config1, mock_config2)
 
-        assert "manufacturer.operating_margin" in diff
-        assert diff["manufacturer.operating_margin"]["config1"] == 0.08
-        assert diff["manufacturer.operating_margin"]["config2"] == 0.06
+        assert "manufacturer.base_operating_margin" in diff
+        assert diff["manufacturer.base_operating_margin"]["config1"] == 0.08
+        assert diff["manufacturer.base_operating_margin"]["config2"] == 0.06
 
     def test_compare_configs_missing_keys(self, temp_config_dir):
         """Test comparing configs with missing keys."""
@@ -352,13 +352,13 @@ class TestConfigLoader:
 
         mock_config1 = MagicMock(spec=Config)
         mock_config1.model_dump.return_value = {
-            "manufacturer": {"operating_margin": 0.08},
+            "manufacturer": {"base_operating_margin": 0.08},
             "extra_key": "value1",
         }
 
         mock_config2 = MagicMock(spec=Config)
         mock_config2.model_dump.return_value = {
-            "manufacturer": {"operating_margin": 0.08},
+            "manufacturer": {"base_operating_margin": 0.08},
             "different_key": "value2",
         }
 
@@ -378,7 +378,7 @@ class TestConfigLoader:
         loader = ConfigLoader(config_dir=temp_config_dir)
 
         mock_config = MagicMock(spec=Config)
-        mock_config.model_dump.return_value = {"manufacturer": {"operating_margin": 0.08}}
+        mock_config.model_dump.return_value = {"manufacturer": {"base_operating_margin": 0.08}}
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -392,12 +392,12 @@ class TestConfigLoader:
 
         mock_config1 = MagicMock(spec=Config)
         mock_config1.model_dump.return_value = {
-            "manufacturer": {"operating_margin": 0.08, "nested": {"value1": 10, "value2": 20}}
+            "manufacturer": {"base_operating_margin": 0.08, "nested": {"value1": 10, "value2": 20}}
         }
 
         mock_config2 = MagicMock(spec=Config)
         mock_config2.model_dump.return_value = {
-            "manufacturer": {"operating_margin": 0.08, "nested": {"value1": 10, "value2": 30}}
+            "manufacturer": {"base_operating_margin": 0.08, "nested": {"value1": 10, "value2": 30}}
         }
 
         with warnings.catch_warnings():
@@ -472,7 +472,7 @@ class TestConfigLoader:
 
         # Check that margin is positive
         assert result is True
-        assert mock_config.manufacturer.operating_margin > 0
+        assert mock_config.manufacturer.base_operating_margin > 0
 
     def test_make_hashable_dict(self, temp_config_dir):
         """Test making nested dict hashable."""

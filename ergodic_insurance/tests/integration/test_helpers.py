@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from ergodic_insurance.src.simulation import SimulationResults
+from ergodic_insurance.simulation import SimulationResults
 
 # ============================================================================
 # Timing and Performance Utilities
@@ -517,8 +517,8 @@ def create_stress_scenario(
         stressed["claim_severity_mean"] *= stress_factor
 
     # Reduce margins
-    if "operating_margin" in stressed:
-        stressed["operating_margin"] /= stress_factor
+    if "base_operating_margin" in stressed:
+        stressed["base_operating_margin"] /= stress_factor
 
     # Increase volatility
     if "revenue_volatility" in stressed:

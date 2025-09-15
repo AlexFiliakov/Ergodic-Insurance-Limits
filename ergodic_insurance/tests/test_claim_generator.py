@@ -6,8 +6,8 @@ from typing import Dict
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
-from ergodic_insurance.src.loss_distributions import LossData
+from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
+from ergodic_insurance.loss_distributions import LossData
 
 
 class TestClaimEvent:

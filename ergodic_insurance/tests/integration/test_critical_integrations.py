@@ -13,24 +13,24 @@ This module covers:
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.business_optimizer import BusinessConstraints, BusinessOptimizer
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_v2 import ConfigV2
-from ergodic_insurance.src.convergence import ConvergenceDiagnostics
-from ergodic_insurance.src.decision_engine import InsuranceDecisionEngine, OptimizationConstraints
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
-from ergodic_insurance.src.loss_distributions import LossData, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine
-from ergodic_insurance.src.optimization import EnhancedSLSQPOptimizer
-from ergodic_insurance.src.pareto_frontier import ParetoFrontier
-from ergodic_insurance.src.risk_metrics import RiskMetrics
-from ergodic_insurance.src.ruin_probability import RuinProbabilityAnalyzer
-from ergodic_insurance.src.simulation import Simulation
-from ergodic_insurance.src.stochastic_processes import GeometricBrownianMotion, MeanRevertingProcess
-from ergodic_insurance.src.validation_metrics import ValidationMetrics
-from ergodic_insurance.src.walk_forward_validator import WalkForwardValidator
+from ergodic_insurance.business_optimizer import BusinessConstraints, BusinessOptimizer
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.config_v2 import ConfigV2
+from ergodic_insurance.convergence import ConvergenceDiagnostics
+from ergodic_insurance.decision_engine import InsuranceDecisionEngine, OptimizationConstraints
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.loss_distributions import LossData, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine
+from ergodic_insurance.optimization import EnhancedSLSQPOptimizer
+from ergodic_insurance.pareto_frontier import ParetoFrontier
+from ergodic_insurance.risk_metrics import RiskMetrics
+from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
+from ergodic_insurance.simulation import Simulation
+from ergodic_insurance.stochastic_processes import GeometricBrownianMotion, MeanRevertingProcess
+from ergodic_insurance.validation_metrics import ValidationMetrics
+from ergodic_insurance.walk_forward_validator import WalkForwardValidator
 
 from .test_fixtures import (
     assert_financial_consistency,
@@ -43,7 +43,7 @@ from .test_helpers import assert_convergence, calculate_ergodic_metrics, compare
 
 def create_monte_carlo_config(config_v2, n_simulations=200):
     """Create proper MonteCarloEngine config from ConfigV2."""
-    from ergodic_insurance.src.monte_carlo import SimulationConfig
+    from ergodic_insurance.monte_carlo import SimulationConfig
 
     return SimulationConfig(
         n_simulations=n_simulations,
@@ -228,7 +228,7 @@ class TestConfigurationIntegration:
         optimizer = BusinessOptimizer(manufacturer)
 
         # MonteCarloEngine requires specific objects, not configs
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         # ManufacturingLossGenerator already imported at module level
 
@@ -246,7 +246,7 @@ class TestConfigurationIntegration:
             seed=42,
         )
 
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
 
         layers = [
             EnhancedInsuranceLayer(
@@ -321,13 +321,13 @@ class TestConfigurationIntegration:
         legacy_config = {
             "initial_assets": 10_000_000,
             "asset_turnover_ratio": 1.2,
-            "operating_margin": 0.10,
+            "base_operating_margin": 0.10,
             "tax_rate": 0.25,
             "retention_ratio": 0.70,
         }
 
         # Convert to new config
-        from ergodic_insurance.src.config import ManufacturerConfig
+        from ergodic_insurance.config import ManufacturerConfig
 
         old_config = ManufacturerConfig(**legacy_config)
 
@@ -337,7 +337,7 @@ class TestConfigurationIntegration:
         # Verify values transferred
         assert manufacturer.assets == legacy_config["initial_assets"]
         assert manufacturer.asset_turnover_ratio == legacy_config["asset_turnover_ratio"]
-        assert manufacturer.base_operating_margin == legacy_config["operating_margin"]
+        assert manufacturer.base_operating_margin == legacy_config["base_operating_margin"]
 
 
 class TestOptimizationWorkflow:
@@ -386,7 +386,7 @@ class TestOptimizationWorkflow:
         - Basic functionality works
         - Trade-offs are captured
         """
-        from ergodic_insurance.src.pareto_frontier import Objective, ObjectiveType
+        from ergodic_insurance.pareto_frontier import Objective, ObjectiveType
 
         # Define objectives
         objectives = [
@@ -512,7 +512,7 @@ class TestStochasticIntegration:
 
         # Test mean reversion for operating margin
         manufacturer2 = WidgetManufacturer(config.manufacturer)
-        target_margin = manufacturer2.operating_margin
+        target_margin = manufacturer2.base_operating_margin
 
         current_margin_ratio = 1.0
         for year in range(n_years):
@@ -523,7 +523,7 @@ class TestStochasticIntegration:
             manufacturer2.step()
 
         # Final margin should be closer to target
-        final_margin = manufacturer2.operating_margin
+        final_margin = manufacturer2.base_operating_margin
         assert abs(final_margin - target_margin) < 0.05
 
     def test_correlation_between_risks(self):
@@ -652,7 +652,7 @@ class TestValidationFramework:
         assert metrics.volatility == 0.20
 
         # Test MetricCalculator for actual metric calculation
-        from ergodic_insurance.src.validation_metrics import MetricCalculator
+        from ergodic_insurance.validation_metrics import MetricCalculator
 
         calculator = MetricCalculator()
 
@@ -701,7 +701,7 @@ class TestEndToEndScenarios:
         n_simulations = 100  # For Monte Carlo
 
         # Run simulation - MonteCarloEngine requires specific objects
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         # ManufacturingLossGenerator already imported at module level
 
@@ -721,7 +721,7 @@ class TestEndToEndScenarios:
             seed=42,
         )
 
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
 
         layers = [
             EnhancedInsuranceLayer(
@@ -791,7 +791,7 @@ class TestEndToEndScenarios:
         n_simulations = 100  # For Monte Carlo
 
         # Run simulation - MonteCarloEngine requires specific objects
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         # ManufacturingLossGenerator already imported at module level
 
@@ -811,7 +811,7 @@ class TestEndToEndScenarios:
             seed=42,
         )
 
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
 
         layers = [
             EnhancedInsuranceLayer(
@@ -866,7 +866,7 @@ class TestEndToEndScenarios:
         config.simulation.random_seed = 42
 
         # Run simulation - MonteCarloEngine requires specific objects
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         # ManufacturingLossGenerator already imported at module level
 
@@ -892,7 +892,7 @@ class TestEndToEndScenarios:
             seed=42,
         )
 
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
 
         layers = [
             EnhancedInsuranceLayer(
@@ -969,7 +969,7 @@ class TestEndToEndScenarios:
         config.simulation.random_seed = 42
 
         # Run simulation - MonteCarloEngine requires specific objects
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         # ManufacturingLossGenerator already imported at module level
 
@@ -989,7 +989,7 @@ class TestEndToEndScenarios:
             seed=42,
         )
 
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
 
         layers = [
             EnhancedInsuranceLayer(
@@ -1057,7 +1057,7 @@ class TestEndToEndScenarios:
         # Test 2: Small Monte Carlo (scaled down for testing)
         config.simulation.time_horizon_years = 20
 
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         # ManufacturingLossGenerator already imported at module level
 
@@ -1077,7 +1077,7 @@ class TestEndToEndScenarios:
             seed=42,
         )
 
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
 
         layers = [
             EnhancedInsuranceLayer(

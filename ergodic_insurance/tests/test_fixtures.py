@@ -13,10 +13,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestDataGenerator:
@@ -33,7 +33,7 @@ class TestDataGenerator:
     def create_small_manufacturer(
         initial_assets: float = 1_000_000,
         asset_turnover: float = 0.5,
-        operating_margin: float = 0.1,
+        base_operating_margin: float = 0.1,
         **kwargs,
     ) -> WidgetManufacturer:
         """Create a small-scale manufacturer for quick testing.
@@ -41,7 +41,7 @@ class TestDataGenerator:
         Args:
             initial_assets: Starting asset value (default 1M for faster computation)
             asset_turnover: Revenue per dollar of assets
-            operating_margin: EBIT margin percentage
+            base_operating_margin: EBIT before insurance and losses margin percentage
             **kwargs: Additional ManufacturerConfig parameters
 
         Returns:
@@ -50,7 +50,7 @@ class TestDataGenerator:
         config = ManufacturerConfig(
             initial_assets=initial_assets,
             asset_turnover_ratio=asset_turnover,
-            base_operating_margin=operating_margin,
+            base_operating_margin=base_operating_margin,
             tax_rate=kwargs.get("tax_rate", 0.25),
             retention_ratio=kwargs.get("retention_ratio", 0.8),
         )

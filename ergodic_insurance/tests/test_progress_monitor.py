@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.progress_monitor import ProgressMonitor, ProgressStats
+from ergodic_insurance.progress_monitor import ProgressMonitor, ProgressStats
 
 
 class TestProgressStats:

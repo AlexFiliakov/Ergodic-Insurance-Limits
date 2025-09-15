@@ -7,10 +7,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
-from ergodic_insurance.src.config import Config, ManufacturerConfig
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.simulation import Simulation, SimulationResults
+from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
+from ergodic_insurance.config import Config, ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.simulation import Simulation, SimulationResults
 
 
 @pytest.fixture

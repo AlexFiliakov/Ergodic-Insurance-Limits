@@ -8,12 +8,12 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from ergodic_insurance.src.bootstrap_analysis import (
+from ergodic_insurance.bootstrap_analysis import (
     BootstrapAnalyzer,
     BootstrapResult,
     bootstrap_confidence_interval,
 )
-from ergodic_insurance.src.statistical_tests import (
+from ergodic_insurance.statistical_tests import (
     HypothesisTestResult,
     bootstrap_hypothesis_test,
     difference_in_means_test,

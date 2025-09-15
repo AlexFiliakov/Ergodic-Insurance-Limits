@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from ergodic_insurance.src.risk_metrics import RiskMetrics, RiskMetricsResult, compare_risk_metrics
+from ergodic_insurance.risk_metrics import RiskMetrics, RiskMetricsResult, compare_risk_metrics
 
 
 class TestRiskMetrics:
@@ -447,7 +447,7 @@ class TestROEAnalyzer:
 
     def test_initialization(self):
         """Test ROEAnalyzer initialization."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         roe_series = np.array([0.10, 0.12, 0.08, 0.15, 0.11])
         equity_series = np.array([100, 110, 120, 130, 140])
@@ -460,7 +460,7 @@ class TestROEAnalyzer:
 
     def test_time_weighted_average(self):
         """Test time-weighted average ROE calculation."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         # Test with constant ROE
         roe_series = np.array([0.10, 0.10, 0.10, 0.10])
@@ -479,7 +479,7 @@ class TestROEAnalyzer:
 
     def test_equity_weighted_average(self):
         """Test equity-weighted average ROE calculation."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         roe_series = np.array([0.10, 0.15, 0.08])
         equity_series = np.array([100, 200, 300])  # More weight to later periods
@@ -493,7 +493,7 @@ class TestROEAnalyzer:
 
     def test_rolling_statistics(self):
         """Test rolling window statistics."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         roe_series = np.array([0.08, 0.10, 0.12, 0.09, 0.11, 0.10])
         analyzer = ROEAnalyzer(roe_series)
@@ -514,7 +514,7 @@ class TestROEAnalyzer:
 
     def test_volatility_metrics(self):
         """Test volatility metrics calculation."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         roe_series = np.array([0.05, 0.15, 0.10, 0.20, -0.05])
         analyzer = ROEAnalyzer(roe_series)
@@ -535,7 +535,7 @@ class TestROEAnalyzer:
 
     def test_performance_ratios(self):
         """Test performance ratio calculations."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         roe_series = np.array([0.08, 0.12, 0.10, 0.15, 0.09])
         analyzer = ROEAnalyzer(roe_series)
@@ -555,7 +555,7 @@ class TestROEAnalyzer:
 
     def test_distribution_analysis(self):
         """Test distribution analysis."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         np.random.seed(42)
         roe_series = np.random.normal(0.10, 0.05, 100)
@@ -577,7 +577,7 @@ class TestROEAnalyzer:
 
     def test_stability_analysis(self):
         """Test stability analysis across periods."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         # Create a series with increasing stability
         roe_series = np.concatenate(
@@ -600,7 +600,7 @@ class TestROEAnalyzer:
 
     def test_edge_cases_roe_analyzer(self):
         """Test edge cases for ROEAnalyzer."""
-        from ergodic_insurance.src.risk_metrics import ROEAnalyzer
+        from ergodic_insurance.risk_metrics import ROEAnalyzer
 
         # Test with all NaN values
         roe_series = np.array([np.nan, np.nan, np.nan])
@@ -668,7 +668,7 @@ class TestIntegration:
 
     def test_integration_with_loss_distributions(self):
         """Test integration with ManufacturingLossGenerator."""
-        from ergodic_insurance.src.loss_distributions import LognormalLoss
+        from ergodic_insurance.loss_distributions import LognormalLoss
 
         # Generate losses using LognormalLoss
         loss_dist = LognormalLoss(mean=50000, cv=0.8, seed=42)

@@ -117,7 +117,7 @@ modules:
 
 manufacturer:
   initial_assets: 10_000_000
-  operating_margin: 0.10
+  base_operating_margin: 0.10
   tax_rate: 0.25
 ```
 
@@ -129,7 +129,7 @@ description: "Conservative risk parameters"
 
 overrides:
   manufacturer:
-    operating_margin: 0.06
+    base_operating_margin: 0.06
   growth:
     annual_growth_rate: 0.03
 ```
@@ -268,7 +268,7 @@ overrides:
 # Override specific parameters at runtime
 config = manager.load_profile(
     "default",
-    manufacturer={"operating_margin": 0.12},
+    manufacturer={"base_operating_margin": 0.12},
     simulation={"random_seed": 42}
 )
 ```

@@ -65,7 +65,7 @@
 manufacturer:
   initial_assets: 10_000_000  # \$10M starting assets
   asset_turnover_ratio: 1.0    # Revenue per dollar of assets
-  operating_margin: 0.08        # 8% operating profit margin
+  base_operating_margin: 0.08        # 8% operating profit margin
   tax_rate: 0.25               # 25% corporate tax rate
   retention_ratio: 1.0         # 100% earnings retention (no dividends)
 

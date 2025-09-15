@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.reporting.config import (
+from ergodic_insurance.reporting.config import (
     FigureConfig,
     ReportConfig,
     ReportMetadata,
@@ -24,16 +24,16 @@ from ergodic_insurance.src.reporting.config import (
     create_executive_config,
     create_technical_config,
 )
-from ergodic_insurance.src.reporting.executive_report import ExecutiveReport
-from ergodic_insurance.src.reporting.report_builder import ReportBuilder
-from ergodic_insurance.src.reporting.table_generator import (
+from ergodic_insurance.reporting.executive_report import ExecutiveReport
+from ergodic_insurance.reporting.report_builder import ReportBuilder
+from ergodic_insurance.reporting.table_generator import (
     TableGenerator,
     create_parameter_table,
     create_performance_table,
     create_sensitivity_table,
 )
-from ergodic_insurance.src.reporting.technical_report import TechnicalReport
-from ergodic_insurance.src.reporting.validator import (
+from ergodic_insurance.reporting.technical_report import TechnicalReport
+from ergodic_insurance.reporting.validator import (
     ReportValidator,
     validate_parameters,
     validate_results_data,

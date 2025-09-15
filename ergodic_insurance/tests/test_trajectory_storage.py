@@ -13,11 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.trajectory_storage import (
-    SimulationSummary,
-    StorageConfig,
-    TrajectoryStorage,
-)
+from ergodic_insurance.trajectory_storage import SimulationSummary, StorageConfig, TrajectoryStorage
 
 
 class TestStorageConfig:

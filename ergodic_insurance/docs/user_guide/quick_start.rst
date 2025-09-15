@@ -31,7 +31,7 @@ First, let's define your company using our configuration system. Create a YAML f
 
    financial:
      base_revenue: 15_000_000     # Annual revenue
-     operating_margin: 0.08        # 8% profit margin
+     base_operating_margin: 0.08        # 8% profit margin
      tax_rate: 0.25                # 25% corporate tax
      working_capital_pct: 0.20     # 20% of revenue tied up in working capital
 
@@ -157,7 +157,7 @@ Now let's run a basic simulation using Python:
    manufacturer = WidgetManufacturer(
        starting_assets=10_000_000,
        base_revenue=15_000_000,
-       operating_margin=0.08
+       base_operating_margin=0.08
    )
 
    # Define insurance program

@@ -14,7 +14,7 @@ import numpy as np
 import psutil
 import pytest
 
-from ergodic_insurance.src.parallel_executor import (
+from ergodic_insurance.parallel_executor import (
     ChunkingStrategy,
     CPUProfile,
     ParallelExecutor,

@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.sensitivity import (
+from ergodic_insurance.sensitivity import (
     SensitivityAnalyzer,
     SensitivityResult,
     TwoWaySensitivityResult,
@@ -237,7 +237,7 @@ class TestSensitivityAnalyzer:
             "severity_mean": 100000,
             "premium_rate": 0.02,
             "retention": 50000,
-            "manufacturer": {"operating_margin": 0.08, "tax_rate": 0.25},
+            "manufacturer": {"base_operating_margin": 0.08, "tax_rate": 0.25},
         }
 
     @pytest.fixture
@@ -288,15 +288,15 @@ class TestSensitivityAnalyzer:
     def test_analyze_parameter_nested(self, analyzer):
         """Test analysis of nested parameters."""
         result = analyzer.analyze_parameter(
-            "operating_margin",
-            param_path="manufacturer.operating_margin",
+            "base_operating_margin",
+            param_path="manufacturer.base_operating_margin",
             param_range=(0.06, 0.10),
             n_points=3,
         )
 
-        assert result.parameter == "operating_margin"
+        assert result.parameter == "base_operating_margin"
         assert result.baseline_value == 0.08
-        assert result.parameter_path == "manufacturer.operating_margin"
+        assert result.parameter_path == "manufacturer.base_operating_margin"
 
     def test_analyze_parameter_relative_range(self, analyzer):
         """Test using relative range."""
@@ -388,14 +388,14 @@ class TestSensitivityAnalyzer:
         """Test tornado diagram with nested parameters."""
         parameters = [
             "frequency",
-            ("operating_margin", "manufacturer.operating_margin"),
+            ("base_operating_margin", "manufacturer.base_operating_margin"),
             ("tax_rate", "manufacturer.tax_rate"),
         ]
 
         tornado_data = analyzer.create_tornado_diagram(parameters)
 
         assert isinstance(tornado_data, pd.DataFrame)
-        assert "operating_margin" in tornado_data["parameter"].values
+        assert "base_operating_margin" in tornado_data["parameter"].values
         assert "tax_rate" in tornado_data["parameter"].values
 
     def test_analyze_two_way(self, analyzer):
@@ -420,7 +420,7 @@ class TestSensitivityAnalyzer:
     def test_analyze_two_way_with_nested(self, analyzer):
         """Test two-way analysis with nested parameters."""
         result = analyzer.analyze_two_way(
-            ("margin", "manufacturer.operating_margin"),
+            ("margin", "manufacturer.base_operating_margin"),
             "frequency",
             n_points1=2,
             n_points2=2,
@@ -466,7 +466,7 @@ class TestSensitivityAnalyzer:
 
     def test_update_nested_config(self, analyzer):
         """Test updating nested configuration values."""
-        config = {"a": {"b": {"c": 1}}, "d": 2}
+        config: Dict[str, Any] = {"a": {"b": {"c": 1}}, "d": 2}
 
         # Update nested value
         new_config = analyzer._update_nested_config(config, "a.b.c", 5)
@@ -587,12 +587,7 @@ class TestIntegration:
 
 def test_module_imports():
     """Test that all module imports work correctly."""
-    from ergodic_insurance.src.sensitivity import (
-        SensitivityAnalyzer,
-        SensitivityResult,
-        TwoWaySensitivityResult,
-    )
-
+    # Already imported at the top of the file
     assert SensitivityAnalyzer is not None
     assert SensitivityResult is not None
     assert TwoWaySensitivityResult is not None

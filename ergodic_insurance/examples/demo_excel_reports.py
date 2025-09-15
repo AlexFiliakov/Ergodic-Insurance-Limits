@@ -46,7 +46,7 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
     manufacturer_config = ManufacturerConfig(
         initial_assets=10_000_000,
         asset_turnover_ratio=0.5,
-        operating_margin=0.08,
+        base_operating_margin=0.08,
         tax_rate=0.25,
         retention_ratio=0.7,  # Added missing required field
     )
@@ -215,7 +215,7 @@ def generate_multi_year_comparison(manufacturer: WidgetManufacturer, output_dir:
             "Net Income": metrics.get("net_income", 0),
             "ROE %": metrics.get("roe", 0) * 100,
             "ROA %": metrics.get("roa", 0) * 100,
-            "Operating Margin %": metrics.get("operating_margin", 0) * 100,
+            "Base Operating Margin %": metrics.get("base_operating_margin", 0) * 100,
             "Collateral": metrics.get("collateral", 0),
             "Claim Liabilities": metrics.get("claim_liabilities", 0),
         }

@@ -17,14 +17,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.reporting import (
+from ergodic_insurance.reporting import (
     CacheConfig,
     CacheKey,
     CacheManager,
     CacheStats,
     StorageBackend,
 )
-from ergodic_insurance.src.reporting.cache_manager import BaseStorageBackend, LocalStorageBackend
+from ergodic_insurance.reporting.cache_manager import BaseStorageBackend, LocalStorageBackend
 
 
 class TestCacheConfig:

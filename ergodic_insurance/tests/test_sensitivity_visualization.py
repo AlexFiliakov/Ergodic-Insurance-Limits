@@ -16,8 +16,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.sensitivity import SensitivityResult, TwoWaySensitivityResult
-from ergodic_insurance.src.sensitivity_visualization import (
+from ergodic_insurance.sensitivity import SensitivityResult, TwoWaySensitivityResult
+from ergodic_insurance.sensitivity_visualization import (
     create_sensitivity_report,
     plot_parameter_sweep,
     plot_sensitivity_matrix,
@@ -405,14 +405,7 @@ class TestSensitivityReport:
 
 def test_module_imports():
     """Test that all visualization imports work correctly."""
-    from ergodic_insurance.src.sensitivity_visualization import (
-        create_sensitivity_report,
-        plot_parameter_sweep,
-        plot_sensitivity_matrix,
-        plot_tornado_diagram,
-        plot_two_way_sensitivity,
-    )
-
+    # These imports are already done at the module level, so just verify they exist
     assert plot_tornado_diagram is not None
     assert plot_two_way_sensitivity is not None
     assert plot_parameter_sweep is not None

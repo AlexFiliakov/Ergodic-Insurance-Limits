@@ -12,10 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.reporting.scenario_comparator import (
-    ScenarioComparator,
-    ScenarioComparison,
-)
+from ergodic_insurance.reporting.scenario_comparator import ScenarioComparator, ScenarioComparison
 
 
 class TestScenarioComparison:

@@ -12,13 +12,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.reporting.formatters import (
+from ergodic_insurance.reporting.formatters import (
     ColorCoder,
     NumberFormatter,
     TableFormatter,
     format_for_export,
 )
-from ergodic_insurance.src.reporting.table_generator import (
+from ergodic_insurance.reporting.table_generator import (
     TableGenerator,
     create_parameter_table,
     create_performance_table,

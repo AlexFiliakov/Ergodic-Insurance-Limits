@@ -5,17 +5,17 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.decision_engine import (
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decision_engine import (
     DecisionMetrics,
     InsuranceDecision,
     InsuranceDecisionEngine,
     OptimizationConstraints,
     OptimizationMethod,
 )
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer as Layer
-from ergodic_insurance.src.loss_distributions import LossDistribution
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer as Layer
+from ergodic_insurance.loss_distributions import LossDistribution
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestRealWorldScenarios:

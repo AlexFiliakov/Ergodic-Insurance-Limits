@@ -48,7 +48,7 @@ Interactive worksheet to input:
 company:
   starting_assets: 10_000_000  # Your company's asset base
   revenue: 15_000_000          # Annual revenue
-  operating_margin: 0.08       # Profit margin (8%)
+  base_operating_margin: 0.08  # Profit margin (8%)
 
 risk_profile:
   small_losses_per_year: 5     # Frequency of minor incidents

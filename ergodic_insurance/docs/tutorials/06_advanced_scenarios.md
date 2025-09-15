@@ -524,7 +524,7 @@ class DynamicInsuranceStrategy:
 
             # Generate operating income
             revenue = current_assets * manufacturer.asset_turnover
-            operating_income = revenue * manufacturer.operating_margin
+            operating_income = revenue * manufacturer.base_operating_margin
             after_tax_income = operating_income * (1 - manufacturer.tax_rate)
 
             # Generate and apply losses

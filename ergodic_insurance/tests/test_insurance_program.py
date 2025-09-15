@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 import yaml
 
-from ergodic_insurance.src.insurance_program import (
+from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,
     LayerState,
@@ -683,7 +683,7 @@ class TestInsuranceProgramOptimization:
         return {
             "initial_assets": 10_000_000,
             "annual_revenue": 15_000_000,
-            "operating_margin": 0.08,
+            "base_operating_margin": 0.08,
             "growth_rate": 0.05,
         }
 

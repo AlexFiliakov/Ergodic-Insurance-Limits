@@ -26,7 +26,7 @@ from ergodic_insurance.src.optimization import InsuranceOptimizer
 manufacturer = Manufacturer(
     initial_assets=10_000_000,
     asset_turnover=1.0,
-    operating_margin=0.08
+    base_operating_margin=0.08
 )
 
 claim_generator = ClaimGenerator(

@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 import yaml
 
-from ergodic_insurance.src.visualization_infra.figure_factory import FigureFactory
-from ergodic_insurance.src.visualization_infra.style_manager import (
+from ergodic_insurance.visualization_infra.figure_factory import FigureFactory
+from ergodic_insurance.visualization_infra.style_manager import (
     ColorPalette,
     FigureConfig,
     FontConfig,

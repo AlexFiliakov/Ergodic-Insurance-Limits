@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from ergodic_insurance.src.accuracy_validator import (
+from ergodic_insurance.accuracy_validator import (
     AccuracyValidator,
     EdgeCaseTester,
     ReferenceImplementations,

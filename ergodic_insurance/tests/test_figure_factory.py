@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.visualization.figure_factory import FigureFactory
-from ergodic_insurance.src.visualization.style_manager import StyleManager, Theme
+from ergodic_insurance.visualization.figure_factory import FigureFactory
+from ergodic_insurance.visualization.style_manager import StyleManager, Theme
 
 
 class TestFigureFactory:

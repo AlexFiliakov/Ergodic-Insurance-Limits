@@ -10,14 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.config import Config, ManufacturerConfig
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import SimulationConfig
-from ergodic_insurance.src.monte_carlo import SimulationResults as MCSimulationResults
-from ergodic_insurance.src.simulation import Simulation, SimulationResults
-from ergodic_insurance.src.strategy_backtester import (
+from ergodic_insurance.config import Config, ManufacturerConfig
+from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import SimulationResults as MCSimulationResults
+from ergodic_insurance.simulation import Simulation, SimulationResults
+from ergodic_insurance.strategy_backtester import (
     AdaptiveStrategy,
     AggressiveFixedStrategy,
     BacktestResult,
@@ -27,13 +27,13 @@ from ergodic_insurance.src.strategy_backtester import (
     OptimizedStaticStrategy,
     StrategyBacktester,
 )
-from ergodic_insurance.src.validation_metrics import (
+from ergodic_insurance.validation_metrics import (
     MetricCalculator,
     PerformanceTargets,
     StrategyPerformance,
     ValidationMetrics,
 )
-from ergodic_insurance.src.walk_forward_validator import (
+from ergodic_insurance.walk_forward_validator import (
     ValidationResult,
     ValidationWindow,
     WalkForwardValidator,
@@ -382,15 +382,15 @@ class TestWalkForwardValidator:
         )
         manufacturer = WidgetManufacturer(mfg_config)
         # Create full config since None is not allowed
-        from ergodic_insurance.src.config import (  # pylint: disable=reimported
+        from ergodic_insurance.config import (  # pylint: disable=reimported
             Config,
             DebtConfig,
             GrowthConfig,
             LoggingConfig,
             OutputConfig,
         )
-        from ergodic_insurance.src.config import SimulationConfig as SimConfig
-        from ergodic_insurance.src.config import WorkingCapitalConfig  # pylint: disable=reimported
+        from ergodic_insurance.config import SimulationConfig as SimConfig
+        from ergodic_insurance.config import WorkingCapitalConfig  # pylint: disable=reimported
 
         full_config = Config(
             manufacturer=mfg_config,

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.convergence import ConvergenceDiagnostics, ConvergenceStats
+from ergodic_insurance.convergence import ConvergenceDiagnostics, ConvergenceStats
 
 
 class TestConvergenceExtended:

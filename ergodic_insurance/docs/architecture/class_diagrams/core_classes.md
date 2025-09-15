@@ -126,7 +126,7 @@ classDiagram
     class ManufacturerConfig {
         +initial_assets: float
         +asset_turnover_ratio: float
-        +operating_margin: float
+        +base_operating_margin: float
         +tax_rate: float
         +retention_ratio: float
         +target_leverage: float

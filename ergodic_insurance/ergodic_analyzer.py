@@ -2046,7 +2046,7 @@ class ErgodicAnalyzer:
                 # Set up manufacturer
                 config = ManufacturerConfig(
                     initial_assets=25_000_000,
-                    operating_margin=0.08,
+                   base_operating_margin=0.08,
                     asset_turnover_ratio=0.75
                 )
                 manufacturer = WidgetManufacturer(config)

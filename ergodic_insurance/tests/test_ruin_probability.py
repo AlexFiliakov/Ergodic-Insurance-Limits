@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.ruin_probability import (
+from ergodic_insurance.ruin_probability import (
     RuinProbabilityAnalyzer,
     RuinProbabilityConfig,
     RuinProbabilityResults,

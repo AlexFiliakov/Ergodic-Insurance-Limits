@@ -11,19 +11,19 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.batch_processor import (
+from ergodic_insurance.batch_processor import (
     AggregatedResults,
     BatchProcessor,
     BatchResult,
     CheckpointData,
     ProcessingStatus,
 )
-from ergodic_insurance.src.config import Config
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import SimulationConfig, SimulationResults
-from ergodic_insurance.src.scenario_manager import (
+from ergodic_insurance.config import Config
+from ergodic_insurance.insurance_program import InsuranceProgram
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import SimulationConfig, SimulationResults
+from ergodic_insurance.scenario_manager import (
     ParameterSpec,
     ScenarioConfig,
     ScenarioManager,

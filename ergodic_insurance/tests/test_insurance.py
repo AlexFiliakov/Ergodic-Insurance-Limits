@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 
 
 class TestInsuranceLayer:

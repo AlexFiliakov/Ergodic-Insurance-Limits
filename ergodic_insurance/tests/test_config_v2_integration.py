@@ -8,7 +8,7 @@ from pydantic import ValidationError
 import pytest
 import yaml
 
-from ergodic_insurance.src.config import (
+from ergodic_insurance.config import (
     DebtConfig,
     GrowthConfig,
     LoggingConfig,
@@ -17,7 +17,7 @@ from ergodic_insurance.src.config import (
     SimulationConfig,
     WorkingCapitalConfig,
 )
-from ergodic_insurance.src.config_v2 import (
+from ergodic_insurance.config_v2 import (
     ConfigV2,
     InsuranceConfig,
     InsuranceLayerConfig,

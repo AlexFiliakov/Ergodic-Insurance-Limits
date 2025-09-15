@@ -8,11 +8,11 @@ and claim development components to ensure financial consistency.
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.claim_development import ClaimDevelopment
-from ergodic_insurance.src.claim_generator import ClaimEvent, ClaimGenerator
-from ergodic_insurance.src.loss_distributions import LossData, LossEvent
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.simulation import Simulation
+from ergodic_insurance.claim_development import ClaimDevelopment
+from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
+from ergodic_insurance.loss_distributions import LossData, LossEvent
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.simulation import Simulation
 
 from .test_claim_development_wrapper import ClaimDevelopmentWrapper
 from .test_fixtures import (

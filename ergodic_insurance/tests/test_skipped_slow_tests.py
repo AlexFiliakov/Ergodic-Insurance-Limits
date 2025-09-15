@@ -11,17 +11,17 @@ import psutil
 import pytest
 
 if TYPE_CHECKING:
-    from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
-    from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
-    from ergodic_insurance.src.parallel_executor import ParallelExecutor
-    from ergodic_insurance.src.trajectory_storage import StorageConfig, TrajectoryStorage
+    from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
+    from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+    from ergodic_insurance.parallel_executor import ParallelExecutor
+    from ergodic_insurance.trajectory_storage import StorageConfig, TrajectoryStorage
 else:
     # Runtime imports - these will fail if modules don't exist, which is fine for skipped tests
     try:
-        from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
-        from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
-        from ergodic_insurance.src.parallel_executor import ParallelExecutor
-        from ergodic_insurance.src.trajectory_storage import StorageConfig, TrajectoryStorage
+        from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
+        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.parallel_executor import ParallelExecutor
+        from ergodic_insurance.trajectory_storage import StorageConfig, TrajectoryStorage
     except ImportError:
         # Define dummy classes for type checking when modules aren't available
         LossEvent = None  # type: ignore

@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 # Import public functions from the visualization package
-from ergodic_insurance.src.visualization import (
+from ergodic_insurance.visualization import (
     WSJFormatter,
     create_interactive_dashboard,
     create_interactive_pareto_frontier,
@@ -25,7 +25,7 @@ from ergodic_insurance.src.visualization import (
 )
 
 # Import private functions directly from the technical_plots module for testing
-from ergodic_insurance.src.visualization.technical_plots import (
+from ergodic_insurance.visualization.technical_plots import (
     _create_interactive_pareto_2d,
     _create_interactive_pareto_3d,
     _create_pareto_parallel_coordinates,
@@ -626,7 +626,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_basic(self, sample_optimization_results):
         """Test basic ROE-Ruin frontier plotting."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         fig = plot_roe_ruin_frontier(sample_optimization_results)
 
@@ -651,7 +651,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_with_dataframe(self, single_dataframe_results):
         """Test ROE-Ruin frontier with single DataFrame input."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         fig = plot_roe_ruin_frontier(single_dataframe_results)
 
@@ -670,7 +670,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_customization(self, sample_optimization_results):
         """Test ROE-Ruin frontier with custom options."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         fig = plot_roe_ruin_frontier(
             sample_optimization_results,
@@ -708,7 +708,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_sweet_spots(self, sample_optimization_results):
         """Test sweet spot detection and highlighting."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         fig = plot_roe_ruin_frontier(
             sample_optimization_results, highlight_sweet_spots=True, annotations=True
@@ -732,7 +732,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_optimal_zones(self, sample_optimization_results):
         """Test optimal zone visualization."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         fig = plot_roe_ruin_frontier(sample_optimization_results, show_optimal_zones=True)
 
@@ -747,7 +747,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_log_scale(self, sample_optimization_results):
         """Test log scale for ruin probability axis."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         fig = plot_roe_ruin_frontier(sample_optimization_results, log_scale_y=True)
 
@@ -761,7 +761,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_invalid_input(self):
         """Test error handling for invalid inputs."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         # Test with invalid data type
         with pytest.raises(ValueError, match="Results must be DataFrame or dict"):
@@ -778,7 +778,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_alternative_column_names(self):
         """Test handling of alternative column names."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         # Create data with alternative column names
         data = {
@@ -793,7 +793,7 @@ class TestROERuinFrontier:
 
     def test_find_knee_point(self):
         """Test knee point detection algorithm."""
-        from ergodic_insurance.src.visualization.executive_plots import _find_knee_point
+        from ergodic_insurance.visualization.executive_plots import _find_knee_point
 
         # Create a curve with clear knee point
         x = np.array([1, 2, 3, 4, 5, 6, 7])
@@ -806,7 +806,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_single_company(self, sample_optimization_results):
         """Test plotting with single company size."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         # Use only one company size
         single_company = {1e6: sample_optimization_results[1e6]}
@@ -828,7 +828,7 @@ class TestROERuinFrontier:
 
     def test_plot_roe_ruin_frontier_export_dpi(self, sample_optimization_results):
         """Test export DPI settings."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_roe_ruin_frontier
+        from ergodic_insurance.visualization.executive_plots import plot_roe_ruin_frontier
 
         # Test web resolution
         fig_web = plot_roe_ruin_frontier(sample_optimization_results, export_dpi=150)
@@ -846,7 +846,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_basic(self):
         """Test basic ruin cliff visualization with synthetic data."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         # Test with default parameters (synthetic data)
         fig = plot_ruin_cliff()
@@ -871,7 +871,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_custom_retention_range(self):
         """Test ruin cliff with custom retention range."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         fig = plot_ruin_cliff(retention_range=(5000, 5_000_000), n_points=30)
 
@@ -887,7 +887,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_with_simulation_data(self):
         """Test ruin cliff with provided simulation data."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         # Create mock simulation data
         retentions = np.logspace(4, 7, 50)
@@ -911,7 +911,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_without_3d_effect(self):
         """Test ruin cliff without 3D gradient effects."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         fig = plot_ruin_cliff(show_3d_effect=False)
 
@@ -938,7 +938,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_without_warnings(self):
         """Test ruin cliff without warning annotations."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         fig = plot_ruin_cliff(show_warnings=False)
 
@@ -956,7 +956,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_without_inset(self):
         """Test ruin cliff without inset plot."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         fig = plot_ruin_cliff(show_inset=False)
 
@@ -968,7 +968,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_with_inset(self):
         """Test ruin cliff with inset plot."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         fig = plot_ruin_cliff(show_inset=True)
 
@@ -988,7 +988,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_custom_title_and_size(self):
         """Test ruin cliff with custom title and figure size."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         custom_title = "Custom Cliff Analysis"
         fig = plot_ruin_cliff(title=custom_title, figsize=(16, 10), company_size=50_000_000)
@@ -1015,7 +1015,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_export_dpi(self):
         """Test ruin cliff with export DPI settings."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         # Test web resolution
         fig_web = plot_ruin_cliff(export_dpi=150, n_points=10)  # Fewer points for speed
@@ -1029,7 +1029,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_cliff_detection(self):
         """Test that cliff edge detection works properly."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         # Create data with known cliff location
         retentions = np.logspace(4, 7, 100)
@@ -1059,7 +1059,7 @@ class TestRuinCliffVisualization:
 
     def test_plot_ruin_cliff_edge_cases(self):
         """Test ruin cliff with edge case data."""
-        from ergodic_insurance.src.visualization.executive_plots import plot_ruin_cliff
+        from ergodic_insurance.visualization.executive_plots import plot_ruin_cliff
 
         # Test with flat data (no cliff)
         retentions = np.logspace(4, 6, 20)

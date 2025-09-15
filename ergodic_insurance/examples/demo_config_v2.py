@@ -33,7 +33,7 @@ def demo_basic_loading():
     # Access configuration values
     print(f"\nManufacturer settings:")
     print(f"  Initial assets: ${config.manufacturer.initial_assets:,.0f}")
-    print(f"  Operating margin: {config.manufacturer.operating_margin:.1%}")
+    print(f"  Operating margin: {config.manufacturer.base_operating_margin:.1%}")
     print(f"  Asset turnover: {config.manufacturer.asset_turnover_ratio:.2f}x")
 
     return config
@@ -53,7 +53,7 @@ def demo_profile_variants():
         print(f"\n{profile_name.upper()} Profile:")
         print(f"  Growth rate: {config.growth.annual_growth_rate:.1%}")
         print(f"  Volatility: {config.growth.volatility:.1%}")
-        print(f"  Operating margin: {config.manufacturer.operating_margin:.1%}")
+        print(f"  Operating margin: {config.manufacturer.base_operating_margin:.1%}")
         print(f"  Tax rate: {config.manufacturer.tax_rate:.1%}")
 
 
@@ -68,12 +68,12 @@ def demo_runtime_overrides():
     # Load with overrides
     config = manager.load_profile(
         "default",
-        manufacturer={"operating_margin": 0.12, "tax_rate": 0.30},
+        manufacturer={"base_operating_margin": 0.12, "tax_rate": 0.30},
         growth={"annual_growth_rate": 0.08},
     )
 
     print("\nConfiguration with overrides:")
-    print(f"  Operating margin: {config.manufacturer.operating_margin:.1%} (overridden)")
+    print(f"  Operating margin: {config.manufacturer.base_operating_margin:.1%} (overridden)")
     print(f"  Tax rate: {config.manufacturer.tax_rate:.1%} (overridden)")
     print(f"  Growth rate: {config.growth.annual_growth_rate:.1%} (overridden)")
     print(f"  Initial assets: ${config.manufacturer.initial_assets:,.0f} (default)")
@@ -191,7 +191,7 @@ def demo_validation():
     print("\nTrying invalid override (negative margin):")
     try:
         config = manager.load_profile(
-            "default", manufacturer={"operating_margin": -0.5}  # Invalid negative margin
+            "default", manufacturer={"base_operating_margin": -0.5}  # Invalid negative margin
         )
         print("  [OK] Configuration accepted")
     except Exception as e:
@@ -215,7 +215,7 @@ def demo_manufacturer_integration():
     print(f"\nManufacturer created with conservative profile:")
     print(f"  Initial assets: ${manufacturer.assets:,.0f}")
     print(f"  Initial equity: ${manufacturer.equity:,.0f}")
-    print(f"  Operating margin: {manufacturer.config.operating_margin:.1%}")
+    print(f"  Base operating margin: {manufacturer.config.base_operating_margin:.1%}")
     print(f"  Tax rate: {manufacturer.config.tax_rate:.1%}")
 
     print("\n[Demo complete - actual simulation would require process_year method]")

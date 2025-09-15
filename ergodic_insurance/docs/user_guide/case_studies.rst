@@ -46,7 +46,7 @@ Analysis Process
    manufacturer_config = {
        'starting_assets': 10_000_000,
        'base_revenue': 15_000_000,
-       'operating_margin': 0.08,
+       'base_operating_margin': 0.08,
        'tax_rate': 0.25,
        'working_capital_pct': 0.20,
        'growth_volatility': 0.15
@@ -147,7 +147,7 @@ Analysis Process
    tech_config = {
        'starting_assets': 5_000_000,
        'base_revenue': 8_000_000,
-       'operating_margin': -0.10,  # Negative margin during growth
+       'base_operating_margin': -0.10,  # Negative margin during growth
        'growth_rate': 1.0,  # 100% growth
        'growth_volatility': 0.40,  # High volatility
        'burn_rate': 2_000_000

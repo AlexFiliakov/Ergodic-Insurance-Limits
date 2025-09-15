@@ -28,7 +28,7 @@ print("=" * 80)
 # Company parameters (from notebook)
 COMPANY_PARAMS = {
     "annual_revenue": 15_000_000,
-    "operating_margin": 0.08,
+    "base_operating_margin": 0.08,
     "initial_cash": 1_500_000,
     "fixed_costs": 13_800_000,  # Revenue * (1 - margin)
 }
@@ -288,7 +288,7 @@ def simulate_long_term_growth_simplified(
     # Simple growth calculation (without actual simulation)
     initial_cash = COMPANY_PARAMS["initial_cash"]
     annual_revenue = COMPANY_PARAMS["annual_revenue"]
-    annual_profit = annual_revenue * COMPANY_PARAMS["operating_margin"]
+    annual_profit = annual_revenue * COMPANY_PARAMS["base_operating_margin"]
 
     # Account for insurance cost
     if program:

@@ -23,7 +23,7 @@ Example:
         # Load with overrides
         config = manager.load_profile(
             "conservative",
-            manufacturer={"operating_margin": 0.12},
+            manufacturer={"base_operating_margin": 0.12},
             growth={"annual_growth_rate": 0.08}
         )
 
@@ -174,7 +174,7 @@ class ConfigManager:
                 # With overrides
                 config = manager.load_profile(
                     "conservative",
-                    manufacturer={"operating_margin": 0.12},
+                    manufacturer={"base_operating_margin": 0.12},
                     simulation={"time_horizon_years": 50}
                 )
 
@@ -409,9 +409,9 @@ class ConfigManager:
                 f"Time horizon {config.simulation.time_horizon_years} years may be too long"
             )
 
-        if config.manufacturer.operating_margin > 0.5:
+        if config.manufacturer.base_operating_margin > 0.5:
             issues.append(
-                f"Operating margin {config.manufacturer.operating_margin} seems unrealistic"
+                f"Base operating margin {config.manufacturer.base_operating_margin} seems unrealistic"
             )
 
         return issues

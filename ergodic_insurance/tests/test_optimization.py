@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from scipy.optimize import Bounds
 
-from ergodic_insurance.src.optimization import (
+from ergodic_insurance.optimization import (
     AdaptivePenaltyParameters,
     AugmentedLagrangianOptimizer,
     ConstraintType,

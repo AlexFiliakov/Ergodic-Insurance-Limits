@@ -11,13 +11,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.financial_statements import (
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.financial_statements import (
     FinancialStatementConfig,
     FinancialStatementGenerator,
     MonteCarloStatementAggregator,
 )
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestFinancialStatementConfig:
@@ -76,7 +76,7 @@ class TestFinancialStatementGenerator:
                 "available_assets": 10_000_000,
                 "claim_liabilities": 0,
                 "is_solvent": True,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,
@@ -93,7 +93,7 @@ class TestFinancialStatementGenerator:
                 "available_assets": 10_200_000,
                 "claim_liabilities": 0,
                 "is_solvent": True,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,
@@ -110,7 +110,7 @@ class TestFinancialStatementGenerator:
                 "available_assets": 10_409_000,
                 "claim_liabilities": 100_000,
                 "is_solvent": True,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,

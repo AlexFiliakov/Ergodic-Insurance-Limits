@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.simulation import SimulationResults
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.simulation import SimulationResults
 
 
 class TestErgodicAnalyzer:

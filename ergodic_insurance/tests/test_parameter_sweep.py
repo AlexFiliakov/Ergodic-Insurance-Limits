@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.business_optimizer import BusinessOptimizer, OptimalStrategy
-from ergodic_insurance.src.parameter_sweep import ParameterSweeper, SweepConfig
+from ergodic_insurance.business_optimizer import BusinessOptimizer, OptimalStrategy
+from ergodic_insurance.parameter_sweep import ParameterSweeper, SweepConfig
 
 
 class TestSweepConfig:
@@ -128,7 +128,7 @@ class TestParameterSweeper:
     def test_run_single_success(self, sweeper):
         """Test successful single parameter run."""
         # Pre-populate cache to avoid actual optimization
-        params = {"initial_assets": 10e6, "operating_margin": 0.08, "time_horizon": 10}
+        params = {"initial_assets": 10e6, "base_operating_margin": 0.08, "time_horizon": 10}
 
         # Create expected result
         expected_result = {
@@ -504,7 +504,7 @@ class TestParameterSweeper:
         params = {
             "initial_assets": 20e6,
             "working_capital_pct": 0.15,
-            "operating_margin": 0.10,
+            "base_operating_margin": 0.10,
             "asset_turnover": 1.2,
             "tax_rate": 0.30,
         }

@@ -49,7 +49,7 @@ from ergodic_insurance.src import (
 manufacturer = Manufacturer(
     starting_assets=10_000_000,
     base_revenue=15_000_000,
-    operating_margin=0.08,
+    base_operating_margin=0.08,
     volatility=0.15
 )
 
@@ -290,7 +290,7 @@ plt.show()
 startup = Manufacturer(
     starting_assets=2_000_000,
     base_revenue=3_000_000,
-    operating_margin=0.15,
+    base_operating_margin=0.15,
     growth_rate=0.50,  # 50% growth
     volatility=0.40  # High uncertainty
 )
@@ -313,7 +313,7 @@ print(f"Startup optimal: {startup_insurance.summary()}")
 stable_co = Manufacturer(
     starting_assets=50_000_000,
     base_revenue=75_000_000,
-    operating_margin=0.06,
+    base_operating_margin=0.06,
     growth_rate=0.03,
     volatility=0.10
 )
@@ -336,7 +336,7 @@ print(f"Stable company optimal: {stable_insurance.summary()}")
 cyclical = Manufacturer(
     starting_assets=20_000_000,
     base_revenue=30_000_000,
-    operating_margin=0.10,
+    base_operating_margin=0.10,
     volatility=0.25,
     cyclical=True,
     cycle_period=7  # 7-year cycles
@@ -360,7 +360,7 @@ cyclical_insurance = cyclical_optimizer.run()
 def sensitivity_analysis(base_manufacturer, optimal_insurance):
     """Test sensitivity of optimal solution to parameter changes"""
 
-    parameters = ['volatility', 'growth_rate', 'operating_margin']
+    parameters = ['volatility', 'growth_rate', 'base_operating_margin']
     variations = [-20, -10, 0, 10, 20]  # Percentage changes
 
     results = {}
@@ -414,7 +414,7 @@ def test_robustness(optimal_insurance, n_scenarios=100):
         test_manufacturer = Manufacturer(
             starting_assets=np.random.uniform(5e6, 20e6),
             volatility=np.random.uniform(0.10, 0.30),
-            operating_margin=np.random.uniform(0.04, 0.12),
+            base_operating_margin=np.random.uniform(0.04, 0.12),
             growth_rate=np.random.uniform(0.0, 0.15)
         )
 
@@ -430,7 +430,7 @@ def test_robustness(optimal_insurance, n_scenarios=100):
 
         scenarios.append({
             'volatility': test_manufacturer.volatility,
-            'margin': test_manufacturer.operating_margin,
+            'margin': test_manufacturer.base_operating_margin,
             'growth': results.calculate_ergodic_growth(),
             'ruin_prob': results.calculate_ruin_probability()
         })

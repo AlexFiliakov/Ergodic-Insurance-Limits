@@ -26,7 +26,7 @@ Examples:
         manufacturer = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.8,
-            operating_margin=0.08,
+            base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7
         )
@@ -134,14 +134,6 @@ class ManufacturerConfig(BaseModel):
         elif v < 0:
             print(f"Warning: Base operating margin {v:.1%} is negative")
         return v
-
-    @property
-    def operating_margin(self) -> float:
-        """Backward compatibility property mapping to base_operating_margin.
-
-        Deprecated: Use base_operating_margin instead.
-        """
-        return self.base_operating_margin
 
 
 class WorkingCapitalConfig(BaseModel):

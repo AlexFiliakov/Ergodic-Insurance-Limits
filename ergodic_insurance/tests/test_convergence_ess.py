@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.convergence import ConvergenceDiagnostics, ConvergenceStats
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
-from ergodic_insurance.src.progress_monitor import ProgressMonitor, ProgressStats
+from ergodic_insurance.convergence import ConvergenceDiagnostics, ConvergenceStats
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.progress_monitor import ProgressMonitor, ProgressStats
 
 
 class TestESSCalculation:

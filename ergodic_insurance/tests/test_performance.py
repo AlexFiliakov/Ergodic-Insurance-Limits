@@ -18,14 +18,14 @@ import time
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.accuracy_validator import (
+from ergodic_insurance.accuracy_validator import (
     AccuracyValidator,
     EdgeCaseTester,
     ReferenceImplementations,
     StatisticalValidation,
     ValidationResult,
 )
-from ergodic_insurance.src.benchmarking import (
+from ergodic_insurance.benchmarking import (
     BenchmarkConfig,
     BenchmarkMetrics,
     BenchmarkResult,
@@ -33,12 +33,12 @@ from ergodic_insurance.src.benchmarking import (
     BenchmarkSuite,
     SystemProfiler,
 )
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
-from ergodic_insurance.src.performance_optimizer import (
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.performance_optimizer import (
     OptimizationConfig,
     PerformanceOptimizer,
     ProfileResult,
@@ -169,7 +169,7 @@ class TestPerformanceBenchmarks:
 
     def test_metrics_calculation_performance(self):
         """Test risk metrics calculation performance."""
-        from ergodic_insurance.src.risk_metrics import RiskMetrics
+        from ergodic_insurance.risk_metrics import RiskMetrics
 
         # Generate large dataset
         n_sims = 1_000_000

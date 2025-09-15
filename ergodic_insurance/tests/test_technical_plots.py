@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.visualization.technical_plots import (
+from ergodic_insurance.visualization.technical_plots import (
     plot_enhanced_convergence_diagnostics,
     plot_ergodic_divergence,
     plot_loss_distribution_validation,
@@ -700,7 +700,7 @@ class TestCorrelationStructure:
             "financial": np.random.multivariate_normal(mean, cov, n_samples),
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+        from ergodic_insurance.visualization.technical_plots import plot_correlation_structure
 
         fig = plot_correlation_structure(data)
 
@@ -717,7 +717,7 @@ class TestCorrelationStructure:
         n_samples = 500
         data = {"operational": np.random.randn(n_samples, 4)}
 
-        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+        from ergodic_insurance.visualization.technical_plots import plot_correlation_structure
 
         fig = plot_correlation_structure(data, correlation_type="spearman")
 
@@ -737,7 +737,7 @@ class TestCorrelationStructure:
             "risk_type_2": np.random.randn(200, 2),
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+        from ergodic_insurance.visualization.technical_plots import plot_correlation_structure
 
         fig = plot_correlation_structure(data, correlation_type="kendall")
 
@@ -747,7 +747,7 @@ class TestCorrelationStructure:
     def test_correlation_structure_two_variables(self):
         """Test correlation structure with exactly 2 variables (edge case for spearmanr)."""
         np.random.seed(42)
-        from ergodic_insurance.src.visualization.technical_plots import plot_correlation_structure
+        from ergodic_insurance.visualization.technical_plots import plot_correlation_structure
 
         # Test data with exactly 2 variables
         data = {"risk": np.random.randn(100, 2)}
@@ -801,7 +801,7 @@ class TestPremiumDecomposition:
             },
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import plot_premium_decomposition
+        from ergodic_insurance.visualization.technical_plots import plot_premium_decomposition
 
         fig = plot_premium_decomposition(premium_components)
 
@@ -829,7 +829,7 @@ class TestPremiumDecomposition:
             }
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import plot_premium_decomposition
+        from ergodic_insurance.visualization.technical_plots import plot_premium_decomposition
 
         fig = plot_premium_decomposition(premium_components, show_percentages=True)
 
@@ -865,7 +865,7 @@ class TestPremiumDecomposition:
             "profit_margin": "#9467bd",
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import plot_premium_decomposition
+        from ergodic_insurance.visualization.technical_plots import plot_premium_decomposition
 
         fig = plot_premium_decomposition(premium_components, color_scheme=color_scheme)
 
@@ -891,7 +891,7 @@ class TestCapitalEfficiencyFrontier3D:
             }
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import (
+        from ergodic_insurance.visualization.technical_plots import (
             plot_capital_efficiency_frontier_3d,
         )
 
@@ -936,7 +936,7 @@ class TestCapitalEfficiencyFrontier3D:
             )
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import (
+        from ergodic_insurance.visualization.technical_plots import (
             plot_capital_efficiency_frontier_3d,
         )
 
@@ -963,7 +963,7 @@ class TestCapitalEfficiencyFrontier3D:
             }
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import (
+        from ergodic_insurance.visualization.technical_plots import (
             plot_capital_efficiency_frontier_3d,
         )
 
@@ -992,7 +992,7 @@ class TestCapitalEfficiencyFrontier3D:
             }
         }
 
-        from ergodic_insurance.src.visualization.technical_plots import (
+        from ergodic_insurance.visualization.technical_plots import (
             plot_capital_efficiency_frontier_3d,
         )
 

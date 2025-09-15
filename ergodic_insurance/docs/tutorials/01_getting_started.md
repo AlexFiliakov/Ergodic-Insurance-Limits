@@ -59,7 +59,7 @@ print("✅ Framework imported successfully!")
 config = ManufacturerConfig(
     initial_assets=10_000_000,
     asset_turnover_ratio=1.0,
-    operating_margin=0.08,
+    operatingbase_operating_margin_margin=0.08,
     tax_rate=0.25,
     retention_ratio=0.7
 )
@@ -92,7 +92,7 @@ np.random.seed(42)
 config = ManufacturerConfig(
     initial_assets=10_000_000,    # Starting with $10M
     asset_turnover_ratio=1.0,     # Generate revenue equal to assets
-    operating_margin=0.12,        # Profit margin before losses (~8% margin after losses)
+    base_operating_margin=0.12,        # Profit margin before losses (~8% margin after losses)
     tax_rate=0.25,                # 25% corporate tax
     retention_ratio=0.7           # Retain 70% of earnings
 )
@@ -103,7 +103,7 @@ manufacturer = WidgetManufacturer(config)
 print(f"Company Profile:")
 print(f"  Initial Assets: ${manufacturer.assets:,.0f}")
 print(f"  Expected Annual Revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
-print(f"  Expected Operating Income (Before Losses): ${manufacturer.assets * config.asset_turnover_ratio * config.operating_margin:,.0f}")
+print(f"  Expected Operating Income (Before Losses): ${manufacturer.assets * config.asset_turnover_ratio * config.base_operating_margin:,.0f}")
 ```
 
 #### Expected Output:

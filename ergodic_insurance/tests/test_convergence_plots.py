@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.convergence_plots import RealTimeConvergencePlotter
+from ergodic_insurance.convergence_plots import RealTimeConvergencePlotter
 
 
 class TestRealTimeConvergencePlotter:

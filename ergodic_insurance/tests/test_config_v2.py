@@ -12,7 +12,7 @@ from pydantic import ValidationError
 import pytest
 import yaml
 
-from ergodic_insurance.src.config import (
+from ergodic_insurance.config import (
     DebtConfig,
     GrowthConfig,
     LoggingConfig,
@@ -21,7 +21,7 @@ from ergodic_insurance.src.config import (
     SimulationConfig,
     WorkingCapitalConfig,
 )
-from ergodic_insurance.src.config_v2 import (
+from ergodic_insurance.config_v2 import (
     ConfigV2,
     InsuranceConfig,
     InsuranceLayerConfig,
@@ -462,7 +462,7 @@ class TestConfigV2:
             "manufacturer": {
                 "initial_assets": 10000000,
                 "asset_turnover_ratio": 0.8,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.6,
             },
@@ -503,7 +503,7 @@ class TestConfigV2:
             "manufacturer": {
                 "initial_assets": 10000000,
                 "asset_turnover_ratio": 0.8,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.6,
             },
@@ -536,7 +536,7 @@ class TestConfigV2:
             "manufacturer": {
                 "initial_assets": 5000000,
                 "asset_turnover_ratio": 0.7,
-                "operating_margin": 0.07,
+                "base_operating_margin": 0.07,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.6,
             },
@@ -563,7 +563,7 @@ class TestConfigV2:
             "manufacturer": {
                 "initial_assets": 10000000,  # Override parent
                 "asset_turnover_ratio": 0.8,  # Override parent
-                "operating_margin": 0.08,  # Override parent
+                "base_operating_margin": 0.08,  # Override parent
                 "tax_rate": 0.25,  # Keep parent value
             },
             "growth": {"annual_growth_rate": 0.05},  # Override parent
@@ -634,7 +634,7 @@ class TestConfigV2:
         )
 
         module_data = {
-            "manufacturer": {"operating_margin": 0.10},  # Update existing
+            "manufacturer": {"base_operating_margin": 0.10},  # Update existing
             "custom_modules": {"risk": {"module_name": "risk", "module_version": "1.0.0"}},
         }
 
@@ -671,7 +671,7 @@ class TestConfigV2:
         )
 
         preset_data = {
-            "manufacturer": {"operating_margin": 0.12},
+            "manufacturer": {"base_operating_margin": 0.12},
             "growth": {"annual_growth_rate": 0.08},
         }
 

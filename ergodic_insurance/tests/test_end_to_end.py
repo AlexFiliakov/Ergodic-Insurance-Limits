@@ -13,14 +13,14 @@ import time
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.decision_engine import InsuranceDecisionEngine
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig
-from ergodic_insurance.src.optimization import EnhancedSLSQPOptimizer
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decision_engine import InsuranceDecisionEngine
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.optimization import EnhancedSLSQPOptimizer
 from ergodic_insurance.tests.test_fixtures import GoldenTestData, ScenarioBuilder, TestDataGenerator
 
 

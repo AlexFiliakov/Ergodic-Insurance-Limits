@@ -5,13 +5,13 @@ from typing import Any, Dict
 
 import pytest
 
-from ergodic_insurance.src.config import (
+from ergodic_insurance.config import (
     MarketCycles,
     PricingScenario,
     PricingScenarioConfig,
     TransitionProbabilities,
 )
-from ergodic_insurance.src.config_loader import ConfigLoader
+from ergodic_insurance.config_loader import ConfigLoader
 
 
 class TestPricingScenario:

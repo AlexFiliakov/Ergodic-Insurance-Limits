@@ -608,7 +608,7 @@ class ExcelReporter:
                     "Equity": metrics.get("equity", 0),
                     "ROE %": metrics.get("roe", 0) * 100,
                     "ROA %": metrics.get("roa", 0) * 100,
-                    "Operating Margin %": metrics.get("operating_margin", 0) * 100,
+                    "Base operating Margin %": metrics.get("base_operating_margin", 0) * 100,
                     "Asset Turnover": metrics.get("asset_turnover", 0),
                     "Collateral": metrics.get("collateral", 0),
                     "Claim Liabilities": metrics.get("claim_liabilities", 0),
@@ -1011,7 +1011,7 @@ class ExcelReporter:
             ws.cell(row=row, column=6, value=metrics.get("equity", 0))
             ws.cell(row=row, column=7, value=metrics.get("roe", 0) * 100)
             ws.cell(row=row, column=8, value=metrics.get("roa", 0) * 100)
-            ws.cell(row=row, column=9, value=metrics.get("operating_margin", 0) * 100)
+            ws.cell(row=row, column=9, value=metrics.get("base_operating_margin", 0) * 100)
             row += 1
 
         # Auto-adjust column widths
@@ -1077,7 +1077,8 @@ class ExcelReporter:
                             "Equity": metrics.get("equity", 0),
                             "ROE %": metrics.get("roe", 0) * 100,
                             "ROA %": metrics.get("roa", 0) * 100,
-                            "Operating Margin %": metrics.get("operating_margin", 0) * 100,
+                            "Base Operating Margin %": metrics.get("base_operating_margin", 0)
+                            * 100,
                         }
                     )
                 df = pd.DataFrame(metrics_data)

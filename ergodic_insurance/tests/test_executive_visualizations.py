@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.visualization.executive_plots import (
+from ergodic_insurance.visualization.executive_plots import (
     plot_breakeven_timeline,
     plot_optimal_coverage_heatmap,
     plot_premium_multiplier,

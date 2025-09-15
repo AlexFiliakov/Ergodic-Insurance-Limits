@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.convergence_advanced import (
+from ergodic_insurance.convergence_advanced import (
     AdvancedConvergenceDiagnostics,
     AutocorrelationAnalysis,
     SpectralDiagnostics,

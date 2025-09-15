@@ -53,7 +53,7 @@ class TestImportPatterns:
         This test verifies not just that imports succeed, but that the
         imported classes have the expected structure and can be instantiated.
         """
-        from ergodic_insurance.src import (  # pylint: disable=no-name-in-module
+        from ergodic_insurance import (  # pylint: disable=no-name-in-module
             BusinessConstraints,
             BusinessObjective,
             BusinessOptimizer,
@@ -134,16 +134,14 @@ class TestImportPatterns:
 
     def test_init_exports_match_all(self):
         """Verify that __init__.py __all__ matches actual exports."""
-        import ergodic_insurance.src
-        from ergodic_insurance.src import __all__
+        import ergodic_insurance
+        from ergodic_insurance import __all__
 
         # Check that all items in __all__ can be imported
         for item in __all__:
             if item == "__version__":
                 continue
-            assert hasattr(
-                ergodic_insurance.src, item
-            ), f"Item '{item}' in __all__ cannot be imported"
+            assert hasattr(ergodic_insurance, item), f"Item '{item}' in __all__ cannot be imported"
 
     def test_consistent_import_style(self):
         """Verify that imports follow consistent patterns in test files."""
@@ -165,7 +163,7 @@ class TestImportPatterns:
                         continue  # Test fixtures are allowed to be imported directly
 
                     # Should use .src. pattern for module imports
-                    # Allow both "from ergodic_insurance.src.module import ..." and
+                    # Allow both "from ergodic_insurance.module import ..." and
                     # "from ergodic_insurance.src import module"
                     assert (
                         ".src" in line or "from ergodic_insurance import" in line
@@ -181,7 +179,7 @@ class TestImportPatterns:
 
         This ensures classes are not just importable but actually functional.
         """
-        from ergodic_insurance.src import (  # pylint: disable=no-name-in-module
+        from ergodic_insurance import (  # pylint: disable=no-name-in-module
             ManufacturerConfig,
             WidgetManufacturer,
         )

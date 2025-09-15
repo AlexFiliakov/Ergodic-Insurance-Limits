@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.business_optimizer import (
+from ergodic_insurance.business_optimizer import (
     BusinessConstraints,
     BusinessObjective,
     BusinessOptimizationResult,
@@ -19,11 +19,11 @@ from ergodic_insurance.src.business_optimizer import (
     OptimalStrategy,
     OptimizationDirection,
 )
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.decision_engine import InsuranceDecisionEngine
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.loss_distributions import LognormalLoss
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decision_engine import InsuranceDecisionEngine
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.loss_distributions import LognormalLoss
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestBusinessObjective:

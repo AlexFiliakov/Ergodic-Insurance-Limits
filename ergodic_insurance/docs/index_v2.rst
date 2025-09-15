@@ -35,7 +35,7 @@ Quick Start with Configuration v2
    config = manager.load_profile(
        "default",
        presets=["steady_market"],
-       manufacturer={"operating_margin": 0.10}
+       manufacturer={"base_operating_margin": 0.10}
    )
 
    # Create manufacturer
@@ -76,7 +76,7 @@ The new 3-tier configuration architecture:
 
    overrides:
      manufacturer:
-       operating_margin: 0.15
+       base_operating_margin: 0.15
      growth:
        annual_growth_rate: 0.25
 
@@ -199,7 +199,7 @@ The new configuration system makes it easy to create and use custom scenarios:
        modules=["insurance", "losses"],
        presets=["hard_market", "high_volatility"],
        manufacturer={
-           "operating_margin": 0.04,  # Compressed margins
+           "base_operating_margin": 0.04,  # Compressed margins
            "tax_rate": 0.30           # Higher taxes
        },
        simulation={

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import yaml
 
-from ergodic_insurance.src.claim_development import (
+from ergodic_insurance.claim_development import (
     CashFlowProjector,
     Claim,
     ClaimCohort,

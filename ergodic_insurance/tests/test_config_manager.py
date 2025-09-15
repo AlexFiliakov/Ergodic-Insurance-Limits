@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_v2 import ConfigV2, ProfileMetadata
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.config_v2 import ConfigV2, ProfileMetadata
 
 
 class TestConfigManager:
@@ -33,7 +33,7 @@ class TestConfigManager:
             "manufacturer": {
                 "initial_assets": 10000000,
                 "asset_turnover_ratio": 0.8,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
             },
@@ -223,7 +223,7 @@ class TestConfigManager:
                 "version": "2.0.0",
                 "extends": "test",
             },
-            "manufacturer": {"operating_margin": 0.10},  # Override parent value
+            "manufacturer": {"base_operating_margin": 0.10},  # Override parent value
         }
 
         with open(temp_config_dir / "profiles" / "child.yaml", "w") as f:
@@ -293,12 +293,12 @@ class TestConfigManager:
         manager = ConfigManager(config_dir=temp_config_dir)
 
         base = {
-            "manufacturer": {"initial_assets": 10000000, "operating_margin": 0.08},
+            "manufacturer": {"initial_assets": 10000000, "base_operating_margin": 0.08},
             "growth": {"annual_growth_rate": 0.05},
         }
 
         override = {
-            "manufacturer": {"operating_margin": 0.10},  # Override
+            "manufacturer": {"base_operating_margin": 0.10},  # Override
             "simulation": {"time_horizon_years": 50},  # New
         }
 
@@ -320,7 +320,7 @@ class TestConfigManager:
             "manufacturer": {
                 "initial_assets": 10000000,
                 "asset_turnover_ratio": 0.8,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
             },
@@ -391,7 +391,7 @@ class TestConfigManager:
             "profile": {"name": "parent", "description": "Parent profile", "version": "2.0.0"},
             "manufacturer": {
                 "initial_assets": 5000000,
-                "operating_margin": 0.06,
+                "base_operating_margin": 0.06,
                 "asset_turnover_ratio": 0.8,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
@@ -428,7 +428,7 @@ class TestConfigManager:
         # Create child profile
         child = {
             "profile": {"name": "complex", "version": "2.0.0", "extends": "parent"},
-            "manufacturer": {"operating_margin": 0.08},  # Override parent
+            "manufacturer": {"base_operating_margin": 0.08},  # Override parent
         }
         with open(temp_config_dir / "profiles" / "complex.yaml", "w") as f:
             yaml.dump(child, f)
@@ -539,7 +539,7 @@ class TestConfigManager:
             "manufacturer": {
                 "initial_assets": 5000000,
                 "asset_turnover_ratio": 0.7,
-                "operating_margin": 0.07,
+                "base_operating_margin": 0.07,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.6,
             },
@@ -610,7 +610,7 @@ class TestConfigManager:
             "manufacturer": {
                 "initial_assets": 10000000,
                 "asset_turnover_ratio": 0.8,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
             },
@@ -665,7 +665,7 @@ class TestConfigManager:
             "manufacturer": {
                 "initial_assets": 10000000,
                 "asset_turnover_ratio": 0.8,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
             },

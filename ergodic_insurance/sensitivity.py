@@ -54,7 +54,7 @@ class SensitivityResult:
         baseline_value: Original value of the parameter
         variations: Array of parameter values tested
         metrics: Dictionary of metric arrays for each variation
-        parameter_path: Nested path to parameter (e.g., "manufacturer.operating_margin")
+        parameter_path: Nested path to parameter (e.g., "manufacturer.base_operating_margin")
         units: Optional units for the parameter (e.g., "percentage", "dollars")
     """
 

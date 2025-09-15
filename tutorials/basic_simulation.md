@@ -56,7 +56,7 @@ np.random.seed(42)
 manufacturer = Manufacturer(
     starting_assets=10_000_000,
     base_revenue=15_000_000,
-    operating_margin=0.08,
+    base_operating_margin=0.08,
     tax_rate=0.25,
     growth_rate=0.05,  # 5% annual growth
     volatility=0.15,   # 15% revenue volatility
@@ -67,7 +67,7 @@ manufacturer = Manufacturer(
 print("Business Configuration:")
 print(f"  Starting Assets: ${manufacturer.starting_assets:,.0f}")
 print(f"  Annual Revenue: ${manufacturer.base_revenue:,.0f}")
-print(f"  Expected Annual Profit: ${manufacturer.base_revenue * manufacturer.operating_margin:,.0f}")
+print(f"  Expected Annual Profit: ${manufacturer.base_revenue * manufacturer.base_operating_margin:,.0f}")
 ```
 
 ### Step 3: Define the Risk Profile

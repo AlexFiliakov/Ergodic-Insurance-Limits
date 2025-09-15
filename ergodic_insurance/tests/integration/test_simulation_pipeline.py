@@ -11,18 +11,18 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.batch_processor import BatchProcessor
-from ergodic_insurance.src.config_v2 import ConfigV2
-from ergodic_insurance.src.insurance_program import InsuranceProgram
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
-from ergodic_insurance.src.parallel_executor import ParallelExecutor
-from ergodic_insurance.src.progress_monitor import ProgressMonitor
-from ergodic_insurance.src.result_aggregator import ResultAggregator
-from ergodic_insurance.src.scenario_manager import ScenarioManager
-from ergodic_insurance.src.stochastic_processes import GeometricBrownianMotion, StochasticConfig
-from ergodic_insurance.src.trajectory_storage import TrajectoryStorage
+from ergodic_insurance.batch_processor import BatchProcessor
+from ergodic_insurance.config_v2 import ConfigV2
+from ergodic_insurance.insurance_program import InsuranceProgram
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.parallel_executor import ParallelExecutor
+from ergodic_insurance.progress_monitor import ProgressMonitor
+from ergodic_insurance.result_aggregator import ResultAggregator
+from ergodic_insurance.scenario_manager import ScenarioManager
+from ergodic_insurance.stochastic_processes import GeometricBrownianMotion, StochasticConfig
+from ergodic_insurance.trajectory_storage import TrajectoryStorage
 
 from .test_fixtures import (
     base_manufacturer,
@@ -227,7 +227,7 @@ class TestSimulationPipeline:
         - Compression works correctly
         - Retrieval maintains data integrity
         """
-        from ergodic_insurance.src.trajectory_storage import StorageConfig
+        from ergodic_insurance.trajectory_storage import StorageConfig
 
         config = StorageConfig(
             storage_dir="./test_trajectory_storage",
@@ -518,7 +518,7 @@ class TestSimulationPipeline:
 
         for scenario in scenarios:
             # Add scenario to manager - create ScenarioConfig
-            from ergodic_insurance.src.scenario_manager import ScenarioConfig
+            from ergodic_insurance.scenario_manager import ScenarioConfig
 
             scenario_config = ScenarioConfig(
                 scenario_id=scenario["name"],

@@ -10,12 +10,12 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
-from ergodic_insurance.src.ruin_probability import RuinProbabilityConfig
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.ruin_probability import RuinProbabilityConfig
 
 
 class TestParallelProcessing:
@@ -264,7 +264,7 @@ class TestParallelRuinProbability:
         )
 
         # Import and create RuinProbabilityAnalyzer
-        from ergodic_insurance.src.ruin_probability import RuinProbabilityAnalyzer
+        from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
 
         analyzer = RuinProbabilityAnalyzer(
             manufacturer=engine.manufacturer,
@@ -293,7 +293,7 @@ class TestParallelRuinProbability:
         )
 
         # Import and create RuinProbabilityAnalyzer
-        from ergodic_insurance.src.ruin_probability import RuinProbabilityAnalyzer
+        from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
 
         analyzer = RuinProbabilityAnalyzer(
             manufacturer=engine.manufacturer,
@@ -347,7 +347,7 @@ class TestParallelRuinProbability:
         )
 
         # Import and create RuinProbabilityAnalyzer
-        from ergodic_insurance.src.ruin_probability import RuinProbabilityAnalyzer
+        from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
 
         analyzer = RuinProbabilityAnalyzer(
             manufacturer=engine.manufacturer,
@@ -395,7 +395,7 @@ class TestParallelRuinProbability:
             )
 
             # Import and create RuinProbabilityAnalyzer
-            from ergodic_insurance.src.ruin_probability import RuinProbabilityAnalyzer
+            from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
 
             analyzer = RuinProbabilityAnalyzer(
                 manufacturer=manufacturer,

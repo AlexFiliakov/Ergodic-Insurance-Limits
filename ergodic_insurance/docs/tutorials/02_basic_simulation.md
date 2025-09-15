@@ -27,7 +27,7 @@ from ergodic_insurance.config_v2 import ManufacturerConfig, WorkingCapitalConfig
 mfg_config = ManufacturerConfig(
     initial_assets=10_000_000,    # Starting with $10M
     asset_turnover_ratio=1.0,     # Generate revenue equal to assets
-    operating_margin=0.12,        # Profit margin before losses
+    base_operating_margin=0.12,        # Profit margin before losses
     tax_rate=0.25,                # 25% corporate tax
     retention_ratio=0.7           # Retain 70% of earnings
 )
@@ -40,7 +40,7 @@ manufacturer = WidgetManufacturer(mfg_config, mfg_working_capital_config)
 
 # Calculate key metrics
 annual_revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
-operating_income = annual_revenue * manufacturer.operating_margin
+operating_income = annual_revenue * manufacturer.base_operating_margin
 net_income = operating_income * (1 - manufacturer.tax_rate)
 
 print(f"Company Financial Profile:")
@@ -65,7 +65,7 @@ from ergodic_insurance.config_v2 import ManufacturerConfig
 heavy_industry = WidgetManufacturer(ManufacturerConfig(
     initial_assets=50_000_000,
     asset_turnover_ratio=0.5,  # Low turnover
-    operating_margin=0.05,     # 5% margins
+    base_operating_margin=0.05,     # 5% margins
     tax_rate=0.25,
     retention_ratio=0.7
 ))
@@ -74,7 +74,7 @@ heavy_industry = WidgetManufacturer(ManufacturerConfig(
 light_manufacturer = WidgetManufacturer(ManufacturerConfig(
     initial_assets=5_000_000,
     asset_turnover_ratio=2.0,  # High turnover - efficient asset use
-    operating_margin=0.08,     # Moderate margins
+    base_operating_margin=0.08,     # Moderate margins
     tax_rate=0.25,
     retention_ratio=0.6        # Lower retention due to distribution needs
 ))
@@ -83,7 +83,7 @@ light_manufacturer = WidgetManufacturer(ManufacturerConfig(
 high_tech = WidgetManufacturer(ManufacturerConfig(
     initial_assets=25_000_000,  # Capital intensive
     asset_turnover_ratio=0.8,   # Moderate turnover
-    operating_margin=0.35,       # High margins from IP/technology
+    base_operating_margin=0.35,       # High margins from IP/technology
     tax_rate=0.21,              # Lower effective tax rate
     retention_ratio=0.85        # High retention for R&D investment
 ))
@@ -95,7 +95,7 @@ for company, name in [
     (high_tech, "High-Tech")
 ]:
     revenue = company.assets * company.asset_turnover_ratio
-    profit = revenue * company.operating_margin * (1 - company.tax_rate)
+    profit = revenue * company.base_operating_margin * (1 - company.tax_rate)
     roe = profit / company.assets
     print(f"{name}:")
     print(f"  Assets: ${company.assets:,.0f}")

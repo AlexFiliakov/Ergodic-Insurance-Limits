@@ -486,7 +486,7 @@ class InsuranceProgram:
         return {
             "initial_assets": 10_000_000,
             "annual_revenue": 15_000_000,
-            "operating_margin": 0.08,
+            "base_operating_margin": 0.08,
             "growth_rate": 0.05,
         }
 

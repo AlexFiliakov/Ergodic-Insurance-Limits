@@ -30,7 +30,7 @@ Basic Usage
    manufacturer = WidgetManufacturer(config.manufacturer)
 
    print(f"Initial assets: ${manufacturer.assets:,.0f}")
-   print(f"Operating margin: {manufacturer.config.operating_margin:.1%}")
+   print(f"Base operating margin: {manufacturer.config.base_operating_margin:.1%}")
 
 3. Generate Claims
 ~~~~~~~~~~~~~~~~~~
@@ -84,7 +84,7 @@ Here's a complete example that demonstrates the key features:
    manager = ConfigManager()
    config = manager.load_profile(
        "default",
-       manufacturer={"operating_margin": 0.12},
+       manufacturer={"base_operating_margin": 0.12},
        simulation={"time_horizon_years": 50}
    )
 
@@ -115,7 +115,7 @@ Conservative Scenario
 
    # Lower growth, higher safety margins
    print(f"Growth rate: {config.growth.annual_growth_rate:.1%}")
-   print(f"Operating margin: {config.manufacturer.operating_margin:.1%}")
+   print(f"Operating margin: {config.manufacturer.base_operating_margin:.1%}")
 
 Aggressive Growth
 ~~~~~~~~~~~~~~~~~
@@ -141,7 +141,7 @@ Custom Scenarios
        modules=["insurance", "stochastic"],
        manufacturer={
            "initial_assets": 50_000_000,
-           "operating_margin": 0.15
+           "base_operating_margin": 0.15
        }
    )
 

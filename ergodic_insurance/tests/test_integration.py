@@ -11,13 +11,13 @@ import numpy as np
 import psutil
 import pytest
 
-from ergodic_insurance.src.claim_generator import ClaimGenerator
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
-from ergodic_insurance.src.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.simulation import Simulation, SimulationResults
+from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.simulation import Simulation, SimulationResults
 
 
 class TestIntegration:
@@ -31,7 +31,7 @@ class TestIntegration:
         config = ManufacturerConfig(
             initial_assets=initial_assets,
             asset_turnover_ratio=kwargs.get("asset_turnover", 1.2),  # $12M revenue on $10M assets
-            base_operating_margin=kwargs.get("operating_margin", 0.10),  # 10% EBIT margin
+            base_operating_margin=kwargs.get("base_operating_margin", 0.10),  # 10% EBIT margin
             tax_rate=kwargs.get("tax_rate", 0.25),  # 25% corporate tax
             retention_ratio=kwargs.get("retention_ratio", 0.70),  # 70% retention for growth
         )
@@ -453,7 +453,7 @@ class TestIntegration:
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
 
         # Create insurance program (if using enhanced insurance)
-        from ergodic_insurance.src.insurance_program import InsuranceProgram
+        from ergodic_insurance.insurance_program import InsuranceProgram
 
         insurance_program = InsuranceProgram(layers=[])
 
@@ -536,7 +536,7 @@ class TestIntegration:
         assert loss_data.validate()
 
         # Step 2: Apply insurance (if any)
-        from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 
         layer = EnhancedInsuranceLayer(attachment_point=50_000, limit=1_000_000, premium_rate=0.03)
         program = InsuranceProgram(layers=[layer])

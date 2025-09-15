@@ -356,7 +356,7 @@ class TestWidgetManufacturer:
         assert metrics["revenue"] == 10_000_000
         assert metrics["operating_income"] == 800_000
         assert metrics["asset_turnover"] == 1.0
-        assert metrics["operating_margin"] == 0.08
+        assert metrics["base_operating_margin"] == 0.08
         assert metrics["roe"] == pytest.approx(0.06)  # 600k / 10M
         assert metrics["roa"] == pytest.approx(0.06)  # 600k / 10M
         assert metrics["collateral_to_equity"] == 0

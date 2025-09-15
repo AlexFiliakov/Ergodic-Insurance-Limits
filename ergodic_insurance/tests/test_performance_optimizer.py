@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.performance_optimizer import (
+from ergodic_insurance.performance_optimizer import (
     NUMBA_AVAILABLE,
     OptimizationConfig,
     PerformanceOptimizer,

@@ -13,8 +13,8 @@ from pydantic import ValidationError
 import pytest
 import yaml
 
-from ergodic_insurance.src.config import Config
-from ergodic_insurance.src.config_loader import ConfigLoader
+from ergodic_insurance.config import Config
+from ergodic_insurance.config_loader import ConfigLoader
 
 
 @pytest.mark.filterwarnings("ignore:ConfigLoader is deprecated:DeprecationWarning")
@@ -66,11 +66,11 @@ class TestParameterCombinations:
             # Validate key relationships
             if scenario == "conservative":
                 assert config.growth.annual_growth_rate <= 0.05
-                assert config.manufacturer.operating_margin <= 0.08
+                assert config.manufacturer.base_operating_margin <= 0.08
                 assert config.debt.max_leverage_ratio <= 2.0
             elif scenario == "optimistic":
                 assert config.growth.annual_growth_rate >= 0.05
-                assert config.manufacturer.operating_margin >= 0.08
+                assert config.manufacturer.base_operating_margin >= 0.08
                 assert config.debt.max_leverage_ratio >= 1.5
 
             # Common validations
@@ -146,7 +146,7 @@ class TestParameterCombinations:
 
         for margin, turnover, tax in itertools.product(margins, turnovers, tax_rates):
             config_dict = self._create_base_config()
-            config_dict["manufacturer"]["operating_margin"] = margin
+            config_dict["manufacturer"]["base_operating_margin"] = margin
             config_dict["manufacturer"]["asset_turnover_ratio"] = turnover
             config_dict["manufacturer"]["tax_rate"] = tax
 
@@ -236,7 +236,7 @@ class TestParameterCombinations:
         # Test minimum viable company
         min_config = self._create_base_config()
         min_config["manufacturer"]["initial_assets"] = 100_000
-        min_config["manufacturer"]["operating_margin"] = 0.01
+        min_config["manufacturer"]["base_operating_margin"] = 0.01
         min_config["manufacturer"]["retention_ratio"] = 0.0
         min_config["growth"]["annual_growth_rate"] = 0.0
 
@@ -246,7 +246,7 @@ class TestParameterCombinations:
         # Test maximum growth company
         max_config = self._create_base_config()
         max_config["manufacturer"]["initial_assets"] = 1_000_000_000
-        max_config["manufacturer"]["operating_margin"] = 0.30
+        max_config["manufacturer"]["base_operating_margin"] = 0.30
         max_config["manufacturer"]["retention_ratio"] = 1.0
         max_config["growth"]["annual_growth_rate"] = 0.20
 
@@ -291,7 +291,7 @@ class TestParameterCombinations:
         """Test dependencies between different parameter sections."""
         # High leverage with low profitability (risky)
         config_dict = self._create_base_config()
-        config_dict["manufacturer"]["operating_margin"] = 0.02
+        config_dict["manufacturer"]["base_operating_margin"] = 0.02
         config_dict["debt"]["max_leverage_ratio"] = 3.0
 
         config = Config(**config_dict)
@@ -361,7 +361,7 @@ class TestParameterCombinations:
             "manufacturer": {
                 "initial_assets": 10_000_000,
                 "asset_turnover_ratio": 1.0,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
             },
@@ -519,7 +519,7 @@ class TestParameterValidationRules:
 
         # Test maximum reasonable margin
         config_dict = self._create_base_config()
-        config_dict["manufacturer"]["operating_margin"] = 0.35  # High but valid
+        config_dict["manufacturer"]["base_operating_margin"] = 0.35  # High but valid
         config = Config(**config_dict)
         assert config.manufacturer.base_operating_margin == 0.35
 
@@ -559,7 +559,7 @@ class TestParameterValidationRules:
             "manufacturer": {
                 "initial_assets": 10_000_000,
                 "asset_turnover_ratio": 1.0,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 0.7,
             },

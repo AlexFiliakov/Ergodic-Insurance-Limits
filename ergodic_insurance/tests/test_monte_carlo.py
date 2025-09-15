@@ -11,14 +11,14 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.claim_generator import ClaimEvent
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.convergence import ConvergenceStats
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
-from ergodic_insurance.src.ruin_probability import (
+from ergodic_insurance.claim_generator import ClaimEvent
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.convergence import ConvergenceStats
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.ruin_probability import (
     RuinProbabilityAnalyzer,
     RuinProbabilityConfig,
     RuinProbabilityResults,
@@ -140,7 +140,7 @@ class TestMonteCarloEngine:
         engine, loss_generator, _, _ = setup_engine
 
         # Mock loss events
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=50_000, loss_type="test")],
@@ -172,7 +172,7 @@ class TestMonteCarloEngine:
             engine.config.use_enhanced_parallel = False
 
         # Mock loss events
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=50_000, loss_type="test")],
@@ -274,7 +274,7 @@ class TestMonteCarloEngine:
             engine.config.cache_results = True
 
             # Mock loss events
-            from ergodic_insurance.src.loss_distributions import LossEvent
+            from ergodic_insurance.loss_distributions import LossEvent
 
             loss_generator.generate_losses.return_value = (
                 [LossEvent(time=0.5, amount=50_000, loss_type="test")],
@@ -297,7 +297,7 @@ class TestMonteCarloEngine:
         engine, loss_generator, _, _ = setup_engine
 
         # Mock loss events
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=50_000, loss_type="test")],
@@ -318,7 +318,7 @@ class TestMonteCarloEngine:
         engine, loss_generator, _, manufacturer = setup_engine
 
         # Mock loss events
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=50_000, loss_type="test")],
@@ -339,7 +339,7 @@ class TestMonteCarloEngine:
         engine, loss_generator, _, _ = setup_engine
 
         # Mock loss events
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=50_000, loss_type="test")],
@@ -471,7 +471,7 @@ class TestRuinProbabilityEstimation:
         engine, loss_generator = setup_ruin_engine
 
         # Mock loss events - create severe losses to trigger bankruptcy
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=15_000_000, loss_type="catastrophic")],
@@ -565,7 +565,7 @@ class TestRuinProbabilityEstimation:
         engine, loss_generator = setup_ruin_engine
 
         # Mock moderate losses
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=500_000, loss_type="operational")],
@@ -605,7 +605,7 @@ class TestRuinProbabilityEstimation:
         engine, loss_generator = setup_ruin_engine
 
         # Mock catastrophic loss in first year
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         call_count = 0
 
@@ -652,7 +652,7 @@ class TestRuinProbabilityEstimation:
         engine, loss_generator = setup_ruin_engine
 
         # Mock losses
-        from ergodic_insurance.src.loss_distributions import LossEvent
+        from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
             [LossEvent(time=0.5, amount=100_000, loss_type="operational")],

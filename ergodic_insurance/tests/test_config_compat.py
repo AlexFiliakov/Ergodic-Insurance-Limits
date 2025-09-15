@@ -7,7 +7,7 @@ import warnings
 import pytest
 import yaml
 
-from ergodic_insurance.src.config import (
+from ergodic_insurance.config import (
     Config,
     DebtConfig,
     GrowthConfig,
@@ -17,14 +17,14 @@ from ergodic_insurance.src.config import (
     SimulationConfig,
     WorkingCapitalConfig,
 )
-from ergodic_insurance.src.config_compat import (
+from ergodic_insurance.config_compat import (
     ConfigTranslator,
     LegacyConfigAdapter,
     load_config,
     migrate_config_usage,
 )
-from ergodic_insurance.src.config_manager import ConfigManager
-from ergodic_insurance.src.config_v2 import ConfigV2
+from ergodic_insurance.config_manager import ConfigManager
+from ergodic_insurance.config_v2 import ConfigV2
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def sample_config_dict():
         "manufacturer": {
             "initial_assets": 10_000_000.0,
             "asset_turnover_ratio": 1.0,
-            "operating_margin": 0.08,
+            "base_operating_margin": 0.08,
             "tax_rate": 0.25,
             "retention_ratio": 0.7,
         },
@@ -83,7 +83,7 @@ def sample_config_v2_dict():
         "manufacturer": {
             "initial_assets": 10_000_000.0,
             "asset_turnover_ratio": 1.0,
-            "operating_margin": 0.08,
+            "base_operating_margin": 0.08,
             "tax_rate": 0.25,
             "retention_ratio": 0.7,
         },
@@ -342,7 +342,7 @@ class TestLegacyConfigAdapter:
     def test_load_with_dict_overrides_merging(self, legacy_adapter, sample_config_dict):
         """Test that dictionary overrides merge instead of replace."""
         # Create a mock ConfigV2 with proper structure
-        from ergodic_insurance.src.config_v2 import ProfileMetadata
+        from ergodic_insurance.config_v2 import ProfileMetadata
 
         # Build a proper ConfigV2 object from sample config
         config_data = sample_config_dict.copy()
@@ -358,7 +358,7 @@ class TestLegacyConfigAdapter:
                 warnings.simplefilter("ignore", DeprecationWarning)
                 result = legacy_adapter.load(
                     "baseline",
-                    override_params={"manufacturer": {"operating_margin": 0.12}},
+                    override_params={"manufacturer": {"base_operating_margin": 0.12}},
                 )
 
             # Verify the flatten_dict was used to handle nested params
@@ -367,8 +367,8 @@ class TestLegacyConfigAdapter:
             assert call_args is not None
             assert call_args[0][0] == "default"  # mapped profile name
             # Check that the override was properly flattened
-            assert "manufacturer__operating_margin" in call_args[1]
-            assert call_args[1]["manufacturer__operating_margin"] == 0.12
+            assert "manufacturer__base_operating_margin" in call_args[1]
+            assert call_args[1]["manufacturer__base_operating_margin"] == 0.12
 
             # Verify the result is a proper Config object
             assert isinstance(result, Config)
@@ -413,8 +413,8 @@ class TestModuleFunctions:
         """Test migrating Python file with config usage."""
         test_file = tmp_path / "test.py"
         original_content = """
-from ergodic_insurance.src.config_loader import ConfigLoader
-from ergodic_insurance.src.config_loader import load_config
+from ergodic_insurance.config_loader import ConfigLoader
+from ergodic_insurance.config_loader import load_config
 
 loader = ConfigLoader()
 config = ConfigLoader.load("baseline")
@@ -446,7 +446,7 @@ config = ConfigLoader.load("baseline")
         """Test migrating file that doesn't need changes."""
         test_file = tmp_path / "test.py"
         original_content = """
-from ergodic_insurance.src.config_manager import ConfigManager
+from ergodic_insurance.config_manager import ConfigManager
 
 manager = ConfigManager()
 config = manager.load_profile("default")
@@ -627,7 +627,7 @@ class TestIntegrationScenarios:
             overrides = {
                 "manufacturer": {
                     "initial_assets": 15_000_000,
-                    "operating_margin": 0.10,
+                    "base_operating_margin": 0.10,
                 },
                 "simulation": {
                     "time_horizon_years": 100,

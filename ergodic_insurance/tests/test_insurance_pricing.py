@@ -12,19 +12,19 @@ from typing import Any, Dict
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.insurance import InsuranceLayer, InsurancePolicy
-from ergodic_insurance.src.insurance_pricing import (
+from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.insurance_pricing import (
     InsurancePricer,
     LayerPricing,
     MarketCycle,
     PricingParameters,
 )
-from ergodic_insurance.src.insurance_program import (
+from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,
     ReinstatementType,
 )
-from ergodic_insurance.src.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 
 class TestMarketCycle:

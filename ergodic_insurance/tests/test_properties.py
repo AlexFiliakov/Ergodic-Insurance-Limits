@@ -12,12 +12,12 @@ from hypothesis.extra.numpy import arrays
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.convergence import ConvergenceStats
-from ergodic_insurance.src.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.convergence import ConvergenceStats
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 
 # InsuranceOptimizer doesn't exist, removed import
-from ergodic_insurance.src.risk_metrics import RiskMetrics
+from ergodic_insurance.risk_metrics import RiskMetrics
 
 
 class TestErgodicProperties:

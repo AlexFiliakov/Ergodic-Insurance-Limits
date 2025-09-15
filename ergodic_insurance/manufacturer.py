@@ -32,7 +32,7 @@ Examples:
         config = ManufacturerConfig(
             initial_assets=10_000_000,          # $10M starting assets
             asset_turnover_ratio=0.8,           # 0.8x asset turnover
-            operating_margin=0.08,              # 8% operating margin
+            base_operating_margin=0.08,              # 8% operating margin
             tax_rate=0.25,                      # 25% corporate tax rate
             retention_ratio=0.7                 # Retain 70% of earnings
         )
@@ -447,7 +447,7 @@ class WidgetManufacturer:
 
                 config = ManufacturerConfig(
                     initial_assets=10_000_000,
-                    operating_margin=0.08,
+                    base_operating_margin=0.08,
                     tax_rate=0.25
                 )
                 manufacturer = WidgetManufacturer(config)
@@ -484,8 +484,6 @@ class WidgetManufacturer:
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
 
-        # Backward compatibility - operating_margin property defined below
-
         # Claim tracking
         self.claim_liabilities: List[ClaimLiability] = []
         self.current_year = 0
@@ -500,17 +498,6 @@ class WidgetManufacturer:
 
         # Metrics tracking
         self.metrics_history: List[Dict[str, float]] = []
-
-    @property
-    def operating_margin(self) -> float:
-        """Backward compatibility property for base_operating_margin.
-
-        Deprecated: Use base_operating_margin instead.
-
-        Returns:
-            float: The base operating margin before insurance costs.
-        """
-        return self.base_operating_margin
 
     @property
     def net_assets(self) -> float:
@@ -1658,7 +1645,7 @@ class WidgetManufacturer:
                 - 'roe': Return on equity (net_income / equity)
                 - 'roa': Return on assets (net_income / assets)
                 - 'asset_turnover': Revenue efficiency (revenue / assets)
-                - 'operating_margin': Operating profit margin
+                - 'base_operating_margin': Operating profit margin
                 - 'collateral_to_equity': Leverage from collateral requirements
                 - 'collateral_to_assets': Asset restriction from collateral
 
@@ -1688,7 +1675,7 @@ class WidgetManufacturer:
 
             Monitor operational efficiency::
 
-                if metrics['operating_margin'] < 0:
+                if metrics['base_operating_margin'] < 0:
                     print("Operating losses")
 
                 if metrics['asset_turnover'] < 0.5:
@@ -1751,9 +1738,6 @@ class WidgetManufacturer:
         metrics["insurance_impact_on_margin"] = (
             metrics["base_operating_margin"] - metrics["actual_operating_margin"]
         )
-
-        # Backward compatibility - deprecated
-        metrics["operating_margin"] = self.base_operating_margin
 
         metrics["roe"] = (
             net_income / self.equity if self.equity > 0 else 0
@@ -1864,7 +1848,7 @@ class WidgetManufacturer:
             Dict[str, float]: Comprehensive financial metrics dictionary containing:
                 - Balance sheet items: assets, equity, collateral, etc.
                 - Income statement: revenue, operating_income, net_income
-                - Financial ratios: roe, roa, operating_margin, etc.
+                - Financial ratios: roe, roa, base_operating_margin, etc.
                 - Solvency indicators: is_solvent
                 - Time tracking: year, month (if monthly resolution)
 
@@ -2030,7 +2014,7 @@ class WidgetManufacturer:
 
                 for margin in margins:
                     manufacturer.reset()
-                    manufacturer.operating_margin = margin
+                    manufacturer.base_operating_margin = margin
 
                     # Run simulation with different margin
                     final_metrics = manufacturer.step()
@@ -2039,7 +2023,7 @@ class WidgetManufacturer:
         Note:
             The reset method creates a clean slate but preserves the original
             configuration. Any runtime modifications to parameters (like
-            operating_margin) will need to be reapplied after reset.
+            base_operating_margin) will need to be reapplied after reset.
 
         See Also:
             :meth:`copy`: Create independent manufacturer instances.
@@ -2108,7 +2092,7 @@ class WidgetManufacturer:
                 stress_case = manufacturer.copy()
 
                 # Apply different parameters to each
-                stress_case.operating_margin = 0.04  # Stress scenario
+                stress_case.base_operating_margin = 0.04  # Stress scenario
 
                 # Run independent simulations
                 base_result = base_case.step()

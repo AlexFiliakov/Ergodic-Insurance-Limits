@@ -18,8 +18,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytest
 
-from ergodic_insurance.src.batch_processor import AggregatedResults, BatchResult
-from ergodic_insurance.src.visualization import (
+from ergodic_insurance.batch_processor import AggregatedResults, BatchResult
+from ergodic_insurance.visualization import (
     annotations,
     batch_plots,
     export,
@@ -27,8 +27,8 @@ from ergodic_insurance.src.visualization import (
     interactive_plots,
     style_manager,
 )
-from ergodic_insurance.src.visualization.core import WSJ_COLORS
-from ergodic_insurance.src.visualization.style_manager import StyleManager, Theme
+from ergodic_insurance.visualization.core import WSJ_COLORS
+from ergodic_insurance.visualization.style_manager import StyleManager, Theme
 
 matplotlib.use("Agg")  # Use non-interactive backend for all tests
 

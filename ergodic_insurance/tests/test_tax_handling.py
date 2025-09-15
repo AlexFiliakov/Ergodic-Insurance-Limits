@@ -7,8 +7,8 @@ tax-deductible business expenses.
 
 import pytest
 
-from ergodic_insurance.src.config_v2 import ManufacturerConfig
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
+from ergodic_insurance.config_v2 import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 class TestTaxHandling:

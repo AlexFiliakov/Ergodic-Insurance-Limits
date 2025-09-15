@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.src.reporting.insight_extractor import Insight, InsightExtractor
+from ergodic_insurance.reporting.insight_extractor import Insight, InsightExtractor
 
 
 class TestInsight:

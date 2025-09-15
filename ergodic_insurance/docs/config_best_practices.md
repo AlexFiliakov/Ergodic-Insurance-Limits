@@ -14,7 +14,7 @@ description: "High growth scenario with increased risk tolerance"
 
 overrides:
   manufacturer:
-    operating_margin: 0.12
+    base_operating_margin: 0.12
     retention_ratio: 0.9
   growth:
     annual_growth_rate: 0.20
@@ -75,7 +75,7 @@ scenarios = {
     "base": {},
     "optimistic": {"growth": {"annual_growth_rate": 0.15}},
     "pessimistic": {"growth": {"annual_growth_rate": 0.05}},
-    "high_margin": {"manufacturer": {"operating_margin": 0.15}}
+    "high_margin": {"manufacturer": {"base_operating_margin": 0.15}}
 }
 
 results = {}
@@ -182,7 +182,7 @@ modules:
 overrides:
   manufacturer:
     tax_rate: 0.21  # Updated tax rate
-    operating_margin: 0.09  # Adjusted margin
+    base_operating_margin: 0.09  # Adjusted margin
   growth:
     annual_growth_rate: 0.10
 ```
@@ -227,7 +227,7 @@ def test_custom_profile():
     manager = ConfigManager()
     config = manager.load_profile("custom/my_profile")
 
-    assert config.manufacturer.operating_margin > 0
+    assert config.manufacturer.base_operating_margin > 0
     assert config.growth.annual_growth_rate >= 0
     assert hasattr(config, 'insurance')
 ```

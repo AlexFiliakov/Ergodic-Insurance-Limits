@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from scipy import stats
 
-from ergodic_insurance.src.result_aggregator import (
+from ergodic_insurance.result_aggregator import (
     AggregationConfig,
     BaseAggregator,
     HierarchicalAggregator,
@@ -20,7 +20,7 @@ from ergodic_insurance.src.result_aggregator import (
     ResultExporter,
     TimeSeriesAggregator,
 )
-from ergodic_insurance.src.summary_statistics import (
+from ergodic_insurance.summary_statistics import (
     DistributionFitter,
     QuantileCalculator,
     StatisticalSummary,

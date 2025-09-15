@@ -60,7 +60,7 @@ def demo_scenario_comparison():
             "presets": ["high_volatility"],
             "overrides": {
                 "growth": {"annual_growth_rate": -0.02},
-                "manufacturer": {"operating_margin": 0.04},
+                "manufacturer": {"base_operating_margin": 0.04},
             },
             "description": "Economic downturn scenario",
         },
@@ -68,7 +68,7 @@ def demo_scenario_comparison():
             "profile": "aggressive",
             "overrides": {
                 "growth": {"annual_growth_rate": 0.15},
-                "manufacturer": {"operating_margin": 0.12},
+                "manufacturer": {"base_operating_margin": 0.12},
             },
             "description": "High growth expansion phase",
         },
@@ -88,14 +88,14 @@ def demo_scenario_comparison():
         expected_revenue = (
             config.manufacturer.initial_assets * config.manufacturer.asset_turnover_ratio
         )
-        expected_profit = expected_revenue * config.manufacturer.operating_margin
+        expected_profit = expected_revenue * config.manufacturer.base_operating_margin
 
         result = {
             "name": scenario_name,
             "description": scenario_config["description"],
             "growth_rate": config.growth.annual_growth_rate,
             "volatility": config.growth.volatility,
-            "operating_margin": config.manufacturer.operating_margin,
+            "base_operating_margin": config.manufacturer.base_operating_margin,
             "expected_annual_profit": expected_profit,
             "risk_tolerance": "High"
             if scenario_name == "expansion"
@@ -155,7 +155,7 @@ def demo_monte_carlo_setup():
     # Setup simulation components
     print(f"\nManufacturer Configuration:")
     print(f"  Initial assets: ${config.manufacturer.initial_assets:,.0f}")
-    print(f"  Operating margin: {config.manufacturer.operating_margin:.1%}")
+    print(f"  Operating margin: {config.manufacturer.base_operating_margin:.1%}")
     print(f"  Growth volatility: {config.growth.volatility:.1%}")
 
     if hasattr(config, "insurance") and config.insurance:
@@ -338,16 +338,18 @@ def demo_configuration_validation():
     # Valid configuration
     print("\n1. Valid configuration:")
     try:
-        config = manager.load_profile("default", manufacturer={"operating_margin": 0.08})
+        config = manager.load_profile("default", manufacturer={"base_operating_margin": 0.08})
         print("   ✓ Configuration loaded successfully")
-        print(f"   Operating margin: {config.manufacturer.operating_margin:.1%}")
+        print(f"   Operating margin: {config.manufacturer.base_operating_margin:.1%}")
     except Exception as e:
         print(f"   ✗ Error: {e}")
 
     # Invalid range
     print("\n2. Invalid parameter range:")
     try:
-        config = manager.load_profile("default", manufacturer={"operating_margin": 1.5})  # Too high
+        config = manager.load_profile(
+            "default", manufacturer={"base_operating_margin": 1.5}
+        )  # Too high
         print("   ✓ Configuration loaded")
     except Exception as e:
         print(f"   ✗ Validation error: Operating margin must be between 0 and 1")

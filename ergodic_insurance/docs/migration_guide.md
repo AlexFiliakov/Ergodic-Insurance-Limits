@@ -72,7 +72,7 @@ config = manager.load_profile("default")
 ```python
 config = loader.load(
     "conservative",
-    overrides={"manufacturer": {"operating_margin": 0.12}}
+    overrides={"manufacturer": {"base_operating_margin": 0.12}}
 )
 ```
 
@@ -80,7 +80,7 @@ config = loader.load(
 ```python
 config = manager.load_profile(
     "conservative",
-    manufacturer={"operating_margin": 0.12}
+    manufacturer={"base_operating_margin": 0.12}
 )
 ```
 
@@ -174,7 +174,7 @@ config = manager.load_profile("conservative")
 
 # Create a variant with just one change
 variant = config.with_overrides(
-    manufacturer={"operating_margin": 0.15}
+    manufacturer={"base_operating_margin": 0.15}
 )
 ```
 
@@ -242,7 +242,7 @@ from ergodic_insurance.src.simulation import run_simulation
 # Load configuration
 loader = ConfigLoader()
 config = loader.load("baseline", overrides={
-    "manufacturer": {"operating_margin": 0.10},
+    "manufacturer": {"base_operating_margin": 0.10},
     "simulation": {"time_horizon_years": 100}
 })
 
@@ -264,7 +264,7 @@ manager = ConfigManager()
 config = manager.load_profile(
     "default",
     presets=["steady_market"],  # Use a preset
-    manufacturer={"operating_margin": 0.10},
+    manufacturer={"base_operating_margin": 0.10},
     simulation={"time_horizon_years": 100}
 )
 

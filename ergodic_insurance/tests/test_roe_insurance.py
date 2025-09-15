@@ -43,7 +43,7 @@ class TestROEWithInsurance:
         # Calculate metrics without any insurance costs
         metrics = manufacturer.calculate_metrics()
 
-        # Expected ROE = operating_margin * (1 - tax_rate) * asset_turnover
+        # Expected ROE = base_operating_margin * (1 - tax_rate) * asset_turnover
         # = 0.12 * 0.75 * 1.0 = 0.09 (9%)
         expected_roe = 0.09
 

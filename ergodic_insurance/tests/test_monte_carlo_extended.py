@@ -8,12 +8,12 @@ import warnings
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.config import ManufacturerConfig
-from ergodic_insurance.src.convergence import ConvergenceStats
-from ergodic_insurance.src.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.src.loss_distributions import LossEvent, ManufacturingLossGenerator
-from ergodic_insurance.src.manufacturer import WidgetManufacturer
-from ergodic_insurance.src.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.convergence import ConvergenceStats
+from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
 from ergodic_insurance.tests.test_fixtures import ScenarioBuilder, TestDataGenerator
 
 

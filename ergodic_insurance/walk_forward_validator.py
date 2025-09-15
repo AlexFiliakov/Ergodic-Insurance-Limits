@@ -227,7 +227,7 @@ class WalkForwardValidator:
             default_mfg_config = ManufacturerConfig(
                 initial_assets=10000000,
                 asset_turnover_ratio=1.0,
-                operating_margin=0.08,
+                base_operating_margin=0.08,
                 tax_rate=0.25,
                 retention_ratio=0.7,
             )
@@ -248,7 +248,7 @@ class WalkForwardValidator:
                 manufacturer=ManufacturerConfig(
                     initial_assets=10000000,
                     asset_turnover_ratio=1.0,
-                    operating_margin=0.08,
+                    base_operating_margin=0.08,
                     tax_rate=0.25,
                     retention_ratio=0.7,
                 ),

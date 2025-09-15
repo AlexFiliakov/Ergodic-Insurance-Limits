@@ -11,7 +11,7 @@ from pydantic import ValidationError
 import pytest
 import yaml
 
-from ergodic_insurance.src.config import (
+from ergodic_insurance.config import (
     Config,
     DebtConfig,
     GrowthConfig,
@@ -21,7 +21,7 @@ from ergodic_insurance.src.config import (
     SimulationConfig,
     WorkingCapitalConfig,
 )
-from ergodic_insurance.src.config_loader import ConfigLoader, load_config
+from ergodic_insurance.config_loader import ConfigLoader, load_config
 
 
 class TestManufacturerConfig:
@@ -198,7 +198,7 @@ class TestCompleteConfig:
             "manufacturer": {
                 "initial_assets": 10_000_000,
                 "asset_turnover_ratio": 1.0,
-                "operating_margin": 0.08,
+                "base_operating_margin": 0.08,
                 "tax_rate": 0.25,
                 "retention_ratio": 1.0,
             },
@@ -288,7 +288,7 @@ class TestCompleteConfig:
 
         # Override some values
         override_dict = {
-            "manufacturer": {"operating_margin": 0.12},
+            "manufacturer": {"base_operating_margin": 0.12},
             "growth": {"annual_growth_rate": 0.08},
         }
 
@@ -342,7 +342,7 @@ class TestConfigLoader:
         """Test loading config with overrides."""
         config = config_loader.load(
             "baseline",
-            overrides={"manufacturer": {"operating_margin": 0.10}},
+            overrides={"manufacturer": {"base_operating_margin": 0.10}},
             simulation__time_horizon_years=200,
         )
         assert config.manufacturer.base_operating_margin == 0.10

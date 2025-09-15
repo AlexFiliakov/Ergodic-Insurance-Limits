@@ -7,7 +7,7 @@ Date: 2025-01-26
 import numpy as np
 import pytest
 
-from ergodic_insurance.src.hjb_solver import (
+from ergodic_insurance.hjb_solver import (
     BoundaryCondition,
     ControlVariable,
     ExpectedWealth,
