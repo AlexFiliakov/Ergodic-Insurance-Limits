@@ -189,7 +189,7 @@ for scen in range(scenarios):
         # Regular losses: 4-6 per year on average, typically $50K-$150K
         regular_frequency = regular_freq_baseline * revenue_scale  # Scale with revenue
         regular_generator = ClaimGenerator(
-            frequency=regular_frequency,
+            base_frequency=regular_frequency,
             severity_mean=regular_sev_mean,
             severity_std=regular_sev_std,
         )
@@ -197,7 +197,7 @@ for scen in range(scenarios):
         # Catastrophic losses: ~0.1 per year (once every 10 years), but can be $1M-$5M
         catastrophic_frequency = cat_freq_baseline * revenue_scale  # Also scales with revenue
         catastrophic_generator = ClaimGenerator(
-            frequency=catastrophic_frequency,
+            base_frequency=catastrophic_frequency,
             severity_mean=cat_sev_mean,
             severity_std=cat_sev_std,
         )
@@ -242,7 +242,7 @@ for scen in range(scenarios):
         # Regular losses: 4-6 per year on average, typically $50K-$150K
         regular_frequency = regular_freq_baseline * revenue_scale  # Scale with revenue
         regular_generator = ClaimGenerator(
-            frequency=regular_frequency,
+            base_frequency=regular_frequency,
             severity_mean=regular_sev_mean,       # Mean claim size $80K
             severity_std=regular_sev_std,        # Moderate variation
         )
@@ -250,7 +250,7 @@ for scen in range(scenarios):
         # Catastrophic losses: ~0.1 per year (once every 10 years), but can be $1M-$5M
         catastrophic_frequency = cat_freq_baseline * revenue_scale  # Also scales with revenue
         catastrophic_generator = ClaimGenerator(
-            frequency=catastrophic_frequency,
+            base_frequency=catastrophic_frequency,
             severity_mean=cat_sev_mean,    # Mean catastrophic loss $2M
             severity_std=cat_sev_std,     # High variation - can reach $5M+
         )
