@@ -178,9 +178,9 @@ class TestConfigManager:
 
         assert manager is not None
         # Check that debug messages were logged
-        assert "Profiles directory not found" in caplog.text
-        assert "Modules directory not found" in caplog.text
-        assert "Presets directory not found" in caplog.text
+        assert "Profiles directory not found:" in caplog.text
+        assert "Modules directory not found:" in caplog.text
+        assert "Presets directory not found:" in caplog.text
 
     def test_load_profile_with_cache(self, temp_config_dir):
         """Test profile loading with cache."""

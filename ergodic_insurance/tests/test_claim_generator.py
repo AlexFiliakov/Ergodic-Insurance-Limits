@@ -310,7 +310,7 @@ class TestClaimGenerator:
         # Check metadata
         assert loss_data.metadata["source"] == "claim_generator"
         assert loss_data.metadata["generator_type"] == "ClaimGenerator"
-        assert loss_data.metadata["frequency"] == gen.base_frequency
+        assert loss_data.metadata["base_frequency"] == gen.base_frequency
         assert loss_data.metadata["severity_mean"] == gen.severity_mean
         assert loss_data.metadata["severity_std"] == gen.severity_std
 
