@@ -994,14 +994,25 @@ class WidgetManufacturer:
 
         net_income = income_before_tax - taxes
 
-        # Enhanced logging for tax calculation transparency
-        logger.debug(f"Tax calculation: Operating income ${operating_income:,.2f}")
-        if total_insurance_costs > 0:
-            logger.debug(f"  - Insurance costs: ${total_insurance_costs:,.2f}")
-        logger.debug(f"  - Collateral costs: ${collateral_costs:,.2f}")
-        logger.debug(f"  = Income before tax: ${income_before_tax:,.2f}")
-        logger.debug(f"  - Taxes (@{self.tax_rate:.1%}): ${taxes:,.2f}")
-        logger.debug(f"  = Net income: ${net_income:,.2f}")
+        # Enhanced profit waterfall logging for complete transparency
+        logger.info("===== PROFIT WATERFALL =====")
+        logger.info(f"Operating Income:        ${operating_income:,.2f}")
+        if insurance_premiums > 0:
+            logger.info(f"  - Insurance Premiums:  ${insurance_premiums:,.2f}")
+        if insurance_losses > 0:
+            logger.info(f"  - Insurance Losses:    ${insurance_losses:,.2f}")
+        if collateral_costs > 0:
+            logger.info(f"  - Collateral Costs:    ${collateral_costs:,.2f}")
+        logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
+        logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${taxes:,.2f}")
+        logger.info(f"NET INCOME:              ${net_income:,.2f}")
+        logger.info("============================")
+
+        # Validation assertion: ensure net income is less than operating income when costs exist
+        if total_insurance_costs + collateral_costs > 0:
+            assert (
+                net_income < operating_income
+            ), f"Net income ({net_income}) should be less than operating income ({operating_income}) when costs exist"
 
         return float(net_income)
 
@@ -1063,9 +1074,24 @@ class WidgetManufacturer:
             :attr:`assets`: Total assets updated by retained earnings.
             :attr:`equity`: Shareholder equity updated by retained earnings.
         """
+        # Validation: retention ratio should be applied to net income (not revenue or operating income)
+        # This is the profit after ALL costs including taxes
+        assert 0 <= self.retention_ratio <= 1, f"Invalid retention ratio: {self.retention_ratio}"
+
         # Calculate retained earnings
         retained_earnings = net_income * self.retention_ratio
         dividends = net_income * (1 - self.retention_ratio)
+
+        # Log retention calculation details
+        logger.info("===== RETENTION CALCULATION =====")
+        logger.info(f"Net Income:              ${net_income:,.2f}")
+        logger.info(f"Retention Ratio:         {self.retention_ratio:.1%}")
+        logger.info(f"Retained Earnings:       ${retained_earnings:,.2f}")
+        if net_income > 0:
+            logger.info(f"Dividends Distributed:   ${dividends:,.2f}")
+        else:
+            logger.info(f"Loss Absorption:         ${retained_earnings:,.2f}")
+        logger.info("=================================")
 
         # Add retained earnings to assets
         self.assets += retained_earnings
@@ -1073,11 +1099,11 @@ class WidgetManufacturer:
         # Update equity (no debt, so equity changes by retained earnings)
         self.equity += retained_earnings
 
-        logger.debug(
+        logger.info(
             f"Balance sheet updated: Assets=${self.assets:,.2f}, Equity=${self.equity:,.2f}"
         )
         if dividends > 0:
-            logger.debug(f"Dividends paid: ${dividends:,.2f}")
+            logger.info(f"Dividends paid: ${dividends:,.2f}")
 
     def process_insurance_claim(
         self,
