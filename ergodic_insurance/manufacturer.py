@@ -499,6 +499,41 @@ class WidgetManufacturer:
         # Metrics tracking
         self.metrics_history: List[Dict[str, float]] = []
 
+        # Store initial values for base comparisons (for exposure bases)
+        self._initial_assets = config.initial_assets
+        self._initial_equity = config.initial_assets
+
+    # Properties for FinancialStateProvider protocol
+    @property
+    def current_revenue(self) -> float:
+        """Get current revenue based on current assets and turnover ratio."""
+        return self.calculate_revenue()
+
+    @property
+    def current_assets(self) -> float:
+        """Get current total assets."""
+        return self.assets
+
+    @property
+    def current_equity(self) -> float:
+        """Get current equity value."""
+        return self.equity
+
+    @property
+    def base_revenue(self) -> float:
+        """Get base (initial) revenue for comparison."""
+        return self._initial_assets * self.config.asset_turnover_ratio
+
+    @property
+    def base_assets(self) -> float:
+        """Get base (initial) assets for comparison."""
+        return self._initial_assets
+
+    @property
+    def base_equity(self) -> float:
+        """Get base (initial) equity for comparison."""
+        return self._initial_equity
+
     @property
     def net_assets(self) -> float:
         """Calculate net assets (total assets minus restricted assets).
@@ -2076,6 +2111,10 @@ class WidgetManufacturer:
         # Reset period insurance cost tracking
         self.period_insurance_premiums = 0.0
         self.period_insurance_losses = 0.0
+
+        # Reset initial values (for exposure bases)
+        self._initial_assets = self.config.initial_assets
+        self._initial_equity = self.config.initial_assets
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:

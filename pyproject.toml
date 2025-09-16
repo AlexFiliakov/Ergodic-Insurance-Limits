@@ -91,3 +91,6 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.pylint.messages_control]
+disable = ["fixme"]

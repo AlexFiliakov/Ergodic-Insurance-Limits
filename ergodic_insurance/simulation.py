@@ -664,23 +664,7 @@ class Simulation:
         """
         start_time = time.time()
 
-        # Generate all claims upfront for efficiency from all generators
-        all_claims = []
-        for generator in self.claim_generator:
-            claims = generator.generate_claims(self.time_horizon)
-            all_claims.extend(claims)
-
-        # Group claims by year
-        claims_by_year: Dict[int, List[ClaimEvent]] = {
-            year: [] for year in range(self.time_horizon)
-        }
-        for claim in all_claims:
-            if 0 <= claim.year < self.time_horizon:
-                claims_by_year[claim.year].append(claim)
-
-        logger.info(
-            f"Starting {self.time_horizon}-year simulation with {len(all_claims)} total claims"
-        )
+        logger.info(f"Starting {self.time_horizon}-year simulation with dynamic claim generation")
 
         # Run simulation
         for year in range(self.time_horizon):
@@ -693,8 +677,12 @@ class Simulation:
                     f"Year {year}/{self.time_horizon} - {elapsed:.1f}s elapsed, {remaining:.1f}s remaining"
                 )
 
-            # Get claims for this year
-            year_claims = claims_by_year.get(year, [])
+            # Generate claims for this year based on current financial state
+            year_claims = []
+            for generator in self.claim_generator:
+                # Generator will use exposure base to query current financial state
+                claims = generator.generate_year(year)
+                year_claims.extend(claims)
 
             # Execute time step
             metrics = self.step_annual(year, year_claims)
