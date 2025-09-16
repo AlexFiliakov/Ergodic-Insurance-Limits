@@ -173,7 +173,7 @@ class TestConfigManager:
         shutil.rmtree(temp_config_dir / "presets")
 
         # Should initialize without warnings but with debug logs
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.DEBUG, logger="ergodic_insurance.config_manager"):
             manager = ConfigManager(config_dir=temp_config_dir)
 
         assert manager is not None
