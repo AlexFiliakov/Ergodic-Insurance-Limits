@@ -276,7 +276,7 @@ def standard_claim_generator() -> ClaimGenerator:
         ClaimGenerator: Standard loss generator.
     """
     return ClaimGenerator(
-        frequency=5.0,
+        base_frequency=5.0,
         severity_mean=200_000,
         severity_std=300_000,
         seed=42,
@@ -291,7 +291,7 @@ def high_frequency_generator() -> ClaimGenerator:
         ClaimGenerator: High frequency generator.
     """
     return ClaimGenerator(
-        frequency=20.0,
+        base_frequency=20.0,
         severity_mean=50_000,
         severity_std=30_000,
         seed=42,
@@ -306,7 +306,7 @@ def catastrophic_generator() -> ClaimGenerator:
         ClaimGenerator: Catastrophic loss generator.
     """
     return ClaimGenerator(
-        frequency=0.1,
+        base_frequency=0.1,
         severity_mean=10_000_000,
         severity_std=5_000_000,
         seed=42,
@@ -450,7 +450,7 @@ def monte_carlo_engine(
 
 def generate_sample_losses(
     n_years: int = 10,
-    frequency: float = 5.0,
+    base_frequency: float = 5.0,
     severity_mean: float = 200_000,
     seed: Optional[int] = None,
 ) -> List[ClaimEvent]:
@@ -470,7 +470,7 @@ def generate_sample_losses(
 
     claims = []
     for year in range(n_years):
-        n_claims = np.random.poisson(frequency)
+        n_claims = np.random.poisson(base_frequency)
         for _ in range(n_claims):
             amount = np.random.lognormal(
                 np.log(severity_mean),

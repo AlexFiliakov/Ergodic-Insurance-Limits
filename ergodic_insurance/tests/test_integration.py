@@ -73,7 +73,7 @@ class TestIntegration:
         # Total expected annual loss ≈ $1.175M
         claim_gen = ClaimGenerator(
             seed=base_config["random_seed"],
-            frequency=5.52,  # Total frequency (5 + 0.5 + 0.02)
+            base_frequency=5.52,  # Total frequency (5 + 0.5 + 0.02)
             severity_mean=213_000,  # Weighted average to achieve $1.175M expected
             severity_std=500_000,  # High variability to capture loss range
         )
@@ -192,7 +192,7 @@ class TestIntegration:
         # Blog draft loss parameters
         claim_gen = ClaimGenerator(
             seed=base_config["random_seed"],
-            frequency=5.52,  # Total from blog: 5 + 0.5 + 0.02
+            base_frequency=5.52,  # Total from blog: 5 + 0.5 + 0.02
             severity_mean=213_000,  # Calibrated for $1.175M expected annual loss
             severity_std=800_000,  # Higher std to capture catastrophic tail
         )
@@ -349,7 +349,7 @@ class TestIntegration:
 
         # Test claim generator validation
         with pytest.raises(ValueError):
-            ClaimGenerator(frequency=-1)  # Negative frequency
+            ClaimGenerator(base_frequency=-1)  # Negative frequency
 
     def test_statistics_calculation(self, base_config: dict):
         """Test that statistics are calculated correctly."""
@@ -418,7 +418,7 @@ class TestIntegration:
         """Test conversion between ClaimEvent and LossData formats."""
         # Create claim generator
         claim_gen = ClaimGenerator(
-            frequency=2.0, severity_mean=100_000, severity_std=50_000, seed=42
+            base_frequency=2.0, severity_mean=100_000, severity_std=50_000, seed=42
         )
 
         # Generate claims
@@ -485,7 +485,7 @@ class TestIntegration:
 
         # Create claim generator
         claim_gen = ClaimGenerator(
-            frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+            base_frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
         )
 
         # Create insurance

@@ -70,7 +70,7 @@ class TestClaimGenerator:
         years = 1000  # Large sample for statistical testing
 
         gen = ClaimGenerator(
-            base_frequency=frequency,
+            base_frequency=base_frequency,
             severity_mean=severity_mean,
             severity_std=severity_std,
             seed=42,
@@ -310,7 +310,7 @@ class TestClaimGenerator:
         # Check metadata
         assert loss_data.metadata["source"] == "claim_generator"
         assert loss_data.metadata["generator_type"] == "ClaimGenerator"
-        assert loss_data.metadata["frequency"] == gen.frequency
+        assert loss_data.metadata["frequency"] == gen.base_frequency
         assert loss_data.metadata["severity_mean"] == gen.severity_mean
         assert loss_data.metadata["severity_std"] == gen.severity_std
 

@@ -24,6 +24,7 @@ ergodic_insurance/convergence_plots.py
 ergodic_insurance/decision_engine.py
 ergodic_insurance/ergodic_analyzer.py
 ergodic_insurance/excel_reporter.py
+ergodic_insurance/exposure_base.py
 ergodic_insurance/financial_statements.py
 ergodic_insurance/hjb_solver.py
 ergodic_insurance/insurance.py
@@ -162,6 +163,7 @@ ergodic_insurance/tests/test_end_to_end.py
 ergodic_insurance/tests/test_ergodic_analyzer.py
 ergodic_insurance/tests/test_excel_reporter.py
 ergodic_insurance/tests/test_executive_visualizations.py
+ergodic_insurance/tests/test_exposure_base.py
 ergodic_insurance/tests/test_figure_factory.py
 ergodic_insurance/tests/test_financial_statements.py
 ergodic_insurance/tests/test_fixtures.py

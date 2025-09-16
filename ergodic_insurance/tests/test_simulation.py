@@ -34,7 +34,9 @@ def manufacturer(manufacturer_config):
 @pytest.fixture
 def claim_generator():
     """Create a test claim generator."""
-    return ClaimGenerator(frequency=0.1, severity_mean=1_000_000, severity_std=500_000, seed=42)
+    return ClaimGenerator(
+        base_frequency=0.1, severity_mean=1_000_000, severity_std=500_000, seed=42
+    )
 
 
 class TestSimulationResults:
@@ -344,7 +346,7 @@ class TestSimulation:
 
         # Create claim generator with high frequency/severity
         harsh_claims = ClaimGenerator(
-            frequency=5.0,  # Many claims per year
+            base_frequency=5.0,  # Many claims per year
             severity_mean=100_000,  # Large claims relative to assets
             severity_std=20_000,
             seed=42,

@@ -251,7 +251,7 @@ class TestFinancialIntegration:
         """
         # Setup
         manufacturer = base_manufacturer.copy()
-        claim_gen = ClaimGenerator(frequency=5, severity_mean=100_000, seed=42)
+        claim_gen = ClaimGenerator(base_frequency=5, severity_mean=100_000, seed=42)
         claim_dev = ClaimDevelopmentWrapper(pattern=[0.6, 0.3, 0.1])
 
         # Generate losses with development
@@ -370,7 +370,7 @@ class TestFinancialIntegration:
         low_revenue = low_revenue_mfg.calculate_revenue()
         low_frequency = base_frequency * (low_revenue / 10_000_000)
         low_claim_gen = ClaimGenerator(
-            frequency=low_frequency,
+            base_frequency=low_frequency,
             severity_mean=100_000,
             seed=42,
         )
@@ -379,7 +379,7 @@ class TestFinancialIntegration:
         high_revenue = high_revenue_mfg.calculate_revenue()
         high_frequency = base_frequency * (high_revenue / 10_000_000)
         high_claim_gen = ClaimGenerator(
-            frequency=high_frequency,
+            base_frequency=high_frequency,
             severity_mean=100_000,
             seed=42,
         )

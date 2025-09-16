@@ -192,7 +192,7 @@ class TestInsuranceStack:
             year_data["premium_paid"] = total_premium
 
             # Generate and process claims
-            claim_gen = ClaimGenerator(frequency=2, severity_mean=200_000, seed=42 + year)
+            claim_gen = ClaimGenerator(base_frequency=2, severity_mean=200_000, seed=42 + year)
             claims = claim_gen.generate_year()
 
             total_claims = 0
@@ -512,7 +512,7 @@ class TestInsuranceStack:
             # Run simulation
             sim_mfg = manufacturer.copy()
             claim_gen = ClaimGenerator(
-                frequency=0.5,  # 0.5 claims per year on average (more realistic)
+                base_frequency=0.5,  # 0.5 claims per year on average (more realistic)
                 severity_mean=200_000,  # Lower mean severity
                 severity_std=300_000,  # Lower standard deviation
                 seed=42 + i,  # Different seed for each structure to ensure independent claims
@@ -698,7 +698,7 @@ class TestInsuranceStack:
                     severity_mean = 300_000
 
                 claim_gen = ClaimGenerator(
-                    frequency=frequency,
+                    base_frequency=frequency,
                     severity_mean=severity_mean,
                     seed=42 + year_counter,
                 )

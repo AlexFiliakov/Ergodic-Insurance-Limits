@@ -6,6 +6,7 @@ build
 cache
 checkpoints
 data
+docs
 ergodic_insurance
 htmlcov
 issues

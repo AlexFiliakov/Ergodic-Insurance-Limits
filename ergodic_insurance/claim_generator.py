@@ -20,7 +20,7 @@ Examples:
     Basic claim generation::
 
         generator = ClaimGenerator(
-            frequency=0.1,  # 10% chance per year
+            base_frequency=0.1,  # 10% chance per year
             severity_mean=5_000_000,
             severity_std=2_000_000,
             seed=42
@@ -512,12 +512,12 @@ class ClaimGenerator:
 
         generator = ManufacturingLossGenerator(
             attritional_params={
-                "base_frequency": self.frequency * 10,  # Scale to attritional
+                "base_frequency": self.base_frequency * 10,  # Scale to attritional
                 "severity_mean": self.severity_mean / 100,  # Smaller losses
                 "severity_cv": 1.5,
             },
             large_params={
-                "base_frequency": self.frequency,
+                "base_frequency": self.base_frequency,
                 "severity_mean": self.severity_mean,
                 "severity_cv": 2.0,
             },
@@ -590,7 +590,7 @@ class ClaimGenerator:
             metadata={
                 "source": "claim_generator",
                 "generator_type": self.__class__.__name__,
-                "frequency": self.frequency,
+                "base_frequency": self.base_frequency,
                 "severity_mean": self.severity_mean,
                 "severity_std": self.severity_std,
             },

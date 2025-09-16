@@ -143,7 +143,7 @@ class TestROEWithInsurance:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create claim generator with moderate losses
-        claim_gen = ClaimGenerator(frequency=2, severity_mean=150_000, severity_std=50_000)
+        claim_gen = ClaimGenerator(base_frequency=2, severity_mean=150_000, severity_std=50_000)
 
         # Create insurance policy
         insurance = InsurancePolicy(
@@ -223,8 +223,10 @@ class TestROEWithInsurance:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create multiple risk profiles
-        standard = ClaimGenerator(frequency=2, severity_mean=50_000, severity_std=20_000)
-        catastrophic = ClaimGenerator(frequency=0.1, severity_mean=1_000_000, severity_std=500_000)
+        standard = ClaimGenerator(base_frequency=2, severity_mean=50_000, severity_std=20_000)
+        catastrophic = ClaimGenerator(
+            base_frequency=0.1, severity_mean=1_000_000, severity_std=500_000
+        )
 
         # Create insurance
         insurance = InsurancePolicy(

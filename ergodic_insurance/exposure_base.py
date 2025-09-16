@@ -152,20 +152,21 @@ class RevenueExposure(ExposureBase):
 
         if self.volatility > 0 and time > 0:
             # Geometric Brownian Motion
+            assert self._rng is not None  # Always initialized in __post_init__
             drift = self.growth_rate - 0.5 * self.volatility**2
             diffusion = self.volatility * np.sqrt(time) * self._rng.standard_normal()
             stochastic_factor = np.exp(drift * time + diffusion)
             # Apply inflation separately from stochastic component
-            return self.base_revenue * stochastic_factor * (1 + self.inflation_rate) ** time
+            return float(self.base_revenue * stochastic_factor * (1 + self.inflation_rate) ** time)
 
-        return self.base_revenue * deterministic_growth
+        return float(self.base_revenue * deterministic_growth)
 
     def get_frequency_multiplier(self, time: float) -> float:
-        """Frequency scales with square root of revenue (empirical relationship)."""
+        """Frequency scales with revenue."""
         if self.base_revenue == 0:
             return 0.0
         current_revenue = self.get_exposure(time)
-        return np.sqrt(current_revenue / self.base_revenue)
+        return current_revenue / self.base_revenue
 
     def reset(self) -> None:
         """Reset random number generator to initial state."""
@@ -238,7 +239,7 @@ class AssetExposure(ExposureBase):
                     base_value += remaining_value
 
         # Apply inflation
-        return base_value * (1 + self.inflation_rate) ** time
+        return float(base_value * (1 + self.inflation_rate) ** time)
 
     def get_frequency_multiplier(self, time: float) -> float:
         """More assets = more things that can break (linear relationship)."""
@@ -312,17 +313,18 @@ class EquityExposure(ExposureBase):
 
         if self.volatility > 0 and time > 0:
             # Add market volatility
+            assert self._rng is not None  # Always initialized in __post_init__
             shock = np.exp(self.volatility * np.sqrt(time) * self._rng.standard_normal())
             base_growth *= shock
 
-        return base_growth * (1 + self.inflation_rate) ** time
+        return float(base_growth * (1 + self.inflation_rate) ** time)
 
     def get_frequency_multiplier(self, time: float) -> float:
         """Higher equity implies larger operations (cube root scaling for conservatism)."""
         if self.base_equity == 0:
             return 0.0
         current_equity = self.get_exposure(time)
-        return (current_equity / self.base_equity) ** (1 / 3)
+        return float((current_equity / self.base_equity) ** (1 / 3))
 
     def reset(self) -> None:
         """Reset random number generator."""
@@ -369,7 +371,7 @@ class EmployeeExposure(ExposureBase):
         """Calculate employee count with hiring and automation effects."""
         if time < 0:
             raise ValueError(f"Time must be non-negative, got {time}")
-        return self.base_employees * (1 + self.hiring_rate) ** time
+        return float(self.base_employees * (1 + self.hiring_rate) ** time)
 
     def get_frequency_multiplier(self, time: float) -> float:
         """More employees = more workplace incidents, but automation helps."""
@@ -377,7 +379,7 @@ class EmployeeExposure(ExposureBase):
             return 0.0
         current_employees = self.get_exposure(time)
         automation_reduction = (1 - self.automation_factor) ** time
-        return (current_employees / self.base_employees) * automation_reduction
+        return float((current_employees / self.base_employees) * automation_reduction)
 
     def reset(self) -> None:
         """No state to reset."""
@@ -437,7 +439,7 @@ class ProductionExposure(ExposureBase):
             seasonal_factor = self.seasonality(time)
             base_production *= seasonal_factor
 
-        return base_production
+        return float(base_production)
 
     def get_frequency_multiplier(self, time: float) -> float:
         """More production = more potential defects, but quality improvements help."""
@@ -445,7 +447,7 @@ class ProductionExposure(ExposureBase):
             return 0.0
         current_production = self.get_exposure(time)
         quality_factor = (1 - self.quality_improvement_rate) ** time
-        return (current_production / self.base_units) * quality_factor
+        return float((current_production / self.base_units) * quality_factor)
 
     def reset(self) -> None:
         """No state to reset."""
@@ -679,6 +681,7 @@ class StochasticExposure(ExposureBase):
         sigma = self.parameters.get("volatility", 0.2)
 
         # Use exact solution for GBM
+        assert self._rng is not None  # Always initialized in __post_init__
         z = self._rng.standard_normal()
         value = self.base_value * np.exp((mu - 0.5 * sigma**2) * time + sigma * np.sqrt(time) * z)
         self._path_cache[time] = value
@@ -697,6 +700,7 @@ class StochasticExposure(ExposureBase):
         exp_theta_t = np.exp(-theta * time)
         mean = mu + (self.base_value - mu) * exp_theta_t
         variance = (sigma**2 / (2 * theta)) * (1 - exp_theta_t**2)
+        assert self._rng is not None  # Always initialized in __post_init__
         value = mean + np.sqrt(variance) * self._rng.standard_normal()
         self._path_cache[time] = max(0, value)  # Ensure non-negative
 
@@ -713,6 +717,7 @@ class StochasticExposure(ExposureBase):
         jump_std = self.parameters.get("jump_std", 0.1)
 
         # GBM component
+        assert self._rng is not None  # Always initialized in __post_init__
         gbm_value = self.base_value * np.exp(
             (mu - 0.5 * sigma**2) * time + sigma * np.sqrt(time) * self._rng.standard_normal()
         )
@@ -732,4 +737,4 @@ class StochasticExposure(ExposureBase):
             return 0.0
         current = self.get_exposure(time)
         # Use square root scaling for stochastic exposure
-        return np.sqrt(current / self.base_value)
+        return float(np.sqrt(current / self.base_value))
