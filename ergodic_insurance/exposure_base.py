@@ -1,23 +1,28 @@
 """Exposure base module for dynamic frequency scaling in insurance claims.
 
 This module provides a hierarchy of exposure classes that dynamically adjust
-claim frequencies based on various business metrics like revenue, assets,
-equity, employees, or production volume. The framework supports both
-deterministic and stochastic exposure evolution.
+claim frequencies based on actual business metrics from the simulation.
+The exposure bases now work with real financial state from the manufacturer,
+not artificial growth projections.
+
+Key Concepts:
+    - Exposure bases query actual financial metrics from a state provider
+    - Frequency multipliers are calculated from actual vs. base metrics
+    - No artificial growth rates or projections
+    - Direct integration with WidgetManufacturer financial state
 
 Example:
-    Basic usage with revenue exposure::
+    Basic usage with state-driven revenue exposure::
 
         from ergodic_insurance.exposure_base import RevenueExposure
+        from ergodic_insurance.manufacturer import WidgetManufacturer
         from ergodic_insurance.claim_generator import ClaimGenerator
 
-        # Create exposure that grows with inflation
-        exposure = RevenueExposure(
-            base_revenue=50_000_000,
-            growth_rate=0.03,
-            inflation_rate=0.02,
-            volatility=0.15
-        )
+        # Create manufacturer
+        manufacturer = WidgetManufacturer(config)
+
+        # Create exposure linked to manufacturer's actual state
+        exposure = RevenueExposure(state_provider=manufacturer)
 
         # Create generator with exposure
         generator = ClaimGenerator(
@@ -26,18 +31,57 @@ Example:
             severity_mean=1_000_000
         )
 
-        # Generate claims - frequency scales with revenue growth
-        claims = generator.generate_claims(years=20)
+        # Claims will be generated based on actual revenue during simulation
 
 Since:
-    Version 0.2.0
+    Version 0.3.0 - Complete refactor to state-driven approach
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Protocol, runtime_checkable
 
 import numpy as np
+
+
+@runtime_checkable
+class FinancialStateProvider(Protocol):
+    """Protocol for providing current financial state to exposure bases.
+
+    This protocol defines the interface that any class must implement
+    to provide financial metrics to exposure bases. The WidgetManufacturer
+    class implements this protocol to supply real-time financial data.
+    """
+
+    @property
+    def current_revenue(self) -> float:
+        """Get current revenue."""
+        ...
+
+    @property
+    def current_assets(self) -> float:
+        """Get current total assets."""
+        ...
+
+    @property
+    def current_equity(self) -> float:
+        """Get current equity value."""
+        ...
+
+    @property
+    def base_revenue(self) -> float:
+        """Get base (initial) revenue for comparison."""
+        ...
+
+    @property
+    def base_assets(self) -> float:
+        """Get base (initial) assets for comparison."""
+        ...
+
+    @property
+    def base_equity(self) -> float:
+        """Get base (initial) equity for comparison."""
+        ...
 
 
 class ExposureBase(ABC):
@@ -94,241 +138,138 @@ class ExposureBase(ABC):
 
 @dataclass
 class RevenueExposure(ExposureBase):
-    """Exposure based on revenue growth.
+    """Revenue-based exposure using actual financial state.
 
-    Models claim frequency that scales with business revenue, supporting
-    both deterministic growth and stochastic volatility through Geometric
-    Brownian Motion.
-
-    The frequency scaling uses square root of revenue ratio, which is an
-    empirically observed relationship in the insurance industry where
-    frequency doesn't scale linearly with size due to economies of scale
-    and improved risk management.
+    Models claim frequency that scales with actual business revenue from
+    the simulation, not artificial growth projections. The exposure directly
+    queries the current revenue from the manufacturer's financial state.
 
     Attributes:
-        base_revenue: Initial revenue level in dollars.
-        growth_rate: Annual revenue growth rate (e.g., 0.05 for 5%).
-        volatility: Revenue volatility for stochastic modeling (0 for deterministic).
-        inflation_rate: Annual inflation rate to compound with growth.
-        seed: Random seed for reproducible stochastic paths.
+        state_provider: Object providing current and base financial metrics.
+            Typically a WidgetManufacturer instance.
 
     Example:
-        Revenue exposure with stochastic growth::
+        Revenue exposure with actual manufacturer state::
 
-            exposure = RevenueExposure(
-                base_revenue=10_000_000,
-                growth_rate=0.10,  # 10% growth
-                volatility=0.20,   # 20% volatility
-                inflation_rate=0.02,  # 2% inflation
-                seed=42
+            from ergodic_insurance.manufacturer import WidgetManufacturer
+            from ergodic_insurance.config import ManufacturerConfig
+
+            manufacturer = WidgetManufacturer(
+                ManufacturerConfig(initial_assets=10_000_000)
             )
+            exposure = RevenueExposure(state_provider=manufacturer)
 
-            # Get exposure after 5 years
-            revenue_5y = exposure.get_exposure(5.0)
-            freq_mult_5y = exposure.get_frequency_multiplier(5.0)
+            # Exposure reflects actual manufacturer revenue
+            current_rev = exposure.get_exposure(1.0)
+            multiplier = exposure.get_frequency_multiplier(1.0)
     """
 
-    base_revenue: float
-    growth_rate: float = 0.0
-    volatility: float = 0.0
-    inflation_rate: float = 0.0
-    seed: Optional[int] = None
-    _rng: Optional[np.random.RandomState] = field(default=None, init=False, repr=False)
-
-    def __post_init__(self):
-        """Initialize random number generator."""
-        if self.base_revenue < 0:
-            raise ValueError(f"Base revenue must be non-negative, got {self.base_revenue}")
-        self._rng = np.random.RandomState(self.seed)
-        self.reset()
+    state_provider: FinancialStateProvider
 
     def get_exposure(self, time: float) -> float:
-        """Calculate revenue at time t with growth and inflation."""
-        if time < 0:
-            raise ValueError(f"Time must be non-negative, got {time}")
-
-        # Combined growth and inflation
-        deterministic_growth = (1 + self.growth_rate + self.inflation_rate) ** time
-
-        if self.volatility > 0 and time > 0:
-            # Geometric Brownian Motion
-            assert self._rng is not None  # Always initialized in __post_init__
-            drift = self.growth_rate - 0.5 * self.volatility**2
-            diffusion = self.volatility * np.sqrt(time) * self._rng.standard_normal()
-            stochastic_factor = np.exp(drift * time + diffusion)
-            # Apply inflation separately from stochastic component
-            return float(self.base_revenue * stochastic_factor * (1 + self.inflation_rate) ** time)
-
-        return float(self.base_revenue * deterministic_growth)
+        """Return current actual revenue from manufacturer."""
+        return self.state_provider.current_revenue
 
     def get_frequency_multiplier(self, time: float) -> float:
-        """Frequency scales with revenue."""
-        if self.base_revenue == 0:
+        """Calculate multiplier from actual revenue ratio."""
+        if self.state_provider.base_revenue == 0:
             return 0.0
-        current_revenue = self.get_exposure(time)
-        return current_revenue / self.base_revenue
+        return self.state_provider.current_revenue / self.state_provider.base_revenue
 
     def reset(self) -> None:
-        """Reset random number generator to initial state."""
-        self._rng = np.random.RandomState(self.seed)
+        """No internal state to reset for state-driven exposure."""
+        pass
 
 
 @dataclass
 class AssetExposure(ExposureBase):
-    """Exposure based on total assets.
+    """Asset-based exposure using actual financial state.
 
-    Models claim frequency based on asset base, accounting for growth,
-    depreciation, and capital expenditures. Suitable for businesses where
-    physical assets drive risk exposure (manufacturing, real estate, etc.).
+    Models claim frequency based on actual asset values from the simulation,
+    tracking real asset changes from operations, claims, and business growth.
+    Suitable for businesses where physical assets drive risk exposure.
 
     Frequency scales linearly with assets as more assets generally mean
     more insurable items that can generate claims.
 
     Attributes:
-        base_assets: Initial asset value in dollars.
-        growth_rate: Annual asset growth rate excluding depreciation.
-        depreciation_rate: Annual depreciation rate (e.g., 0.05 for 5%).
-        capex_schedule: Planned capital expenditures {time: amount}.
-        inflation_rate: Annual inflation rate for asset values.
+        state_provider: Object providing current and base financial metrics.
+            Typically a WidgetManufacturer instance.
 
     Example:
-        Asset exposure with depreciation and capex::
+        Asset exposure with actual manufacturer state::
 
-            exposure = AssetExposure(
-                base_assets=50_000_000,
-                growth_rate=0.03,
-                depreciation_rate=0.10,
-                capex_schedule={
-                    2.0: 10_000_000,  # $10M investment at year 2
-                    5.0: 15_000_000   # $15M investment at year 5
-                }
+            manufacturer = WidgetManufacturer(
+                ManufacturerConfig(initial_assets=50_000_000)
             )
+            exposure = AssetExposure(state_provider=manufacturer)
+
+            # Exposure reflects actual asset changes
+            current_assets = exposure.get_exposure(1.0)
+            multiplier = exposure.get_frequency_multiplier(1.0)
     """
 
-    base_assets: float
-    growth_rate: float = 0.0
-    depreciation_rate: float = 0.02
-    capex_schedule: Optional[Dict[float, float]] = None
-    inflation_rate: float = 0.0
-
-    def __post_init__(self):
-        """Validate inputs."""
-        if self.base_assets < 0:
-            raise ValueError(f"Base assets must be non-negative, got {self.base_assets}")
-        if self.depreciation_rate < 0 or self.depreciation_rate > 1:
-            raise ValueError(
-                f"Depreciation rate must be between 0 and 1, got {self.depreciation_rate}"
-            )
+    state_provider: FinancialStateProvider
 
     def get_exposure(self, time: float) -> float:
-        """Calculate asset value considering growth, depreciation, and capex."""
-        if time < 0:
-            raise ValueError(f"Time must be non-negative, got {time}")
-
-        # Base growth with depreciation
-        net_growth_rate = self.growth_rate - self.depreciation_rate
-        base_value = self.base_assets * (1 + net_growth_rate) ** time
-
-        # Add scheduled capital expenditures
-        if self.capex_schedule:
-            for capex_time, amount in self.capex_schedule.items():
-                if capex_time <= time:
-                    years_since = time - capex_time
-                    # Capex also depreciates
-                    remaining_value = amount * (1 - self.depreciation_rate) ** years_since
-                    base_value += remaining_value
-
-        # Apply inflation
-        return float(base_value * (1 + self.inflation_rate) ** time)
+        """Return current actual assets from manufacturer."""
+        return self.state_provider.current_assets
 
     def get_frequency_multiplier(self, time: float) -> float:
-        """More assets = more things that can break (linear relationship)."""
-        if self.base_assets == 0:
+        """Calculate multiplier from actual asset ratio."""
+        if self.state_provider.base_assets == 0:
             return 0.0
-        current_assets = self.get_exposure(time)
-        return current_assets / self.base_assets
+        return self.state_provider.current_assets / self.state_provider.base_assets
 
     def reset(self) -> None:
-        """No state to reset for deterministic asset exposure."""
+        """No internal state to reset for state-driven exposure."""
         pass
 
 
 @dataclass
 class EquityExposure(ExposureBase):
-    """Exposure based on equity/market cap.
+    """Equity-based exposure using actual financial state.
 
-    Models claim frequency based on equity growth through retained earnings.
+    Models claim frequency based on actual equity values from the simulation,
+    tracking real equity changes from profits, losses, and retained earnings.
     Suitable for financial analysis where equity represents business scale.
 
-    Uses cube root scaling for conservative frequency adjustment, as equity
-    growth doesn't directly translate to proportional risk increase.
-
     Attributes:
-        base_equity: Initial equity value in dollars.
-        roe: Return on equity (e.g., 0.12 for 12% ROE).
-        dividend_payout_ratio: Fraction of earnings paid as dividends.
-        volatility: Market volatility for equity value.
-        inflation_rate: Annual inflation rate.
-        seed: Random seed for stochastic modeling.
+        state_provider: Object providing current and base financial metrics.
+            Typically a WidgetManufacturer instance.
 
     Example:
-        Equity exposure with retained earnings growth::
+        Equity exposure with actual manufacturer state::
 
-            exposure = EquityExposure(
-                base_equity=20_000_000,
-                roe=0.15,  # 15% return on equity
-                dividend_payout_ratio=0.40,  # 40% payout
-                volatility=0.25  # 25% market volatility
+            manufacturer = WidgetManufacturer(
+                ManufacturerConfig(initial_assets=20_000_000)
             )
+            exposure = EquityExposure(state_provider=manufacturer)
+
+            # Exposure reflects actual equity changes
+            current_equity = exposure.get_exposure(1.0)
+            multiplier = exposure.get_frequency_multiplier(1.0)
     """
 
-    base_equity: float
-    roe: float = 0.10
-    dividend_payout_ratio: float = 0.3
-    volatility: float = 0.0
-    inflation_rate: float = 0.0
-    seed: Optional[int] = None
-    _rng: Optional[np.random.RandomState] = field(default=None, init=False, repr=False)
-
-    def __post_init__(self):
-        """Initialize and validate."""
-        if self.base_equity < 0:
-            raise ValueError(f"Base equity must be non-negative, got {self.base_equity}")
-        if self.dividend_payout_ratio < 0 or self.dividend_payout_ratio > 1:
-            raise ValueError(
-                f"Payout ratio must be between 0 and 1, got {self.dividend_payout_ratio}"
-            )
-        self._rng = np.random.RandomState(self.seed)
-        self.reset()
+    state_provider: FinancialStateProvider
 
     def get_exposure(self, time: float) -> float:
-        """Calculate equity value with retained earnings growth."""
-        if time < 0:
-            raise ValueError(f"Time must be non-negative, got {time}")
-
-        retention_ratio = 1 - self.dividend_payout_ratio
-        growth_rate = self.roe * retention_ratio
-
-        base_growth = self.base_equity * (1 + growth_rate) ** time
-
-        if self.volatility > 0 and time > 0:
-            # Add market volatility
-            assert self._rng is not None  # Always initialized in __post_init__
-            shock = np.exp(self.volatility * np.sqrt(time) * self._rng.standard_normal())
-            base_growth *= shock
-
-        return float(base_growth * (1 + self.inflation_rate) ** time)
+        """Return current actual equity from manufacturer."""
+        return self.state_provider.current_equity
 
     def get_frequency_multiplier(self, time: float) -> float:
-        """Higher equity implies larger operations (cube root scaling for conservatism)."""
-        if self.base_equity == 0:
+        """Higher equity implies larger operations."""
+        if self.state_provider.base_equity == 0:
             return 0.0
-        current_equity = self.get_exposure(time)
-        return float((current_equity / self.base_equity) ** (1 / 3))
+        # Handle negative equity (bankruptcy) by returning 0
+        if self.state_provider.current_equity <= 0:
+            return 0.0
+        ratio = self.state_provider.current_equity / self.state_provider.base_equity
+        return float(ratio)
 
     def reset(self) -> None:
-        """Reset random number generator."""
-        self._rng = np.random.RandomState(self.seed)
+        """No internal state to reset for state-driven exposure."""
+        pass
 
 
 @dataclass

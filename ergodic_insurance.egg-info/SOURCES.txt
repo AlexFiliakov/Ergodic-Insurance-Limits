@@ -195,6 +195,7 @@ ergodic_insurance/tests/test_progress_monitor.py
 ergodic_insurance/tests/test_properties.py
 ergodic_insurance/tests/test_report_generation.py
 ergodic_insurance/tests/test_result_aggregation.py
+ergodic_insurance/tests/test_retention_calculation.py
 ergodic_insurance/tests/test_risk_metrics.py
 ergodic_insurance/tests/test_roe_insurance.py
 ergodic_insurance/tests/test_ruin_probability.py
