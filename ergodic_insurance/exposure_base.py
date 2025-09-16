@@ -234,9 +234,6 @@ class EquityExposure(ExposureBase):
     tracking real equity changes from profits, losses, and retained earnings.
     Suitable for financial analysis where equity represents business scale.
 
-    Uses cube root scaling for conservative frequency adjustment, as equity
-    growth doesn't directly translate to proportional risk increase.
-
     Attributes:
         state_provider: Object providing current and base financial metrics.
             Typically a WidgetManufacturer instance.
@@ -261,14 +258,14 @@ class EquityExposure(ExposureBase):
         return self.state_provider.current_equity
 
     def get_frequency_multiplier(self, time: float) -> float:
-        """Higher equity implies larger operations (cube root scaling for conservatism)."""
+        """Higher equity implies larger operations."""
         if self.state_provider.base_equity == 0:
             return 0.0
         # Handle negative equity (bankruptcy) by returning 0
         if self.state_provider.current_equity <= 0:
             return 0.0
         ratio = self.state_provider.current_equity / self.state_provider.base_equity
-        return float(ratio ** (1 / 3))
+        return float(ratio)
 
     def reset(self) -> None:
         """No internal state to reset for state-driven exposure."""
