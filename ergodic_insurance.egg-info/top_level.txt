@@ -13,5 +13,4 @@ issues
 reports
 results
 simone
-test_trajectory_storage
 tutorials

@@ -237,3 +237,39 @@ READABILITY IMPROVEMENTS:
 - Highlight key takeaways in callout boxes
 - Ensure mobile-friendly formatting
 Tell me what to put specifically in the agent description to make it most effective.
+
+---
+
+Review the spec documentation at "docs\specs\US_FINANCIAL_STATEMENTS_RESEARCH.md" and plan its integration into the current codebase.
+
+First, analyze the spec and current codebase to understand:
+1. Core functionality requirements from the spec
+2. Existing codebase architecture and patterns
+3. Potential integration points and dependencies
+
+Then ask me clarifying questions about:
+- Any unnecessary complexity that can be simplified for parsimonious implementation
+- Performance requirements or constraints
+- Integration dependencies I haven't documented
+- Any ambiguous requirements in the spec
+
+Then, partition the new implementation into coherent chunks that will be testable and create issues based on these chunks.
+- Issues should have minimal interdependencies where possible
+- Provide an approach for each issue
+- If there are multiple viable approaches, provide trade-offs and recommendations
+- Provide implementation guidance and what unit tests would be necessary to maintain high code quality
+- Your code guidance should come mainly in the form of tests that need to pass
+- Provide guidance on a system overhaul and removing legacy implementation without backward compatibility
+
+---
+
+Q1: Implement straight-line depreciation and a flat tax rate to start
+Q2: Implement only annual upfront premiums with monthly amortization, no retroactively-rated policies
+Q3: Financial statements should be generated annually in a yearly run and monthly in a monthly run. Don't worry about performance yet; keep the current approaches to simulation and parallelization and just bolt on the additional complexity. The maximum realistic simulation horizon is 100 years.
+Q4: Financial statements should integrate with existing Monte Carlo simulations. We can generate the statements post-hoc if it's easier, or in real-time if it will help free up memory. Don't worry about importing actual financial data from public companies yet, that will be supplied via input parameters instead of from financial documents. Review the current financial statement creation functions and build from those, enhancing as needed.
+Q5: Build a generic framework that can be configured for different industries, but simplify the implementation where industry-specific treatment will be unduly complex and bloated.
+Other considerations:
+- Implement full double-entry bookkeeping
+- I like your other recommendations
+
+---
