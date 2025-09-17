@@ -84,6 +84,7 @@ class FinancialStatementGenerator:
         Raises:
             ValueError: If neither manufacturer nor manufacturer_data provided
         """
+        self.manufacturer = manufacturer
         if manufacturer is not None:
             self.manufacturer_data = {
                 "metrics_history": manufacturer.metrics_history,
@@ -96,6 +97,14 @@ class FinancialStatementGenerator:
             raise ValueError("Either manufacturer or manufacturer_data must be provided")
 
         self.config = config or FinancialStatementConfig()
+        self._update_metrics_cache()
+
+    def _update_metrics_cache(self):
+        """Update the cached metrics from manufacturer data."""
+        if self.manufacturer is not None:
+            # Get fresh metrics from manufacturer
+            self.manufacturer_data["metrics_history"] = self.manufacturer.metrics_history
+
         metrics = self.manufacturer_data.get("metrics_history", [])
         self.metrics_history: List[Dict[str, float]] = metrics if isinstance(metrics, list) else []
         self.years_available = len(self.metrics_history)
@@ -118,6 +127,9 @@ class FinancialStatementGenerator:
         Raises:
             IndexError: If year is out of range
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
@@ -251,15 +263,41 @@ class FinancialStatementGenerator:
         # EQUITY SECTION
         data.append(("EQUITY", "", "", ""))
         data.append(("", "", "", ""))
-        equity = metrics.get("equity", 0)
-        data.append(("  Retained Earnings", equity, "", ""))
-        data.append(("TOTAL EQUITY", equity, "", "total"))
+
+        # Calculate total assets (must match what's shown in assets section)
+        cash = metrics.get("cash", 0)
+        accounts_receivable = metrics.get("accounts_receivable", 0)
+        inventory = metrics.get("inventory", 0)
+        prepaid = metrics.get("prepaid_insurance", 0)
+        total_current = cash + accounts_receivable + inventory + prepaid
+
+        net_ppe = metrics.get("net_ppe", 0)
+        restricted_assets = metrics.get("restricted_assets", 0)
+        total_assets = total_current + net_ppe + restricted_assets
+
+        # Calculate total liabilities
+        accounts_payable = metrics.get("accounts_payable", 0)
+        accrued_expenses = metrics.get("accrued_expenses", 0)
+        claim_liabilities = metrics.get("claim_liabilities", 0)
+        total_liabilities = accounts_payable + accrued_expenses + claim_liabilities
+
+        # Equity = Assets - Liabilities (basic accounting equation)
+        equity_for_balance_sheet = total_assets - total_liabilities
+
+        data.append(("  Retained Earnings", equity_for_balance_sheet, "", ""))
+        data.append(("TOTAL EQUITY", equity_for_balance_sheet, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
 
         # Validation
-        total_liabilities = metrics.get("claim_liabilities", 0)
-        data.append(("TOTAL LIABILITIES + EQUITY", total_liabilities + equity, "", "total"))
+        data.append(
+            (
+                "TOTAL LIABILITIES + EQUITY",
+                total_liabilities + equity_for_balance_sheet,
+                "",
+                "total",
+            )
+        )
 
     def generate_income_statement(
         self, year: int, compare_years: Optional[List[int]] = None
@@ -279,6 +317,9 @@ class FinancialStatementGenerator:
         Raises:
             IndexError: If year is out of range
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
@@ -417,6 +458,9 @@ class FinancialStatementGenerator:
         Raises:
             IndexError: If year is out of range
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
@@ -583,6 +627,9 @@ class FinancialStatementGenerator:
         Returns:
             DataFrame containing reconciliation checks and results
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
