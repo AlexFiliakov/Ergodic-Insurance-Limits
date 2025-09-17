@@ -78,33 +78,29 @@ Companies paying annual insurance premiums upfront create prepaid insurance asse
 
 ### Revenue and expense accrual patterns
 
-Revenue recognition under ASC 606 often precedes or follows cash collection. Software companies receiving multi-year prepayments create substantial deferred revenue liabilities, recognizing revenue over service periods. Construction companies using percentage-of-completion create unbilled receivables when work performed exceeds billings. **Bonus accruals** illustrate expense timing, with year-end accruals based on performance but payments occurring after evaluation periods, subject to the 2.5-month rule for tax deductibility. Warranty reserves accrue at sale based on estimated future costs, with cash outflows occurring over warranty periods, requiring periodic true-ups for actual experience.
+Revenue recognition under ASC 606 often precedes or follows cash collection. Warranty reserves accrue at sale based on estimated future costs, with cash outflows occurring over warranty periods, requiring periodic true-ups for actual experience.
 
 ### Dividend distribution mechanics
 
-Dividend timing follows a predictable sequence from declaration (creating legal liability) through ex-dividend date (determining eligibility), record date (shareholder identification), to payment date (cash distribution), typically spanning 30-60 days. Most S&P 500 companies maintain quarterly patterns, with March, June, September, and December payments common. Special dividends create irregular timing impacts, while share repurchases provide more flexible capital return timing.
+Dividend timing follows a predictable sequence from declaration (creating legal liability) through ex-dividend date (determining eligibility), record date (shareholder identification), to payment date (cash distribution), typically spanning 30-60 days. Most S&P 500 companies maintain quarterly patterns, with March, June, September, and December payments common.
 
 ## Tax treatment of expenses
 
-ASC 740 governs book tax accounting while the Internal Revenue Code determines actual tax obligations, creating complex permanent and temporary differences affecting deferred tax positions and effective tax rates.
+ASC 740 governs book tax accounting.
 
 ### Deductible business expenses
 
 Ordinary and necessary business expenses under Section 162 generally create no book-tax differences when treated consistently. However, **interest expense limitations** under Section 163(j) restrict deductions to 30% of adjusted taxable income (EBIT-based after 2022), creating timing differences for highly leveraged companies. Insurance premiums for business purposes are generally deductible when paid, though self-insurance reserves aren't deductible until losses occur.
 
-The most significant timing differences arise from depreciation, with MACRS providing accelerated tax deductions (5-year for equipment, 39-year for commercial buildings) while companies use straight-line book depreciation over economic lives. **Research and development** underwent major changes, with Section 174 requiring 5-year amortization for domestic R&D starting 2022, though the 2025 OBBBA restored immediate expensing going forward with retroactive relief for small businesses.
-
-### Non-deductible items creating permanent differences
-
-Executive compensation exceeding \$1 million annually for covered employees (CEO, CFO, next three highest-paid) isn't deductible under Section 162(m), with "once covered, always covered" rules expanding the affected population. **Goodwill impairment** creates permanent differences when goodwill lacks tax basis from stock acquisitions, unlike asset acquisitions creating amortizable Section 197 intangibles. Fines, penalties, and most entertainment expenses create permanent unfavorable differences, while tax-exempt income creates favorable permanent differences.
+The most significant timing differences arise from depreciation, with MACRS providing accelerated tax deductions (5-year for equipment, 39-year for commercial buildings) while companies use straight-line book depreciation over economic lives. **Research and development** underwent major changes, with the 2025 OBBBA restoring immediate expensing going forward.
 
 ### Deferred tax assets and liabilities
 
-Net operating loss carryforwards create significant deferred tax assets, with post-2017 losses carried forward indefinitely but limited to 80% of taxable income. **Valuation allowances** reduce deferred tax assets when realization isn't more likely than not, requiring careful evaluation of positive evidence (contracts, earnings history) versus negative evidence (recent losses, expiring carryforwards). Common deferred tax assets include warranty reserves, bad debt allowances, deferred revenue, and stock compensation, while deferred tax liabilities primarily arise from accelerated depreciation, installment sales, and basis differences in acquired intangibles.
+Net operating loss carryforwards create significant deferred tax assets, with losses carried forward indefinitely but limited to 80% of taxable income. **Valuation allowances** reduce deferred tax assets when realization isn't more likely than not. Common deferred tax assets include warranty reserves, bad debt allowances, and deferred revenue, while deferred tax liabilities primarily arise from accelerated depreciation.
 
 ### Insurance-specific tax considerations
 
-Insurance premiums paid for business protection are generally deductible, though captive insurance arrangements face scrutiny requiring genuine risk transfer and distribution. Small captives electing under Section 831(b) can exclude up to \$2.8 million in premium income from taxation. Self-insurance reserves aren't deductible until paid, creating timing differences with book accruals. **Business interruption insurance** proceeds are taxable as ordinary income, potentially creating tax liabilities exceeding book income when recovering lost profits from prior periods.
+Insurance premiums paid for business protection are generally deductible. Self-insurance reserves aren't deductible until paid, creating timing differences with book accruals. **Business interruption insurance** proceeds are taxable as ordinary income, potentially creating tax liabilities exceeding book income when recovering lost profits from prior periods.
 
 ## Relationships between financial elements
 
@@ -112,7 +108,7 @@ Financial statements interconnect through systematic relationships, with balance
 
 ### Revenue's asset impact
 
-Revenue recognition creates predictable asset movements: credit sales increase accounts receivable until collection, while advance payments create deferred revenue liabilities until earned. Technology companies with subscription models show this clearly - Microsoft's deferred revenue from Office 365 annual subscriptions creates current liabilities that convert to revenue monthly. **Contract modifications** can trigger significant adjustments, potentially requiring cumulative catch-up adjustments affecting both current period revenue and contract asset/liability balances.
+Revenue recognition creates predictable asset movements: credit sales increase accounts receivable until collection, while advance payments create deferred revenue liabilities until earned.
 
 ### Working capital dynamics
 
@@ -120,7 +116,7 @@ Operating performance directly drives working capital needs, with revenue growth
 
 ### Impairment effects on capital
 
-Asset impairments simultaneously reduce asset carrying values and shareholders' equity through immediate income statement charges. Goodwill impairments from failed acquisitions can eliminate billions in shareholder value instantly, as seen in Microsoft's Nokia write-down. **Property, plant, and equipment impairments** often signal strategic shifts, with write-downs of manufacturing facilities preceding restructuring announcements. These impairments affect multiple periods through reduced future depreciation, potentially improving future margins despite destroying current period earnings.
+Asset impairments simultaneously reduce asset carrying values and shareholders' equity through immediate income statement charges. Goodwill impairments from failed acquisitions can eliminate shareholder value instantly. **Property, plant, and equipment impairments** often signal strategic shifts, with write-downs of manufacturing facilities preceding restructuring announcements. These impairments affect multiple periods through reduced future depreciation, potentially improving future margins despite destroying current period earnings.
 
 ### Inter-statement cash flow relationships
 
@@ -132,23 +128,19 @@ Corporate insurance accounting under US GAAP involves complex recognition, measu
 
 ### Premium accounting and expense recognition
 
-Companies record insurance premiums paid in advance as prepaid assets, amortizing them systematically over coverage periods regardless of payment timing. Multi-year policies require allocation between current and long-term assets, with straight-line amortization typically used unless risk patterns suggest alternatives. **Retrospectively-rated policies** create additional complexity, with initial deposits adjusted as loss experience develops, potentially resulting in additional premiums or refunds affecting multiple periods.
+Companies record insurance premiums paid in advance as prepaid assets, amortizing them systematically over coverage periods regardless of payment timing.
 
-Financial statement presentation shows prepaid insurance within other current assets, insurance expense in operating expenses (often within SG&A), and premium financings as debt obligations. A company paying \$3.6 million for three-year coverage records \$100,000 monthly expense, maintaining \$1.2 million current and \$1.4 million long-term prepaid balances after year one.
+Financial statement presentation shows prepaid insurance within other current assets, insurance expense in operating expenses (often within SG&A), and premium financings as debt obligations.
 
 ### Insurance recovery accounting
 
-ASC 450 requires separate evaluation of losses and recoveries, with recovery assets recognized only when realization is probable - a high threshold requiring specific evidence like insurer confirmation or final settlement. **Business interruption claims** create particular challenges, with lost revenue recoveries treated as gain contingencies while incremental cost recoveries may be recognized earlier. Target's 2013 data breach illustrates complexity: \$264 million total costs with only \$90 million insurance recovery, requiring careful allocation between covered and excluded losses.
+ASC 450 requires separate evaluation of losses and recoveries, with recovery assets recognized only when realization is probable. **Business interruption claims** create particular challenges, with lost revenue recoveries treated as gain contingencies while incremental cost recoveries may be recognized earlier.
 
-Property damage claims require immediate loss recognition regardless of insurance, with recovery assets limited to recognized losses. PG&E's wildfire settlements demonstrate scale: \$13.5 billion victim settlements partially offset by \$11 billion insurance subrogation receipts, with complex bankruptcy and timing considerations affecting recognition.
+Property damage claims require immediate loss recognition regardless of insurance, with recovery assets limited to recognized losses.
 
 ### Self-insurance reserves
 
 Companies self-insuring workers' compensation, health benefits, or general liability must accrue estimated costs for incurred claims, including IBNR (incurred but not reported) reserves. **Actuarial valuations** typically determine reserves using frequency, severity, and development patterns, with ASC 450 permitting but not requiring discounting to present value. These reserves appear as current liabilities for amounts expected to be paid within one year, with longer-tail exposures in non-current liabilities. Letters of credit or restricted cash often collateralize self-insurance programs per regulatory requirements.
-
-### Captive insurance structures
-
-Wholly-owned captive insurers require consolidation, eliminating intercompany premiums and claims in consolidated statements. Risk transfer testing determines whether arrangements qualify as insurance or require deposit accounting. **Small captives** electing Section 831(b) treatment can exclude premium income from taxation if meeting risk distribution requirements, though IRS scrutiny of "microcaptives" has increased. Fronting arrangements where licensed insurers issue policies with captive reinsurance create additional complexity, requiring careful analysis of risk transfer and regulatory credit.
 
 ### Directors and officers insurance
 
@@ -158,8 +150,6 @@ D&O insurance premiums cover personal liability (Side A), corporate reimbursemen
 
 Companies typically maintain property insurance at replacement cost rather than depreciated value, accepting higher premiums for better recovery. Large deductible programs function as partial self-insurance, with companies absorbing losses below attachment points. **Coinsurance requirements** mandate maintaining coverage equal to specified property value percentages (typically 80-100%), with penalties reducing recoveries for underinsurance. Business personal property coverage extends to equipment, inventory, and improvements, with blanket policies covering multiple locations under single limits.
 
-### Specialized insurance accounting
+### Cyber insurance accounting
 
-Cyber insurance has gained prominence following major breaches, with coverage spanning business interruption, forensic costs, legal expenses, and customer notifications. First-party costs are expensed immediately while third-party liability follows contingency accounting. **Environmental liability insurance** involves complex ASC 410-30 requirements, with recovery assets recognized independently from environmental obligations. Trade credit insurance protects against customer defaults, coordinating with bad debt allowances. Political risk insurance covering expropriation and currency inconvertibility creates valuation challenges when claims span multiple jurisdictions.
-
-Representation and warranty insurance in M&A transactions shifts risk from sellers to insurers, with buyers accounting for potential recoveries when breaches occur. Walmart's hurricane claims, Boeing's 737 MAX grounding coverage, and similar events demonstrate how specialized insurance interacts with business interruption, product liability, and catastrophe exposures, requiring careful analysis of coverage terms, exclusions, and claim procedures to properly account for potential recoveries.
+**Cyber insurance** has gained prominence following major breaches, with coverage spanning business interruption, forensic costs, legal expenses, and customer notifications. First-party costs are expensed immediately while third-party liability follows contingency accounting.
