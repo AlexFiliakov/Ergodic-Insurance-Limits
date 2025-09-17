@@ -36,37 +36,33 @@ The income statement follows ASC 606's five-step revenue recognition model, pres
 
 ### Revenue recognition framework
 
-ASC 606 requires companies to identify contracts, performance obligations, transaction prices, allocation methods, and satisfaction timing. Technology companies face complexity with bundled products and services requiring allocation based on standalone selling prices. Apple separates product revenue (iPhone, Mac, iPad) from services revenue (App Store, iCloud), recognizing hardware at point-in-time delivery while services recognize over time. Microsoft's multiple performance obligations span perpetual licenses (point-in-time) and cloud services (over time), creating contract assets when performance precedes payment and contract liabilities (deferred revenue) when payment precedes performance.
-
-Financial services follow different models, with JPMorgan Chase recognizing interest income using the effective interest method, fee-based services as performed, and trading revenues at fair value. Construction and engineering companies typically use percentage-of-completion methods, creating significant unbilled receivables and deferred revenue balances. Revenue disaggregation disclosures by geography, product line, contract duration, and customer type provide transparency into revenue composition and risks.
+ASC 606 requires companies to identify contracts, performance obligations, transaction prices, allocation methods, and satisfaction timing. For our widget manufacturing configuration, we recognize revenue at point-in-time delivery.
 
 ### Operating expense categories
 
-Cost of goods sold includes direct product costs, manufacturing overhead, and freight, with placement of depreciation varying by industry. Technology companies include manufacturing equipment depreciation in COGS while administrative asset depreciation appears in operating expenses. SEC Staff Accounting Bulletin Topic 11.B requires clear labeling when depreciation is excluded from COGS, affecting gross margin comparability.
+Cost of goods sold includes direct product costs, manufacturing overhead, and freight, with placement of depreciation varying by industry. Manufacturing equipment depreciation should be reflected in COGS while administrative asset depreciation should appear in operating expenses. Straight-line depreciation is used.
 
-**Selling, general, and administrative expenses** encompass employee compensation, marketing, professional services, and facilities costs. Research and development expenses, particularly significant for technology and pharmaceutical companies, are expensed as incurred under US GAAP (unlike IFRS allowing development cost capitalization), with Apple spending \$31 billion annually on R&D. Restructuring charges for employee terminations and facility consolidations appear separately when material, while impairment charges recognize asset write-downs when carrying values exceed fair values.
+**Selling, general, and administrative expenses** encompass employee compensation, marketing, professional services, facilities costs, and R&D expenses.
 
 ### Non-operating items and tax provision
 
-Interest income from investments and interest expense on borrowings appear below operating income, along with investment gains/losses, foreign exchange impacts, and other items like litigation settlements. The tax provision separates current taxes (payable on current year income) from deferred taxes (arising from timing differences), with companies required to reconcile statutory rates to effective rates explaining permanent differences, state taxes, foreign rate differentials, and tax credits.
-
-Earnings per share calculations divide net income less preferred dividends by weighted average shares outstanding, with diluted EPS including potential shares from options and convertibles using the treasury stock method. Non-GAAP adjustments commonly exclude stock compensation, restructuring, and acquisition costs, though SEC regulations require GAAP reconciliation and prohibit undue prominence.
+Interest income from investments and interest expense on borrowings appear below operating income, along with investment gains/losses and other items like litigation settlements. The tax provision separates current taxes (payable on current year income) from deferred taxes (arising from timing differences).
 
 ## Cash flow statement structure
 
-The cash flow statement, governed by ASC 230, reconciles net income to cash movements through operating, investing, and financing activities, with 95% of companies using the indirect method despite FASB encouraging the direct method.
+The cash flow statement, governed by ASC 230, reconciles net income to cash movements through operating, investing, and financing activities.
 
 ### Operating activities presentation
 
-The indirect method starts with net income, adding back non-cash expenses like depreciation (\$45 billion for companies like Amazon), stock-based compensation, and deferred taxes while adjusting for working capital changes. **Accounts receivable increases** subtract from cash flow (sales not yet collected), while inventory increases represent cash invested in unsold goods. Accounts payable increases add to cash flow by delaying supplier payments, creating timing differences between expense recognition and cash outflow.
+The indirect method starts with net income, adding back non-cash expenses like depreciation, stock-based compensation, and deferred taxes while adjusting for working capital changes. **Accounts receivable increases** subtract from cash flow (sales not yet collected), while inventory increases represent cash invested in unsold goods. Accounts payable increases add to cash flow by delaying supplier payments, creating timing differences between expense recognition and cash outflow.
 
-Interest and taxes appear in operating activities under US GAAP (unlike IFRS flexibility), with supplemental disclosure required for actual cash paid. Working capital patterns vary seasonally, with retailers like Amazon showing Q4 cash accumulation from holiday sales followed by Q1 outflows settling year-end payables.
+Interest and taxes appear in operating activities under US GAAP, with supplemental disclosure required for actual cash paid. Working capital patterns vary seasonally.
 
 ### Investing and financing classifications
 
-Investing activities capture capital expenditures for PP&E, acquisitions net of cash acquired, and marketable securities transactions. Technology companies show substantial investing outflows, with Amazon's AWS infrastructure and fulfillment center expansions driving significant capital spending. Financing activities include debt issuances and repayments, stock repurchases, and dividend payments, with ASC 842 requiring finance lease principal payments in financing while operating lease payments remain in operations.
+Investing activities capture capital expenditures for PP&E (Property, plant, and equipment), acquisitions net of cash acquired, and marketable securities transactions. Financing activities include debt issuances and repayments, and dividend payments, with ASC 842 requiring finance lease principal payments in financing while operating lease payments remain in operations.
 
-Non-cash investing and financing activities require separate disclosure, including right-of-use assets for lease liabilities, equipment purchases in accounts payable, and stock issued for acquisitions. The statement concludes reconciling beginning and ending cash and cash equivalents, with restricted cash changes included per ASU 2016-18.
+Non-cash investing and financing activities require separate disclosure, including right-of-use assets for lease liabilities and equipment purchases in accounts payable. The statement concludes reconciling beginning and ending cash and cash equivalents, with restricted cash changes included per ASU 2016-18.
 
 ## Timing of cash flows and income reporting
 
@@ -74,11 +70,11 @@ Accrual accounting creates systematic timing differences between economic events
 
 ### Tax payment versus recognition timing
 
-Corporations make quarterly estimated tax payments by the 15th of the 4th, 6th, 9th, and 12th months, while tax expense recognition follows the annual effective tax rate method for interim reporting. **Current tax expense** reflects taxes on current year taxable income, while **deferred taxes** arise from temporary differences like accelerated tax depreciation exceeding book depreciation. Uncertain tax positions under ASC 740 require liability recognition when positions likely won't be sustained, though cash payments occur only upon audit resolution, potentially years later.
+Corporations make quarterly estimated tax payments by the 15th of the 4th, 6th, 9th, and 12th months, while tax expense recognition follows the annual effective tax rate method for interim reporting. **Current tax expense** reflects taxes on current year taxable income, while **deferred taxes** arise from temporary differences like accelerated tax depreciation exceeding book depreciation.
 
 ### Insurance premium payment patterns
 
-Companies paying annual insurance premiums upfront create prepaid insurance assets, systematically expensing them monthly over coverage periods. A \$120,000 annual premium becomes \$10,000 monthly insurance expense, with multi-year policies requiring current/non-current asset segregation. **Retrospectively-rated policies** involve initial deposits adjusted for actual claims experience, creating variable expense recognition. Self-insured retentions require loss accruals when incurred, though cash payments occur only when claims settle, potentially years later for liability claims.
+Companies paying annual insurance premiums upfront create prepaid insurance assets, systematically expensing them monthly over coverage periods. A \$120,000 annual premium becomes \$10,000 monthly insurance expense. **Retrospectively-rated policies** involve initial deposits adjusted for actual claims experience, creating variable expense recognition. Self-insured retentions require loss accruals when incurred, though cash payments occur only when claims settle, potentially years later for liability claims.
 
 ### Revenue and expense accrual patterns
 
@@ -128,7 +124,7 @@ Asset impairments simultaneously reduce asset carrying values and shareholders' 
 
 ### Inter-statement cash flow relationships
 
-The cash flow statement explicitly reconciles income statement and balance sheet movements. Net income plus depreciation approximates operating cash flow before working capital changes, with growing companies often showing profits but negative operating cash flow from working capital investments. **Capital expenditures** in investing activities increase PP&E on the balance sheet while future depreciation reduces income without affecting cash. Financing activities directly impact balance sheet debt and equity, with debt issuances increasing both assets (cash) and liabilities, while dividends reduce both assets and retained earnings.
+The cash flow statement explicitly reconciles income statement and balance sheet movements. Net income plus depreciation approximates operating cash flow before working capital changes, with growing companies often showing profits but negative operating cash flow from working capital investments. **Capital expenditures** in investing activities increase PP&E (Property, plant, and equipment) on the balance sheet while future depreciation reduces income without affecting cash. Financing activities directly impact balance sheet debt and equity, with debt issuances increasing both assets (cash) and liabilities, while dividends reduce both assets and retained earnings.
 
 ## Insurance-related financial statement elements
 
