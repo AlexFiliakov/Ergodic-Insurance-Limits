@@ -111,9 +111,9 @@ class ConfigManager:
         """
         if config_dir is None:
             # Try to find config directory relative to this file
-            # Use the ergodic_insurance/data/parameters directory for backward compatibility
+            # Use the ergodic_insurance/data/config directory
             module_dir = Path(__file__).parent
-            config_dir = module_dir / "data" / "parameters"
+            config_dir = module_dir / "data" / "config"
 
         self.config_dir = Path(config_dir)
         self.profiles_dir = self.config_dir / "profiles"
