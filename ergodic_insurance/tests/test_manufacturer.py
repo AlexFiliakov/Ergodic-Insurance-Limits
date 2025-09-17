@@ -120,7 +120,7 @@ class TestWidgetManufacturer:
         Verifies that the manufacturer is properly initialized
         with all expected default values.
         """
-        assert manufacturer.assets == 10_000_000
+        assert manufacturer.total_assets == 10_000_000
         assert manufacturer.collateral == 0
         assert manufacturer.restricted_assets == 0
         assert manufacturer.equity == 10_000_000
@@ -147,8 +147,11 @@ class TestWidgetManufacturer:
         assert manufacturer.available_assets == 10_000_000
         assert manufacturer.total_claim_liabilities == 0
 
-        # Add restricted assets
+        # Transfer cash to restricted assets (proper accounting)
         manufacturer.restricted_assets = 1_000_000
+        manufacturer.cash -= 1_000_000  # Transfer from cash
+        # Total assets remain 10M, but 1M is now restricted
+        assert manufacturer.total_assets == 10_000_000
         assert manufacturer.net_assets == 9_000_000
         assert manufacturer.available_assets == 9_000_000
 
@@ -221,20 +224,20 @@ class TestWidgetManufacturer:
 
     def test_update_balance_sheet_positive_income(self, manufacturer):
         """Test balance sheet update with positive net income."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
         net_income = 500_000
 
         manufacturer.update_balance_sheet(net_income)
 
         # Full retention (retention_ratio = 1.0)
-        assert manufacturer.assets == initial_assets + 500_000
+        assert manufacturer.total_assets == initial_assets + 500_000
         assert manufacturer.equity == initial_equity + 500_000
 
     def test_update_balance_sheet_with_dividends(self, manufacturer):
         """Test balance sheet update with partial retention."""
         manufacturer.retention_ratio = 0.6
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
         net_income = 500_000
 
@@ -242,19 +245,19 @@ class TestWidgetManufacturer:
 
         # 60% retention, 40% dividends
         retained = 500_000 * 0.6
-        assert manufacturer.assets == initial_assets + retained
+        assert manufacturer.total_assets == initial_assets + retained
         assert manufacturer.equity == initial_equity + retained
 
     def test_update_balance_sheet_negative_income(self, manufacturer):
         """Test balance sheet update with loss."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
         net_income = -200_000
 
         manufacturer.update_balance_sheet(net_income)
 
         # Losses reduce assets and equity
-        assert manufacturer.assets == initial_assets - 200_000
+        assert manufacturer.total_assets == initial_assets - 200_000
         assert manufacturer.equity == initial_equity - 200_000
 
     def test_process_insurance_claim_with_collateral(self, manufacturer):
@@ -300,7 +303,7 @@ class TestWidgetManufacturer:
         total_paid = manufacturer.pay_claim_liabilities()
 
         assert total_paid == 100_000
-        assert manufacturer.assets == 9_900_000  # 10M - 100k
+        assert manufacturer.total_assets == 9_900_000  # 10M - 100k
         assert manufacturer.claim_liabilities[0].remaining_amount == 900_000
 
         # Move to year 1 for second payment (20% of company portion = 200k)
@@ -308,25 +311,28 @@ class TestWidgetManufacturer:
         total_paid = manufacturer.pay_claim_liabilities()
 
         assert total_paid == 200_000
-        assert manufacturer.assets == 9_700_000  # 9.9M - 200k
+        assert manufacturer.total_assets == 9_700_000  # 9.9M - 200k
         assert manufacturer.claim_liabilities[0].remaining_amount == 700_000
 
-    def test_pay_claim_liabilities_insufficient_assets(self, manufacturer):
-        """Test partial payment when insufficient assets."""
-        manufacturer.assets = 150_000  # Very low assets
-        # Process claim with deductible to create company liability
+    def test_pay_claim_liabilities_insufficient_cash(self, manufacturer):
+        """Test partial payment when insufficient cash."""
+        # Process claim first - this will set collateral and reduce cash
         manufacturer.process_insurance_claim(
             claim_amount=1_500_000, deductible_amount=1_000_000, insurance_limit=2_000_000
         )
+
+        # Now manually set cash to low value for testing
+        manufacturer.cash = 150_000
         manufacturer.current_year = 1
 
         # Try to pay year 1 payment (20% of company portion = 200k)
-        # But only 50k available (150k - 100k min)
+        # Payment from restricted assets (collateral), not cash
         total_paid = manufacturer.pay_claim_liabilities()
 
-        assert total_paid == 50_000
-        assert manufacturer.assets == 100_000  # Minimum maintained
-        assert manufacturer.claim_liabilities[0].remaining_amount == 950_000
+        # Should pay from restricted assets
+        assert total_paid == 200_000  # Full payment from collateral
+        assert manufacturer.restricted_assets == 800_000  # 1M - 200k
+        assert manufacturer.claim_liabilities[0].remaining_amount == 800_000
 
     def test_pay_claim_liabilities_removes_paid_claims(self, manufacturer):
         """Test that fully paid claims are removed."""
@@ -379,8 +385,13 @@ class TestWidgetManufacturer:
 
     def test_calculate_metrics_zero_equity(self, manufacturer):
         """Test metrics calculation with zero equity (avoid division by zero)."""
-        manufacturer.equity = 0
-        manufacturer.assets = 0
+        # Set all assets to zero
+        manufacturer.cash = 0
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.restricted_assets = 0
 
         metrics = manufacturer.calculate_metrics()
 
@@ -396,7 +407,7 @@ class TestWidgetManufacturer:
         assert manufacturer.current_year == 1
         assert len(manufacturer.metrics_history) == 1
         assert metrics["year"] == 0
-        assert manufacturer.assets > 10_000_000  # Should grow from retained earnings
+        assert manufacturer.total_assets > 10_000_000  # Should grow from retained earnings
         assert manufacturer.asset_turnover_ratio == pytest.approx(1.05)  # 5% growth
 
     def test_step_with_claims(self, manufacturer):
@@ -404,7 +415,7 @@ class TestWidgetManufacturer:
         # Add a claim in year 0
         manufacturer.process_insurance_claim(1_000_000)
 
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         # First step processes year 0 payments
         metrics = manufacturer.step()
 
@@ -440,7 +451,7 @@ class TestWidgetManufacturer:
         manufacturer attributes to their initial values.
         """
         # Make changes
-        manufacturer.assets = 20_000_000
+        manufacturer.cash = 20_000_000  # Increase cash to increase total assets
         manufacturer.collateral = 5_000_000
         manufacturer.restricted_assets = 5_000_000
         manufacturer.current_year = 10
@@ -452,7 +463,7 @@ class TestWidgetManufacturer:
         # Reset
         manufacturer.reset()
 
-        assert manufacturer.assets == 10_000_000
+        assert manufacturer.total_assets == 10_000_000
         assert manufacturer.collateral == 0
         assert manufacturer.restricted_assets == 0
         assert manufacturer.equity == 10_000_000
@@ -551,7 +562,7 @@ class TestWidgetManufacturer:
 
         # Should create liability without affecting assets immediately
         assert claim_amount == 1_000_000
-        assert manufacturer.assets == 10_000_000  # No immediate impact
+        assert manufacturer.total_assets == 10_000_000  # No immediate impact
         assert manufacturer.collateral == 0  # No collateral required
         assert len(manufacturer.claim_liabilities) == 1
         assert manufacturer.claim_liabilities[0].original_amount == 1_000_000
@@ -561,7 +572,7 @@ class TestWidgetManufacturer:
         # Pay first year payment (10% = $100K)
         total_paid = manufacturer.pay_claim_liabilities()
         assert total_paid == 100_000
-        assert manufacturer.assets == 9_900_000  # Assets reduced by payment
+        assert manufacturer.total_assets == 9_900_000  # Assets reduced by payment
 
     def test_process_uninsured_claim_immediate(self, manufacturer):
         """Test processing uninsured claims with immediate payment."""
@@ -570,7 +581,7 @@ class TestWidgetManufacturer:
 
         # Should immediately reduce assets and record loss
         assert claim_amount == 500_000
-        assert manufacturer.assets == 9_500_000  # Immediate reduction
+        assert manufacturer.total_assets == 9_500_000  # Immediate reduction
         assert (
             manufacturer.period_insurance_losses == 500_000
         )  # Tax deductible (immediate payment records as insurance loss)
@@ -653,7 +664,7 @@ class TestWidgetManufacturer:
         Regression test for issue where deductibles were only deductible when paid,
         causing timing mismatches and double counting.
         """
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
 
         # Process claim with smaller deductible to maintain positive income
         deductible = 50_000
@@ -665,7 +676,7 @@ class TestWidgetManufacturer:
         assert manufacturer.period_insurance_losses == deductible
 
         # Assets should not be reduced immediately (only collateralized)
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
         assert manufacturer.collateral == deductible
         assert manufacturer.restricted_assets == deductible
 
@@ -891,7 +902,7 @@ class TestWidgetManufacturer:
         Regression test for issue where premiums were liquidating productive assets,
         causing revenue decline and negative ROI for insurance scenarios.
         """
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
         premium = 500_000
 
@@ -899,7 +910,7 @@ class TestWidgetManufacturer:
         manufacturer.record_insurance_premium(premium)
 
         # Assets should NOT be immediately reduced
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
         # Period premiums should be recorded for tax deduction
         assert manufacturer.period_insurance_premiums == premium
 
@@ -923,7 +934,7 @@ class TestWidgetManufacturer:
         assert revenue_after_premium == baseline_revenue
 
         # Revenue = Assets × Turnover Ratio, and should not change
-        expected_revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
+        expected_revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
         assert revenue_after_premium == expected_revenue
 
     def test_premium_flows_through_net_income(self, manufacturer):

@@ -264,36 +264,24 @@ class FinancialStatementGenerator:
         data.append(("EQUITY", "", "", ""))
         data.append(("", "", "", ""))
 
-        # Calculate total assets (must match what's shown in assets section)
-        cash = metrics.get("cash", 0)
-        accounts_receivable = metrics.get("accounts_receivable", 0)
-        inventory = metrics.get("inventory", 0)
-        prepaid = metrics.get("prepaid_insurance", 0)
-        total_current = cash + accounts_receivable + inventory + prepaid
+        # Use the manufacturer's equity directly (now properly calculated via accounting equation)
+        equity = metrics.get("equity", 0)
 
-        net_ppe = metrics.get("net_ppe", 0)
-        restricted_assets = metrics.get("restricted_assets", 0)
-        total_assets = total_current + net_ppe + restricted_assets
+        data.append(("  Retained Earnings", equity, "", ""))
+        data.append(("TOTAL EQUITY", equity, "", "total"))
+        data.append(("", "", "", ""))
+        data.append(("", "", "", ""))
 
-        # Calculate total liabilities
+        # Validation - get total liabilities for the balance check
         accounts_payable = metrics.get("accounts_payable", 0)
         accrued_expenses = metrics.get("accrued_expenses", 0)
         claim_liabilities = metrics.get("claim_liabilities", 0)
         total_liabilities = accounts_payable + accrued_expenses + claim_liabilities
 
-        # Equity = Assets - Liabilities (basic accounting equation)
-        equity_for_balance_sheet = total_assets - total_liabilities
-
-        data.append(("  Retained Earnings", equity_for_balance_sheet, "", ""))
-        data.append(("TOTAL EQUITY", equity_for_balance_sheet, "", "total"))
-        data.append(("", "", "", ""))
-        data.append(("", "", "", ""))
-
-        # Validation
         data.append(
             (
                 "TOTAL LIABILITIES + EQUITY",
-                total_liabilities + equity_for_balance_sheet,
+                total_liabilities + equity,
                 "",
                 "total",
             )

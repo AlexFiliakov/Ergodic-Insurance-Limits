@@ -472,11 +472,10 @@ class WidgetManufacturer:
         self.config = config
         self.stochastic_process = stochastic_process
 
-        # Balance sheet items
-        self.assets = config.initial_assets
+        # Balance sheet items - removed self.assets and self.equity
+        # as they are now calculated properties
         self.collateral = 0.0  # Letter of credit collateral for claims
         self.restricted_assets = 0.0  # Assets restricted as collateral
-        self.equity = self.assets  # No debt, so equity = assets initially
 
         # Enhanced balance sheet components for GAAP compliance
         # Fixed Assets (allocate first to determine cash)
@@ -502,7 +501,7 @@ class WidgetManufacturer:
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
 
-        # Claim tracking
+        # Claim tracking - initialize early for property calculations
         self.claim_liabilities: List[ClaimLiability] = []
         self.current_year = 0
         self.current_month = 0  # Track months for monthly LoC payments
@@ -530,7 +529,7 @@ class WidgetManufacturer:
     @property
     def current_assets(self) -> float:
         """Get current total assets."""
-        return self.assets
+        return self.total_assets
 
     @property
     def current_equity(self) -> float:
@@ -551,6 +550,54 @@ class WidgetManufacturer:
     def base_equity(self) -> float:
         """Get base (initial) equity for comparison."""
         return self._initial_equity
+
+    @property
+    def total_assets(self) -> float:
+        """Calculate total assets from all asset components.
+
+        Total assets include all current and non-current assets following
+        the accounting equation: Assets = Liabilities + Equity.
+
+        Returns:
+            float: Total assets in dollars, sum of all asset components.
+        """
+        # Current assets
+        current = self.cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
+        # Non-current assets
+        net_ppe = self.gross_ppe - self.accumulated_depreciation
+        # Total
+        return current + net_ppe + self.restricted_assets
+
+    @property
+    def total_liabilities(self) -> float:
+        """Calculate total liabilities from all liability components.
+
+        Total liabilities include current liabilities and long-term claim liabilities.
+
+        Returns:
+            float: Total liabilities in dollars, sum of all liability components.
+        """
+        # Current liabilities
+        current_liabilities = self.accounts_payable + self.accrued_expenses
+
+        # Long-term liabilities (claim liabilities)
+        claim_liability_total = sum(
+            liability.remaining_amount for liability in self.claim_liabilities
+        )
+
+        return current_liabilities + claim_liability_total
+
+    @property
+    def equity(self) -> float:
+        """Calculate equity using the accounting equation.
+
+        Equity is derived as Assets - Liabilities, ensuring the accounting
+        equation always balances: Assets = Liabilities + Equity.
+
+        Returns:
+            float: Shareholder equity in dollars.
+        """
+        return self.total_assets - self.total_liabilities
 
     @property
     def net_assets(self) -> float:
@@ -583,7 +630,7 @@ class WidgetManufacturer:
             :attr:`available_assets`: Alias for this property.
             :attr:`restricted_assets`: Assets pledged as collateral.
         """
-        return float(self.assets - self.restricted_assets)
+        return float(self.total_assets - self.restricted_assets)
 
     def record_insurance_premium(self, premium_amount: float) -> None:
         """Record insurance premium payment for tax deduction tracking.
@@ -707,7 +754,7 @@ class WidgetManufacturer:
             :attr:`net_assets`: Identical calculation with different semantic meaning.
             :attr:`restricted_assets`: Assets not available for operations.
         """
-        return float(self.assets - self.restricted_assets)
+        return float(self.total_assets - self.restricted_assets)
 
     @property
     def total_claim_liabilities(self) -> float:
@@ -816,7 +863,7 @@ class WidgetManufacturer:
             For stochastic modeling options.
         """
         # Adjust for working capital if specified
-        available_assets = self.assets
+        available_assets = self.total_assets
         if working_capital_pct > 0:
             # Working capital reduces assets available for operations
             # Revenue = Available Assets * Turnover, where
@@ -824,7 +871,7 @@ class WidgetManufacturer:
             # Working Capital = Revenue * working_capital_pct
             # Solving: Revenue = Assets * Turnover / (1 + Turnover * WC%)
             denominator = 1 + self.asset_turnover_ratio * working_capital_pct
-            available_assets = self.assets / denominator
+            available_assets = self.total_assets / denominator
 
         revenue = available_assets * self.asset_turnover_ratio
 
@@ -834,7 +881,7 @@ class WidgetManufacturer:
             revenue *= shock
             logger.debug(f"Applied stochastic shock: {shock:.4f}")
 
-        logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.assets:,.2f}")
+        logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.total_assets:,.2f}")
         return float(revenue)
 
     def calculate_operating_income(self, revenue: float) -> float:
@@ -1116,14 +1163,11 @@ class WidgetManufacturer:
             logger.info(f"Loss Absorption:         ${retained_earnings:,.2f}")
         logger.info("=================================")
 
-        # Add retained earnings to assets
-        self.assets += retained_earnings
-
-        # Update equity (no debt, so equity changes by retained earnings)
-        self.equity += retained_earnings
+        # Add retained earnings to cash (increases assets, which increases equity through accounting equation)
+        self.cash += retained_earnings
 
         logger.info(
-            f"Balance sheet updated: Assets=${self.assets:,.2f}, Equity=${self.equity:,.2f}"
+            f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
         )
         if dividends > 0:
             logger.info(f"Dividends paid: ${dividends:,.2f}")
@@ -1434,9 +1478,10 @@ class WidgetManufacturer:
         # Company payment is collateralized and paid over time
         if company_payment > 0:
             # Post letter of credit as collateral for company payment
-            # Collateral restricts assets but we need to track the liability properly
+            # Transfer cash to restricted assets (no change in total assets)
             self.collateral += company_payment
             self.restricted_assets += company_payment
+            self.cash -= company_payment  # Move cash to restricted
 
             # Create claim liability with payment schedule for company portion
             claim = ClaimLiability(
@@ -1513,10 +1558,9 @@ class WidgetManufacturer:
             return 0.0
 
         if immediate_payment:
-            # Pay immediately - reduce assets and equity
-            actual_payment = min(claim_amount, self.assets)
-            self.assets -= actual_payment
-            self.equity -= actual_payment
+            # Pay immediately - reduce cash
+            actual_payment = min(claim_amount, self.cash)
+            self.cash -= actual_payment
             # Record as tax-deductible loss
             self.period_insurance_losses += actual_payment
             logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
@@ -1604,27 +1648,30 @@ class WidgetManufacturer:
             scheduled_payment = claim.get_payment(years_since)
 
             if scheduled_payment > 0:
-                # Pay from available assets
-                available_for_payment = max(0, self.assets - 100_000)  # Keep minimum cash
-                actual_payment = min(scheduled_payment, available_for_payment)
+                if claim.is_insured:
+                    # For insured claims: Pay from restricted assets (collateral)
+                    available_for_payment = min(scheduled_payment, self.restricted_assets)
+                    actual_payment = available_for_payment
 
-                if actual_payment > 0:
-                    claim.make_payment(actual_payment)
-                    self.assets -= actual_payment
-                    self.equity -= actual_payment  # Reduce equity when paying claims
-                    total_paid += actual_payment
-
-                    # Different treatment for insured vs uninsured claims
-                    if claim.is_insured:
-                        # For insured claims: reduce collateral (tax deduction already taken when claim incurred)
-                        self.collateral -= actual_payment
+                    if actual_payment > 0:
+                        claim.make_payment(actual_payment)
+                        total_paid += actual_payment
+                        # The collateral was set aside for this purpose
                         self.restricted_assets -= actual_payment
+                        self.collateral -= actual_payment
                         logger.debug(
                             f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
                         )
                         # Do NOT record as tax-deductible loss here - already recorded when claim incurred
-                    else:
-                        # For uninsured claims: just a regular business expense (no collateral to reduce)
+                else:
+                    # For uninsured claims: Pay from available cash
+                    available_for_payment = max(0, self.cash - 100_000)  # Keep minimum cash
+                    actual_payment = min(scheduled_payment, available_for_payment)
+
+                    if actual_payment > 0:
+                        claim.make_payment(actual_payment)
+                        total_paid += actual_payment
+                        self.cash -= actual_payment  # Reduce cash for uninsured claims
                         logger.debug(
                             f"Paid ${actual_payment:,.2f} toward uninsured claim (regular business expense)"
                         )
@@ -1941,7 +1988,7 @@ class WidgetManufacturer:
         metrics = {}
 
         # Basic balance sheet metrics
-        metrics["assets"] = self.assets
+        metrics["assets"] = self.total_assets
         metrics["collateral"] = self.collateral
         metrics["restricted_assets"] = self.restricted_assets
         metrics["available_assets"] = self.available_assets
@@ -1985,7 +2032,7 @@ class WidgetManufacturer:
         )
 
         # Financial ratios - ROE now includes all expenses
-        metrics["asset_turnover"] = revenue / self.assets if self.assets > 0 else 0
+        metrics["asset_turnover"] = revenue / self.total_assets if self.total_assets > 0 else 0
 
         # Report both base and actual operating margins for transparency
         metrics["base_operating_margin"] = self.base_operating_margin
@@ -2001,11 +2048,13 @@ class WidgetManufacturer:
         metrics["roe"] = (
             net_income / self.equity if self.equity > MIN_EQUITY_THRESHOLD else 0
         )  # Return 0 for very small or negative equity to avoid extreme values
-        metrics["roa"] = net_income / self.assets if self.assets > 0 else 0
+        metrics["roa"] = net_income / self.total_assets if self.total_assets > 0 else 0
 
         # Leverage metrics (collateral-based instead of debt)
         metrics["collateral_to_equity"] = self.collateral / self.equity if self.equity > 0 else 0
-        metrics["collateral_to_assets"] = self.collateral / self.assets if self.assets > 0 else 0
+        metrics["collateral_to_assets"] = (
+            self.collateral / self.total_assets if self.total_assets > 0 else 0
+        )
 
         return metrics
 
@@ -2225,18 +2274,11 @@ class WidgetManufacturer:
         if time_resolution == "monthly":
             self.amortize_prepaid_insurance(months=1)
 
-        # Update cash as residual after all other balance sheet components
-        total_current_assets_except_cash = (
-            self.accounts_receivable + self.inventory + self.prepaid_insurance
-        )
-        total_current_liabilities = self.accounts_payable + self.accrued_expenses
-        self.cash = (
-            self.assets
-            - total_current_assets_except_cash
-            - self.net_ppe
-            - self.restricted_assets
-            + total_current_liabilities
-        )
+        # Cash is already properly updated through:
+        # 1. Retained earnings in update_balance_sheet()
+        # 2. Claim payments in pay_claim_liabilities()
+        # 3. Other specific cash transactions
+        # No need to recalculate as residual
 
         # Apply revenue growth by adjusting asset turnover ratio
         self._apply_growth(growth_rate, time_resolution, apply_stochastic)
@@ -2317,10 +2359,11 @@ class WidgetManufacturer:
             :meth:`copy`: Create independent manufacturer instances.
             :attr:`config`: Original configuration parameters.
         """
-        self.assets = self.config.initial_assets
+        # Reset collateral and restricted assets
         self.collateral = 0.0
         self.restricted_assets = 0.0
-        self.equity = self.assets
+
+        # Reset operating parameters
         self.asset_turnover_ratio = self.config.asset_turnover_ratio
         self.claim_liabilities = []
         self.current_year = 0
