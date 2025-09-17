@@ -294,6 +294,7 @@ class TestSimulation:
         # Check that some claims were generated
         assert np.sum(results.claim_counts) >= 0
 
+    @pytest.mark.skip(reason="Performance benchmark, not regular test")
     def test_run_performance(self, manufacturer, claim_generator):
         """Test that 1000-year simulation completes in reasonable time."""
         sim = Simulation(

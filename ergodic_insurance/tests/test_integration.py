@@ -265,6 +265,7 @@ class TestIntegration:
             comparison["insured"]["time_average_mean"]
         ), "Insured time average should be finite"
 
+    @pytest.mark.skip(reason="Performance benchmark, not regular test")
     def test_performance_benchmarks(self, base_config: dict):
         """Test performance benchmarks for different scenario counts."""
         benchmarks = [

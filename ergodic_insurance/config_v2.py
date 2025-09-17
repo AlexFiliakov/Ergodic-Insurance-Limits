@@ -264,6 +264,80 @@ class PresetConfig(BaseModel):
         return v
 
 
+class WorkingCapitalRatiosConfig(BaseModel):
+    """Enhanced working capital configuration with detailed component ratios.
+
+    This extends the basic WorkingCapitalConfig to provide detailed control over
+    individual working capital components using standard financial ratios.
+    """
+
+    days_sales_outstanding: float = Field(
+        default=45,
+        ge=0,
+        le=365,
+        description="Days Sales Outstanding (DSO) - average collection period for receivables",
+    )
+    days_inventory_outstanding: float = Field(
+        default=60,
+        ge=0,
+        le=365,
+        description="Days Inventory Outstanding (DIO) - average days inventory held",
+    )
+    days_payable_outstanding: float = Field(
+        default=30,
+        ge=0,
+        le=365,
+        description="Days Payable Outstanding (DPO) - average payment period for payables",
+    )
+
+    @model_validator(mode="after")
+    def validate_cash_conversion_cycle(self):
+        """Validate that cash conversion cycle is reasonable."""
+        ccc = (
+            self.days_sales_outstanding
+            + self.days_inventory_outstanding
+            - self.days_payable_outstanding
+        )
+        if ccc < 0:
+            print(f"Warning: Negative cash conversion cycle ({ccc:.0f} days)")
+        elif ccc > 180:
+            print(f"Warning: Very long cash conversion cycle ({ccc:.0f} days)")
+        return self
+
+
+class DepreciationConfig(BaseModel):
+    """Configuration for depreciation and amortization tracking.
+
+    Defines how fixed assets depreciate and prepaid expenses amortize over time.
+    """
+
+    ppe_useful_life_years: float = Field(
+        default=10,
+        gt=0,
+        le=50,
+        description="Average useful life of PP&E in years for straight-line depreciation",
+    )
+    prepaid_insurance_amortization_months: int = Field(
+        default=12,
+        gt=0,
+        le=24,
+        description="Number of months over which prepaid insurance amortizes",
+    )
+    initial_accumulated_depreciation: float = Field(
+        default=0, ge=0, description="Starting accumulated depreciation balance"
+    )
+
+    @property
+    def annual_depreciation_rate(self) -> float:
+        """Calculate annual depreciation rate."""
+        return 1.0 / self.ppe_useful_life_years
+
+    @property
+    def monthly_insurance_amortization_rate(self) -> float:
+        """Calculate monthly insurance amortization rate."""
+        return 1.0 / self.prepaid_insurance_amortization_months
+
+
 class ExcelReportConfig(BaseModel):
     """Configuration for Excel report generation."""
 
@@ -314,6 +388,8 @@ class ConfigV2(BaseModel):
     insurance: Optional[InsuranceConfig] = None
     losses: Optional[LossDistributionConfig] = None
     excel_reporting: Optional[ExcelReportConfig] = None
+    working_capital_ratios: Optional[WorkingCapitalRatiosConfig] = None
+    depreciation: Optional[DepreciationConfig] = None
 
     # Additional fields for extensibility
     custom_modules: Dict[str, ModuleConfig] = Field(

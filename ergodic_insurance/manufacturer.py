@@ -478,6 +478,24 @@ class WidgetManufacturer:
         self.restricted_assets = 0.0  # Assets restricted as collateral
         self.equity = self.assets  # No debt, so equity = assets initially
 
+        # Enhanced balance sheet components for GAAP compliance
+        # Fixed Assets (allocate first to determine cash)
+        self.gross_ppe = config.initial_assets * 0.7  # Assume 70% of initial assets are PP&E
+        self.accumulated_depreciation = 0.0  # Will accumulate over time
+
+        # Current Assets
+        self.cash = config.initial_assets * 0.3  # 30% of initial assets as cash
+        self.accounts_receivable = 0.0  # Based on DSO
+        self.inventory = 0.0  # Based on DIO
+        self.prepaid_insurance = 0.0  # Annual premiums paid in advance
+
+        # Current Liabilities
+        self.accounts_payable = 0.0  # Based on DPO
+        self.accrued_expenses = 0.0  # Other accrued items
+
+        # Track original prepaid premium for amortization calculation
+        self._original_prepaid_premium = 0.0
+
         # Operating parameters
         self.asset_turnover_ratio = config.asset_turnover_ratio
         self.base_operating_margin = config.base_operating_margin
@@ -728,36 +746,6 @@ class WidgetManufacturer:
             :meth:`pay_claim_liabilities`: Method that reduces these liabilities.
         """
         return sum(claim.remaining_amount for claim in self.claim_liabilities)
-
-    @property
-    def cash(self) -> float:
-        """Cash available (backward compatibility alias for assets).
-
-        This property provides backward compatibility for code that references
-        'cash' instead of 'assets'. In the manufacturer model, all assets are
-        treated as liquid for simplicity.
-
-        Returns:
-            float: Total assets, treated as cash equivalents.
-
-        Deprecated:
-            Use :attr:`assets` directly for new code. This alias is maintained
-            for backward compatibility only.
-        """
-        return float(self.assets)
-
-    @cash.setter
-    def cash(self, value: float):
-        """Set cash value (backward compatibility alias for assets).
-
-        Args:
-            value (float): New asset value to set.
-
-        Deprecated:
-            Use :attr:`assets` directly for new code. This setter is maintained
-            for backward compatibility only.
-        """
-        self.assets = value
 
     def calculate_revenue(
         self, working_capital_pct: float = 0.0, apply_stochastic: bool = False
@@ -1139,6 +1127,198 @@ class WidgetManufacturer:
         )
         if dividends > 0:
             logger.info(f"Dividends paid: ${dividends:,.2f}")
+
+    def calculate_working_capital_components(
+        self, revenue: float, dso: float = 45, dio: float = 60, dpo: float = 30
+    ) -> Dict[str, float]:
+        """Calculate individual working capital components based on revenue and ratios.
+
+        Uses standard financial ratios to calculate accounts receivable, inventory,
+        and accounts payable from annual revenue. These components provide detailed
+        insight into the company's working capital management.
+
+        Args:
+            revenue (float): Annual revenue in dollars.
+            dso (float): Days Sales Outstanding - average collection period.
+                Typical manufacturing: 30-60 days. Defaults to 45.
+            dio (float): Days Inventory Outstanding - average inventory holding period.
+                Typical manufacturing: 45-90 days. Defaults to 60.
+            dpo (float): Days Payable Outstanding - average payment period.
+                Typical manufacturing: 30-45 days. Defaults to 30.
+
+        Returns:
+            Dict[str, float]: Dictionary containing:
+                - 'accounts_receivable': Outstanding customer receivables
+                - 'inventory': Value of inventory on hand
+                - 'accounts_payable': Outstanding vendor payables
+                - 'net_working_capital': AR + Inventory - AP
+                - 'cash_conversion_cycle': DSO + DIO - DPO in days
+
+        Examples:
+            Calculate working capital with $10M revenue::
+
+                components = manufacturer.calculate_working_capital_components(
+                    revenue=10_000_000,
+                    dso=45,  # 45 days to collect
+                    dio=60,  # 60 days of inventory
+                    dpo=30   # Pay vendors in 30 days
+                )
+
+                # Expected values:
+                # AR = 10M * 45/365 = ~$1.23M
+                # Inventory = 10M * 60/365 = ~$1.64M
+                # AP = 10M * 30/365 = ~$0.82M
+                # Net WC = $1.23M + $1.64M - $0.82M = ~$2.05M
+        """
+        # Calculate cost of goods sold (approximate as % of revenue)
+        cogs = revenue * (1 - self.base_operating_margin)
+
+        # Calculate components
+        self.accounts_receivable = revenue * (dso / 365)
+        self.inventory = cogs * (dio / 365)  # Inventory based on COGS not revenue
+        self.accounts_payable = cogs * (dpo / 365)  # AP based on COGS not revenue
+
+        # Calculate net working capital and cash conversion cycle
+        net_working_capital = self.accounts_receivable + self.inventory - self.accounts_payable
+        cash_conversion_cycle = dso + dio - dpo
+
+        logger.debug(
+            f"Working capital components: AR=${self.accounts_receivable:,.0f}, "
+            f"Inv=${self.inventory:,.0f}, AP=${self.accounts_payable:,.0f}, "
+            f"Net WC=${net_working_capital:,.0f}"
+        )
+
+        return {
+            "accounts_receivable": self.accounts_receivable,
+            "inventory": self.inventory,
+            "accounts_payable": self.accounts_payable,
+            "net_working_capital": net_working_capital,
+            "cash_conversion_cycle": cash_conversion_cycle,
+        }
+
+    def record_prepaid_insurance(self, annual_premium: float) -> None:
+        """Record annual insurance premium payment as prepaid expense.
+
+        Records the payment of an annual insurance premium as a prepaid asset
+        that will be amortized monthly over the coverage period.
+
+        Args:
+            annual_premium (float): Annual insurance premium paid in advance.
+
+        Side Effects:
+            - Increases prepaid_insurance by annual_premium
+            - Decreases cash by annual_premium
+
+        Examples:
+            Record annual premium payment::
+
+                manufacturer.record_prepaid_insurance(1_200_000)
+                # Prepaid insurance increases by $1.2M
+                # Will amortize at $100K/month over 12 months
+        """
+        if annual_premium > 0:
+            self.prepaid_insurance += annual_premium
+            self.cash -= annual_premium
+            # Track original premium for proper amortization calculation
+            self._original_prepaid_premium = annual_premium
+            logger.info(f"Recorded prepaid insurance: ${annual_premium:,.2f}")
+
+    def amortize_prepaid_insurance(self, months: int = 1) -> float:
+        """Amortize prepaid insurance over time.
+
+        Reduces prepaid insurance balance and records the expense for the period.
+        Typically called monthly to amortize annual premiums.
+
+        Args:
+            months (int): Number of months to amortize. Defaults to 1.
+
+        Returns:
+            float: Amount amortized (insurance expense for the period).
+
+        Side Effects:
+            - Decreases prepaid_insurance by amortization amount
+            - Increases period_insurance_premiums by amortization amount
+
+        Examples:
+            Monthly amortization::
+
+                # After paying $1.2M annual premium
+                monthly_expense = manufacturer.amortize_prepaid_insurance(1)
+                # Returns $100K, reduces prepaid by $100K
+        """
+        if self.prepaid_insurance > 0:
+            # Calculate the amortization based on the original premium, not remaining balance
+            # Store the original premium amount for proper monthly calculation
+            if not hasattr(self, "_original_prepaid_premium"):
+                # Assume the current prepaid is the original if not tracked
+                self._original_prepaid_premium = self.prepaid_insurance
+
+            monthly_amortization = self._original_prepaid_premium / 12
+            amortization_amount = min(monthly_amortization * months, self.prepaid_insurance)
+
+            self.prepaid_insurance -= amortization_amount
+            self.period_insurance_premiums += amortization_amount
+
+            # Reset original premium tracking if fully amortized
+            if self.prepaid_insurance == 0:
+                self._original_prepaid_premium = 0
+
+            logger.debug(f"Amortized prepaid insurance: ${amortization_amount:,.2f}")
+            return amortization_amount
+        return 0.0
+
+    def record_depreciation(self, useful_life_years: float = 10) -> float:
+        """Record straight-line depreciation on PP&E.
+
+        Calculates and records annual depreciation expense using the straight-line
+        method. Depreciation reduces the net book value of fixed assets over time.
+
+        Args:
+            useful_life_years (float): Average useful life of PP&E in years.
+                Typical manufacturing equipment: 7-15 years. Defaults to 10.
+
+        Returns:
+            float: Annual depreciation expense recorded.
+
+        Side Effects:
+            - Increases accumulated_depreciation by depreciation amount
+            - Does not directly affect cash (non-cash expense)
+
+        Examples:
+            Record annual depreciation::
+
+                # With $10M gross PP&E and 10-year life
+                depreciation = manufacturer.record_depreciation(10)
+                # Returns $1M, increases accumulated depreciation by $1M
+
+        Note:
+            Depreciation is a non-cash expense that reduces taxable income
+            but does not affect cash flow directly.
+        """
+        if self.gross_ppe > 0 and useful_life_years > 0:
+            annual_depreciation = self.gross_ppe / useful_life_years
+
+            # Don't depreciate below zero net book value
+            net_ppe = self.gross_ppe - self.accumulated_depreciation
+            if net_ppe > 0:
+                depreciation_expense = min(annual_depreciation, net_ppe)
+                self.accumulated_depreciation += depreciation_expense
+
+                logger.debug(
+                    f"Recorded depreciation: ${depreciation_expense:,.2f}, "
+                    f"Accumulated: ${self.accumulated_depreciation:,.2f}"
+                )
+                return depreciation_expense
+        return 0.0
+
+    @property
+    def net_ppe(self) -> float:
+        """Calculate net property, plant & equipment after depreciation.
+
+        Returns:
+            float: Net PP&E (gross PP&E minus accumulated depreciation).
+        """
+        return self.gross_ppe - self.accumulated_depreciation
 
     def process_insurance_claim(
         self,
@@ -1770,6 +1950,17 @@ class WidgetManufacturer:
         metrics["claim_liabilities"] = self.total_claim_liabilities
         metrics["is_solvent"] = not self.is_ruined
 
+        # Enhanced balance sheet components for GAAP compliance
+        metrics["cash"] = self.cash
+        metrics["accounts_receivable"] = self.accounts_receivable
+        metrics["inventory"] = self.inventory
+        metrics["prepaid_insurance"] = self.prepaid_insurance
+        metrics["accounts_payable"] = self.accounts_payable
+        metrics["accrued_expenses"] = self.accrued_expenses
+        metrics["gross_ppe"] = self.gross_ppe
+        metrics["accumulated_depreciation"] = self.accumulated_depreciation
+        metrics["net_ppe"] = self.net_ppe
+
         # Calculate operating metrics for current state
         revenue = self.calculate_revenue()
         operating_income = self.calculate_operating_income(revenue)
@@ -2018,6 +2209,35 @@ class WidgetManufacturer:
         # Update balance sheet with retained earnings
         self.update_balance_sheet(net_income, growth_rate)
 
+        # Calculate working capital components based on revenue
+        # Use annual revenue for component calculations even in monthly resolution
+        annual_revenue = revenue * 12 if time_resolution == "monthly" else revenue
+        self.calculate_working_capital_components(annual_revenue)
+
+        # Record depreciation (annual or monthly)
+        if time_resolution == "annual":
+            self.record_depreciation(useful_life_years=10)
+        elif time_resolution == "monthly":
+            # For monthly, record 1/12 of annual depreciation
+            self.record_depreciation(useful_life_years=10 * 12)  # Convert to months
+
+        # Amortize prepaid insurance if applicable
+        if time_resolution == "monthly":
+            self.amortize_prepaid_insurance(months=1)
+
+        # Update cash as residual after all other balance sheet components
+        total_current_assets_except_cash = (
+            self.accounts_receivable + self.inventory + self.prepaid_insurance
+        )
+        total_current_liabilities = self.accounts_payable + self.accrued_expenses
+        self.cash = (
+            self.assets
+            - total_current_assets_except_cash
+            - self.net_ppe
+            - self.restricted_assets
+            + total_current_liabilities
+        )
+
         # Apply revenue growth by adjusting asset turnover ratio
         self._apply_growth(growth_rate, time_resolution, apply_stochastic)
 
@@ -2107,6 +2327,17 @@ class WidgetManufacturer:
         self.current_month = 0
         self.is_ruined = False
         self.metrics_history = []
+
+        # Reset enhanced balance sheet components
+        self.gross_ppe = self.config.initial_assets * 0.7
+        self.accumulated_depreciation = 0.0
+        self.cash = self.config.initial_assets * 0.3
+        self.accounts_receivable = 0.0
+        self.inventory = 0.0
+        self.prepaid_insurance = 0.0
+        self.accounts_payable = 0.0
+        self.accrued_expenses = 0.0
+        self._original_prepaid_premium = 0.0
 
         # Reset period insurance cost tracking
         self.period_insurance_premiums = 0.0

@@ -84,6 +84,7 @@ class FinancialStatementGenerator:
         Raises:
             ValueError: If neither manufacturer nor manufacturer_data provided
         """
+        self.manufacturer = manufacturer
         if manufacturer is not None:
             self.manufacturer_data = {
                 "metrics_history": manufacturer.metrics_history,
@@ -96,6 +97,14 @@ class FinancialStatementGenerator:
             raise ValueError("Either manufacturer or manufacturer_data must be provided")
 
         self.config = config or FinancialStatementConfig()
+        self._update_metrics_cache()
+
+    def _update_metrics_cache(self):
+        """Update the cached metrics from manufacturer data."""
+        if self.manufacturer is not None:
+            # Get fresh metrics from manufacturer
+            self.manufacturer_data["metrics_history"] = self.manufacturer.metrics_history
+
         metrics = self.manufacturer_data.get("metrics_history", [])
         self.metrics_history: List[Dict[str, float]] = metrics if isinstance(metrics, list) else []
         self.years_available = len(self.metrics_history)
@@ -118,6 +127,9 @@ class FinancialStatementGenerator:
         Raises:
             IndexError: If year is out of range
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
@@ -151,28 +163,40 @@ class FinancialStatementGenerator:
     def _build_assets_section(
         self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
     ) -> None:
-        """Build assets section of balance sheet."""
+        """Build assets section of balance sheet with GAAP structure."""
         # ASSETS SECTION
         data.append(("ASSETS", "", "", ""))
         data.append(("", "", "", ""))
 
         # Current Assets
         data.append(("Current Assets", "", "", ""))
-        working_capital = metrics.get("assets", 0) * 0.2  # Estimate if not directly available
-        unrestricted_cash = metrics.get("available_assets", 0) - working_capital
-        data.append(("  Working Capital", working_capital, "", ""))
-        data.append(("  Unrestricted Cash", unrestricted_cash, "", ""))
-        total_current = working_capital + unrestricted_cash
+
+        # Use detailed components if available, otherwise estimate
+        cash = metrics.get("cash", metrics.get("available_assets", 0) * 0.3)
+        accounts_receivable = metrics.get("accounts_receivable", 0)
+        inventory = metrics.get("inventory", 0)
+        prepaid_insurance = metrics.get("prepaid_insurance", 0)
+
+        data.append(("  Cash and Cash Equivalents", cash, "", ""))
+        data.append(("  Accounts Receivable", accounts_receivable, "", ""))
+        data.append(("  Inventory", inventory, "", ""))
+        data.append(("  Prepaid Insurance", prepaid_insurance, "", ""))
+
+        total_current = cash + accounts_receivable + inventory + prepaid_insurance
         data.append(("  Total Current Assets", total_current, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Fixed Assets
-        data.append(("Fixed Assets", "", "", ""))
-        fixed_assets = (
-            metrics.get("assets", 0) - total_current - metrics.get("restricted_assets", 0)
-        )
-        data.append(("  Property, Plant & Equipment", fixed_assets, "", ""))
-        data.append(("  Total Fixed Assets", fixed_assets, "", "subtotal"))
+        # Non-Current Assets
+        data.append(("Non-Current Assets", "", "", ""))
+
+        # Property, Plant & Equipment
+        gross_ppe = metrics.get("gross_ppe", metrics.get("assets", 0) * 0.7)
+        accumulated_depreciation = metrics.get("accumulated_depreciation", 0)
+        net_ppe = gross_ppe - accumulated_depreciation
+
+        data.append(("  Property, Plant & Equipment (Gross)", gross_ppe, "", ""))
+        data.append(("  Less: Accumulated Depreciation", -accumulated_depreciation, "", ""))
+        data.append(("  Net Property, Plant & Equipment", net_ppe, "", "subtotal"))
         data.append(("", "", "", ""))
 
         # Restricted Assets
@@ -180,13 +204,14 @@ class FinancialStatementGenerator:
         collateral = metrics.get("collateral", 0)
         restricted_other = metrics.get("restricted_assets", 0) - collateral
         data.append(("  Insurance Collateral", collateral, "", ""))
-        data.append(("  Letter of Credit", restricted_other, "", ""))
+        if restricted_other > 0:
+            data.append(("  Other Restricted Assets", restricted_other, "", ""))
         total_restricted = metrics.get("restricted_assets", 0)
         data.append(("  Total Restricted Assets", total_restricted, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Total Assets
-        total_assets = metrics.get("assets", 0)
+        # Total Assets (recalculate from components for consistency)
+        total_assets = total_current + net_ppe + total_restricted
         data.append(("TOTAL ASSETS", total_assets, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
@@ -194,30 +219,39 @@ class FinancialStatementGenerator:
     def _build_liabilities_section(
         self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
     ) -> None:
-        """Build liabilities section of balance sheet."""
+        """Build liabilities section of balance sheet with GAAP structure."""
         # LIABILITIES SECTION
         data.append(("LIABILITIES", "", "", ""))
         data.append(("", "", "", ""))
 
         # Current Liabilities
         data.append(("Current Liabilities", "", "", ""))
+
+        # Use detailed components if available
+        accounts_payable = metrics.get("accounts_payable", 0)
+        accrued_expenses = metrics.get("accrued_expenses", 0)
+
+        # Estimate current portion of claims (first year of payment schedule)
         claim_liabilities = metrics.get("claim_liabilities", 0)
-        # Estimate current portion (first year of payment schedule)
         current_claims = claim_liabilities * 0.1 if claim_liabilities > 0 else 0
-        data.append(("  Outstanding Claims (Current)", current_claims, "", ""))
-        data.append(("  Accounts Payable", 0, "", ""))  # Simplified
-        data.append(("  Total Current Liabilities", current_claims, "", "subtotal"))
+
+        data.append(("  Accounts Payable", accounts_payable, "", ""))
+        data.append(("  Accrued Expenses", accrued_expenses, "", ""))
+        data.append(("  Current Portion of Claim Liabilities", current_claims, "", ""))
+
+        total_current_liabilities = accounts_payable + accrued_expenses + current_claims
+        data.append(("  Total Current Liabilities", total_current_liabilities, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Long-term Liabilities
-        data.append(("Long-term Liabilities", "", "", ""))
+        # Non-Current Liabilities
+        data.append(("Non-Current Liabilities", "", "", ""))
         long_term_claims = claim_liabilities - current_claims
-        data.append(("  Insurance Claim Reserves", long_term_claims, "", ""))
-        data.append(("  Total Long-term Liabilities", long_term_claims, "", "subtotal"))
+        data.append(("  Long-Term Claim Reserves", long_term_claims, "", ""))
+        data.append(("  Total Non-Current Liabilities", long_term_claims, "", "subtotal"))
         data.append(("", "", "", ""))
 
         # Total Liabilities
-        total_liabilities = claim_liabilities
+        total_liabilities = total_current_liabilities + long_term_claims
         data.append(("TOTAL LIABILITIES", total_liabilities, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
@@ -229,15 +263,41 @@ class FinancialStatementGenerator:
         # EQUITY SECTION
         data.append(("EQUITY", "", "", ""))
         data.append(("", "", "", ""))
-        equity = metrics.get("equity", 0)
-        data.append(("  Retained Earnings", equity, "", ""))
-        data.append(("TOTAL EQUITY", equity, "", "total"))
+
+        # Calculate total assets (must match what's shown in assets section)
+        cash = metrics.get("cash", 0)
+        accounts_receivable = metrics.get("accounts_receivable", 0)
+        inventory = metrics.get("inventory", 0)
+        prepaid = metrics.get("prepaid_insurance", 0)
+        total_current = cash + accounts_receivable + inventory + prepaid
+
+        net_ppe = metrics.get("net_ppe", 0)
+        restricted_assets = metrics.get("restricted_assets", 0)
+        total_assets = total_current + net_ppe + restricted_assets
+
+        # Calculate total liabilities
+        accounts_payable = metrics.get("accounts_payable", 0)
+        accrued_expenses = metrics.get("accrued_expenses", 0)
+        claim_liabilities = metrics.get("claim_liabilities", 0)
+        total_liabilities = accounts_payable + accrued_expenses + claim_liabilities
+
+        # Equity = Assets - Liabilities (basic accounting equation)
+        equity_for_balance_sheet = total_assets - total_liabilities
+
+        data.append(("  Retained Earnings", equity_for_balance_sheet, "", ""))
+        data.append(("TOTAL EQUITY", equity_for_balance_sheet, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
 
         # Validation
-        total_liabilities = metrics.get("claim_liabilities", 0)
-        data.append(("TOTAL LIABILITIES + EQUITY", total_liabilities + equity, "", "total"))
+        data.append(
+            (
+                "TOTAL LIABILITIES + EQUITY",
+                total_liabilities + equity_for_balance_sheet,
+                "",
+                "total",
+            )
+        )
 
     def generate_income_statement(
         self, year: int, compare_years: Optional[List[int]] = None
@@ -257,6 +317,9 @@ class FinancialStatementGenerator:
         Raises:
             IndexError: If year is out of range
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
@@ -395,6 +458,9 @@ class FinancialStatementGenerator:
         Raises:
             IndexError: If year is out of range
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
@@ -561,6 +627,9 @@ class FinancialStatementGenerator:
         Returns:
             DataFrame containing reconciliation checks and results
         """
+        # Update metrics cache to get latest data
+        self._update_metrics_cache()
+
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
