@@ -305,6 +305,57 @@ class WorkingCapitalRatiosConfig(BaseModel):
         return self
 
 
+class ExpenseRatioConfig(BaseModel):
+    """Configuration for expense categorization and allocation.
+
+    Defines how revenue translates to expenses with proper GAAP categorization
+    between COGS and operating expenses (SG&A).
+    """
+
+    gross_margin_ratio: float = Field(
+        default=0.15,
+        gt=0,
+        lt=1,
+        description="Gross margin ratio (Revenue - COGS) / Revenue",
+    )
+    sga_expense_ratio: float = Field(
+        default=0.07,
+        gt=0,
+        lt=1,
+        description="SG&A expenses as percentage of revenue",
+    )
+    manufacturing_depreciation_allocation: float = Field(
+        default=0.7,
+        ge=0,
+        le=1,
+        description="Percentage of depreciation allocated to COGS (manufacturing)",
+    )
+    admin_depreciation_allocation: float = Field(
+        default=0.3,
+        ge=0,
+        le=1,
+        description="Percentage of depreciation allocated to SG&A (administrative)",
+    )
+
+    @model_validator(mode="after")
+    def validate_depreciation_allocation(self):
+        """Ensure depreciation allocations sum to 100%."""
+        total = self.manufacturing_depreciation_allocation + self.admin_depreciation_allocation
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(f"Depreciation allocations must sum to 100%, got {total*100:.1f}%")
+        return self
+
+    @property
+    def cogs_ratio(self) -> float:
+        """Calculate COGS as percentage of revenue."""
+        return 1.0 - self.gross_margin_ratio
+
+    @property
+    def operating_margin_ratio(self) -> float:
+        """Calculate operating margin after all operating expenses."""
+        return self.gross_margin_ratio - self.sga_expense_ratio
+
+
 class DepreciationConfig(BaseModel):
     """Configuration for depreciation and amortization tracking.
 
@@ -389,6 +440,7 @@ class ConfigV2(BaseModel):
     losses: Optional[LossDistributionConfig] = None
     excel_reporting: Optional[ExcelReportConfig] = None
     working_capital_ratios: Optional[WorkingCapitalRatiosConfig] = None
+    expense_ratios: Optional[ExpenseRatioConfig] = None
     depreciation: Optional[DepreciationConfig] = None
 
     # Additional fields for extensibility

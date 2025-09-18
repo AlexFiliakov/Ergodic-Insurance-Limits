@@ -300,19 +300,21 @@ class FinancialStatementGenerator:
         )
 
     def generate_income_statement(
-        self, year: int, compare_years: Optional[List[int]] = None
+        self, year: int, compare_years: Optional[List[int]] = None, monthly: bool = False
     ) -> pd.DataFrame:
-        """Generate income statement for specified year.
+        """Generate income statement for specified year with proper GAAP structure.
 
-        Creates a standard income statement showing revenue, expenses,
-        and net income with optional year-over-year comparisons.
+        Creates a standard income statement following US GAAP with proper
+        categorization of COGS, operating expenses, and non-operating items.
+        Supports both annual and monthly statement generation.
 
         Args:
             year: Year index (0-based) for income statement
             compare_years: Optional list of years to compare against
+            monthly: If True, generate monthly statement (divides annual by 12)
 
         Returns:
-            DataFrame containing income statement data
+            DataFrame containing income statement data with GAAP structure
 
         Raises:
             IndexError: If year is out of range
@@ -328,20 +330,23 @@ class FinancialStatementGenerator:
         # Build income statement structure
         income_data: List[Tuple[str, Union[str, float, int], str, str]] = []
 
-        # Build main sections
-        revenue = self._build_revenue_section(income_data, metrics)
-        pretax_income = self._build_expenses_section(income_data, metrics, revenue)
-        self._build_income_bottom_section(income_data, metrics, pretax_income, revenue)
+        # Build main sections with GAAP structure
+        revenue = self._build_revenue_section(income_data, metrics, monthly)
+        gross_profit, operating_income = self._build_gaap_expenses_section(
+            income_data, metrics, revenue, monthly
+        )
+        self._build_gaap_bottom_section(income_data, metrics, operating_income, revenue, monthly)
 
         # Create DataFrame
-        df = pd.DataFrame(income_data, columns=["Item", f"Year {year}", "Unit", "Type"])
+        period_label = "Month" if monthly else "Year"
+        df = pd.DataFrame(income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"])
 
         # Add year-over-year comparison if requested
-        if self.config.include_yoy_change and year > 0:
+        if self.config.include_yoy_change and year > 0 and not monthly:
             self._add_yoy_comparison_income(df, year)
 
         # Add comparison years if specified
-        if compare_years:
+        if compare_years and not monthly:
             for comp_year in compare_years:
                 if comp_year < self.years_available:
                     self._add_comparison_year_income(df, comp_year)
@@ -349,96 +354,230 @@ class FinancialStatementGenerator:
         return df
 
     def _build_revenue_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: Dict[str, float],
+        monthly: bool = False,
     ) -> float:
-        """Build revenue section of income statement and return total revenue."""
+        """Build revenue section of income statement and return total revenue.
+
+        Args:
+            data: List to append statement lines to
+            metrics: Year metrics dictionary
+            monthly: If True, divide annual figures by 12
+
+        Returns:
+            Total revenue for the period
+        """
         # Revenue Section
         data.append(("REVENUE", "", "", ""))
         revenue = metrics.get("revenue", 0)
+        if monthly:
+            revenue = revenue / 12
         data.append(("  Sales Revenue", revenue, "", ""))
         data.append(("  Total Revenue", revenue, "", "subtotal"))
         data.append(("", "", "", ""))
         return revenue
 
-    def _build_expenses_section(
+    def _build_gaap_expenses_section(
         self,
         data: List[Tuple[str, Union[str, float, int], str, str]],
         metrics: Dict[str, float],
         revenue: float,
-    ) -> float:
-        """Build expenses section and return pretax income."""
-        # Operating Expenses
+        monthly: bool = False,
+    ) -> Tuple[float, float]:
+        """Build expenses section with proper GAAP categorization.
+
+        Separates COGS from operating expenses, allocates depreciation appropriately,
+        and follows US GAAP income statement structure.
+
+        Args:
+            data: List to append statement lines to
+            metrics: Year metrics dictionary
+            revenue: Total revenue for the period
+            monthly: If True, use monthly figures
+
+        Returns:
+            Tuple of (gross_profit, operating_income)
+        """
+        # Get expense ratio configuration if available
+        config = self.manufacturer_data.get("config")
+
+        # Default expense ratios following GAAP
+        if hasattr(config, "expense_ratios") and config.expense_ratios:
+            gross_margin_ratio = config.expense_ratios.gross_margin_ratio
+            sga_expense_ratio = config.expense_ratios.sga_expense_ratio
+            mfg_depreciation_alloc = config.expense_ratios.manufacturing_depreciation_allocation
+            admin_depreciation_alloc = config.expense_ratios.admin_depreciation_allocation
+        else:
+            # Default ratios if not configured
+            gross_margin_ratio = 0.15  # 15% gross margin
+            sga_expense_ratio = 0.07  # 7% SG&A
+            mfg_depreciation_alloc = 0.7  # 70% to COGS
+            admin_depreciation_alloc = 0.3  # 30% to SG&A
+
+        # Calculate total depreciation
+        # Get from metrics or estimate from assets
+        total_depreciation = metrics.get("depreciation_expense", 0)
+        if total_depreciation == 0:
+            # Estimate depreciation if not available (10% of gross PP&E)
+            gross_ppe = metrics.get("gross_ppe", metrics.get("assets", 0) * 0.7)
+            total_depreciation = gross_ppe * 0.1
+
+        if monthly:
+            total_depreciation = total_depreciation / 12
+
+        # Allocate depreciation
+        mfg_depreciation = total_depreciation * mfg_depreciation_alloc
+        admin_depreciation = total_depreciation * admin_depreciation_alloc
+
+        # COST OF GOODS SOLD SECTION
+        data.append(("COST OF GOODS SOLD", "", "", ""))
+
+        # Calculate base COGS from gross margin
+        base_cogs = revenue * (1 - gross_margin_ratio)
+
+        # Components of COGS
+        direct_materials = base_cogs * 0.4  # 40% materials
+        direct_labor = base_cogs * 0.3  # 30% labor
+        mfg_overhead = base_cogs * 0.3 - mfg_depreciation  # 30% overhead minus depreciation
+
+        data.append(("  Direct Materials", direct_materials, "", ""))
+        data.append(("  Direct Labor", direct_labor, "", ""))
+        data.append(("  Manufacturing Overhead", mfg_overhead, "", ""))
+        data.append(("  Manufacturing Depreciation", mfg_depreciation, "", ""))
+
+        total_cogs = direct_materials + direct_labor + mfg_overhead + mfg_depreciation
+        data.append(("  Total Cost of Goods Sold", total_cogs, "", "subtotal"))
+        data.append(("", "", "", ""))
+
+        # GROSS PROFIT
+        gross_profit = revenue - total_cogs
+        data.append(("GROSS PROFIT", gross_profit, "", "subtotal"))
+        data.append(("", "", "", ""))
+
+        # OPERATING EXPENSES (SG&A)
         data.append(("OPERATING EXPENSES", "", "", ""))
-        operating_income = metrics.get("operating_income", 0)
-        operating_expenses = revenue - operating_income
-        cogs = operating_expenses * 0.7  # Estimate COGS as 70% of operating expenses
-        sga = operating_expenses * 0.3  # SG&A as 30%
-        data.append(("  Cost of Goods Sold", cogs, "", ""))
-        data.append(("  Selling, General & Admin", sga, "", ""))
-        data.append(("  Total Operating Expenses", operating_expenses, "", "subtotal"))
-        data.append(("", "", "", ""))
 
-        # Operating Income
-        data.append(("OPERATING INCOME", operating_income, "", "subtotal"))
-        data.append(("", "", "", ""))
+        # Calculate SG&A components
+        base_sga = revenue * sga_expense_ratio
 
-        # Other Income/Expenses
-        data.append(("OTHER INCOME (EXPENSES)", "", "", ""))
+        # Break down SG&A
+        selling_expenses = base_sga * 0.4  # 40% selling
+        general_admin = base_sga * 0.6 - admin_depreciation  # 60% G&A minus depreciation
 
-        # Pull actual insurance costs from metrics
-        # These values are tracked in manufacturer.py via period_insurance_premiums
-        # and period_insurance_losses, and included in the metrics dictionary
+        data.append(("  Selling Expenses", selling_expenses, "", ""))
+        data.append(("  General & Administrative", general_admin, "", ""))
+        data.append(("  Administrative Depreciation", admin_depreciation, "", ""))
+
+        # Include insurance premiums in operating expenses if significant
         insurance_premium = metrics.get("insurance_premiums", 0)
-        insurance_claims = metrics.get("insurance_losses", 0)
+        if monthly:
+            insurance_premium = insurance_premium / 12
+        if insurance_premium > 0:
+            data.append(("  Insurance Premiums", insurance_premium, "", ""))
 
-        data.append(("  Insurance Premiums", -insurance_premium, "", ""))
-        data.append(("  Insurance Claim Expenses", -insurance_claims, "", ""))
-        data.append(("  Interest Income", 0, "", ""))
-        data.append(("  Total Other", -(insurance_premium + insurance_claims), "", "subtotal"))
+        total_operating_expenses = (
+            selling_expenses + general_admin + admin_depreciation + insurance_premium
+        )
+        data.append(("  Total Operating Expenses", total_operating_expenses, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Pre-tax Income
-        pretax_income = operating_income - insurance_premium - insurance_claims
+        # OPERATING INCOME
+        operating_income = gross_profit - total_operating_expenses
+        data.append(("OPERATING INCOME (EBIT)", operating_income, "", "subtotal"))
+        data.append(("", "", "", ""))
+
+        return gross_profit, operating_income
+
+    def _build_gaap_bottom_section(
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: Dict[str, float],
+        operating_income: float,
+        revenue: float,
+        monthly: bool = False,
+    ) -> None:
+        """Build the bottom section with non-operating items, taxes, and net income.
+
+        Follows GAAP structure with separate non-operating section and flat tax rate.
+
+        Args:
+            data: List to append statement lines to
+            metrics: Year metrics dictionary
+            operating_income: Operating income (EBIT) for the period
+            revenue: Total revenue for the period
+            monthly: If True, use monthly figures
+        """
+        # NON-OPERATING INCOME (EXPENSES)
+        data.append(("NON-OPERATING INCOME (EXPENSES)", "", "", ""))
+
+        # Interest income on cash balances
+        cash = metrics.get("cash", metrics.get("available_assets", 0) * 0.3)
+        interest_rate = 0.02  # 2% annual interest rate on cash
+        interest_income = cash * interest_rate
+        if monthly:
+            interest_income = interest_income / 12
+
+        # Interest expense on any debt
+        debt_balance = metrics.get("debt_balance", 0)
+        debt_interest_rate = 0.05  # 5% annual interest on debt
+        interest_expense = debt_balance * debt_interest_rate
+        if monthly:
+            interest_expense = interest_expense / 12
+
+        # Insurance claim losses (non-operating)
+        insurance_claims = metrics.get("insurance_losses", 0)
+        if monthly:
+            insurance_claims = insurance_claims / 12
+
+        data.append(("  Interest Income", interest_income, "", ""))
+        if interest_expense > 0:
+            data.append(("  Interest Expense", -interest_expense, "", ""))
+        if insurance_claims > 0:
+            data.append(("  Insurance Claim Losses", -insurance_claims, "", ""))
+
+        total_non_operating = interest_income - interest_expense - insurance_claims
+        data.append(("  Total Non-Operating", total_non_operating, "", "subtotal"))
+        data.append(("", "", "", ""))
+
+        # INCOME BEFORE TAXES
+        pretax_income = operating_income + total_non_operating
         data.append(("INCOME BEFORE TAXES", pretax_income, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        return pretax_income
-
-    def _build_income_bottom_section(
-        self,
-        data: List[Tuple[str, Union[str, float, int], str, str]],
-        metrics: Dict[str, float],
-        pretax_income: float,
-        revenue: float,
-    ) -> None:
-        """Build the bottom section with taxes, net income, and metrics."""
-        # Taxes
+        # INCOME TAX PROVISION (Flat tax rate, no deferred taxes)
         config = self.manufacturer_data.get("config")
         tax_rate = config.tax_rate if config and hasattr(config, "tax_rate") else 0.25
-        taxes = pretax_income * tax_rate if pretax_income > 0 else 0
-        data.append(("  Income Tax Expense", taxes, "", ""))
+
+        # Calculate tax provision on positive income only
+        tax_provision = max(0, pretax_income * tax_rate)
+
+        data.append(("INCOME TAX PROVISION", "", "", ""))
+        data.append(("  Current Tax Expense", tax_provision, "", ""))
+        data.append(("  Deferred Tax Expense", 0, "", ""))  # No deferred taxes per requirement
+        data.append(("  Total Tax Provision", tax_provision, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Net Income
-        net_income = metrics.get("net_income", pretax_income - taxes)
+        # NET INCOME
+        net_income = pretax_income - tax_provision
         data.append(("NET INCOME", net_income, "", "total"))
         data.append(("", "", "", ""))
 
-        # Key metrics
+        # KEY FINANCIAL METRICS
         data.append(("", "", "", ""))
-        data.append(("KEY METRICS", "", "", ""))
-        data.append(
-            ("  Base Operating Margin %", metrics.get("base_operating_margin", 0) * 100, "%", "")
-        )
-        data.append(
-            (
-                "  Actual Operating Margin %",
-                metrics.get("actual_operating_margin", 0) * 100,
-                "%",
-                "",
-            )
-        )
-        data.append(("  Net Margin %", (net_income / revenue * 100) if revenue > 0 else 0, "%", ""))
+        data.append(("KEY FINANCIAL METRICS", "", "", ""))
+
+        # Calculate key margins
+        gross_margin = (revenue - operating_income) / revenue if revenue > 0 else 0
+        operating_margin = operating_income / revenue if revenue > 0 else 0
+        net_margin = net_income / revenue if revenue > 0 else 0
+        effective_tax_rate = tax_provision / pretax_income if pretax_income > 0 else 0
+
+        data.append(("  Gross Margin %", gross_margin * 100, "%", ""))
+        data.append(("  Operating Margin %", operating_margin * 100, "%", ""))
+        data.append(("  Net Margin %", net_margin * 100, "%", ""))
+        data.append(("  Effective Tax Rate %", effective_tax_rate * 100, "%", ""))
         data.append(("  ROE %", metrics.get("roe", 0) * 100, "%", ""))
         data.append(("  ROA %", metrics.get("roa", 0) * 100, "%", ""))
 
