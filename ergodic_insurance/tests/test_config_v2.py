@@ -117,17 +117,17 @@ class TestInsuranceLayerConfig:
         assert layer.reinstatements == 2
 
     def test_invalid_aggregate_limit(self):
-        """Test validation of aggregate limit < per-occurrence limit."""
-        with pytest.raises(ValidationError) as exc_info:
-            InsuranceLayerConfig(
-                name="Invalid",
-                limit=1000000,
-                attachment=0,
-                premium_rate=0.015,
-                aggregate_limit=500000,  # Less than limit
-            )
-        assert "Aggregate limit" in str(exc_info.value)
-        assert "cannot be less than" in str(exc_info.value)
+        """Test that aggregate limit < limit is now allowed (for overall cap scenarios)."""
+        # This is now valid as aggregate can be an overall cap across reinstatements
+        layer = InsuranceLayerConfig(
+            name="Valid",
+            limit=1000000,
+            attachment=0,
+            premium_rate=0.015,
+            aggregate_limit=500000,  # Less than limit is now allowed
+        )
+        assert layer.limit == 1000000
+        assert layer.aggregate_limit == 500000
 
     def test_valid_aggregate_limit(self):
         """Test valid aggregate limit >= per-occurrence limit."""

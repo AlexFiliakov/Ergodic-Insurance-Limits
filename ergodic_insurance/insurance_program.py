@@ -69,13 +69,15 @@ class EnhancedInsuranceLayer:
     """
 
     attachment_point: float  # Where coverage starts
-    limit: float  # Maximum coverage amount per occurrence
+    limit: float  # Maximum coverage amount (interpretation depends on limit_type)
     premium_rate: float  # % of limit as base premium
     reinstatements: int = 0  # Number of reinstatements available
     reinstatement_premium: float = 1.0  # % of original premium per reinstatement
     reinstatement_type: ReinstatementType = ReinstatementType.PRO_RATA
-    aggregate_limit: Optional[float] = None  # Annual aggregate limit if applicable
+    aggregate_limit: Optional[float] = None  # Annual aggregate limit (for aggregate/hybrid types)
     participation_rate: float = 1.0  # % of loss covered by this layer (default 100%)
+    limit_type: str = "per-occurrence"  # Type of limit: "per-occurrence", "aggregate", or "hybrid"
+    per_occurrence_limit: Optional[float] = None  # Per-occurrence limit (for hybrid type)
 
     def __post_init__(self):
         """Validate layer parameters."""
@@ -93,6 +95,48 @@ class EnhancedInsuranceLayer:
             raise ValueError(
                 f"Reinstatement premium must be non-negative, got {self.reinstatement_premium}"
             )
+
+        # Validate limit type
+        valid_limit_types = ["per-occurrence", "aggregate", "hybrid"]
+        if self.limit_type not in valid_limit_types:
+            raise ValueError(
+                f"Invalid limit_type: {self.limit_type}. Must be one of {valid_limit_types}"
+            )
+
+        # Handle different limit type configurations
+        if self.limit_type == "per-occurrence":
+            # For per-occurrence, the limit field is the per-occurrence limit
+            # No aggregate limit should be set (will be ignored if set)
+            if self.reinstatements > 0:
+                import warnings
+
+                warnings.warn(
+                    f"Reinstatements parameter ({self.reinstatements}) is not used for per-occurrence limits.",
+                    UserWarning,
+                )
+        elif self.limit_type == "aggregate":
+            # For aggregate, the limit field is the aggregate limit
+            # Set aggregate_limit to match limit if not already set
+            if self.aggregate_limit is None:
+                self.aggregate_limit = self.limit
+        elif self.limit_type == "hybrid":
+            # For hybrid, need both per-occurrence and aggregate limits
+            if self.per_occurrence_limit is None:
+                # If not specified, use limit as per-occurrence limit
+                self.per_occurrence_limit = self.limit
+            if self.aggregate_limit is None:
+                # If aggregate not specified, error
+                raise ValueError(
+                    "Hybrid limit type requires both per_occurrence_limit and aggregate_limit"
+                )
+            if self.per_occurrence_limit <= 0:
+                raise ValueError(
+                    f"Per-occurrence limit must be positive, got {self.per_occurrence_limit}"
+                )
+            if self.aggregate_limit <= 0:
+                raise ValueError(f"Aggregate limit must be positive, got {self.aggregate_limit}")
+
+        # Validate aggregate limit if specified
         if self.aggregate_limit is not None and self.aggregate_limit <= 0:
             raise ValueError(f"Aggregate limit must be positive if set, got {self.aggregate_limit}")
 
@@ -147,7 +191,21 @@ class EnhancedInsuranceLayer:
             return 0.0
 
         excess_loss = total_loss - self.attachment_point
-        return min(excess_loss, self.limit)
+
+        # Apply the appropriate limit based on limit_type
+        if self.limit_type == "per-occurrence":
+            # For per-occurrence, limit each individual loss
+            return min(excess_loss, self.limit)
+        elif self.limit_type == "aggregate":
+            # For aggregate, limit is handled in process_claim via aggregate tracking
+            # Here we just return the excess without limiting
+            return min(excess_loss, self.limit)
+        elif self.limit_type == "hybrid":
+            # For hybrid, apply per-occurrence limit first
+            # Aggregate limit is handled in process_claim
+            return min(excess_loss, self.per_occurrence_limit or self.limit)
+        else:
+            return min(excess_loss, self.limit)
 
 
 @dataclass
@@ -181,6 +239,163 @@ class LayerState:
         Returns:
             Tuple of (amount_paid, reinstatement_premium).
         """
+        if claim_amount <= 0:
+            return 0.0, 0.0
+
+        # Handle different limit types
+        if self.layer.limit_type == "per-occurrence":
+            # Per-occurrence: each claim limited but no exhaustion
+            payment = min(claim_amount, self.layer.limit)
+            self.total_claims_paid += payment
+            return payment, 0.0  # No reinstatement premiums for per-occurrence
+
+        elif self.layer.limit_type == "aggregate":
+            # Aggregate: track total usage and exhaust when limit reached
+            if self.is_exhausted:
+                return 0.0, 0.0
+
+            total_payment = 0.0
+            total_reinstatement_premium = 0.0
+            remaining_claim = claim_amount
+
+            # Process claim with current limit (may trigger reinstatements)
+            while remaining_claim > 0 and not self.is_exhausted:
+                # Calculate available limit
+                available_limit = self.current_limit
+
+                # Check aggregate limit if it exists
+                if self.layer.aggregate_limit is not None:
+                    remaining_aggregate = self.layer.aggregate_limit - self.aggregate_used
+                    if remaining_aggregate <= 0:
+                        self.is_exhausted = True
+                        break
+                    available_limit = min(available_limit, remaining_aggregate)
+
+                # Calculate payment from available limit
+                payment = min(remaining_claim, available_limit)
+                if payment > 0:
+                    self.used_limit += payment
+                    self.current_limit -= payment
+                    self.total_claims_paid += payment
+                    self.aggregate_used += payment
+                    total_payment += payment
+                    remaining_claim -= payment
+
+                    # Check if aggregate exhausted
+                    if (
+                        self.layer.aggregate_limit is not None
+                        and self.aggregate_used >= self.layer.aggregate_limit
+                    ):
+                        # Check if this is a single aggregate that can be reinstated
+                        # (aggregate_limit == limit means single aggregate with reinstatements)
+                        # (aggregate_limit > limit means overall cap across reinstatements)
+                        if (
+                            self.layer.aggregate_limit == self.layer.limit
+                            and self.reinstatements_used < self.layer.reinstatements
+                        ):
+                            # Single aggregate with reinstatements - can reinstate
+                            self.reinstatements_used += 1
+                            self.current_limit = self.layer.limit
+                            self.aggregate_used = 0  # Reset aggregate tracking
+                            reinstatement_premium = self.layer.calculate_reinstatement_premium(
+                                timing_factor
+                            )
+                            self.reinstatement_premiums_paid += reinstatement_premium
+                            total_reinstatement_premium += reinstatement_premium
+                            # Continue processing if there's remaining claim
+                            if remaining_claim > 0:
+                                continue
+                        else:
+                            # Overall cap reached - cannot be reinstated
+                            self.is_exhausted = True
+                            self.current_limit = 0
+                            break
+
+                # Check if limit exhausted and can reinstate
+                if self.current_limit == 0 and not self.is_exhausted:
+                    if self.reinstatements_used < self.layer.reinstatements:
+                        # Trigger reinstatement
+                        self.reinstatements_used += 1
+                        self.current_limit = self.layer.limit
+                        reinstatement_premium = self.layer.calculate_reinstatement_premium(
+                            timing_factor
+                        )
+                        self.reinstatement_premiums_paid += reinstatement_premium
+                        total_reinstatement_premium += reinstatement_premium
+                        # Continue processing if there's remaining claim
+                        if remaining_claim == 0:
+                            break
+                    else:
+                        # No more reinstatements available
+                        self.is_exhausted = True
+                        break
+                elif remaining_claim == 0:
+                    # Claim fully processed - check if we need reinstatement
+                    if (
+                        self.current_limit == 0
+                        and self.reinstatements_used < self.layer.reinstatements
+                        and not self.is_exhausted
+                    ):
+                        # Trigger reinstatement for future use
+                        self.reinstatements_used += 1
+                        self.current_limit = self.layer.limit
+                        reinstatement_premium = self.layer.calculate_reinstatement_premium(
+                            timing_factor
+                        )
+                        self.reinstatement_premiums_paid += reinstatement_premium
+                        total_reinstatement_premium += reinstatement_premium
+                    break
+
+            return total_payment, total_reinstatement_premium
+
+        elif self.layer.limit_type == "hybrid":
+            # Hybrid: apply both per-occurrence and aggregate constraints
+            if self.is_exhausted:
+                return 0.0, 0.0
+
+            # First apply per-occurrence limit
+            per_occurrence_limit = self.layer.per_occurrence_limit or self.layer.limit
+            max_payment = min(claim_amount, per_occurrence_limit)
+
+            # Then check against remaining aggregate
+            if self.layer.aggregate_limit is not None:
+                remaining_aggregate = self.layer.aggregate_limit - self.aggregate_used
+                if remaining_aggregate <= 0:
+                    self.is_exhausted = True
+                    return 0.0, 0.0
+                max_payment = min(max_payment, remaining_aggregate)
+
+            # Make the payment
+            if max_payment > 0:
+                self.total_claims_paid += max_payment
+                self.aggregate_used += max_payment
+
+                # Check if aggregate is now exhausted
+                if (
+                    self.layer.aggregate_limit is not None
+                    and self.aggregate_used >= self.layer.aggregate_limit
+                ):
+                    self.is_exhausted = True
+
+            # Calculate reinstatement premium if aggregate portion exhausted
+            reinstatement_premium = 0.0
+            if self.is_exhausted and self.reinstatements_used < self.layer.reinstatements:
+                self.reinstatements_used += 1
+                self.aggregate_used = 0  # Reset aggregate tracking
+                self.is_exhausted = False
+                reinstatement_premium = self.layer.calculate_reinstatement_premium(timing_factor)
+                self.reinstatement_premiums_paid += reinstatement_premium
+
+            return max_payment, reinstatement_premium
+
+        else:
+            # Fallback to aggregate behavior
+            return self._process_claim_aggregate(claim_amount, timing_factor)
+
+    def _process_claim_aggregate(
+        self, claim_amount: float, timing_factor: float = 1.0
+    ) -> Tuple[float, float]:
+        """Original aggregate claim processing logic (for backward compatibility)."""
         if self.is_exhausted or claim_amount <= 0:
             return 0.0, 0.0
 

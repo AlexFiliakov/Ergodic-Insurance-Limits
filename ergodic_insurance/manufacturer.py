@@ -2166,7 +2166,7 @@ class WidgetManufacturer:
         )
 
         # Calculate and track dividends paid
-        dividends_paid = 0
+        dividends_paid = 0.0
         if net_income > 0:
             dividends_paid = net_income * (1 - self.retention_ratio)
         metrics["dividends_paid"] = dividends_paid

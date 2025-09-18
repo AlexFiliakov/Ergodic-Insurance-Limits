@@ -871,13 +871,11 @@ class TestEndToEndScenarios:
                 limit=5_000_000,  # Primary coverage
                 attachment_point=config.insurance.deductible,  # Start from deductible
                 premium_rate=0.020,  # Further reduced rate for better affordability
-                reinstatements=1,  # Moderate reinstatements (2 full limits total)
             ),
             EnhancedInsuranceLayer(
                 limit=10_000_000,  # Excess coverage
                 attachment_point=config.insurance.deductible + 5_000_000,  # Excess above primary
                 premium_rate=0.010,  # Further reduced excess rate
-                reinstatements=0,  # No reinstatements for excess to avoid premium drain
             ),
         ]
         insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)

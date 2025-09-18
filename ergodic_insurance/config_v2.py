@@ -111,6 +111,13 @@ class InsuranceLayerConfig(BaseModel):
     aggregate_limit: Optional[float] = Field(
         default=None, gt=0, description="Aggregate limit if applicable"
     )
+    limit_type: str = Field(
+        default="per-occurrence",
+        description="Type of limit: 'per-occurrence', 'aggregate', or 'hybrid'",
+    )
+    per_occurrence_limit: Optional[float] = Field(
+        default=None, gt=0, description="Per-occurrence limit for hybrid type"
+    )
 
     @model_validator(mode="after")
     def validate_layer_structure(self):
@@ -122,10 +129,21 @@ class InsuranceLayerConfig(BaseModel):
         Raises:
             ValueError: If layer structure is invalid.
         """
-        if self.aggregate_limit and self.aggregate_limit < self.limit:
+        # Validate limit type
+        valid_limit_types = ["per-occurrence", "aggregate", "hybrid"]
+        if self.limit_type not in valid_limit_types:
             raise ValueError(
-                f"Aggregate limit {self.aggregate_limit} cannot be less than per-occurrence limit {self.limit}"
+                f"Invalid limit_type: {self.limit_type}. Must be one of {valid_limit_types}"
             )
+
+        # Validate based on limit type
+        if self.limit_type == "hybrid":
+            # For hybrid, need both per-occurrence and aggregate limits
+            if self.per_occurrence_limit is None and self.aggregate_limit is None:
+                raise ValueError(
+                    "Hybrid limit type requires both per_occurrence_limit and aggregate_limit to be set"
+                )
+
         return self
 
 

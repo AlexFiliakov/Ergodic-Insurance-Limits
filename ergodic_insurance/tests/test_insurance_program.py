@@ -152,7 +152,9 @@ class TestLayerState:
 
     def test_process_claim_simple(self):
         """Test simple claim processing."""
-        layer = EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.01)
+        layer = EnhancedInsuranceLayer(
+            attachment_point=0, limit=5_000_000, premium_rate=0.01, limit_type="aggregate"
+        )
         state = LayerState(layer)
 
         payment, reinstatement_premium = state.process_claim(2_000_000)
@@ -169,6 +171,7 @@ class TestLayerState:
             limit=5_000_000,
             premium_rate=0.01,
             reinstatements=0,  # No reinstatements
+            limit_type="aggregate",
         )
         state = LayerState(layer)
 
@@ -191,6 +194,7 @@ class TestLayerState:
             reinstatements=1,
             reinstatement_premium=1.0,
             reinstatement_type=ReinstatementType.FULL,
+            limit_type="aggregate",
         )
         state = LayerState(layer)
 
@@ -212,6 +216,7 @@ class TestLayerState:
             reinstatements=2,
             reinstatement_premium=0.5,
             reinstatement_type=ReinstatementType.PRO_RATA,
+            limit_type="aggregate",
         )
         state = LayerState(layer)
 
@@ -239,6 +244,7 @@ class TestLayerState:
             premium_rate=0.01,
             reinstatements=10,  # Many reinstatements
             aggregate_limit=5_000_000,  # But aggregate cap
+            limit_type="aggregate",
         )
         state = LayerState(layer)
 
@@ -259,7 +265,11 @@ class TestLayerState:
     def test_reset(self):
         """Test state reset functionality."""
         layer = EnhancedInsuranceLayer(
-            attachment_point=0, limit=5_000_000, premium_rate=0.01, reinstatements=1
+            attachment_point=0,
+            limit=5_000_000,
+            premium_rate=0.01,
+            reinstatements=1,
+            limit_type="aggregate",
         )
         state = LayerState(layer)
 
@@ -379,6 +389,7 @@ class TestInsuranceProgram:
                 reinstatements=1,
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.FULL,
+                limit_type="aggregate",
             )
         ]
         program = InsuranceProgram(layers)
@@ -399,6 +410,7 @@ class TestInsuranceProgram:
                 reinstatements=2,
                 reinstatement_premium=0.5,
                 reinstatement_type=ReinstatementType.PRO_RATA,
+                limit_type="aggregate",
             )
         ]
         program = InsuranceProgram(layers)
@@ -427,7 +439,11 @@ class TestInsuranceProgram:
 
     def test_reset_annual(self):
         """Test annual reset functionality."""
-        layers = [EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.01)]
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=0, limit=5_000_000, premium_rate=0.01, limit_type="aggregate"
+            )
+        ]
         program = InsuranceProgram(layers)
 
         # Process claim
