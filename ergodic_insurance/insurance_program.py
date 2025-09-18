@@ -371,7 +371,10 @@ class LayerState:
                 self.aggregate_used += max_payment
 
                 # Check if aggregate is now exhausted
-                if self.aggregate_used >= self.layer.aggregate_limit:
+                if (
+                    self.layer.aggregate_limit is not None
+                    and self.aggregate_used >= self.layer.aggregate_limit
+                ):
                     self.is_exhausted = True
 
             # Calculate reinstatement premium if aggregate portion exhausted

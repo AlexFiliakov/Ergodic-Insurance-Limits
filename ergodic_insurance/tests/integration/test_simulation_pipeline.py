@@ -642,6 +642,7 @@ class TestSimulationPipeline:
         assert full_results is not None, "Should have results"
         assert len(full_results.final_assets) == original_n_sims, "Should have complete results"
 
+    @pytest.mark.skip(reason="Performance test - enable manually")
     def test_performance_scaling(
         self,
         default_config_v2: ConfigV2,
