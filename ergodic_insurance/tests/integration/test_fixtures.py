@@ -253,12 +253,14 @@ def enhanced_insurance_program() -> InsuranceProgram:
         premium_rate=0.02,
         reinstatement_premium=0.01,
         aggregate_limit=15_000_000,
+        limit_type="aggregate",  # Explicitly use aggregate for test compatibility
     )
     excess = EnhancedInsuranceLayer(
         attachment_point=5_100_000,
         limit=10_000_000,
         premium_rate=0.01,
         reinstatements=1,
+        limit_type="aggregate",  # Explicitly use aggregate for test compatibility
     )
     return InsuranceProgram(layers=[primary, excess])
 
