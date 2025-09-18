@@ -10,6 +10,8 @@ from ergodic_insurance.manufacturer import WidgetManufacturer
 class TestPremiumAmortization:
     """Test insurance premium amortization functionality."""
 
+    manufacturer: WidgetManufacturer
+
     def setup_method(self):
         """Set up test fixtures."""
         config = ManufacturerConfig(
@@ -19,9 +21,7 @@ class TestPremiumAmortization:
             tax_rate=0.25,
             retention_ratio=0.7,
         )
-        self.manufacturer = WidgetManufacturer(
-            config
-        )  # pylint: disable=attribute-defined-outside-init
+        self.manufacturer = WidgetManufacturer(config)
 
     def test_annual_premium_payment_creates_prepaid_asset(self):
         """Test that annual premium payment creates a prepaid asset."""
@@ -82,16 +82,23 @@ class TestPremiumAmortization:
         assert schedule[-1]["remaining_prepaid"] == 0
 
     def test_direct_monthly_premium_no_prepaid(self):
-        """Test that monthly premium payments don't create prepaid asset."""
+        """Test that monthly premium expense recording doesn't create prepaid asset.
+
+        When is_annual=False, this records an expense for tax purposes but doesn't
+        represent an actual cash payment. The cash reduction happens through the
+        net income calculation during the step() method.
+        """
         initial_cash = self.manufacturer.cash
         monthly_premium = 100_000
 
-        # Pay monthly premium directly
+        # Record monthly premium expense (not a cash payment)
         self.manufacturer.record_insurance_premium(monthly_premium, is_annual=False)
 
-        # Check no prepaid asset
+        # Check no prepaid asset created
         assert self.manufacturer.prepaid_insurance == 0
-        assert self.manufacturer.cash == initial_cash - monthly_premium
+        # Cash is not immediately reduced (expense flows through net income)
+        assert self.manufacturer.cash == initial_cash
+        # Expense is recorded for tax purposes
         assert self.manufacturer.period_insurance_premiums == monthly_premium
 
     def test_multiple_annual_periods(self):
