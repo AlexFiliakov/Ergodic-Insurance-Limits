@@ -612,12 +612,32 @@ class FinancialStatementGenerator:
         accounts_payable = metrics.get("accounts_payable", 0)
         accrued_expenses = metrics.get("accrued_expenses", 0)
 
+        # Get detailed accrual breakdown if available
+        accrued_wages = metrics.get("accrued_wages", 0)
+        accrued_taxes = metrics.get("accrued_taxes", 0)
+        accrued_interest = metrics.get("accrued_interest", 0)
+
         # Estimate current portion of claims (first year of payment schedule)
         claim_liabilities = metrics.get("claim_liabilities", 0)
         current_claims = claim_liabilities * 0.1 if claim_liabilities > 0 else 0
 
         data.append(("  Accounts Payable", accounts_payable, "", ""))
-        data.append(("  Accrued Expenses", accrued_expenses, "", ""))
+
+        # Show accrual detail if available
+        if accrued_wages > 0 or accrued_taxes > 0 or accrued_interest > 0:
+            data.append(("  Accrued Expenses:", accrued_expenses, "", ""))
+            if accrued_wages > 0:
+                data.append(("    - Accrued Wages", accrued_wages, "", ""))
+            if accrued_taxes > 0:
+                data.append(("    - Accrued Taxes", accrued_taxes, "", ""))
+            if accrued_interest > 0:
+                data.append(("    - Accrued Interest", accrued_interest, "", ""))
+            other_accrued = accrued_expenses - accrued_wages - accrued_taxes - accrued_interest
+            if other_accrued > 0:
+                data.append(("    - Other Accrued", other_accrued, "", ""))
+        else:
+            data.append(("  Accrued Expenses", accrued_expenses, "", ""))
+
         data.append(("  Current Portion of Claim Liabilities", current_claims, "", ""))
 
         total_current_liabilities = accounts_payable + accrued_expenses + current_claims
