@@ -858,9 +858,16 @@ class MonteCarloEngine:
             # Update manufacturer state with annual step
             # Apply stochastic if the manufacturer has a stochastic process
             apply_stochastic = manufacturer.stochastic_process is not None
+
+            # Calculate growth rate based on manufacturer's financial metrics
+            # Growth rate = ROA × retention ratio
+            # ROA = operating margin × asset turnover
+            roa = manufacturer.base_operating_margin * manufacturer.asset_turnover_ratio
+            growth_rate = roa * manufacturer.retention_ratio
+
             manufacturer.step(
                 working_capital_pct=0.2,
-                growth_rate=0.05,  # Use a base growth rate
+                growth_rate=growth_rate,  # Use calculated growth rate based on fundamentals
                 apply_stochastic=apply_stochastic,
             )
 

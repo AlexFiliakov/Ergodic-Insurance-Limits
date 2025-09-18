@@ -1262,9 +1262,6 @@ class WidgetManufacturer:
         # Calculate cost of goods sold (approximate as % of revenue)
         cogs = revenue * (1 - self.base_operating_margin)
 
-        # Store current total assets to preserve balance sheet integrity
-        current_total_assets = self.total_assets
-
         # Calculate new working capital components
         new_ar = revenue * (dso / 365)
         new_inventory = cogs * (dio / 365)  # Inventory based on COGS not revenue
@@ -1280,10 +1277,9 @@ class WidgetManufacturer:
         self.inventory = new_inventory
         self.accounts_payable = new_ap
 
-        # Adjust cash to maintain total assets
-        # When AR/Inventory increase, cash decreases (assets reallocated)
-        # When AP increases, it doesn't affect assets (it's a liability)
-        self.cash = self.cash - ar_change - inventory_change
+        # Note: Working capital is just a reallocation of assets, not a change in total assets
+        # AR and inventory are funded from operations, not from reducing cash
+        # The cash impact happens through the revenue/expense cycle, not here
 
         # Calculate net working capital and cash conversion cycle
         net_working_capital = self.accounts_receivable + self.inventory - self.accounts_payable
@@ -2362,12 +2358,16 @@ class WidgetManufacturer:
         # This prevents working capital from compounding with asset growth
         self.update_balance_sheet(net_income, growth_rate)
 
-        # Record depreciation (annual or monthly)
-        if time_resolution == "annual":
-            self.record_depreciation(useful_life_years=10)
-        elif time_resolution == "monthly":
-            # For monthly, record 1/12 of annual depreciation
-            self.record_depreciation(useful_life_years=10 * 12)  # Convert to months
+        # Note: Depreciation is currently not recorded in the step method
+        # because it would reduce assets without being included in the
+        # income calculation for tax benefits. If depreciation is needed,
+        # it should be included in calculate_operating_income to get the tax shield.
+        # # Record depreciation (annual or monthly)
+        # if time_resolution == "annual":
+        #     self.record_depreciation(useful_life_years=10)
+        # elif time_resolution == "monthly":
+        #     # For monthly, record 1/12 of annual depreciation
+        #     self.record_depreciation(useful_life_years=10 * 12)  # Convert to months
 
         # Amortize prepaid insurance if applicable
         if time_resolution == "monthly":
