@@ -76,6 +76,8 @@ class ManufacturerConfig(BaseModel):
         tax_rate: Corporate tax rate. Typically 20-30% depending on jurisdiction.
         retention_ratio: Portion of earnings retained vs distributed as dividends.
             Higher retention supports faster growth.
+        ppe_ratio: Property, Plant & Equipment allocation ratio as fraction of
+            initial assets. Defaults based on operating margin if not specified.
 
     Examples:
         Conservative manufacturer::
@@ -98,6 +100,17 @@ class ManufacturerConfig(BaseModel):
                 retention_ratio=1.0         # Full retention
             )
 
+        Custom PP&E allocation::
+
+            config = ManufacturerConfig(
+                initial_assets=15_000_000,
+                asset_turnover_ratio=0.9,
+                base_operating_margin=0.10,
+                tax_rate=0.25,
+                retention_ratio=0.8,
+                ppe_ratio=0.6  # Override default PP&E allocation
+            )
+
     Note:
         The asset turnover ratio and base operating margin together determine
         the core return on assets (ROA) before insurance costs and taxes.
@@ -113,6 +126,25 @@ class ManufacturerConfig(BaseModel):
     )
     tax_rate: float = Field(ge=0, le=1, description="Corporate tax rate")
     retention_ratio: float = Field(ge=0, le=1, description="Portion of earnings retained")
+    ppe_ratio: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Property, Plant & Equipment allocation ratio (fraction of initial assets). "
+        "If None, defaults based on operating margin: <10%: 0.3, 10-15%: 0.5, >15%: 0.7",
+    )
+
+    @model_validator(mode="after")
+    def set_default_ppe_ratio(self):
+        """Set default PPE ratio based on operating margin if not provided."""
+        if self.ppe_ratio is None:
+            if self.base_operating_margin < 0.10:
+                self.ppe_ratio = 0.3  # Low margin businesses need more working capital
+            elif self.base_operating_margin < 0.15:
+                self.ppe_ratio = 0.5  # Medium margin can support moderate PP&E
+            else:
+                self.ppe_ratio = 0.7  # High margin businesses can support more PP&E
+        return self
 
     @field_validator("base_operating_margin")
     @classmethod

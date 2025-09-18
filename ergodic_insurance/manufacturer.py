@@ -489,21 +489,13 @@ class WidgetManufacturer:
 
         # Enhanced balance sheet components for GAAP compliance
         # Fixed Assets (allocate first to determine cash)
-        # PP&E allocation should be reasonable relative to operating margin
-        # Higher margin businesses can support more PP&E depreciation
-        # For low margin (< 10%), use lower PP&E ratio to avoid negative operating income
-        if config.base_operating_margin < 0.10:
-            ppe_ratio = 0.3  # Low margin businesses need more working capital, less PP&E
-        elif config.base_operating_margin < 0.15:
-            ppe_ratio = 0.5  # Medium margin can support moderate PP&E
-        else:
-            ppe_ratio = 0.7  # High margin businesses can support more PP&E
-
-        self.gross_ppe = config.initial_assets * ppe_ratio
+        # Use PPE ratio from config (defaults based on operating margin if not specified)
+        # Type ignore: ppe_ratio is guaranteed non-None after model_validator
+        self.gross_ppe = config.initial_assets * config.ppe_ratio  # type: ignore
         self.accumulated_depreciation = 0.0  # Will accumulate over time
 
         # Current Assets
-        self.cash = config.initial_assets * (1 - ppe_ratio)  # Remaining assets as cash
+        self.cash = config.initial_assets * (1 - config.ppe_ratio)  # type: ignore
         self.accounts_receivable = 0.0  # Based on DSO
         self.inventory = 0.0  # Based on DIO
         self.prepaid_insurance = 0.0  # Annual premiums paid in advance
