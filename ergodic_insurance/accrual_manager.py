@@ -268,10 +268,22 @@ class AccrualManager:
         for expense_type, accruals in self.accrued_expenses.items():
             amount_due = 0.0
             for accrual in accruals:
-                if not accrual.is_fully_paid and period in accrual.payment_dates:
-                    # Calculate proportional payment for this period
-                    total_periods = len(accrual.payment_dates)
-                    amount_due += accrual.amount / total_periods
+                if not accrual.is_fully_paid:
+                    # Count how many payment dates are due (including past-due)
+                    due_payments = 0
+                    paid_payments = len(accrual.amounts_paid)
+
+                    for payment_date in accrual.payment_dates:
+                        if payment_date <= period:
+                            due_payments += 1
+
+                    # Calculate how many payments still need to be made
+                    unpaid_due = due_payments - paid_payments
+                    if unpaid_due > 0:
+                        # Calculate proportional payment amount
+                        total_periods = len(accrual.payment_dates)
+                        amount_per_payment = accrual.amount / total_periods
+                        amount_due += amount_per_payment * unpaid_due
 
             if amount_due > 0:
                 payments_due[expense_type] = amount_due

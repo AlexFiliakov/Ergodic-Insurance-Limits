@@ -1103,6 +1103,7 @@ class WidgetManufacturer:
         insurance_premiums: float = 0.0,
         insurance_losses: float = 0.0,
         use_accrual: bool = True,
+        time_resolution: str = "annual",
     ) -> float:
         """Calculate net income after collateral costs and taxes.
 
@@ -1123,6 +1124,9 @@ class WidgetManufacturer:
                 already includes these, pass 0. Defaults to 0.0.
             use_accrual (bool): Whether to use accrual accounting for taxes.
                 Defaults to True for quarterly tax payment schedule.
+            time_resolution (str): Time resolution for tax accrual calculation.
+                "annual" accrues full annual taxes, "monthly" accrues monthly portion.
+                Defaults to "annual".
 
         Returns:
             float: Net income after all expenses and taxes. Can be negative
@@ -1171,13 +1175,46 @@ class WidgetManufacturer:
 
         # Handle tax accruals if enabled
         if use_accrual and taxes > 0:
-            # Record tax expense as accrual with quarterly payment schedule
-            self.accrual_manager.record_expense_accrual(
-                item_type=AccrualType.TAXES,
-                amount=taxes,
-                payment_schedule=PaymentSchedule.QUARTERLY,
-                description=f"Year {self.current_year} tax liability",
-            )
+            # In monthly mode, only accrue taxes at specific points to avoid duplication
+            # Taxes are accrued quarterly in months 2, 5, 8, 11 (for Q1, Q2, Q3, Q4)
+            # This aligns with quarterly estimated tax payment requirements
+            should_accrue = False
+            payment_dates = None
+            if time_resolution == "annual":
+                # In annual mode, accrue the full year's taxes
+                # Payments will be made quarterly in the NEXT year
+                should_accrue = True
+                description = f"Year {self.current_year} tax liability"
+                # Set payment dates for next year's quarterly payments
+                next_year_base = (self.current_year + 1) * 12
+                payment_dates = [next_year_base + month for month in [3, 5, 8, 11]]
+            elif time_resolution == "monthly" and self.current_month in [2, 5, 8, 11]:
+                # In monthly mode, accrue quarterly taxes at end of each quarter
+                should_accrue = True
+                quarter = (self.current_month // 3) + 1
+                description = f"Year {self.current_year} Q{quarter} tax liability"
+                # For quarterly accruals, use immediate payment
+                payment_dates = None  # Will use default QUARTERLY schedule
+
+            if should_accrue:
+                # Record tax expense as accrual with quarterly payment schedule
+                if payment_dates:
+                    # Use custom payment dates for annual accrual
+                    self.accrual_manager.record_expense_accrual(
+                        item_type=AccrualType.TAXES,
+                        amount=taxes,
+                        payment_schedule=PaymentSchedule.CUSTOM,
+                        payment_dates=payment_dates,
+                        description=description,
+                    )
+                else:
+                    # Use default quarterly schedule
+                    self.accrual_manager.record_expense_accrual(
+                        item_type=AccrualType.TAXES,
+                        amount=taxes,
+                        payment_schedule=PaymentSchedule.QUARTERLY,
+                        description=description,
+                    )
 
         net_income = income_before_tax - taxes
 
@@ -2266,11 +2303,13 @@ class WidgetManufacturer:
         operating_income = self.calculate_operating_income(revenue, annual_depreciation)
         collateral_costs = self.calculate_collateral_costs()
         # Insurance costs already deducted in calculate_operating_income
+        # Don't accrue taxes here since this is just for metrics reporting
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
             0,  # Insurance premiums already deducted in operating_income
             0,  # Insurance losses already deducted in operating_income
+            use_accrual=False,  # Don't accrue in metrics calculation
         )
 
         metrics["revenue"] = revenue
@@ -2364,10 +2403,12 @@ class WidgetManufacturer:
             Total cash payments made for accruals in this period
         """
         # Determine current period for accrual manager
+        # Periods are always tracked in months for consistency
         if time_resolution == "monthly":
             period = self.current_year * 12 + self.current_month
         else:
-            period = self.current_year
+            # Annual resolution - convert year to months (assuming end of year)
+            period = self.current_year * 12
 
         # Sync accrual manager period
         self.accrual_manager.current_period = period
@@ -2383,6 +2424,9 @@ class WidgetManufacturer:
             # Reduce cash for payment
             self.cash -= amount_due
             total_paid += amount_due
+
+            # Update accrued_expenses balance
+            self.accrued_expenses = max(0, self.accrued_expenses - amount_due)
 
             logger.debug(f"Paid accrued {accrual_type.value}: ${amount_due:,.2f}")
 
@@ -2407,8 +2451,7 @@ class WidgetManufacturer:
             description=f"Period {self.current_year} wages",
         )
         # Update balance sheet accrued expenses
-        # Don't double-count if already in accrued_expenses
-        # This will be synced from accrual_manager in calculate_metrics
+        self.accrued_expenses += amount
 
     def record_claim_accrual(
         self, claim_amount: float, development_pattern: Optional[List[float]] = None
@@ -2423,16 +2466,15 @@ class WidgetManufacturer:
             claim_amount, development_pattern
         )
 
-        # Convert schedule to payment dates for accrual
-        payment_dates = [period for period, _ in payment_schedule]
-
-        self.accrual_manager.record_expense_accrual(
-            item_type=AccrualType.INSURANCE_CLAIMS,
-            amount=claim_amount,
-            payment_schedule=PaymentSchedule.CUSTOM,
-            payment_dates=payment_dates,
-            description=f"Claim from year {self.current_year}",
-        )
+        # Create separate accrual items for each payment to preserve amounts
+        for period, payment_amount in payment_schedule:
+            self.accrual_manager.record_expense_accrual(
+                item_type=AccrualType.INSURANCE_CLAIMS,
+                amount=payment_amount,
+                payment_schedule=PaymentSchedule.CUSTOM,
+                payment_dates=[period],
+                description=f"Claim from year {self.current_year}",
+            )
 
     def _apply_growth(
         self, growth_rate: float, time_resolution: str, apply_stochastic: bool
@@ -2622,6 +2664,8 @@ class WidgetManufacturer:
             collateral_costs,
             0,  # Insurance premiums already deducted in operating_income
             0,  # Insurance losses already deducted in operating_income
+            use_accrual=True,
+            time_resolution=time_resolution,
         )
 
         # Calculate working capital components
