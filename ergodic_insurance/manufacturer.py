@@ -1236,8 +1236,8 @@ class WidgetManufacturer:
         logger.info("=================================")
 
         # Add retained earnings to cash (increases assets, which increases equity through accounting equation)
-        # Ensure cash doesn't go negative (represents minimum operational requirements)
-        self.cash = max(0, self.cash + retained_earnings)
+        # Allow cash to go negative to properly detect insolvency
+        self.cash = self.cash + retained_earnings
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
