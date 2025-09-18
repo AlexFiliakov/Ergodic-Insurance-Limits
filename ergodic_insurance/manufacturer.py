@@ -2165,6 +2165,15 @@ class WidgetManufacturer:
             self.period_insurance_premiums + self.period_insurance_losses
         )
 
+        # Calculate and track dividends paid
+        dividends_paid = 0
+        if net_income > 0:
+            dividends_paid = net_income * (1 - self.retention_ratio)
+        metrics["dividends_paid"] = dividends_paid
+
+        # Track depreciation expense for cash flow statement
+        metrics["depreciation_expense"] = annual_depreciation
+
         # Financial ratios - ROE now includes all expenses
         metrics["asset_turnover"] = revenue / self.total_assets if self.total_assets > 0 else 0
 
