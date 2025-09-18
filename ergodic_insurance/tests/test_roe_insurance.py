@@ -38,9 +38,13 @@ class TestROEWithInsurance:
         # Calculate metrics without any insurance costs
         metrics = manufacturer.calculate_metrics()
 
-        # Expected ROE = base_operating_margin * (1 - tax_rate) * asset_turnover
-        # = 0.12 * 0.75 * 1.0 = 0.09 (9%)
-        expected_roe = 0.09
+        # Expected ROE with depreciation properly accounted for
+        # Operating income includes base margin minus depreciation
+        revenue = manufacturer.calculate_revenue()
+        annual_depreciation = manufacturer.gross_ppe / 10 if manufacturer.gross_ppe > 0 else 0.0
+        operating_income = revenue * 0.12 - annual_depreciation
+        net_income = operating_income * 0.75
+        expected_roe = net_income / manufacturer.equity
 
         assert metrics["roe"] == pytest.approx(expected_roe, rel=0.01)
         assert metrics["insurance_premiums"] == 0
@@ -57,11 +61,15 @@ class TestROEWithInsurance:
         metrics = manufacturer.calculate_metrics()
 
         # ROE should be reduced by the premium impact
-        # Net income = (revenue * margin - premium) * (1 - tax_rate)
+        # Net income = (revenue * margin - premium - depreciation) * (1 - tax_rate)
         # Use default working_capital_pct to match calculate_metrics()
         revenue = manufacturer.calculate_revenue()  # Uses default working_capital_pct=0.0
-        operating_income = revenue * 0.12
-        net_income_with_premium = (operating_income - premium) * 0.75
+        annual_depreciation = manufacturer.gross_ppe / 10 if manufacturer.gross_ppe > 0 else 0.0
+        operating_income = revenue * 0.12 - premium - annual_depreciation
+        # Apply taxes only on positive income
+        net_income_with_premium = (
+            operating_income * 0.75 if operating_income > 0 else operating_income
+        )
         expected_roe = net_income_with_premium / manufacturer.equity
 
         assert metrics["roe"] == pytest.approx(expected_roe, rel=0.01)
@@ -79,8 +87,12 @@ class TestROEWithInsurance:
 
         # ROE should be reduced by the loss impact
         revenue = manufacturer.calculate_revenue()  # Uses default working_capital_pct=0.0
-        operating_income = revenue * 0.12
-        net_income_with_losses = (operating_income - losses) * 0.75
+        annual_depreciation = manufacturer.gross_ppe / 10 if manufacturer.gross_ppe > 0 else 0.0
+        operating_income = revenue * 0.12 - losses - annual_depreciation
+        # Apply taxes only on positive income
+        net_income_with_losses = (
+            operating_income * 0.75 if operating_income > 0 else operating_income
+        )
         expected_roe = net_income_with_losses / manufacturer.equity
 
         assert metrics["roe"] == pytest.approx(expected_roe, rel=0.01)
@@ -102,8 +114,10 @@ class TestROEWithInsurance:
 
         # ROE should reflect both costs
         revenue = manufacturer.calculate_revenue()  # Uses default working_capital_pct=0.0
-        operating_income = revenue * 0.12
-        net_income = (operating_income - total_costs) * 0.75
+        annual_depreciation = manufacturer.gross_ppe / 10 if manufacturer.gross_ppe > 0 else 0.0
+        operating_income = revenue * 0.12 - total_costs - annual_depreciation
+        # Apply taxes only on positive income
+        net_income = operating_income * 0.75 if operating_income > 0 else operating_income
         expected_roe = net_income / manufacturer.equity
 
         assert metrics["roe"] == pytest.approx(expected_roe, rel=0.01)
@@ -129,10 +143,10 @@ class TestROEWithInsurance:
 
         # Verify the calculation
         revenue = manufacturer.calculate_revenue()  # Uses default working_capital_pct=0.0
-        operating_income = revenue * 0.12
-        income_before_tax = operating_income - premium - losses
-        taxes = max(0, income_before_tax * 0.25)  # No taxes on negative income
-        net_income = income_before_tax - taxes
+        annual_depreciation = manufacturer.gross_ppe / 10 if manufacturer.gross_ppe > 0 else 0.0
+        operating_income = revenue * 0.12 - premium - losses - annual_depreciation
+        taxes = max(0, operating_income * 0.25)  # No taxes on negative income
+        net_income = operating_income - taxes
         assert net_income < 0
         assert metrics["net_income"] < 0
         assert metrics["roe"] == pytest.approx(net_income / manufacturer.equity, rel=0.01)
@@ -249,7 +263,8 @@ class TestROEWithInsurance:
         stats = results.summary_stats()
 
         # ROE should reflect combined risk costs
-        assert stats["mean_roe"] < 0.09  # Less than theoretical max
+        # Updated threshold after proper depreciation accounting
+        assert stats["mean_roe"] < 0.12  # Less than base operating margin
         # Note: insurance_premiums may or may not be in the dataframe
         # depending on the simulation configuration
 
@@ -265,8 +280,10 @@ class TestROEWithInsurance:
 
         # Calculate expected values
         revenue = manufacturer.calculate_revenue()  # Uses default working_capital_pct=0.0
-        operating_income = revenue * 0.12
-        net_income = (operating_income - premium - losses) * 0.75
+        annual_depreciation = manufacturer.gross_ppe / 10 if manufacturer.gross_ppe > 0 else 0.0
+        operating_income = revenue * 0.12 - premium - losses - annual_depreciation
+        # Apply taxes only on positive income
+        net_income = operating_income * 0.75 if operating_income > 0 else operating_income
         expected_roe = net_income / manufacturer.equity
 
         # Get actual metrics
