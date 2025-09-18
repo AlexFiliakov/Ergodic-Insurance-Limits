@@ -181,8 +181,8 @@ class TestDepreciationTracking:
         # Try to amortize for 24 months at once (should stop at balance)
         total_amortized = manufacturer.amortize_prepaid_insurance(months=24)
 
-        assert total_amortized == premium
-        assert manufacturer.prepaid_insurance == 0
+        assert total_amortized == pytest.approx(premium, rel=1e-9)
+        assert manufacturer.prepaid_insurance == pytest.approx(0, abs=1e-9)
 
         # Further amortization should return 0
         additional_amortization = manufacturer.amortize_prepaid_insurance(months=1)

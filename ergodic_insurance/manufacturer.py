@@ -1374,10 +1374,13 @@ class WidgetManufacturer:
                 # Will amortize at $100K/month over 12 months
         """
         if annual_premium > 0:
-            self.prepaid_insurance += annual_premium
-            self.cash -= annual_premium
-            # Track original premium for proper amortization calculation
-            self._original_prepaid_premium = annual_premium
+            # Use insurance accounting module to properly track prepaid insurance
+            result = self.insurance_accounting.pay_annual_premium(annual_premium)
+
+            # Update balance sheet
+            self.prepaid_insurance = result["prepaid_asset"]
+            self.cash -= result["cash_outflow"]
+
             logger.info(f"Recorded prepaid insurance: ${annual_premium:,.2f}")
 
     def amortize_prepaid_insurance(self, months: int = 1) -> float:
