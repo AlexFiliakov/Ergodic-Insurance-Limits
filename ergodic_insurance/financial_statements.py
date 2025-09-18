@@ -248,7 +248,10 @@ class CashFlowStatement:
     def _calculate_financing_cash_flow(
         self, current: Dict[str, float], prior: Dict[str, float], period: str
     ) -> Dict[str, float]:
-        """Calculate financing cash flow (dividends and equity changes).
+        """Calculate financing cash flow (dividends, equity changes, and insurance premiums).
+
+        Insurance premium payments are included in financing activities as they
+        represent pre-funding of risk management activities, similar to debt service.
 
         Args:
             current: Current period metrics
@@ -263,9 +266,15 @@ class CashFlowStatement:
         if period == "monthly":
             dividends = dividends / 12
 
+        # Get insurance premium payments
+        insurance_premiums = current.get("insurance_premiums_paid", 0)
+        if period == "monthly":
+            insurance_premiums = insurance_premiums / 12
+
         financing_items = {
             "dividends_paid": -dividends,  # Cash outflow
-            "total": -dividends,
+            "insurance_premiums": -insurance_premiums,  # Cash outflow
+            "total": -(dividends + insurance_premiums),
         }
 
         return financing_items
@@ -544,13 +553,17 @@ class FinancialStatementGenerator:
         accounts_receivable = metrics.get("accounts_receivable", 0)
         inventory = metrics.get("inventory", 0)
         prepaid_insurance = metrics.get("prepaid_insurance", 0)
+        insurance_receivables = metrics.get("insurance_receivables", 0)
 
         data.append(("  Cash and Cash Equivalents", cash, "", ""))
         data.append(("  Accounts Receivable", accounts_receivable, "", ""))
+        data.append(("  Insurance Receivables", insurance_receivables, "", ""))
         data.append(("  Inventory", inventory, "", ""))
         data.append(("  Prepaid Insurance", prepaid_insurance, "", ""))
 
-        total_current = cash + accounts_receivable + inventory + prepaid_insurance
+        total_current = (
+            cash + accounts_receivable + inventory + prepaid_insurance + insurance_receivables
+        )
         data.append(("  Total Current Assets", total_current, "", "subtotal"))
         data.append(("", "", "", ""))
 
