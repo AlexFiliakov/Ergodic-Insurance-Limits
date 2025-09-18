@@ -200,7 +200,9 @@ class TestImportPatterns:
         # Test WidgetManufacturer instantiation with config
         manufacturer = WidgetManufacturer(config)
         assert manufacturer is not None, "Manufacturer should be created"
-        assert hasattr(manufacturer, "assets"), "Manufacturer should have assets attribute"
+        assert hasattr(
+            manufacturer, "total_assets"
+        ), "Manufacturer should have total_assets attribute"
         assert (
-            manufacturer.assets == config.initial_assets
+            manufacturer.total_assets == config.initial_assets
         ), "Manufacturer should initialize with config's initial_assets"

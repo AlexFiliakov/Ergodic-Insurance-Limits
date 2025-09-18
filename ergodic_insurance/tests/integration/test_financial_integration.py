@@ -97,7 +97,7 @@ class TestFinancialIntegration:
             year_state = {
                 "year": year,
                 "equity_before": manufacturer.equity,
-                "assets_before": manufacturer.assets,
+                "assets_before": manufacturer.total_assets,
             }
 
             # Process claims for this year
@@ -109,7 +109,7 @@ class TestFinancialIntegration:
                 )
 
             year_state["equity_after"] = manufacturer.equity
-            year_state["assets_after"] = manufacturer.assets
+            year_state["assets_after"] = manufacturer.total_assets
             year_state["payments"] = sum(c.amount for c in claims_in_year)
 
             states.append(year_state)
@@ -157,7 +157,7 @@ class TestFinancialIntegration:
             claims = standard_claim_generator.generate_claims(years=1)
 
             # Track asset position before claims
-            assets_before = manufacturer.assets
+            assets_before = manufacturer.total_assets
 
             for claim in claims:
                 manufacturer.process_insurance_claim(
@@ -170,7 +170,7 @@ class TestFinancialIntegration:
             manufacturer.step()
 
             # Track asset position after claims and step
-            assets_after = manufacturer.assets
+            assets_after = manufacturer.total_assets
 
             wc_history.append(
                 {
@@ -182,7 +182,7 @@ class TestFinancialIntegration:
             )
 
             # Verify financial constraints
-            assert manufacturer.assets >= 0, f"Negative assets in year {year}"
+            assert manufacturer.total_assets >= 0, f"Negative assets in year {year}"
             assert_financial_consistency(manufacturer)
 
         # Verify asset position responded to losses
@@ -216,26 +216,42 @@ class TestFinancialIntegration:
         # Run simulation with claim development
         results = simulation.run()
 
-        # Verify results structure
-        assert len(results.years) == 10
-        assert len(results.equity) == 10
-        assert len(results.assets) == 10
+        # Verify results structure - may be less than 10 if insolvency occurs
+        actual_years = len(results.years)
+        assert actual_years <= 10, "Should not exceed time horizon"
+        assert len(results.equity) == actual_years
+        assert len(results.assets) == actual_years
 
-        # Verify financial trajectories
-        assert validate_trajectory(
-            results.equity,
-            min_value=0,
-            allow_negative=False,
-        ), "Equity trajectory invalid"
+        # If simulation stopped early, it should be due to insolvency
+        if actual_years < 10:
+            assert (
+                results.insolvency_year is not None
+            ), "Early termination should be due to insolvency"
+            assert (
+                results.insolvency_year == actual_years - 1
+            ), "Insolvency year should match last year"
+            # Last recorded equity should be negative or zero
+            assert results.equity[-1] <= 0, "Final equity should be <= 0 at insolvency"
 
-        assert validate_trajectory(
-            results.assets,
-            min_value=0,
-            allow_negative=False,
-        ), "Assets trajectory invalid"
+        # Verify financial trajectories (only check if survived more than 1 year)
+        if actual_years > 1:
+            # Allow negative equity in the final year if insolvent
+            assert validate_trajectory(
+                results.equity[:-1] if results.insolvency_year else results.equity,
+                min_value=0,
+                allow_negative=False,
+            ), "Equity trajectory invalid (except final insolvent year)"
 
-        # Verify balance sheet consistency at each point
-        for i in range(len(results.years)):
+            # Allow negative assets in the final year if insolvent
+            assert validate_trajectory(
+                results.assets[:-1] if results.insolvency_year else results.assets,
+                min_value=0,
+                allow_negative=False,
+            ), "Assets trajectory invalid (except final insolvent year)"
+
+        # Verify balance sheet consistency at each point (except insolvency year)
+        years_to_check = len(results.years) - 1 if results.insolvency_year else len(results.years)
+        for i in range(years_to_check):
             # Approximate check since we don't have debt directly
             assert (
                 results.assets[i] >= results.equity[i] * 0.9
@@ -260,7 +276,7 @@ class TestFinancialIntegration:
 
         # Apply to manufacturer
         initial_equity = manufacturer.equity
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
 
         # Process first year payments
         if len(payment_schedule) > 0:
@@ -278,15 +294,19 @@ class TestFinancialIntegration:
         # Assertions
         if len(annual_losses) > 0:
             assert manufacturer.equity < initial_equity, "Equity should decrease from losses"
-        assert manufacturer.assets >= 0, "No negative assets allowed"
+        # Assets can be negative if the company becomes insolvent
+        if not manufacturer.is_ruined:
+            assert (
+                manufacturer.total_assets >= 0
+            ), "Non-insolvent companies shouldn't have negative assets"
         assert_financial_consistency(manufacturer)
 
-        # Verify balance sheet equation (for this simple model without debt)
+        # Verify balance sheet equation: Assets = Liabilities + Equity
         assert np.isclose(
-            manufacturer.assets,
-            manufacturer.equity,
+            manufacturer.total_assets,
+            manufacturer.total_liabilities + manufacturer.equity,
             rtol=1e-10,
-        ), "Balance sheet equation must hold (assets = equity without debt)"
+        ), f"Balance sheet equation must hold (Assets = Liabilities + Equity). Assets: {manufacturer.total_assets}, Liabilities: {manufacturer.total_liabilities}, Equity: {manufacturer.equity}"
 
     def test_cash_flow_timing(
         self,
@@ -307,12 +327,12 @@ class TestFinancialIntegration:
         developed_claim = ClaimEvent(year=0, amount=2_000_000)
 
         # Process immediate claim using uninsured claim method for immediate payment
-        assets_before_immediate = manufacturer.assets
+        assets_before_immediate = manufacturer.total_assets
         manufacturer.process_uninsured_claim(
             claim_amount=immediate_claim.amount,
             immediate_payment=True,
         )
-        assets_after_immediate = manufacturer.assets
+        assets_after_immediate = manufacturer.total_assets
 
         # Verify immediate asset impact
         asset_impact_immediate = assets_before_immediate - assets_after_immediate
@@ -322,7 +342,7 @@ class TestFinancialIntegration:
         manufacturer2 = base_manufacturer.copy()
 
         # Process developed claim using uninsured claim method with payment schedule
-        assets_before_developed = manufacturer2.assets
+        assets_before_developed = manufacturer2.total_assets
         manufacturer2.process_uninsured_claim(
             claim_amount=developed_claim.amount,
             immediate_payment=False,  # This creates a liability with payment schedule
@@ -330,7 +350,7 @@ class TestFinancialIntegration:
 
         # Manually trigger first year payment from the liability
         manufacturer2.pay_claim_liabilities()
-        assets_after_developed = manufacturer2.assets
+        assets_after_developed = manufacturer2.total_assets
 
         # First year impact should be less than total claim
         first_year_impact = assets_before_developed - assets_after_developed
@@ -451,7 +471,7 @@ class TestFinancialIntegration:
         initial_equity = manufacturer.equity
 
         # Apply catastrophic loss (50% of assets) with immediate payment
-        catastrophic_loss = manufacturer.assets * 0.5
+        catastrophic_loss = manufacturer.total_assets * 0.5
         manufacturer.process_uninsured_claim(
             claim_amount=catastrophic_loss,
             immediate_payment=True,
@@ -466,7 +486,7 @@ class TestFinancialIntegration:
         # Test near-bankruptcy scenario
         manufacturer2 = base_manufacturer.copy()
         initial_equity2 = manufacturer2.equity
-        bankruptcy_loss = manufacturer2.assets * 0.95
+        bankruptcy_loss = manufacturer2.total_assets * 0.95
         manufacturer2.process_uninsured_claim(
             claim_amount=bankruptcy_loss,
             immediate_payment=True,

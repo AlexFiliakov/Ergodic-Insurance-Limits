@@ -207,7 +207,7 @@ class TestBusinessOptimizer:
     def manufacturer(self):
         """Create mock manufacturer."""
         manufacturer = Mock(spec=WidgetManufacturer)
-        manufacturer.assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
         manufacturer.equity = 4_000_000
         manufacturer.liabilities = 6_000_000
         manufacturer.revenue = 5_000_000

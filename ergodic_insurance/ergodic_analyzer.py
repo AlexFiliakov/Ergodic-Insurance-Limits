@@ -2233,18 +2233,76 @@ class ErgodicAnalyzer:
         # Run Monte Carlo simulations
         simulation_results = []
         for sim_idx in range(n_simulations):
+            # Create fresh manufacturer instance for each simulation
+            import copy
+
+            mfg_copy = copy.deepcopy(manufacturer)
+
             # Create simulation with manufacturer
-            sim = Simulation(manufacturer=manufacturer, time_horizon=time_horizon, seed=sim_idx)
+            sim = Simulation(manufacturer=mfg_copy, time_horizon=time_horizon, seed=sim_idx)
 
-            # Apply losses for each year
-            for year, loss_amount in annual_losses.items():
+            # Initialize result storage
+            sim.years = np.arange(time_horizon)
+            sim.assets = np.zeros(time_horizon)
+            sim.equity = np.zeros(time_horizon)
+            sim.roe = np.zeros(time_horizon)
+            sim.revenue = np.zeros(time_horizon)
+            sim.net_income = np.zeros(time_horizon)
+            sim.claim_counts = np.zeros(time_horizon, dtype=int)
+            sim.claim_amounts = np.zeros(time_horizon)
+            sim.insolvency_year = None
+
+            # Step through each year manually
+            for year in range(time_horizon):
+                # Get losses for this year (if any)
+                loss_amount = annual_losses.get(year, 0.0)
+
+                # Create claim events for this year
+                claims = []
                 if loss_amount > 0:
-                    # Create claim event for this year
-                    claim = ClaimEvent(year=year, amount=loss_amount)
-                    sim.step_annual(year, [claim])
+                    claims.append(ClaimEvent(year=year, amount=loss_amount))
 
-            # Run remaining years without claims
-            result = sim.run()
+                # Execute time step
+                metrics = sim.step_annual(year, claims)
+
+                # Store results
+                sim.assets[year] = metrics.get("assets", 0)
+                sim.equity[year] = metrics.get("equity", 0)
+                sim.roe[year] = metrics.get("roe", 0)
+                sim.revenue[year] = metrics.get("revenue", 0)
+                sim.net_income[year] = metrics.get("net_income", 0)
+                sim.claim_counts[year] = metrics.get("claim_count", 0)
+                sim.claim_amounts[year] = metrics.get("claim_amount", 0)
+
+                # Check for insolvency
+                if metrics.get("equity", 0) <= 0:
+                    sim.insolvency_year = year
+                    # Fill remaining years with zeros
+                    sim.assets[year + 1 :] = 0
+                    sim.equity[year + 1 :] = 0
+                    sim.roe[year + 1 :] = np.nan
+                    sim.revenue[year + 1 :] = 0
+                    sim.net_income[year + 1 :] = 0
+                    break
+
+            # Create results object
+            from .simulation import SimulationResults
+
+            result = SimulationResults(
+                years=sim.years[: year + 1] if sim.insolvency_year else sim.years,
+                assets=sim.assets[: year + 1] if sim.insolvency_year else sim.assets,
+                equity=sim.equity[: year + 1] if sim.insolvency_year else sim.equity,
+                roe=sim.roe[: year + 1] if sim.insolvency_year else sim.roe,
+                revenue=sim.revenue[: year + 1] if sim.insolvency_year else sim.revenue,
+                net_income=sim.net_income[: year + 1] if sim.insolvency_year else sim.net_income,
+                claim_counts=sim.claim_counts[: year + 1]
+                if sim.insolvency_year
+                else sim.claim_counts,
+                claim_amounts=sim.claim_amounts[: year + 1]
+                if sim.insolvency_year
+                else sim.claim_amounts,
+                insolvency_year=sim.insolvency_year,
+            )
             simulation_results.append(result)
 
         # Calculate ergodic metrics

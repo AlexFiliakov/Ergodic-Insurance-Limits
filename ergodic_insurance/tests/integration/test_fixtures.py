@@ -548,15 +548,15 @@ def assert_financial_consistency(manufacturer: WidgetManufacturer) -> None:
     Raises:
         AssertionError: If financial state is inconsistent.
     """
-    # For this simple model without debt: assets = equity
+    # Check the fundamental accounting equation: Assets = Liabilities + Equity
     assert np.isclose(
-        manufacturer.assets,
-        manufacturer.equity,
+        manufacturer.total_assets,
+        manufacturer.total_liabilities + manufacturer.equity,
         rtol=1e-10,
-    ), "Balance sheet equation violated (assets should equal equity)"
+    ), "Balance sheet equation violated (Assets != Liabilities + Equity)"
 
     # Non-negative constraints
-    assert manufacturer.assets >= 0, "Negative assets"
+    assert manufacturer.total_assets >= 0, "Negative assets"
     assert (
         manufacturer.equity >= -1e-10
     ), "Significantly negative equity"  # Allow small numerical errors

@@ -261,4 +261,4 @@ class TestStochasticManufacturer:
 
         # Basic sanity check on final state
         assert manufacturer.current_year == 1000
-        assert manufacturer.assets > 0  # Should still have assets
+        assert manufacturer.total_assets > 0  # Should still have assets

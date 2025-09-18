@@ -321,7 +321,7 @@ class RuinProbabilityAnalyzer:
             Tuple of (is_bankrupt, updated_consecutive_negative_count)
         """
         is_bankrupt = False
-        current_assets = manufacturer.assets
+        current_assets = manufacturer.total_assets
         current_equity = metrics.get("equity", 0)
 
         # 1. Asset threshold
@@ -370,9 +370,10 @@ class RuinProbabilityAnalyzer:
         recovery = claim_result.get("total_recovery", 0)
         retained = total_loss - recovery
 
-        # Apply retained loss to manufacturer assets
+        # Apply retained loss to manufacturer cash
+        # Allow cash to go negative for proper bankruptcy detection
         if retained > 0:
-            manufacturer.assets = max(0, manufacturer.assets - retained)
+            manufacturer.cash -= retained
 
         # Update state
         metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)

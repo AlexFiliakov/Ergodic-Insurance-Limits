@@ -698,7 +698,7 @@ class InsuranceDecisionEngine:
         # Insurance cost ceiling constraint
         def insurance_cost_constraint(x):
             premium = self._calculate_premium(x)
-            revenue = self.manufacturer.assets * self.manufacturer.asset_turnover_ratio
+            revenue = self.manufacturer.total_assets * self.manufacturer.asset_turnover_ratio
             cost_ratio = premium / revenue if revenue > 0 else 0
             return constraints.max_insurance_cost_ratio - cost_ratio
 
@@ -749,7 +749,7 @@ class InsuranceDecisionEngine:
 
             # Cost component (minimize premium as % of assets)
             premium = self._calculate_premium(x)
-            assets = self.manufacturer.assets
+            assets = self.manufacturer.total_assets
             cost_obj = weights["cost"] * (premium / assets) * 10  # Scale
 
             total = growth_obj + risk_obj + cost_obj
@@ -790,7 +790,7 @@ class InsuranceDecisionEngine:
 
         # Insurance benefit increases growth by reducing volatility drag
         coverage = sum(layer_limits)
-        coverage_ratio = coverage / self.manufacturer.assets
+        coverage_ratio = coverage / self.manufacturer.total_assets
 
         # Estimate volatility reduction
         volatility_reduction = min(coverage_ratio * 0.3, 0.15)  # Max 15% reduction
@@ -1031,7 +1031,7 @@ class InsuranceDecisionEngine:
 
             # Calculate component breakdown (simplified version)
             base_operating_roe = 0.08 / 0.3  # Assuming 8% margin and 30% equity ratio
-            insurance_cost_impact = -decision.total_premium / (self.manufacturer.assets * 0.3)
+            insurance_cost_impact = -decision.total_premium / (self.manufacturer.total_assets * 0.3)
 
             time_weighted_roe = roe_analyzer.time_weighted_average()
             roe_volatility = volatility_metrics.get("standard_deviation", 0.0)
@@ -1052,7 +1052,7 @@ class InsuranceDecisionEngine:
             roe_3yr = np.mean(with_insurance_results["roe"])
             roe_5yr = np.mean(with_insurance_results["roe"])
             base_operating_roe = 0.08 / 0.3
-            insurance_cost_impact = -decision.total_premium / (self.manufacturer.assets * 0.3)
+            insurance_cost_impact = -decision.total_premium / (self.manufacturer.total_assets * 0.3)
 
         # Calculate metrics
         metrics = DecisionMetrics(
@@ -1129,7 +1129,7 @@ class InsuranceDecisionEngine:
 
         for i in range(n_simulations):
             # Initialize company state
-            assets = self.manufacturer.assets
+            assets = self.manufacturer.total_assets
             equity = assets * 0.3  # Assume 30% equity ratio
 
             bankrupt = False
@@ -1345,8 +1345,8 @@ class InsuranceDecisionEngine:
 
         elif parameter == "capital_base":
             # Modify manufacturer capital
-            original_state["assets"] = self.manufacturer.assets
-            self.manufacturer.assets *= 1 + variation
+            original_state["total_assets"] = self.manufacturer.total_assets
+            self.manufacturer.total_assets *= 1 + variation
 
         # Return original state for restoration
         return original_state

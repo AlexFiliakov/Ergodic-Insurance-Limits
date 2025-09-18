@@ -471,11 +471,12 @@ class TestRuinProbabilityEstimation:
         engine, loss_generator = setup_ruin_engine
 
         # Mock loss events - create severe losses to trigger bankruptcy
+        # Need larger loss to account for PP&E assets that can't be immediately liquidated
         from ergodic_insurance.loss_distributions import LossEvent
 
         loss_generator.generate_losses.return_value = (
-            [LossEvent(time=0.5, amount=15_000_000, loss_type="catastrophic")],
-            {"total_amount": 15_000_000},
+            [LossEvent(time=0.5, amount=20_000_000, loss_type="catastrophic")],
+            {"total_amount": 20_000_000},
         )
 
         config = RuinProbabilityConfig(
@@ -503,8 +504,8 @@ class TestRuinProbabilityEstimation:
             active_causes = {k: v.any() for k, v in causes.items() if hasattr(v, "any")}
             pytest.fail(
                 f"Expected bankruptcy within 5 years but got year {bankruptcy_year}. "
-                f"Initial manufacturer assets: {engine.manufacturer.assets:,}, "
-                f"Loss amount: 15,000,000, Insurance limit: {engine.insurance_program.layers[0].limit:,}, "
+                f"Initial manufacturer total_assets: {engine.manufacturer.total_assets:,}, "
+                f"Loss amount: 20,000,000, Insurance limit: {engine.insurance_program.layers[0].limit:,}, "
                 f"Active bankruptcy causes: {active_causes}"
             )
 
@@ -613,10 +614,10 @@ class TestRuinProbabilityEstimation:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                # First year: catastrophic loss
+                # First year: catastrophic loss that exceeds all assets including PP&E
                 return (
-                    [LossEvent(time=0.5, amount=20_000_000, loss_type="catastrophic")],
-                    {"total_amount": 20_000_000},
+                    [LossEvent(time=0.5, amount=25_000_000, loss_type="catastrophic")],
+                    {"total_amount": 25_000_000},
                 )
             # Subsequent years: normal losses (shouldn't be called with early stopping)
             return (
@@ -643,7 +644,8 @@ class TestRuinProbabilityEstimation:
         result = analyzer._run_single_ruin_simulation(0, 10, config)
 
         # With early stopping, should stop shortly after bankruptcy
-        assert result["bankruptcy_year"] <= 3  # May take a couple years to fully bankrupt
+        # Allow more time due to PP&E assets that provide cushion
+        assert result["bankruptcy_year"] <= 5  # May take a few years with PP&E cushion
         # Should stop early, not run all 10 years
         assert call_count < 10
 

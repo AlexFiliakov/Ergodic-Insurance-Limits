@@ -33,8 +33,19 @@ class TestDepreciationTracking:
 
     def test_initial_ppe_allocation(self, manufacturer):
         """Test that initial assets are properly allocated to PP&E."""
-        # By default, 70% of initial assets are PP&E
-        expected_ppe = manufacturer.config.initial_assets * 0.7
+        # PP&E allocation now depends on operating margin
+        # < 10% margin: 30% PP&E
+        # 10-15% margin: 50% PP&E
+        # > 15% margin: 70% PP&E
+        margin = manufacturer.config.base_operating_margin
+        if margin < 0.10:
+            expected_ppe_ratio = 0.3
+        elif margin < 0.15:
+            expected_ppe_ratio = 0.5
+        else:
+            expected_ppe_ratio = 0.7
+
+        expected_ppe = manufacturer.config.initial_assets * expected_ppe_ratio
         assert manufacturer.gross_ppe == expected_ppe
         assert manufacturer.accumulated_depreciation == 0
         assert manufacturer.net_ppe == expected_ppe
@@ -225,7 +236,15 @@ class TestDepreciationTracking:
         # Should be back to initial state
         assert manufacturer.accumulated_depreciation == 0
         assert manufacturer.prepaid_insurance == 0
-        assert manufacturer.gross_ppe == manufacturer.config.initial_assets * 0.7
+        # PP&E allocation depends on margin - with 8% margin, it's 30%
+        margin = manufacturer.config.base_operating_margin
+        if margin < 0.10:
+            expected_ppe_ratio = 0.3
+        elif margin < 0.15:
+            expected_ppe_ratio = 0.5
+        else:
+            expected_ppe_ratio = 0.7
+        assert manufacturer.gross_ppe == manufacturer.config.initial_assets * expected_ppe_ratio
 
     def test_different_useful_lives(self, manufacturer):
         """Test depreciation with different useful life assumptions."""

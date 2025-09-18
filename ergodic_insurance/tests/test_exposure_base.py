@@ -45,7 +45,7 @@ class TestRevenueExposure:
         assert exposure.get_frequency_multiplier(1.0) == 1.0
 
         # WHEN: Manufacturer revenue doubles through business growth
-        manufacturer.assets = 20_000_000  # Revenue will be $20M
+        manufacturer.total_assets = 20_000_000  # Revenue will be $20M
 
         # THEN: Frequency multiplier should reflect actual 2x revenue
         assert exposure.get_exposure(1.0) == 20_000_000
@@ -113,7 +113,7 @@ class TestAssetExposure:
         assert exposure.get_frequency_multiplier(1.0) == 1.0
 
         # WHEN: Large claim reduces assets to $30M
-        manufacturer.assets = 30_000_000
+        manufacturer.total_assets = 30_000_000
 
         # THEN: Frequency multiplier should be 0.6 (30M/50M)
         assert exposure.get_exposure(1.0) == 30_000_000
@@ -138,8 +138,8 @@ class TestAssetExposure:
 
         # Assets will be affected by the claim processing
         # Frequency should scale with actual asset ratio
-        assert exposure.get_exposure(1.0) == manufacturer.assets
-        assert exposure.get_frequency_multiplier(1.0) == manufacturer.assets / 50_000_000
+        assert exposure.get_exposure(1.0) == manufacturer.total_assets
+        assert exposure.get_frequency_multiplier(1.0) == manufacturer.total_assets / 50_000_000
 
     def test_zero_base_assets(self):
         """Test handling of zero base assets."""
@@ -152,7 +152,14 @@ class TestAssetExposure:
         )
         manufacturer = WidgetManufacturer(config)
         # Manually set to zero for testing edge case
-        manufacturer.assets = 0
+        # Set all asset components to zero
+        manufacturer.cash = 0
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.accumulated_depreciation = 0
+        manufacturer.restricted_assets = 0
         manufacturer._initial_assets = 0
         exposure = AssetExposure(state_provider=manufacturer)
 
@@ -181,7 +188,10 @@ class TestEquityExposure:
         assert exposure.get_frequency_multiplier(1.0) == 1.0
 
         # WHEN: Profitable operations increase equity
-        manufacturer.equity = 25_000_000
+        # To set equity to 25M, adjust cash (equity = assets - liabilities)
+        current_equity = manufacturer.equity
+        equity_adjustment = 25_000_000 - current_equity
+        manufacturer.cash += equity_adjustment
 
         # THEN: Frequency scales with cube root of equity ratio
         assert exposure.get_exposure(1.0) == 25_000_000
@@ -202,7 +212,10 @@ class TestEquityExposure:
         exposure = EquityExposure(state_provider=manufacturer)
 
         # WHEN: Claims cause negative equity (bankruptcy)
-        manufacturer.equity = -500_000
+        # To set equity to -500k, adjust cash
+        current_equity = manufacturer.equity
+        equity_adjustment = -500_000 - current_equity
+        manufacturer.cash += equity_adjustment
 
         # THEN: Frequency multiplier should be 0 (no exposure when bankrupt)
         assert exposure.get_exposure(1.0) == -500_000
@@ -221,7 +234,10 @@ class TestEquityExposure:
         exposure = EquityExposure(state_provider=manufacturer)
 
         # Double the equity
-        manufacturer.equity = 40_000_000
+        # To set equity to 40M, adjust cash
+        current_equity = manufacturer.equity
+        equity_adjustment = 40_000_000 - current_equity
+        manufacturer.cash += equity_adjustment
 
         # Multiplier should be 2^(1/3) ≈ 1.26, not 2.0
         expected = 2.0
@@ -643,7 +659,7 @@ class TestClaimGeneratorIntegration:
         assert gen.get_adjusted_frequency(0) == 1.0  # Base year
 
         # Simulate business growth
-        manufacturer.assets = 11_000_000
+        manufacturer.total_assets = 11_000_000
         assert gen.get_adjusted_frequency(1) > 1.0  # Should increase
 
         # Generate claims
@@ -677,7 +693,7 @@ class TestClaimGeneratorIntegration:
             gen.reset_seed(seed)
 
             # Reset manufacturer for each simulation
-            manufacturer.assets = 10_000_000
+            manufacturer.total_assets = 10_000_000
 
             # Generate claims for early years
             early_claims = gen.generate_year(0)
@@ -708,7 +724,14 @@ class TestClaimGeneratorIntegration:
         manufacturer = WidgetManufacturer(config)
 
         # Manually set to zero after creation to test edge case
-        manufacturer.assets = 0
+        # Set all asset components to zero
+        manufacturer.cash = 0
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.accumulated_depreciation = 0
+        manufacturer.restricted_assets = 0
         manufacturer._initial_assets = 0
         manufacturer.asset_turnover_ratio = 0.0
 

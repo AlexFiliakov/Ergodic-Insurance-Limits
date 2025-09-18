@@ -145,7 +145,7 @@ class TestRuinProbabilityAnalyzer:
     def mock_manufacturer(self):
         """Create mock manufacturer."""
         manufacturer = MagicMock()
-        manufacturer.assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
         manufacturer.debt = 0  # Set default debt value
         manufacturer.calculate_revenue.return_value = 5_000_000
         manufacturer.step.return_value = {"equity": 1_000_000, "operating_income": 500_000}
@@ -153,7 +153,7 @@ class TestRuinProbabilityAnalyzer:
         # Create a proper copy method that preserves attributes
         def copy_manufacturer():
             copy_mfg = MagicMock()
-            copy_mfg.assets = manufacturer.assets
+            copy_mfg.total_assets = manufacturer.total_assets
             copy_mfg.debt = 0  # Important: set debt on copy
             copy_mfg.calculate_revenue = manufacturer.calculate_revenue
             copy_mfg.step = manufacturer.step
@@ -256,7 +256,7 @@ class TestRuinProbabilityAnalyzer:
     def test_check_bankruptcy_conditions_asset_threshold(self, analyzer):
         """Test bankruptcy due to asset threshold."""
         manufacturer = MagicMock()
-        manufacturer.assets = 500_000
+        manufacturer.total_assets = 500_000
         manufacturer.debt = 0
 
         config = RuinProbabilityConfig(min_assets_threshold=1_000_000)
@@ -277,7 +277,7 @@ class TestRuinProbabilityAnalyzer:
     def test_check_bankruptcy_conditions_equity_threshold(self, analyzer):
         """Test bankruptcy due to equity threshold."""
         manufacturer = MagicMock()
-        manufacturer.assets = 2_000_000
+        manufacturer.total_assets = 2_000_000
         manufacturer.debt = 0
 
         config = RuinProbabilityConfig(min_equity_threshold=100_000)
@@ -298,7 +298,7 @@ class TestRuinProbabilityAnalyzer:
     def test_check_bankruptcy_conditions_consecutive_negative(self, analyzer):
         """Test bankruptcy due to consecutive negative equity."""
         manufacturer = MagicMock()
-        manufacturer.assets = 2_000_000
+        manufacturer.total_assets = 2_000_000
         manufacturer.debt = 0
 
         config = RuinProbabilityConfig(
@@ -335,7 +335,7 @@ class TestRuinProbabilityAnalyzer:
     def test_check_bankruptcy_conditions_debt_service(self, analyzer):
         """Test bankruptcy due to debt service coverage."""
         manufacturer = MagicMock()
-        manufacturer.assets = 2_000_000
+        manufacturer.total_assets = 2_000_000
         manufacturer.debt = 1_000_000
 
         config = RuinProbabilityConfig(debt_service_coverage_ratio=1.25)
@@ -357,7 +357,7 @@ class TestRuinProbabilityAnalyzer:
     def test_check_bankruptcy_conditions_reset_consecutive(self, analyzer):
         """Test resetting consecutive negative count."""
         manufacturer = MagicMock()
-        manufacturer.assets = 2_000_000
+        manufacturer.total_assets = 2_000_000
         manufacturer.debt = 0
 
         config = RuinProbabilityConfig()
@@ -634,7 +634,7 @@ class TestRuinProbabilityAnalyzer:
         )
 
         # Mock to make it bankrupt late
-        mock_manufacturer.assets = 6_000_000
+        mock_manufacturer.total_assets = 6_000_000
 
         result = analyzer._run_single_ruin_simulation(0, 3, config)
 

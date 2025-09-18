@@ -312,11 +312,11 @@ class TestMonteCarloIntegration:
 
         # Create a proper manufacturer mock with copy method
         manufacturer = MagicMock()
-        manufacturer.assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
 
         # Create a copy that returns a new mock with the same attributes
         manufacturer_copy = MagicMock()
-        manufacturer_copy.assets = 10_000_000
+        manufacturer_copy.total_assets = 10_000_000
         manufacturer_copy.calculate_revenue.return_value = 5_000_000
         manufacturer_copy.process_insurance_claim.return_value = None
         manufacturer_copy.step.return_value = {"revenue": 5_000_000}
