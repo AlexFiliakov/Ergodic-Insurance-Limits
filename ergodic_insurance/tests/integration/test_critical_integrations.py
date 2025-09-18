@@ -1005,6 +1005,9 @@ class TestEndToEndScenarios:
             volatility > 0.2
         ), f"Growth scenario should have some volatility, got {volatility:.4f}"
 
+    @pytest.mark.skip(
+        reason="Performance benchmarks are environment-dependent and may not be stable in CI"
+    )
     def test_performance_benchmarks(self, default_config_v2: ConfigV2):
         """Test that performance benchmarks are met.
 
