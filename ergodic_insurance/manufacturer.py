@@ -196,17 +196,24 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 try:
     # Try absolute import first (for installed package)
+    from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
     from ergodic_insurance.config import ManufacturerConfig
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.stochastic_processes import StochasticProcess
 except ImportError:
     try:
         # Try relative import (for package context)
+        from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
         from .config import ManufacturerConfig
         from .insurance_accounting import InsuranceAccounting
         from .stochastic_processes import StochasticProcess
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
+        from accrual_manager import (  # type: ignore[no-redef]
+            AccrualManager,
+            AccrualType,
+            PaymentSchedule,
+        )
         from config import ManufacturerConfig  # type: ignore[no-redef]
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
@@ -510,6 +517,9 @@ class WidgetManufacturer:
 
         # Insurance accounting module
         self.insurance_accounting = InsuranceAccounting()
+
+        # Accrual management for timing differences
+        self.accrual_manager = AccrualManager()
 
         # Operating parameters
         self.asset_turnover_ratio = config.asset_turnover_ratio
@@ -1092,6 +1102,7 @@ class WidgetManufacturer:
         collateral_costs: float,
         insurance_premiums: float = 0.0,
         insurance_losses: float = 0.0,
+        use_accrual: bool = True,
     ) -> float:
         """Calculate net income after collateral costs and taxes.
 
@@ -1110,6 +1121,8 @@ class WidgetManufacturer:
                 already includes these, pass 0. Defaults to 0.0.
             insurance_losses (float): Insurance loss/deductible costs to deduct. If operating_income
                 already includes these, pass 0. Defaults to 0.0.
+            use_accrual (bool): Whether to use accrual accounting for taxes.
+                Defaults to True for quarterly tax payment schedule.
 
         Returns:
             float: Net income after all expenses and taxes. Can be negative
@@ -1136,6 +1149,7 @@ class WidgetManufacturer:
             - Collateral costs are tax-deductible financing expenses
             - Taxes are only applied to positive pre-tax income
             - Loss years generate no tax benefit in this model
+            - When use_accrual=True, taxes are accrued and paid quarterly
 
             The tax calculation is:
             - Income before tax = operating_income - collateral_costs
@@ -1155,6 +1169,16 @@ class WidgetManufacturer:
         # Calculate taxes (only on positive income)
         taxes = max(0, income_before_tax * self.tax_rate)
 
+        # Handle tax accruals if enabled
+        if use_accrual and taxes > 0:
+            # Record tax expense as accrual with quarterly payment schedule
+            self.accrual_manager.record_expense_accrual(
+                item_type=AccrualType.TAXES,
+                amount=taxes,
+                payment_schedule=PaymentSchedule.QUARTERLY,
+                description=f"Year {self.current_year} tax liability",
+            )
+
         net_income = income_before_tax - taxes
 
         # Enhanced profit waterfall logging for complete transparency
@@ -1168,6 +1192,8 @@ class WidgetManufacturer:
             logger.info(f"  - Collateral Costs:    ${collateral_costs:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
         logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${taxes:,.2f}")
+        if use_accrual and taxes > 0:
+            logger.info(f"    (Accrued for quarterly payment)")
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
 
@@ -2214,10 +2240,24 @@ class WidgetManufacturer:
         metrics["inventory"] = self.inventory
         metrics["prepaid_insurance"] = self.prepaid_insurance
         metrics["accounts_payable"] = self.accounts_payable
-        metrics["accrued_expenses"] = self.accrued_expenses
+
+        # Get detailed accrual breakdown from AccrualManager
+        accrual_items = self.accrual_manager.get_balance_sheet_items()
+
+        # Update total accrued expenses from accrual manager
+        total_accrued_expenses = accrual_items.get("accrued_expenses", 0)
+        # Also include any legacy accrued_expenses not in the manager
+        metrics["accrued_expenses"] = max(self.accrued_expenses, total_accrued_expenses)
+
         metrics["gross_ppe"] = self.gross_ppe
         metrics["accumulated_depreciation"] = self.accumulated_depreciation
         metrics["net_ppe"] = self.net_ppe
+
+        # Add detailed accrual breakdown
+        metrics["accrued_wages"] = accrual_items.get("accrued_wages", 0)
+        metrics["accrued_taxes"] = accrual_items.get("accrued_taxes", 0)
+        metrics["accrued_interest"] = accrual_items.get("accrued_interest", 0)
+        metrics["accrued_revenues"] = accrual_items.get("accrued_revenues", 0)
 
         # Calculate operating metrics for current state
         revenue = self.calculate_revenue()
@@ -2309,6 +2349,90 @@ class WidgetManufacturer:
                 self.current_year += 1
         else:
             self.current_year += 1
+
+    def process_accrued_payments(self, time_resolution: str = "annual") -> float:
+        """Process due accrual payments for the current period.
+
+        Checks for accrual payments due in the current period and processes
+        them, reducing cash and clearing the accruals. This method supports
+        quarterly tax payments and other scheduled accrual payments.
+
+        Args:
+            time_resolution: "annual" or "monthly" for determining current period
+
+        Returns:
+            Total cash payments made for accruals in this period
+        """
+        # Determine current period for accrual manager
+        if time_resolution == "monthly":
+            period = self.current_year * 12 + self.current_month
+        else:
+            period = self.current_year
+
+        # Sync accrual manager period
+        self.accrual_manager.current_period = period
+
+        # Get all payments due this period
+        payments_due = self.accrual_manager.get_payments_due(period)
+
+        total_paid = 0.0
+        for accrual_type, amount_due in payments_due.items():
+            # Process the payment
+            self.accrual_manager.process_payment(accrual_type, amount_due, period)
+
+            # Reduce cash for payment
+            self.cash -= amount_due
+            total_paid += amount_due
+
+            logger.debug(f"Paid accrued {accrual_type.value}: ${amount_due:,.2f}")
+
+        if total_paid > 0:
+            logger.info(f"Total accrual payments this period: ${total_paid:,.2f}")
+
+        return total_paid
+
+    def record_wage_accrual(
+        self, amount: float, payment_schedule: PaymentSchedule = PaymentSchedule.IMMEDIATE
+    ) -> None:
+        """Record accrued wages to be paid later.
+
+        Args:
+            amount: Wage amount to accrue
+            payment_schedule: When wages will be paid
+        """
+        self.accrual_manager.record_expense_accrual(
+            item_type=AccrualType.WAGES,
+            amount=amount,
+            payment_schedule=payment_schedule,
+            description=f"Period {self.current_year} wages",
+        )
+        # Update balance sheet accrued expenses
+        # Don't double-count if already in accrued_expenses
+        # This will be synced from accrual_manager in calculate_metrics
+
+    def record_claim_accrual(
+        self, claim_amount: float, development_pattern: Optional[List[float]] = None
+    ) -> None:
+        """Record insurance claim with multi-year payment schedule.
+
+        Args:
+            claim_amount: Total claim amount to be paid
+            development_pattern: Optional custom payment pattern over years
+        """
+        payment_schedule = self.accrual_manager.get_claim_payment_schedule(
+            claim_amount, development_pattern
+        )
+
+        # Convert schedule to payment dates for accrual
+        payment_dates = [period for period, _ in payment_schedule]
+
+        self.accrual_manager.record_expense_accrual(
+            item_type=AccrualType.INSURANCE_CLAIMS,
+            amount=claim_amount,
+            payment_schedule=PaymentSchedule.CUSTOM,
+            payment_dates=payment_dates,
+            description=f"Claim from year {self.current_year}",
+        )
 
     def _apply_growth(
         self, growth_rate: float, time_resolution: str, apply_stochastic: bool
@@ -2449,6 +2573,9 @@ class WidgetManufacturer:
         # Check if already ruined
         if self.is_ruined:
             return self._handle_insolvent_step(time_resolution)
+
+        # Process accrual payments due this period (e.g., quarterly taxes)
+        self.process_accrued_payments(time_resolution)
 
         # Pay scheduled claim liabilities first (annual payments)
         if time_resolution == "annual" or self.current_month == 0:
@@ -2643,6 +2770,9 @@ class WidgetManufacturer:
         # Reset initial values (for exposure bases)
         self._initial_assets = self.config.initial_assets
         self._initial_equity = self.config.initial_assets
+
+        # Reset accrual manager
+        self.accrual_manager = AccrualManager()
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:
