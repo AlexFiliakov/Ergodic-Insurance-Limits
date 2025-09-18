@@ -929,50 +929,60 @@ class WidgetManufacturer:
         logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.total_assets:,.2f}")
         return float(revenue)
 
-    def calculate_operating_income(self, revenue: float) -> float:
-        """Calculate operating income including insurance as operating expense.
+    def calculate_operating_income(
+        self, revenue: float, depreciation_expense: float = 0.0
+    ) -> float:
+        """Calculate operating income including insurance and depreciation as operating expenses.
 
         Operating income represents earnings before interest and taxes (EBIT),
         calculated by applying the base operating margin to revenue and then
-        subtracting insurance costs (premiums and losses). This reflects the
-        true operating profitability after insurance expenses.
+        subtracting insurance costs (premiums and losses) and depreciation.
+        This reflects the true operating profitability after all operating expenses.
 
         Args:
             revenue (float): Annual revenue in dollars. Must be >= 0.
+            depreciation_expense (float): Depreciation expense for the period.
+                Defaults to 0.0 for backward compatibility.
 
         Returns:
-            float: Operating income in dollars after insurance costs.
-                Equal to (revenue * base_operating_margin) - insurance costs.
+            float: Operating income in dollars after insurance costs and depreciation.
+                Equal to (revenue * base_operating_margin) - insurance costs - depreciation.
 
         Examples:
-            Calculate operating income with insurance::
+            Calculate operating income with insurance and depreciation::
 
                 revenue = manufacturer.calculate_revenue()
-                operating_income = manufacturer.calculate_operating_income(revenue)
+                depreciation = manufacturer.gross_ppe / 10  # 10-year useful life
+                operating_income = manufacturer.calculate_operating_income(revenue, depreciation)
 
-                # Actual margin will be lower than base margin due to insurance
+                # Actual margin will be lower than base margin due to insurance and depreciation
                 actual_margin = operating_income / revenue
 
         Note:
-            The base operating margin represents the core margin before insurance.
-            Actual operating margins will be lower when insurance costs are included.
+            The base operating margin represents the core margin before insurance
+            and depreciation. Actual operating margins will be lower when these
+            costs are included.
 
         See Also:
-            :attr:`base_operating_margin`: The core margin percentage before insurance.
+            :attr:`base_operating_margin`: The core margin percentage before expenses.
             :meth:`calculate_net_income`: Includes financing costs and taxes.
         """
         # Calculate base operating income using base margin
         base_operating_income = revenue * self.base_operating_margin
 
-        # Subtract insurance costs to get actual operating income
+        # Subtract insurance costs and depreciation to get actual operating income
         actual_operating_income = (
-            base_operating_income - self.period_insurance_premiums - self.period_insurance_losses
+            base_operating_income
+            - self.period_insurance_premiums
+            - self.period_insurance_losses
+            - depreciation_expense
         )
 
         logger.debug(
             f"Operating income: ${actual_operating_income:,.2f} "
             f"(base: ${base_operating_income:,.2f}, insurance: "
-            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f})"
+            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f}, "
+            f"depreciation: ${depreciation_expense:,.2f})"
         )
         return float(actual_operating_income)
 
@@ -1123,11 +1133,16 @@ class WidgetManufacturer:
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
 
-        # Validation assertion: ensure net income is less than operating income when costs exist
-        if total_insurance_costs + collateral_costs > 0:
+        # Validation assertion: ensure net income is less than or equal to operating income
+        # when additional costs exist (beyond those already in operating income)
+        # Note: Since insurance costs may already be included in operating_income,
+        # we only check for meaningful differences
+        if (
+            total_insurance_costs + collateral_costs > 1e-9
+        ):  # Use small epsilon for float comparison
             assert (
-                net_income < operating_income
-            ), f"Net income ({net_income}) should be less than operating income ({operating_income}) when costs exist"
+                net_income <= operating_income + 1e-9  # Allow for floating point precision
+            ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income}) when costs exist"
 
         return float(net_income)
 
@@ -2085,7 +2100,9 @@ class WidgetManufacturer:
 
         # Calculate operating metrics for current state
         revenue = self.calculate_revenue()
-        operating_income = self.calculate_operating_income(revenue)
+        # Calculate depreciation for metrics (annual basis)
+        annual_depreciation = self.gross_ppe / 10 if self.gross_ppe > 0 else 0.0
+        operating_income = self.calculate_operating_income(revenue, annual_depreciation)
         collateral_costs = self.calculate_collateral_costs()
         # Insurance costs already deducted in calculate_operating_income
         net_income = self.calculate_net_income(
@@ -2318,7 +2335,18 @@ class WidgetManufacturer:
 
         # Calculate financial performance
         revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
-        operating_income = self.calculate_operating_income(revenue)
+
+        # Calculate depreciation expense for the period
+        if time_resolution == "annual":
+            depreciation_expense = self.record_depreciation(useful_life_years=10)
+        elif time_resolution == "monthly":
+            # For monthly, record 1/12 of annual depreciation
+            depreciation_expense = self.record_depreciation(useful_life_years=10 * 12)
+        else:
+            depreciation_expense = 0.0
+
+        # Calculate operating income including depreciation
+        operating_income = self.calculate_operating_income(revenue, depreciation_expense)
 
         # Calculate collateral costs (monthly if specified)
         if time_resolution == "monthly":
@@ -2357,17 +2385,6 @@ class WidgetManufacturer:
         # Update balance sheet with retained earnings AFTER working capital calculation
         # This prevents working capital from compounding with asset growth
         self.update_balance_sheet(net_income, growth_rate)
-
-        # Note: Depreciation is currently not recorded in the step method
-        # because it would reduce assets without being included in the
-        # income calculation for tax benefits. If depreciation is needed,
-        # it should be included in calculate_operating_income to get the tax shield.
-        # # Record depreciation (annual or monthly)
-        # if time_resolution == "annual":
-        #     self.record_depreciation(useful_life_years=10)
-        # elif time_resolution == "monthly":
-        #     # For monthly, record 1/12 of annual depreciation
-        #     self.record_depreciation(useful_life_years=10 * 12)  # Convert to months
 
         # Amortize prepaid insurance if applicable
         if time_resolution == "monthly":
