@@ -216,7 +216,7 @@ class TestRealWorldScenarios:
 
         # Verify cost-effective protection
         assert decision.total_premium <= constraints.max_premium_budget
-        revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
+        revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
         assert decision.total_premium / revenue <= constraints.max_insurance_cost_ratio
         # In severe downturn with 3% margins, bankruptcy risk will be very high
         # This is realistic - insurance can't fully protect against business failure
@@ -247,7 +247,7 @@ class TestMultiYearOptimizationScenarios:
         # Simulate 3-year growth phase
         for year in range(3):
             # Update manufacturer size (simulate growth)
-            manufacturer.assets *= 1.3  # 30% annual growth
+            manufacturer.total_assets *= 1.3  # 30% annual growth
 
             engine = InsuranceDecisionEngine(
                 manufacturer=manufacturer,
@@ -408,7 +408,7 @@ class TestRegulatoryComplianceScenarios:
 
         # Verify covenant compliance
         assert metrics.bankruptcy_probability <= 0.005
-        revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
+        revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
         assert decision.total_premium / revenue <= 0.025
 
 

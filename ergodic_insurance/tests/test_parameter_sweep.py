@@ -169,7 +169,9 @@ class TestParameterSweeper:
         """Test handling of optimization failure."""
         with patch.object(sweeper, "_create_manufacturer") as mock_create:
             mock_manufacturer = MagicMock()
-            mock_manufacturer.assets = 10e6  # Add assets attribute for BusinessOptimizer
+            mock_manufacturer.total_assets = (
+                10e6  # Add total_assets attribute for BusinessOptimizer
+            )
             mock_create.return_value = mock_manufacturer
 
             with patch("ergodic_insurance.parameter_sweep.BusinessOptimizer") as MockOptimizer:
@@ -512,7 +514,7 @@ class TestParameterSweeper:
         manufacturer = sweeper._create_manufacturer(params)
 
         # Check that manufacturer was created with config
-        assert manufacturer.assets == 20e6
+        assert manufacturer.total_assets == 20e6
         assert manufacturer.config.base_operating_margin == 0.10
         assert manufacturer.config.asset_turnover_ratio == 1.2
         assert manufacturer.config.tax_rate == 0.30

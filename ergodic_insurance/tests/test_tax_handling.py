@@ -200,7 +200,7 @@ class TestTaxHandling:
         tracks premiums and that they flow through the income statement
         when step() is called.
         """
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
 
         premium = 500_000
@@ -210,7 +210,7 @@ class TestTaxHandling:
         assert manufacturer.period_insurance_premiums == premium
 
         # Assets shouldn't change immediately - premiums flow through income statement
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
         assert manufacturer.equity == initial_equity
 
         # Test multiple premiums accumulate
@@ -218,7 +218,7 @@ class TestTaxHandling:
         manufacturer.record_insurance_premium(additional_premium)
 
         assert manufacturer.period_insurance_premiums == premium + additional_premium
-        assert manufacturer.assets == initial_assets  # Still no immediate change
+        assert manufacturer.total_assets == initial_assets  # Still no immediate change
 
         # Now run step() to see the premium flow through income statement
         metrics = manufacturer.step()

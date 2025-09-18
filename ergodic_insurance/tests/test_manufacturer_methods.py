@@ -42,7 +42,7 @@ class TestProcessInsuranceClaim:
 
     def test_claim_above_deductible_below_limit(self, manufacturer):
         """Test claim between deductible and limit."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         claim_amount = 500_000
         deductible = 100_000
         limit = 1_000_000
@@ -61,11 +61,11 @@ class TestProcessInsuranceClaim:
         assert len(manufacturer.claim_liabilities) == 1
 
         # Assets not immediately reduced (paid over time)
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
 
     def test_claim_above_limit(self, manufacturer):
         """Test claim that exceeds insurance limit."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         claim_amount = 2_000_000
         deductible = 100_000
         limit = 1_000_000
@@ -84,7 +84,7 @@ class TestProcessInsuranceClaim:
         assert manufacturer.restricted_assets == expected_company
 
         # Assets not immediately reduced (paid over time)
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
 
     def test_zero_claim(self, manufacturer):
         """Test handling of zero claim amount."""
@@ -125,8 +125,14 @@ class TestProcessInsuranceClaim:
 
     def test_claim_exceeds_assets(self, manufacturer):
         """Test claim when company doesn't have enough assets."""
-        manufacturer.assets = 50_000  # Set low assets
-        manufacturer.equity = 50_000
+        # Set all assets to achieve low total assets of 50_000
+        manufacturer.cash = 50_000
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.accumulated_depreciation = 0
+        manufacturer.restricted_assets = 0
 
         claim_amount = 200_000
         deductible = 100_000
@@ -139,7 +145,7 @@ class TestProcessInsuranceClaim:
         # Company payment is the deductible amount
         assert company_payment == deductible
         # Assets remain unchanged (collateral posted, paid over time)
-        assert manufacturer.assets == 50_000
+        assert manufacturer.total_assets == 50_000
         # Collateral posted for company payment
         assert manufacturer.collateral == company_payment
         # Insurance still covers its portion
@@ -168,7 +174,7 @@ class TestProcessInsuranceClaim:
 
     def test_uninsured_claim_immediate_payment(self, manufacturer):
         """Test immediate payment of uninsured claim."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
         claim_amount = 500_000
 
@@ -177,7 +183,7 @@ class TestProcessInsuranceClaim:
         )
 
         assert processed_amount == claim_amount
-        assert manufacturer.assets == initial_assets - claim_amount
+        assert manufacturer.total_assets == initial_assets - claim_amount
         assert manufacturer.equity == initial_equity - claim_amount
         assert manufacturer.period_insurance_losses == claim_amount
         assert len(manufacturer.claim_liabilities) == 0
@@ -186,29 +192,38 @@ class TestProcessInsuranceClaim:
 
     def test_uninsured_claim_immediate_payment_exceeds_assets(self, manufacturer):
         """Test immediate payment when claim exceeds available assets."""
-        manufacturer.assets = 100_000
-        manufacturer.equity = 100_000
+        # Set all assets to achieve total assets of 100_000
+        manufacturer.cash = 100_000
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.accumulated_depreciation = 0
+        manufacturer.restricted_assets = 0
         claim_amount = 500_000
 
         processed_amount = manufacturer.process_uninsured_claim(
             claim_amount, immediate_payment=True
         )
 
-        assert processed_amount == 100_000
-        assert manufacturer.assets == 0
-        assert manufacturer.equity == 0
+        # The method returns the full claim amount, not the actual payment
+        assert processed_amount == 500_000
+        assert manufacturer.total_assets == 0
+        # Equity becomes negative due to the unpaid liability (shortfall of 400k)
+        assert manufacturer.equity == -400_000
+        # Only the actual payment (100k) is recorded as a loss
         assert manufacturer.period_insurance_losses == 100_000
 
     def test_uninsured_claim_deferred_payment(self, manufacturer):
         """Test uninsured claim with deferred payment schedule."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
         claim_amount = 500_000
 
         processed_amount = manufacturer.process_uninsured_claim(claim_amount)
 
         assert processed_amount == claim_amount
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
         assert manufacturer.equity == initial_equity
         assert manufacturer.period_insurance_losses == 0
         assert len(manufacturer.claim_liabilities) == 1
@@ -241,25 +256,25 @@ class TestProcessInsuranceClaim:
 
     def test_uninsured_claim_zero_amount(self, manufacturer):
         """Test uninsured claim with zero amount."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
 
         processed_amount = manufacturer.process_uninsured_claim(0.0)
 
         assert processed_amount == 0.0
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
         assert manufacturer.equity == initial_equity
         assert len(manufacturer.claim_liabilities) == 0
 
     def test_uninsured_claim_negative_amount(self, manufacturer):
         """Test uninsured claim with negative amount."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
 
         processed_amount = manufacturer.process_uninsured_claim(-100_000)
 
         assert processed_amount == 0.0
-        assert manufacturer.assets == initial_assets
+        assert manufacturer.total_assets == initial_assets
         assert manufacturer.equity == initial_equity
         assert len(manufacturer.claim_liabilities) == 0
 
@@ -269,18 +284,18 @@ class TestProcessInsuranceClaim:
 
         # Test immediate payment
         manufacturer_immediate = WidgetManufacturer(manufacturer.config)
-        initial_assets_imm = manufacturer_immediate.assets
+        initial_assets_imm = manufacturer_immediate.total_assets
         manufacturer_immediate.process_uninsured_claim(claim_amount, immediate_payment=True)
 
         # Test deferred payment
         manufacturer_deferred = WidgetManufacturer(manufacturer.config)
-        initial_assets_def = manufacturer_deferred.assets
+        initial_assets_def = manufacturer_deferred.total_assets
         manufacturer_deferred.process_uninsured_claim(claim_amount, immediate_payment=False)
 
         # Immediate payment should reduce assets immediately
-        assert manufacturer_immediate.assets == initial_assets_imm - claim_amount
+        assert manufacturer_immediate.total_assets == initial_assets_imm - claim_amount
         # Deferred payment should not reduce assets immediately
-        assert manufacturer_deferred.assets == initial_assets_def
+        assert manufacturer_deferred.total_assets == initial_assets_def
 
         # Immediate should have no liabilities
         assert len(manufacturer_immediate.claim_liabilities) == 0
@@ -326,7 +341,7 @@ class TestStepMethod:
 
     def test_normal_operation(self, manufacturer):
         """Test normal profitable operation."""
-        initial_assets = manufacturer.assets
+        initial_assets = manufacturer.total_assets
         initial_equity = manufacturer.equity
 
         metrics = manufacturer.step(
@@ -347,11 +362,11 @@ class TestStepMethod:
         assert metrics["net_income"] > 0
 
         # Assets should increase with retained earnings
-        assert manufacturer.assets > initial_assets
+        assert manufacturer.total_assets > initial_assets
         assert manufacturer.equity > initial_equity
 
         # Balance sheet should remain balanced
-        assert manufacturer.equity == manufacturer.assets  # No debt
+        assert manufacturer.equity == manufacturer.total_assets  # No debt
 
     def test_with_collateral_costs(self, manufacturer):
         """Test step with existing collateral requiring LoC costs."""
@@ -426,9 +441,17 @@ class TestStepMethod:
 
     def test_insolvency_detection(self, manufacturer):
         """Test that insolvency is properly detected."""
-        # Force insolvency by setting very low assets
-        manufacturer.assets = 100
-        manufacturer.equity = -1000  # Negative equity
+        # Force insolvency by creating negative equity
+        # First create a large liability, then reduce assets
+        manufacturer.process_uninsured_claim(20_000_000, immediate_payment=False)
+        # Now reduce assets to near zero
+        manufacturer.cash = 0
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.accumulated_depreciation = 0
+        manufacturer.restricted_assets = 0
 
         manufacturer.step()
 
@@ -440,9 +463,16 @@ class TestStepMethod:
 
     def test_insolvency_monthly_resolution(self, manufacturer):
         """Test monthly steps when company is insolvent."""
-        # Force insolvency
-        manufacturer.assets = 100
-        manufacturer.equity = -1000
+        # Force insolvency by creating negative equity
+        manufacturer.process_uninsured_claim(20_000_000, immediate_payment=False)
+        # Reduce assets to near zero
+        manufacturer.cash = 0
+        manufacturer.accounts_receivable = 0
+        manufacturer.inventory = 0
+        manufacturer.prepaid_insurance = 0
+        manufacturer.gross_ppe = 0
+        manufacturer.accumulated_depreciation = 0
+        manufacturer.restricted_assets = 0
         manufacturer.is_ruined = True
         manufacturer.current_month = 10
         manufacturer.current_year = 5
@@ -480,7 +510,8 @@ class TestStepMethod:
             # Balance sheet equation (simplified for no debt case)
             # Assets = Equity + Liabilities (represented by restricted assets)
             assert manufacturer.equity == pytest.approx(
-                manufacturer.assets - manufacturer.restricted_assets + total_liabilities, rel=0.01
+                manufacturer.total_assets - manufacturer.restricted_assets + total_liabilities,
+                rel=0.01,
             )
 
     def test_zero_working_capital(self, manufacturer):
@@ -490,7 +521,7 @@ class TestStepMethod:
         # Should still generate revenue
         assert metrics["revenue"] > 0
         # Revenue should be higher with no working capital constraint
-        expected_revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
+        expected_revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
         assert metrics["revenue"] == pytest.approx(expected_revenue, rel=0.01)
 
     def test_high_working_capital(self, manufacturer):
@@ -593,7 +624,7 @@ class TestStepMethod:
 
         # Revenue should be constrained by working capital
         # With 99% working capital requirement, revenue is limited
-        max_revenue = manufacturer.assets / 0.99
+        max_revenue = manufacturer.total_assets / 0.99
         assert metrics["revenue"] <= max_revenue
 
         # Test with negative growth rate

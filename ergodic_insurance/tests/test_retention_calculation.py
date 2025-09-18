@@ -28,7 +28,7 @@ class TestRetentionCalculation:
         manufacturer = WidgetManufacturer(config)
 
         # Calculate expected values
-        expected_revenue = manufacturer.assets * manufacturer.asset_turnover_ratio
+        expected_revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
         expected_operating_income = expected_revenue * manufacturer.base_operating_margin
 
         # No additional costs for this test
@@ -127,7 +127,7 @@ class TestRetentionCalculation:
 
         # Step 1: Revenue
         waterfall["revenue"] = manufacturer.calculate_revenue()
-        assert waterfall["revenue"] == manufacturer.assets * manufacturer.asset_turnover_ratio
+        assert waterfall["revenue"] == manufacturer.total_assets * manufacturer.asset_turnover_ratio
 
         # Step 2: Operating Income (after operating costs)
         waterfall["operating_income"] = manufacturer.calculate_operating_income(

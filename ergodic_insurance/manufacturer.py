@@ -568,6 +568,51 @@ class WidgetManufacturer:
         # Total
         return current + net_ppe + self.restricted_assets
 
+    @total_assets.setter
+    def total_assets(self, value: float) -> None:
+        """Set total assets by proportionally adjusting all asset components.
+
+        This setter maintains the relative proportions of all asset components
+        when changing the total asset value. If current assets are zero,
+        it sets cash to the full value.
+
+        Args:
+            value: New total asset value in dollars.
+        """
+        current_total = self.total_assets
+
+        # Handle zero or negative values
+        if value <= 0:
+            self.cash = 0
+            self.accounts_receivable = 0
+            self.inventory = 0
+            self.prepaid_insurance = 0
+            self.gross_ppe = 0
+            self.restricted_assets = 0
+            return
+
+        # If current total is zero, put everything in cash
+        if current_total <= 0:
+            self.cash = value
+            self.accounts_receivable = 0
+            self.inventory = 0
+            self.prepaid_insurance = 0
+            self.gross_ppe = 0
+            self.restricted_assets = 0
+            return
+
+        # Calculate adjustment ratio
+        ratio = value / current_total
+
+        # Adjust all asset components proportionally
+        self.cash *= ratio
+        self.accounts_receivable *= ratio
+        self.inventory *= ratio
+        self.prepaid_insurance *= ratio
+        self.gross_ppe *= ratio
+        self.accumulated_depreciation *= ratio
+        self.restricted_assets *= ratio
+
     @property
     def total_liabilities(self) -> float:
         """Calculate total liabilities from all liability components.
@@ -1563,8 +1608,24 @@ class WidgetManufacturer:
             self.cash -= actual_payment
             # Record as tax-deductible loss
             self.period_insurance_losses += actual_payment
-            logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
-            return float(actual_payment)
+
+            # If we couldn't pay the full amount, create a liability for the shortfall
+            shortfall = claim_amount - actual_payment
+            if shortfall > 0:
+                claim = ClaimLiability(
+                    original_amount=shortfall,
+                    remaining_amount=shortfall,
+                    year_incurred=self.current_year,
+                    is_insured=False,  # This is an uninsured claim
+                )
+                self.claim_liabilities.append(claim)
+                logger.info(
+                    f"Paid uninsured claim: ${actual_payment:,.2f} immediately, "
+                    f"created liability for shortfall: ${shortfall:,.2f}"
+                )
+            else:
+                logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
+            return float(claim_amount)  # Return the full claim amount processed
 
         # Create liability without collateral for payment over time
         claim = ClaimLiability(

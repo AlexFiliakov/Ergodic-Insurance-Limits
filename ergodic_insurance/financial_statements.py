@@ -171,8 +171,15 @@ class FinancialStatementGenerator:
         # Current Assets
         data.append(("Current Assets", "", "", ""))
 
-        # Use detailed components if available, otherwise estimate
-        cash = metrics.get("cash", metrics.get("available_assets", 0) * 0.3)
+        # Get total assets and restricted assets to ensure proper allocation
+        total_assets_actual = metrics.get("assets", 0)
+        restricted_assets = metrics.get("restricted_assets", 0)
+
+        # Available assets for operations (unrestricted)
+        unrestricted_assets = total_assets_actual - restricted_assets
+
+        # Use detailed components if available, otherwise estimate from unrestricted assets
+        cash = metrics.get("cash", unrestricted_assets * 0.3)
         accounts_receivable = metrics.get("accounts_receivable", 0)
         inventory = metrics.get("inventory", 0)
         prepaid_insurance = metrics.get("prepaid_insurance", 0)
@@ -189,8 +196,8 @@ class FinancialStatementGenerator:
         # Non-Current Assets
         data.append(("Non-Current Assets", "", "", ""))
 
-        # Property, Plant & Equipment
-        gross_ppe = metrics.get("gross_ppe", metrics.get("assets", 0) * 0.7)
+        # Property, Plant & Equipment - base on unrestricted assets only
+        gross_ppe = metrics.get("gross_ppe", unrestricted_assets * 0.7)
         accumulated_depreciation = metrics.get("accumulated_depreciation", 0)
         net_ppe = gross_ppe - accumulated_depreciation
 
@@ -272,11 +279,16 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
 
-        # Validation - get total liabilities for the balance check
+        # Calculate total liabilities the same way as in _build_liabilities_section
         accounts_payable = metrics.get("accounts_payable", 0)
         accrued_expenses = metrics.get("accrued_expenses", 0)
         claim_liabilities = metrics.get("claim_liabilities", 0)
-        total_liabilities = accounts_payable + accrued_expenses + claim_liabilities
+
+        # Match the calculation from _build_liabilities_section
+        current_claims = claim_liabilities * 0.1 if claim_liabilities > 0 else 0
+        long_term_claims = claim_liabilities - current_claims
+        total_current_liabilities = accounts_payable + accrued_expenses + current_claims
+        total_liabilities = total_current_liabilities + long_term_claims
 
         data.append(
             (

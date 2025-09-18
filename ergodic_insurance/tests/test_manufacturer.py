@@ -479,8 +479,9 @@ class TestWidgetManufacturer:
         assert manufacturer.check_solvency() is True
         assert manufacturer.is_ruined is False
 
-        # Make insolvent
-        manufacturer.equity = 0
+        # Make insolvent by reducing cash to make equity = 0
+        current_equity = manufacturer.equity
+        manufacturer.cash -= current_equity  # This will make equity = 0
         assert manufacturer.check_solvency() is False
         assert manufacturer.is_ruined is True
 
@@ -533,7 +534,9 @@ class TestWidgetManufacturer:
         """
         # Create new manufacturer to test negative equity scenario
         manufacturer = WidgetManufacturer(config)
-        manufacturer.equity = -100_000
+        # Set negative equity by reducing cash
+        current_equity = manufacturer.equity
+        manufacturer.cash -= current_equity + 100_000  # This will make equity = -100_000
         assert manufacturer.check_solvency() is False
         assert manufacturer.is_ruined is True
 
@@ -1034,7 +1037,7 @@ class TestWidgetManufacturer:
         total_premiums_paid = annual_premium * years
         after_tax_total = total_premiums_paid * (1 - manufacturer.tax_rate)
 
-        asset_gap = no_insurance.assets - with_insurance.assets
+        asset_gap = no_insurance.total_assets - with_insurance.total_assets
 
         # The gap should be reasonably close to cumulative after-tax premiums
         # Allow 20% tolerance for compounding effects

@@ -238,13 +238,24 @@ class TestInsuranceDecisionEngine:
         """Create mock manufacturer."""
         manufacturer = Mock(spec=WidgetManufacturer)
         manufacturer.current_assets = 10_000_000
-        manufacturer.assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
         manufacturer.equity = 10_000_000
         manufacturer.asset_turnover_ratio = 1.0
         manufacturer.base_operating_margin = 0.15  # Higher margin for positive growth
         manufacturer.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
         manufacturer.reset = Mock()
-        manufacturer.copy = Mock(return_value=manufacturer)
+
+        # Create a copy that returns a new mock with the same attributes
+        manufacturer_copy = Mock(spec=WidgetManufacturer)
+        manufacturer_copy.current_assets = 10_000_000
+        manufacturer_copy.total_assets = 10_000_000
+        manufacturer_copy.equity = 10_000_000
+        manufacturer_copy.asset_turnover_ratio = 1.0
+        manufacturer_copy.base_operating_margin = 0.15
+        manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer_copy.reset = Mock()
+        manufacturer.copy = Mock(return_value=manufacturer_copy)
+
         return manufacturer
 
     @pytest.fixture
@@ -848,7 +859,7 @@ class TestEnhancedOptimizationMethods:
         assert decision.retained_limit <= constraints.max_retention_limit
 
         # Verify insurance cost ceiling
-        revenue = engine.manufacturer.assets * engine.manufacturer.asset_turnover_ratio
+        revenue = engine.manufacturer.total_assets * engine.manufacturer.asset_turnover_ratio
         cost_ratio = decision.total_premium / revenue
         assert cost_ratio <= constraints.max_insurance_cost_ratio
 

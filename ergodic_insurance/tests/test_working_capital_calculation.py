@@ -217,7 +217,7 @@ class TestWorkingCapitalCalculation:
         # Cash should be adjusted for working capital components
         # Cash = Assets - AR - Inventory - Prepaid - Net PPE - Restricted + AP + Accrued
         expected_cash = (
-            manufacturer.assets
+            manufacturer.total_assets
             - manufacturer.accounts_receivable
             - manufacturer.inventory
             - manufacturer.prepaid_insurance

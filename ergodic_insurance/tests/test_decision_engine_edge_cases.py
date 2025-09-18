@@ -640,16 +640,16 @@ class TestParameterModificationInSensitivity:
 
     def test_modify_capital_base_parameter(self, engine):
         """Test modification of capital base parameter."""
-        original_assets = engine.manufacturer.assets
+        original_assets = engine.manufacturer.total_assets
 
         # Modify parameter
         original_state = engine._modify_parameter("capital_base", -0.1)
 
         # Check assets were modified
-        assert engine.manufacturer.assets == original_assets * 0.9
+        assert engine.manufacturer.total_assets == original_assets * 0.9
 
         # Check original state was saved
-        assert original_state["assets"] == original_assets
+        assert original_state["total_assets"] == original_assets
 
     def test_modify_unknown_parameter(self, engine):
         """Test modification of unknown parameter."""

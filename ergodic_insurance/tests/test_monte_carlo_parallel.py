@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import numpy as np
 import pytest
@@ -437,7 +437,7 @@ class TestParallelRuinProbability:
             result = original_step(*args, **kwargs)
             # Force bankruptcy after first year
             if step_count == 1:
-                manufacturer.assets = 0
+                manufacturer.total_assets = 0
             return result
 
         with patch.object(manufacturer, "step", side_effect=mock_step):
@@ -466,7 +466,9 @@ class TestParallelRuinProbability:
         )
 
         # Mock to ensure bankruptcy is detected but late
-        with patch.object(manufacturer, "assets", new=9_999_998):
+        with patch.object(
+            type(manufacturer), "total_assets", new_callable=PropertyMock, return_value=9_999_998
+        ):
             result = engine._run_single_simulation(0)
 
             # Check the simulation completed
@@ -521,7 +523,7 @@ class TestCombinedChunkResults:
         loss_generator = Mock(spec=ManufacturingLossGenerator)
         insurance_program = Mock(spec=InsuranceProgram)
         manufacturer = Mock(spec=WidgetManufacturer)
-        manufacturer.assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
 
         config = SimulationConfig(n_simulations=100, n_years=5)
         engine = MonteCarloEngine(loss_generator, insurance_program, manufacturer, config)

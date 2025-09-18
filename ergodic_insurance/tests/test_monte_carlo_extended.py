@@ -302,14 +302,14 @@ class TestMonteCarloExtended:
     def test_manufacturer_copy_in_simulation(self, setup_simple_engine):
         """Test that manufacturer is properly copied in simulation."""
         engine = setup_simple_engine
-        original_assets = engine.manufacturer.assets
+        original_assets = engine.manufacturer.total_assets
 
         # Run single simulation
         engine.config.n_simulations = 1
         results = engine.run()
 
         # Original manufacturer should be unchanged
-        assert engine.manufacturer.assets == original_assets
+        assert engine.manufacturer.total_assets == original_assets
         assert results is not None
 
     def test_edge_cases_in_growth_calculation(self, setup_simple_engine):
@@ -317,13 +317,13 @@ class TestMonteCarloExtended:
         engine = setup_simple_engine
 
         # Test with zero initial assets (edge case)
-        original_assets = engine.manufacturer.assets
-        engine.manufacturer.assets = 0
+        original_assets = engine.manufacturer.total_assets
+        engine.manufacturer.total_assets = 0
         growth_rates = engine._calculate_growth_rates(np.array([100_000, 200_000]))
         assert np.all(growth_rates == 0)  # Should return zeros for invalid calculation
 
         # Restore
-        engine.manufacturer.assets = original_assets
+        engine.manufacturer.total_assets = original_assets
 
         # Test with negative final assets
         growth_rates = engine._calculate_growth_rates(np.array([-100_000, 0, 100_000]))

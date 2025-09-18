@@ -127,14 +127,14 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         result_arrays["retained_losses"][year] = retained
 
         # Update manufacturer - subtract retained losses
-        if manufacturer.assets > 0:
-            manufacturer.assets = max(0, manufacturer.assets - retained)
+        if manufacturer.total_assets > 0:
+            manufacturer.cash = max(0, manufacturer.cash - retained)
 
         # Check for ruin
-        if manufacturer.assets <= 0:
+        if manufacturer.total_assets <= 0:
             break
 
-    return {"final_assets": manufacturer.assets, **result_arrays}
+    return {"final_assets": manufacturer.total_assets, **result_arrays}
 
 
 @dataclass
@@ -848,7 +848,7 @@ class MonteCarloEngine:
 
             # Apply retained loss to manufacturer assets
             if retained > 0:
-                manufacturer.assets = max(0, manufacturer.assets - retained)
+                manufacturer.cash = max(0, manufacturer.cash - retained)
 
             # Record insurance premium payment (annual premium)
             annual_premium = self.insurance_program.calculate_annual_premium()
@@ -865,7 +865,7 @@ class MonteCarloEngine:
             )
 
             # Check for ruin
-            if manufacturer.assets <= 0:
+            if manufacturer.total_assets <= 0:
                 ruin_occurred = True
                 ruin_year = year
                 break
@@ -882,14 +882,14 @@ class MonteCarloEngine:
                 if ruin_occurred
                 else insurance_recoveries,
                 retained_losses=retained_losses[: year + 1] if ruin_occurred else retained_losses,
-                final_assets=manufacturer.assets,
-                initial_assets=self.manufacturer.assets,
+                final_assets=manufacturer.total_assets,
+                initial_assets=self.manufacturer.total_assets,
                 ruin_occurred=ruin_occurred,
                 ruin_year=ruin_year,
             )
 
         return {
-            "final_assets": manufacturer.assets,
+            "final_assets": manufacturer.total_assets,
             "annual_losses": annual_losses,
             "insurance_recoveries": insurance_recoveries,
             "retained_losses": retained_losses,
@@ -954,7 +954,7 @@ class MonteCarloEngine:
         Returns:
             Array of growth rates
         """
-        initial_assets = self.manufacturer.assets
+        initial_assets = self.manufacturer.total_assets
         n_years = self.config.n_years
 
         # Avoid division by zero and log of negative numbers

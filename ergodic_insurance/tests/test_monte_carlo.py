@@ -503,7 +503,7 @@ class TestRuinProbabilityEstimation:
             active_causes = {k: v.any() for k, v in causes.items() if hasattr(v, "any")}
             pytest.fail(
                 f"Expected bankruptcy within 5 years but got year {bankruptcy_year}. "
-                f"Initial manufacturer assets: {engine.manufacturer.assets:,}, "
+                f"Initial manufacturer total_assets: {engine.manufacturer.total_assets:,}, "
                 f"Loss amount: 15,000,000, Insurance limit: {engine.insurance_program.layers[0].limit:,}, "
                 f"Active bankruptcy causes: {active_causes}"
             )

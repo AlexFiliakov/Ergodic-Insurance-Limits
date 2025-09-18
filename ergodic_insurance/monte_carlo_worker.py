@@ -51,7 +51,7 @@ def run_chunk_standalone(
     for i in range(n_sims):
         # Create a copy of the manufacturer for this simulation to avoid state pollution
         sim_manufacturer = WidgetManufacturer(manufacturer.config)
-        sim_manufacturer.assets = manufacturer.assets
+        sim_manufacturer.total_assets = manufacturer.total_assets
 
         # Run single simulation
         sim_annual_losses = np.zeros(n_years, dtype=dtype)
@@ -61,7 +61,7 @@ def run_chunk_standalone(
         for year in range(n_years):
             # Generate losses for the year
             year_losses, _ = loss_generator.generate_losses(
-                1.0, sim_manufacturer.assets * 0.8
+                1.0, sim_manufacturer.total_assets * 0.8
             )  # 1 year duration, revenue based on assets
             total_year_loss = sum(loss.amount for loss in year_losses)
             sim_annual_losses[year] = total_year_loss
@@ -85,7 +85,7 @@ def run_chunk_standalone(
             # Run business operations (growth, etc.)
             sim_manufacturer.step()
 
-        final_assets[i] = sim_manufacturer.assets
+        final_assets[i] = sim_manufacturer.total_assets
         annual_losses[i] = sim_annual_losses
         insurance_recoveries[i] = sim_insurance_recoveries
         retained_losses[i] = sim_retained_losses
