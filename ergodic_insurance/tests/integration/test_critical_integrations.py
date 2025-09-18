@@ -696,11 +696,11 @@ class TestEndToEndScenarios:
         layers = [
             EnhancedInsuranceLayer(
                 limit=config.insurance.layers[0].limit,
-                attachment_point=0,
+                attachment_point=config.insurance.deductible,  # Fixed: Use deductible as attachment point
                 premium_rate=config.insurance.layers[0].premium_rate,
             )
         ]
-        insurance_program = InsuranceProgram(layers=layers)
+        insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -790,7 +790,7 @@ class TestEndToEndScenarios:
                 premium_rate=config.insurance.layers[0].premium_rate,
             )
         ]
-        insurance_program = InsuranceProgram(layers=layers)
+        insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -869,18 +869,18 @@ class TestEndToEndScenarios:
         layers = [
             EnhancedInsuranceLayer(
                 limit=5_000_000,  # Primary coverage
-                attachment_point=100_000,  # Keep deductible
+                attachment_point=config.insurance.deductible,  # Start from deductible
                 premium_rate=0.020,  # Further reduced rate for better affordability
                 reinstatements=1,  # Moderate reinstatements (2 full limits total)
             ),
             EnhancedInsuranceLayer(
                 limit=10_000_000,  # Excess coverage
-                attachment_point=5_000_000,
+                attachment_point=config.insurance.deductible + 5_000_000,  # Excess above primary
                 premium_rate=0.010,  # Further reduced excess rate
                 reinstatements=0,  # No reinstatements for excess to avoid premium drain
             ),
         ]
-        insurance_program = InsuranceProgram(layers=layers)
+        insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -931,7 +931,8 @@ class TestEndToEndScenarios:
         config = default_config_v2.model_copy()
         config.manufacturer.initial_assets = 5_000_000
         config.manufacturer.asset_turnover_ratio = 1.0
-        config.manufacturer.base_operating_margin = 0.12
+        # Increased margin to compensate for depreciation (70% PP&E * 10% depreciation = 7% drag)
+        config.manufacturer.base_operating_margin = 0.18
         # Note: growth_capex_ratio and dividend_payout_ratio not available in current config
         # Using retention_ratio as a proxy for growth investment
         config.manufacturer.retention_ratio = 0.90  # High retention for growth

@@ -360,11 +360,15 @@ class TestWidgetManufacturer:
         assert metrics["claim_liabilities"] == 0
         assert metrics["is_solvent"] is True
         assert metrics["revenue"] == 10_000_000
-        assert metrics["operating_income"] == 800_000
+        # Operating income now includes depreciation expense
+        # PP&E is $3M (30% of $10M for 8% margin business), depreciation is $300k/year
+        # Operating income = $10M * 8% - $300k = $500k
+        assert metrics["operating_income"] == 500_000
         assert metrics["asset_turnover"] == 1.0
         assert metrics["base_operating_margin"] == 0.08
-        assert metrics["roe"] == pytest.approx(0.06)  # 600k / 10M
-        assert metrics["roa"] == pytest.approx(0.06)  # 600k / 10M
+        # Net income after tax: $500k * (1 - 0.25) = $375k
+        assert metrics["roe"] == pytest.approx(0.0375)  # 375k / 10M
+        assert metrics["roa"] == pytest.approx(0.0375)  # 375k / 10M
         assert metrics["collateral_to_equity"] == 0
         assert metrics["collateral_to_assets"] == 0
 

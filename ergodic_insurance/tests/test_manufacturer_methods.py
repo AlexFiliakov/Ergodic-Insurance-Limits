@@ -628,8 +628,10 @@ class TestStepMethod:
         manufacturer.base_operating_margin = 0.0
         metrics = manufacturer.step()
 
-        # Should still function but with no operating income
-        assert metrics["operating_income"] == 0
+        # With zero margin, operating income should be negative due to depreciation
+        # Depreciation = PP&E / 10 = $5M / 10 = $500K
+        expected_operating_income = -(manufacturer.gross_ppe / 10)
+        assert metrics["operating_income"] == expected_operating_income
 
         # Test with very high working capital requirement
         manufacturer.reset()

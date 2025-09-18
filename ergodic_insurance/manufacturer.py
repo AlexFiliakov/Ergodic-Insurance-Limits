@@ -479,11 +479,21 @@ class WidgetManufacturer:
 
         # Enhanced balance sheet components for GAAP compliance
         # Fixed Assets (allocate first to determine cash)
-        self.gross_ppe = config.initial_assets * 0.7  # Assume 70% of initial assets are PP&E
+        # PP&E allocation should be reasonable relative to operating margin
+        # Higher margin businesses can support more PP&E depreciation
+        # For low margin (< 10%), use lower PP&E ratio to avoid negative operating income
+        if config.base_operating_margin < 0.10:
+            ppe_ratio = 0.3  # Low margin businesses need more working capital, less PP&E
+        elif config.base_operating_margin < 0.15:
+            ppe_ratio = 0.5  # Medium margin can support moderate PP&E
+        else:
+            ppe_ratio = 0.7  # High margin businesses can support more PP&E
+
+        self.gross_ppe = config.initial_assets * ppe_ratio
         self.accumulated_depreciation = 0.0  # Will accumulate over time
 
         # Current Assets
-        self.cash = config.initial_assets * 0.3  # 30% of initial assets as cash
+        self.cash = config.initial_assets * (1 - ppe_ratio)  # Remaining assets as cash
         self.accounts_receivable = 0.0  # Based on DSO
         self.inventory = 0.0  # Based on DIO
         self.prepaid_insurance = 0.0  # Annual premiums paid in advance
@@ -908,7 +918,9 @@ class WidgetManufacturer:
             For stochastic modeling options.
         """
         # Adjust for working capital if specified
-        available_assets = self.total_assets
+        # Ensure assets are non-negative for revenue calculation
+        # (negative assets would mean business has ceased operations)
+        available_assets = max(0, self.total_assets)
         if working_capital_pct > 0:
             # Working capital reduces assets available for operations
             # Revenue = Available Assets * Turnover, where
@@ -916,7 +928,7 @@ class WidgetManufacturer:
             # Working Capital = Revenue * working_capital_pct
             # Solving: Revenue = Assets * Turnover / (1 + Turnover * WC%)
             denominator = 1 + self.asset_turnover_ratio * working_capital_pct
-            available_assets = self.total_assets / denominator
+            available_assets = max(0, self.total_assets) / denominator
 
         revenue = available_assets * self.asset_turnover_ratio
 
@@ -1224,7 +1236,8 @@ class WidgetManufacturer:
         logger.info("=================================")
 
         # Add retained earnings to cash (increases assets, which increases equity through accounting equation)
-        self.cash += retained_earnings
+        # Ensure cash doesn't go negative (represents minimum operational requirements)
+        self.cash = max(0, self.cash + retained_earnings)
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
@@ -1633,8 +1646,37 @@ class WidgetManufacturer:
 
         if immediate_payment:
             # Pay immediately - reduce cash
-            actual_payment = min(claim_amount, self.cash)
-            self.cash -= actual_payment
+            # First, try to pay from cash
+            cash_payment = min(claim_amount, self.cash)
+            remaining_to_pay = claim_amount - cash_payment
+
+            # If cash isn't enough, liquidate other current assets proportionally
+            if remaining_to_pay > 0:
+                # Total liquid assets we can use (cash + AR + inventory)
+                liquid_assets = self.cash + self.accounts_receivable + self.inventory
+                if liquid_assets > 0:
+                    # Pay what we can from liquid assets
+                    actual_payment = min(claim_amount, liquid_assets)
+
+                    # Reduce liquid assets proportionally
+                    if liquid_assets > claim_amount:
+                        # We have enough liquid assets
+                        reduction_ratio = claim_amount / liquid_assets
+                        self.cash *= 1 - reduction_ratio
+                        self.accounts_receivable *= 1 - reduction_ratio
+                        self.inventory *= 1 - reduction_ratio
+                    else:
+                        # Use all liquid assets
+                        self.cash = 0
+                        self.accounts_receivable = 0
+                        self.inventory = 0
+                else:
+                    actual_payment = 0
+            else:
+                # Cash was sufficient
+                actual_payment = cash_payment
+                self.cash -= cash_payment
+
             # Record as tax-deductible loss
             self.period_insurance_losses += actual_payment
 
@@ -2488,9 +2530,17 @@ class WidgetManufacturer:
         self.metrics_history = []
 
         # Reset enhanced balance sheet components
-        self.gross_ppe = self.config.initial_assets * 0.7
+        # PP&E allocation depends on operating margin
+        if self.config.base_operating_margin < 0.10:
+            ppe_ratio = 0.3  # Low margin businesses need more working capital, less PP&E
+        elif self.config.base_operating_margin < 0.15:
+            ppe_ratio = 0.5  # Medium margin can support moderate PP&E
+        else:
+            ppe_ratio = 0.7  # High margin businesses can support more PP&E
+
+        self.gross_ppe = self.config.initial_assets * ppe_ratio
         self.accumulated_depreciation = 0.0
-        self.cash = self.config.initial_assets * 0.3
+        self.cash = self.config.initial_assets * (1 - ppe_ratio)
         self.accounts_receivable = 0.0
         self.inventory = 0.0
         self.prepaid_insurance = 0.0
