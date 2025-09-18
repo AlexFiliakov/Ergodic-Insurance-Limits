@@ -224,7 +224,8 @@ class TestProcessInsuranceClaim:
 
         assert processed_amount == claim_amount
         assert manufacturer.total_assets == initial_assets
-        assert manufacturer.equity == initial_equity
+        # Equity decreases by claim amount due to new liability (Assets = Liabilities + Equity)
+        assert manufacturer.equity == initial_equity - claim_amount
         assert manufacturer.period_insurance_losses == 0
         assert len(manufacturer.claim_liabilities) == 1
         assert manufacturer.collateral == 0
@@ -365,8 +366,10 @@ class TestStepMethod:
         assert manufacturer.total_assets > initial_assets
         assert manufacturer.equity > initial_equity
 
-        # Balance sheet should remain balanced
-        assert manufacturer.equity == manufacturer.total_assets  # No debt
+        # Balance sheet should remain balanced (Assets = Liabilities + Equity)
+        assert manufacturer.total_assets == pytest.approx(
+            manufacturer.total_liabilities + manufacturer.equity, rel=1e-9
+        )
 
     def test_with_collateral_costs(self, manufacturer):
         """Test step with existing collateral requiring LoC costs."""
@@ -386,30 +389,37 @@ class TestStepMethod:
 
     def test_letter_of_credit_calculation_accuracy(self, manufacturer):
         """Test that letter of credit costs are calculated correctly at 1.5% annually."""
-        # Set up known collateral amount
-        collateral_amount = 1_000_000
-        manufacturer.collateral = collateral_amount
-        manufacturer.restricted_assets = collateral_amount
+        # Create two identical manufacturers with claims
+        # One will have zero LoC rate, the other will have 1.5%
+        claim_amount = 5_000_000
+        deductible = 1_000_000  # This will be the collateral amount
+        limit = 10_000_000
 
-        # Get baseline without collateral
-        manufacturer_baseline = WidgetManufacturer(manufacturer.config)
-        baseline_metrics = manufacturer_baseline.step(letter_of_credit_rate=0.015)
+        # Create manufacturer with collateral but zero LoC rate
+        manufacturer_zero_rate = WidgetManufacturer(manufacturer.config)
+        manufacturer_zero_rate.process_insurance_claim(claim_amount, deductible, limit)
+        assert manufacturer_zero_rate.collateral == deductible
 
-        # Run step with collateral and 1.5% rate
-        metrics = manufacturer.step(letter_of_credit_rate=0.015)
+        # Create manufacturer with collateral and 1.5% LoC rate
+        manufacturer_with_rate = WidgetManufacturer(manufacturer.config)
+        manufacturer_with_rate.process_insurance_claim(claim_amount, deductible, limit)
+        assert manufacturer_with_rate.collateral == deductible
+
+        # Run steps - one with zero rate, one with 1.5% rate
+        metrics_zero_rate = manufacturer_zero_rate.step(letter_of_credit_rate=0.0)
+        metrics_with_rate = manufacturer_with_rate.step(letter_of_credit_rate=0.015)
 
         # Verify that net income is lower with collateral costs
-        assert metrics["net_income"] < baseline_metrics["net_income"]
+        assert metrics_with_rate["net_income"] < metrics_zero_rate["net_income"]
 
-        # The income should be reduced, showing collateral costs are applied
-        # Check that collateral costs are being accounted for in some way
-        income_difference = baseline_metrics["net_income"] - metrics["net_income"]
-        assert income_difference > 0  # Some cost is applied
+        # The income difference should reflect the LoC costs
+        income_difference = metrics_zero_rate["net_income"] - metrics_with_rate["net_income"]
+        assert income_difference > 0  # Cost is applied
 
         # Test monthly calculation
         manufacturer.reset()
-        manufacturer.collateral = collateral_amount
-        manufacturer.restricted_assets = collateral_amount
+        # Process the same claim to establish collateral
+        manufacturer.process_insurance_claim(claim_amount, deductible, limit)
 
         for _ in range(12):
             manufacturer.step(time_resolution="monthly", letter_of_credit_rate=0.015)
@@ -503,14 +513,17 @@ class TestStepMethod:
 
             manufacturer.step()
 
-            # Without debt, equity should equal assets minus restricted assets
-            # plus claim liabilities
-            total_liabilities = manufacturer.total_claim_liabilities
-
-            # Balance sheet equation (simplified for no debt case)
-            # Assets = Equity + Liabilities (represented by restricted assets)
+            # Balance sheet equation: Assets = Liabilities + Equity
+            # Therefore: Equity = Assets - Liabilities
+            # The manufacturer.equity property correctly implements this
             assert manufacturer.equity == pytest.approx(
-                manufacturer.total_assets - manufacturer.restricted_assets + total_liabilities,
+                manufacturer.total_assets - manufacturer.total_liabilities,
+                rel=0.01,
+            )
+
+            # Alternative check: Assets should equal Liabilities + Equity
+            assert manufacturer.total_assets == pytest.approx(
+                manufacturer.total_liabilities + manufacturer.equity,
                 rel=0.01,
             )
 

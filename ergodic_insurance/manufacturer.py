@@ -1262,10 +1262,28 @@ class WidgetManufacturer:
         # Calculate cost of goods sold (approximate as % of revenue)
         cogs = revenue * (1 - self.base_operating_margin)
 
-        # Calculate components
-        self.accounts_receivable = revenue * (dso / 365)
-        self.inventory = cogs * (dio / 365)  # Inventory based on COGS not revenue
-        self.accounts_payable = cogs * (dpo / 365)  # AP based on COGS not revenue
+        # Store current total assets to preserve balance sheet integrity
+        current_total_assets = self.total_assets
+
+        # Calculate new working capital components
+        new_ar = revenue * (dso / 365)
+        new_inventory = cogs * (dio / 365)  # Inventory based on COGS not revenue
+        new_ap = cogs * (dpo / 365)  # AP based on COGS not revenue
+
+        # Calculate the change in working capital assets
+        ar_change = new_ar - self.accounts_receivable
+        inventory_change = new_inventory - self.inventory
+        ap_change = new_ap - self.accounts_payable
+
+        # Update components
+        self.accounts_receivable = new_ar
+        self.inventory = new_inventory
+        self.accounts_payable = new_ap
+
+        # Adjust cash to maintain total assets
+        # When AR/Inventory increase, cash decreases (assets reallocated)
+        # When AP increases, it doesn't affect assets (it's a liability)
+        self.cash = self.cash - ar_change - inventory_change
 
         # Calculate net working capital and cash conversion cycle
         net_working_capital = self.accounts_receivable + self.inventory - self.accounts_payable
@@ -2293,6 +2311,15 @@ class WidgetManufacturer:
         if time_resolution == "annual" or self.current_month == 0:
             self.pay_claim_liabilities()
 
+        # Store initial revenue for working capital calculation in monthly mode
+        # This must happen BEFORE any balance sheet changes
+        if time_resolution == "monthly" and self.current_month == 0:
+            # Calculate the annual revenue with working capital adjustment
+            # This ensures consistency with annual mode
+            self._annual_revenue_for_wc = self.calculate_revenue(
+                working_capital_pct, apply_stochastic
+            )
+
         # Calculate financial performance
         revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
         operating_income = self.calculate_operating_income(revenue)
@@ -2316,13 +2343,24 @@ class WidgetManufacturer:
             0,  # Insurance losses already deducted in operating_income
         )
 
-        # Update balance sheet with retained earnings
-        self.update_balance_sheet(net_income, growth_rate)
+        # Calculate working capital components
+        # Use consistent revenue measure to avoid compounding effects
+        if time_resolution == "annual":
+            # Annual mode: use the annual revenue
+            self.calculate_working_capital_components(revenue)
+        elif time_resolution == "monthly":
+            # Monthly mode: use the stored annual revenue from year start
+            # This was calculated before any balance sheet changes
+            if hasattr(self, "_annual_revenue_for_wc"):
+                self.calculate_working_capital_components(self._annual_revenue_for_wc)
+            else:
+                # Fallback: use current assets (should not happen normally)
+                annual_revenue = self.total_assets * self.asset_turnover_ratio
+                self.calculate_working_capital_components(annual_revenue)
 
-        # Calculate working capital components based on revenue
-        # Use annual revenue for component calculations even in monthly resolution
-        annual_revenue = revenue * 12 if time_resolution == "monthly" else revenue
-        self.calculate_working_capital_components(annual_revenue)
+        # Update balance sheet with retained earnings AFTER working capital calculation
+        # This prevents working capital from compounding with asset growth
+        self.update_balance_sheet(net_income, growth_rate)
 
         # Record depreciation (annual or monthly)
         if time_resolution == "annual":

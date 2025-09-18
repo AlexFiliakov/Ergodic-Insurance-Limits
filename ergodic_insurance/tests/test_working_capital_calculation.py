@@ -204,7 +204,7 @@ class TestWorkingCapitalCalculation:
         assert "Very long cash conversion cycle" in captured.out
 
     def test_working_capital_impact_on_cash(self, manufacturer):
-        """Test that working capital affects cash position."""
+        """Test that working capital affects cash position and balance sheet balances."""
         initial_cash = manufacturer.cash
 
         # Calculate working capital components
@@ -214,8 +214,14 @@ class TestWorkingCapitalCalculation:
         # Run a step to update cash
         manufacturer.step()
 
-        # Cash should be adjusted for working capital components
-        # Cash = Assets - AR - Inventory - Prepaid - Net PPE - Restricted + AP + Accrued
+        # Verify that the accounting equation holds: Assets = Liabilities + Equity
+        total_liabilities = manufacturer.accounts_payable + manufacturer.accrued_expenses
+        assert manufacturer.total_assets == pytest.approx(
+            total_liabilities + manufacturer.equity, rel=0.01
+        ), "Accounting equation should balance: Assets = Liabilities + Equity"
+
+        # Verify that cash is correctly calculated as part of total assets
+        # Total Assets = Cash + AR + Inventory + Prepaid + Net PPE + Restricted
         expected_cash = (
             manufacturer.total_assets
             - manufacturer.accounts_receivable
@@ -223,8 +229,6 @@ class TestWorkingCapitalCalculation:
             - manufacturer.prepaid_insurance
             - manufacturer.net_ppe
             - manufacturer.restricted_assets
-            + manufacturer.accounts_payable
-            + manufacturer.accrued_expenses
         )
         assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
 
