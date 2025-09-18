@@ -197,15 +197,18 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 try:
     # Try absolute import first (for installed package)
     from ergodic_insurance.config import ManufacturerConfig
+    from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.stochastic_processes import StochasticProcess
 except ImportError:
     try:
         # Try relative import (for package context)
         from .config import ManufacturerConfig
+        from .insurance_accounting import InsuranceAccounting
         from .stochastic_processes import StochasticProcess
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
         from config import ManufacturerConfig  # type: ignore[no-redef]
+        from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
 
 # Optional import for claim development integration
@@ -505,6 +508,9 @@ class WidgetManufacturer:
         # Track original prepaid premium for amortization calculation
         self._original_prepaid_premium = 0.0
 
+        # Insurance accounting module
+        self.insurance_accounting = InsuranceAccounting()
+
         # Operating parameters
         self.asset_turnover_ratio = config.asset_turnover_ratio
         self.base_operating_margin = config.base_operating_margin
@@ -687,45 +693,65 @@ class WidgetManufacturer:
         """
         return float(self.total_assets - self.restricted_assets)
 
-    def record_insurance_premium(self, premium_amount: float) -> None:
-        """Record insurance premium payment for tax deduction tracking.
+    def record_insurance_premium(self, premium_amount: float, is_annual: bool = False) -> None:
+        """Record insurance premium payment with proper GAAP prepaid asset treatment.
 
-        This method tracks insurance premium payments during the current period
-        for proper tax treatment. Premiums are tax-deductible business expenses
-        that reduce taxable income.
+        This method records insurance premium payments either as prepaid assets
+        (for annual premiums) or as direct expenses (for monthly premiums).
+        Annual premiums are recorded as prepaid assets and amortized monthly.
+
+        For backward compatibility, defaults to direct expense (is_annual=False).
 
         Args:
             premium_amount (float): Premium amount paid in the current period.
                 Must be >= 0.
+            is_annual (bool): Whether this is an annual premium payment (default False).
+                If True, creates prepaid asset. If False, records as direct expense.
 
         Examples:
             Record annual premium payment::
 
                 # Pay annual insurance premium
                 annual_premium = 250_000
-                manufacturer.record_insurance_premium(annual_premium)
+                manufacturer.record_insurance_premium(annual_premium, is_annual=True)
 
-                # Premium will be tax-deductible in next net income calculation
+                # Premium creates prepaid asset, monthly expense will be amortized
 
         Side Effects:
-            - Increases period_insurance_premiums by premium_amount
-            - Does NOT immediately reduce assets (handled through net income calculation)
+            - For annual premiums: Creates prepaid asset and sets monthly amortization
+            - For monthly premiums: Records direct period expense
+            - Updates cash position for premium payment
 
         Note:
-            This method should be called whenever premium payments are made,
-            either directly or through insurance program calculations.
-            The premium expense will reduce assets through the net income
-            calculation in step(), providing proper tax treatment.
+            Annual premiums should be paid at the start of the coverage period.
+            Monthly amortization happens automatically in the step() method.
 
         See Also:
             :meth:`calculate_net_income`: Uses tracked premiums for tax calculations.
+            :class:`InsuranceAccounting`: Handles premium amortization logic.
         """
         if premium_amount > 0:
-            self.period_insurance_premiums += premium_amount
-            # Do NOT reduce assets here - premiums are handled through net income calculation
-            # to avoid double-counting (they reduce operating income -> net income -> equity)
-            logger.info(f"Recorded insurance premium expense: ${premium_amount:,.2f}")
-            logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
+            if is_annual:
+                # Record as prepaid asset using insurance accounting module
+                result = self.insurance_accounting.pay_annual_premium(premium_amount)
+
+                # Update balance sheet
+                self.prepaid_insurance = result["prepaid_asset"]
+                self.cash -= result["cash_outflow"]
+
+                # Store for later amortization tracking
+                self._original_prepaid_premium = premium_amount
+
+                logger.info(f"Paid annual insurance premium: ${premium_amount:,.2f}")
+                logger.info(f"Monthly expense will be: ${result['monthly_expense']:,.2f}")
+            else:
+                # Record as direct expense for the period (backward compatibility)
+                self.period_insurance_premiums += premium_amount
+                # Don't reduce cash here - expense is handled through net income calculation
+                # to avoid double-counting (premiums reduce operating income -> net income -> equity)
+
+                logger.info(f"Recorded insurance premium expense: ${premium_amount:,.2f}")
+                logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
 
     def record_insurance_loss(self, loss_amount: float) -> None:
         """Record insurance loss (deductible/retention) for tax deduction tracking.
@@ -1355,10 +1381,11 @@ class WidgetManufacturer:
             logger.info(f"Recorded prepaid insurance: ${annual_premium:,.2f}")
 
     def amortize_prepaid_insurance(self, months: int = 1) -> float:
-        """Amortize prepaid insurance over time.
+        """Amortize prepaid insurance over time using GAAP straight-line method.
 
         Reduces prepaid insurance balance and records the expense for the period.
-        Typically called monthly to amortize annual premiums.
+        Typically called monthly to amortize annual premiums. Uses the insurance
+        accounting module to ensure proper amortization calculations.
 
         Args:
             months (int): Number of months to amortize. Defaults to 1.
@@ -1369,6 +1396,7 @@ class WidgetManufacturer:
         Side Effects:
             - Decreases prepaid_insurance by amortization amount
             - Increases period_insurance_premiums by amortization amount
+            - Updates insurance accounting records
 
         Examples:
             Monthly amortization::
@@ -1377,26 +1405,71 @@ class WidgetManufacturer:
                 monthly_expense = manufacturer.amortize_prepaid_insurance(1)
                 # Returns $100K, reduces prepaid by $100K
         """
-        if self.prepaid_insurance > 0:
-            # Calculate the amortization based on the original premium, not remaining balance
-            # Store the original premium amount for proper monthly calculation
-            if not hasattr(self, "_original_prepaid_premium"):
-                # Assume the current prepaid is the original if not tracked
-                self._original_prepaid_premium = self.prepaid_insurance
+        total_amortized = 0.0
 
-            monthly_amortization = self._original_prepaid_premium / 12
-            amortization_amount = min(monthly_amortization * months, self.prepaid_insurance)
+        # Use insurance accounting module for proper amortization
+        for _ in range(months):
+            if self.prepaid_insurance > 0:
+                result = self.insurance_accounting.record_monthly_expense()
 
-            self.prepaid_insurance -= amortization_amount
-            self.period_insurance_premiums += amortization_amount
+                # Update balance sheet and P&L
+                self.prepaid_insurance = result["remaining_prepaid"]
+                self.period_insurance_premiums += result["insurance_expense"]
+                total_amortized += result["insurance_expense"]
 
-            # Reset original premium tracking if fully amortized
-            if self.prepaid_insurance == 0:
-                self._original_prepaid_premium = 0
+                logger.debug(
+                    f"Month {self.insurance_accounting.current_month}: "
+                    f"Expense ${result['insurance_expense']:,.2f}, "
+                    f"Remaining prepaid ${result['remaining_prepaid']:,.2f}"
+                )
 
-            logger.debug(f"Amortized prepaid insurance: ${amortization_amount:,.2f}")
-            return amortization_amount
-        return 0.0
+        return total_amortized
+
+    def receive_insurance_recovery(
+        self, amount: float, claim_id: Optional[str] = None
+    ) -> Dict[str, float]:
+        """Receive payment from insurance for a claim recovery.
+
+        Records cash receipt from insurance company for previously approved
+        claim recoveries. Updates cash position and reduces insurance receivables.
+
+        Args:
+            amount (float): Amount received from insurance company.
+            claim_id (Optional[str]): Specific claim ID for the recovery.
+                If None, applies to oldest outstanding recovery.
+
+        Returns:
+            Dictionary with payment details:
+                - cash_received: Amount of cash received
+                - receivable_reduction: Reduction in receivables
+                - remaining_receivables: Total outstanding receivables
+
+        Examples:
+            Receive insurance payment::
+
+                # Receive $500K insurance recovery payment
+                result = manufacturer.receive_insurance_recovery(500_000)
+                print(f"Received ${result['cash_received']:,.2f}")
+                print(f"Outstanding: ${result['remaining_receivables']:,.2f}")
+
+        Side Effects:
+            - Increases cash by payment amount
+            - Reduces insurance receivables
+            - Updates insurance accounting records
+        """
+        if amount <= 0:
+            return {"cash_received": 0, "receivable_reduction": 0, "remaining_receivables": 0}
+
+        # Record receipt through insurance accounting module
+        result = self.insurance_accounting.receive_recovery_payment(amount, claim_id)
+
+        # Update cash position
+        self.cash += result["cash_received"]
+
+        logger.info(f"Received insurance recovery: ${result['cash_received']:,.2f}")
+        logger.debug(f"Remaining receivables: ${result['remaining_receivables']:,.2f}")
+
+        return result
 
     def record_depreciation(self, useful_life_years: float = 10) -> float:
         """Record straight-line depreciation on PP&E.
@@ -1590,11 +1663,14 @@ class WidgetManufacturer:
                 f"Posted ${company_payment:,.2f} letter of credit as collateral for company portion"
             )
 
-        # Insurance payment has no impact on company financials
+        # Insurance payment creates a receivable
         if insurance_payment > 0:
-            logger.info(
-                f"Insurance covering ${insurance_payment:,.2f} - no impact on company financials"
+            # Record insurance recovery as receivable
+            claim_id = f"CLAIM_{self.current_year}_{len(self.claim_liabilities)}"
+            self.insurance_accounting.record_claim_recovery(
+                recovery_amount=insurance_payment, claim_id=claim_id, year=self.current_year
             )
+            logger.info(f"Insurance covering ${insurance_payment:,.2f} - recorded as receivable")
 
         logger.info(
             f"Total claim: ${claim_amount:,.2f} (Company: ${company_payment:,.2f}, Insurance: ${insurance_payment:,.2f})"
