@@ -48,6 +48,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+# Import trend classes for frequency and severity adjustments
+from .trends import NoTrend, Trend
+
 # Import enhanced distributions if available (backward compatibility)
 try:
     from .loss_distributions import LossData
@@ -102,12 +105,15 @@ class ClaimGenerator:
     - Frequency: Poisson distribution (constant rate parameter)
     - Severity: Lognormal distribution (right-skewed, positive values)
     - Catastrophes: Bernoulli trials with separate severity distribution
+    - Trends: Multiplicative adjustments over time for frequency and severity
 
     Attributes:
         base_frequency: Base expected number of claims per year (Poisson lambda).
         exposure_base: Optional exposure base for dynamic frequency scaling.
         severity_mean: Mean claim size in dollars.
         severity_std: Standard deviation of claim size.
+        frequency_trend: Trend object for frequency adjustments over time.
+        severity_trend: Trend object for severity adjustments over time.
         rng: Random number generator for reproducibility.
 
     Examples:
@@ -142,6 +148,8 @@ class ClaimGenerator:
         exposure_base: Optional["ExposureBase"] = None,  # Dynamic exposure calculator
         severity_mean: float = 5_000_000,  # Mean claim size
         severity_std: float = 2_000_000,  # Std dev of claim size
+        frequency_trend: Optional[Trend] = None,  # Trend for frequency adjustments
+        severity_trend: Optional[Trend] = None,  # Trend for severity adjustments
         seed: Optional[int] = None,
     ):
         """Initialize claim generator with optional dynamic exposure.
@@ -155,6 +163,10 @@ class ClaimGenerator:
                 Must be positive. Default is $5M.
             severity_std: Standard deviation of claim size. Must be non-negative.
                 Default is $2M.
+            frequency_trend: Optional trend object for frequency adjustments over time.
+                Defaults to NoTrend() for backward compatibility.
+            severity_trend: Optional trend object for severity adjustments over time.
+                Defaults to NoTrend() for backward compatibility.
             seed: Random seed for reproducibility. If None, uses random state.
 
         Raises:
@@ -183,6 +195,17 @@ class ClaimGenerator:
                     exposure_base=exposure,
                     severity_mean=5_000_000
                 )
+
+            Create generator with trends::
+
+                from ergodic_insurance.trends import LinearTrend
+
+                generator = ClaimGenerator(
+                    base_frequency=0.1,
+                    severity_mean=5_000_000,
+                    frequency_trend=LinearTrend(annual_rate=0.03),  # 3% annual growth
+                    severity_trend=LinearTrend(annual_rate=0.05)   # 5% severity inflation
+                )
         """
         # Validate parameters
         if base_frequency < 0:
@@ -196,6 +219,8 @@ class ClaimGenerator:
         self.exposure_base = exposure_base
         self.severity_mean = severity_mean
         self.severity_std = severity_std
+        self.frequency_trend = frequency_trend if frequency_trend is not None else NoTrend()
+        self.severity_trend = severity_trend if severity_trend is not None else NoTrend()
         self.rng = np.random.RandomState(seed)
 
     def generate_claims(self, years: int = 1) -> List[ClaimEvent]:
@@ -242,10 +267,13 @@ class ClaimGenerator:
             n_claims = self.rng.poisson(adjusted_frequency)
 
             for _ in range(n_claims):
+                # Get severity adjusted for trends
+                adjusted_severity = self.get_adjusted_severity(year)
+
                 # Claim severity (lognormal distribution)
                 # Convert mean/std to lognormal parameters
                 variance = self.severity_std**2
-                mean = self.severity_mean
+                mean = adjusted_severity
 
                 # Lognormal parameters
                 sigma = np.sqrt(np.log(1 + variance / mean**2))
@@ -257,28 +285,62 @@ class ClaimGenerator:
         return claims
 
     def get_adjusted_frequency(self, year: int) -> float:
-        """Get frequency adjusted for exposure at given year.
+        """Get frequency adjusted for exposure and trends at given year.
+
+        Multiplicatively stacks exposure and trend adjustments:
+        adjusted_freq = base_freq × exposure_multiplier × trend_multiplier
 
         Args:
             year: Year number (0-indexed) for frequency calculation.
 
         Returns:
             float: Adjusted frequency for the specified year.
-                If no exposure_base is set, returns base_frequency.
+                If no exposure_base is set, only applies trend.
+                If no trend is set, only applies exposure.
 
         Examples:
             Check frequency scaling::
 
-                # With exposure that doubles over 10 years
+                # With exposure that doubles over 10 years and 2% trend
                 freq_0 = generator.get_adjusted_frequency(0)  # Base frequency
                 freq_10 = generator.get_adjusted_frequency(10)  # Scaled frequency
                 print(f"Frequency scaling: {freq_10 / freq_0:.2f}x")
         """
-        if self.exposure_base is None:
-            return self.base_frequency
+        # Start with base frequency
+        adjusted = self.base_frequency
 
-        multiplier = self.exposure_base.get_frequency_multiplier(float(year))
-        return self.base_frequency * multiplier
+        # Apply exposure multiplier if present
+        if self.exposure_base is not None:
+            exposure_mult = self.exposure_base.get_frequency_multiplier(float(year))
+            adjusted *= exposure_mult
+
+        # Apply trend multiplier (always present, defaults to NoTrend)
+        trend_mult = self.frequency_trend.get_multiplier(float(year))
+        adjusted *= trend_mult
+
+        return adjusted
+
+    def get_adjusted_severity(self, year: int) -> float:
+        """Get severity adjusted for trends at given year.
+
+        Args:
+            year: Year number (0-indexed) for severity calculation.
+
+        Returns:
+            float: Adjusted severity mean for the specified year.
+                Applies trend multiplier to base severity_mean.
+
+        Examples:
+            Check severity inflation::
+
+                # With 5% annual inflation trend
+                sev_0 = generator.get_adjusted_severity(0)  # Base severity
+                sev_10 = generator.get_adjusted_severity(10)  # After 10 years
+                print(f"Severity inflation: {sev_10 / sev_0:.2f}x")
+        """
+        # Apply trend multiplier to base severity
+        trend_mult = self.severity_trend.get_multiplier(float(year))
+        return self.severity_mean * trend_mult
 
     def generate_year(self, year: int = 0) -> List[ClaimEvent]:
         """Generate claims for a single year.
@@ -308,9 +370,12 @@ class ClaimGenerator:
 
         claims = []
         for _ in range(n_claims):
+            # Get severity adjusted for trends
+            adjusted_severity = self.get_adjusted_severity(year)
+
             # Generate claim amount
             variance = self.severity_std**2
-            mean = self.severity_mean
+            mean = adjusted_severity
 
             if mean > 0:
                 sigma = np.sqrt(np.log(1 + variance / mean**2))
@@ -329,11 +394,14 @@ class ClaimGenerator:
         cat_frequency: float = 0.01,  # 1% chance per year
         cat_severity_mean: float = 50_000_000,
         cat_severity_std: float = 20_000_000,
+        cat_frequency_trend: Optional[Trend] = None,  # Independent trend for cat frequency
+        cat_severity_trend: Optional[Trend] = None,  # Independent trend for cat severity
     ) -> List[ClaimEvent]:
         """Generate catastrophic claims (separate from regular claims).
 
         Catastrophic events are modeled as rare, high-severity losses using
         Bernoulli trials for occurrence and lognormal for severity.
+        Supports independent trends for catastrophic events.
 
         Args:
             years: Number of years to simulate.
@@ -343,6 +411,10 @@ class ClaimGenerator:
                 Default is $50M.
             cat_severity_std: Standard deviation of catastrophic claim size.
                 Default is $20M.
+            cat_frequency_trend: Optional independent trend for catastrophic frequency.
+                If None, uses main frequency_trend.
+            cat_severity_trend: Optional independent trend for catastrophic severity.
+                If None, uses main severity_trend.
 
         Returns:
             List[ClaimEvent]: List of catastrophic claim events. May be empty
@@ -365,14 +437,28 @@ class ClaimGenerator:
             Catastrophic claims are generated independently from regular claims.
             Use generate_all_claims() to get both types together.
         """
+        # Use provided trends or fall back to main trends
+        freq_trend = (
+            cat_frequency_trend if cat_frequency_trend is not None else self.frequency_trend
+        )
+        sev_trend = cat_severity_trend if cat_severity_trend is not None else self.severity_trend
+
         claims = []
 
         for year in range(years):
+            # Apply trend to catastrophic frequency
+            freq_mult = freq_trend.get_multiplier(float(year))
+            adjusted_cat_frequency = cat_frequency * freq_mult
+
             # Check if catastrophic event occurs (Bernoulli trial)
-            if self.rng.random() < cat_frequency:
+            if self.rng.random() < adjusted_cat_frequency:
+                # Apply trend to catastrophic severity
+                sev_mult = sev_trend.get_multiplier(float(year))
+                adjusted_mean = cat_severity_mean * sev_mult
+
                 # Generate catastrophic claim amount
                 variance = cat_severity_std**2
-                mean = cat_severity_mean
+                mean = adjusted_mean
 
                 sigma = np.sqrt(np.log(1 + variance / mean**2))
                 mu = np.log(mean) - sigma**2 / 2
@@ -389,6 +475,8 @@ class ClaimGenerator:
         cat_frequency: float = 0.01,
         cat_severity_mean: float = 50_000_000,
         cat_severity_std: float = 20_000_000,
+        cat_frequency_trend: Optional[Trend] = None,
+        cat_severity_trend: Optional[Trend] = None,
     ) -> Tuple[List[ClaimEvent], List[ClaimEvent]]:
         """Generate both regular and catastrophic claims.
 
@@ -405,6 +493,10 @@ class ClaimGenerator:
                 Default is $50M.
             cat_severity_std: Standard deviation of catastrophic claim size.
                 Default is $20M.
+            cat_frequency_trend: Optional independent trend for catastrophic frequency.
+                If None, uses main frequency_trend.
+            cat_severity_trend: Optional independent trend for catastrophic severity.
+                If None, uses main severity_trend.
 
         Returns:
             Tuple[List[ClaimEvent], List[ClaimEvent]]: Tuple containing:
@@ -435,7 +527,12 @@ class ClaimGenerator:
 
         if include_catastrophic:
             catastrophic_claims = self.generate_catastrophic_claims(
-                years, cat_frequency, cat_severity_mean, cat_severity_std
+                years,
+                cat_frequency,
+                cat_severity_mean,
+                cat_severity_std,
+                cat_frequency_trend,
+                cat_severity_trend,
             )
         else:
             catastrophic_claims = []
