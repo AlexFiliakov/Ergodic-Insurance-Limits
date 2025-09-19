@@ -640,8 +640,14 @@ class WidgetManufacturer:
         Returns:
             float: Total liabilities in dollars, sum of all liability components.
         """
+        # Get accrued expenses from accrual manager (includes taxes, wages, etc.)
+        accrual_items = self.accrual_manager.get_balance_sheet_items()
+        total_accrued_expenses = accrual_items.get("accrued_expenses", 0)
+        # Also include any legacy accrued_expenses not in the manager
+        total_accrued = max(self.accrued_expenses, total_accrued_expenses)
+
         # Current liabilities
-        current_liabilities = self.accounts_payable + self.accrued_expenses
+        current_liabilities = self.accounts_payable + total_accrued
 
         # Long-term liabilities (claim liabilities)
         claim_liability_total = sum(

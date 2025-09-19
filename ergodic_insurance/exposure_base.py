@@ -174,6 +174,9 @@ class RevenueExposure(ExposureBase):
         """Calculate multiplier from actual revenue ratio."""
         if self.state_provider.base_revenue == 0:
             return 0.0
+        # Handle negative or zero revenue (insolvency) by returning 0
+        if self.state_provider.current_revenue <= 0:
+            return 0.0
         return self.state_provider.current_revenue / self.state_provider.base_revenue
 
     def reset(self) -> None:
@@ -218,6 +221,9 @@ class AssetExposure(ExposureBase):
     def get_frequency_multiplier(self, time: float) -> float:
         """Calculate multiplier from actual asset ratio."""
         if self.state_provider.base_assets == 0:
+            return 0.0
+        # Handle negative or zero assets (insolvency) by returning 0
+        if self.state_provider.current_assets <= 0:
             return 0.0
         return self.state_provider.current_assets / self.state_provider.base_assets
 

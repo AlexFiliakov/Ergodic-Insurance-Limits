@@ -70,17 +70,19 @@ def run_chunk_standalone(
             if total_year_loss > 0:
                 result = insurance_program.process_claim(total_year_loss)
                 recovery = result["insurance_recovery"]
+                retained = result["retained_loss"]
+
+                # Process the claim through manufacturer's claim processing system
+                # This properly handles cash flows and asset impacts
+                company_payment, insurance_payment = sim_manufacturer.process_insurance_claim(
+                    claim_amount=total_year_loss, insurance_recovery=recovery
+                )
             else:
                 recovery = 0.0
+                retained = 0.0
+
             sim_insurance_recoveries[year] = recovery
-
-            # Calculate retained loss
-            retained = total_year_loss - recovery
             sim_retained_losses[year] = retained
-
-            # Apply loss to manufacturer
-            if retained > 0:
-                sim_manufacturer.record_insurance_loss(retained)
 
             # Run business operations (growth, etc.)
             sim_manufacturer.step()
