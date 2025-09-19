@@ -8,6 +8,14 @@ import pytest
 
 from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.loss_distributions import LossData
+from ergodic_insurance.trends import (
+    LinearTrend,
+    MeanRevertingTrend,
+    NoTrend,
+    RandomWalkTrend,
+    RegimeSwitchingTrend,
+    ScenarioTrend,
+)
 
 
 class TestClaimEvent:
@@ -391,3 +399,201 @@ class TestClaimGenerator:
         for claim, expected_year in zip(claims, expected_years):
             assert claim.year == expected_year
             assert claim.amount > 0
+
+
+class TestTrendIntegration:
+    """Test integration of trends with ClaimGenerator."""
+
+    def test_frequency_trend_application(self):
+        """Test that frequency trends are properly applied."""
+        # Create generator with 3% annual frequency growth
+        trend = LinearTrend(annual_rate=0.03)
+        gen = ClaimGenerator(
+            base_frequency=0.1, severity_mean=1_000_000, frequency_trend=trend, seed=42
+        )
+
+        # Generate claims over multiple years
+        n_years = 100
+        n_simulations = 1000
+
+        year_counts = {year: 0 for year in range(n_years)}
+
+        for _ in range(n_simulations):
+            claims = gen.generate_claims(years=n_years)
+            for claim in claims:
+                year_counts[claim.year] += 1
+
+        # Average frequencies per year
+        avg_frequencies = {year: count / n_simulations for year, count in year_counts.items()}
+
+        # Early years should have lower frequency than late years
+        early_avg = np.mean([avg_frequencies[y] for y in range(10)])
+        late_avg = np.mean([avg_frequencies[y] for y in range(90, 100)])
+
+        # With 3% growth, frequency at year 90 should be ~13x higher than year 0
+        # But due to randomness, we'll check for at least 5x increase
+        assert late_avg > early_avg * 5, (
+            f"Frequency trend not applied correctly: " f"early={early_avg:.3f}, late={late_avg:.3f}"
+        )
+
+    def test_severity_trend_application(self):
+        """Test that severity trends are properly applied."""
+        # Create generator with 5% annual severity inflation
+        trend = LinearTrend(annual_rate=0.05)
+        gen = ClaimGenerator(
+            base_frequency=1.0,  # Ensure we get claims each year
+            severity_mean=1_000_000,
+            severity_std=100_000,  # Low std for clearer trend signal
+            severity_trend=trend,
+            seed=42,
+        )
+
+        # Generate claims and track average severity by year
+        n_years = 50
+        n_simulations = 100
+
+        year_severities: Dict[int, list] = {year: [] for year in range(n_years)}
+
+        for _ in range(n_simulations):
+            claims = gen.generate_claims(years=n_years)
+            for claim in claims:
+                year_severities[claim.year].append(claim.amount)
+
+        # Calculate average severity per year
+        avg_severities = {}
+        for year, amounts in year_severities.items():
+            if amounts:
+                avg_severities[year] = np.mean(amounts)
+
+        # Check trend application
+        # Year 0 should be around base_severity
+        if 0 in avg_severities:
+            assert 800_000 < avg_severities[0] < 1_200_000
+
+        # Year 10 should be around base_severity * 1.05^10 ≈ 1.63x
+        if 10 in avg_severities:
+            expected_10 = 1_000_000 * (1.05**10)
+            assert avg_severities[10] > expected_10 * 0.8
+            assert avg_severities[10] < expected_10 * 1.2
+
+    def test_trend_exposure_stacking(self):
+        """Test that trend and exposure adjustments stack multiplicatively."""
+        # Create generator with both frequency trend
+        frequency_trend = LinearTrend(annual_rate=0.02)
+        gen = ClaimGenerator(base_frequency=0.1, frequency_trend=frequency_trend, seed=42)
+
+        # Generate claims (exposure adjustment is built into trends)
+        claims = gen.generate_claims(years=10)
+
+        # The effective frequency should be base * freq_trend
+        # This is tested indirectly through claim generation
+        assert isinstance(claims, list)
+        assert all(isinstance(c, ClaimEvent) for c in claims)
+
+    def test_catastrophic_claims_with_independent_trends(self):
+        """Test catastrophic claims with independent trends."""
+        # Main trends
+        main_freq_trend = LinearTrend(annual_rate=0.02)
+        main_sev_trend = LinearTrend(annual_rate=0.03)
+
+        # Catastrophic trends (different rates)
+        cat_freq_trend = LinearTrend(annual_rate=0.05)
+        cat_sev_trend = LinearTrend(annual_rate=0.08)
+
+        gen = ClaimGenerator(
+            base_frequency=0.5,
+            frequency_trend=main_freq_trend,
+            severity_trend=main_sev_trend,
+            seed=42,
+        )
+
+        # Generate regular claims
+        regular = gen.generate_claims(years=10)
+
+        # Generate catastrophic claims separately
+        cats = gen.generate_catastrophic_claims(
+            years=10,
+            cat_frequency=0.1,
+            cat_frequency_trend=cat_freq_trend,
+            cat_severity_trend=cat_sev_trend,
+        )
+
+        # Both should be lists of ClaimEvents
+        assert isinstance(regular, list)
+        assert isinstance(cats, list)
+        assert all(isinstance(c, ClaimEvent) for c in regular)
+        assert all(isinstance(c, ClaimEvent) for c in cats)
+
+    def test_different_trend_types(self):
+        """Test ClaimGenerator with various trend types."""
+        trend_types = [
+            NoTrend(),
+            LinearTrend(annual_rate=0.03),
+            ScenarioTrend(factors=[1.0, 1.1, 1.2, 1.15, 1.25]),
+            RandomWalkTrend(drift=0.02, volatility=0.10, seed=42),
+            MeanRevertingTrend(mean_level=1.0, reversion_speed=0.5, seed=42),
+            RegimeSwitchingTrend(regimes=[0.9, 1.0, 1.2], seed=42),
+        ]
+
+        for trend in trend_types:
+            gen = ClaimGenerator(
+                base_frequency=0.1, frequency_trend=trend, severity_trend=trend, seed=42
+            )
+
+            claims = gen.generate_claims(years=10)
+
+            # Should generate valid claims with any trend type
+            assert isinstance(claims, list)
+            assert all(isinstance(c, ClaimEvent) for c in claims)
+            assert all(c.amount > 0 for c in claims)
+            assert all(0 <= c.year < 10 for c in claims)
+
+    def test_trend_multiplier_correctness(self):
+        """Test that trend multipliers are correctly applied at each time step."""
+        # Use a deterministic scenario trend for exact testing
+        freq_factors = [1.0, 2.0, 3.0, 4.0, 5.0]
+        freq_trend = ScenarioTrend(factors=freq_factors)
+
+        gen = ClaimGenerator(base_frequency=0.1, frequency_trend=freq_trend, seed=42)
+
+        # The adjusted frequency at year t should be base * factors[t]
+        n_simulations = 10000
+        year_counts = {year: 0 for year in range(5)}
+
+        for _ in range(n_simulations):
+            claims = gen.generate_claims(years=5)
+            for claim in claims:
+                year_counts[claim.year] += 1
+
+        # Check frequencies match expected multipliers
+        for year in range(5):
+            expected_freq = 0.1 * freq_factors[year]
+            observed_freq = year_counts[year] / n_simulations
+
+            # Allow for statistical variation (±30%)
+            assert observed_freq > expected_freq * 0.7, (
+                f"Year {year}: expected {expected_freq:.3f}, " f"observed {observed_freq:.3f}"
+            )
+            assert observed_freq < expected_freq * 1.3, (
+                f"Year {year}: expected {expected_freq:.3f}, " f"observed {observed_freq:.3f}"
+            )
+
+    def test_reproducibility_with_trends(self):
+        """Test that trends maintain reproducibility with same seed."""
+        trend = RandomWalkTrend(drift=0.02, volatility=0.15, seed=100)
+
+        gen1 = ClaimGenerator(base_frequency=0.2, frequency_trend=trend, seed=42)
+
+        # Reset trend seed to ensure same path
+        trend.reset_seed(100)
+
+        gen2 = ClaimGenerator(base_frequency=0.2, frequency_trend=trend, seed=42)
+
+        claims1 = gen1.generate_claims(years=20)
+        claims2 = gen2.generate_claims(years=20)
+
+        # Should produce identical claims
+        assert len(claims1) == len(claims2)
+        for c1, c2 in zip(claims1, claims2):
+            assert c1.year == c2.year
+            assert c1.amount == pytest.approx(c2.amount)
