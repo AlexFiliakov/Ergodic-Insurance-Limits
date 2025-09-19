@@ -4,6 +4,7 @@ This module provides Pydantic v2 models for the new profiles/modules/presets
 configuration architecture with support for inheritance, composition, and validation.
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -443,6 +444,191 @@ class ExcelReportConfig(BaseModel):
         return v
 
 
+@dataclass
+class IndustryConfig:
+    """Base configuration for different industry types.
+
+    This class defines industry-specific financial parameters that determine
+    how businesses operate, including working capital needs, margin structures,
+    asset composition, and depreciation policies.
+
+    Attributes:
+        industry_type: Name of the industry (e.g., 'manufacturing', 'services')
+
+        Working capital ratios:
+        days_sales_outstanding: Average collection period for receivables (days)
+        days_inventory_outstanding: Average inventory holding period (days)
+        days_payables_outstanding: Average payment period to suppliers (days)
+
+        Margin structure:
+        gross_margin: Gross profit as percentage of revenue
+        operating_expense_ratio: Operating expenses as percentage of revenue
+
+        Asset composition:
+        current_asset_ratio: Current assets as fraction of total assets
+        ppe_ratio: Property, Plant & Equipment as fraction of total assets
+        intangible_ratio: Intangible assets as fraction of total assets
+
+        Depreciation:
+        ppe_useful_life: Average useful life of PP&E in years
+        depreciation_method: Method for calculating depreciation
+    """
+
+    industry_type: str = "manufacturing"
+
+    # Working capital ratios (in days)
+    days_sales_outstanding: float = 45
+    days_inventory_outstanding: float = 60
+    days_payables_outstanding: float = 30
+
+    # Margin structure (as percentages)
+    gross_margin: float = 0.35
+    operating_expense_ratio: float = 0.25
+
+    # Asset composition (must sum to 1.0)
+    current_asset_ratio: float = 0.4
+    ppe_ratio: float = 0.5
+    intangible_ratio: float = 0.1
+
+    # Depreciation settings
+    ppe_useful_life: int = 10  # years
+    depreciation_method: str = "straight_line"
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        self.validate()
+
+    def validate(self):
+        """Validate that all parameters are within reasonable bounds."""
+        # Validate margins
+        assert (
+            0 <= self.gross_margin <= 1
+        ), f"Gross margin must be between 0 and 1, got {self.gross_margin}"
+        assert (
+            0 <= self.operating_expense_ratio <= 1
+        ), f"Operating expense ratio must be between 0 and 1, got {self.operating_expense_ratio}"
+
+        # Validate asset composition
+        asset_sum = self.current_asset_ratio + self.ppe_ratio + self.intangible_ratio
+        assert abs(asset_sum - 1.0) < 0.01, f"Asset ratios must sum to 1.0, got {asset_sum}"
+
+        # Validate working capital days
+        assert self.days_sales_outstanding >= 0, "Days sales outstanding must be non-negative"
+        assert (
+            self.days_inventory_outstanding >= 0
+        ), "Days inventory outstanding must be non-negative"
+        assert self.days_payables_outstanding >= 0, "Days payables outstanding must be non-negative"
+
+        # Validate depreciation
+        assert self.ppe_useful_life > 0, "PPE useful life must be positive"
+        assert self.depreciation_method in [
+            "straight_line",
+            "declining_balance",
+        ], f"Unknown depreciation method: {self.depreciation_method}"
+
+    @property
+    def working_capital_days(self) -> float:
+        """Calculate net working capital cycle in days."""
+        return (
+            self.days_sales_outstanding
+            + self.days_inventory_outstanding
+            - self.days_payables_outstanding
+        )
+
+    @property
+    def operating_margin(self) -> float:
+        """Calculate operating margin (EBIT margin)."""
+        return self.gross_margin - self.operating_expense_ratio
+
+
+class ManufacturingConfig(IndustryConfig):
+    """Configuration for manufacturing companies.
+
+    Manufacturing businesses typically have:
+    - Significant inventory holdings
+    - Moderate to high PP&E requirements
+    - Working capital needs for raw materials and WIP
+    - Gross margins of 25-40%
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize with manufacturing-specific defaults."""
+        defaults: Dict[str, Any] = {
+            "industry_type": "manufacturing",
+            "days_sales_outstanding": 45,
+            "days_inventory_outstanding": 60,
+            "days_payables_outstanding": 30,
+            "gross_margin": 0.35,
+            "operating_expense_ratio": 0.25,
+            "current_asset_ratio": 0.4,
+            "ppe_ratio": 0.5,
+            "intangible_ratio": 0.1,
+            "ppe_useful_life": 10,
+            "depreciation_method": "straight_line",
+        }
+        # Override defaults with any provided kwargs
+        defaults.update(kwargs)
+        super().__init__(**defaults)
+
+
+class ServiceConfig(IndustryConfig):
+    """Configuration for service companies.
+
+    Service businesses typically have:
+    - Minimal or no inventory
+    - Lower PP&E requirements
+    - Faster cash conversion cycles
+    - Higher gross margins but also higher operating expenses
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize with service-specific defaults."""
+        defaults: Dict[str, Any] = {
+            "industry_type": "services",
+            "days_sales_outstanding": 30,
+            "days_inventory_outstanding": 0,  # No inventory for services
+            "days_payables_outstanding": 20,
+            "gross_margin": 0.60,
+            "operating_expense_ratio": 0.45,
+            "current_asset_ratio": 0.6,
+            "ppe_ratio": 0.2,  # Less capital intensive
+            "intangible_ratio": 0.2,  # More intangibles (brand, IP)
+            "ppe_useful_life": 5,
+            "depreciation_method": "straight_line",
+        }
+        defaults.update(kwargs)
+        super().__init__(**defaults)
+
+
+class RetailConfig(IndustryConfig):
+    """Configuration for retail companies.
+
+    Retail businesses typically have:
+    - High inventory turnover
+    - Moderate PP&E (stores, fixtures)
+    - Fast cash collection (often immediate)
+    - Lower gross margins but efficient operations
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize with retail-specific defaults."""
+        defaults: Dict[str, Any] = {
+            "industry_type": "retail",
+            "days_sales_outstanding": 5,  # Mostly cash/credit card sales
+            "days_inventory_outstanding": 45,
+            "days_payables_outstanding": 35,
+            "gross_margin": 0.30,
+            "operating_expense_ratio": 0.22,
+            "current_asset_ratio": 0.5,
+            "ppe_ratio": 0.4,
+            "intangible_ratio": 0.1,
+            "ppe_useful_life": 7,
+            "depreciation_method": "straight_line",
+        }
+        defaults.update(kwargs)
+        super().__init__(**defaults)
+
+
 class ConfigV2(BaseModel):
     """Enhanced unified configuration model for the 3-tier system."""
 
@@ -460,6 +646,9 @@ class ConfigV2(BaseModel):
     working_capital_ratios: Optional[WorkingCapitalRatiosConfig] = None
     expense_ratios: Optional[ExpenseRatioConfig] = None
     depreciation: Optional[DepreciationConfig] = None
+    industry_config: Optional[IndustryConfig] = Field(
+        default=None, description="Industry-specific configuration for financial parameters"
+    )
 
     # Additional fields for extensibility
     custom_modules: Dict[str, ModuleConfig] = Field(
