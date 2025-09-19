@@ -167,6 +167,41 @@ class ManufacturerConfig(BaseModel):
             print(f"Warning: Base operating margin {v:.1%} is negative")
         return v
 
+    @classmethod
+    def from_industry_config(cls, industry_config, **kwargs):
+        """Create ManufacturerConfig from an IndustryConfig instance.
+
+        Args:
+            industry_config: IndustryConfig instance with industry-specific parameters
+            **kwargs: Additional parameters to override or supplement
+
+        Returns:
+            ManufacturerConfig instance with parameters derived from industry config
+        """
+        # Map industry config parameters to manufacturer config
+        # Use provided kwargs to override any derived values
+        config_params = kwargs.copy()
+
+        # Set base operating margin from industry config if not provided
+        if "base_operating_margin" not in config_params:
+            config_params["base_operating_margin"] = industry_config.operating_margin
+
+        # Set PPE ratio from industry config if not provided
+        if "ppe_ratio" not in config_params:
+            config_params["ppe_ratio"] = industry_config.ppe_ratio
+
+        # Set other defaults if not provided
+        if "initial_assets" not in config_params:
+            config_params["initial_assets"] = 10_000_000  # Default $10M
+        if "asset_turnover_ratio" not in config_params:
+            config_params["asset_turnover_ratio"] = 0.8  # Default 0.8x
+        if "tax_rate" not in config_params:
+            config_params["tax_rate"] = 0.25  # Default 25%
+        if "retention_ratio" not in config_params:
+            config_params["retention_ratio"] = 0.7  # Default 70%
+
+        return cls(**config_params)
+
 
 class WorkingCapitalConfig(BaseModel):
     """Working capital management parameters.
