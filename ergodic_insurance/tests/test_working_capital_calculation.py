@@ -215,9 +215,8 @@ class TestWorkingCapitalCalculation:
         manufacturer.step()
 
         # Verify that the accounting equation holds: Assets = Liabilities + Equity
-        total_liabilities = manufacturer.accounts_payable + manufacturer.accrued_expenses
         assert manufacturer.total_assets == pytest.approx(
-            total_liabilities + manufacturer.equity, rel=0.01
+            manufacturer.total_liabilities + manufacturer.equity, rel=0.01
         ), "Accounting equation should balance: Assets = Liabilities + Equity"
 
         # Verify that cash is correctly calculated as part of total assets

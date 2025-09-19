@@ -679,14 +679,14 @@ class TestEndToEndScenarios:
 
         loss_generator = ManufacturingLossGenerator(
             attritional_params={
-                "base_frequency": 8,  # Startup has higher risk
-                "severity_mean": 25_000,
-                "severity_cv": 2.0,
+                "base_frequency": 3,  # Startup has moderate risk (was 8)
+                "severity_mean": 10_000,  # Reduced severity for startup scale (was 25k)
+                "severity_cv": 1.5,  # Reduced variability (was 2.0)
             },
             large_params={
-                "base_frequency": 0.3,
-                "severity_mean": 1_000_000,
-                "severity_cv": 2.5,
+                "base_frequency": 0.05,  # Rare large losses (was 0.3)
+                "severity_mean": 200_000,  # Scaled to startup size (was 1M)
+                "severity_cv": 1.8,  # Reduced variability (was 2.5)
             },
             seed=42,
         )

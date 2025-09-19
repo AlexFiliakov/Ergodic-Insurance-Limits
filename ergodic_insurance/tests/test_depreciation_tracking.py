@@ -33,18 +33,8 @@ class TestDepreciationTracking:
 
     def test_initial_ppe_allocation(self, manufacturer):
         """Test that initial assets are properly allocated to PP&E."""
-        # PP&E allocation now depends on operating margin
-        # < 10% margin: 30% PP&E
-        # 10-15% margin: 50% PP&E
-        # > 15% margin: 70% PP&E
-        margin = manufacturer.config.base_operating_margin
-        if margin < 0.10:
-            expected_ppe_ratio = 0.3
-        elif margin < 0.15:
-            expected_ppe_ratio = 0.5
-        else:
-            expected_ppe_ratio = 0.7
-
+        # PPE ratio is now configurable, with defaults based on operating margin
+        expected_ppe_ratio = manufacturer.config.ppe_ratio
         expected_ppe = manufacturer.config.initial_assets * expected_ppe_ratio
         assert manufacturer.gross_ppe == expected_ppe
         assert manufacturer.accumulated_depreciation == 0
@@ -53,6 +43,57 @@ class TestDepreciationTracking:
         # Cash should be the remainder
         expected_cash = manufacturer.config.initial_assets - expected_ppe
         assert manufacturer.cash == expected_cash
+
+    def test_custom_ppe_ratio(self):
+        """Test that custom PPE ratio overrides the default."""
+        # Create manufacturer with custom PPE ratio
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.08,  # Would normally default to 0.3 ratio
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            ppe_ratio=0.6,  # Custom PPE ratio
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Verify custom ratio is used
+        assert config.ppe_ratio == 0.6
+        expected_ppe = config.initial_assets * 0.6
+        assert manufacturer.gross_ppe == expected_ppe
+        assert manufacturer.cash == config.initial_assets * 0.4
+
+    def test_default_ppe_ratio_based_on_margin(self):
+        """Test that default PPE ratio is correctly set based on operating margin."""
+        # Test low margin (<10%)
+        config_low = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.05,  # 5% margin
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        assert config_low.ppe_ratio == 0.3
+
+        # Test medium margin (10-15%)
+        config_med = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.12,  # 12% margin
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        assert config_med.ppe_ratio == 0.5
+
+        # Test high margin (>15%)
+        config_high = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.20,  # 20% margin
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        assert config_high.ppe_ratio == 0.7
 
     def test_straight_line_depreciation(self, manufacturer):
         """Test straight-line depreciation calculation."""
