@@ -508,10 +508,10 @@ class FinancialStatementGenerator:
         # Build balance sheet structure
         balance_sheet_data: List[Tuple[str, Union[str, float, int], str, str]] = []
 
-        # Build main sections
-        self._build_assets_section(balance_sheet_data, metrics)
-        self._build_liabilities_section(balance_sheet_data, metrics)
-        self._build_equity_section(balance_sheet_data, metrics)
+        # Build main sections and track totals
+        total_assets = self._build_assets_section(balance_sheet_data, metrics)
+        total_liabilities = self._build_liabilities_section(balance_sheet_data, metrics)
+        self._build_equity_section(balance_sheet_data, metrics, total_assets, total_liabilities)
 
         # Create DataFrame
         df = pd.DataFrame(
@@ -532,8 +532,12 @@ class FinancialStatementGenerator:
 
     def _build_assets_section(
         self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
-    ) -> None:
-        """Build assets section of balance sheet with GAAP structure."""
+    ) -> float:
+        """Build assets section of balance sheet with GAAP structure.
+
+        Returns:
+            Total assets calculated from components
+        """
         # ASSETS SECTION
         data.append(("ASSETS", "", "", ""))
         data.append(("", "", "", ""))
@@ -597,10 +601,16 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
 
+        return total_assets
+
     def _build_liabilities_section(
         self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
-    ) -> None:
-        """Build liabilities section of balance sheet with GAAP structure."""
+    ) -> float:
+        """Build liabilities section of balance sheet with GAAP structure.
+
+        Returns:
+            Total liabilities calculated from components
+        """
         # LIABILITIES SECTION
         data.append(("LIABILITIES", "", "", ""))
         data.append(("", "", "", ""))
@@ -657,10 +667,23 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
 
+        return total_liabilities
+
     def _build_equity_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: Dict[str, float],
+        total_assets: float,
+        total_liabilities: float,
     ) -> None:
-        """Build equity section of balance sheet."""
+        """Build equity section of balance sheet.
+
+        Args:
+            data: List to append balance sheet lines to
+            metrics: Metrics dictionary
+            total_assets: Total assets from assets section
+            total_liabilities: Total liabilities from liabilities section
+        """
         # EQUITY SECTION
         data.append(("EQUITY", "", "", ""))
         data.append(("", "", "", ""))
@@ -673,35 +696,15 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
 
-        # Calculate total assets from components to ensure consistency
-        # This matches the calculation in _build_assets_section
-        cash = metrics.get("cash", metrics.get("assets", 0) * 0.3)
-        accounts_receivable = metrics.get("accounts_receivable", 0)
-        inventory = metrics.get("inventory", 0)
-        prepaid_insurance = metrics.get("prepaid_insurance", 0)
-        insurance_receivables = metrics.get("insurance_receivables", 0)
-
-        total_current = (
-            cash + accounts_receivable + inventory + prepaid_insurance + insurance_receivables
-        )
-
-        gross_ppe = metrics.get(
-            "gross_ppe", (metrics.get("assets", 0) - metrics.get("restricted_assets", 0)) * 0.7
-        )
-        accumulated_depreciation = metrics.get("accumulated_depreciation", 0)
-        net_ppe = gross_ppe - accumulated_depreciation
-
-        total_restricted = metrics.get("restricted_assets", 0)
-
-        total_assets = total_current + net_ppe + total_restricted
-
         # TOTAL LIABILITIES + EQUITY should equal TOTAL ASSETS
-        # Since the balance sheet equation is: Assets = Liabilities + Equity
-        # We can derive: TOTAL LIABILITIES + EQUITY = TOTAL ASSETS
+        # Calculate the actual sum of liabilities and equity
+        total_liabilities_and_equity = total_liabilities + equity
+
+        # Add the total liabilities + equity line
         data.append(
             (
                 "TOTAL LIABILITIES + EQUITY",
-                total_assets,  # Use total assets to ensure balance
+                total_liabilities_and_equity,
                 "",
                 "total",
             )

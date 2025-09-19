@@ -69,8 +69,9 @@ def run_chunk_standalone(
             # Apply insurance
             if total_year_loss > 0:
                 result = insurance_program.process_claim(total_year_loss)
-                recovery = result["insurance_recovery"]
-                retained = result["retained_loss"]
+                recovery = result.get("insurance_recovery", 0.0)
+                # Calculate retained loss as total loss minus insurance recovery
+                retained = total_year_loss - recovery
 
                 # Process the claim through manufacturer's claim processing system
                 # This properly handles cash flows and asset impacts
