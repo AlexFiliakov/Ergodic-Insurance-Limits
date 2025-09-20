@@ -385,14 +385,18 @@ class TestSimulation:
         """Test that simulations with same seed produce same results."""
         sim1 = Simulation(
             manufacturer=WidgetManufacturer(manufacturer.config),
-            claim_generator=ClaimGenerator(seed=42),
+            claim_generator=ClaimGenerator(
+                base_frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
+            ),
             time_horizon=50,
             seed=42,
         )
 
         sim2 = Simulation(
             manufacturer=WidgetManufacturer(manufacturer.config),
-            claim_generator=ClaimGenerator(seed=42),
+            claim_generator=ClaimGenerator(
+                base_frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
+            ),
             time_horizon=50,
             seed=42,
         )

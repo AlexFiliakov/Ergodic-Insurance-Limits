@@ -518,7 +518,15 @@ class Simulation:
 
         # Handle single generator or list of generators
         if claim_generator is None:
-            self.claim_generator = [ClaimGenerator(seed=seed)]
+            # Create default claim generator with reasonable parameters
+            self.claim_generator = [
+                ClaimGenerator(
+                    base_frequency=0.1,  # 10% chance per year
+                    severity_mean=5_000_000,  # $5M mean claim
+                    severity_std=2_000_000,  # $2M standard deviation
+                    seed=seed,
+                )
+            ]
         elif isinstance(claim_generator, list):
             self.claim_generator = claim_generator
         else:

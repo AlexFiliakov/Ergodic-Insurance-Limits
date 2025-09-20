@@ -144,10 +144,10 @@ class ClaimGenerator:
 
     def __init__(
         self,
-        base_frequency: float = 0.1,  # Expected claims per year at base exposure
+        base_frequency: float,  # Expected claims per year at base exposure
+        severity_mean: float,  # Mean claim size
+        severity_std: float,  # Std dev of claim size
         exposure_base: Optional["ExposureBase"] = None,  # Dynamic exposure calculator
-        severity_mean: float = 5_000_000,  # Mean claim size
-        severity_std: float = 2_000_000,  # Std dev of claim size
         frequency_trend: Optional[Trend] = None,  # Trend for frequency adjustments
         severity_trend: Optional[Trend] = None,  # Trend for severity adjustments
         seed: Optional[int] = None,

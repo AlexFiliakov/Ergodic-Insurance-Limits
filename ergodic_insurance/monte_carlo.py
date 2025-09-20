@@ -728,11 +728,31 @@ class MonteCarloEngine:
             insurance_recoveries = np.zeros((n_results, n_years), dtype=dtype)
             retained_losses = np.zeros((n_results, n_years), dtype=dtype)
 
-            for i, result in enumerate(all_results):
-                final_assets[i] = result["final_assets"]
-                annual_losses[i] = result["annual_losses"]
-                insurance_recoveries[i] = result["insurance_recoveries"]
-                retained_losses[i] = result["retained_losses"]
+            valid_idx = 0
+            for result in all_results:
+                # Skip None results from failed simulations
+                if result is None:
+                    continue
+
+                # Ensure result is a dictionary with expected keys
+                if isinstance(result, dict) and "final_assets" in result:
+                    final_assets[valid_idx] = result["final_assets"]
+                    annual_losses[valid_idx] = result["annual_losses"]
+                    insurance_recoveries[valid_idx] = result["insurance_recoveries"]
+                    retained_losses[valid_idx] = result["retained_losses"]
+                    valid_idx += 1
+                else:
+                    # Log warning for unexpected result format
+                    import warnings
+
+                    warnings.warn(f"Unexpected result format: {type(result)}")
+
+            # Trim arrays to only valid results
+            if valid_idx < n_results:
+                final_assets = final_assets[:valid_idx]
+                annual_losses = annual_losses[:valid_idx]
+                insurance_recoveries = insurance_recoveries[:valid_idx]
+                retained_losses = retained_losses[:valid_idx]
 
             # Calculate derived metrics
             growth_rates = self._calculate_growth_rates(final_assets)

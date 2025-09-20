@@ -60,18 +60,17 @@ def run_chunk_standalone(
 
         for year in range(n_years):
             # Generate losses for the year
-            year_losses, _ = loss_generator.generate_losses(
-                1.0, sim_manufacturer.total_assets * 0.8
-            )  # 1 year duration, revenue based on assets
+            revenue = sim_manufacturer.calculate_revenue()
+            year_losses, _ = loss_generator.generate_losses(duration=1.0, revenue=revenue)
             total_year_loss = sum(loss.amount for loss in year_losses)
             sim_annual_losses[year] = total_year_loss
 
             # Apply insurance
             if total_year_loss > 0:
-                result = insurance_program.process_claim(total_year_loss)
-                recovery = result.get("insurance_recovery", 0.0)
-                # Calculate retained loss as total loss minus insurance recovery
-                retained = total_year_loss - recovery
+                claim_result = insurance_program.process_claim(total_year_loss)
+                recovery = claim_result["insurance_recovery"]
+                # Calculate retained loss as company's payment (deductible + uncovered)
+                retained = claim_result["deductible_paid"]
 
                 # Process the claim through manufacturer's claim processing system
                 # This properly handles cash flows and asset impacts

@@ -678,12 +678,20 @@ def _execute_chunk(
     # Process items
     results = []
     for item in items:
-        if shared_data:
-            # Pass shared data as keyword arguments
-            result = work_function(item, **shared_data)
-        else:
-            result = work_function(item)
-        results.append(result)
+        try:
+            if shared_data:
+                # Pass shared data as keyword arguments
+                result = work_function(item, **shared_data)
+            else:
+                result = work_function(item)
+            results.append(result)
+        except Exception as e:
+            # Return a properly formatted error result instead of raising
+            import warnings
+
+            warnings.warn(f"Work function failed for item {item}: {str(e)}")
+            # Return None or a default result structure that the reduce function can handle
+            results.append(None)
 
     return results
 
