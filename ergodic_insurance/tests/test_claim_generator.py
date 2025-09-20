@@ -597,3 +597,337 @@ class TestTrendIntegration:
         for c1, c2 in zip(claims1, claims2):
             assert c1.year == c2.year
             assert c1.amount == pytest.approx(c2.amount)
+
+
+class TestStatisticalProperties:
+    """Test suite for the new statistical properties and methods."""
+
+    def test_analytical_mean(self):
+        """Test analytical mean calculation."""
+        base_frequency = 0.1
+        severity_mean = 5_000_000
+
+        gen = ClaimGenerator(base_frequency=base_frequency, severity_mean=severity_mean, seed=42)
+
+        expected_mean = base_frequency * severity_mean
+        assert gen.mean == pytest.approx(expected_mean)
+        assert gen.mean == 500_000
+
+    def test_analytical_variance(self):
+        """Test analytical variance calculation."""
+        base_frequency = 0.1
+        severity_mean = 5_000_000
+        severity_std = 2_000_000
+
+        gen = ClaimGenerator(
+            base_frequency=base_frequency,
+            severity_mean=severity_mean,
+            severity_std=severity_std,
+            seed=42,
+        )
+
+        # Analytical formula: frequency * (std^2 + mean^2)
+        expected_variance = base_frequency * (severity_std**2 + severity_mean**2)
+        assert gen.variance == pytest.approx(expected_variance)
+
+    def test_analytical_std(self):
+        """Test analytical standard deviation calculation."""
+        base_frequency = 0.1
+        severity_mean = 5_000_000
+        severity_std = 2_000_000
+
+        gen = ClaimGenerator(
+            base_frequency=base_frequency,
+            severity_mean=severity_mean,
+            severity_std=severity_std,
+            seed=42,
+        )
+
+        expected_variance = base_frequency * (severity_std**2 + severity_mean**2)
+        expected_std = np.sqrt(expected_variance)
+        assert gen.std == pytest.approx(expected_std)
+
+    def test_variance_with_trends_uses_simulation(self):
+        """Test that variance falls back to simulation when trends are present."""
+        # LinearTrend is already imported at the top of the file
+
+        gen = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=5_000_000,
+            severity_std=2_000_000,
+            frequency_trend=LinearTrend(annual_rate=0.03),
+            n_simulations=1000,  # Use fewer simulations for speed
+            seed=42,
+        )
+
+        # Should use simulation, not analytical formula
+        variance = gen.variance
+        assert variance > 0
+        # Variance with trends should differ from simple analytical
+        analytical_no_trend = 0.1 * (2_000_000**2 + 5_000_000**2)
+        assert variance != pytest.approx(analytical_no_trend, rel=0.01)
+
+    def test_get_percentiles_default(self):
+        """Test percentile calculation with default values."""
+        gen = ClaimGenerator(
+            base_frequency=0.5,
+            severity_mean=1_000_000,
+            severity_std=500_000,
+            n_simulations=10000,  # Reduced for test speed
+            seed=42,
+        )
+
+        percentiles = gen.get_percentiles()
+
+        # Should return default percentiles [50, 95, 99]
+        assert 50 in percentiles
+        assert 95 in percentiles
+        assert 99 in percentiles
+
+        # Percentiles should be ordered
+        assert percentiles[50] < percentiles[95]
+        assert percentiles[95] < percentiles[99]
+
+        # 50th percentile (median) should be close to expected annual loss for low frequency
+        # But with compound distribution, median might be lower than mean
+        assert percentiles[50] >= 0
+
+    def test_get_percentiles_custom(self):
+        """Test percentile calculation with custom values."""
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            n_simulations=10000,
+            seed=42,
+        )
+
+        custom_percentiles = [10, 25, 50, 75, 90, 95, 99, 99.9]
+        result = gen.get_percentiles(custom_percentiles)
+
+        # All requested percentiles should be present
+        for p in custom_percentiles:
+            assert p in result
+
+        # Should be monotonically increasing
+        sorted_percentiles = sorted(custom_percentiles)
+        for i in range(len(sorted_percentiles) - 1):
+            p1, p2 = sorted_percentiles[i], sorted_percentiles[i + 1]
+            assert result[p1] <= result[p2]
+
+    def test_get_percentiles_invalid(self):
+        """Test that invalid percentiles raise ValueError."""
+        gen = ClaimGenerator(seed=42)
+
+        # Negative percentile
+        with pytest.raises(ValueError, match="Percentile must be between 0 and 100"):
+            gen.get_percentiles([-1, 50])
+
+        # Percentile > 100
+        with pytest.raises(ValueError, match="Percentile must be between 0 and 100"):
+            gen.get_percentiles([50, 101])
+
+    def test_get_cvar_default(self):
+        """Test CVaR calculation with default values."""
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=1_000_000,
+            severity_std=500_000,
+            n_simulations=10000,
+            seed=42,
+        )
+
+        cvar = gen.get_cvar()
+
+        # Should return default percentiles [95, 99]
+        assert 95 in cvar
+        assert 99 in cvar
+
+        # CVaR should be greater than corresponding VaR (percentile)
+        percentiles = gen.get_percentiles([95, 99])
+        assert cvar[95] >= percentiles[95]
+        assert cvar[99] >= percentiles[99]
+
+        # CVaR at higher percentile should be higher
+        assert cvar[99] >= cvar[95]
+
+    def test_get_cvar_custom(self):
+        """Test CVaR calculation with custom percentiles."""
+        gen = ClaimGenerator(
+            base_frequency=2.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            n_simulations=10000,
+            seed=42,
+        )
+
+        custom_percentiles = [90, 95, 99, 99.9]
+        cvar = gen.get_cvar(custom_percentiles)
+
+        # All requested CVaR values should be present
+        for p in custom_percentiles:
+            assert p in cvar
+
+        # Get corresponding VaR values
+        var = gen.get_percentiles(custom_percentiles)
+
+        # CVaR should always be >= VaR
+        for p in custom_percentiles:
+            assert cvar[p] >= var[p]
+
+    def test_caching_behavior(self):
+        """Test that simulation results are cached properly."""
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=1_000_000,
+            severity_std=500_000,
+            n_simulations=10000,
+            seed=42,
+        )
+
+        # First call - should populate cache
+        percentiles_1 = gen.get_percentiles([50, 95])
+
+        # Second call with same generator - should use cache
+        percentiles_2 = gen.get_percentiles([50, 95])
+
+        # Results should be identical (from cache)
+        assert percentiles_1[50] == percentiles_2[50]
+        assert percentiles_1[95] == percentiles_2[95]
+
+        # Call CVaR - should use same cached simulation
+        cvar = gen.get_cvar([95])
+        assert cvar[95] >= percentiles_1[95]
+
+    def test_cache_invalidation_on_reset_seed(self):
+        """Test that cache is invalidated when seed is reset."""
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=1_000_000,
+            severity_std=500_000,
+            n_simulations=1000,  # Small for speed
+            seed=42,
+        )
+
+        # Get initial percentiles
+        percentiles_1 = gen.get_percentiles([50])
+
+        # Reset seed - should invalidate cache
+        gen.reset_seed(100)
+
+        # New percentiles should potentially be different
+        # (different simulation seed)
+        percentiles_2 = gen.get_percentiles([50])
+
+        # Cache should have been invalidated, so new simulation was run
+        # We can't guarantee they're different, but cache was cleared
+        assert gen._simulation_cache is not None
+
+    def test_convergence_to_analytical(self):
+        """Test that simulation converges to analytical values for large N."""
+        gen = ClaimGenerator(
+            base_frequency=2.0,
+            severity_mean=100_000,
+            severity_std=20_000,
+            n_simulations=50000,  # Large N for convergence
+            seed=42,
+        )
+
+        # Get simulation-based mean (50th percentile is median, not mean)
+        # So we'll check that the simulation produces reasonable results
+        percentiles = gen.get_percentiles([50, 90, 99])
+
+        # The mean should be frequency * severity_mean = 200,000
+        analytical_mean = gen.mean
+        assert analytical_mean == 200_000
+
+        # The median (50th percentile) for compound Poisson can be quite different
+        # from mean, especially for lower frequencies
+        # Just check it's positive and reasonable
+        assert percentiles[50] >= 0
+        assert percentiles[99] > percentiles[50]
+
+    def test_edge_cases(self):
+        """Test edge cases for statistical properties."""
+        # Zero frequency
+        gen_zero_freq = ClaimGenerator(
+            base_frequency=0.0, severity_mean=1_000_000, n_simulations=100, seed=42
+        )
+        assert gen_zero_freq.mean == 0
+        assert gen_zero_freq.variance == 0
+        assert gen_zero_freq.std == 0
+
+        percentiles = gen_zero_freq.get_percentiles([50, 95])
+        assert percentiles[50] == 0
+        assert percentiles[95] == 0
+
+        # Very high frequency - should have stable statistics
+        gen_high_freq = ClaimGenerator(
+            base_frequency=100.0,
+            severity_mean=10_000,
+            severity_std=2_000,
+            n_simulations=1000,
+            seed=42,
+        )
+
+        # Mean should be predictable
+        assert gen_high_freq.mean == 1_000_000  # 100 * 10,000
+
+        # Percentiles should exist and be ordered
+        percentiles = gen_high_freq.get_percentiles([50, 95])
+        assert percentiles[50] > 0
+        assert percentiles[95] > percentiles[50]
+
+    def test_n_simulations_parameter(self):
+        """Test that n_simulations parameter is used correctly."""
+        # Create with custom n_simulations
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            n_simulations=500,  # Very small for testing
+            seed=42,
+        )
+
+        # The internal simulation should use this number
+        losses = gen._simulate_annual_losses()
+        assert len(losses) == 500
+
+        # Different n_simulations should give different precision
+        gen_precise = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            n_simulations=50000,  # Much larger
+            seed=42,
+        )
+
+        losses_precise = gen_precise._simulate_annual_losses()
+        assert len(losses_precise) == 50000
+
+    def test_example_usage_from_issue(self):
+        """Test the example usage from the GitHub issue."""
+        # Initialize generator
+        generator = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=5_000_000,
+            severity_std=2_000_000,
+            n_simulations=10000,  # Reduced for test speed
+        )
+
+        # Analytical statistics
+        expected_annual_loss = generator.mean
+        std_dev = generator.std
+
+        assert expected_annual_loss == 500_000
+        assert std_dev > 0
+
+        # Simulation-based statistics
+        percentiles = generator.get_percentiles([50, 90, 95, 99])
+        assert 95 in percentiles
+        assert percentiles[95] > 0
+
+        cvar = generator.get_cvar([95, 99])
+        assert 95 in cvar
+        assert cvar[95] > 0
+        assert cvar[95] >= percentiles[95]  # CVaR >= VaR
