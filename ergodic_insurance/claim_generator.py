@@ -471,9 +471,9 @@ class ClaimGenerator:
     def generate_catastrophic_claims(
         self,
         years: int,
-        cat_frequency: float = 0.01,  # 1% chance per year
-        cat_severity_mean: float = 50_000_000,
-        cat_severity_std: float = 20_000_000,
+        cat_frequency: float,
+        cat_severity_mean: float,
+        cat_severity_std: float,
         cat_frequency_trend: Optional[Trend] = None,  # Independent trend for cat frequency
         cat_severity_trend: Optional[Trend] = None,  # Independent trend for cat severity
     ) -> List[ClaimEvent]:

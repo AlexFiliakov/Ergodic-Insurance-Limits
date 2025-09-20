@@ -191,7 +191,9 @@ class TestInsuranceStack:
             year_data["premium_paid"] = total_premium
 
             # Generate and process claims
-            claim_gen = ClaimGenerator(base_frequency=2, severity_mean=200_000, seed=42 + year)
+            claim_gen = ClaimGenerator(
+                base_frequency=2, severity_mean=200_000, severity_std=300_000, seed=42 + year
+            )
             claims = claim_gen.generate_year()
 
             total_claims = 0
@@ -684,16 +686,20 @@ class TestInsuranceStack:
                 if phase_name == "startup":
                     frequency = 2
                     severity_mean = 200_000
+                    severity_std = 300_000
                 elif phase_name == "growth":
                     frequency = 4
                     severity_mean = 400_000
+                    severity_std = 500_000
                 else:  # mature
                     frequency = 3
                     severity_mean = 300_000
+                    severity_std = 150_000
 
                 claim_gen = ClaimGenerator(
                     base_frequency=frequency,
                     severity_mean=severity_mean,
+                    severity_std=severity_std,
                     seed=42 + year_counter,
                 )
 

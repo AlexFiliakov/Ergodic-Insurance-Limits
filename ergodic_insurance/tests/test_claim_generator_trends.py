@@ -46,6 +46,7 @@ class TestClaimGeneratorTrends:
         gen = ClaimGenerator(
             base_frequency=2.0,  # Higher base for more reliable statistics
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.20),  # 20% annual growth for clearer effect
             seed=42,  # Different seed for better distribution
         )
@@ -116,6 +117,7 @@ class TestClaimGeneratorTrends:
             base_frequency=1.0,
             exposure_base=exposure,  # type: ignore[arg-type]
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.10),  # 10% trend
             seed=999,
         )
@@ -132,6 +134,7 @@ class TestClaimGeneratorTrends:
         gen = ClaimGenerator(
             base_frequency=1.0,
             severity_mean=1_000_000,
+            severity_std=800_000,
             severity_trend=LinearTrend(annual_rate=0.03),  # 3% inflation
         )
 
@@ -149,6 +152,7 @@ class TestClaimGeneratorTrends:
         gen = ClaimGenerator(
             base_frequency=1.0,
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.02),  # 2% regular trend
             severity_trend=LinearTrend(annual_rate=0.03),  # 3% regular trend
             seed=111,
@@ -159,6 +163,7 @@ class TestClaimGeneratorTrends:
             years=100,
             cat_frequency=0.10,  # Higher frequency for testing
             cat_severity_mean=1_000_000,
+            cat_severity_std=500_000,
             cat_frequency_trend=LinearTrend(annual_rate=0.05),  # 5% cat frequency trend
             cat_severity_trend=LinearTrend(annual_rate=0.07),  # 7% cat severity trend
         )
@@ -181,6 +186,7 @@ class TestClaimGeneratorTrends:
         gen = ClaimGenerator(
             base_frequency=1.0,
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.04),
             severity_trend=LinearTrend(annual_rate=0.06),
             seed=222,
@@ -188,13 +194,17 @@ class TestClaimGeneratorTrends:
 
         # Generate without specifying cat trends - should use main trends
         cat_claims1 = gen.generate_catastrophic_claims(
-            years=50, cat_frequency=0.20, cat_severity_mean=500_000  # High frequency for testing
+            years=50,
+            cat_frequency=0.20,
+            cat_severity_mean=500_000,  # High frequency for testing
+            cat_severity_std=750_000,
         )
 
         # Generate with explicit same trends
         cat_claims2 = ClaimGenerator(
             base_frequency=1.0,
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.04),
             severity_trend=LinearTrend(annual_rate=0.06),
             seed=222,
@@ -202,6 +212,7 @@ class TestClaimGeneratorTrends:
             years=50,
             cat_frequency=0.20,
             cat_severity_mean=500_000,
+            cat_severity_std=750_000,
             cat_frequency_trend=LinearTrend(annual_rate=0.04),
             cat_severity_trend=LinearTrend(annual_rate=0.06),
         )
@@ -217,6 +228,7 @@ class TestClaimGeneratorTrends:
         gen = ClaimGenerator(
             base_frequency=0.5,
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.02),
             severity_trend=LinearTrend(annual_rate=0.03),
             seed=333,
@@ -227,6 +239,7 @@ class TestClaimGeneratorTrends:
             include_catastrophic=True,
             cat_frequency=0.05,
             cat_severity_mean=1_000_000,
+            cat_severity_std=500_000,
             cat_frequency_trend=LinearTrend(annual_rate=0.01),
             cat_severity_trend=LinearTrend(annual_rate=0.05),
         )
@@ -288,6 +301,7 @@ class TestClaimGeneratorTrends:
         gen1 = ClaimGenerator(
             base_frequency=1.0,
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=trend,
             severity_trend=trend,
             seed=555,
@@ -296,6 +310,7 @@ class TestClaimGeneratorTrends:
         gen2 = ClaimGenerator(
             base_frequency=1.0,
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=trend,
             severity_trend=trend,
             seed=555,
@@ -315,6 +330,7 @@ class TestClaimGeneratorTrends:
         gen = ClaimGenerator(
             base_frequency=0.0,  # No base frequency
             severity_mean=100_000,
+            severity_std=50_000,
             frequency_trend=LinearTrend(annual_rate=0.10),
             seed=666,
         )

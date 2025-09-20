@@ -596,7 +596,7 @@ class ParallelExecutor:
                     if progress_bar:
                         pbar.update(1)
                 except (ValueError, TypeError, RuntimeError) as e:
-                    warnings.warn(f"Chunk execution failed: {e}")
+                    warnings.warn(f"Chunk execution failed: {e}", UserWarning)
                     # Return empty list for failed chunks instead of None
                     results.append((futures[future], []))
 
@@ -677,6 +677,7 @@ def _execute_chunk(
 
     # Process items
     results = []
+    errors = []
     for item in items:
         try:
             if shared_data:
@@ -686,12 +687,15 @@ def _execute_chunk(
                 result = work_function(item)
             results.append(result)
         except Exception as e:
-            # Return a properly formatted error result instead of raising
-            import warnings
-
-            warnings.warn(f"Work function failed for item {item}: {str(e)}")
+            # Collect errors to report back
+            errors.append((item, str(e)))
             # Return None or a default result structure that the reduce function can handle
             results.append(None)
+
+    # If there were errors, raise an exception with details
+    if errors:
+        error_msg = "; ".join([f"Item {item}: {err}" for item, err in errors])
+        raise RuntimeError(f"Work function failed for items: {error_msg}")
 
     return results
 

@@ -46,8 +46,12 @@ class TestClaimGenerator:
 
     def test_reproducibility(self):
         """Test that same seed produces same results."""
-        gen1 = ClaimGenerator(seed=42)
-        gen2 = ClaimGenerator(seed=42)
+        gen1 = ClaimGenerator(
+            seed=42, base_frequency=1.0, severity_mean=100_000, severity_std=50_000
+        )
+        gen2 = ClaimGenerator(
+            seed=42, base_frequency=1.0, severity_mean=100_000, severity_std=50_000
+        )
 
         claims1 = gen1.generate_claims(10)
         claims2 = gen2.generate_claims(10)
@@ -59,7 +63,9 @@ class TestClaimGenerator:
 
     def test_reset_seed(self):
         """Test seed reset functionality."""
-        gen = ClaimGenerator(seed=42)
+        gen = ClaimGenerator(
+            seed=42, base_frequency=0.5, severity_mean=150_000, severity_std=75_000
+        )
         claims1 = gen.generate_claims(5)
 
         gen.reset_seed(42)
@@ -110,7 +116,9 @@ class TestClaimGenerator:
 
     def test_generate_catastrophic_claims(self):
         """Test catastrophic claim generation."""
-        gen = ClaimGenerator(seed=42)
+        gen = ClaimGenerator(
+            base_frequency=1.0, severity_mean=100_000, severity_std=50_000, seed=42
+        )
         years = 1000
         cat_frequency = 0.05  # 5% chance per year
 
@@ -135,19 +143,25 @@ class TestClaimGenerator:
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""
-        gen = ClaimGenerator(seed=42)
+        gen = ClaimGenerator(
+            seed=42, base_frequency=1.0, severity_mean=100_000, severity_std=50_000
+        )
 
         # Zero years
         claims = gen.generate_claims(0)
         assert claims == []
 
         # Zero frequency
-        gen_zero = ClaimGenerator(base_frequency=0, seed=42)
+        gen_zero = ClaimGenerator(
+            base_frequency=0, severity_mean=1_000_000, severity_std=500_000, seed=42
+        )
         claims = gen_zero.generate_claims(10)
         assert claims == []
 
         # Very high frequency
-        gen_high = ClaimGenerator(base_frequency=100, seed=42)
+        gen_high = ClaimGenerator(
+            base_frequency=100, severity_mean=10_000, severity_std=2_000, seed=42
+        )
         claims = gen_high.generate_claims(1)
         assert len(claims) > 50  # Should have many claims
 
@@ -223,7 +237,9 @@ class TestClaimGenerator:
 
     def test_claim_years_in_range(self):
         """Test that all claims are generated within the specified year range."""
-        gen = ClaimGenerator(base_frequency=2.0, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=2.0, severity_mean=100_000, severity_std=50_000, seed=42
+        )
         years = 50
 
         claims = gen.generate_claims(years)
@@ -232,7 +248,12 @@ class TestClaimGenerator:
             assert 0 <= claim.year < years
 
         # Test catastrophic claims too
-        cat_claims = gen.generate_catastrophic_claims(years)
+        cat_claims = gen.generate_catastrophic_claims(
+            years=years,
+            cat_frequency=0.01,
+            cat_severity_mean=50_000_000,
+            cat_severity_std=20_000_000,
+        )
         for claim in cat_claims:
             assert 0 <= claim.year < years
 
@@ -240,23 +261,31 @@ class TestClaimGenerator:
         """Test handling of invalid parameters."""
         # Test that negative frequency raises ValueError
         with pytest.raises(ValueError, match="Base frequency must be non-negative"):
-            ClaimGenerator(base_frequency=-1.0)
+            ClaimGenerator(base_frequency=-1.0, severity_mean=100_000, severity_std=50_000)
 
         # Test that negative severity_mean raises ValueError
         with pytest.raises(ValueError, match="Severity mean must be positive"):
-            ClaimGenerator(severity_mean=-1000)
+            ClaimGenerator(base_frequency=10.0, severity_mean=-1000, severity_std=50_000)
 
         # Test that negative severity_std raises ValueError
         with pytest.raises(ValueError, match="Severity std must be non-negative"):
-            ClaimGenerator(severity_std=-100)
+            ClaimGenerator(base_frequency=10.0, severity_mean=100_000, severity_std=-100)
 
         # Test that generation with negative years should handle gracefully
-        gen = ClaimGenerator(base_frequency=1.0)
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+        )
         claims = gen.generate_claims(-5)
         assert claims == []
 
         # Zero frequency should produce no claims
-        gen_zero = ClaimGenerator(base_frequency=0.0)
+        gen_zero = ClaimGenerator(
+            base_frequency=0.0,
+            severity_mean=1_000_000,
+            severity_std=500_000,
+        )
         claims = gen_zero.generate_claims(10)
         assert claims == []
 
@@ -297,7 +326,9 @@ class TestClaimGenerator:
 
     def test_to_loss_data(self):
         """Test to_loss_data method converts claims to LossData format."""
-        gen = ClaimGenerator(seed=42)
+        gen = ClaimGenerator(
+            base_frequency=1.0, severity_mean=100_000, severity_std=50_000, seed=42
+        )
 
         # Test with actual claims
         claims = [
@@ -409,7 +440,11 @@ class TestTrendIntegration:
         # Create generator with 3% annual frequency growth
         trend = LinearTrend(annual_rate=0.03)
         gen = ClaimGenerator(
-            base_frequency=0.1, severity_mean=1_000_000, frequency_trend=trend, seed=42
+            base_frequency=0.1,
+            severity_mean=1_000_000,
+            severity_std=50_000,
+            frequency_trend=trend,
+            seed=42,
         )
 
         # Generate claims over multiple years
@@ -480,7 +515,13 @@ class TestTrendIntegration:
         """Test that trend and exposure adjustments stack multiplicatively."""
         # Create generator with both frequency trend
         frequency_trend = LinearTrend(annual_rate=0.02)
-        gen = ClaimGenerator(base_frequency=0.1, frequency_trend=frequency_trend, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=1_000_000,
+            severity_std=50_000,
+            frequency_trend=frequency_trend,
+            seed=42,
+        )
 
         # Generate claims (exposure adjustment is built into trends)
         claims = gen.generate_claims(years=10)
@@ -502,6 +543,8 @@ class TestTrendIntegration:
 
         gen = ClaimGenerator(
             base_frequency=0.5,
+            severity_mean=1_000_000,
+            severity_std=50_000,
             frequency_trend=main_freq_trend,
             severity_trend=main_sev_trend,
             seed=42,
@@ -514,6 +557,8 @@ class TestTrendIntegration:
         cats = gen.generate_catastrophic_claims(
             years=10,
             cat_frequency=0.1,
+            cat_severity_mean=5_000_000,
+            cat_severity_std=100_000,
             cat_frequency_trend=cat_freq_trend,
             cat_severity_trend=cat_sev_trend,
         )
@@ -537,7 +582,12 @@ class TestTrendIntegration:
 
         for trend in trend_types:
             gen = ClaimGenerator(
-                base_frequency=0.1, frequency_trend=trend, severity_trend=trend, seed=42
+                base_frequency=0.1,
+                severity_mean=1_000_000,
+                severity_std=50_000,
+                frequency_trend=trend,
+                severity_trend=trend,
+                seed=42,
             )
 
             claims = gen.generate_claims(years=10)
@@ -554,7 +604,13 @@ class TestTrendIntegration:
         freq_factors = [1.0, 2.0, 3.0, 4.0, 5.0]
         freq_trend = ScenarioTrend(factors=freq_factors)
 
-        gen = ClaimGenerator(base_frequency=0.1, frequency_trend=freq_trend, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=1_000_000,
+            severity_std=50_000,
+            frequency_trend=freq_trend,
+            seed=42,
+        )
 
         # The adjusted frequency at year t should be base * factors[t]
         n_simulations = 10000
@@ -582,12 +638,24 @@ class TestTrendIntegration:
         """Test that trends maintain reproducibility with same seed."""
         trend = RandomWalkTrend(drift=0.02, volatility=0.15, seed=100)
 
-        gen1 = ClaimGenerator(base_frequency=0.2, frequency_trend=trend, seed=42)
+        gen1 = ClaimGenerator(
+            base_frequency=0.2,
+            severity_mean=1_000_000,
+            severity_std=100_000,
+            frequency_trend=trend,
+            seed=42,
+        )
 
         # Reset trend seed to ensure same path
         trend.reset_seed(100)
 
-        gen2 = ClaimGenerator(base_frequency=0.2, frequency_trend=trend, seed=42)
+        gen2 = ClaimGenerator(
+            base_frequency=0.2,
+            severity_mean=1_000_000,
+            severity_std=100_000,
+            frequency_trend=trend,
+            seed=42,
+        )
 
         claims1 = gen1.generate_claims(years=20)
         claims2 = gen2.generate_claims(years=20)
@@ -607,7 +675,12 @@ class TestStatisticalProperties:
         base_frequency = 0.1
         severity_mean = 5_000_000
 
-        gen = ClaimGenerator(base_frequency=base_frequency, severity_mean=severity_mean, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=base_frequency,
+            severity_mean=severity_mean,
+            severity_std=2_000_000,
+            seed=42,
+        )
 
         expected_mean = base_frequency * severity_mean
         assert gen.mean == pytest.approx(expected_mean)
@@ -717,7 +790,9 @@ class TestStatisticalProperties:
 
     def test_get_percentiles_invalid(self):
         """Test that invalid percentiles raise ValueError."""
-        gen = ClaimGenerator(seed=42)
+        gen = ClaimGenerator(
+            seed=42, base_frequency=1.0, severity_mean=100_000, severity_std=50_000
+        )
 
         # Negative percentile
         with pytest.raises(ValueError, match="Percentile must be between 0 and 100"):
@@ -851,7 +926,11 @@ class TestStatisticalProperties:
         """Test edge cases for statistical properties."""
         # Zero frequency
         gen_zero_freq = ClaimGenerator(
-            base_frequency=0.0, severity_mean=1_000_000, n_simulations=100, seed=42
+            base_frequency=0.0,
+            severity_mean=1_000_000,
+            severity_std=500_000,
+            n_simulations=100,
+            seed=42,
         )
         assert gen_zero_freq.mean == 0
         assert gen_zero_freq.variance == 0

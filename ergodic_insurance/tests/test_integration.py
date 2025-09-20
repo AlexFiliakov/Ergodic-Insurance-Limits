@@ -104,7 +104,12 @@ class TestIntegration:
 
         # Create manufacturer and claim generator
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-        claim_gen = ClaimGenerator(seed=base_config["random_seed"])
+        claim_gen = ClaimGenerator(
+            base_frequency=5.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            seed=base_config["random_seed"],
+        )
 
         # Run multiple simulations to test memory
         results = []
@@ -134,7 +139,12 @@ class TestIntegration:
         """Test comparison between insured and uninsured scenarios."""
         # Set up components
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-        claim_gen = ClaimGenerator(seed=base_config["random_seed"])
+        claim_gen = ClaimGenerator(
+            base_frequency=2.0,
+            severity_mean=200_000,
+            severity_std=100_000,
+            seed=base_config["random_seed"],
+        )
 
         # Run insured simulations
         insured_results = []
@@ -275,7 +285,12 @@ class TestIntegration:
         ]
 
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-        claim_gen = ClaimGenerator(seed=base_config["random_seed"])
+        claim_gen = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=5_000_000,
+            severity_std=2_000_000,
+            seed=base_config["random_seed"],
+        )
 
         for n_scenarios, max_time in benchmarks:
             batch_size = min(100, n_scenarios)
@@ -303,7 +318,9 @@ class TestIntegration:
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
 
         # Run twice with same seed
-        claim_gen1 = ClaimGenerator(seed=42)
+        claim_gen1 = ClaimGenerator(
+            base_frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+        )
         mfg1 = self.create_manufacturer(initial_assets=base_config["initial_assets"])
         sim1 = Simulation(
             manufacturer=mfg1,
@@ -314,7 +331,9 @@ class TestIntegration:
         )
         result1 = sim1.run()
 
-        claim_gen2 = ClaimGenerator(seed=42)
+        claim_gen2 = ClaimGenerator(
+            base_frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+        )
         mfg2 = self.create_manufacturer(initial_assets=base_config["initial_assets"])
         sim2 = Simulation(
             manufacturer=mfg2,
@@ -351,7 +370,11 @@ class TestIntegration:
 
         # Test claim generator validation
         with pytest.raises(ValueError):
-            ClaimGenerator(base_frequency=-1)  # Negative frequency
+            ClaimGenerator(
+                base_frequency=-1,  # Negative frequency
+                severity_mean=100_000,
+                severity_std=20_000,
+            )
 
     def test_statistics_calculation(self, base_config: dict):
         """Test that statistics are calculated correctly."""

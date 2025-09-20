@@ -652,7 +652,11 @@ class TestClaimGeneratorIntegration:
         exposure = RevenueExposure(state_provider=manufacturer)
 
         gen = ClaimGenerator(
-            base_frequency=1.0, exposure_base=exposure, severity_mean=1_000_000, seed=42
+            base_frequency=1.0,
+            severity_mean=1_000_000,
+            severity_std=100_000,
+            exposure_base=exposure,
+            seed=42,
         )
 
         # Check frequency adjustment
@@ -681,6 +685,8 @@ class TestClaimGeneratorIntegration:
 
         gen = ClaimGenerator(
             base_frequency=2.0,  # Higher base frequency for more reliable statistics
+            severity_mean=200_000,
+            severity_std=50_000,
             exposure_base=exposure,
             seed=42,
         )
@@ -737,7 +743,9 @@ class TestClaimGeneratorIntegration:
 
         exposure = RevenueExposure(state_provider=manufacturer)
 
-        gen = ClaimGenerator(base_frequency=1.0, exposure_base=exposure)
+        gen = ClaimGenerator(
+            base_frequency=1.0, severity_mean=500_000, severity_std=100_000, exposure_base=exposure
+        )
 
         claims = gen.generate_claims(years=10)
         assert len(claims) == 0
@@ -754,7 +762,13 @@ class TestClaimGeneratorIntegration:
         manufacturer = WidgetManufacturer(config)
         exposure = AssetExposure(state_provider=manufacturer)
 
-        gen = ClaimGenerator(base_frequency=0.5, exposure_base=exposure, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=0.5,
+            severity_mean=300_000,
+            severity_std=50_000,
+            exposure_base=exposure,
+            seed=42,
+        )
 
         # Generate 10 years at once
         all_claims = gen.generate_claims(years=10)
@@ -783,7 +797,13 @@ class TestClaimGeneratorIntegration:
         manufacturer = WidgetManufacturer(config)
         exposure = EquityExposure(state_provider=manufacturer)
 
-        gen = ClaimGenerator(base_frequency=0.1, exposure_base=exposure, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=100_000,
+            severity_std=20_000,
+            exposure_base=exposure,
+            seed=42,
+        )
 
         regular, cat = gen.generate_all_claims(
             years=50, include_catastrophic=True, cat_frequency=0.02
@@ -812,7 +832,13 @@ class TestClaimGeneratorIntegration:
             weights={"revenue": 0.6, "assets": 0.4},
         )
 
-        gen = ClaimGenerator(base_frequency=0.5, exposure_base=composite, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=0.5,
+            severity_mean=400_000,
+            severity_std=80_000,
+            exposure_base=composite,
+            seed=42,
+        )
 
         claims = gen.generate_claims(years=10)
         assert len(claims) >= 0  # Could be 0 due to randomness
@@ -823,7 +849,13 @@ class TestClaimGeneratorIntegration:
 
         exposure = ScenarioExposure(scenarios=scenarios, selected_scenario="recession")
 
-        gen = ClaimGenerator(base_frequency=2.0, exposure_base=exposure, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=2.0,
+            severity_mean=150_000,
+            severity_std=30_000,
+            exposure_base=exposure,
+            seed=42,
+        )
 
         # Frequency should decrease during recession
         assert gen.get_adjusted_frequency(0) == 2.0
@@ -854,7 +886,13 @@ class TestPerformance:
             weights={"revenue": 0.5, "assets": 0.3, "employees": 0.2},
         )
 
-        gen = ClaimGenerator(base_frequency=2.0, exposure_base=exposure, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=2.0,
+            severity_mean=400_000,
+            severity_std=80_000,
+            exposure_base=exposure,
+            seed=42,
+        )
 
         start = time.time()
         claims = gen.generate_claims(years=100)  # Reduced from 1000 for faster tests
@@ -891,7 +929,13 @@ class TestStatisticalValidation:
         # Use a non-state-driven exposure for predictable behavior
         exposure = EmployeeExposure(base_employees=100, hiring_rate=0.10)
 
-        gen = ClaimGenerator(base_frequency=1.0, exposure_base=exposure, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=1.0,
+            severity_mean=100_000,
+            severity_std=20_000,
+            exposure_base=exposure,
+            seed=42,
+        )
 
         # Run many simulations
         total_claims = []
@@ -914,7 +958,9 @@ class TestStatisticalValidation:
         scenarios = {"stable": [100.0] * 10}
         exposure = ScenarioExposure(scenarios=scenarios, selected_scenario="stable")
 
-        gen = ClaimGenerator(base_frequency=2.0, exposure_base=exposure)
+        gen = ClaimGenerator(
+            base_frequency=2.0, severity_mean=100_000, severity_std=20_000, exposure_base=exposure
+        )
 
         # Generate many single-year samples
         counts = []
@@ -939,7 +985,13 @@ class TestEdgeCases:
         """Test handling of very high growth rates."""
         exposure = EmployeeExposure(base_employees=100, hiring_rate=1.0)  # 100% annual growth
 
-        gen = ClaimGenerator(base_frequency=0.1, exposure_base=exposure, seed=42)
+        gen = ClaimGenerator(
+            base_frequency=0.1,
+            severity_mean=50_000,
+            severity_std=10_000,
+            exposure_base=exposure,
+            seed=42,
+        )
 
         # Should handle exponential growth gracefully
         freq_10 = gen.get_adjusted_frequency(10)
