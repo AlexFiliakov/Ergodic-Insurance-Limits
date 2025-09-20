@@ -44,7 +44,7 @@ Since:
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -151,6 +151,7 @@ class ClaimGenerator:
         frequency_trend: Optional[Trend] = None,  # Trend for frequency adjustments
         severity_trend: Optional[Trend] = None,  # Trend for severity adjustments
         seed: Optional[int] = None,
+        n_simulations: int = 100_000,  # Number of simulations for statistics
     ):
         """Initialize claim generator with optional dynamic exposure.
 
@@ -168,6 +169,8 @@ class ClaimGenerator:
             severity_trend: Optional trend object for severity adjustments over time.
                 Defaults to NoTrend() for backward compatibility.
             seed: Random seed for reproducibility. If None, uses random state.
+            n_simulations: Number of simulations for percentile/CVaR calculations.
+                Default is 100,000. Higher values improve accuracy but increase computation time.
 
         Raises:
             ValueError: If base_frequency is negative or severity parameters are invalid.
@@ -222,6 +225,8 @@ class ClaimGenerator:
         self.frequency_trend = frequency_trend if frequency_trend is not None else NoTrend()
         self.severity_trend = severity_trend if severity_trend is not None else NoTrend()
         self.rng = np.random.RandomState(seed)
+        self.n_simulations = n_simulations
+        self._simulation_cache: Optional[Dict[str, Any]] = None
 
     def generate_claims(self, years: int = 1) -> List[ClaimEvent]:
         """Generate claims for a simulation period.
@@ -341,6 +346,81 @@ class ClaimGenerator:
         # Apply trend multiplier to base severity
         trend_mult = self.severity_trend.get_multiplier(float(year))
         return self.severity_mean * trend_mult
+
+    @property
+    def mean(self) -> float:
+        """Analytical expected annual loss.
+
+        For a compound Poisson-Lognormal distribution, the expected annual loss is:
+        E[Total Loss] = E[N] * E[X] = base_frequency * severity_mean
+
+        Returns:
+            float: Expected annual loss in dollars.
+
+        Note:
+            This is the analytical expectation without trends or exposure adjustments.
+            For adjusted expectations, use simulation-based methods.
+
+        Examples:
+            >>> gen = ClaimGenerator(base_frequency=0.1, severity_mean=5_000_000)
+            >>> print(f"Expected annual loss: ${gen.mean:,.0f}")
+            Expected annual loss: $500,000
+        """
+        return self.base_frequency * self.severity_mean
+
+    @property
+    def variance(self) -> float:
+        """Analytical variance of annual loss.
+
+        For a compound Poisson-Lognormal distribution, the variance is:
+        Var[Total Loss] = E[N] * (Var[X] + E[X]²)
+                        = base_frequency * (severity_std² + severity_mean²)
+
+        Returns:
+            float: Variance of annual loss in dollars squared.
+
+        Note:
+            Falls back to simulation when trends or exposure adjustments are present,
+            as analytical formulas become complex with time-varying parameters.
+
+        Examples:
+            >>> gen = ClaimGenerator(
+            ...     base_frequency=0.1,
+            ...     severity_mean=5_000_000,
+            ...     severity_std=2_000_000
+            ... )
+            >>> print(f"Variance: {gen.variance:,.0f}")
+        """
+        # Check if we have trends or exposure adjustments
+        has_trends = not isinstance(self.frequency_trend, NoTrend) or not isinstance(
+            self.severity_trend, NoTrend
+        )
+        has_exposure = self.exposure_base is not None
+
+        if has_trends or has_exposure:
+            # Fall back to simulation for time-varying parameters
+            losses = self._simulate_annual_losses()
+            return float(np.var(losses))
+
+        # Analytical formula for constant parameters
+        return self.base_frequency * (self.severity_std**2 + self.severity_mean**2)
+
+    @property
+    def std(self) -> float:
+        """Standard deviation of annual loss.
+
+        Returns:
+            float: Standard deviation of annual loss in dollars.
+
+        Examples:
+            >>> gen = ClaimGenerator(
+            ...     base_frequency=0.1,
+            ...     severity_mean=5_000_000,
+            ...     severity_std=2_000_000
+            ... )
+            >>> print(f"Std deviation: ${gen.std:,.0f}")
+        """
+        return float(np.sqrt(self.variance))
 
     def generate_year(self, year: int = 0) -> List[ClaimEvent]:
         """Generate claims for a single year.
@@ -565,6 +645,150 @@ class ClaimGenerator:
             Creates a new RandomState object, resetting the random sequence.
         """
         self.rng = np.random.RandomState(seed)
+        self._invalidate_cache()
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the simulation cache when parameters change."""
+        self._simulation_cache = None
+
+    def _simulate_annual_losses(self) -> np.ndarray:
+        """Run Monte Carlo simulation to generate annual loss amounts.
+
+        Returns:
+            np.ndarray: Array of simulated annual losses.
+
+        Note:
+            Results are cached to avoid recomputation for repeated calls.
+            Cache is invalidated when parameters change.
+        """
+        # Check if we have cached results
+        if self._simulation_cache is not None and "annual_losses" in self._simulation_cache:
+            return np.array(self._simulation_cache["annual_losses"])
+
+        # Run simulations
+        annual_losses = np.zeros(self.n_simulations)
+
+        # Save current RNG state to restore later
+        current_state = self.rng.get_state()
+
+        # Use a fixed seed for simulation reproducibility
+        sim_rng = np.random.RandomState(42)
+
+        for i in range(self.n_simulations):
+            # Generate claims for one year
+            n_claims = sim_rng.poisson(self.base_frequency)
+
+            if n_claims > 0:
+                # Generate claim amounts using lognormal distribution
+                variance = self.severity_std**2
+                mean = self.severity_mean
+
+                if mean > 0:
+                    sigma = np.sqrt(np.log(1 + variance / mean**2))
+                    mu = np.log(mean) - sigma**2 / 2
+                    amounts = sim_rng.lognormal(mu, sigma, n_claims)
+                    annual_losses[i] = np.sum(amounts)
+
+        # Restore RNG state
+        self.rng.set_state(current_state)
+
+        # Cache the results
+        if self._simulation_cache is None:
+            self._simulation_cache = {}
+        self._simulation_cache["annual_losses"] = annual_losses
+
+        return annual_losses
+
+    def get_percentiles(self, percentiles: Optional[List[float]] = None) -> Dict[float, float]:
+        """Calculate percentiles of annual loss distribution using Monte Carlo simulation.
+
+        Args:
+            percentiles: List of percentile values to calculate (0-100).
+                Default is [50, 95, 99] if None.
+
+        Returns:
+            Dict[float, float]: Dictionary mapping percentile values to loss amounts.
+
+        Examples:
+            >>> gen = ClaimGenerator(
+            ...     base_frequency=0.1,
+            ...     severity_mean=5_000_000,
+            ...     severity_std=2_000_000
+            ... )
+            >>> p = gen.get_percentiles([50, 90, 95, 99])
+            >>> print(f"95th percentile: ${p[95]:,.0f}")
+
+        Note:
+            Results are cached for repeated calls with same parameters.
+            Cache is invalidated when generator parameters change.
+        """
+        if percentiles is None:
+            percentiles = [50, 95, 99]
+
+        # Get simulated annual losses
+        annual_losses = self._simulate_annual_losses()
+
+        # Calculate percentiles
+        result = {}
+        for p in percentiles:
+            if not 0 <= p <= 100:
+                raise ValueError(f"Percentile must be between 0 and 100, got {p}")
+            result[p] = float(np.percentile(annual_losses, p))
+
+        return result
+
+    def get_cvar(self, percentiles: Optional[List[float]] = None) -> Dict[float, float]:
+        """Calculate Conditional Value at Risk (CVaR) for given percentiles.
+
+        CVaR represents the expected loss given that the loss exceeds the
+        Value at Risk (VaR) threshold at the specified percentile.
+
+        Args:
+            percentiles: List of percentile values for CVaR calculation (0-100).
+                Default is [95, 99] if None.
+
+        Returns:
+            Dict[float, float]: Dictionary mapping percentile values to CVaR amounts.
+
+        Examples:
+            >>> gen = ClaimGenerator(
+            ...     base_frequency=0.1,
+            ...     severity_mean=5_000_000,
+            ...     severity_std=2_000_000
+            ... )
+            >>> cvar = gen.get_cvar([95, 99])
+            >>> print(f"CVaR 95%: ${cvar[95]:,.0f}")
+
+        Note:
+            CVaR is also known as Conditional Tail Expectation (CTE) or
+            Expected Shortfall (ES). It provides a more complete picture of
+            tail risk than VaR alone.
+        """
+        if percentiles is None:
+            percentiles = [95, 99]
+
+        # Get simulated annual losses
+        annual_losses = self._simulate_annual_losses()
+
+        # Calculate CVaR for each percentile
+        result = {}
+        for p in percentiles:
+            if not 0 <= p <= 100:
+                raise ValueError(f"Percentile must be between 0 and 100, got {p}")
+
+            # Get the VaR threshold
+            var_threshold = np.percentile(annual_losses, p)
+
+            # Calculate mean of losses exceeding the threshold
+            tail_losses = annual_losses[annual_losses >= var_threshold]
+
+            if len(tail_losses) > 0:
+                result[p] = float(np.mean(tail_losses))
+            else:
+                # Edge case: no losses exceed threshold
+                result[p] = var_threshold
+
+        return result
 
     def generate_enhanced_claims(
         self, years: int, revenue: Optional[float] = None, use_enhanced_distributions: bool = True
