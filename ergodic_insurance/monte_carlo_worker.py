@@ -61,7 +61,17 @@ def run_chunk_standalone(
         for year in range(n_years):
             # Generate losses for the year
             revenue = sim_manufacturer.calculate_revenue()
-            year_losses, _ = loss_generator.generate_losses(duration=1.0, revenue=revenue)
+
+            # Handle both ClaimGenerator and ManufacturingLossGenerator
+            if hasattr(loss_generator, "generate_losses"):
+                year_losses, _ = loss_generator.generate_losses(duration=1.0, revenue=revenue)
+            elif hasattr(loss_generator, "generate_claims"):
+                year_losses = loss_generator.generate_claims(years=1)
+            else:
+                raise AttributeError(
+                    f"Loss generator {type(loss_generator).__name__} has neither generate_losses nor generate_claims method"
+                )
+
             total_year_loss = sum(loss.amount for loss in year_losses)
             sim_annual_losses[year] = total_year_loss
 

@@ -1,8 +1,10 @@
 {
   "mcpServers": {
     "simone": {
-      "command": "npx",
+      "command": "cmd",
       "args": [
+        "/c",
+        "npx",
         "--yes",
         "simone-mcp@latest"
       ],
