@@ -36,6 +36,7 @@ Here's a simple example to get you started:
 
     from ergodic_insurance.manufacturer import WidgetManufacturer
     from ergodic_insurance.claim_generator import ClaimGenerator
+    from ergodic_insurance.manufacturer import WidgetManufacturer
     from ergodic_insurance.config_v2 import ManufacturerConfig
 
     # Create configuration
@@ -43,17 +44,18 @@ Here's a simple example to get you started:
         initial_assets=10_000_000,
         asset_turnover_ratio=1.0,
         base_operating_margin=0.08,
-        tax_rate=0.25
+        tax_rate=0.25,
+        retention_ratio=0.8
     )
 
     # Create manufacturer
     manufacturer = WidgetManufacturer(manufacturer_config)
-    revenue = manufacturer.assets * manufacturer_config.asset_turnover_ratio
+    revenue = manufacturer.total_assets * manufacturer_config.asset_turnover_ratio
 
     # Two-tier loss structure to demonstrate insurance value:
     # 1. Regular operational losses (frequent, manageable)
     regular_generator = ClaimGenerator(
-        frequency=5.0 * (revenue / 10_000_000),  # ~5 per year, scales with revenue
+        base_frequency=5.0 * (revenue / 10_000_000),  # ~5 per year, scales with revenue
         severity_mean=80_000,     # Mean $80K
         severity_std=50_000,      # Moderate variation
         seed=42
@@ -61,7 +63,7 @@ Here's a simple example to get you started:
 
     # 2. Catastrophic losses (rare but potentially ruinous)
     catastrophic_generator = ClaimGenerator(
-        frequency=0.3 * (revenue / 10_000_000),  # ~0.3 per year (once every 3 years)
+        base_frequency=0.3 * (revenue / 10_000_000),  # ~0.3 per year (once every 3 years)
         severity_mean=2_000_000,  # Mean $2M
         severity_std=1_500_000,   # Can reach $5M+
         seed=43
@@ -99,21 +101,16 @@ Here's a simple example to get you started:
 
         total_company_payment += company_payment
 
-    # Apply losses to manufacturer
+
+
+    # Apply losses to manufacturer using the apply_loss method
     if total_company_payment > 0:
-        manufacturer.assets -= min(total_company_payment, manufacturer.assets)
-        manufacturer.equity -= min(total_company_payment, manufacturer.equity)
-
-    # Deduct premium
-    manufacturer.assets -= annual_premium
-    manufacturer.equity -= annual_premium
-
-    # Update manufacturer's financial position
-    manufacturer.step()
+        manufacturer.record_insurance_loss(total_company_payment)
 
     # Check results
-    print(f"Final assets: ${manufacturer.assets:,.0f}")
-    print(f"Survived: {manufacturer.assets > 0}")
+    print(f"Final assets: ${manufacturer.total_assets:,.0f}")
+    print(f"Final equity: ${manufacturer.equity:,.0f}")
+    print(f"Survived: {manufacturer.total_assets > 0}")
 
 Simulation Results
 ------------------
