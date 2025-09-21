@@ -7,13 +7,13 @@
 ## Detailed Insights
 
 ### 1. Underperformance in Ruin Probability
-The insurance_optimization_insurance_premium_rate_high scenario showed the weakest ruin probability at 15.17%, underperforming by 385.7%
+The insurance_optimization_insurance_premium_rate_high scenario showed the weakest ruin probability at 15.39%, underperforming by 360.7%
 - Category: performance
 - Importance: 70/100
 - Confidence: 90.0%
 
 ### 2. Outlier Detected in Ruin Probability
-insurance_optimization_insurance_premium_rate_high exhibits exceptionally high ruin probability (15.17%), 2.4 standard deviations above mean
+insurance_optimization_insurance_premium_rate_high exhibits exceptionally high ruin probability (15.39%), 2.4 standard deviations above mean
 - Category: outlier
 - Importance: 74/100
 - Confidence: 85.0%
@@ -31,8 +31,7 @@ ruin probability exceeded the critical threshold of 1.00% in 6 scenarios
 - Confidence: 95.0%
 
 ### 5. Strong Correlation Between Metrics
-Strong negative correlation (-0.81) detected between mean growth rate and ruin probability
+Strong negative correlation (-0.83) detected between mean growth rate and ruin probability
 - Category: correlation
-- Importance: 74/100
-- Confidence: 97.2%
-
+- Importance: 75/100
+- Confidence: 98.0%
