@@ -30,9 +30,9 @@ def test_configuration_files_exist():
 def test_package_imports():
     """Test that the package can be imported."""
     try:
-        import src
+        import ergodic_insurance
 
-        assert src.__version__ == "0.1.0"
+        assert ergodic_insurance.__version__ == "0.3.0"
     except ImportError:
         pytest.skip("Package not installed in editable mode yet")
 

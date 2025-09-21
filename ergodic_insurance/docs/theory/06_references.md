@@ -371,7 +371,7 @@ For updates to this reference list or to suggest additional resources, please:
 3. Contact the maintainers
 
 Last updated: September 2025
-Version: 0.1.0
+Version: 0.3.0
 
 ## Verification Note
 
