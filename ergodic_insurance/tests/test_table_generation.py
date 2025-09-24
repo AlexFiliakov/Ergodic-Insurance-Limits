@@ -553,7 +553,7 @@ class TestHelperFunctions:
         """Test parameter table creation."""
         params = {
             "Growth": {"mean": 0.08, "volatility": 0.20},
-            "Insurance": {"retention": 100_000, "premium_rate": 0.015},
+            "Insurance": {"retention": 100_000, "base_premium_rate": 0.015},
         }
 
         table = create_parameter_table(params)

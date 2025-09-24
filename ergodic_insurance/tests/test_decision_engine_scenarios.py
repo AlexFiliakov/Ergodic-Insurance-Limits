@@ -604,7 +604,7 @@ class TestSensitivityAnalysisScenarios:
         # Run comprehensive sensitivity analysis
         sensitivity_report = engine.run_sensitivity_analysis(
             base_decision,
-            parameters=["premium_rates", "loss_frequency", "capital_base"],
+            parameters=["base_premium_rates", "loss_frequency", "capital_base"],
             variation_range=0.3,  # 30% shocks
         )
 
@@ -615,7 +615,7 @@ class TestSensitivityAnalysisScenarios:
 
         # Key drivers should be identified
         assert sensitivity_report.key_drivers[0] in [
-            "premium_rates",
+            "base_premium_rates",
             "loss_frequency",
             "capital_base",
         ]
@@ -623,5 +623,5 @@ class TestSensitivityAnalysisScenarios:
         # Robust ranges should be defined
         assert all(
             param in sensitivity_report.robust_range
-            for param in ["premium_rates", "loss_frequency", "capital_base"]
+            for param in ["base_premium_rates", "loss_frequency", "capital_base"]
         )

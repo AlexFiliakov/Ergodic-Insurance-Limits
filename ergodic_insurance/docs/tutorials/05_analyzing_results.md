@@ -13,6 +13,8 @@ By the end of this tutorial, you will be able to:
 
 ## Understanding Key Metrics
 
+THIS TUTORIAL IS OTUDATED!!!
+
 ### Growth Rate Metrics
 
 ```python

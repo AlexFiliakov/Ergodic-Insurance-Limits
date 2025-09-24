@@ -71,7 +71,7 @@ class EnhancedInsuranceLayer:
 
     attachment_point: float  # Where coverage starts
     limit: float  # Maximum coverage amount (interpretation depends on limit_type)
-    base_premium_rate: float  # % of limit as base premium (renamed from premium_rate)
+    base_premium_rate: float  # % of limit as base premium
     reinstatements: int = 0  # Number of reinstatements available
     reinstatement_premium: float = 1.0  # % of original premium per reinstatement
     reinstatement_type: ReinstatementType = ReinstatementType.PRO_RATA

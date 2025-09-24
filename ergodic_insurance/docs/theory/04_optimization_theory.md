@@ -1927,7 +1927,7 @@ class SimplifiedHJBSolver:
         self.discount_rate = 0.05  # 5% discount rate
 
         # Insurance parameters
-        self.premium_rate = 0.03  # 3% of wealth for full coverage
+        self.base_premium_rate = 0.03  # 3% of wealth for full coverage
         self.loss_frequency = 0.2  # Expected losses per year
         self.loss_severity = 0.3  # Average loss as fraction of wealth
 
@@ -1997,7 +1997,7 @@ class SimplifiedHJBSolver:
 
                 # Compute value (simplified Bellman equation)
                 # Expected continuation value
-                expected_growth = self.growth_rate - self.premium_rate * coverage
+                expected_growth = self.growth_rate - self.base_premium_rate * coverage
 
                 # Risk reduction from insurance
                 risk_reduction = coverage * self.loss_frequency * self.loss_severity * wealth
@@ -2059,7 +2059,7 @@ class SimplifiedHJBSolver:
         # 5. Coverage vs Wealth (at t=0)
         ax5 = axes[1, 1]
         coverage_t0 = optimal_coverage[0, :]
-        premium_cost = self.premium_rate * coverage_t0 * self.wealth_grid
+        premium_cost = self.base_premium_rate * coverage_t0 * self.wealth_grid
         expected_protection = self.loss_frequency * self.loss_severity * coverage_t0 * self.wealth_grid
 
         ax5.plot(self.wealth_grid / 1e6, coverage_t0 * 100, 'b-', label='Coverage %', linewidth=2)

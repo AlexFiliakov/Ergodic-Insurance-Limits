@@ -295,7 +295,7 @@ class TestIntegrationScenarios:
 
         # Verify premium is reasonable (0.5-1% of total coverage)
         total_coverage = realistic_policy.get_total_coverage()
-        premium_rate = premium / total_coverage
+        base_premium_rate = premium / total_coverage
 
-        assert 0.005 <= premium_rate <= 0.01  # Between 0.5% and 1%
+        assert 0.005 <= base_premium_rate <= 0.01  # Between 0.5% and 1%
         assert premium == 327_500  # Exact calculation

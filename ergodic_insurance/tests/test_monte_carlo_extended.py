@@ -32,7 +32,7 @@ class TestMonteCarloExtended:
         )
 
         # Simple insurance
-        layers = [EnhancedInsuranceLayer(attachment_point=0, limit=100_000, premium_rate=0.05)]
+        layers = [EnhancedInsuranceLayer(attachment_point=0, limit=100_000, base_premium_rate=0.05)]
         insurance_program = InsuranceProgram(layers=layers)
 
         # Simple manufacturer

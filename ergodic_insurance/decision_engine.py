@@ -1226,7 +1226,7 @@ class InsuranceDecisionEngine:
         # pylint: disable=too-many-locals
         if parameters is None:
             parameters = [
-                "premium_rates",
+                "base_premium_rate",
                 "loss_frequency",
                 "loss_severity",
                 "growth_rate",
@@ -1330,7 +1330,7 @@ class InsuranceDecisionEngine:
         # Store original state
         original_state = {}
 
-        if parameter == "premium_rates":
+        if parameter == "base_premium_rate":
             # Modify pricing scenario rates
             for attr in ["primary_layer_rate", "first_excess_rate", "higher_excess_rate"]:
                 original = getattr(self.current_scenario, attr)

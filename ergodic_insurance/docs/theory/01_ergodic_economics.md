@@ -370,7 +370,7 @@ plt.show()
 import numpy as np
 
 
-def simulate_with_insurance(W0, n_years, premium_rate, retention, n_sims=1000):
+def simulate_with_insurance(W0, n_years, base_premium_rate, retention, n_sims=1000):
     """Simulate wealth with and without insurance."""
     np.random.seed(42)
 
@@ -405,7 +405,7 @@ def simulate_with_insurance(W0, n_years, premium_rate, retention, n_sims=1000):
                            1] = max(0, wealth_without[sim, year] * growth_factor - claims)
 
             # With insurance
-            premium = wealth_with[sim, year] * premium_rate
+            premium = wealth_with[sim, year] * base_premium_rate
             covered_loss = max(0, claims - retention)
             wealth_with[sim, year + 1] = max(0, wealth_with[sim, year]
                                              * growth_factor - premium - min(claims, retention))

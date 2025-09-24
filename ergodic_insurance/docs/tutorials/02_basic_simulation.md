@@ -340,7 +340,7 @@ insurance_layers = [
     EnhancedInsuranceLayer(
         attachment_point=100_000,    # $100K deductible
         limit=10_000_000,            # $10M limit
-        premium_rate=0.015            # 2% rate on limit
+        base_premium_rate=0.015            # 2% rate on limit
     )
 ]
 insurance_program = InsuranceProgram(layers=insurance_layers)
@@ -399,10 +399,10 @@ Monte Carlo Results (1000 simulations):
 ```python
 # Define different insurance strategies
 strategies = [
-    {"name": "No Insurance", "attachment": float('inf'), "limit": 0, "premium_rate": 0},
-    {"name": "High Deductible", "attachment": 2_000_000, "limit": 10_000_000, "premium_rate": 0.01},
-    {"name": "Medium Coverage", "attachment": 500_000, "limit": 5_000_000, "premium_rate": 0.015},
-    {"name": "Full Coverage", "attachment": 100_000, "limit": 20_000_000, "premium_rate": 0.02}
+    {"name": "No Insurance", "attachment": float('inf'), "limit": 0, "base_premium_rate": 0},
+    {"name": "High Deductible", "attachment": 2_000_000, "limit": 10_000_000, "base_premium_rate": 0.01},
+    {"name": "Medium Coverage", "attachment": 500_000, "limit": 5_000_000, "base_premium_rate": 0.015},
+    {"name": "Full Coverage", "attachment": 100_000, "limit": 20_000_000, "base_premium_rate": 0.02}
 ]
 
 # Run simulations for each strategy
@@ -415,7 +415,7 @@ for strategy in strategies:
             EnhancedInsuranceLayer(
                 attachment_point=strategy['attachment'],
                 limit=strategy['limit'],
-                premium_rate=strategy['premium_rate']
+                base_premium_rate=strategy['base_premium_rate']
             )
         ]
         strategy_insurance = InsuranceProgram(layers=strategy_layers)
@@ -493,7 +493,7 @@ for ax, strategy in zip(axes.flat, strategies_to_plot):
             strategy_layer = InsuranceLayer(
                 attachment_point=strategy['attachment'],
                 limit=strategy['limit'],
-                rate=strategy['premium_rate']
+                rate=strategy['base_premium_rate']
             )
             strategy_policy = InsurancePolicy(
                 layers=[strategy_layer],
@@ -716,7 +716,7 @@ test_insurance = InsuranceProgram(layers=[
     EnhancedInsuranceLayer(
         attachment_point=500_000,
         limit=5_000_000,
-        premium_rate=0.015
+        base_premium_rate=0.015
     )
 ])
 
@@ -832,7 +832,7 @@ parallel_insurance = InsuranceProgram(layers=[
     EnhancedInsuranceLayer(
         attachment_point=1_000_000,
         limit=10_000_000,
-        premium_rate=0.02
+        base_premium_rate=0.02
     )
 ])
 

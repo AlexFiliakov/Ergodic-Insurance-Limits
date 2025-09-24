@@ -31,7 +31,7 @@ class TestEnhancedInsuranceLayer:
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000,
             limit=5_000_000,
-            premium_rate=0.01,
+            base_premium_rate=0.01,
             reinstatements=2,
             reinstatement_premium=1.0,
             reinstatement_type=ReinstatementType.PRO_RATA,
@@ -39,7 +39,7 @@ class TestEnhancedInsuranceLayer:
 
         assert layer.attachment_point == 1_000_000
         assert layer.limit == 5_000_000
-        assert layer.premium_rate == 0.01
+        assert layer.base_premium_rate == 0.01
         assert layer.reinstatements == 2
         assert layer.reinstatement_premium == 1.0
         assert layer.reinstatement_type == ReinstatementType.PRO_RATA
@@ -47,23 +47,23 @@ class TestEnhancedInsuranceLayer:
     def test_invalid_parameters(self):
         """Test that invalid parameters raise errors."""
         with pytest.raises(ValueError, match="Attachment point must be non-negative"):
-            EnhancedInsuranceLayer(attachment_point=-100, limit=1_000_000, premium_rate=0.01)
+            EnhancedInsuranceLayer(attachment_point=-100, limit=1_000_000, base_premium_rate=0.01)
 
         with pytest.raises(ValueError, match="Limit must be positive"):
-            EnhancedInsuranceLayer(attachment_point=0, limit=-1_000_000, premium_rate=0.01)
+            EnhancedInsuranceLayer(attachment_point=0, limit=-1_000_000, base_premium_rate=0.01)
 
-        with pytest.raises(ValueError, match="Premium rate must be non-negative"):
-            EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=-0.01)
+        with pytest.raises(ValueError, match="Base premium rate must be non-negative, got -0.01"):
+            EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=-0.01)
 
         with pytest.raises(ValueError, match="Reinstatements must be non-negative"):
             EnhancedInsuranceLayer(
-                attachment_point=0, limit=1_000_000, premium_rate=0.01, reinstatements=-1
+                attachment_point=0, limit=1_000_000, base_premium_rate=0.01, reinstatements=-1
             )
 
     def test_calculate_base_premium(self):
         """Test base premium calculation."""
         layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000, limit=5_000_000, premium_rate=0.02
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.02
         )
 
         assert layer.calculate_base_premium() == 100_000  # 5M * 0.02
@@ -73,7 +73,7 @@ class TestEnhancedInsuranceLayer:
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000,
             limit=5_000_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             reinstatement_premium=0.5,
             reinstatement_type=ReinstatementType.PRO_RATA,
         )
@@ -87,7 +87,7 @@ class TestEnhancedInsuranceLayer:
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000,
             limit=5_000_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             reinstatement_premium=1.0,
             reinstatement_type=ReinstatementType.FULL,
         )
@@ -101,7 +101,7 @@ class TestEnhancedInsuranceLayer:
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000,
             limit=5_000_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             reinstatement_type=ReinstatementType.FREE,
         )
 
@@ -111,7 +111,7 @@ class TestEnhancedInsuranceLayer:
     def test_can_respond(self):
         """Test layer response determination."""
         layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000, limit=5_000_000, premium_rate=0.01
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
         )
 
         assert not layer.can_respond(500_000)  # Below attachment
@@ -121,7 +121,7 @@ class TestEnhancedInsuranceLayer:
     def test_calculate_layer_loss(self):
         """Test layer loss calculation."""
         layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000, limit=5_000_000, premium_rate=0.01
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
         )
 
         # Below attachment
@@ -140,7 +140,7 @@ class TestLayerState:
     def test_initialization(self):
         """Test layer state initialization."""
         layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000, limit=5_000_000, premium_rate=0.01, reinstatements=2
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01, reinstatements=2
         )
         state = LayerState(layer)
 
@@ -153,7 +153,7 @@ class TestLayerState:
     def test_process_claim_simple(self):
         """Test simple claim processing."""
         layer = EnhancedInsuranceLayer(
-            attachment_point=0, limit=5_000_000, premium_rate=0.01, limit_type="aggregate"
+            attachment_point=0, limit=5_000_000, base_premium_rate=0.01, limit_type="aggregate"
         )
         state = LayerState(layer)
 
@@ -169,7 +169,7 @@ class TestLayerState:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=5_000_000,
-            premium_rate=0.01,
+            base_premium_rate=0.01,
             reinstatements=0,  # No reinstatements
             limit_type="aggregate",
         )
@@ -190,7 +190,7 @@ class TestLayerState:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=5_000_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             reinstatements=1,
             reinstatement_premium=1.0,
             reinstatement_type=ReinstatementType.FULL,
@@ -212,7 +212,7 @@ class TestLayerState:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=2_000_000,
-            premium_rate=0.01,
+            base_premium_rate=0.01,
             reinstatements=2,
             reinstatement_premium=0.5,
             reinstatement_type=ReinstatementType.PRO_RATA,
@@ -241,7 +241,7 @@ class TestLayerState:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=2_000_000,
-            premium_rate=0.01,
+            base_premium_rate=0.01,
             reinstatements=10,  # Many reinstatements
             aggregate_limit=5_000_000,  # But aggregate cap
             limit_type="aggregate",
@@ -267,7 +267,7 @@ class TestLayerState:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=5_000_000,
-            premium_rate=0.01,
+            base_premium_rate=0.01,
             reinstatements=1,
             limit_type="aggregate",
         )
@@ -289,7 +289,7 @@ class TestLayerState:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=5_000_000,
-            premium_rate=0.01,
+            base_premium_rate=0.01,
             reinstatements=1,  # Total 10M available
         )
         state = LayerState(layer)
@@ -309,9 +309,9 @@ class TestInsuranceProgram:
     def test_initialization(self):
         """Test program initialization."""
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.015),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.015),
             EnhancedInsuranceLayer(
-                attachment_point=5_000_000, limit=20_000_000, premium_rate=0.008
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.008
             ),
         ]
 
@@ -327,8 +327,10 @@ class TestInsuranceProgram:
     def test_calculate_annual_premium(self):
         """Test annual premium calculation."""
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.02),
-            EnhancedInsuranceLayer(attachment_point=5_000_000, limit=10_000_000, premium_rate=0.01),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=10_000_000, base_premium_rate=0.01
+            ),
         ]
 
         program = InsuranceProgram(layers)
@@ -348,7 +350,9 @@ class TestInsuranceProgram:
     def test_process_single_layer_claim(self):
         """Test claim hitting single layer."""
         layers = [
-            EnhancedInsuranceLayer(attachment_point=250_000, limit=5_000_000, premium_rate=0.01)
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
         ]
         program = InsuranceProgram(layers, deductible=250_000)
 
@@ -363,10 +367,10 @@ class TestInsuranceProgram:
         """Test claim hitting multiple layers."""
         layers = [
             EnhancedInsuranceLayer(
-                attachment_point=250_000, limit=4_750_000, premium_rate=0.015  # Up to 5M
+                attachment_point=250_000, limit=4_750_000, base_premium_rate=0.015  # Up to 5M
             ),
             EnhancedInsuranceLayer(
-                attachment_point=5_000_000, limit=20_000_000, premium_rate=0.008
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.008
             ),
         ]
         program = InsuranceProgram(layers, deductible=250_000)
@@ -385,7 +389,7 @@ class TestInsuranceProgram:
             EnhancedInsuranceLayer(
                 attachment_point=0,
                 limit=5_000_000,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
                 reinstatements=1,
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.FULL,
@@ -406,7 +410,7 @@ class TestInsuranceProgram:
             EnhancedInsuranceLayer(
                 attachment_point=0,
                 limit=2_000_000,
-                premium_rate=0.01,
+                base_premium_rate=0.01,
                 reinstatements=2,
                 reinstatement_premium=0.5,
                 reinstatement_type=ReinstatementType.PRO_RATA,
@@ -441,7 +445,7 @@ class TestInsuranceProgram:
         """Test annual reset functionality."""
         layers = [
             EnhancedInsuranceLayer(
-                attachment_point=0, limit=5_000_000, premium_rate=0.01, limit_type="aggregate"
+                attachment_point=0, limit=5_000_000, base_premium_rate=0.01, limit_type="aggregate"
             )
         ]
         program = InsuranceProgram(layers)
@@ -472,8 +476,10 @@ class TestInsuranceProgram:
     def test_get_total_coverage(self):
         """Test total coverage calculation."""
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.01),
-            EnhancedInsuranceLayer(attachment_point=5_000_000, limit=20_000_000, premium_rate=0.01),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.01
+            ),
         ]
         program = InsuranceProgram(layers)
 
@@ -488,7 +494,7 @@ class TestInsuranceProgram:
                 {
                     "attachment_point": 500_000,
                     "limit": 5_000_000,
-                    "premium_rate": 0.02,
+                    "base_premium_rate": 0.02,
                     "reinstatements": 1,
                     "reinstatement_premium": 1.0,
                     "reinstatement_type": "full",
@@ -496,7 +502,7 @@ class TestInsuranceProgram:
                 {
                     "attachment_point": 5_500_000,
                     "limit": 10_000_000,
-                    "premium_rate": 0.01,
+                    "base_premium_rate": 0.01,
                     "reinstatements": 0,
                 },
             ],
@@ -522,7 +528,9 @@ class TestProgramState:
 
     def test_initialization(self):
         """Test program state initialization."""
-        layers = [EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.01)]
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
         program = InsuranceProgram(layers)
         state = ProgramState(program)
 
@@ -533,7 +541,9 @@ class TestProgramState:
 
     def test_simulate_year(self):
         """Test single year simulation."""
-        layers = [EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.01)]
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
         program = InsuranceProgram(layers)
         state = ProgramState(program)
 
@@ -552,7 +562,7 @@ class TestProgramState:
             EnhancedInsuranceLayer(
                 attachment_point=0,
                 limit=3_000_000,
-                premium_rate=0.01,
+                base_premium_rate=0.01,
                 reinstatements=1,
                 reinstatement_premium=0.5,
                 reinstatement_type=ReinstatementType.PRO_RATA,
@@ -576,7 +586,9 @@ class TestProgramState:
 
     def test_summary_statistics(self):
         """Test summary statistics calculation."""
-        layers = [EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.01)]
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
         program = InsuranceProgram(layers)
         state = ProgramState(program)
 
@@ -608,18 +620,20 @@ class TestComplexScenarios:
             EnhancedInsuranceLayer(
                 attachment_point=250_000,  # After deductible
                 limit=4_750_000,  # Primary layer
-                premium_rate=0.015,
+                base_premium_rate=0.015,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=5_000_000,
                 limit=20_000_000,  # First excess
-                premium_rate=0.008,
+                base_premium_rate=0.008,
                 reinstatements=1,
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.FULL,
             ),
             EnhancedInsuranceLayer(
-                attachment_point=25_000_000, limit=25_000_000, premium_rate=0.004  # Second excess
+                attachment_point=25_000_000,
+                limit=25_000_000,
+                base_premium_rate=0.004,  # Second excess
             ),
         ]
 
@@ -646,7 +660,7 @@ class TestComplexScenarios:
             EnhancedInsuranceLayer(
                 attachment_point=100_000,
                 limit=2_000_000,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
                 reinstatements=2,
                 reinstatement_premium=0.5,
                 reinstatement_type=ReinstatementType.PRO_RATA,
@@ -918,8 +932,8 @@ class TestInsuranceProgramOptimization:
         for layer in optimal.layers:
             assert layer.attachment_point >= 0
             assert layer.limit > 0
-            assert layer.premium_rate > 0
-            assert layer.premium_rate <= 0.05  # Reasonable rate
+            assert layer.base_premium_rate > 0
+            assert layer.base_premium_rate <= 0.05  # Reasonable rate
             assert layer.reinstatements >= 0
 
     def test_percentile_based_attachment_selection(self):
@@ -957,10 +971,13 @@ class TestCatastrophicScenarios:
         """Test scenario where all layers are exhausted."""
         layers = [
             EnhancedInsuranceLayer(
-                attachment_point=0, limit=5_000_000, premium_rate=0.02, reinstatements=0
+                attachment_point=0, limit=5_000_000, base_premium_rate=0.02, reinstatements=0
             ),
             EnhancedInsuranceLayer(
-                attachment_point=5_000_000, limit=10_000_000, premium_rate=0.01, reinstatements=0
+                attachment_point=5_000_000,
+                limit=10_000_000,
+                base_premium_rate=0.01,
+                reinstatements=0,
             ),
         ]
 
@@ -978,7 +995,9 @@ class TestCatastrophicScenarios:
         import time
 
         # Create a simple program
-        layers = [EnhancedInsuranceLayer(attachment_point=1_000, limit=10_000, premium_rate=0.01)]
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=1_000, limit=10_000, base_premium_rate=0.01)
+        ]
         program = InsuranceProgram(layers)
 
         # Generate 10K claims

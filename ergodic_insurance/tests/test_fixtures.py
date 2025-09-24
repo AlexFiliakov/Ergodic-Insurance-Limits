@@ -107,7 +107,7 @@ class TestDataGenerator:
                 EnhancedInsuranceLayer(
                     attachment_point=attachment,
                     limit=base_limit * (2**i),
-                    premium_rate=base_premium / (i + 1),
+                    base_premium_rate=base_premium / (i + 1),
                 )
             )
             attachment += base_limit * (2**i)

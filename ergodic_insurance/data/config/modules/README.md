@@ -21,7 +21,7 @@ insurance:
     - name: Primary
       limit: 5_000_000
       attachment: 0
-      premium_rate: 0.015
+      base_premium_rate: 0.015
 ```
 
 ## Usage in Profiles

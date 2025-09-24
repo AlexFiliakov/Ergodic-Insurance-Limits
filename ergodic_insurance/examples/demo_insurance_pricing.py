@@ -143,20 +143,20 @@ def demo_program_pricing():
         EnhancedInsuranceLayer(
             attachment_point=250_000,
             limit=4_750_000,
-            premium_rate=0.015,  # 1.5% fixed rate
+            base_premium_rate=0.015,  # 1.5% fixed rate
             reinstatements=0,
         ),
         EnhancedInsuranceLayer(
             attachment_point=5_000_000,
             limit=20_000_000,
-            premium_rate=0.008,  # 0.8% fixed rate
+            base_premium_rate=0.008,  # 0.8% fixed rate
             reinstatements=1,
             reinstatement_type=ReinstatementType.FULL,
         ),
         EnhancedInsuranceLayer(
             attachment_point=25_000_000,
             limit=25_000_000,
-            premium_rate=0.004,  # 0.4% fixed rate
+            base_premium_rate=0.004,  # 0.4% fixed rate
             reinstatements=2,
             reinstatement_type=ReinstatementType.PRO_RATA,
         ),
@@ -195,7 +195,7 @@ def demo_program_pricing():
             f"${layer_info['attachment_point']:,.0f}",
             f"${layer_info['limit']:,.0f}",
             f"{original_rates[i]:.3%}",
-            f"{layer_info['premium_rate']:.3%}",
+            f"{layer_info['base_premium_rate']:.3%}",
             f"${layer_info['market_premium']:,.0f}",
         )
 
@@ -271,7 +271,7 @@ def demo_fixed_vs_calculated():
             EnhancedInsuranceLayer(
                 attachment_point=layer.attachment_point,
                 limit=layer.limit,
-                premium_rate=layer.premium_rate,  # Will be overridden
+                base_premium_rate=layer.base_premium_rate,  # Will be overridden
                 reinstatements=layer.reinstatements,
                 reinstatement_type=layer.reinstatement_type,
             )

@@ -222,9 +222,9 @@ Example: Ergodic Analysis
    results = analyzer.analyze_insurance_impact(
        manufacturer=manufacturer,
        insurance_configs=[
-           {"limit": 5_000_000, "premium_rate": 0.015},
-           {"limit": 10_000_000, "premium_rate": 0.012},
-           {"limit": 25_000_000, "premium_rate": 0.010}
+           {"limit": 5_000_000, "base_premium_rate": 0.015},
+           {"limit": 10_000_000, "base_premium_rate": 0.012},
+           {"limit": 25_000_000, "base_premium_rate": 0.010}
        ],
        n_simulations=1000,
        time_horizon=100

@@ -124,7 +124,7 @@ def sample_config_v2_dict():
                     "name": "Primary",
                     "limit": 5_000_000.0,
                     "attachment": 0.0,
-                    "premium_rate": 0.015,
+                    "base_premium_rate": 0.015,
                     "reinstatements": 0,
                     "aggregate_limit": None,
                 }

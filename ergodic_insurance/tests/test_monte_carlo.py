@@ -94,7 +94,7 @@ class TestMonteCarloEngine:
         loss_generator.generate_losses.return_value = (mock_claims, {"total_amount": 50_000})
 
         # Create insurance program
-        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=0.02)
+        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=0.02)
         insurance_program = InsuranceProgram(layers=[layer])
 
         # Create manufacturer
@@ -432,7 +432,7 @@ class TestRuinProbabilityEstimation:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=5_000_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
         )
         insurance_program = InsuranceProgram(layers=[layer])
 
@@ -719,7 +719,7 @@ class TestEnhancedParallelExecution:
         loss_generator.severity_params = {"mu": 10, "sigma": 2}
 
         # Create insurance program
-        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=0.02)
+        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=0.02)
         insurance_program = InsuranceProgram(layers=[layer])
 
         # Create manufacturer

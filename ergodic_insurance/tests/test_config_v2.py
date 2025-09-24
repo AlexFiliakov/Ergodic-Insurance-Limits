@@ -108,12 +108,12 @@ class TestInsuranceLayerConfig:
             name="Primary",
             limit=1000000,
             attachment=0,
-            premium_rate=0.015,
+            base_premium_rate=0.015,
             reinstatements=2,
             aggregate_limit=5000000,
         )
         assert layer.limit == 1000000
-        assert layer.premium_rate == 0.015
+        assert layer.base_premium_rate == 0.015
         assert layer.reinstatements == 2
 
     def test_invalid_aggregate_limit(self):
@@ -123,7 +123,7 @@ class TestInsuranceLayerConfig:
             name="Valid",
             limit=1000000,
             attachment=0,
-            premium_rate=0.015,
+            base_premium_rate=0.015,
             aggregate_limit=500000,  # Less than limit is now allowed
         )
         assert layer.limit == 1000000
@@ -135,7 +135,7 @@ class TestInsuranceLayerConfig:
             name="Valid",
             limit=1000000,
             attachment=0,
-            premium_rate=0.015,
+            base_premium_rate=0.015,
             aggregate_limit=1000000,  # Equal to limit
         )
         assert layer.aggregate_limit == 1000000
@@ -146,7 +146,7 @@ class TestInsuranceLayerConfig:
             name="No Aggregate",
             limit=1000000,
             attachment=0,
-            premium_rate=0.015,
+            base_premium_rate=0.015,
         )
         assert layer.aggregate_limit is None
 
@@ -157,7 +157,7 @@ class TestInsuranceLayerConfig:
             name="Min",
             limit=0.01,
             attachment=0,
-            premium_rate=0.001,
+            base_premium_rate=0.001,
             reinstatements=0,
         )
         assert layer.limit == 0.01
@@ -168,9 +168,9 @@ class TestInsuranceLayerConfig:
             name="Max Rate",
             limit=1000000,
             attachment=0,
-            premium_rate=1.0,
+            base_premium_rate=1.0,
         )
-        assert layer2.premium_rate == 1.0
+        assert layer2.base_premium_rate == 1.0
 
 
 class TestInsuranceConfig:
@@ -179,10 +179,10 @@ class TestInsuranceConfig:
     def test_valid_insurance_config(self):
         """Test creating valid insurance configuration."""
         layer1 = InsuranceLayerConfig(
-            name="Primary", limit=1000000, attachment=0, premium_rate=0.015
+            name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
         )
         layer2 = InsuranceLayerConfig(
-            name="Excess", limit=4000000, attachment=1000000, premium_rate=0.008
+            name="Excess", limit=4000000, attachment=1000000, base_premium_rate=0.008
         )
 
         config = InsuranceConfig(
@@ -200,10 +200,10 @@ class TestInsuranceConfig:
     def test_overlapping_layers(self):
         """Test validation catches overlapping layers."""
         layer1 = InsuranceLayerConfig(
-            name="Primary", limit=2000000, attachment=0, premium_rate=0.015
+            name="Primary", limit=2000000, attachment=0, base_premium_rate=0.015
         )
         layer2 = InsuranceLayerConfig(
-            name="Excess", limit=3000000, attachment=1000000, premium_rate=0.008  # Overlaps
+            name="Excess", limit=3000000, attachment=1000000, base_premium_rate=0.008  # Overlaps
         )
 
         with pytest.raises(ValidationError) as exc_info:
@@ -213,10 +213,10 @@ class TestInsuranceConfig:
     def test_layer_gap_warning(self, capsys):
         """Test warning for gaps between layers."""
         layer1 = InsuranceLayerConfig(
-            name="Primary", limit=1000000, attachment=0, premium_rate=0.015
+            name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
         )
         layer2 = InsuranceLayerConfig(
-            name="Excess", limit=3000000, attachment=2000000, premium_rate=0.008  # Gap
+            name="Excess", limit=3000000, attachment=2000000, base_premium_rate=0.008  # Gap
         )
 
         config = InsuranceConfig(layers=[layer1, layer2])
@@ -227,7 +227,7 @@ class TestInsuranceConfig:
     def test_single_layer(self):
         """Test insurance with single layer."""
         layer = InsuranceLayerConfig(
-            name="Single", limit=5000000, attachment=100000, premium_rate=0.02
+            name="Single", limit=5000000, attachment=100000, base_premium_rate=0.02
         )
         config = InsuranceConfig(layers=[layer])
         assert len(config.layers) == 1
@@ -240,13 +240,13 @@ class TestInsuranceConfig:
     def test_layer_sorting(self, capsys):
         """Test that layers are properly sorted by attachment point."""
         layer1 = InsuranceLayerConfig(
-            name="Excess", limit=3000000, attachment=2000000, premium_rate=0.008
+            name="Excess", limit=3000000, attachment=2000000, base_premium_rate=0.008
         )
         layer2 = InsuranceLayerConfig(
-            name="Primary", limit=1000000, attachment=0, premium_rate=0.015
+            name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
         )
         layer3 = InsuranceLayerConfig(
-            name="Middle", limit=1000000, attachment=1000000, premium_rate=0.012
+            name="Middle", limit=1000000, attachment=1000000, base_premium_rate=0.012
         )
 
         config = InsuranceConfig(layers=[layer1, layer2, layer3])
@@ -438,7 +438,7 @@ class TestConfigV2:
             insurance=InsuranceConfig(
                 layers=[
                     InsuranceLayerConfig(
-                        name="Primary", limit=1000000, attachment=0, premium_rate=0.015
+                        name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
                     )
                 ]
             ),
@@ -782,7 +782,7 @@ class TestConfigV2:
                 enabled=True,
                 layers=[
                     InsuranceLayerConfig(
-                        name="Primary", limit=1000000, attachment=0, premium_rate=0.015
+                        name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
                     )
                 ],
             ),
@@ -823,7 +823,7 @@ class TestConfigV2:
                 enabled=True,
                 layers=[
                     InsuranceLayerConfig(
-                        name="Primary", limit=1000000, attachment=0, premium_rate=0.015
+                        name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
                     )
                 ],
             ),

@@ -94,7 +94,7 @@ class InsuranceLayer:
     def __init__(self,
                  attachment: float,  # Where layer starts
                  limit: float,       # Layer capacity
-                 premium_rate: float, # % of limit
+                 base_premium_rate: float, # % of limit
                  reinstatements: int = 0):
 
     def apply_loss(self, loss: float) -> tuple[float, float]:

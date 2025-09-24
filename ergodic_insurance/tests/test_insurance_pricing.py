@@ -381,13 +381,13 @@ class TestInsuranceProgramIntegration:
             EnhancedInsuranceLayer(
                 attachment_point=250_000,
                 limit=4_750_000,
-                premium_rate=0.015,
+                base_premium_rate=0.015,
                 reinstatements=0,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=5_000_000,
                 limit=20_000_000,
-                premium_rate=0.008,
+                base_premium_rate=0.008,
                 reinstatements=1,
                 reinstatement_type=ReinstatementType.FULL,
             ),
@@ -396,7 +396,7 @@ class TestInsuranceProgramIntegration:
 
     def test_price_insurance_program(self, pricer, program):
         """Test pricing an insurance program."""
-        original_rates = [layer.premium_rate for layer in program.layers]
+        original_rates = [layer.base_premium_rate for layer in program.layers]
 
         priced_program = pricer.price_insurance_program(
             program=program,
@@ -409,7 +409,7 @@ class TestInsuranceProgramIntegration:
         assert priced_program is program
 
         # Rates should be updated
-        new_rates = [layer.premium_rate for layer in program.layers]
+        new_rates = [layer.base_premium_rate for layer in program.layers]
         assert new_rates != original_rates  # Should be different
 
         # Should have pricing results
@@ -418,7 +418,7 @@ class TestInsuranceProgramIntegration:
 
     def test_price_insurance_program_no_update(self, pricer, program):
         """Test pricing without updating program."""
-        original_rates = [layer.premium_rate for layer in program.layers]
+        original_rates = [layer.base_premium_rate for layer in program.layers]
 
         priced_program = pricer.price_insurance_program(
             program=program,
@@ -431,7 +431,7 @@ class TestInsuranceProgramIntegration:
         assert priced_program is not program
 
         # Original rates should be unchanged
-        unchanged_rates = [layer.premium_rate for layer in program.layers]
+        unchanged_rates = [layer.base_premium_rate for layer in program.layers]
         assert unchanged_rates == original_rates
 
     def test_program_apply_pricing(self, loss_generator):
@@ -440,7 +440,7 @@ class TestInsuranceProgramIntegration:
             EnhancedInsuranceLayer(
                 attachment_point=250_000,
                 limit=4_750_000,
-                premium_rate=0.015,
+                base_premium_rate=0.015,
                 reinstatements=0,
             ),
         ]
@@ -451,7 +451,7 @@ class TestInsuranceProgramIntegration:
             pricing_enabled=True,
         )
 
-        original_rate = program.layers[0].premium_rate
+        original_rate = program.layers[0].base_premium_rate
 
         program.apply_pricing(
             expected_revenue=15_000_000,
@@ -460,7 +460,7 @@ class TestInsuranceProgramIntegration:
         )
 
         # Rate should be updated
-        assert program.layers[0].premium_rate != original_rate
+        assert program.layers[0].base_premium_rate != original_rate
 
         # Should have a pricer now
         assert program.pricer is not None
@@ -478,7 +478,7 @@ class TestInsuranceProgramIntegration:
             EnhancedInsuranceLayer(
                 attachment_point=250_000,
                 limit=4_750_000,
-                premium_rate=0.015,  # Initial rate
+                base_premium_rate=0.015,  # Initial rate
                 reinstatements=0,
             ),
         ]
@@ -494,7 +494,7 @@ class TestInsuranceProgramIntegration:
         assert program.pricing_enabled
         assert program.pricer is not None
         # Rate should be updated from initial 0.015
-        assert program.layers[0].premium_rate != 0.015
+        assert program.layers[0].base_premium_rate != 0.015
 
     def test_program_get_pricing_summary(self, loss_generator):
         """Test getting pricing summary."""
@@ -503,7 +503,7 @@ class TestInsuranceProgramIntegration:
                 EnhancedInsuranceLayer(
                     attachment_point=250_000,
                     limit=4_750_000,
-                    premium_rate=0.015,
+                    base_premium_rate=0.015,
                     reinstatements=0,
                 ),
             ],
@@ -676,7 +676,7 @@ class TestBackwardCompatibility:
             EnhancedInsuranceLayer(
                 attachment_point=250_000,
                 limit=4_750_000,
-                premium_rate=0.015,
+                base_premium_rate=0.015,
                 reinstatements=0,
             ),
         ]
@@ -684,7 +684,7 @@ class TestBackwardCompatibility:
         program = InsuranceProgram(layers=layers, deductible=250_000)
 
         # Rate should be unchanged
-        assert program.layers[0].premium_rate == 0.015
+        assert program.layers[0].base_premium_rate == 0.015
 
         # Premium calculation should use fixed rate
         premium = program.calculate_annual_premium()

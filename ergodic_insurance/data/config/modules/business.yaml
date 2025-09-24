@@ -124,7 +124,7 @@ sensitivity:
   parameters_to_test:
   - coverage_limit
   - deductible
-  - premium_rate
+  - base_premium_rate
   - leverage_ratio
   - growth_rate
   confidence_level: 0.95

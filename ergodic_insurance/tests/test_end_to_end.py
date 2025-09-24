@@ -59,7 +59,7 @@ class TestCompleteManufacturerLifecycle:
                 EnhancedInsuranceLayer(
                     attachment_point=5_000,  # $5K deductible - balance retention and coverage
                     limit=2_000_000,  # $2M coverage - comprehensive catastrophic protection
-                    premium_rate=0.006,  # 0.6% premium rate - efficient pricing
+                    base_premium_rate=0.006,  # 0.6% premium rate - efficient pricing
                 )
             ]
         )
@@ -143,7 +143,7 @@ class TestCompleteManufacturerLifecycle:
         no_insurance = InsuranceProgram(
             layers=[
                 EnhancedInsuranceLayer(
-                    attachment_point=1e10, limit=1, premium_rate=0  # Effectively no coverage
+                    attachment_point=1e10, limit=1, base_premium_rate=0  # Effectively no coverage
                 )
             ]
         )
@@ -198,9 +198,13 @@ class TestInsuranceProgramEvaluation:
         """
         # Create a 3-layer program
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=100_000, premium_rate=0.03),
-            EnhancedInsuranceLayer(attachment_point=100_000, limit=400_000, premium_rate=0.015),
-            EnhancedInsuranceLayer(attachment_point=500_000, limit=500_000, premium_rate=0.005),
+            EnhancedInsuranceLayer(attachment_point=0, limit=100_000, base_premium_rate=0.03),
+            EnhancedInsuranceLayer(
+                attachment_point=100_000, limit=400_000, base_premium_rate=0.015
+            ),
+            EnhancedInsuranceLayer(
+                attachment_point=500_000, limit=500_000, base_premium_rate=0.005
+            ),
         ]
 
         insurance_program = InsuranceProgram(layers=layers)
@@ -257,9 +261,9 @@ class TestInsuranceProgramEvaluation:
         # Run optimization (simplified for testing)
         # Note: Using smaller search space for test speed
         test_configs = [
-            {"limit": 100_000, "premium_rate": 0.02},
-            {"limit": 250_000, "premium_rate": 0.015},
-            {"limit": 500_000, "premium_rate": 0.01},
+            {"limit": 100_000, "base_premium_rate": 0.02},
+            {"limit": 250_000, "base_premium_rate": 0.015},
+            {"limit": 500_000, "base_premium_rate": 0.01},
         ]
 
         best_config = None
@@ -272,7 +276,7 @@ class TestInsuranceProgramEvaluation:
                     EnhancedInsuranceLayer(
                         attachment_point=0,
                         limit=config["limit"],
-                        premium_rate=config["premium_rate"],
+                        base_premium_rate=config["base_premium_rate"],
                     )
                 ]
             )
@@ -290,7 +294,7 @@ class TestInsuranceProgramEvaluation:
             results = engine.run()
 
             # Check constraints (relaxed)
-            premium = config["limit"] * config["premium_rate"]
+            premium = config["limit"] * config["base_premium_rate"]
             if premium <= constraints["max_premium_budget"]:
                 # Relax ruin probability constraint for testing
                 # Using 0.35 threshold since the test scenario generates significant losses
@@ -390,12 +394,12 @@ class TestDecisionFramework:
         # Create multiple insurance options
         options = []
         for limit in [50_000, 100_000, 200_000]:
-            for premium_rate in [0.01, 0.02, 0.03]:
+            for base_premium_rate in [0.01, 0.02, 0.03]:
                 options.append(
                     InsuranceProgram(
                         [
                             EnhancedInsuranceLayer(
-                                attachment_point=0, limit=limit, premium_rate=premium_rate
+                                attachment_point=0, limit=limit, base_premium_rate=base_premium_rate
                             )
                         ]
                     )

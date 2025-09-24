@@ -368,7 +368,7 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
             layer_dict = {
                 "attachment": row.get("attachment", 0),
                 "limit": row.get("limit", 0),
-                "premium": row.get("premium_rate", row.get("premium", 0)),
+                "premium": row.get("base_premium_rate", row.get("premium", 0)),
             }
             layer_list.append(layer_dict)
         layers = layer_list

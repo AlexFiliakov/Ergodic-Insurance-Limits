@@ -29,7 +29,7 @@ For basic insurance programs with a single layer:
        manufacturer=manufacturer,
        claim_generator=generator,
        limits_to_test=np.linspace(1e6, 50e6, 20),
-       premium_rates=np.linspace(0.01, 0.03, 20),
+       base_premium_rate=np.linspace(0.01, 0.03, 20),
        optimization_metric="time_average_growth",
        n_simulations=500
    )
@@ -123,7 +123,7 @@ Multi-objective optimization balancing growth and risk:
 
    # Find Pareto-optimal solutions
    optimal_set = frontier.optimize(
-       decision_variables=["limit", "deductible", "premium_rate"],
+       decision_variables=["limit", "deductible", "base_premium_rate"],
        n_iterations=1000
    )
 
@@ -168,7 +168,7 @@ Incorporating uncertainty in optimization:
    uncertain_params = {
        "claim_frequency": ("poisson", 3),
        "claim_severity": ("lognormal", 10, 2),
-       "premium_rates": ("uniform", 0.01, 0.03)
+       "base_premium_rates": ("uniform", 0.01, 0.03)
    }
 
    # Robust optimization

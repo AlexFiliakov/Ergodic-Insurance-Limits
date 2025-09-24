@@ -647,7 +647,7 @@ class CatastrophicLossGenerator:
         base_frequency: float = 0.03,
         severity_alpha: float = 2.5,
         severity_xm: float = 1_000_000,
-        revenue_scaling_exponent: float = 0.7,
+        revenue_scaling_exponent: float = 0.0,
         reference_revenue: float = 10_000_000,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,

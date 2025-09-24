@@ -255,11 +255,11 @@ insurance:
     - name: "Primary"
       attachment: 0
       limit: 5_000_000
-      premium_rate: 0.015
+      base_premium_rate: 0.015
     - name: "Excess"
       attachment: 5_000_000
       limit: 20_000_000
-      premium_rate: 0.008
+      base_premium_rate: 0.008
 ```
 
 **Benefits:**
@@ -278,14 +278,14 @@ presets:
   hard_market:
     insurance:
       layers:
-        - premium_rate: 0.025  # Higher rates
-        - premium_rate: 0.015
+        - base_premium_rate: 0.025  # Higher rates
+        - base_premium_rate: 0.015
 
   soft_market:
     insurance:
       layers:
-        - premium_rate: 0.010  # Lower rates
-        - premium_rate: 0.005
+        - base_premium_rate: 0.010  # Lower rates
+        - base_premium_rate: 0.005
 ```
 
 **Usage:**

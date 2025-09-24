@@ -109,13 +109,13 @@ def default_config_v2() -> ConfigV2:
                     name="Primary",
                     limit=5_000_000,
                     attachment=100_000,
-                    premium_rate=0.02,
+                    base_premium_rate=0.02,
                 ),
                 InsuranceLayerConfig(
                     name="Excess",
                     limit=10_000_000,
                     attachment=5_100_000,
-                    premium_rate=0.01,
+                    base_premium_rate=0.01,
                 ),
             ],
         ),
@@ -250,7 +250,7 @@ def enhanced_insurance_program() -> InsuranceProgram:
     primary = EnhancedInsuranceLayer(
         attachment_point=100_000,
         limit=5_000_000,
-        premium_rate=0.02,
+        base_premium_rate=0.02,
         reinstatement_premium=0.01,
         aggregate_limit=15_000_000,
         limit_type="aggregate",  # Explicitly use aggregate for test compatibility
@@ -258,7 +258,7 @@ def enhanced_insurance_program() -> InsuranceProgram:
     excess = EnhancedInsuranceLayer(
         attachment_point=5_100_000,
         limit=10_000_000,
-        premium_rate=0.01,
+        base_premium_rate=0.01,
         reinstatements=1,
         limit_type="aggregate",  # Explicitly use aggregate for test compatibility
     )

@@ -228,17 +228,17 @@ insurance:
     - name: primary
       attachment: 100_000
       limit: 5_000_000
-      premium_rate: 0.010
+      base_premium_rate: 0.010
 
     - name: first_excess
       attachment: 5_000_000
       limit: 20_000_000
-      premium_rate: 0.005
+      base_premium_rate: 0.005
 
     - name: higher_excess
       attachment: 25_000_000
       limit: 75_000_000
-      premium_rate: 0.002
+      base_premium_rate: 0.002
 ```
 
 ### Claim Parameters

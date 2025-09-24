@@ -154,10 +154,10 @@ correlation:
 **Insurance Structure**:
 ```python
 class InsuranceLayer:
-    def __init__(self, attachment: float, limit: float, premium_rate: float):
+    def __init__(self, attachment: float, limit: float, base_premium_rate: float):
         self.attachment = attachment     # layer starts at this amount
         self.limit = limit              # layer covers up to this amount
-        self.premium_rate = premium_rate # annual premium as % of limit
+        self.base_premium_rate = base_premium_rate # annual premium as % of limit
 
 class InsurancePolicy:
     def __init__(self, layers: List[InsuranceLayer], deductible: float):
@@ -183,15 +183,15 @@ insurance:
     layers:
       - attachment: 100_000
         limit: 5_000_000
-        premium_rate: 0.010    # 1.0% of limit
+        base_premium_rate: 0.010    # 1.0% of limit
         expected_loss_ratio: 0.70
       - attachment: 5_000_000
         limit: 20_000_000
-        premium_rate: 0.005    # 0.5% of limit
+        base_premium_rate: 0.005    # 0.5% of limit
         expected_loss_ratio: 0.45
       - attachment: 25_000_000
         limit: 75_000_000
-        premium_rate: 0.002    # 0.2% of limit
+        base_premium_rate: 0.002    # 0.2% of limit
         expected_loss_ratio: 0.30
 ```
 

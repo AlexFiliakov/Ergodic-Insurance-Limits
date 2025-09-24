@@ -107,7 +107,7 @@ class InsuranceLayerConfig(BaseModel):
     name: str = Field(description="Layer name")
     limit: float = Field(gt=0, description="Layer limit in dollars")
     attachment: float = Field(ge=0, description="Attachment point in dollars")
-    premium_rate: float = Field(gt=0, le=1, description="Premium as percentage of limit")
+    base_premium_rate: float = Field(gt=0, le=1, description="Premium as percentage of limit")
     reinstatements: int = Field(default=0, ge=0, description="Number of reinstatements")
     aggregate_limit: Optional[float] = Field(
         default=None, gt=0, description="Aggregate limit if applicable"

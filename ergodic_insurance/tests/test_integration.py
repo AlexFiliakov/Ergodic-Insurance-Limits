@@ -563,7 +563,9 @@ class TestIntegration:
         # Step 2: Apply insurance (if any)
         from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 
-        layer = EnhancedInsuranceLayer(attachment_point=50_000, limit=1_000_000, premium_rate=0.03)
+        layer = EnhancedInsuranceLayer(
+            attachment_point=50_000, limit=1_000_000, base_premium_rate=0.03
+        )
         program = InsuranceProgram(layers=[layer])
 
         insured_data = loss_data.apply_insurance(program)
