@@ -640,6 +640,8 @@ class CatastrophicLossGenerator:
         base_frequency: float = 0.03,
         severity_alpha: float = 2.5,
         severity_xm: float = 1_000_000,
+        revenue_scaling_exponent: float = 0.7,
+        reference_revenue: float = 10_000_000,
         seed: Optional[int] = None,
     ):
         """Initialize catastrophic loss generator.
@@ -653,7 +655,8 @@ class CatastrophicLossGenerator:
         # Catastrophic events typically don't scale with revenue
         self.frequency_generator = FrequencyGenerator(
             base_frequency=base_frequency,
-            revenue_scaling_exponent=0.0,  # No revenue scaling
+            revenue_scaling_exponent=revenue_scaling_exponent,
+            reference_revenue=reference_revenue,
             seed=seed,
         )
 
