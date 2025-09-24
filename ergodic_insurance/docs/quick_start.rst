@@ -29,7 +29,7 @@ Basic Usage
    # Create manufacturer with configuration
    manufacturer = WidgetManufacturer(config.manufacturer)
 
-   print(f"Initial assets: ${manufacturer.assets:,.0f}")
+   print(f"Initial assets: ${manufacturer.total_assets:,.0f}")
    print(f"Base operating margin: {manufacturer.config.base_operating_margin:.1%}")
 
 3. Generate Claims
