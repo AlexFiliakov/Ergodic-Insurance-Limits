@@ -392,7 +392,7 @@ class InsurancePolicy:
                 EnhancedInsuranceLayer(
                     attachment_point=layer.attachment_point,
                     limit=layer.limit,
-                    premium_rate=layer.rate,
+                    base_premium_rate=layer.rate,
                     reinstatements=0,  # Default no reinstatements
                 )
                 for layer in self.layers

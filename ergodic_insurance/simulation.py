@@ -900,7 +900,7 @@ class Simulation:
                 limit=insurance_policy.limit
                 if hasattr(insurance_policy, "limit")
                 else float("inf"),
-                premium_rate=0.01,
+                base_premium_rate=0.01,
             )
             insurance_program.layers.append(layer)
 

@@ -17,6 +17,7 @@ from scipy.optimize import OptimizeResult
 import yaml
 
 if TYPE_CHECKING:
+    from .exposure_base import ExposureBase
     from .insurance_pricing import InsurancePricer, MarketCycle
     from .loss_distributions import LossEvent, ManufacturingLossGenerator
     from .manufacturer import WidgetManufacturer
@@ -70,7 +71,7 @@ class EnhancedInsuranceLayer:
 
     attachment_point: float  # Where coverage starts
     limit: float  # Maximum coverage amount (interpretation depends on limit_type)
-    premium_rate: float  # % of limit as base premium
+    base_premium_rate: float  # % of limit as base premium (renamed from premium_rate)
     reinstatements: int = 0  # Number of reinstatements available
     reinstatement_premium: float = 1.0  # % of original premium per reinstatement
     reinstatement_type: ReinstatementType = ReinstatementType.PRO_RATA
@@ -78,6 +79,9 @@ class EnhancedInsuranceLayer:
     participation_rate: float = 1.0  # % of loss covered by this layer (default 100%)
     limit_type: str = "per-occurrence"  # Type of limit: "per-occurrence", "aggregate", or "hybrid"
     per_occurrence_limit: Optional[float] = None  # Per-occurrence limit (for hybrid type)
+    premium_rate_exposure: Optional[
+        "ExposureBase"
+    ] = None  # Exposure object for dynamic premium scaling
 
     def __post_init__(self):
         """Validate layer parameters."""
@@ -87,8 +91,10 @@ class EnhancedInsuranceLayer:
             raise ValueError(f"Limit must be positive, got {self.limit}")
         # Initialize exhausted tracking
         self.exhausted = 0.0
-        if self.premium_rate < 0:
-            raise ValueError(f"Premium rate must be non-negative, got {self.premium_rate}")
+        if self.base_premium_rate < 0:
+            raise ValueError(
+                f"Base premium rate must be non-negative, got {self.base_premium_rate}"
+            )
         if self.reinstatements < 0:
             raise ValueError(f"Reinstatements must be non-negative, got {self.reinstatements}")
         if self.reinstatement_premium < 0:
@@ -140,13 +146,23 @@ class EnhancedInsuranceLayer:
         if self.aggregate_limit is not None and self.aggregate_limit <= 0:
             raise ValueError(f"Aggregate limit must be positive if set, got {self.aggregate_limit}")
 
-    def calculate_base_premium(self) -> float:
+    def calculate_base_premium(self, time: float = 0.0) -> float:
         """Calculate base premium for this layer.
 
+        Args:
+            time: Time in years for exposure calculation (default 0.0).
+
         Returns:
-            Base premium amount (rate × limit).
+            Base premium amount (rate × limit × exposure_multiplier).
         """
-        return self.limit * self.premium_rate
+        base_premium = self.limit * self.base_premium_rate
+
+        # Apply exposure scaling if available
+        if self.premium_rate_exposure is not None:
+            multiplier = self.premium_rate_exposure.get_frequency_multiplier(time)
+            return base_premium * multiplier
+
+        return base_premium
 
     def calculate_reinstatement_premium(self, timing_factor: float = 1.0) -> float:
         """Calculate premium for a single reinstatement.
@@ -516,13 +532,16 @@ class InsuranceProgram:
         self.pricer = pricer
         self.pricing_results: List[Any] = []
 
-    def calculate_annual_premium(self) -> float:
+    def calculate_annual_premium(self, time: float = 0.0) -> float:
         """Calculate total annual premium for the program.
+
+        Args:
+            time: Time in years for exposure calculation (default 0.0).
 
         Returns:
             Total base premium across all layers.
         """
-        return sum(layer.calculate_base_premium() for layer in self.layers)
+        return sum(layer.calculate_base_premium(time) for layer in self.layers)
 
     def process_claim(self, claim_amount: float, timing_factor: float = 1.0) -> Dict[str, Any]:
         """Process a single claim through the insurance structure.
@@ -612,7 +631,7 @@ class InsuranceProgram:
             "total_recovery": 0.0,
             "total_uncovered": 0.0,
             "total_reinstatement_premiums": 0.0,
-            "base_premium": self.calculate_annual_premium(),
+            "base_premium": self.calculate_annual_premium(0.0),
             "claim_details": [],
             "layer_summaries": [],
         }
@@ -667,7 +686,7 @@ class InsuranceProgram:
             "deductible": self.deductible,
             "num_layers": len(self.layers),
             "total_coverage": self.get_total_coverage(),
-            "annual_base_premium": self.calculate_annual_premium(),
+            "annual_base_premium": self.calculate_annual_premium(0.0),
             "total_claims_processed": self.total_claims,
             "total_premiums_paid": self.total_premiums_paid,
             "layers": [
@@ -676,7 +695,7 @@ class InsuranceProgram:
                     "limit": layer.limit,
                     "exhaustion_point": layer.attachment_point + layer.limit,
                     "reinstatements": layer.reinstatements,
-                    "base_premium": layer.calculate_base_premium(),
+                    "base_premium": layer.calculate_base_premium(0.0),
                 }
                 for layer in self.layers
             ],
@@ -962,8 +981,8 @@ class InsuranceProgram:
 
         return layer_widths
 
-    def _get_premium_rate(self, attachment_point: float) -> float:
-        """Get premium rate based on attachment point."""
+    def _get_base_premium_rate(self, attachment_point: float) -> float:
+        """Get base premium rate based on attachment point."""
         rate_thresholds = [
             (1_000_000, 0.015),
             (5_000_000, 0.010),
@@ -993,7 +1012,7 @@ class InsuranceProgram:
             layer = EnhancedInsuranceLayer(
                 attachment_point=ap,
                 limit=width,
-                premium_rate=self._get_premium_rate(ap),
+                base_premium_rate=self._get_base_premium_rate(ap),
                 reinstatements=self._calculate_reinstatements(i, num_layers),
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.PRO_RATA,
@@ -1071,7 +1090,7 @@ class InsuranceProgram:
                 best_structure = OptimalStructure(
                     layers=layers,
                     deductible=deductible,
-                    total_premium=test_program.calculate_annual_premium(),
+                    total_premium=test_program.calculate_annual_premium(0.0),
                     total_coverage=test_program.get_total_coverage(),
                     ergodic_benefit=best_ergodic_benefit,
                     roe_improvement=roe_improvement,
@@ -1086,7 +1105,7 @@ class InsuranceProgram:
                 EnhancedInsuranceLayer(
                     attachment_point=250_000,
                     limit=4_750_000,
-                    premium_rate=0.015,
+                    base_premium_rate=0.015,
                     reinstatements=0,
                 )
             ]
@@ -1095,7 +1114,7 @@ class InsuranceProgram:
             best_structure = OptimalStructure(
                 layers=basic_layers,
                 deductible=250_000,
-                total_premium=basic_program.calculate_annual_premium(),
+                total_premium=basic_program.calculate_annual_premium(0.0),
                 total_coverage=5_000_000,
                 ergodic_benefit=0.0,
                 roe_improvement=0.0,
@@ -1133,7 +1152,10 @@ class InsuranceProgram:
             layer = EnhancedInsuranceLayer(
                 attachment_point=layer_config["attachment_point"],
                 limit=layer_config["limit"],
-                premium_rate=layer_config.get("premium_rate", layer_config.get("rate", 0.01)),
+                base_premium_rate=layer_config.get(
+                    "base_premium_rate",
+                    layer_config.get("premium_rate", layer_config.get("rate", 0.01)),
+                ),
                 reinstatements=layer_config.get("reinstatements", 0),
                 reinstatement_premium=layer_config.get("reinstatement_premium", 1.0),
                 reinstatement_type=reinstatement_type,
@@ -1160,14 +1182,14 @@ class InsuranceProgram:
             EnhancedInsuranceLayer(
                 attachment_point=deductible,
                 limit=5_000_000 - deductible,
-                premium_rate=0.015,  # 1.5% rate
+                base_premium_rate=0.015,  # 1.5% rate
                 reinstatements=0,
             ),
             # First Excess
             EnhancedInsuranceLayer(
                 attachment_point=5_000_000,
                 limit=20_000_000,
-                premium_rate=0.008,  # 0.8% rate
+                base_premium_rate=0.008,  # 0.8% rate
                 reinstatements=1,
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.FULL,
@@ -1176,7 +1198,7 @@ class InsuranceProgram:
             EnhancedInsuranceLayer(
                 attachment_point=25_000_000,
                 limit=25_000_000,
-                premium_rate=0.004,  # 0.4% rate
+                base_premium_rate=0.004,  # 0.4% rate
                 reinstatements=2,
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.PRO_RATA,
@@ -1185,7 +1207,7 @@ class InsuranceProgram:
             EnhancedInsuranceLayer(
                 attachment_point=50_000_000,
                 limit=50_000_000,
-                premium_rate=0.002,  # 0.2% rate
+                base_premium_rate=0.002,  # 0.2% rate
                 reinstatements=999,  # Effectively unlimited
                 reinstatement_premium=1.0,
                 reinstatement_type=ReinstatementType.PRO_RATA,
@@ -1244,7 +1266,7 @@ class InsuranceProgram:
         summary: Dict[str, Any] = {
             "program_name": self.name,
             "pricing_enabled": self.pricing_enabled,
-            "total_premium": self.calculate_annual_premium(),
+            "total_premium": self.calculate_annual_premium(0.0),
             "layers": [],
         }
 
@@ -1255,10 +1277,10 @@ class InsuranceProgram:
                         "index": i,
                         "attachment_point": layer.attachment_point,
                         "limit": layer.limit,
-                        "premium_rate": layer.premium_rate,
+                        "base_premium_rate": layer.base_premium_rate,
                         "market_premium": pricing.market_premium
                         if pricing
-                        else layer.limit * layer.premium_rate,
+                        else layer.limit * layer.base_premium_rate,
                         "pure_premium": pricing.pure_premium if pricing else None,
                         "expected_frequency": pricing.expected_frequency if pricing else None,
                         "expected_severity": pricing.expected_severity if pricing else None,
@@ -1271,8 +1293,8 @@ class InsuranceProgram:
                         "index": i,
                         "attachment_point": layer.attachment_point,
                         "limit": layer.limit,
-                        "premium_rate": layer.premium_rate,
-                        "premium": layer.calculate_base_premium(),
+                        "base_premium_rate": layer.base_premium_rate,
+                        "premium": layer.calculate_base_premium(0.0),
                     }
                 )
 

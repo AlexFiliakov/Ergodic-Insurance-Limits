@@ -44,6 +44,7 @@ import numpy as np
 from scipy import stats
 
 if TYPE_CHECKING:
+    from .exposure_base import ExposureBase
     from .insurance import InsuranceLayer, InsurancePolicy
     from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
     from .loss_distributions import ManufacturingLossGenerator
@@ -155,6 +156,7 @@ class InsurancePricer:
         loss_ratio: Optional[float] = None,
         market_cycle: Optional[MarketCycle] = None,
         parameters: Optional[PricingParameters] = None,
+        exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
         """Initialize the insurance pricer.
@@ -164,9 +166,11 @@ class InsurancePricer:
             loss_ratio: Target loss ratio (0-1)
             market_cycle: Market cycle state
             parameters: Pricing parameters
+            exposure: Optional exposure object for dynamic revenue tracking
             seed: Random seed for simulations
         """
         self.loss_generator = loss_generator
+        self.exposure = exposure
         self.parameters = parameters or PricingParameters()
         self.rng = np.random.RandomState(seed)
 
@@ -394,7 +398,8 @@ class InsurancePricer:
     def price_insurance_program(
         self,
         program: "InsuranceProgram",
-        expected_revenue: float,
+        expected_revenue: Optional[float] = None,
+        time: float = 0.0,
         market_cycle: Optional[MarketCycle] = None,
         update_program: bool = True,
     ) -> "InsuranceProgram":
@@ -404,7 +409,8 @@ class InsurancePricer:
 
         Args:
             program: Insurance program to price
-            expected_revenue: Expected annual revenue
+            expected_revenue: Expected annual revenue (optional if using exposure)
+            time: Time for exposure calculation (default 0.0)
             market_cycle: Optional market cycle override
             update_program: Whether to update program layer rates
 
@@ -419,20 +425,28 @@ class InsurancePricer:
 
             program = copy.deepcopy(program)
 
+        # Get actual revenue from exposure if available, otherwise use expected_revenue
+        if self.exposure is not None:
+            actual_revenue = self.exposure.get_exposure(time)
+        elif expected_revenue is not None:
+            actual_revenue = expected_revenue
+        else:
+            raise ValueError("Either expected_revenue or exposure must be provided")
+
         # Price each layer
         pricing_results = []
         for layer in program.layers:
             layer_pricing = self.price_layer(
                 attachment_point=layer.attachment_point,
                 limit=layer.limit,
-                expected_revenue=expected_revenue,
+                expected_revenue=actual_revenue,
                 market_cycle=market_cycle,
             )
             pricing_results.append(layer_pricing)
 
             # Update layer premium rate if requested
             if update_program:
-                layer.premium_rate = layer_pricing.rate_on_line
+                layer.base_premium_rate = layer_pricing.rate_on_line
 
         # Store pricing results in program for reference
         if not hasattr(program, "pricing_results"):

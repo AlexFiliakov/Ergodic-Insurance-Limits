@@ -14,6 +14,7 @@ from scipy import stats
 
 if TYPE_CHECKING:
     from .ergodic_analyzer import ErgodicData
+    from .exposure_base import ExposureBase
     from .insurance_program import InsuranceProgram
 
 
@@ -522,6 +523,7 @@ class AttritionalLossGenerator:
         severity_cv: float = 1.5,
         revenue_scaling_exponent: float = 0.5,
         reference_revenue: float = 10_000_000,
+        exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
         """Initialize attritional loss generator.
@@ -532,8 +534,10 @@ class AttritionalLossGenerator:
             severity_cv: Coefficient of variation (0.6-1.0 typical).
             revenue_scaling_exponent: Revenue scaling power (0.5 = sqrt scaling).
             reference_revenue: Reference revenue for base frequency.
+            exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
+        self.exposure = exposure
         self.frequency_generator = FrequencyGenerator(
             base_frequency=base_frequency,
             revenue_scaling_exponent=revenue_scaling_exponent,
@@ -582,6 +586,7 @@ class LargeLossGenerator:
         severity_cv: float = 2.0,
         revenue_scaling_exponent: float = 0.7,
         reference_revenue: float = 10_000_000,
+        exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
         """Initialize large loss generator.
@@ -592,8 +597,10 @@ class LargeLossGenerator:
             severity_cv: Coefficient of variation (1.5-2.0 typical).
             revenue_scaling_exponent: Revenue scaling power (0.7 typical).
             reference_revenue: Reference revenue for base frequency.
+            exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
+        self.exposure = exposure
         self.frequency_generator = FrequencyGenerator(
             base_frequency=base_frequency,
             revenue_scaling_exponent=revenue_scaling_exponent,
@@ -642,6 +649,7 @@ class CatastrophicLossGenerator:
         severity_xm: float = 1_000_000,
         revenue_scaling_exponent: float = 0.7,
         reference_revenue: float = 10_000_000,
+        exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
         """Initialize catastrophic loss generator.
@@ -650,8 +658,11 @@ class CatastrophicLossGenerator:
             base_frequency: Base events per year (0.01-0.05 typical).
             severity_alpha: Pareto shape parameter (2.5 typical).
             severity_xm: Pareto minimum value ($1M+ typical).
+            exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
+        # Store exposure for dynamic scaling
+        self.exposure = exposure
         # Catastrophic events typically don't scale with revenue
         self.frequency_generator = FrequencyGenerator(
             base_frequency=base_frequency,
@@ -699,6 +710,7 @@ class ManufacturingLossGenerator:
         attritional_params: Optional[dict] = None,
         large_params: Optional[dict] = None,
         catastrophic_params: Optional[dict] = None,
+        exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
         """Initialize manufacturing loss generator.
@@ -707,12 +719,22 @@ class ManufacturingLossGenerator:
             attritional_params: Parameters for attritional losses.
             large_params: Parameters for large losses.
             catastrophic_params: Parameters for catastrophic losses.
+            exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
         # Use provided parameters or defaults
         attritional_params = attritional_params or {}
         large_params = large_params or {}
         catastrophic_params = catastrophic_params or {}
+
+        # Store exposure object
+        self.exposure = exposure
+
+        # Pass exposure to each generator if provided
+        if exposure is not None:
+            attritional_params["exposure"] = exposure
+            large_params["exposure"] = exposure
+            catastrophic_params["exposure"] = exposure
 
         # Set seed for all generators
         if seed is not None:
@@ -726,7 +748,7 @@ class ManufacturingLossGenerator:
         self.catastrophic = CatastrophicLossGenerator(**catastrophic_params)
 
     def generate_losses(
-        self, duration: float, revenue: float, include_catastrophic: bool = True
+        self, duration: float, revenue: float, include_catastrophic: bool = True, time: float = 0.0
     ) -> Tuple[List[LossEvent], Dict[str, Any]]:
         """Generate all types of losses for manufacturing operations.
 
@@ -734,16 +756,23 @@ class ManufacturingLossGenerator:
             duration: Simulation period in years.
             revenue: Current revenue level.
             include_catastrophic: Whether to include catastrophic events.
+            time: Current time for exposure calculation (default 0.0).
 
         Returns:
             Tuple of (all_losses, statistics_dict).
         """
+        # Use exposure if available to get actual revenue
+        if self.exposure is not None:
+            actual_revenue = self.exposure.get_exposure(time)
+        else:
+            actual_revenue = revenue
+
         # Generate each type of loss
-        attritional_losses = self.attritional.generate_losses(duration, revenue)
-        large_losses = self.large.generate_losses(duration, revenue)
+        attritional_losses = self.attritional.generate_losses(duration, actual_revenue)
+        large_losses = self.large.generate_losses(duration, actual_revenue)
 
         if include_catastrophic:
-            catastrophic_losses = self.catastrophic.generate_losses(duration, revenue)
+            catastrophic_losses = self.catastrophic.generate_losses(duration, actual_revenue)
         else:
             catastrophic_losses = []
 
