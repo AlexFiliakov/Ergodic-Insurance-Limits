@@ -67,7 +67,7 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
 
     # Configure insurance
     insurance = InsurancePolicy(
-        deductible=100_000, limit=5_000_000, premium_rate=0.02, coinsurance=0.1
+        deductible=100_000, limit=5_000_000, base_premium_rate=0.02, coinsurance=0.1
     )
 
     # Run simulation
@@ -91,7 +91,7 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
 
         # Calculate insurance premium
         revenue_estimate = manufacturer.assets * manufacturer.asset_turnover_ratio
-        insurance_premium = revenue_estimate * insurance.premium_rate
+        insurance_premium = revenue_estimate * insurance.base_premium_rate
 
         # Run annual step
         metrics = manufacturer.step(

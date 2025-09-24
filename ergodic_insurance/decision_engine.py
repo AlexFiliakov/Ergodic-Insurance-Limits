@@ -82,7 +82,7 @@ class InsuranceDecision:
         if self.total_coverage == 0 and self.layers:
             self.total_coverage = self.retained_limit + sum(layer.limit for layer in self.layers)
         if self.total_premium == 0 and self.layers:
-            self.total_premium = sum(layer.limit * layer.premium_rate for layer in self.layers)
+            self.total_premium = sum(layer.limit * layer.base_premium_rate for layer in self.layers)
 
 
 @dataclass
@@ -849,7 +849,7 @@ class InsuranceDecisionEngine:
                 layer = EnhancedInsuranceLayer(
                     attachment_point=current_attachment,
                     limit=limit,
-                    premium_rate=rate,
+                    base_premium_rate=rate,
                 )
                 layers.append(layer)
                 current_attachment += limit
@@ -933,7 +933,7 @@ class InsuranceDecisionEngine:
                 layer = Layer(
                     attachment_point=current_attachment,
                     limit=limit,
-                    premium_rate=rate,
+                    base_premium_rate=rate,
                 )
                 layers.append(layer)
                 current_attachment += limit
@@ -941,7 +941,7 @@ class InsuranceDecisionEngine:
         return InsuranceDecision(
             retained_limit=retained_limit,
             layers=layers,
-            total_premium=sum(l.limit * l.premium_rate for l in layers),
+            total_premium=sum(l.limit * l.base_premium_rate for l in layers),
             total_coverage=retained_limit + sum(l.limit for l in layers),
             pricing_scenario=self.pricing_scenario,
             optimization_method=method.value,
@@ -1226,7 +1226,7 @@ class InsuranceDecisionEngine:
         # pylint: disable=too-many-locals
         if parameters is None:
             parameters = [
-                "premium_rates",
+                "base_premium_rate",
                 "loss_frequency",
                 "loss_severity",
                 "growth_rate",
@@ -1330,7 +1330,7 @@ class InsuranceDecisionEngine:
         # Store original state
         original_state = {}
 
-        if parameter == "premium_rates":
+        if parameter == "base_premium_rate":
             # Modify pricing scenario rates
             for attr in ["primary_layer_rate", "first_excess_rate", "higher_excess_rate"]:
                 original = getattr(self.current_scenario, attr)

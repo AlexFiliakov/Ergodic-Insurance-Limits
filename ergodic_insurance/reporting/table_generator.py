@@ -129,7 +129,7 @@ class TableGenerator:
         table_format = self._format_map.get(format_key, "pipe")
 
         # Generate base table
-        table = tabulate(
+        table: str = tabulate(
             df,
             headers=df.columns,
             tablefmt=table_format,
@@ -141,7 +141,7 @@ class TableGenerator:
         if caption:
             table = self._add_caption(table, caption, format_key)
 
-        return table  # type: ignore[no-any-return]
+        return table
 
     def generate_summary_statistics(
         self,

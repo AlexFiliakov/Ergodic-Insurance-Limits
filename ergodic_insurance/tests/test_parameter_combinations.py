@@ -450,7 +450,7 @@ class TestInsuranceParameterCombinations:
                     assert layer["limit"] > 0
 
                     # Premium rates should be reasonable
-                    assert 0 < layer["premium_rate"] <= 0.10
+                    assert 0 < layer["base_premium_rate"] <= 0.10
 
                     # Update for next layer
                     previous_attachment = layer["attachment_point"] + layer["limit"]

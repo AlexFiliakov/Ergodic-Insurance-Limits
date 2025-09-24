@@ -74,9 +74,9 @@ class TestPerformanceBenchmarks:
 
         # Create realistic insurance program
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.015),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.015),
             EnhancedInsuranceLayer(
-                attachment_point=5_000_000, limit=20_000_000, premium_rate=0.008
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.008
             ),
         ]
         insurance_program = InsuranceProgram(layers=layers)
@@ -509,9 +509,9 @@ class TestBenchmarking:
 
         # Create realistic insurance program
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.015),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.015),
             EnhancedInsuranceLayer(
-                attachment_point=5_000_000, limit=20_000_000, premium_rate=0.008
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.008
             ),
         ]
         insurance_program = InsuranceProgram(layers=layers)
@@ -658,9 +658,9 @@ class TestIntegration:
 
         # Create realistic insurance program
         layers = [
-            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, premium_rate=0.015),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.015),
             EnhancedInsuranceLayer(
-                attachment_point=5_000_000, limit=20_000_000, premium_rate=0.008
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.008
             ),
         ]
         insurance_program = InsuranceProgram(layers=layers)

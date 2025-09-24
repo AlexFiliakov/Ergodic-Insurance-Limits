@@ -4,6 +4,7 @@ This module tests the new functionality for different limit types in insurance l
 ensuring proper behavior for per-occurrence (default), aggregate, and hybrid configurations.
 """
 
+from typing import Any, Dict
 import warnings
 
 import numpy as np
@@ -22,7 +23,9 @@ class TestPerOccurrenceLimits:
 
     def test_per_occurrence_default(self):
         """Test that per-occurrence is the default limit type."""
-        layer = EnhancedInsuranceLayer(limit=1_000_000, attachment_point=100_000, premium_rate=0.02)
+        layer = EnhancedInsuranceLayer(
+            limit=1_000_000, attachment_point=100_000, base_premium_rate=0.02
+        )
         assert layer.limit_type == "per-occurrence"
 
         # Process multiple large losses
@@ -34,13 +37,13 @@ class TestPerOccurrenceLimits:
     def test_per_occurrence_no_exhaustion(self):
         """Test that per-occurrence limits never exhaust."""
         layer = EnhancedInsuranceLayer(
-            limit=500_000, attachment_point=0, premium_rate=0.01, limit_type="per-occurrence"
+            limit=500_000, attachment_point=0, base_premium_rate=0.01, limit_type="per-occurrence"
         )
 
         state = LayerState(layer)
 
         # Process many claims
-        total_paid = 0
+        total_paid = 0.0  # Fix: Declare as float
         for i in range(10):
             payment, reinstatement_premium = state.process_claim(1_000_000)
             assert payment == 500_000  # Each claim limited to 500K
@@ -57,7 +60,7 @@ class TestPerOccurrenceLimits:
             layer = EnhancedInsuranceLayer(
                 limit=1_000_000,
                 attachment_point=100_000,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
                 limit_type="per-occurrence",
                 reinstatements=2,  # Should trigger warning
             )
@@ -73,7 +76,10 @@ class TestAggregateLimits:
     def test_aggregate_limit_exhaustion(self):
         """Test that aggregate limits exhaust after cumulative claims."""
         layer = EnhancedInsuranceLayer(
-            limit=5_000_000, attachment_point=100_000, premium_rate=0.02, limit_type="aggregate"
+            limit=5_000_000,
+            attachment_point=100_000,
+            base_premium_rate=0.02,
+            limit_type="aggregate",
         )
 
         state = LayerState(layer)
@@ -95,7 +101,7 @@ class TestAggregateLimits:
         layer = EnhancedInsuranceLayer(
             limit=1_000_000,
             attachment_point=0,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             limit_type="aggregate",
             reinstatements=2,
             reinstatement_type=ReinstatementType.FULL,
@@ -132,7 +138,7 @@ class TestHybridLimits:
             per_occurrence_limit=1_000_000,
             aggregate_limit=3_000_000,
             attachment_point=100_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             limit=1_000_000,  # Required field, used as per-occurrence if not specified
         )
 
@@ -162,7 +168,7 @@ class TestHybridLimits:
             per_occurrence_limit=1_000_000,
             aggregate_limit=2_500_000,
             attachment_point=0,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             limit=1_000_000,
         )
 
@@ -186,7 +192,7 @@ class TestHybridLimits:
             per_occurrence_limit=500_000,
             aggregate_limit=1_000_000,
             attachment_point=0,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             reinstatements=1,
             reinstatement_type=ReinstatementType.FULL,
             limit=500_000,
@@ -222,7 +228,7 @@ class TestReinstatementBehavior:
             layer_po = EnhancedInsuranceLayer(
                 limit=1_000_000,
                 attachment_point=100_000,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
                 limit_type="per-occurrence",
                 reinstatements=2,  # Should be ignored with a warning
             )
@@ -233,7 +239,7 @@ class TestReinstatementBehavior:
         layer_agg = EnhancedInsuranceLayer(
             limit=1_000_000,
             attachment_point=100_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
             limit_type="aggregate",
             reinstatements=2,
         )
@@ -256,22 +262,22 @@ class TestConfigurationMigration:
     def test_configuration_migration(self):
         """Test that existing configs default to per-occurrence limits."""
         old_config = {
-            "limit": 5_000_000,
-            "attachment_point": 100_000,
-            "premium_rate": 0.02
+            "limit": 5_000_000.0,
+            "attachment_point": 100_000.0,
+            "base_premium_rate": 0.02
             # No limit_type specified
         }
 
-        layer = EnhancedInsuranceLayer(**old_config)
+        layer = EnhancedInsuranceLayer(**old_config)  # type: ignore[arg-type]
         # Should default to per-occurrence for new behavior
         assert layer.limit_type == "per-occurrence"
 
     def test_explicit_aggregate_configuration(self):
         """Test explicit aggregate configuration."""
-        config = {
-            "limit": 5_000_000,
-            "attachment_point": 100_000,
-            "premium_rate": 0.02,
+        config: Dict[str, Any] = {
+            "limit": 5_000_000.0,
+            "attachment_point": 100_000.0,
+            "base_premium_rate": 0.02,
             "limit_type": "aggregate",
         }
 
@@ -282,13 +288,13 @@ class TestConfigurationMigration:
     def test_hybrid_configuration_validation(self):
         """Test hybrid configuration validation."""
         # Valid hybrid config
-        valid_config = {
-            "limit": 1_000_000,
-            "attachment_point": 100_000,
-            "premium_rate": 0.02,
+        valid_config: Dict[str, Any] = {
+            "limit": 1_000_000.0,
+            "attachment_point": 100_000.0,
+            "base_premium_rate": 0.02,
             "limit_type": "hybrid",
-            "per_occurrence_limit": 1_000_000,
-            "aggregate_limit": 5_000_000,
+            "per_occurrence_limit": 1_000_000.0,
+            "aggregate_limit": 5_000_000.0,
         }
 
         layer = EnhancedInsuranceLayer(**valid_config)
@@ -297,12 +303,12 @@ class TestConfigurationMigration:
         assert layer.aggregate_limit == 5_000_000
 
         # Invalid hybrid config (missing aggregate)
-        invalid_config = {
-            "limit": 1_000_000,
-            "attachment_point": 100_000,
-            "premium_rate": 0.02,
+        invalid_config: Dict[str, Any] = {
+            "limit": 1_000_000.0,
+            "attachment_point": 100_000.0,
+            "base_premium_rate": 0.02,
             "limit_type": "hybrid",
-            "per_occurrence_limit": 1_000_000
+            "per_occurrence_limit": 1_000_000.0
             # Missing aggregate_limit
         }
 
@@ -320,13 +326,13 @@ class TestIntegrationScenarios:
             EnhancedInsuranceLayer(
                 attachment_point=100_000,
                 limit=1_000_000,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
                 limit_type="per-occurrence",
             ),
             EnhancedInsuranceLayer(
                 attachment_point=1_100_000,
                 limit=5_000_000,
-                premium_rate=0.01,
+                base_premium_rate=0.01,
                 limit_type="per-occurrence",
             ),
         ]
@@ -334,7 +340,7 @@ class TestIntegrationScenarios:
         program_po = InsuranceProgram(layers=layers_po, deductible=100_000)
 
         # Simulate crisis with multiple large losses
-        crisis_losses = [2_000_000, 3_000_000, 2_500_000, 4_000_000]
+        crisis_losses = [2_000_000.0, 3_000_000.0, 2_500_000.0, 4_000_000.0]
 
         result_po = program_po.process_annual_claims(crisis_losses)
 
@@ -344,12 +350,15 @@ class TestIntegrationScenarios:
         # Compare with aggregate limits
         layers_agg = [
             EnhancedInsuranceLayer(
-                attachment_point=100_000, limit=1_000_000, premium_rate=0.02, limit_type="aggregate"
+                attachment_point=100_000,
+                limit=1_000_000,
+                base_premium_rate=0.02,
+                limit_type="aggregate",
             ),
             EnhancedInsuranceLayer(
                 attachment_point=1_100_000,
                 limit=5_000_000,
-                premium_rate=0.01,
+                base_premium_rate=0.01,
                 limit_type="aggregate",
             ),
         ]
@@ -362,22 +371,25 @@ class TestIntegrationScenarios:
 
     def test_premium_calculation_consistency(self):
         """Test that premiums calculate correctly for all limit types."""
-        premium_rate = 0.02
+        base_premium_rate = 0.02
         limit = 5_000_000
-        expected_premium = limit * premium_rate
+        expected_premium = limit * base_premium_rate
 
         # Per-occurrence
         layer_po = EnhancedInsuranceLayer(
             attachment_point=100_000,
             limit=limit,
-            premium_rate=premium_rate,
+            base_premium_rate=base_premium_rate,
             limit_type="per-occurrence",
         )
         assert layer_po.calculate_base_premium() == expected_premium
 
         # Aggregate
         layer_agg = EnhancedInsuranceLayer(
-            attachment_point=100_000, limit=limit, premium_rate=premium_rate, limit_type="aggregate"
+            attachment_point=100_000,
+            limit=limit,
+            base_premium_rate=base_premium_rate,
+            limit_type="aggregate",
         )
         assert layer_agg.calculate_base_premium() == expected_premium
 
@@ -385,7 +397,7 @@ class TestIntegrationScenarios:
         layer_hybrid = EnhancedInsuranceLayer(
             attachment_point=100_000,
             limit=limit,
-            premium_rate=premium_rate,
+            base_premium_rate=base_premium_rate,
             limit_type="hybrid",
             per_occurrence_limit=limit,
             aggregate_limit=limit * 3,

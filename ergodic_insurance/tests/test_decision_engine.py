@@ -70,8 +70,8 @@ class TestInsuranceDecision:
     def test_decision_creation(self):
         """Test creating an insurance decision."""
         layers = [
-            Layer(attachment_point=1_000_000, limit=4_000_000, premium_rate=0.01),
-            Layer(attachment_point=5_000_000, limit=20_000_000, premium_rate=0.005),
+            Layer(attachment_point=1_000_000, limit=4_000_000, base_premium_rate=0.01),
+            Layer(attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.005),
         ]
 
         decision = InsuranceDecision(
@@ -95,7 +95,7 @@ class TestInsuranceDecision:
             Layer(
                 attachment_point=500_000,
                 limit=4_500_000,
-                premium_rate=0.01,
+                base_premium_rate=0.01,
             ),
         ]
 
@@ -358,7 +358,7 @@ class TestInsuranceDecisionEngine:
                 Layer(
                     attachment_point=1_000_000,
                     limit=4_000_000,
-                    premium_rate=0.01,
+                    base_premium_rate=0.01,
                 )
             ],
             total_premium=40_000,
@@ -383,7 +383,7 @@ class TestInsuranceDecisionEngine:
                 Layer(
                     attachment_point=500_000,
                     limit=4_500_000,
-                    premium_rate=0.01,
+                    base_premium_rate=0.01,
                 )
             ],
             total_premium=45_000,
@@ -394,12 +394,12 @@ class TestInsuranceDecisionEngine:
 
         # Run sensitivity analysis on subset of parameters
         report = engine.run_sensitivity_analysis(
-            base_decision, parameters=["premium_rates", "capital_base"]
+            base_decision, parameters=["base_premium_rates", "capital_base"]
         )
 
         assert isinstance(report, SensitivityReport)
         assert report.base_decision == base_decision
-        assert "premium_rates" in report.parameter_sensitivities
+        assert "base_premium_rates" in report.parameter_sensitivities
         assert "capital_base" in report.parameter_sensitivities
         assert len(report.key_drivers) > 0
         assert len(report.stress_test_results) > 0
@@ -413,7 +413,7 @@ class TestInsuranceDecisionEngine:
                 Layer(
                     attachment_point=1_000_000,
                     limit=4_000_000,
-                    premium_rate=0.01,
+                    base_premium_rate=0.01,
                 )
             ],
             total_premium=40_000,
@@ -441,7 +441,7 @@ class TestInsuranceDecisionEngine:
                 Layer(
                     attachment_point=2_000_000,
                     limit=8_000_000,
-                    premium_rate=0.008,
+                    base_premium_rate=0.008,
                 )
             ],
             total_premium=64_000,
@@ -495,7 +495,7 @@ class TestInsuranceDecisionEngine:
                 Layer(
                     attachment_point=1_000_000,
                     limit=9_000_000,
-                    premium_rate=0.005,
+                    base_premium_rate=0.005,
                 )
             ],
             total_premium=45_000,
@@ -513,7 +513,7 @@ class TestInsuranceDecisionEngine:
                 Layer(
                     attachment_point=1_000_000,
                     limit=9_000_000,
-                    premium_rate=0.01,
+                    base_premium_rate=0.01,
                 )
             ],
             total_premium=90_000,  # Exceeds budget
@@ -624,7 +624,7 @@ class TestIntegration:
         metrics = engine.calculate_decision_metrics(decision)
 
         # Run sensitivity analysis
-        sensitivity = engine.run_sensitivity_analysis(decision, parameters=["premium_rates"])
+        sensitivity = engine.run_sensitivity_analysis(decision, parameters=["base_premium_rates"])
 
         # Generate recommendations
         recommendations = engine.generate_recommendations([(decision, metrics)])

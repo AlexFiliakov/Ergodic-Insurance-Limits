@@ -78,9 +78,13 @@ def setup_simulation(
 
     # Create insurance program with multiple layers
     layers = [
-        EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=0.015),
-        EnhancedInsuranceLayer(attachment_point=1_000_000, limit=4_000_000, premium_rate=0.008),
-        EnhancedInsuranceLayer(attachment_point=5_000_000, limit=20_000_000, premium_rate=0.004),
+        EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=0.015),
+        EnhancedInsuranceLayer(
+            attachment_point=1_000_000, limit=4_000_000, base_premium_rate=0.008
+        ),
+        EnhancedInsuranceLayer(
+            attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.004
+        ),
     ]
     insurance_program = InsuranceProgram(layers=layers)
 

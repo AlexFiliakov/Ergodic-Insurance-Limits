@@ -495,19 +495,19 @@ Design parametric triggers for automatic payouts:
                    'level': 'minor',
                    'threshold': 0.80 * baseline_revenue,  # 20% drop
                    'payout': 1_000_000,
-                   'premium_rate': 0.02
+                   'base_premium_rate': 0.02
                },
                {
                    'level': 'major',
                    'threshold': 0.60 * baseline_revenue,  # 40% drop
                    'payout': 5_000_000,
-                   'premium_rate': 0.01
+                   'base_premium_rate': 0.01
                },
                {
                    'level': 'severe',
                    'threshold': 0.40 * baseline_revenue,  # 60% drop
                    'payout': 15_000_000,
-                   'premium_rate': 0.005
+                   'base_premium_rate': 0.005
                }
            ]
 

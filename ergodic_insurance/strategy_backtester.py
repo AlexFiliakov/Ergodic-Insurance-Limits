@@ -162,19 +162,19 @@ class ConservativeFixedStrategy(InsuranceStrategy):
             EnhancedInsuranceLayer(
                 attachment_point=self.deductible,
                 limit=self.primary_limit - self.deductible,
-                premium_rate=0.015,
+                base_premium_rate=0.015,
                 reinstatements=1,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=self.primary_limit,
                 limit=self.excess_limit,
-                premium_rate=0.008,
+                base_premium_rate=0.008,
                 reinstatements=1,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=self.primary_limit + self.excess_limit,
                 limit=self.higher_limit,
-                premium_rate=0.004,
+                base_premium_rate=0.004,
                 reinstatements=0,
             ),
         ]
@@ -218,13 +218,13 @@ class AggressiveFixedStrategy(InsuranceStrategy):
             EnhancedInsuranceLayer(
                 attachment_point=self.deductible,
                 limit=self.primary_limit - self.deductible,
-                premium_rate=0.012,
+                base_premium_rate=0.012,
                 reinstatements=0,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=self.primary_limit,
                 limit=self.excess_limit,
-                premium_rate=0.006,
+                base_premium_rate=0.006,
                 reinstatements=0,
             ),
         ]
@@ -291,7 +291,7 @@ class OptimizedStaticStrategy(InsuranceStrategy):
                 EnhancedInsuranceLayer(
                     attachment_point=layer.attachment_point,
                     limit=layer.limit,
-                    premium_rate=layer.rate,
+                    base_premium_rate=layer.rate,
                 )
                 for layer in policy.layers
             ]
@@ -336,7 +336,7 @@ class OptimizedStaticStrategy(InsuranceStrategy):
                 EnhancedInsuranceLayer(
                     attachment_point=layer.attachment_point,
                     limit=layer.limit,
-                    premium_rate=layer.rate,
+                    base_premium_rate=layer.rate,
                 )
                 for layer in policy.layers
             ]
@@ -410,13 +410,13 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             EnhancedInsuranceLayer(
                 attachment_point=self.optimized_params["deductible"],
                 limit=self.optimized_params["primary_limit"] - self.optimized_params["deductible"],
-                premium_rate=0.015,
+                base_premium_rate=0.015,
                 reinstatements=1,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=self.optimized_params["primary_limit"],
                 limit=self.optimized_params["excess_limit"],
-                premium_rate=0.008,
+                base_premium_rate=0.008,
                 reinstatements=0,
             ),
         ]
@@ -545,13 +545,13 @@ class AdaptiveStrategy(InsuranceStrategy):
             EnhancedInsuranceLayer(
                 attachment_point=self.current_deductible,
                 limit=self.current_primary - self.current_deductible,
-                premium_rate=0.014,  # Slightly lower due to adaptability
+                base_premium_rate=0.014,  # Slightly lower due to adaptability
                 reinstatements=1,
             ),
             EnhancedInsuranceLayer(
                 attachment_point=self.current_primary,
                 limit=self.current_excess,
-                premium_rate=0.007,
+                base_premium_rate=0.007,
                 reinstatements=0,
             ),
         ]

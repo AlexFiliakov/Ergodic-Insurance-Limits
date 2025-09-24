@@ -43,26 +43,26 @@ standard_manufacturing:
   layers:
   - attachment_point: 250000
     limit: 4750000
-    premium_rate: 0.015
+    base_premium_rate: 0.015
     reinstatements: 0
     description: Primary working layer for attritional losses
   - attachment_point: 5000000
     limit: 20000000
-    premium_rate: 0.008
+    base_premium_rate: 0.008
     reinstatements: 1
     reinstatement_premium: 1.0
     reinstatement_type: full
     description: First excess for large losses
   - attachment_point: 25000000
     limit: 25000000
-    premium_rate: 0.004
+    base_premium_rate: 0.004
     reinstatements: 2
     reinstatement_premium: 1.0
     reinstatement_type: pro_rata
     description: Second excess for severe events
   - attachment_point: 50000000
     limit: 50000000
-    premium_rate: 0.002
+    base_premium_rate: 0.002
     reinstatements: 999
     reinstatement_premium: 1.0
     reinstatement_type: pro_rata
@@ -73,17 +73,17 @@ conservative_manufacturing:
   layers:
   - attachment_point: 1000000
     limit: 4000000
-    premium_rate: 0.012
+    base_premium_rate: 0.012
     reinstatements: 0
   - attachment_point: 5000000
     limit: 15000000
-    premium_rate: 0.007
+    base_premium_rate: 0.007
     reinstatements: 1
     reinstatement_premium: 0.75
     reinstatement_type: pro_rata
   - attachment_point: 20000000
     limit: 30000000
-    premium_rate: 0.003
+    base_premium_rate: 0.003
     reinstatements: 1
     reinstatement_premium: 0.5
     reinstatement_type: pro_rata
@@ -93,25 +93,25 @@ aggressive_manufacturing:
   layers:
   - attachment_point: 100000
     limit: 4900000
-    premium_rate: 0.018
+    base_premium_rate: 0.018
     reinstatements: 1
     reinstatement_premium: 0.5
     reinstatement_type: pro_rata
   - attachment_point: 5000000
     limit: 25000000
-    premium_rate: 0.009
+    base_premium_rate: 0.009
     reinstatements: 2
     reinstatement_premium: 1.0
     reinstatement_type: full
   - attachment_point: 30000000
     limit: 70000000
-    premium_rate: 0.005
+    base_premium_rate: 0.005
     reinstatements: 999
     reinstatement_premium: 1.0
     reinstatement_type: pro_rata
   - attachment_point: 100000000
     limit: 150000000
-    premium_rate: 0.003
+    base_premium_rate: 0.003
     reinstatements: 999
     reinstatement_premium: 1.0
     reinstatement_type: pro_rata
@@ -121,17 +121,17 @@ small_company:
   layers:
   - attachment_point: 50000
     limit: 950000
-    premium_rate: 0.025
+    base_premium_rate: 0.025
     reinstatements: 0
   - attachment_point: 1000000
     limit: 4000000
-    premium_rate: 0.012
+    base_premium_rate: 0.012
     reinstatements: 1
     reinstatement_premium: 1.0
     reinstatement_type: full
   - attachment_point: 5000000
     limit: 10000000
-    premium_rate: 0.006
+    base_premium_rate: 0.006
     reinstatements: 1
     reinstatement_premium: 0.5
     reinstatement_type: pro_rata
@@ -141,20 +141,20 @@ captive_program:
   layers:
   - attachment_point: 500000
     limit: 2500000
-    premium_rate: 0.01
+    base_premium_rate: 0.01
     reinstatements: 3
     reinstatement_premium: 0.25
     reinstatement_type: pro_rata
     aggregate_limit: 10000000
   - attachment_point: 3000000
     limit: 7000000
-    premium_rate: 0.01
+    base_premium_rate: 0.01
     reinstatements: 1
     reinstatement_premium: 1.0
     reinstatement_type: full
   - attachment_point: 10000000
     limit: 40000000
-    premium_rate: 0.005
+    base_premium_rate: 0.005
     reinstatements: 2
     reinstatement_premium: 1.0
     reinstatement_type: pro_rata

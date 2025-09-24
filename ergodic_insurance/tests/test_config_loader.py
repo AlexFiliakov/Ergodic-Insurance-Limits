@@ -46,7 +46,7 @@ class TestConfigLoader:
                 "insurance": {
                     "attachment_point": 100000,
                     "coverage_limit": 5000000,
-                    "premium_rate": 0.015,
+                    "base_premium_rate": 0.015,
                     "minimum_premium": 50000,
                     "profit_loading": 0.3,
                 },

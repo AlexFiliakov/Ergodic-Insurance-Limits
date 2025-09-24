@@ -92,7 +92,7 @@ simulation:
                     with patch.object(Path, "exists", return_value=True):
                         # Setup mock return values
                         mock_yaml_load.side_effect = [
-                            {"insurance": {"premium_rate": 0.02}},
+                            {"insurance": {"base_premium_rate": 0.02}},
                             {"insurance": {"layers": []}},
                             {"insurance": {"structures": {}}},
                             {"pricing": {"scenarios": []}},

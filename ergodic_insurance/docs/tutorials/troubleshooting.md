@@ -565,7 +565,7 @@ reasonable_ranges = {
     'base_operating_margin': (0.02, 0.25),   # 2-25%
     'tax_rate': (0.15, 0.35),          # 15-35%
     'retention_ratio': (0.01, 0.20),    # 1-20% of assets
-    'premium_rate': (0.01, 0.05),       # 1-5% of limit
+    'base_premium_rate': (0.01, 0.05),       # 1-5% of limit
     'loss_frequency': (0.1, 20),        # Per year
     'loss_severity_mu': (8, 14),        # Log scale
     'loss_severity_sigma': (0.5, 2.5)   # Log scale

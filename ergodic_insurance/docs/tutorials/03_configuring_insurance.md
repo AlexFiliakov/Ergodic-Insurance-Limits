@@ -27,7 +27,7 @@ loss_amount = 3_000_000
 # Insurance structure
 retention = 500_000      # Company pays first \$500K (deductible)
 limit = 5_000_000        # Insurance covers up to \$5M
-premium_rate = 0.02      # 2% of limit
+base_premium_rate = 0.02      # 2% of limit
 
 # Calculate who pays what
 company_pays = min(loss_amount, retention)
@@ -39,7 +39,7 @@ print(f"\nPayment Breakdown:")
 print(f"  Company pays (retention): ${company_pays:,.0f}")
 print(f"  Insurance pays: ${insurance_pays:,.0f}")
 print(f"  Uncovered amount: ${uncovered:,.0f}")
-print(f"\nAnnual Premium: ${limit * premium_rate:,.0f}")
+print(f"\nAnnual Premium: ${limit * base_premium_rate:,.0f}")
 
 # Visualize the structure
 fig, ax = plt.subplots(figsize=(10, 6))
@@ -88,16 +88,16 @@ claim_generator = ClaimGenerator(
 insurance = InsuranceLayer(
     retention=1_000_000,     # \$1M deductible
     limit=10_000_000,        # \$10M coverage
-    premium_rate=0.018       # 1.8% rate
+    base_premium_rate=0.018       # 1.8% rate
 )
 
 # Calculate annual premium
-annual_premium = insurance.limit * insurance.premium_rate
+annual_premium = insurance.limit * insurance.base_premium_rate
 print(f"Insurance Configuration:")
 print(f"  Retention: ${insurance.retention:,.0f}")
 print(f"  Limit: ${insurance.limit:,.0f}")
 print(f"  Annual Premium: ${annual_premium:,.0f}")
-print(f"  Premium as % of limit: {insurance.premium_rate:.2%}")
+print(f"  Premium as % of limit: {insurance.base_premium_rate:.2%}")
 ```
 
 ### Analyzing Coverage Effectiveness
@@ -167,7 +167,7 @@ insurance_program.add_layer(
     name="Primary",
     retention=250_000,
     limit=2_000_000,
-    premium_rate=0.03  # Higher rate for primary layer
+    base_premium_rate=0.03  # Higher rate for primary layer
 )
 
 # Layer 2: First excess layer
@@ -175,7 +175,7 @@ insurance_program.add_layer(
     name="First Excess",
     retention=2_250_000,  # Sits above primary
     limit=5_000_000,
-    premium_rate=0.015    # Medium rate
+    base_premium_rate=0.015    # Medium rate
 )
 
 # Layer 3: Second excess layer (catastrophic)
@@ -183,7 +183,7 @@ insurance_program.add_layer(
     name="Catastrophic",
     retention=7_250_000,  # Sits above first excess
     limit=10_000_000,
-    premium_rate=0.008    # Lower rate for high layer
+    base_premium_rate=0.008    # Lower rate for high layer
 )
 
 # Display program structure
@@ -191,7 +191,7 @@ print("Multi-Layer Insurance Program:")
 print("-" * 50)
 total_premium = 0
 for i, layer in enumerate(insurance_program.layers):
-    premium = layer.limit * layer.premium_rate
+    premium = layer.limit * layer.base_premium_rate
     total_premium += premium
     print(f"Layer {i+1} - {layer.name}:")
     print(f"  Attachment Point: ${layer.retention:,.0f}")
@@ -396,7 +396,7 @@ for retention in retention_levels:
         n_years=10,
         retention=retention,
         limit=10_000_000,
-        premium_rate=0.02,
+        base_premium_rate=0.02,
         seed=42
     )
 
@@ -486,10 +486,10 @@ print(f"{'Total':<40} ${total_premium:>13,.0f}")
 class InsuranceLayerWithReinstatement:
     """Insurance layer with reinstatement provisions."""
 
-    def __init__(self, retention, limit, premium_rate, n_reinstatements=1):
+    def __init__(self, retention, limit, base_premium_rate, n_reinstatements=1):
         self.retention = retention
         self.limit = limit
-        self.premium_rate = premium_rate
+        self.base_premium_rate = base_premium_rate
         self.n_reinstatements = n_reinstatements
         self.available_limit = limit * (1 + n_reinstatements)
         self.used_limit = 0
@@ -516,7 +516,7 @@ class InsuranceLayerWithReinstatement:
 layer_with_reinstatement = InsuranceLayerWithReinstatement(
     retention=500_000,
     limit=2_000_000,
-    premium_rate=0.02,
+    base_premium_rate=0.02,
     n_reinstatements=2  # 2 free reinstatements
 )
 

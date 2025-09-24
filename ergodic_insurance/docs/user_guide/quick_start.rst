@@ -107,15 +107,15 @@ Our framework models multi-layer insurance programs. Here's a typical structure:
      layers:
        - name: "Primary"
          limit: 5_000_000          # Covers $100K to $5.1M
-         premium_rate: 0.015       # 1.5% of limit = $75K/year
+         base_premium_rate: 0.015       # 1.5% of limit = $75K/year
 
        - name: "First Excess"
          limit: 20_000_000         # Covers $5.1M to $25.1M
-         premium_rate: 0.008       # 0.8% of limit = $160K/year
+         base_premium_rate: 0.008       # 0.8% of limit = $160K/year
 
        - name: "Second Excess"
          limit: 25_000_000         # Covers $25.1M to $50.1M
-         premium_rate: 0.004       # 0.4% of limit = $100K/year
+         base_premium_rate: 0.004       # 0.4% of limit = $100K/year
 
 Visualizing Your Insurance Tower
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -164,8 +164,8 @@ Now let's run a basic simulation using Python:
    insurance = InsuranceProgram(
        retention=100_000,
        layers=[
-           {'limit': 5_000_000, 'attachment': 100_000, 'premium_rate': 0.015},
-           {'limit': 20_000_000, 'attachment': 5_100_000, 'premium_rate': 0.008}
+           {'limit': 5_000_000, 'attachment': 100_000, 'base_premium_rate': 0.015},
+           {'limit': 20_000_000, 'attachment': 5_100_000, 'base_premium_rate': 0.008}
        ]
    )
 

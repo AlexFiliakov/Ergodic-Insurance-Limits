@@ -32,7 +32,7 @@ class TestParallelProcessing:
         )
 
         # Create insurance program
-        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, premium_rate=0.02)
+        layer = EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=0.02)
         insurance_program = InsuranceProgram(layers=[layer])
 
         # Create manufacturer
@@ -215,7 +215,7 @@ class TestParallelRuinProbability:
         layer = EnhancedInsuranceLayer(
             attachment_point=0,
             limit=5_000_000,
-            premium_rate=0.02,
+            base_premium_rate=0.02,
         )
         insurance_program = InsuranceProgram(layers=[layer])
 

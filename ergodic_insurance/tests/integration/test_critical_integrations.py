@@ -252,7 +252,7 @@ class TestConfigurationIntegration:
             EnhancedInsuranceLayer(
                 limit=5_000_000,
                 attachment_point=0,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
             )
         ]
         insurance_program = InsuranceProgram(layers=layers)
@@ -292,20 +292,20 @@ class TestConfigurationIntegration:
         # Create conservative profile with deep copy
         conservative = base_config.model_copy(deep=True)
         conservative.insurance.layers[0].limit = 10_000_000
-        conservative.insurance.layers[0].premium_rate = 0.03
+        conservative.insurance.layers[0].base_premium_rate = 0.03
         # TODO: Add confidence levels when available in SimulationConfig  # pylint: disable=fixme
 
         # Create aggressive profile with deep copy
         aggressive = base_config.model_copy(deep=True)
         aggressive.insurance.layers[0].limit = 2_000_000
-        aggressive.insurance.layers[0].premium_rate = 0.015
+        aggressive.insurance.layers[0].base_premium_rate = 0.015
         aggressive.growth.annual_growth_rate = 0.10
 
         # Verify profile differences
         assert conservative.insurance.layers[0].limit > aggressive.insurance.layers[0].limit
         assert (
-            conservative.insurance.layers[0].premium_rate
-            > aggressive.insurance.layers[0].premium_rate
+            conservative.insurance.layers[0].base_premium_rate
+            > aggressive.insurance.layers[0].base_premium_rate
         )
         assert aggressive.growth.annual_growth_rate > base_config.growth.annual_growth_rate
 
@@ -662,7 +662,7 @@ class TestEndToEndScenarios:
 
         config.insurance.deductible = 25_000
         config.insurance.layers[0].limit = 500_000
-        config.insurance.layers[0].premium_rate = 0.04  # Higher rate for startup
+        config.insurance.layers[0].base_premium_rate = 0.04  # Higher rate for startup
 
         config.simulation.time_horizon_years = 20
         config.simulation.random_seed = 42
@@ -697,7 +697,7 @@ class TestEndToEndScenarios:
             EnhancedInsuranceLayer(
                 limit=config.insurance.layers[0].limit,
                 attachment_point=config.insurance.deductible,  # Fixed: Use deductible as attachment point
-                premium_rate=config.insurance.layers[0].premium_rate,
+                base_premium_rate=config.insurance.layers[0].base_premium_rate,
             )
         ]
         insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)
@@ -752,7 +752,7 @@ class TestEndToEndScenarios:
 
         config.insurance.deductible = 250_000
         config.insurance.layers[0].limit = 10_000_000
-        config.insurance.layers[0].premium_rate = 0.018
+        config.insurance.layers[0].base_premium_rate = 0.018
         # Add excess layer if needed
 
         config.simulation.time_horizon_years = 30
@@ -787,7 +787,7 @@ class TestEndToEndScenarios:
             EnhancedInsuranceLayer(
                 limit=config.insurance.layers[0].limit,
                 attachment_point=config.insurance.deductible,  # Match deductible
-                premium_rate=config.insurance.layers[0].premium_rate,
+                base_premium_rate=config.insurance.layers[0].base_premium_rate,
             )
         ]
         insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)
@@ -831,7 +831,7 @@ class TestEndToEndScenarios:
 
         config.insurance.deductible = 100_000
         config.insurance.layers[0].limit = 5_000_000
-        config.insurance.layers[0].premium_rate = 0.025
+        config.insurance.layers[0].base_premium_rate = 0.025
         # Could add excess layer if needed
 
         config.simulation.time_horizon_years = 10
@@ -870,12 +870,12 @@ class TestEndToEndScenarios:
             EnhancedInsuranceLayer(
                 limit=5_000_000,  # Primary coverage
                 attachment_point=config.insurance.deductible,  # Start from deductible
-                premium_rate=0.020,  # Further reduced rate for better affordability
+                base_premium_rate=0.020,  # Further reduced rate for better affordability
             ),
             EnhancedInsuranceLayer(
                 limit=10_000_000,  # Excess coverage
                 attachment_point=config.insurance.deductible + 5_000_000,  # Excess above primary
-                premium_rate=0.010,  # Further reduced excess rate
+                base_premium_rate=0.010,  # Further reduced excess rate
             ),
         ]
         insurance_program = InsuranceProgram(layers=layers, deductible=config.insurance.deductible)
@@ -937,7 +937,7 @@ class TestEndToEndScenarios:
 
         config.insurance.deductible = 50_000
         config.insurance.layers[0].limit = 3_000_000
-        config.insurance.layers[0].premium_rate = 0.022
+        config.insurance.layers[0].base_premium_rate = 0.022
 
         config.simulation.time_horizon_years = 15
         config.simulation.random_seed = 42
@@ -969,7 +969,7 @@ class TestEndToEndScenarios:
             EnhancedInsuranceLayer(
                 limit=3_000_000,
                 attachment_point=config.insurance.deductible,
-                premium_rate=0.022,
+                base_premium_rate=0.022,
             )
         ]
         insurance_program = InsuranceProgram(layers=layers)
@@ -1060,7 +1060,7 @@ class TestEndToEndScenarios:
             EnhancedInsuranceLayer(
                 limit=5_000_000,
                 attachment_point=0,
-                premium_rate=0.02,
+                base_premium_rate=0.02,
             )
         ]
         insurance_program = InsuranceProgram(layers=layers)

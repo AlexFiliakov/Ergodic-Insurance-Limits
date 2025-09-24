@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 import numpy as np
 import pytest
-from scipy.optimize import OptimizeResult
+from scipy.optimize import OptimizeResult  # pylint: disable=no-name-in-module
 
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decision_engine import (
@@ -396,7 +396,7 @@ class TestDecisionValidationFailures:
 
         decision = InsuranceDecision(
             retained_limit=1_000_000,
-            layers=[Layer(attachment_point=1_000_000, limit=3_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=1_000_000, limit=3_000_000, base_premium_rate=0.01)],
             total_premium=30_000,
             total_coverage=4_000_000,  # Below minimum
             pricing_scenario="baseline",
@@ -414,7 +414,7 @@ class TestDecisionValidationFailures:
 
         decision = InsuranceDecision(
             retained_limit=1_000_000,
-            layers=[Layer(attachment_point=1_000_000, limit=15_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=1_000_000, limit=15_000_000, base_premium_rate=0.01)],
             total_premium=150_000,
             total_coverage=16_000_000,  # Above maximum
             pricing_scenario="baseline",
@@ -432,7 +432,7 @@ class TestDecisionValidationFailures:
 
         decision = InsuranceDecision(
             retained_limit=100_000,  # Below minimum
-            layers=[Layer(attachment_point=100_000, limit=5_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=100_000, limit=5_000_000, base_premium_rate=0.01)],
             total_premium=50_000,
             total_coverage=5_100_000,
             pricing_scenario="baseline",
@@ -450,7 +450,7 @@ class TestDecisionValidationFailures:
 
         decision = InsuranceDecision(
             retained_limit=2_000_000,  # Above maximum
-            layers=[Layer(attachment_point=2_000_000, limit=5_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=2_000_000, limit=5_000_000, base_premium_rate=0.01)],
             total_premium=50_000,
             total_coverage=7_000_000,
             pricing_scenario="baseline",
@@ -466,9 +466,11 @@ class TestDecisionValidationFailures:
         decision = InsuranceDecision(
             retained_limit=1_000_000,
             layers=[
-                Layer(attachment_point=1_000_000, limit=2_000_000, premium_rate=0.01),
-                Layer(attachment_point=3_000_000, limit=2_000_000, premium_rate=0.008),
-                Layer(attachment_point=5_000_000, limit=2_000_000, premium_rate=0.005),  # Too many
+                Layer(attachment_point=1_000_000, limit=2_000_000, base_premium_rate=0.01),
+                Layer(attachment_point=3_000_000, limit=2_000_000, base_premium_rate=0.008),
+                Layer(
+                    attachment_point=5_000_000, limit=2_000_000, base_premium_rate=0.005
+                ),  # Too many
             ],
             total_premium=56_000,
             total_coverage=7_000_000,
@@ -507,7 +509,7 @@ class TestMissingROEDataFallback:
         """Test metrics calculation when ROE series is not available."""
         decision = InsuranceDecision(
             retained_limit=1_000_000,
-            layers=[Layer(attachment_point=1_000_000, limit=4_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=1_000_000, limit=4_000_000, base_premium_rate=0.01)],
             total_premium=40_000,
             total_coverage=5_000_000,
             pricing_scenario="baseline",
@@ -719,7 +721,7 @@ class TestRecommendationGenerationEdgeCases:
         """Test recommendations when premium exceeds threshold."""
         decision = InsuranceDecision(
             retained_limit=1_000_000,
-            layers=[Layer(attachment_point=1_000_000, limit=50_000_000, premium_rate=0.025)],
+            layers=[Layer(attachment_point=1_000_000, limit=50_000_000, base_premium_rate=0.025)],
             total_premium=1_250_000,  # High premium
             total_coverage=51_000_000,
             pricing_scenario="baseline",
@@ -749,10 +751,10 @@ class TestRecommendationGenerationEdgeCases:
     def test_recommendations_with_complex_structure(self, engine):
         """Test recommendations with many layers."""
         layers = [
-            Layer(attachment_point=1_000_000, limit=2_000_000, premium_rate=0.01),
-            Layer(attachment_point=3_000_000, limit=2_000_000, premium_rate=0.008),
-            Layer(attachment_point=5_000_000, limit=3_000_000, premium_rate=0.006),
-            Layer(attachment_point=8_000_000, limit=4_000_000, premium_rate=0.004),
+            Layer(attachment_point=1_000_000, limit=2_000_000, base_premium_rate=0.01),
+            Layer(attachment_point=3_000_000, limit=2_000_000, base_premium_rate=0.008),
+            Layer(attachment_point=5_000_000, limit=3_000_000, base_premium_rate=0.006),
+            Layer(attachment_point=8_000_000, limit=4_000_000, base_premium_rate=0.004),
         ]
 
         decision = InsuranceDecision(
@@ -788,7 +790,7 @@ class TestRecommendationGenerationEdgeCases:
         """Test recommendations when coverage adequacy is low."""
         decision = InsuranceDecision(
             retained_limit=1_000_000,
-            layers=[Layer(attachment_point=1_000_000, limit=2_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=1_000_000, limit=2_000_000, base_premium_rate=0.01)],
             total_premium=20_000,
             total_coverage=3_000_000,
             pricing_scenario="baseline",
@@ -820,7 +822,7 @@ class TestRecommendationGenerationEdgeCases:
         """Test confidence calculation with excellent metrics."""
         decision = InsuranceDecision(
             retained_limit=1_000_000,
-            layers=[Layer(attachment_point=1_000_000, limit=10_000_000, premium_rate=0.008)],
+            layers=[Layer(attachment_point=1_000_000, limit=10_000_000, base_premium_rate=0.008)],
             total_premium=80_000,
             total_coverage=11_000_000,
             pricing_scenario="baseline",
@@ -856,7 +858,7 @@ class TestRecommendationGenerationEdgeCases:
 
         decision2 = InsuranceDecision(
             retained_limit=2_000_000,
-            layers=[Layer(attachment_point=2_000_000, limit=5_000_000, premium_rate=0.01)],
+            layers=[Layer(attachment_point=2_000_000, limit=5_000_000, base_premium_rate=0.01)],
             total_premium=50_000,
             total_coverage=7_000_000,
             pricing_scenario="baseline",
@@ -874,7 +876,7 @@ class TestRecommendationGenerationEdgeCases:
         """Test confidence calculation with poor metrics."""
         decision = InsuranceDecision(
             retained_limit=3_000_000,
-            layers=[Layer(attachment_point=3_000_000, limit=2_000_000, premium_rate=0.015)],
+            layers=[Layer(attachment_point=3_000_000, limit=2_000_000, base_premium_rate=0.015)],
             total_premium=30_000,
             total_coverage=5_000_000,
             pricing_scenario="baseline",
@@ -939,7 +941,7 @@ class TestLayerRateDetermination:
         if decision.layers:
             for layer in decision.layers:
                 if layer.attachment_point >= 25_000_000:
-                    assert layer.premium_rate == engine.current_scenario.higher_excess_rate
+                    assert layer.base_premium_rate == engine.current_scenario.higher_excess_rate
 
 
 class TestDifferentialEvolutionPenalties:

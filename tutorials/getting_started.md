@@ -136,7 +136,7 @@ basic_insurance = InsuranceProgram([
     {
         "limit": 1_000_000,
         "attachment": 100_000,  # \$100k deductible
-        "premium_rate": 0.02
+        "base_premium_rate": 0.02
     }
 ])
 
@@ -159,12 +159,12 @@ optimal_insurance = InsuranceProgram([
     {
         "limit": 5_000_000,
         "attachment": 0,
-        "premium_rate": 0.015
+        "base_premium_rate": 0.015
     },
     {
         "limit": 20_000_000,
         "attachment": 5_000_000,
-        "premium_rate": 0.008
+        "base_premium_rate": 0.008
     }
 ])
 

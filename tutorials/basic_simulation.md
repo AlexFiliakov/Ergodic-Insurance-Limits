@@ -125,7 +125,7 @@ basic_insurance = InsuranceProgram([
         "name": "Primary Layer",
         "limit": 1_000_000,
         "attachment": 100_000,  # \$100k deductible
-        "premium_rate": 0.025,  # 2.5% of limit
+        "base_premium_rate": 0.025,  # 2.5% of limit
     }
 ])
 
@@ -151,19 +151,19 @@ comprehensive_insurance = InsuranceProgram([
         "name": "Primary",
         "limit": 2_000_000,
         "attachment": 0,  # No deductible
-        "premium_rate": 0.02,
+        "base_premium_rate": 0.02,
     },
     {
         "name": "Excess 1",
         "limit": 3_000_000,
         "attachment": 2_000_000,
-        "premium_rate": 0.012,
+        "base_premium_rate": 0.012,
     },
     {
         "name": "Excess 2",
         "limit": 10_000_000,
         "attachment": 5_000_000,
-        "premium_rate": 0.008,
+        "base_premium_rate": 0.008,
     }
 ])
 
@@ -425,7 +425,7 @@ for deductible in deductibles:
         {
             "limit": 5_000_000,
             "attachment": deductible,
-            "premium_rate": 0.02 * (1 - deductible/1_000_000)  # Lower premium for higher deductible
+            "base_premium_rate": 0.02 * (1 - deductible/1_000_000)  # Lower premium for higher deductible
         }
     ])
 

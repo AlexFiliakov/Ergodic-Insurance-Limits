@@ -10,14 +10,14 @@ standard_manufacturing:
     # Primary Layer - High frequency claims
     - attachment_point: 250_000
       limit: 4_750_000  # Covers $250K to $5M
-      premium_rate: 0.015  # 1.5% rate on line
+      base_premium_rate: 0.015  # 1.5% rate on line
       reinstatements: 0  # No reinstatements for primary
       description: "Primary working layer for attritional losses"
 
     # First Excess Layer - Medium frequency
     - attachment_point: 5_000_000
       limit: 20_000_000  # Covers $5M to $25M
-      premium_rate: 0.008  # 0.8% rate on line
+      base_premium_rate: 0.008  # 0.8% rate on line
       reinstatements: 1
       reinstatement_premium: 1.0  # 100% of original premium
       reinstatement_type: "full"
@@ -26,7 +26,7 @@ standard_manufacturing:
     # Second Excess Layer - Low frequency
     - attachment_point: 25_000_000
       limit: 25_000_000  # Covers $25M to $50M
-      premium_rate: 0.004  # 0.4% rate on line
+      base_premium_rate: 0.004  # 0.4% rate on line
       reinstatements: 2
       reinstatement_premium: 1.0
       reinstatement_type: "pro_rata"
@@ -35,7 +35,7 @@ standard_manufacturing:
     # Third Excess Layer - Catastrophic
     - attachment_point: 50_000_000
       limit: 50_000_000  # Covers $50M to $100M
-      premium_rate: 0.002  # 0.2% rate on line
+      base_premium_rate: 0.002  # 0.2% rate on line
       reinstatements: 999  # Effectively unlimited
       reinstatement_premium: 1.0
       reinstatement_type: "pro_rata"
@@ -49,19 +49,19 @@ conservative_manufacturing:
   layers:
     - attachment_point: 1_000_000
       limit: 4_000_000  # Covers $1M to $5M
-      premium_rate: 0.012
+      base_premium_rate: 0.012
       reinstatements: 0
 
     - attachment_point: 5_000_000
       limit: 15_000_000  # Covers $5M to $20M
-      premium_rate: 0.007
+      base_premium_rate: 0.007
       reinstatements: 1
       reinstatement_premium: 0.75  # 75% reinstatement premium
       reinstatement_type: "pro_rata"
 
     - attachment_point: 20_000_000
       limit: 30_000_000  # Covers $20M to $50M
-      premium_rate: 0.003
+      base_premium_rate: 0.003
       reinstatements: 1
       reinstatement_premium: 0.5
       reinstatement_type: "pro_rata"
@@ -74,28 +74,28 @@ aggressive_manufacturing:
   layers:
     - attachment_point: 100_000
       limit: 4_900_000  # Covers $100K to $5M
-      premium_rate: 0.018  # Higher rate for lower attachment
+      base_premium_rate: 0.018  # Higher rate for lower attachment
       reinstatements: 1
       reinstatement_premium: 0.5
       reinstatement_type: "pro_rata"
 
     - attachment_point: 5_000_000
       limit: 25_000_000  # Covers $5M to $30M
-      premium_rate: 0.009
+      base_premium_rate: 0.009
       reinstatements: 2
       reinstatement_premium: 1.0
       reinstatement_type: "full"
 
     - attachment_point: 30_000_000
       limit: 70_000_000  # Covers $30M to $100M
-      premium_rate: 0.005
+      base_premium_rate: 0.005
       reinstatements: 999  # Unlimited
       reinstatement_premium: 1.0
       reinstatement_type: "pro_rata"
 
     - attachment_point: 100_000_000
       limit: 150_000_000  # Covers $100M to $250M
-      premium_rate: 0.003
+      base_premium_rate: 0.003
       reinstatements: 999
       reinstatement_premium: 1.0
       reinstatement_type: "pro_rata"
@@ -108,19 +108,19 @@ small_company:
   layers:
     - attachment_point: 50_000
       limit: 950_000  # Covers $50K to $1M
-      premium_rate: 0.025  # Higher rate for small company
+      base_premium_rate: 0.025  # Higher rate for small company
       reinstatements: 0
 
     - attachment_point: 1_000_000
       limit: 4_000_000  # Covers $1M to $5M
-      premium_rate: 0.012
+      base_premium_rate: 0.012
       reinstatements: 1
       reinstatement_premium: 1.0
       reinstatement_type: "full"
 
     - attachment_point: 5_000_000
       limit: 10_000_000  # Covers $5M to $15M
-      premium_rate: 0.006
+      base_premium_rate: 0.006
       reinstatements: 1
       reinstatement_premium: 0.5
       reinstatement_type: "pro_rata"
@@ -134,7 +134,7 @@ captive_program:
     # Captive layer with aggregate
     - attachment_point: 500_000
       limit: 2_500_000  # Covers $500K to $3M
-      premium_rate: 0.01  # Lower rate (captive)
+      base_premium_rate: 0.01  # Lower rate (captive)
       reinstatements: 3
       reinstatement_premium: 0.25  # Low reinstatement cost
       reinstatement_type: "pro_rata"
@@ -143,14 +143,14 @@ captive_program:
     # Commercial layers above captive
     - attachment_point: 3_000_000
       limit: 7_000_000  # Covers $3M to $10M
-      premium_rate: 0.01
+      base_premium_rate: 0.01
       reinstatements: 1
       reinstatement_premium: 1.0
       reinstatement_type: "full"
 
     - attachment_point: 10_000_000
       limit: 40_000_000  # Covers $10M to $50M
-      premium_rate: 0.005
+      base_premium_rate: 0.005
       reinstatements: 2
       reinstatement_premium: 1.0
       reinstatement_type: "pro_rata"

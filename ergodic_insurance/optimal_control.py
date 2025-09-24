@@ -620,7 +620,7 @@ class OptimalController:
             layer = EnhancedInsuranceLayer(
                 attachment_point=retention,
                 limit=limit * coverage,  # Apply coverage percentage to limit
-                premium_rate=self._estimate_premium_rate(limit, retention, coverage),
+                base_premium_rate=self._estimate_premium_rate(limit, retention, coverage),
             )
             layers.append(layer)
 

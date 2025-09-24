@@ -161,8 +161,8 @@ Compare time-average vs ensemble-average growth:
        manufacturer=manufacturer,
        strategies={
            "no_insurance": {"limit": 0, "premium": 0},
-           "basic": {"limit": 5_000_000, "premium_rate": 0.015},
-           "comprehensive": {"limit": 20_000_000, "premium_rate": 0.012}
+           "basic": {"limit": 5_000_000, "base_premium_rate": 0.015},
+           "comprehensive": {"limit": 20_000_000, "base_premium_rate": 0.012}
        },
        n_paths=1000,
        time_horizon=100

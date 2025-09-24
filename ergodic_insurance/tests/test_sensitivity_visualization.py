@@ -34,7 +34,7 @@ class TestTornadoDiagram:
         """Create sample tornado diagram data."""
         return pd.DataFrame(
             {
-                "parameter": ["frequency", "severity", "premium_rate", "retention"],
+                "parameter": ["frequency", "severity", "base_premium_rate", "retention"],
                 "impact": [0.8, 0.6, 0.4, 0.2],
                 "direction": ["positive", "negative", "positive", "negative"],
                 "low_value": [0.08, 0.12, 0.09, 0.11],

@@ -94,7 +94,7 @@ class TestVisualizationPlots:
             {
                 "attachment": [0, 1_000_000, 5_000_000],
                 "limit": [1_000_000, 4_000_000, 10_000_000],
-                "premium_rate": [0.05, 0.03, 0.01],
+                "base_premium_rate": [0.05, 0.03, 0.01],
             }
         )
 

@@ -273,7 +273,7 @@ class TestInsuranceStack:
                     EnhancedInsuranceLayer(
                         attachment_point=layer.attachment_point,
                         limit=layer.limit,
-                        premium_rate=layer.premium_rate,
+                        base_premium_rate=layer.base_premium_rate,
                         reinstatement_premium=layer.reinstatement_premium,
                         aggregate_limit=layer.aggregate_limit,
                         participation_rate=layer.participation_rate,

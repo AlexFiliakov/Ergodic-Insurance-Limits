@@ -267,7 +267,7 @@ def simulate_long_term_growth_simplified(
     # Create insurance program if layer provided
     if insurance_layer:
         # If pricer provided and layer has no premium, calculate it
-        if pricer and insurance_layer.premium_rate == 0:
+        if pricer and insurance_layer.base_premium_rate == 0:
             pure_premium, _ = pricer.calculate_pure_premium(
                 attachment_point=insurance_layer.attachment_point,
                 limit=insurance_layer.limit,
@@ -277,7 +277,7 @@ def simulate_long_term_growth_simplified(
                 pure_premium, insurance_layer.limit
             )
             market_premium = pricer.calculate_market_premium(technical_premium, pricer.market_cycle)
-            insurance_layer.premium_rate = (
+            insurance_layer.base_premium_rate = (
                 market_premium / insurance_layer.limit if insurance_layer.limit > 0 else 0
             )
 
@@ -292,7 +292,7 @@ def simulate_long_term_growth_simplified(
 
     # Account for insurance cost
     if program:
-        annual_profit -= insurance_layer.premium_rate * insurance_layer.limit
+        annual_profit -= insurance_layer.base_premium_rate * insurance_layer.limit
 
     # Simple compound growth (ignoring losses for this test)
     final_cash = initial_cash * (1 + annual_profit / initial_cash) ** n_years
@@ -305,7 +305,7 @@ def simulate_long_term_growth_simplified(
 test_layer = EnhancedInsuranceLayer(
     attachment_point=250_000,
     limit=4_750_000,
-    premium_rate=0,  # Will be calculated by pricer
+    base_premium_rate=0,  # Will be calculated by pricer
 )
 
 ergodic_pricer = InsurancePricer(
@@ -326,7 +326,7 @@ growth_without = simulate_long_term_growth_simplified(None, n_years=10)
 
 print(f"  Growth with insurance: {growth_with*100:.2f}%")
 print(f"  Growth without insurance: {growth_without*100:.2f}%")
-print(f"  Premium used: ${test_layer.premium_rate * test_layer.limit:,.0f}")
+print(f"  Premium used: ${test_layer.base_premium_rate * test_layer.limit:,.0f}")
 print("  [PASS] Ergodic analysis using InsurancePricer correctly")
 
 print("\n" + "=" * 80)

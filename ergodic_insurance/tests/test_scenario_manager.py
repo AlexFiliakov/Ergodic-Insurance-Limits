@@ -41,17 +41,17 @@ class TestParameterSpec:
 
     def test_basic_creation(self):
         """Test creating basic parameter spec."""
-        spec = ParameterSpec(name="premium_rate", values=[0.01, 0.02, 0.03])
-        assert spec.name == "premium_rate"
+        spec = ParameterSpec(name="base_premium_rate", values=[0.01, 0.02, 0.03])
+        assert spec.name == "base_premium_rate"
         assert spec.values == [0.01, 0.02, 0.03]
         assert spec.distribution == "uniform"
 
     def test_nested_parameter_name(self):
         """Test parameter spec with nested name."""
         spec = ParameterSpec(
-            name="insurance.layer1.premium_rate", min_value=0.01, max_value=0.05, n_samples=5
+            name="insurance.layer1.base_premium_rate", min_value=0.01, max_value=0.05, n_samples=5
         )
-        assert spec.name == "insurance.layer1.premium_rate"
+        assert spec.name == "insurance.layer1.base_premium_rate"
         assert spec.min_value == 0.01
         assert spec.max_value == 0.05
 
@@ -161,32 +161,35 @@ class TestScenarioConfig:
         """Test applying parameter overrides to an object."""
         # Create a mock config object
         config = MagicMock()
-        config.premium_rate = 0.01
+        config.base_premium_rate = 0.01
         config.insurance = MagicMock()
         config.insurance.limit = 1_000_000
 
         scenario = ScenarioConfig(
             scenario_id="test",
             name="Test",
-            parameter_overrides={"premium_rate": 0.02, "insurance.limit": 5_000_000},
+            parameter_overrides={"base_premium_rate": 0.02, "insurance.limit": 5_000_000},
         )
 
         modified = scenario.apply_overrides(config)
-        assert modified.premium_rate == 0.02
+        assert modified.base_premium_rate == 0.02
         assert modified.insurance.limit == 5_000_000
 
     def test_apply_overrides_to_dict(self):
         """Test applying parameter overrides to a dictionary."""
-        config = {"premium_rate": 0.01, "insurance": {"limit": 1_000_000, "deductible": 10_000}}
+        config = {
+            "base_premium_rate": 0.01,
+            "insurance": {"limit": 1_000_000, "deductible": 10_000},
+        }
 
         scenario = ScenarioConfig(
             scenario_id="test",
             name="Test",
-            parameter_overrides={"premium_rate": 0.02, "insurance.limit": 5_000_000},
+            parameter_overrides={"base_premium_rate": 0.02, "insurance.limit": 5_000_000},
         )
 
         modified = scenario.apply_overrides(config)
-        assert modified["premium_rate"] == 0.02
+        assert modified["base_premium_rate"] == 0.02
         assert modified["insurance"]["limit"] == 5_000_000
         assert modified["insurance"]["deductible"] == 10_000  # Unchanged
 

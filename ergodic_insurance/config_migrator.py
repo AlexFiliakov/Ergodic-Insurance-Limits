@@ -211,7 +211,7 @@ class ConfigMigrator:
                             "name": "Primary",
                             "limit": 5_000_000,
                             "attachment": 0,
-                            "premium_rate": 0.015,
+                            "base_premium_rate": 0.015,
                         }
                     ]
                 }
@@ -223,19 +223,19 @@ class ConfigMigrator:
                             "name": "Primary",
                             "limit": 5_000_000,
                             "attachment": 0,
-                            "premium_rate": 0.015,
+                            "base_premium_rate": 0.015,
                         },
                         {
                             "name": "Excess",
                             "limit": 20_000_000,
                             "attachment": 5_000_000,
-                            "premium_rate": 0.008,
+                            "base_premium_rate": 0.008,
                         },
                         {
                             "name": "Umbrella",
                             "limit": 25_000_000,
                             "attachment": 25_000_000,
-                            "premium_rate": 0.004,
+                            "base_premium_rate": 0.004,
                         },
                     ]
                 }
@@ -247,7 +247,7 @@ class ConfigMigrator:
                             "name": "High Deductible",
                             "limit": 45_000_000,
                             "attachment": 5_000_000,
-                            "premium_rate": 0.006,
+                            "base_premium_rate": 0.006,
                         }
                     ]
                 }

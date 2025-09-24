@@ -163,7 +163,7 @@ def demo_monte_carlo_setup():
         print(f"  Number of layers: {len(config.insurance.layers)}")
         for i, layer in enumerate(config.insurance.layers, 1):
             print(
-                f"  Layer {i}: ${layer.attachment:,.0f} xs ${layer.limit:,.0f} @ {layer.premium_rate:.2%}"
+                f"  Layer {i}: ${layer.attachment:,.0f} xs ${layer.limit:,.0f} @ {layer.base_premium_rate:.2%}"
             )
 
     print("\n✓ Configuration ready for Monte Carlo simulation")
