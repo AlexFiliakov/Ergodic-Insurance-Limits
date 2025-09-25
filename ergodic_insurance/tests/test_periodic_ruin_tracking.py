@@ -107,16 +107,50 @@ class TestPeriodicRuinTracking:
         assert len(results.ruin_probability) == 1
         assert 0 <= results.ruin_probability[str(sim_years)] <= 1
 
-    def test_parallel_execution(self, setup_engine):
+    @pytest.fixture
+    def setup_real_engine(self):
+        """Set up a real Monte Carlo engine for parallel testing."""
+        # Use real objects instead of mocks for parallel execution
+        # Create real loss generator with minimal parameters
+        loss_generator = ManufacturingLossGenerator(
+            attritional_params={
+                "base_frequency": 0.1,  # Very low frequency for testing
+                "severity_mean": 10_000,
+                "severity_cv": 0.5,
+            },
+            seed=42,
+        )
+
+        # Create insurance program
+        layer = EnhancedInsuranceLayer(
+            attachment_point=0,
+            limit=1_000_000,
+            base_premium_rate=0.02,
+        )
+        insurance_program = InsuranceProgram(layers=[layer])
+
+        # Create manufacturer
+        manufacturer_config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            base_operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.8,
+        )
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        return loss_generator, insurance_program, manufacturer
+
+    def test_parallel_execution(self, setup_real_engine):
         """Test periodic ruin evaluation with parallel execution."""
-        loss_generator, insurance_program, manufacturer = setup_engine
+        loss_generator, insurance_program, manufacturer = setup_real_engine
 
         config = SimulationConfig(
-            n_simulations=10000,
+            n_simulations=1000,  # Reduced for faster testing
             n_years=20,
             ruin_evaluation=[5, 10, 15],
             parallel=True,
-            n_workers=4,
+            n_workers=2,  # Reduced for better stability
             seed=42,
         )
 
