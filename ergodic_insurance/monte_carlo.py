@@ -989,16 +989,14 @@ class MonteCarloEngine:
             # Apply stochastic if the manufacturer has a stochastic process
             apply_stochastic = manufacturer.stochastic_process is not None
 
-            # Use a more reasonable growth rate for mature companies
-            # The growth rate should not compound the asset turnover ratio exponentially
-            # For a mature company, use a modest sustainable growth rate
-            growth_rate = (
-                0.045  # 4.5% annual growth for mature companies to stay within test bounds
-            )
+            # Don't apply any exogenous growth rate - let retained earnings drive growth naturally
+            # The manufacturer.step() method already handles growth through retained earnings
+            # by updating assets based on net income * retention ratio
+            growth_rate = 0.0  # No exogenous growth, only endogenous growth from retained earnings
 
             manufacturer.step(
                 working_capital_pct=0.2,
-                growth_rate=growth_rate,  # Use reasonable growth rate
+                growth_rate=growth_rate,  # Only endogenous growth from retained earnings
                 apply_stochastic=apply_stochastic,
             )
 
