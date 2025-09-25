@@ -1,6 +1,6 @@
 """Standalone worker function for multiprocessing Monte Carlo simulations."""
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -16,7 +16,7 @@ def run_chunk_standalone(
     insurance_program: InsuranceProgram,
     manufacturer: WidgetManufacturer,
     config_dict: Dict[str, Any],
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, Union[np.ndarray, List[Dict[int, bool]]]]:
     """Standalone function to run a chunk of simulations for multiprocessing.
 
     This function is independent of the MonteCarloEngine class and can be pickled
@@ -47,6 +47,10 @@ def run_chunk_standalone(
     insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
     retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
 
+    # Track periodic ruin if requested
+    ruin_evaluation = config_dict.get("ruin_evaluation", None)
+    ruin_at_year_all = []
+
     # Run simulations in chunk
     for i in range(n_sims):
         # Create a copy of the manufacturer for this simulation to avoid state pollution
@@ -57,6 +61,13 @@ def run_chunk_standalone(
         sim_annual_losses = np.zeros(n_years, dtype=dtype)
         sim_insurance_recoveries = np.zeros(n_years, dtype=dtype)
         sim_retained_losses = np.zeros(n_years, dtype=dtype)
+
+        # Track ruin at evaluation points for this simulation
+        ruin_at_year = {}
+        if ruin_evaluation:
+            for eval_year in ruin_evaluation:
+                if eval_year <= n_years:
+                    ruin_at_year[eval_year] = False
 
         for year in range(n_years):
             # Generate losses for the year
@@ -97,14 +108,33 @@ def run_chunk_standalone(
             # Run business operations (growth, etc.)
             sim_manufacturer.step()
 
+            # Check for ruin
+            if sim_manufacturer.total_assets <= 0:
+                # Mark ruin for all future evaluation points
+                if ruin_evaluation:
+                    for eval_year in ruin_at_year:
+                        if year < eval_year:
+                            ruin_at_year[eval_year] = True
+                break
+
         final_assets[i] = sim_manufacturer.total_assets
         annual_losses[i] = sim_annual_losses
         insurance_recoveries[i] = sim_insurance_recoveries
         retained_losses[i] = sim_retained_losses
 
-    return {
+        # Store periodic ruin data
+        if ruin_evaluation:
+            ruin_at_year_all.append(ruin_at_year)
+
+    result: Dict[str, Union[np.ndarray, List[Dict[int, bool]]]] = {
         "final_assets": final_assets,
         "annual_losses": annual_losses,
         "insurance_recoveries": insurance_recoveries,
         "retained_losses": retained_losses,
     }
+
+    # Add periodic ruin data if tracked
+    if ruin_evaluation:
+        result["ruin_at_year"] = ruin_at_year_all
+
+    return result

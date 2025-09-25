@@ -353,7 +353,12 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             results = mc_engine.run()
 
             # Constraint: ruin_prob <= max_ruin_prob
-            return self.max_ruin_prob - results.ruin_probability
+            # Extract ruin probability for the final year
+            ruin_prob_value = results.ruin_probability.get(
+                str(mc_config.n_years),
+                list(results.ruin_probability.values())[-1] if results.ruin_probability else 0.0,
+            )
+            return self.max_ruin_prob - ruin_prob_value
 
         # Run optimization using scipy minimize
         from scipy.optimize import minimize
@@ -746,7 +751,13 @@ class StrategyBacktester:
         )
 
         # Add ruin probability from MC results
-        metrics.ruin_probability = simulation_results.ruin_probability
+        # Extract ruin probability for the final year from the dict
+        metrics.ruin_probability = simulation_results.ruin_probability.get(
+            str(n_years),
+            list(simulation_results.ruin_probability.values())[-1]
+            if simulation_results.ruin_probability
+            else 0.0,
+        )
 
         return metrics
 

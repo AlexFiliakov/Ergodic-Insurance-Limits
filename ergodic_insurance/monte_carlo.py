@@ -117,6 +117,14 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         "retained_losses": np.zeros(n_years, dtype=dtype),
     }
 
+    # Track ruin at evaluation points if requested
+    ruin_evaluation = shared.get("ruin_evaluation", None)
+    ruin_at_year = {}
+    if ruin_evaluation:
+        for eval_year in ruin_evaluation:
+            if eval_year <= n_years:
+                ruin_at_year[eval_year] = False
+
     # Simulate years
     for year in range(n_years):
         # Generate and process losses
@@ -132,9 +140,17 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
         # Check for ruin
         if manufacturer.total_assets <= 0:
+            # Mark ruin for all future evaluation points
+            if ruin_evaluation:
+                for eval_year in ruin_at_year:
+                    if year < eval_year:
+                        ruin_at_year[eval_year] = True
             break
 
-    return {"final_assets": manufacturer.total_assets, **result_arrays}
+    result = {"final_assets": manufacturer.total_assets, **result_arrays}
+    if ruin_evaluation:
+        result["ruin_at_year"] = ruin_at_year
+    return result
 
 
 @dataclass
@@ -187,6 +203,8 @@ class SimulationConfig:
     bootstrap_confidence_level: float = 0.95
     bootstrap_n_iterations: int = 10000
     bootstrap_method: str = "percentile"
+    # Periodic ruin evaluation options
+    ruin_evaluation: Optional[List[int]] = None
 
 
 @dataclass
@@ -217,7 +235,7 @@ class SimulationResults:
     insurance_recoveries: np.ndarray
     retained_losses: np.ndarray
     growth_rates: np.ndarray
-    ruin_probability: float
+    ruin_probability: Dict[str, float]
     metrics: Dict[str, float]
     convergence: Dict[str, ConvergenceStats]
     execution_time: float
@@ -231,13 +249,22 @@ class SimulationResults:
 
     def summary(self) -> str:
         """Generate summary of simulation results."""
+        # Format ruin probability section
+        # ruin_probability is always a dict now
+        # Sort by year for display
+        ruin_prob_lines = []
+        for year_str in sorted(self.ruin_probability.keys(), key=int):
+            prob = self.ruin_probability[year_str]
+            ruin_prob_lines.append(f"  Year {year_str}: {prob:.2%}")
+        ruin_prob_section = "Ruin Probability:\n" + "\n".join(ruin_prob_lines)
+
         base_summary = (
             f"Simulation Results Summary\n"
             f"{'='*50}\n"
             f"Simulations: {self.config.n_simulations:,}\n"
             f"Years: {self.config.n_years}\n"
             f"Execution Time: {self.execution_time:.2f}s\n"
-            f"Ruin Probability: {self.ruin_probability:.2%}\n"
+            f"{ruin_prob_section}\n"
             f"Mean Final Assets: ${np.mean(self.final_assets):,.0f}\n"
             f"Mean Growth Rate: {np.mean(self.growth_rates):.4f}\n"
             f"VaR(99%): ${self.metrics.get('var_99', 0):,.0f}\n"
@@ -545,6 +572,9 @@ class MonteCarloEngine:
         insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
         retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
 
+        # Track periodic ruin if requested
+        ruin_at_year_all = []
+
         # Progress bar
         iterator = range(n_sims)
         if self.config.progress_bar:
@@ -557,6 +587,10 @@ class MonteCarloEngine:
             annual_losses[i] = sim_results["annual_losses"]
             insurance_recoveries[i] = sim_results["insurance_recoveries"]
             retained_losses[i] = sim_results["retained_losses"]
+
+            # Collect periodic ruin data
+            if self.config.ruin_evaluation:
+                ruin_at_year_all.append(sim_results["ruin_at_year"])
 
             # Checkpoint if needed
             if (
@@ -576,8 +610,17 @@ class MonteCarloEngine:
         growth_rates = self._calculate_growth_rates(final_assets)
 
         # Calculate ruin probability
-        ruin_mask = np.array(final_assets) <= 0
-        ruin_probability = float(np.mean(ruin_mask))
+        ruin_probability = {}
+        if self.config.ruin_evaluation:
+            # Aggregate periodic ruin probabilities
+            for eval_year in self.config.ruin_evaluation:
+                if eval_year <= n_years:
+                    ruin_count = sum(r.get(eval_year, False) for r in ruin_at_year_all)
+                    ruin_probability[str(eval_year)] = ruin_count / n_sims
+
+        # Always add final ruin probability (at max runtime)
+        final_ruin_count = np.sum(final_assets <= 0)
+        ruin_probability[str(n_years)] = float(final_ruin_count / n_sims)
 
         return SimulationResults(
             final_assets=final_assets,
@@ -623,6 +666,7 @@ class MonteCarloEngine:
         config_dict = {
             "n_years": self.config.n_years,
             "use_float32": self.config.use_float32,
+            "ruin_evaluation": self.config.ruin_evaluation,
         }
 
         # Run chunks in parallel using standalone function
@@ -702,6 +746,7 @@ class MonteCarloEngine:
         shared_data = {
             "n_years": self.config.n_years,
             "use_float32": self.config.use_float32,
+            "ruin_evaluation": self.config.ruin_evaluation,
             "manufacturer_config": self.manufacturer.__dict__.copy(),
             "insurance_layers": [layer.__dict__ for layer in self.insurance_program.layers],
             "loss_generator_params": {
@@ -728,6 +773,9 @@ class MonteCarloEngine:
             insurance_recoveries = np.zeros((n_results, n_years), dtype=dtype)
             retained_losses = np.zeros((n_results, n_years), dtype=dtype)
 
+            # Track periodic ruin if requested
+            ruin_at_year_all = []
+
             valid_idx = 0
             for result in all_results:
                 # Skip None results from failed simulations
@@ -740,6 +788,11 @@ class MonteCarloEngine:
                     annual_losses[valid_idx] = result["annual_losses"]
                     insurance_recoveries[valid_idx] = result["insurance_recoveries"]
                     retained_losses[valid_idx] = result["retained_losses"]
+
+                    # Collect periodic ruin data if present
+                    if "ruin_at_year" in result:
+                        ruin_at_year_all.append(result["ruin_at_year"])
+
                     valid_idx += 1
                 else:
                     # Log warning for unexpected result format
@@ -756,8 +809,21 @@ class MonteCarloEngine:
 
             # Calculate derived metrics
             growth_rates = self._calculate_growth_rates(final_assets)
-            ruin_mask = np.array(final_assets) <= 0
-            ruin_probability = float(np.mean(ruin_mask))
+
+            # Calculate ruin probability
+            ruin_probability = {}
+            total_simulations = len(final_assets)
+
+            if self.config.ruin_evaluation and ruin_at_year_all:
+                # Aggregate periodic ruin probabilities
+                for eval_year in self.config.ruin_evaluation:
+                    if eval_year <= n_years:
+                        ruin_count = sum(r.get(eval_year, False) for r in ruin_at_year_all)
+                        ruin_probability[str(eval_year)] = ruin_count / total_simulations
+
+            # Always add final ruin probability (at max runtime)
+            final_ruin_count = np.sum(final_assets <= 0)
+            ruin_probability[str(n_years)] = float(final_ruin_count / total_simulations)
 
             return SimulationResults(
                 final_assets=final_assets,
@@ -847,6 +913,13 @@ class MonteCarloEngine:
         insurance_recoveries = np.zeros(n_years, dtype=dtype)
         retained_losses = np.zeros(n_years, dtype=dtype)
 
+        # Track ruin at evaluation points
+        ruin_at_year = {}
+        if self.config.ruin_evaluation:
+            for eval_year in self.config.ruin_evaluation:
+                if eval_year <= n_years:  # Only track if within simulation period
+                    ruin_at_year[eval_year] = False
+
         # Run simulation for each year
         for year in range(n_years):
             # Generate losses
@@ -931,6 +1004,11 @@ class MonteCarloEngine:
 
             # Check for ruin
             if manufacturer.total_assets <= 0:
+                # Mark ruin for all future evaluation points
+                if self.config.ruin_evaluation:
+                    for eval_year in ruin_at_year:
+                        if year < eval_year:
+                            ruin_at_year[eval_year] = True
                 ruin_occurred = True
                 ruin_year = year
                 break
@@ -958,10 +1036,11 @@ class MonteCarloEngine:
             "annual_losses": annual_losses,
             "insurance_recoveries": insurance_recoveries,
             "retained_losses": retained_losses,
+            "ruin_at_year": ruin_at_year,  # New field for periodic ruin tracking
         }
 
     def _combine_chunk_results(
-        self, chunk_results: List[Dict[str, np.ndarray]]
+        self, chunk_results: List[Dict[str, Any]]
     ) -> SimulationResults:
         """Combine results from parallel chunks.
 
@@ -973,13 +1052,20 @@ class MonteCarloEngine:
         """
         # Handle empty chunk results
         if not chunk_results:
+            ruin_probability = {}
+            if self.config.ruin_evaluation:
+                for eval_year in self.config.ruin_evaluation:
+                    if eval_year <= self.config.n_years:
+                        ruin_probability[str(eval_year)] = 0.0
+            ruin_probability[str(self.config.n_years)] = 0.0
+
             return SimulationResults(
                 final_assets=np.array([]),
                 annual_losses=np.array([]).reshape(0, self.config.n_years),
                 insurance_recoveries=np.array([]).reshape(0, self.config.n_years),
                 retained_losses=np.array([]).reshape(0, self.config.n_years),
                 growth_rates=np.array([]),
-                ruin_probability=0.0,
+                ruin_probability=ruin_probability,
                 metrics={},  # Empty metrics for empty simulation
                 convergence={},  # Empty convergence for empty simulation
                 execution_time=0.0,
@@ -995,7 +1081,27 @@ class MonteCarloEngine:
 
         # Calculate derived metrics
         growth_rates = self._calculate_growth_rates(final_assets)
-        ruin_probability = np.mean(final_assets <= 0)
+
+        # Aggregate periodic ruin probabilities
+        ruin_probability = {}
+        total_simulations = len(final_assets)
+
+        if self.config.ruin_evaluation:
+            for eval_year in self.config.ruin_evaluation:
+                if eval_year <= self.config.n_years:
+                    # Count ruin occurrences for this evaluation year across all simulations
+                    ruin_count = 0
+                    for chunk in chunk_results:
+                        if "ruin_at_year" in chunk:
+                            # ruin_at_year is a list of dictionaries, one for each simulation in the chunk
+                            for sim_ruin_data in chunk["ruin_at_year"]:
+                                if sim_ruin_data.get(eval_year, False):
+                                    ruin_count += 1
+                    ruin_probability[str(eval_year)] = ruin_count / total_simulations
+
+        # Always add final ruin probability
+        final_ruin_count = np.sum(final_assets <= 0)
+        ruin_probability[str(self.config.n_years)] = float(final_ruin_count / total_simulations)
 
         return SimulationResults(
             final_assets=final_assets,
@@ -1518,13 +1624,17 @@ class MonteCarloEngine:
 
         # Create results
         growth_rates = self._calculate_growth_rates(arrays["final_assets"])
+
+        # Calculate ruin probability as dict (to match new API)
+        ruin_probability = {str(self.config.n_years): float(np.mean(arrays["final_assets"] <= 0))}
+
         results = SimulationResults(
             final_assets=arrays["final_assets"],
             annual_losses=arrays["annual_losses"],
             insurance_recoveries=arrays["insurance_recoveries"],
             retained_losses=arrays["retained_losses"],
             growth_rates=growth_rates,
-            ruin_probability=float(np.mean(arrays["final_assets"] <= 0)),
+            ruin_probability=ruin_probability,
             metrics={},
             convergence={},
             execution_time=time.time() - start_time,

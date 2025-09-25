@@ -99,9 +99,13 @@ class AggregatedResults:
 
             # Add simulation metrics if available
             if result.simulation_results:
+                # Get final ruin probability (the maximum year key in the dict)
+                ruin_prob_dict = result.simulation_results.ruin_probability
+                final_year = str(max(int(year) for year in ruin_prob_dict.keys()))
+                final_ruin_prob = ruin_prob_dict[final_year]
                 row.update(
                     {
-                        "ruin_probability": result.simulation_results.ruin_probability,
+                        "ruin_probability": final_ruin_prob,
                         "mean_growth_rate": np.mean(result.simulation_results.growth_rates),
                         "mean_final_assets": np.mean(result.simulation_results.final_assets),
                         "var_99": result.simulation_results.metrics.get("var_99", np.nan),
@@ -504,6 +508,13 @@ class BatchProcessor:
             execution_summary={},
         )
 
+    def _get_final_ruin_probability(self, ruin_prob_dict: Dict[str, float]) -> float:
+        """Extract the final (maximum year) ruin probability from a dict."""
+        if not ruin_prob_dict:
+            return 0.0
+        final_year = str(max(int(year) for year in ruin_prob_dict.keys()))
+        return ruin_prob_dict[final_year]
+
     def _perform_sensitivity_analysis(self) -> Optional[pd.DataFrame]:
         """Perform sensitivity analysis on results.
 
@@ -546,12 +557,21 @@ class BatchProcessor:
                         ),
                         "ruin_prob_change_pct": (
                             (
-                                result.simulation_results.ruin_probability
-                                - baseline.simulation_results.ruin_probability
+                                self._get_final_ruin_probability(
+                                    result.simulation_results.ruin_probability
+                                )
+                                - self._get_final_ruin_probability(
+                                    baseline.simulation_results.ruin_probability
+                                )
                             )
-                            / baseline.simulation_results.ruin_probability
+                            / self._get_final_ruin_probability(
+                                baseline.simulation_results.ruin_probability
+                            )
                             * 100
-                            if baseline.simulation_results.ruin_probability != 0
+                            if self._get_final_ruin_probability(
+                                baseline.simulation_results.ruin_probability
+                            )
+                            != 0
                             else np.nan
                         ),
                         "final_assets_change_pct": (
