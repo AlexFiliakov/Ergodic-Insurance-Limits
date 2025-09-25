@@ -125,6 +125,7 @@ ergodic_insurance/notebooks/cache/parameter_sweeps/sweep_34a67508_meta.json
 ergodic_insurance/notebooks/cache/parameter_sweeps/sweep_926945ee_meta.json
 ergodic_insurance/notebooks/cache/parameter_sweeps/sweep_be576b4c_meta.json
 ergodic_insurance/notebooks/cache/performance_test/sweep_7b4c703b_meta.json
+ergodic_insurance/notebooks/results_20250920_143059/custom_style_config.yaml
 ergodic_insurance/reporting/__init__.py
 ergodic_insurance/reporting/cache_manager.py
 ergodic_insurance/reporting/config.py
@@ -170,6 +171,7 @@ ergodic_insurance/tests/test_decision_engine.py
 ergodic_insurance/tests/test_decision_engine_edge_cases.py
 ergodic_insurance/tests/test_decision_engine_scenarios.py
 ergodic_insurance/tests/test_depreciation_tracking.py
+ergodic_insurance/tests/test_dynamic_premium_scaling.py
 ergodic_insurance/tests/test_end_to_end.py
 ergodic_insurance/tests/test_ergodic_analyzer.py
 ergodic_insurance/tests/test_excel_reporter.py
@@ -205,6 +207,7 @@ ergodic_insurance/tests/test_parameter_sweep.py
 ergodic_insurance/tests/test_pareto_frontier.py
 ergodic_insurance/tests/test_performance.py
 ergodic_insurance/tests/test_performance_optimizer.py
+ergodic_insurance/tests/test_periodic_ruin_tracking.py
 ergodic_insurance/tests/test_premium_amortization.py
 ergodic_insurance/tests/test_pricing_scenarios.py
 ergodic_insurance/tests/test_progress_monitor.py

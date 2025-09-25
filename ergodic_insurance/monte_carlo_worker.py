@@ -81,10 +81,10 @@ def run_chunk_standalone(
             revenue_multiplier = revenue / initial_revenue if initial_revenue > 0 else 1.0
             annual_premium = insurance_program.calculate_annual_premium() * revenue_multiplier
 
-            # Deduct premium from manufacturer's cash/assets
-            # This ensures the premium cost is properly accounted for
+            # Set the period insurance premium for accounting purposes
+            # The premium will be deducted from operating income in calculate_operating_income
+            # Do NOT deduct from cash here to avoid double-counting
             if annual_premium > 0:
-                sim_manufacturer.cash = max(0, sim_manufacturer.cash - annual_premium)
                 sim_manufacturer.period_insurance_premiums = annual_premium
 
             # Handle both ClaimGenerator and ManufacturingLossGenerator
@@ -107,11 +107,10 @@ def run_chunk_standalone(
                 # Calculate retained loss as company's payment (deductible + uncovered)
                 retained = claim_result["deductible_paid"]
 
-                # Process the claim through manufacturer's claim processing system
-                # This properly handles cash flows and asset impacts
-                company_payment, insurance_payment = sim_manufacturer.process_insurance_claim(
-                    claim_amount=total_year_loss, insurance_recovery=recovery
-                )
+                # Record the insurance loss for proper accounting
+                # The loss will be deducted from operating income in calculate_operating_income
+                # Use += in case there are multiple losses in a year
+                sim_manufacturer.period_insurance_losses += retained
             else:
                 recovery = 0.0
                 retained = 0.0
