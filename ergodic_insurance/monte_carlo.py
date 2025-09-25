@@ -173,6 +173,7 @@ class SimulationConfig:
         monitor_performance: Track detailed performance metrics
         adaptive_chunking: Enable adaptive chunk sizing
         shared_memory: Enable shared memory for read-only data
+        working_capital_pct: Working capital as percentage of revenue (typical: 0.15-0.25)
     """
 
     n_simulations: int = 100_000
@@ -205,6 +206,8 @@ class SimulationConfig:
     bootstrap_method: str = "percentile"
     # Periodic ruin evaluation options
     ruin_evaluation: Optional[List[int]] = None
+    # Working capital configuration
+    working_capital_pct: float = 0.0  # Default to 0% for full asset revenue generation
 
 
 @dataclass
@@ -952,6 +955,9 @@ class MonteCarloEngine:
             # Losses should primarily affect liquid assets (cash)
             # If cash is insufficient, the company needs to liquidate other assets
             if retained > 0:
+                # Record the loss for tax deduction
+                manufacturer.record_insurance_loss(retained)
+
                 if retained <= manufacturer.cash:
                     # Can pay from cash
                     manufacturer.cash -= retained
@@ -980,8 +986,19 @@ class MonteCarloEngine:
                     if cash_shortfall > 0:
                         manufacturer.cash = -cash_shortfall
 
-            # Record insurance premium payment (annual premium)
-            annual_premium = self.insurance_program.calculate_annual_premium()
+            # Calculate insurance premium scaled by revenue
+            # Premium should scale with exposure (revenue)
+            current_revenue = manufacturer.calculate_revenue()
+            base_revenue = (
+                self.manufacturer.config.initial_assets
+                * self.manufacturer.config.asset_turnover_ratio
+            )
+            revenue_scaling_factor = current_revenue / base_revenue if base_revenue > 0 else 1.0
+
+            # Calculate scaled annual premium
+            base_annual_premium = self.insurance_program.calculate_annual_premium()
+            annual_premium = base_annual_premium * revenue_scaling_factor
+
             if annual_premium > 0:
                 manufacturer.record_insurance_premium(annual_premium)
 
@@ -995,7 +1012,7 @@ class MonteCarloEngine:
             growth_rate = 0.0  # No exogenous growth, only endogenous growth from retained earnings
 
             manufacturer.step(
-                working_capital_pct=0.2,
+                working_capital_pct=self.config.working_capital_pct,  # Use configured working capital
                 growth_rate=growth_rate,  # Only endogenous growth from retained earnings
                 apply_stochastic=apply_stochastic,
             )

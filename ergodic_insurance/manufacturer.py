@@ -1382,7 +1382,7 @@ class WidgetManufacturer:
         new_inventory = cogs * (dio / 365)  # Inventory based on COGS not revenue
         new_ap = cogs * (dpo / 365)  # AP based on COGS not revenue
 
-        # Calculate the change in working capital assets
+        # Calculate the change in working capital components
         ar_change = new_ar - self.accounts_receivable
         inventory_change = new_inventory - self.inventory
         ap_change = new_ap - self.accounts_payable
@@ -1392,9 +1392,14 @@ class WidgetManufacturer:
         self.inventory = new_inventory
         self.accounts_payable = new_ap
 
-        # Note: Working capital is just a reallocation of assets, not a change in total assets
-        # AR and inventory are funded from operations, not from reducing cash
-        # The cash impact happens through the revenue/expense cycle, not here
+        # CRITICAL FIX: Reallocate assets from/to cash to fund working capital changes
+        # Increases in AR and inventory reduce cash (cash converted to these assets)
+        # Increases in AP increase cash (we have the cash but owe it to vendors)
+        cash_impact = -(ar_change + inventory_change) + ap_change
+        self.cash += cash_impact
+
+        # Now total assets remain constant - we've just reallocated between components
+        # This prevents artificial asset creation that was causing growth distortions
 
         # Calculate net working capital and cash conversion cycle
         net_working_capital = self.accounts_receivable + self.inventory - self.accounts_payable
@@ -1403,7 +1408,7 @@ class WidgetManufacturer:
         logger.debug(
             f"Working capital components: AR=${self.accounts_receivable:,.0f}, "
             f"Inv=${self.inventory:,.0f}, AP=${self.accounts_payable:,.0f}, "
-            f"Net WC=${net_working_capital:,.0f}"
+            f"Net WC=${net_working_capital:,.0f}, Cash impact=${cash_impact:,.0f}"
         )
 
         return {
@@ -1412,6 +1417,7 @@ class WidgetManufacturer:
             "accounts_payable": self.accounts_payable,
             "net_working_capital": net_working_capital,
             "cash_conversion_cycle": cash_conversion_cycle,
+            "cash_impact": cash_impact,
         }
 
     def record_prepaid_insurance(self, annual_premium: float) -> None:
@@ -2179,7 +2185,7 @@ class WidgetManufacturer:
 
         return True
 
-    def calculate_metrics(self) -> Dict[str, float]:
+    def calculate_metrics(self, period_revenue: Optional[float] = None) -> Dict[str, float]:
         """Calculate comprehensive financial metrics for analysis.
 
         This method computes a complete set of financial metrics including
@@ -2295,7 +2301,9 @@ class WidgetManufacturer:
         metrics["accrued_revenues"] = accrual_items.get("accrued_revenues", 0)
 
         # Calculate operating metrics for current state
-        revenue = self.calculate_revenue()
+        # Use period revenue if provided (actual revenue earned during the period)
+        # Otherwise calculate based on current assets (for standalone metrics)
+        revenue = period_revenue if period_revenue is not None else self.calculate_revenue()
         # Calculate depreciation for metrics (annual basis)
         annual_depreciation = self.gross_ppe / 10 if self.gross_ppe > 0 else 0.0
         operating_income = self.calculate_operating_income(revenue, annual_depreciation)
@@ -2666,20 +2674,22 @@ class WidgetManufacturer:
             time_resolution=time_resolution,
         )
 
-        # Calculate working capital components
-        # Use consistent revenue measure to avoid compounding effects
-        if time_resolution == "annual":
-            # Annual mode: use the annual revenue
-            self.calculate_working_capital_components(revenue)
-        elif time_resolution == "monthly":
-            # Monthly mode: use the stored annual revenue from year start
-            # This was calculated before any balance sheet changes
-            if hasattr(self, "_annual_revenue_for_wc"):
-                self.calculate_working_capital_components(self._annual_revenue_for_wc)
-            else:
-                # Fallback: use current assets (should not happen normally)
-                annual_revenue = self.total_assets * self.asset_turnover_ratio
-                self.calculate_working_capital_components(annual_revenue)
+        # Calculate working capital components only if working capital is being used
+        # When working_capital_pct is 0, we don't need to track AR/inventory/AP
+        if working_capital_pct > 0:
+            # Use consistent revenue measure to avoid compounding effects
+            if time_resolution == "annual":
+                # Annual mode: use the annual revenue
+                self.calculate_working_capital_components(revenue)
+            elif time_resolution == "monthly":
+                # Monthly mode: use the stored annual revenue from year start
+                # This was calculated before any balance sheet changes
+                if hasattr(self, "_annual_revenue_for_wc"):
+                    self.calculate_working_capital_components(self._annual_revenue_for_wc)
+                else:
+                    # Fallback: use current assets (should not happen normally)
+                    annual_revenue = self.total_assets * self.asset_turnover_ratio
+                    self.calculate_working_capital_components(annual_revenue)
 
         # Update balance sheet with retained earnings AFTER working capital calculation
         # This prevents working capital from compounding with asset growth
@@ -2702,7 +2712,8 @@ class WidgetManufacturer:
         self.check_solvency()
 
         # Calculate and store metrics
-        metrics = self.calculate_metrics()
+        # Pass the actual period revenue to get accurate metrics
+        metrics = self.calculate_metrics(period_revenue=revenue)
         metrics["year"] = self.current_year
         metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
         self.metrics_history.append(metrics)
