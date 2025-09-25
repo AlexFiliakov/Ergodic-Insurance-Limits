@@ -1039,9 +1039,7 @@ class MonteCarloEngine:
             "ruin_at_year": ruin_at_year,  # New field for periodic ruin tracking
         }
 
-    def _combine_chunk_results(
-        self, chunk_results: List[Dict[str, Any]]
-    ) -> SimulationResults:
+    def _combine_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> SimulationResults:
         """Combine results from parallel chunks.
 
         Args:

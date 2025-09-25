@@ -1274,6 +1274,8 @@ class FinancialStatementGenerator:
             # Update DataFrame with YoY changes
             for index, row in df.iterrows():
                 if row["Item"].strip() in yoy_changes:
+                    # Type assertion for mypy - index is always int for default DataFrames
+                    assert isinstance(index, int)  # DataFrames created here always have int index
                     df.at[index, "YoY Change %"] = f"{yoy_changes[row['Item'].strip()]:.1f}%"
 
     def _add_yoy_comparison_income(self, df: pd.DataFrame, year: int) -> None:
@@ -1294,6 +1296,10 @@ class FinancialStatementGenerator:
                 # Find revenue row and add YoY
                 for index, row in df.iterrows():
                     if "Sales Revenue" in row["Item"]:
+                        # Type assertion for mypy - index is always int for default DataFrames
+                        assert isinstance(
+                            index, int
+                        )  # DataFrames created here always have int index
                         df.at[index, f"Year {year-1}"] = prev_metrics.get("revenue", 0)
 
     def _add_comparison_year(self, df: pd.DataFrame, comp_year: int) -> None:
@@ -1310,6 +1316,8 @@ class FinancialStatementGenerator:
             # Add comparison year values for key items
             for index, row in df.iterrows():
                 item = row["Item"].strip()
+                # Type assertion for mypy - index is always int for default DataFrames
+                assert isinstance(index, int)  # DataFrames created here always have int index
                 if item == "TOTAL ASSETS":
                     df.at[index, f"Year {comp_year}"] = comp_metrics.get("assets", 0)
                 elif item == "TOTAL EQUITY":
@@ -1331,6 +1339,8 @@ class FinancialStatementGenerator:
             # Add comparison year values for key items
             for index, row in df.iterrows():
                 item = row["Item"].strip()
+                # Type assertion for mypy - index is always int for default DataFrames
+                assert isinstance(index, int)  # DataFrames created here always have int index
                 if "Sales Revenue" in item:
                     df.at[index, f"Year {comp_year}"] = comp_metrics.get("revenue", 0)
                 elif item == "NET INCOME":

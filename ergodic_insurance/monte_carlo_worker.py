@@ -73,6 +73,20 @@ def run_chunk_standalone(
             # Generate losses for the year
             revenue = sim_manufacturer.calculate_revenue()
 
+            # Calculate and pay insurance premiums (scaled by revenue)
+            # Premium scales proportionally with revenue growth
+            initial_revenue = (
+                manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
+            )
+            revenue_multiplier = revenue / initial_revenue if initial_revenue > 0 else 1.0
+            annual_premium = insurance_program.calculate_annual_premium() * revenue_multiplier
+
+            # Deduct premium from manufacturer's cash/assets
+            # This ensures the premium cost is properly accounted for
+            if annual_premium > 0:
+                sim_manufacturer.cash = max(0, sim_manufacturer.cash - annual_premium)
+                sim_manufacturer.period_insurance_premiums = annual_premium
+
             # Handle both ClaimGenerator and ManufacturingLossGenerator
             if hasattr(loss_generator, "generate_losses"):
                 year_losses, _ = loss_generator.generate_losses(duration=1.0, revenue=revenue)
@@ -106,6 +120,7 @@ def run_chunk_standalone(
             sim_retained_losses[year] = retained
 
             # Run business operations (growth, etc.)
+            # Note: insurance premiums were already paid above, so pass 0 to avoid double-counting
             sim_manufacturer.step()
 
             # Check for ruin
