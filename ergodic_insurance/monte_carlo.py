@@ -951,40 +951,15 @@ class MonteCarloEngine:
             retained = total_loss - recovery
             retained_losses[year] = retained
 
-            # Apply retained loss to manufacturer assets
-            # Losses should primarily affect liquid assets (cash)
-            # If cash is insufficient, the company needs to liquidate other assets
+            # Record retained loss for income statement calculation
+            # The loss will reduce operating income, which reduces net income,
+            # which reduces retained earnings added to cash in the step() method
+            # DO NOT directly manipulate cash here to avoid double-counting
             if retained > 0:
-                # Record the loss for tax deduction
+                # Record the loss for tax deduction and income calculation
                 manufacturer.record_insurance_loss(retained)
-
-                if retained <= manufacturer.cash:
-                    # Can pay from cash
-                    manufacturer.cash -= retained
-                else:
-                    # Loss exceeds cash - need to liquidate other assets
-                    # This represents selling inventory, collecting receivables early, etc.
-                    cash_shortfall = retained - manufacturer.cash
-                    manufacturer.cash = 0
-
-                    # Liquidate other current assets to cover the shortfall
-                    # This is more realistic than proportionally reducing all assets
-                    if cash_shortfall > 0:
-                        # Reduce accounts receivable first (collecting early)
-                        ar_reduction = min(cash_shortfall, manufacturer.accounts_receivable)
-                        manufacturer.accounts_receivable -= ar_reduction
-                        cash_shortfall -= ar_reduction
-
-                    if cash_shortfall > 0:
-                        # Then reduce inventory (liquidation sales)
-                        inv_reduction = min(cash_shortfall, manufacturer.inventory)
-                        manufacturer.inventory -= inv_reduction
-                        cash_shortfall -= inv_reduction
-
-                    # If still can't cover, it impacts the company's solvency
-                    # The remaining shortfall creates negative cash (like overdraft/debt)
-                    if cash_shortfall > 0:
-                        manufacturer.cash = -cash_shortfall
+                # Note: The actual cash impact happens through the income statement
+                # in manufacturer.step() when retained earnings are calculated
 
             # Calculate insurance premium scaled by revenue
             # Premium should scale with exposure (revenue)
