@@ -134,9 +134,10 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         result_arrays["insurance_recoveries"][year] = recovery
         result_arrays["retained_losses"][year] = retained
 
-        # Update manufacturer - subtract retained losses
-        if manufacturer.total_assets > 0:
-            manufacturer.cash = max(0, manufacturer.cash - retained)
+        # NOTE: DO NOT directly manipulate cash here to avoid double-counting
+        # The retained losses impact cash through the income statement when
+        # manufacturer.step() is called, which properly accounts for tax benefits
+        # and reinvestment of retained earnings.
 
         # Check for ruin
         if manufacturer.total_assets <= 0:
@@ -942,14 +943,22 @@ class MonteCarloEngine:
             total_loss = sum(event.amount for event in events)
             annual_losses[year] = total_loss
 
-            # Apply insurance
-            claim_result = self.insurance_program.process_claim(total_loss)
-            recovery = claim_result.get("insurance_recovery", 0)
-            insurance_recoveries[year] = recovery
+            # Apply insurance PER OCCURRENCE (not aggregate)
+            total_recovery = 0
+            total_retained = 0
 
-            # Calculate retained loss
-            retained = total_loss - recovery
-            retained_losses[year] = retained
+            for event in events:
+                # Process each event separately through insurance
+                claim_result = self.insurance_program.process_claim(event.amount)
+                event_recovery = claim_result.get("insurance_recovery", 0)
+                event_retained = event.amount - event_recovery
+
+                total_recovery += event_recovery
+                total_retained += event_retained
+
+            insurance_recoveries[year] = total_recovery
+            retained_losses[year] = total_retained
+            retained = total_retained
 
             # Record retained loss for income statement calculation
             # The loss will reduce operating income, which reduces net income,
