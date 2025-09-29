@@ -1,37 +1,41 @@
-\contentsline {section}{\numberline {1}Executive Summary}{3}{section.1}%
-\contentsline {section}{\numberline {2}Introduction}{3}{section.2}%
-\contentsline {subsection}{\numberline {2.1}Current Challenges in Insurance Appetite Modeling}{3}{subsection.2.1}%
-\contentsline {subsection}{\numberline {2.2}The Promise of Ergodicity Economics}{3}{subsection.2.2}%
-\contentsline {section}{\numberline {3}Theoretical Foundation}{3}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Ergodicity vs. Non-Ergodicity in Financial Systems}{3}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Insurance Markets as Non-Ergodic Systems}{4}{subsection.3.2}%
-\contentsline {subsection}{\numberline {3.3}Mathematical Framework}{5}{subsection.3.3}%
-\contentsline {section}{\numberline {4}Simulation Framework Overview}{6}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Architecture and Key Components}{6}{subsection.4.1}%
-\contentsline {subsubsection}{\numberline {4.1.1}Framework Design Philosophy}{6}{subsubsection.4.1.1}%
-\contentsline {subsubsection}{\numberline {4.1.2}Corporate Business Model}{6}{subsubsection.4.1.2}%
-\contentsline {subsubsection}{\numberline {4.1.3}Loss Generation Module}{7}{subsubsection.4.1.3}%
-\contentsline {subsubsection}{\numberline {4.1.4}Insurance Mechanism}{7}{subsubsection.4.1.4}%
-\contentsline {subsubsection}{\numberline {4.1.5}Ergodic Analysis Engine}{7}{subsubsection.4.1.5}%
-\contentsline {subsubsection}{\numberline {4.1.6}Parameter Interactions}{8}{subsubsection.4.1.6}%
-\contentsline {subsection}{\numberline {4.2}Input Parameters and Data Requirements}{8}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Model Validation and Calibration}{10}{subsection.4.3}%
-\contentsline {subsection}{\numberline {4.4}Computational Considerations}{10}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Case Study: Company Size and Insurance Appetite}{11}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Methodology and Assumptions}{11}{subsection.5.1}%
-\contentsline {subsection}{\numberline {5.2}Data Sources and Parameterization}{11}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Results Presentation and Interpretation}{11}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}Sensitivity Analysis}{11}{subsection.5.4}%
-\contentsline {section}{\numberline {6}Industry Implications}{11}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Applications for Underwriting and Pricing}{11}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Portfolio Management Considerations}{12}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Regulatory and Capital Allocation Insights}{12}{subsection.6.3}%
-\contentsline {section}{\numberline {7}Future Research Directions}{12}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Framework Extensions and Enhancements}{12}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}Additional Applications in P\&C Insurance}{12}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Industry Collaboration Opportunities}{12}{subsection.7.3}%
-\contentsline {section}{\numberline {8}Conclusion}{12}{section.8}%
-\contentsline {section}{\numberline {A}Technical Appendix}{13}{appendix.A}%
-\contentsline {subsection}{\numberline {A.1}Simulation Algorithm Details}{13}{subsection.A.1}%
-\contentsline {subsection}{\numberline {A.2}Parameter Estimation Methods}{13}{subsection.A.2}%
-\contentsline {subsection}{\numberline {A.3}Code Repository}{13}{subsection.A.3}%
+\contentsline {section}{\numberline {1}Executive Summary}{4}{section.1}%
+\contentsline {section}{\numberline {2}Introduction}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Current Challenges in Insurance Appetite Modeling}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}The Promise of Ergodicity Economics}{4}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Theoretical Foundation}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Ergodicity vs. Non-Ergodicity in Financial Systems}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Insurance Markets as Non-Ergodic Systems}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Mathematical Framework}{6}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Simulation Framework Overview}{7}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Architecture and Key Components}{7}{subsection.4.1}%
+\contentsline {subsubsection}{\numberline {4.1.1}Framework Design Philosophy}{7}{subsubsection.4.1.1}%
+\contentsline {subsubsection}{\numberline {4.1.2}Corporate Business Model}{7}{subsubsection.4.1.2}%
+\contentsline {subsubsection}{\numberline {4.1.3}Loss Generation Module}{8}{subsubsection.4.1.3}%
+\contentsline {subsubsection}{\numberline {4.1.4}Insurance Mechanism}{8}{subsubsection.4.1.4}%
+\contentsline {subsubsection}{\numberline {4.1.5}Ergodic Analysis Engine}{8}{subsubsection.4.1.5}%
+\contentsline {subsubsection}{\numberline {4.1.6}Parameter Interactions}{9}{subsubsection.4.1.6}%
+\contentsline {subsection}{\numberline {4.2}Input Parameters and Data Requirements}{9}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Model Validation and Calibration}{11}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Computational Considerations}{11}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Case Study: Deductible Appetite vs. Company Size and Margins}{12}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Overview of Results}{12}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}The Size Effect: Capitalization and Insurance Value}{12}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Optimal Retention Levels by Company Size}{12}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Operating Margin Interactions}{12}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Sensitivity to Insurance Pricing}{12}{subsection.5.5}%
+\contentsline {section}{\numberline {6}Implications for Insurance Decision-Making}{12}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Reframing Insurance Value Through Time Averages}{12}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}The Ergodic Perspective on Risk Retention}{12}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Company Profile Considerations}{12}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Engaging Actuarial Expertise for Ergodic Analysis}{12}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Challenging Traditional Risk Management Metrics}{13}{subsection.6.5}%
+\contentsline {section}{\numberline {7}Future Research Directions}{13}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Optimizing Complex Insurance Structures}{13}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Dynamic and Adaptive Insurance Strategies}{13}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Incorporating Loss Correlations and Portfolio Effects}{14}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Stochastic Business and Market Dynamics}{14}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Industry-Specific Applications and Regulatory Considerations}{14}{subsection.7.5}%
+\contentsline {section}{\numberline {8}Conclusion}{14}{section.8}%
+\contentsline {section}{\numberline {A}Technical Appendix}{15}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Simulation Algorithm Details}{15}{subsection.A.1}%
+\contentsline {subsection}{\numberline {A.2}Code Repository}{15}{subsection.A.2}%

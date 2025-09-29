@@ -385,95 +385,101 @@ The simulation employs Monte Carlo methods with:
 Parallel processing and efficient data structures ensure tractability despite the high dimensionality of the parameter space. Each full scenario run takes approximately 30-60 minutes on a standard workstation, allowing exploration of multiple parameter combinations within reasonable timeframes. The experiment described in this paper was performed in a cloud computing environment (Google Colab) in a few hours and at a cost of approximately \$10, so it can be easily replicated by anybody looking to validate or extend the findings.
 
 Static parameters, such as tailoring the model to a specific industry or company, or incorporating discounting, will not significantly affect run times. However, adding stochastic revenue or margin fluctuations, more complex insurance structures, or regulatory capital requirements will increase computational demands and may require further optimization.
-\section{Case Study: Company Size and Insurance Appetite}
+\section{Case Study: Deductible Appetite vs. Company Size and Margins}
 
-\subsection{Methodology and Assumptions}
+\subsection{Overview of Results}
 
-Our primary hypothesis is that insurance appetite, defined as the willingness to underwrite additional risk, varies systematically with company size.
+The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across 100,000 Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, operating margins, and the value derived from various deductible levels.
 
-Key assumptions:
-\begin{itemize}
-    \item Companies maximize long-term growth rates rather than expected utility
-    \item Risk appetite is measured by the Kelly criterion adaptation for insurance
-    \item Company size is proxied by annual revenue
-\end{itemize}
+\subsection{The Size Effect: Capitalization and Insurance Value}
 
-\subsection{Data Sources and Parameterization}
+\subsection{Optimal Retention Levels by Company Size}
 
-% TODO: Describe data sources and parameter estimation
+\subsection{Operating Margin Interactions}
 
-\subsection{Results Presentation and Interpretation}
+\subsection{Sensitivity to Insurance Pricing}
 
-\begin{figure}[H]
-\centering
-% TODO: Add actual simulation results plot
-\begin{tikzpicture}
-\begin{axis}[
-    xlabel={Company Revenue (\$M)},
-    ylabel={Risk Appetite Index},
-    title={Insurance Appetite vs Company Size},
-    grid=major,
-    width=12cm,
-    height=8cm
-]
-% Placeholder data - replace with actual results
-\addplot[blue, mark=o] coordinates {
-    (100, 0.15)
-    (500, 0.28)
-    (1000, 0.42)
-    (2500, 0.58)
-    (5000, 0.71)
-    (10000, 0.83)
-};
-\end{axis}
-\end{tikzpicture}
-\caption{Risk appetite increases with company size (simulated results)}
-\label{fig:appetite_vs_size}
-\end{figure}
+\section{Implications for Insurance Decision-Making}
 
-Figure \ref{fig:appetite_vs_size} demonstrates the positive correlation between company size and risk appetite, consistent with ergodicity economics predictions.
+\subsection{Reframing Insurance Value Through Time Averages}
 
-\subsection{Sensitivity Analysis}
+The ergodic perspective fundamentally changes how corporate decision-makers should evaluate insurance. Rather than focusing on expected values and traditional cost-benefit analyses, risk managers must consider the time-average growth rate experienced by their specific company over its operational horizon. This shift reveals that insurance premiums substantially exceeding expected losses can still enhance long-term value creation by reducing the multiplicative impact of catastrophic events.
 
-% TODO: Present sensitivity analysis results
+\subsection{The Ergodic Perspective on Risk Retention}
 
-\section{Industry Implications}
+The simulation demonstrates that some level of risk retention is consistently optimal, challenging both full insurance and complete self-insurance strategies. This finding emerges from the ergodic framework's recognition that predictable attritional losses should be retained while catastrophic tail risks require transfer. The optimal retention level balances premium savings against the growth-destroying potential of large losses.
 
-\subsection{Applications for Underwriting and Pricing}
+\subsection{Company Profile Considerations}
 
-The simulation framework provides several practical applications:
-\begin{itemize}
-    \item Dynamic pricing models that account for company size effects
-    \item Portfolio optimization considering temporal risk dynamics
-    \item Competitive positioning analysis
-\end{itemize}
+\textbf{Important Note:} The specific results presented in this paper are illustrative and depend heavily on the modeled loss distributions, business parameters, and simplifying assumptions. Corporate decision-makers should not apply these findings directly but rather use them as motivation to conduct company-specific ergodic analysis.
 
-\subsection{Portfolio Management Considerations}
+Key considerations emerging from the simulation include the critical role of capitalization levels, operating margin buffers, and loss severity distributions in determining optimal insurance strategies. Companies with lower capitalizations relative to potential losses derive substantially more value from insurance, even at higher premium rates.
 
-% TODO: Discuss portfolio management implications
+\subsection{Engaging Actuarial Expertise for Ergodic Analysis}
 
-\subsection{Regulatory and Capital Allocation Insights}
+CFOs and risk managers should engage experienced actuaries to model time-dependent paths specific to their industry and company characteristics. Traditional actuarial analysis focusing on expected values and ensemble statistics may systematically undervalue insurance for growth-focused companies. The actuarial profession must evolve to incorporate ergodic considerations into standard practice, developing new tools and methodologies for time-average optimization.
 
-% TODO: Discuss regulatory implications
+\subsection{Challenging Traditional Risk Management Metrics}
+
+Standard risk metrics such as Value at Risk (VaR) and Expected Shortfall fail to capture the multiplicative nature of wealth dynamics and the critical distinction between time and ensemble averages. Risk management frameworks must evolve to incorporate ergodic considerations, particularly for long-term strategic decisions where path dependence and growth optimization matter more than short-term volatility measures.
 
 \section{Future Research Directions}
 
-\subsection{Framework Extensions and Enhancements}
+This initial exploration of ergodic insurance optimization reveals numerous opportunities for extending the framework to address current model limitations and enhance practical applicability.
 
-Potential areas for future development include:
+\subsection{Optimizing Complex Insurance Structures}
+
+The current model's simplification to deductible-only structures masks important optimization opportunities in real-world insurance programs. Future research should incorporate:
 \begin{itemize}
-    \item Integration with catastrophe modeling
-    \item Multi-line portfolio effects
-    \item Reinsurance optimization
+    \item Multi-layer tower structures with different attachment points and limits
+    \item Aggregate deductibles and limits that recognize claim correlation
+    \item Reinstatement provisions and their impact on tail risk protection
+    \item Coverage sub-limits by peril or location
 \end{itemize}
 
-\subsection{Additional Applications in P\&C Insurance}
+These extensions would enable practitioners to optimize complete insurance programs rather than single-parameter deductibles.
 
-% TODO: Outline future applications
+\subsection{Dynamic and Adaptive Insurance Strategies}
 
-\subsection{Industry Collaboration Opportunities}
+Static insurance decisions fail to capture the dynamic nature of business growth and market evolution. Future work should develop:
+\begin{itemize}
+    \item Adaptive strategies that adjust coverage as companies grow
+    \item Market-responsive approaches that capitalize on insurance pricing cycles
+    \item Path-dependent optimization recognizing that insurance decisions affect future growth trajectories
+    \item Switching costs and multi-year contract considerations
+\end{itemize}
 
-% TODO: Discuss collaboration possibilities
+\subsection{Incorporating Loss Correlations and Portfolio Effects}
+
+The independence assumption for losses oversimplifies real risk landscapes. Extensions should model:
+\begin{itemize}
+    \item Correlation between different loss types and business lines
+    \item Diversification benefits in multi-line enterprises
+    \item Systemic risks and contagion effects
+    \item Natural hedging opportunities within business portfolios
+\end{itemize}
+
+\subsection{Stochastic Business and Market Dynamics}
+
+The deterministic revenue and margin assumptions limit the model's realism. Future research should incorporate:
+\begin{itemize}
+    \item Revenue volatility and its interaction with insurance value
+    \item Economic cycles affecting both business performance and loss frequencies
+    \item Insurance market cycles and their impact on optimal retention
+    \item Competitive dynamics and market share considerations
+\end{itemize}
+
+\subsection{Industry-Specific Applications and Regulatory Considerations}
+
+The generic manufacturing model requires specialization for practical implementation:
+\begin{itemize}
+    \item Industry-specific loss distributions and exposure bases
+    \item Regulatory capital requirements and their optimization
+    \item Rating agency considerations and cost of capital impacts
+    \item Sector-specific risk factors (e.g., cyber for technology, liability for healthcare)
+\end{itemize}
+
+These extensions would transform the framework from an illustrative model to a practical decision support tool for corporate risk management.
 
 \section{Conclusion}
 
@@ -501,10 +507,6 @@ The framework will provide new insights for companies making insurance decisions
 \subsection{Simulation Algorithm Details}
 
 % TODO: Provide detailed algorithm descriptions
-
-\subsection{Parameter Estimation Methods}
-
-% TODO: Describe statistical methods used
 
 \subsection{Code Repository}
 
