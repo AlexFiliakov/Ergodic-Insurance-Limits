@@ -110,35 +110,113 @@ Ergodicity economics, developed by \citet{peters2025ergodicity}, offers a new pe
 
 \subsection{Ergodicity vs. Non-Ergodicity in Financial Systems}
 
-A stochastic process is ergodic if its time average equals its ensemble average:
+The distinction between time averages and ensemble averages lies at the heart of ergodic economics, a framework pioneered by \citet{peters2019ergodicity} that challenges fundamental assumptions in economic theory. A stochastic process is ergodic if its time average equals its ensemble average:
+
 \begin{equation}
 \lim_{T \to \infty} \frac{1}{T} \int_0^T f(X_t) dt = \E[f(X)]
 \end{equation}
 
+For ergodic systems, what happens to an individual over time matches the average across many individuals at a single point in time. However, most economic processes violate this equality, creating a fundamental divergence between individual experience and statistical expectations.
+
+The ensemble average represents the expected value across many parallel scenarios:
+\begin{equation}
+\langle W \rangle = \E[W_t] = \frac{1}{N} \sum_{i=1}^{N} W_i(t)
+\end{equation}
+
+where $W_i(t)$ represents the wealth of entity $i$ at time $t$. This is the traditional expected value used in most economic and actuarial analysis.
+
+In contrast, the time average captures what a single entity experiences over its lifetime:
+\begin{equation}
+g_{\text{time}} = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)
+\end{equation}
+
+For multiplicative processes with uncertainty, Jensen's inequality ensures these two averages diverge systematically, with profound implications for insurance and risk management \citep{peters2016evaluating}. Jensen's inequality states that for a random variable $W$ and a convex function $f$:
+
+\begin{equation}
+f(\E[W]) \leq \E[f(W)]
+\end{equation}
+
+In the context of multiplicative wealth dynamics, this means that the expected growth rate (ensemble average) can be misleadingly optimistic compared to the actual growth experienced over time (time average).
+
 \subsection{Insurance Markets as Non-Ergodic Systems}
 
-Insurance markets exhibit non-ergodic properties due to:
-\begin{itemize}
-    \item Path-dependent capital accumulation
-    \item Regulatory constraints on capital adequacy
-    \item Finite time horizons for business decisions
-\end{itemize}
+Insurance markets exhibit fundamentally non-ergodic properties that invalidate traditional expected value analysis. The non-ergodicity arises from several structural features:
+
+\textbf{Multiplicative Wealth Dynamics:} Corporate wealth evolves through multiplicative processes where returns compound on existing capital:
+\begin{equation}
+W_{t+1} = W_t \cdot (1 + r_t - l_t)
+\end{equation}
+where $r_t$ represents returns and $l_t$ represents proportional losses. This multiplicative structure means that the order and magnitude of losses matter critically. For example, a 50\% loss followed by a 50\%~gain leaves wealth at 75\% of its original value, not 100\%.
+
+\textbf{Absorbing Bankruptcy Barrier:} Once a company reaches zero equity (bankruptcy), it cannot recover:
+\begin{equation}
+W_t = 0 \Rightarrow W_{t+k} = 0 \quad \forall k > 0
+\end{equation}
+This absorbing barrier creates fundamental asymmetry: while gains are unbounded, losses are limited to -100\%. The existence of this barrier means that time averages systematically underperform ensemble averages.
+
+\textbf{Path-Dependent Capital Requirements:} Regulatory and market constraints depend on the entire history of losses and capital positions, not just current values. A company that experienced large losses faces higher capital costs and restricted growth opportunities, even after recovering to its original capital level.
+
+\textbf{Finite Decision Horizons:} While ensemble averages assume infinite repeated trials, real companies operate with finite time horizons constrained by management tenure, regulatory cycles, and strategic planning periods. Over finite horizons, the divergence between time and ensemble averages can be substantial.
+
+These non-ergodic features explain why insurance appears valuable even when premiums substantially exceed expected losses. The relevant metric is not the ensemble average (expected value) but the time average (growth rate) \citep{peters2011time}.
 
 \subsection{Mathematical Framework}
 
-Let $W_t$ represent the wealth of an insurance company at time $t$. Under multiplicative dynamics:
+Consider a company with wealth $W_t$ evolving under stochastic dynamics. In the absence of insurance, wealth follows:
 \begin{equation}
-W_{t+1} = W_t \cdot (1 + r_t)
+W_{t+1} = W_t \cdot \left(1 + \mu - \sigma Z_t - L_t\right)
 \end{equation}
 
-where $r_t$ represents the return from underwriting and investment activities.
+where:
+\begin{itemize}
+    \item $\mu$ is the drift (expected return from operations)
+    \item $\sigma Z_t$ represents operational volatility with $Z_t \sim \mathcal{N}(0,1)$
+    \item $L_t$ represents catastrophic losses occurring with frequency $\lambda$ and severity distribution $F_L$
+\end{itemize}
 
-The growth rate is given by:
+The time-average growth rate without insurance is:
 \begin{equation}
-g = \lim_{t \to \infty} \frac{1}{t} \ln\left(\frac{W_t}{W_0}\right)
+g_{\text{uninsured}} = \mu - \frac{\sigma^2}{2} - \lambda \cdot \E\left[\ln\left(1 - \frac{L}{W}\right)\right]
 \end{equation}
 
-% TODO: Expand theoretical section
+The first two terms represent the familiar geometric Brownian motion result, while the third term captures the impact of jump losses. Note the appearance of $\E[\ln(1 - L/W)]$ rather than $\E[L/W]$—this logarithmic transformation is crucial and explains why losses have a disproportionate impact on growth.
+
+With insurance featuring deductible $D$ and premium rate $\pi$, the growth rate becomes:
+\begin{equation}
+g_{\text{insured}} = \mu - \frac{\sigma^2}{2} - \pi - \lambda \cdot \E\left[\ln\left(1 - \frac{\min(L, D)}{W}\right)\right]
+\end{equation}
+
+The insurance creates value when:
+\begin{equation}
+g_{\text{insured}} > g_{\text{uninsured}}
+\end{equation}
+
+This inequality can hold even when $\pi > \lambda \cdot \E[L]$ (premium exceeds expected losses), particularly for companies with:
+\begin{itemize}
+    \item Lower capital levels (higher $L/W$ ratios)
+    \item Higher operational leverage (larger $\mu$ potential)
+    \item Greater loss severity risk (heavy-tailed $F_L$)
+\end{itemize}
+
+The optimal insurance strategy maximizes time-average growth, not expected wealth. This leads naturally to the Kelly criterion \citep{kelly1956new}, which in the insurance context becomes:
+\begin{equation}
+D^* = \arg\max_D \E\left[\ln\left(\frac{W_{t+1}}{W_t}\right)\right]
+\end{equation}
+
+This optimization framework explains the simulation results showing that smaller companies optimally choose lower deductibles despite higher relative premium costs: they face greater proportional impact from losses and thus benefit more from variance reduction.
+
+\textbf{Special Case: Deterministic Operations.} The framework simplifies elegantly when operational volatility is zero ($\sigma = 0$), as in this simulation. The growth rates become:
+\begin{align}
+g_{\text{uninsured}} &= \mu - \lambda \cdot \E\left[\ln\left(1 - \frac{L}{W}\right)\right] \\
+g_{\text{insured}} &= \mu - \pi - \lambda \cdot \E\left[\ln\left(1 - \frac{\min(L,D)}{W}\right)\right]
+\end{align}
+
+Even without operational volatility, insurance creates value because losses themselves introduce multiplicative volatility. The insurance value condition becomes:
+\begin{equation}
+\lambda \cdot \E\left[\ln\left(\frac{1 - \min(L,D)/W}{1 - L/W}\right)\right] > \pi
+\end{equation}
+
+This expression is positive whenever losses exceed the deductible, demonstrating that insurance enhances growth by capping catastrophic losses—converting unpredictable large losses into predictable premium costs. The absence of operational volatility actually clarifies the pure insurance value proposition: reducing the multiplicative impact of tail risks on long-term growth rates.
 
 \section{Simulation Framework Overview}
 
