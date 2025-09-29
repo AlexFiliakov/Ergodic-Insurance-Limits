@@ -1,6 +1,6 @@
-PWD c:\Users\alexf\OneDrive\Documents\Projects\Research_Papers\ergodicity_basic_simulation
+PWD c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\papers\2025-09-Whitepaper-1
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\Users\alexf\OneDrive\Documents\Projects\Research_Papers\ergodicity_basic_simulation\ergodicity_basic_simulation.tex
+INPUT c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\papers\2025-09-Whitepaper-1\ergodicity_basic_simulation.tex
 OUTPUT ergodicity_basic_simulation.log
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
@@ -64,6 +64,8 @@ INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\tools\tabularx.sty
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\tools\tabularx.sty
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\tools\longtable.sty
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\tools\longtable.sty
+INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\enumitem\enumitem.sty
+INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\enumitem\enumitem.sty
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\pgf\frontendlayer\tikz.sty
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\pgf\frontendlayer\tikz.sty
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\pgf\basiclayer\pgf.sty
@@ -369,6 +371,8 @@ INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\fonts\tfm\public\amsfonts\sym
 OUTPUT ergodicity_basic_simulation.toc
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\tcrm1095.tfm
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecbx1200.tfm
+INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecrm0800.tfm
+INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\fonts\tfm\jknappen\ec\ecrm0600.tfm
 INPUT .\ergodicity_basic_simulation.bbl
 INPUT .\ergodicity_basic_simulation.bbl
 INPUT ergodicity_basic_simulation.bbl
@@ -381,6 +385,8 @@ INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ect
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ectt1095.pk
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecti1095.pk
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecti1095.pk
+INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecrm0800.pk
+INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecrm0800.pk
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1200.pk
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ecbx1200.pk
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\tcrm1095.pk

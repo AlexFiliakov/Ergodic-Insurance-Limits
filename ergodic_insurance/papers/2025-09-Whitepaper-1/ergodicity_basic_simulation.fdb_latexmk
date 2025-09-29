@@ -1,18 +1,19 @@
 # Fdb version 4
-["bibtex ergodicity_basic_simulation"] 1758501823.30758 "ergodicity_basic_simulation.aux" "ergodicity_basic_simulation.bbl" "ergodicity_basic_simulation" 1758502012.42421 0
-  "./references.bib" 1758501728 226 933b8352ceabd780ca6c4306c692d7e5 ""
+["bibtex ergodicity_basic_simulation"] 1759124579.2935 "ergodicity_basic_simulation.aux" "ergodicity_basic_simulation.bbl" "ergodicity_basic_simulation" 1759124584.20442 0
+  "./references.bib" 1759124573 466 ea65380e22ca8dee80f00622f8243f89 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/bibtex/bst/bibtex/apalike.bst" 1291972791 24635 604dafcc79f521a11ea73e506e1fbd98 ""
-  "ergodicity_basic_simulation.aux" 1758502011 4982 e64667b3db6afd44104584d12f1a9ce6 "pdflatex"
+  "ergodicity_basic_simulation.aux" 1759124582 5932 f8a89738863bc30a60d6d35e19d0c088 "pdflatex"
   (generated)
   "ergodicity_basic_simulation.bbl"
   "ergodicity_basic_simulation.blg"
   (rewritten before read)
-["pdflatex"] 1758502009.36534 "c:/Users/alexf/OneDrive/Documents/Projects/Research_Papers/ergodicity_basic_simulation/ergodicity_basic_simulation.tex" "ergodicity_basic_simulation.pdf" "ergodicity_basic_simulation" 1758502012.42514 0
-  "C:/Users/alexf/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1758488358 81760 910369822cd2d7c359b2482f4c0de4ca ""
+["pdflatex"] 1759124579.81147 "c:/Users/alexf/OneDrive/Documents/Projects/Ergodic Insurance Limits/ergodic_insurance/papers/2025-09-Whitepaper-1/ergodicity_basic_simulation.tex" "ergodicity_basic_simulation.pdf" "ergodicity_basic_simulation" 1759124584.20588 0
+  "C:/Users/alexf/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1759122550 81760 910369822cd2d7c359b2482f4c0de4ca ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1000.pk" 1758488386 25420 6185d68c5bd219ca97665e40386a1984 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1095.pk" 1758488373 28976 07c265d1396392786f5b6e33e49c9163 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1200.pk" 1758488376 31952 855b7ad8072810fa950c3a9109541db2 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1440.pk" 1758488394 40136 eaaa3fd94eb2da77a375b47bc5bc04f3 ""
+  "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecrm0800.pk" 1759117425 19080 a014bb208ccb27236058ff6e9bc95495 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecrm1000.pk" 1758488384 23808 d5e87d3be79b608b91d265d776f2db48 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecrm1095.pk" 1758488381 26228 78dd6d4b598a5916060427e38b208f85 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecrm1200.pk" 1758488391 28440 72a17e22c422bc01c9818c400fe7e795 ""
@@ -25,6 +26,8 @@
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecbx1095.tfm" 993061956 3228 aacd2ac2d814480e4422ad7e830fd2d4 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecbx1200.tfm" 993061958 3200 b8d69bc738e5ef3e08cefeef3109ff56 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecbx1440.tfm" 993061960 3196 0b37fa3083e15c57cfa8c4ff52f2807a ""
+  "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecrm0600.tfm" 993062116 3160 116e21835795bb29209ae8bb4682382f ""
+  "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecrm0800.tfm" 993062118 3152 11ecf5aad6aacf00ff18f394ab23a8b5 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecrm1000.tfm" 993062122 3148 7e594c8240c71e432203f65ab5f95a51 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecrm1095.tfm" 993062124 3172 eb6efaa83c6c52473a1c403f376eab0f ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/fonts/tfm/jknappen/ec/ecrm1200.tfm" 993062126 3152 4850ff0163852b7fab34bd55e1197f28 ""
@@ -192,6 +195,7 @@
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/caption/caption3.sty" 1696169587 72619 ee90b6612147680fd73c3b1406a74245 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/caption/ltcaption.sty" 1696169587 7418 021d7c4eb11bde94592761855a3d046e ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/caption/subcaption.sty" 1696169587 12494 0c0cdb824278a4d51cefeb2e79901315 ""
+  "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/enumitem/enumitem.sty" 1738917170 52272 63d293bc0d496619edb57585740861a2 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/epstopdf-pkg/epstopdf-base.sty" 1623003186 13886 d1306dcf79a944f6988e688c1785f9ce ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/etoolbox/etoolbox.sty" 1739279216 46850 d87daedc2abdc653769a6f1067849fe0 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/fancyhdr/fancyhdr.sty" 1740138435 31715 19e60610b63819fe670dfa1cd84a4e94 ""
@@ -239,12 +243,12 @@
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/tools/tabularx.sty" 1730400552 7243 e5dac1240636811edb77568b81818372 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/url/url.sty" 1388490452 12796 8edb7d69a20b857904dd0ea757c14ec9 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/xcolor/xcolor.sty" 1729265222 55384 b454dec21c2d9f45ec0b793f0995b992 ""
-  "c:/Users/alexf/OneDrive/Documents/Projects/Research_Papers/ergodicity_basic_simulation/ergodicity_basic_simulation.tex" 1758502008 9623 f27d50cb25da3c218aafb183ae6ba774 ""
-  "ergodicity_basic_simulation.aux" 1758502011 4982 e64667b3db6afd44104584d12f1a9ce6 "pdflatex"
-  "ergodicity_basic_simulation.bbl" 1758501823 226 2fe4ee0b1b686601b4a560a047c791ad "bibtex ergodicity_basic_simulation"
-  "ergodicity_basic_simulation.out" 1758502011 6641 46c94efe0d4e49f75e4c2f287b6e2b42 "pdflatex"
-  "ergodicity_basic_simulation.tex" 1758502008 9623 f27d50cb25da3c218aafb183ae6ba774 ""
-  "ergodicity_basic_simulation.toc" 1758502011 2906 542fec703c0f3663a6ea31e2fa498cfc "pdflatex"
+  "c:/Users/alexf/OneDrive/Documents/Projects/Ergodic Insurance Limits/ergodic_insurance/papers/2025-09-Whitepaper-1/ergodicity_basic_simulation.tex" 1759124573 21141 c25816fcf7720f7c8291a1e7d72b8443 ""
+  "ergodicity_basic_simulation.aux" 1759124582 5932 f8a89738863bc30a60d6d35e19d0c088 "pdflatex"
+  "ergodicity_basic_simulation.bbl" 1759124579 390 cd18dbbcbe846fb728e38b494a120956 "bibtex ergodicity_basic_simulation"
+  "ergodicity_basic_simulation.out" 1759124582 7764 09433e935ee84117ba9327060eeda721 "pdflatex"
+  "ergodicity_basic_simulation.tex" 1759124573 21141 c25816fcf7720f7c8291a1e7d72b8443 ""
+  "ergodicity_basic_simulation.toc" 1759124582 3506 4a2d9e258113977112c6aec444d4bc0b "pdflatex"
   (generated)
   "ergodicity_basic_simulation.aux"
   "ergodicity_basic_simulation.log"

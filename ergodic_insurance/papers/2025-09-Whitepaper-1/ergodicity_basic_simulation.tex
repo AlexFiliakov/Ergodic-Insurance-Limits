@@ -20,6 +20,10 @@
 \usepackage{tabularx}
 \usepackage{longtable}
 
+% List packages
+\usepackage{enumitem}
+\usepackage{float}
+
 % Graphics and plotting
 \usepackage{tikz}
 \usepackage{pgfplots}
@@ -140,35 +144,147 @@ g = \lim_{t \to \infty} \frac{1}{t} \ln\left(\frac{W_t}{W_0}\right)
 
 \subsection{Architecture and Key Components}
 
-The simulation framework consists of several key modules:
+The simulation framework implements a comprehensive ergodic analysis system that bridges corporate finance, insurance economics, and stochastic modeling. Rather than treating insurance as a simple expected value calculation, the framework captures the fundamental non-ergodicity of business growth under uncertainty.
 
-\begin{enumerate}
-    \item \textbf{Market Environment Module}: Generates stochastic loss scenarios
-    \item \textbf{Company Behavior Module}: Models decision-making processes
-    \item \textbf{Capital Dynamics Module}: Tracks financial position over time
-    \item \textbf{Risk Appetite Measurement Module}: Quantifies appetite changes
-\end{enumerate}
+\subsubsection{Framework Design Philosophy}
+
+The architecture centers on a critical distinction from traditional actuarial models: it compares time-average growth rates (what a single company experiences over its lifetime) with ensemble-average growth rates (statistical expectations across many parallel scenarios). This ergodic economics approach, pioneered by \citet{peters2019ergodicity}, reveals that insurance can enhance growth even when premiums substantially exceed expected losses, a result invisible to traditional expected value analysis.
+
+The framework employs Monte Carlo simulation to generate thousands of independent business trajectories, each experiencing unique sequences of loss events. By tracking individual path dynamics, the system quantifies the lift in time-average growth rate offered by insurance in certain business scenarios.
+
+\subsubsection{Corporate Business Model}
+
+At the framework's core lies an illustrative manufacturing company with realistic financial dynamics. The model tracks complete corporate accounting relationships while maintaining computational efficiency for large-scale simulations.
+
+Revenue generation follows an asset turnover model where annual revenues equal total assets multiplied by an asset turnover ratio (typically 0.8 to 1.2). This approach naturally scales business activity with company size while allowing exploration of capital efficiency effects. Operating income derives from revenues through configurable operating margins, capturing the fundamental profitability before considering loss events.
+
+The income statement dynamics incorporate operating revenues, margins, claim losses, insurance premiums, and corporate taxes. Critically, revenues serve as the exposure base for loss generation, creating a direct link between business scale and risk exposure. Premiums are calibrated at the outset, assuming accurate matching to the expected loss distribution, and loaded for costs to a realistic target loss ratio. Premiums are subsequently scaled with revenues, in line with the underlying loss exposure base. After-tax earnings flow to retained earnings, driving balance sheet growth absent external capital raises.
+
+Balance sheet evolution tracks assets, liabilities, and equity through time, maintaining the fundamental accounting equation. When losses are incurred, they follow a 10-year payment schedule, reflecting typical commercial insurance claim settlement patterns. The company's portion (deductible amount) requires immediate collateral via letter of credit. The collateral accrues at market rates and is gradually released as claim payments are made over the years. Insurance recoveries are tracked as receivables, but have no practical effect on the company as insurer defaults are not modeled.
+
+\subsubsection{Loss Generation Module}
+
+The framework implements a three-tier loss structure that captures the full spectrum of business risks:
+
+\textbf{Attritional losses} represent high-frequency, low-severity events such as minor operational disruptions, small liability claims, or routine equipment failures. These follow a compound Poisson process with lognormal severities, creating a steady baseline loss burden.
+
+\textbf{Large losses} capture moderate-frequency events with more substantial impact, such as significant liability claims, major equipment breakdowns, or supply chain disruptions. These also follow a compound Poisson-lognormal structure but with parameters shifted toward less frequent, more severe events.
+
+\textbf{Catastrophic losses} model low-probability, high-impact events that can threaten business continuity, such as natural disasters, major litigation, or systemic failures. These events, while rare, fundamentally alter growth trajectories, erode capital, and drive much of the insurance value proposition. Poisson-Pareto distributions capture the heavy-tailed nature of these risks.
+
+Each loss type draws from distinct frequency and severity distributions, with all claim counts scaled by revenue exposure. Claim correlations are not modeled.
+
+\subsubsection{Insurance Mechanism}
+
+The insurance module focuses on deductible optimization, the primary decision variable for most corporate insurance programs. While the framework supports complex insurance towers with multiple attachment points, coverage types and limits, for this first experiment, the configuration was simplified with virtually unlimited coverage. These high coverage limits effectively eliminate ruin risk, isolating the deductible's impact on growth dynamics.
+
+For each loss event, the model determines payment allocation between the company (up to the deductible) and insurers (excess of deductible). Premium calculations incorporate expected losses, expense loadings, and risk charges, with pricing that reflects realistic market conditions rather than actuarially fair rates. Again, for this first experiment, the pricing was simplified to a single target loss ratio, with no risk loadings or insurance cycle dynamics. Future work will explore more sophisticated pricing models.
+
+\subsubsection{Ergodic Analysis Engine}
+
+The framework's analytical core computes and compares growth metrics across insured and uninsured scenarios, revealing the ergodic effects of insurance.
+
+The time-average growth rate for each trajectory is calculated as:
+\begin{equation}
+g_{\text{time}} = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)
+\end{equation}
+where $W_T$ represents terminal wealth (equity) and $W_0$ initial wealth. This logarithmic formulation captures the multiplicative nature of business growth, where percentage changes compound over time.
+
+Growth lift quantifies insurance value as the difference between insured and uninsured time-average growth rates:
+\begin{equation}
+\text{Growth Lift} = g_{\text{time}}^{\text{insured}} - g_{\text{time}}^{\text{uninsured}}
+\end{equation}
+
+Positive growth lift indicates that insurance enhances long-term wealth accumulation despite premium costs.
+
+The framework distinguishes between survival optimization (avoiding ruin) and growth optimization (maximizing wealth accumulation). While high coverage limits virtually eliminate bankruptcy risk in the modeled scenarios, different deductible levels create a trade-off between premium costs and retained volatility that affects growth rates. The optimal deductible maximizes time-average growth rather than merely ensuring survival.
+
+\subsubsection{Parameter Interactions}
+
+The simulation explores a multidimensional parameter space that captures key drivers of insurance appetite:
+
+\textbf{Capitalization levels} (\$5M, \$10M, \$25M) represent different company sizes, with smaller firms facing proportionally larger impacts from individual losses. This size effect proves central to understanding why optimal deductibles vary across companies. At retentions beyond \$25M and with the loss distribution unaltered, full retention becomes optimal (i.e., no insurance) as loss volatility relative to capital diminishes, so these higher capitalization levels were removed from consideration.
+
+\textbf{Asset turnover ratios} (0.8 to 1.2) capture capital efficiency, with higher ratios generating more revenue (and thus more loss exposure) per dollar of assets.
+
+\textbf{Operating margins} determine profitability buffers against losses. Higher-margin businesses can absorb losses more easily, potentially supporting higher deductibles, while low-margin operations may require more insurance protection to maintain growth.
+
+\textbf{Loss ratios} scale the overall loss burden, allowing sensitivity analysis across different risk environments. As loss ratios increase, and thus insurance costs decrease, the divergence between time and ensemble averages typically widens, amplifying insurance benefits.
+
+These parameters interact in complex ways. For instance, a small company with high asset turnover and low margins faces compounded vulnerabilities that may make lower deductibles optimal despite higher premium costs. The framework systematically explores these interactions to identify shifts in optimal insurance strategies.
 
 \subsection{Input Parameters and Data Requirements}
 
-\begin{table}[H]
-\centering
-\caption{Key Input Parameters}
-\begin{tabular}{@{}lll@{}}
-\toprule
-Parameter & Description & Source \\
-\midrule
-Initial Capital & Starting surplus position & Company financials \\
-Loss Distribution & Frequency and severity models & Historical data \\
-Investment Returns & Portfolio yield assumptions & Market data \\
-Regulatory Ratios & Minimum capital requirements & Regulatory filings \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Simulation Hyperparameters:}
+\begin{itemize}
+    \item Number of simulation paths (100,000)
+    \item Projection horizon (50 years)
+    \item Pricing simulation runs (500,000)
+        \begin{itemize}
+            \item These runs are used to estimate the starting expected loss for pricing purposes
+        \end{itemize}
+\end{itemize}
+
+\textbf{Key Input Parameters:}
+\begin{itemize}
+    \item Initial capital levels (\$5M, \$10M, \$25M)
+    \item Asset turnover ratios (0.8, 0.9, 1.0, 1.1, 1.2)
+    \item Operating margins (10\%, 12.5\%, 15\%)
+    \item Target loss ratios (60\%, 70\%, 80\%)
+    \item Loss distribution parameters (frequency and severity for attritional, large, and catastrophic losses)
+        \begin{itemize}[label=$\circ$]
+            \item Attritional losses:
+                \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
+                    \item Frequency: Poisson with mean=2.85 at \$10M revenue
+                    \item Severity: Lognormal with mean=\$40K and CV=0.8
+                \end{itemize}
+            \item Large losses:
+                \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
+                    \item Frequency: Poisson with mean=0.20 at \$10M revenue
+                    \item Severity: Lognormal with mean=\$500K and CV=1.5
+                \end{itemize}
+            \item Catastrophic losses:
+                \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
+                    \item Frequency: Poisson with mean=0.02 at \$10M revenue
+                    \item Severity: Pareto with minimum value=\$5M and $\alpha$=1.5
+                \end{itemize}
+        \end{itemize}
+    \item Deductible levels (\$0, \$50K, \$100K, \$250K, \$500K, and no insurance)
+\end{itemize}
+
+\textbf{Simplifying Assumptions:}
+\begin{itemize}
+    \item Working capital is set to 0\% of assets to maximize revenue generation
+    \item No stochastic revenue or margin fluctuations
+    \item Loss events are independent across time and types
+    \item No correlation between losses and business performance (other than through revenue)
+    \item Taxes are applied at a flat rate of 25\%
+    \item PP\&E and depreciation are set to 0 for simplicity
+    \item No external capital raises or dividends
+    \item Premiums are fixed at inception and do not change over time
+    \item No inflation or economic cycles
+    \item Dividend ratio is set at a flat 30\% of net income
+    \item No insurer default risk
+    \item No regulatory capital requirements
+    \item No investment income beyond working capital interest
+    \item Payment patterns are a fixed 10-year payout with the following distribution:
+        \begin{table}[H]
+            \centering
+            \begin{tabular}{lcccccccccc}
+                \toprule
+                Year & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+                \midrule
+                Payment \% & 10\% & 15\% & 20\% & 15\% & 10\% & 10\% & 8\% & 6\% & 4\% & 2\% \\
+                \bottomrule
+            \end{tabular}
+            \label{tab:payment_pattern}
+        \end{table}
+    \item Letter of Credit charge on retained loss collateral: 1.5\% annual interest rate
+\end{itemize}
 
 \subsection{Model Validation and Calibration}
 
-% TODO: Describe validation methodology
+The parameters were calibrated to achieve realistic loss burdens: a company with \$10 million initial capital, 1.0 asset turnover ratio, and 10\% operating margin experiences approximately 5\% EBITDA after a \$100,000 deductible. This is substantial enough to matter strategically but not so punitive as to overwhelm business fundamentals. Importantly, the calibration targets reasonableness rather than industry-specific accuracy, maintaining generality for cross-sector insights. The framework allows tailoring to specific industries and company adjustments as needed, although other industries may require additional features to be built out. In particular, stochastic revenue or complex risk management in investment firms and banks will require further development.
 
 \subsection{Computational Considerations}
 
