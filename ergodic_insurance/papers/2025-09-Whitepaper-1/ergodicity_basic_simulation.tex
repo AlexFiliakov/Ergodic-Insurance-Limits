@@ -304,6 +304,9 @@ The simulation employs Monte Carlo methods with:
     \item Annual decision points
 \end{itemize}
 
+Parallel processing and efficient data structures ensure tractability despite the high dimensionality of the parameter space. Each full scenario run takes approximately 30-60 minutes on a standard workstation, allowing exploration of multiple parameter combinations within reasonable timeframes. The experiment described in this paper was performed in a cloud computing environment (Google Colab) in a few hours and at a cost of approximately \$10, so it can be easily replicated by anybody looking to validate or extend the findings.
+
+Static parameters, such as tailoring the model to a specific industry or company, or incorporating discounting, will not significantly affect run times. However, adding stochastic revenue or margin fluctuations, more complex insurance structures, or regulatory capital requirements will increase computational demands and may require further optimization.
 \section{Case Study: Company Size and Insurance Appetite}
 
 \subsection{Methodology and Assumptions}

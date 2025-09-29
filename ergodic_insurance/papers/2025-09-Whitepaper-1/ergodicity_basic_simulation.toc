@@ -17,21 +17,21 @@
 \contentsline {subsection}{\numberline {4.2}Input Parameters and Data Requirements}{6}{subsection.4.2}%
 \contentsline {subsection}{\numberline {4.3}Model Validation and Calibration}{8}{subsection.4.3}%
 \contentsline {subsection}{\numberline {4.4}Computational Considerations}{8}{subsection.4.4}%
-\contentsline {section}{\numberline {5}Case Study: Company Size and Insurance Appetite}{8}{section.5}%
-\contentsline {subsection}{\numberline {5.1}Methodology and Assumptions}{8}{subsection.5.1}%
+\contentsline {section}{\numberline {5}Case Study: Company Size and Insurance Appetite}{9}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Methodology and Assumptions}{9}{subsection.5.1}%
 \contentsline {subsection}{\numberline {5.2}Data Sources and Parameterization}{9}{subsection.5.2}%
 \contentsline {subsection}{\numberline {5.3}Results Presentation and Interpretation}{9}{subsection.5.3}%
 \contentsline {subsection}{\numberline {5.4}Sensitivity Analysis}{9}{subsection.5.4}%
 \contentsline {section}{\numberline {6}Industry Implications}{9}{section.6}%
 \contentsline {subsection}{\numberline {6.1}Applications for Underwriting and Pricing}{9}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Portfolio Management Considerations}{9}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Regulatory and Capital Allocation Insights}{9}{subsection.6.3}%
-\contentsline {section}{\numberline {7}Future Research Directions}{9}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Framework Extensions and Enhancements}{9}{subsection.7.1}%
+\contentsline {subsection}{\numberline {6.2}Portfolio Management Considerations}{10}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Regulatory and Capital Allocation Insights}{10}{subsection.6.3}%
+\contentsline {section}{\numberline {7}Future Research Directions}{10}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Framework Extensions and Enhancements}{10}{subsection.7.1}%
 \contentsline {subsection}{\numberline {7.2}Additional Applications in P\&C Insurance}{10}{subsection.7.2}%
 \contentsline {subsection}{\numberline {7.3}Industry Collaboration Opportunities}{10}{subsection.7.3}%
 \contentsline {section}{\numberline {8}Conclusion}{10}{section.8}%
-\contentsline {section}{\numberline {A}Technical Appendix}{10}{appendix.A}%
-\contentsline {subsection}{\numberline {A.1}Simulation Algorithm Details}{10}{subsection.A.1}%
-\contentsline {subsection}{\numberline {A.2}Parameter Estimation Methods}{10}{subsection.A.2}%
-\contentsline {subsection}{\numberline {A.3}Code Repository}{10}{subsection.A.3}%
+\contentsline {section}{\numberline {A}Technical Appendix}{11}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Simulation Algorithm Details}{11}{subsection.A.1}%
+\contentsline {subsection}{\numberline {A.2}Parameter Estimation Methods}{11}{subsection.A.2}%
+\contentsline {subsection}{\numberline {A.3}Code Repository}{11}{subsection.A.3}%
