@@ -220,7 +220,7 @@ These parameters interact in complex ways. For instance, a small company with hi
     \item Number of simulation paths (100,000)
     \item Projection horizon (50 years)
     \item Pricing simulation runs (500,000)
-        \begin{itemize}
+        \begin{itemize}[label=$\circ$]
             \item These runs are used to estimate the starting expected loss for pricing purposes
         \end{itemize}
 \end{itemize}
@@ -231,7 +231,7 @@ These parameters interact in complex ways. For instance, a small company with hi
     \item Asset turnover ratios (0.8, 0.9, 1.0, 1.1, 1.2)
     \item Operating margins (10\%, 12.5\%, 15\%)
     \item Target loss ratios (60\%, 70\%, 80\%)
-    \item Loss distribution parameters (frequency and severity for attritional, large, and catastrophic losses)
+    \item Loss distribution parameters
         \begin{itemize}[label=$\circ$]
             \item Attritional losses:
                 \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
@@ -254,20 +254,30 @@ These parameters interact in complex ways. For instance, a small company with hi
 
 \textbf{Simplifying Assumptions:}
 \begin{itemize}
-    \item Working capital is set to 0\% of assets to maximize revenue generation
-    \item No stochastic revenue or margin fluctuations
+    \item Working capital is set to 0\% of revenue to maximize cash generation
+    \item Steady growth rate parameter is set to 0\%; all growth derives from retained earnings
+    \item No stochastic revenue or margin fluctuations; operating margins are deterministic
     \item Loss events are independent across time and types
-    \item No correlation between losses and business performance (other than through revenue)
+    \item No correlation between losses and business performance (other than through revenue exposure)
     \item Taxes are applied at a flat rate of 25\%
-    \item PP\&E and depreciation are set to 0 for simplicity
-    \item No external capital raises or dividends
-    \item Premiums are fixed at inception and do not change over time
-    \item No inflation or economic cycles
-    \item Dividend ratio is set at a flat 30\% of net income
-    \item No insurer default risk
+    \item PP\&E ratio is set to 0\%; no property, plant, equipment or depreciation expense
+    \item No external capital raises
+    \item Retention ratio is set at 70\% of net income (30\% dividend payout)
+    \item Insurance premiums are fixed at inception using the underlying loss distribution and subsequently scale with revenue
+    \item Insurance pricing uses a fixed target loss ratio (60\%, 70\%, or 80\%) without risk loadings or market cycle dynamics
+    \item Insurance recoveries above the deductible have no balance sheet impact; insurer credit risk is not modeled
+    \item No inflation, discounting, or time value of money considerations
     \item No regulatory capital requirements
-    \item No investment income beyond working capital interest
-    \item Payment patterns are a fixed 10-year payout with the following distribution:
+    \item No investment income
+    \item Timing resolution is annual (not monthly)
+    \item Letter of Credit (LoC) mechanism for claim collateral:
+        \begin{itemize}[label=$\circ$]
+            \item When losses occur, the company's deductible portion requires immediate collateral via LoC, which has a 1.5\% annual interest rate charge on outstanding total collateral
+            \item Collateral is posted immediately upon claim occurrence
+            \item Collateral is released gradually as claims are paid according to the payment pattern
+            \item Creates restricted assets on the balance sheet that cannot be used for operations
+        \end{itemize}
+    \item Claim payment patterns follow a fixed 10-year schedule:
         \begin{table}[H]
             \centering
             \begin{tabular}{lcccccccccc}
@@ -279,7 +289,6 @@ These parameters interact in complex ways. For instance, a small company with hi
             \end{tabular}
             \label{tab:payment_pattern}
         \end{table}
-    \item Letter of Credit charge on retained loss collateral: 1.5\% annual interest rate
 \end{itemize}
 
 \subsection{Model Validation and Calibration}

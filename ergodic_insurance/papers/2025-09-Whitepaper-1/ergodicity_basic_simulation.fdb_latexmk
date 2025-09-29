@@ -1,13 +1,13 @@
 # Fdb version 4
-["bibtex ergodicity_basic_simulation"] 1759124579.2935 "ergodicity_basic_simulation.aux" "ergodicity_basic_simulation.bbl" "ergodicity_basic_simulation" 1759124584.20442 0
+["bibtex ergodicity_basic_simulation"] 1759126574.69014 "ergodicity_basic_simulation.aux" "ergodicity_basic_simulation.bbl" "ergodicity_basic_simulation" 1759126578.5491 0
   "./references.bib" 1759124573 466 ea65380e22ca8dee80f00622f8243f89 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/bibtex/bst/bibtex/apalike.bst" 1291972791 24635 604dafcc79f521a11ea73e506e1fbd98 ""
-  "ergodicity_basic_simulation.aux" 1759124582 5932 f8a89738863bc30a60d6d35e19d0c088 "pdflatex"
+  "ergodicity_basic_simulation.aux" 1759126577 5932 51aa756b63e2a50c2ce76e7c1eb7b52c "pdflatex"
   (generated)
   "ergodicity_basic_simulation.bbl"
   "ergodicity_basic_simulation.blg"
   (rewritten before read)
-["pdflatex"] 1759124579.81147 "c:/Users/alexf/OneDrive/Documents/Projects/Ergodic Insurance Limits/ergodic_insurance/papers/2025-09-Whitepaper-1/ergodicity_basic_simulation.tex" "ergodicity_basic_simulation.pdf" "ergodicity_basic_simulation" 1759124584.20588 0
+["pdflatex"] 1759126575.13919 "c:/Users/alexf/OneDrive/Documents/Projects/Ergodic Insurance Limits/ergodic_insurance/papers/2025-09-Whitepaper-1/ergodicity_basic_simulation.tex" "ergodicity_basic_simulation.pdf" "ergodicity_basic_simulation" 1759126578.55061 0
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map" 1759122550 81760 910369822cd2d7c359b2482f4c0de4ca ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1000.pk" 1758488386 25420 6185d68c5bd219ca97665e40386a1984 ""
   "C:/Users/alexf/AppData/Local/MiKTeX/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1095.pk" 1758488373 28976 07c265d1396392786f5b6e33e49c9163 ""
@@ -243,12 +243,12 @@
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/tools/tabularx.sty" 1730400552 7243 e5dac1240636811edb77568b81818372 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/url/url.sty" 1388490452 12796 8edb7d69a20b857904dd0ea757c14ec9 ""
   "C:/Users/alexf/AppData/Local/Programs/MiKTeX/tex/latex/xcolor/xcolor.sty" 1729265222 55384 b454dec21c2d9f45ec0b793f0995b992 ""
-  "c:/Users/alexf/OneDrive/Documents/Projects/Ergodic Insurance Limits/ergodic_insurance/papers/2025-09-Whitepaper-1/ergodicity_basic_simulation.tex" 1759124573 21141 c25816fcf7720f7c8291a1e7d72b8443 ""
-  "ergodicity_basic_simulation.aux" 1759124582 5932 f8a89738863bc30a60d6d35e19d0c088 "pdflatex"
-  "ergodicity_basic_simulation.bbl" 1759124579 390 cd18dbbcbe846fb728e38b494a120956 "bibtex ergodicity_basic_simulation"
-  "ergodicity_basic_simulation.out" 1759124582 7764 09433e935ee84117ba9327060eeda721 "pdflatex"
-  "ergodicity_basic_simulation.tex" 1759124573 21141 c25816fcf7720f7c8291a1e7d72b8443 ""
-  "ergodicity_basic_simulation.toc" 1759124582 3506 4a2d9e258113977112c6aec444d4bc0b "pdflatex"
+  "c:/Users/alexf/OneDrive/Documents/Projects/Ergodic Insurance Limits/ergodic_insurance/papers/2025-09-Whitepaper-1/ergodicity_basic_simulation.tex" 1759126571 22056 847f83d4d94f5f3d4fc835963cbbbf81 ""
+  "ergodicity_basic_simulation.aux" 1759126577 5932 51aa756b63e2a50c2ce76e7c1eb7b52c "pdflatex"
+  "ergodicity_basic_simulation.bbl" 1759126575 390 cd18dbbcbe846fb728e38b494a120956 "bibtex ergodicity_basic_simulation"
+  "ergodicity_basic_simulation.out" 1759126577 7764 09433e935ee84117ba9327060eeda721 "pdflatex"
+  "ergodicity_basic_simulation.tex" 1759126571 22056 847f83d4d94f5f3d4fc835963cbbbf81 ""
+  "ergodicity_basic_simulation.toc" 1759126577 3506 4a2d9e258113977112c6aec444d4bc0b "pdflatex"
   (generated)
   "ergodicity_basic_simulation.aux"
   "ergodicity_basic_simulation.log"
