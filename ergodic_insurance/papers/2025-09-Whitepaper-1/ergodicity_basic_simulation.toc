@@ -20,27 +20,29 @@
 \contentsline {section}{\numberline {5}Case Study: Deductible Appetite vs. Company Size and Margins}{12}{section.5}%
 \contentsline {subsection}{\numberline {5.1}Overview of Results}{12}{subsection.5.1}%
 \contentsline {subsection}{\numberline {5.2}The Size Effect: Capitalization and Insurance Value}{12}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Operating Margin Interactions}{13}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}Sensitivity to Insurance Pricing}{13}{subsection.5.4}%
-\contentsline {section}{\numberline {6}Implications for Insurance Decision-Making}{16}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Reframing Insurance Value Through Time Averages}{16}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}The Ergodic Perspective on Risk Retention}{16}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Company Profile Considerations}{16}{subsection.6.3}%
-\contentsline {subsection}{\numberline {6.4}Engaging Actuarial Expertise for Ergodic Analysis}{16}{subsection.6.4}%
-\contentsline {subsection}{\numberline {6.5}Challenging Traditional Risk Management Metrics}{16}{subsection.6.5}%
-\contentsline {section}{\numberline {7}Future Research Directions}{17}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Optimizing Complex Insurance Structures}{17}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}Dynamic and Adaptive Insurance Strategies}{17}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Incorporating Loss Correlations and Portfolio Effects}{17}{subsection.7.3}%
-\contentsline {subsection}{\numberline {7.4}Stochastic Business and Market Dynamics}{18}{subsection.7.4}%
-\contentsline {subsection}{\numberline {7.5}Industry-Specific Applications and Regulatory Considerations}{18}{subsection.7.5}%
-\contentsline {section}{\numberline {8}Conclusion}{18}{section.8}%
-\contentsline {section}{\numberline {A}Technical Appendix}{20}{appendix.A}%
-\contentsline {subsection}{\numberline {A.1}Simulation Algorithm Details}{20}{subsection.A.1}%
-\contentsline {subsubsection}{\numberline {A.1.1}Annual Simulation Loop}{20}{subsubsection.A.1.1}%
-\contentsline {subsubsection}{\numberline {A.1.2}Balance Sheet Update Mechanism}{20}{subsubsection.A.1.2}%
-\contentsline {subsubsection}{\numberline {A.1.3}Claim Incurrence versus Payment Timing}{21}{subsubsection.A.1.3}%
-\contentsline {subsubsection}{\numberline {A.1.4}Multi-Year Claim Payment Schedule}{22}{subsubsection.A.1.4}%
-\contentsline {subsubsection}{\numberline {A.1.5}Premium Payment and Expense Recognition}{24}{subsubsection.A.1.5}%
-\contentsline {subsubsection}{\numberline {A.1.6}Loss Generation Process}{25}{subsubsection.A.1.6}%
-\contentsline {subsection}{\numberline {A.2}Code Repository}{26}{subsection.A.2}%
+\contentsline {subsection}{\numberline {5.3}The Asset Turnover Effect: Exposure Scaling and Insurance Value}{14}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}Operating Margin Interactions: The Profitability Buffer}{14}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Sensitivity to Insurance Pricing: Loss Ratio Effects}{15}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Limitations and Boundary Conditions}{16}{subsection.5.6}%
+\contentsline {section}{\numberline {6}Implications for Insurance Decision-Making}{20}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Reframing Insurance Value Through Time Averages}{20}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}The Ergodic Perspective on Risk Retention}{20}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Company Profile Considerations}{20}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Engaging Actuarial Expertise for Ergodic Analysis}{20}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Challenging Traditional Risk Management Metrics}{20}{subsection.6.5}%
+\contentsline {section}{\numberline {7}Future Research Directions}{21}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Optimizing Complex Insurance Structures}{21}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Dynamic and Adaptive Insurance Strategies}{21}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Incorporating Loss Correlations and Portfolio Effects}{21}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Stochastic Business and Market Dynamics}{22}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Industry-Specific Applications and Regulatory Considerations}{22}{subsection.7.5}%
+\contentsline {section}{\numberline {8}Conclusion}{22}{section.8}%
+\contentsline {section}{\numberline {A}Technical Appendix}{24}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Simulation Algorithm Details}{24}{subsection.A.1}%
+\contentsline {subsubsection}{\numberline {A.1.1}Annual Simulation Loop}{24}{subsubsection.A.1.1}%
+\contentsline {subsubsection}{\numberline {A.1.2}Balance Sheet Update Mechanism}{24}{subsubsection.A.1.2}%
+\contentsline {subsubsection}{\numberline {A.1.3}Claim Incurrence versus Payment Timing}{25}{subsubsection.A.1.3}%
+\contentsline {subsubsection}{\numberline {A.1.4}Multi-Year Claim Payment Schedule}{26}{subsubsection.A.1.4}%
+\contentsline {subsubsection}{\numberline {A.1.5}Premium Payment and Expense Recognition}{28}{subsubsection.A.1.5}%
+\contentsline {subsubsection}{\numberline {A.1.6}Loss Generation Process}{29}{subsubsection.A.1.6}%
+\contentsline {subsection}{\numberline {A.2}Code Repository}{30}{subsection.A.2}%

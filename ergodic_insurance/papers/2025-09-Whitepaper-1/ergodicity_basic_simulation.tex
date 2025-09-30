@@ -407,26 +407,148 @@ Static parameters, such as tailoring the model to a specific industry or company
 
 \subsection{Overview of Results}
 
-The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across 100,000 Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, operating margins, and the value derived from various deductible levels.
+The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across 100,000 Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, operating margins, asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
+
+The findings challenge conventional insurance wisdom in several ways: guaranteed cost programs systematically underperform at higher capitalizations, moderate deductibles frequently dominate both extremes, and insurance creates substantial value even when premiums significantly exceed actuarially fair rates. These patterns suggest that traditional expected value frameworks may systematically misprice insurance value for growth-focused enterprises.
 
 \subsection{The Size Effect: Capitalization and Insurance Value}
 
-This experiment demonstrates that insurance provides the most value at low capitalizations, where capital preservation is paramount to business continuity. As can be seen in Figure~\ref{fig:growth_lift_by_cap} below, a high deductible plan of \$500K appears optimal at \$10M and above with default parameters (70\% Loss Ratio, Asset Turnover of 1.0, and 10\% Operating Margin), while lower capitalizations benefit from more conservative deductible levels. Furthermore, the growth lift from insurance is substantially higher at lower capitalizations, even when premiums exceed expected losses. This finding aligns with the ergodic economics principle that reducing multiplicative volatility through insurance enhances long-term growth, particularly for smaller firms facing proportionally larger risks in repation to available capital. Not shown here, at capitalizations exceeding \$50M, self-insurance begins to be more profitable. It is also important to point out that this simulation demonstrates that some level of retention appears to be profitable for almost all cases, evidenced by the \$0 Deductible never showing up as the optimal option. However, this could be because frequency tail correlations were not considered (i.e., high volume of losses below retention is extremely rare in a Poisson distribution).
+The simulation demonstrates that capitalization level is the dominant driver of optimal insurance strategy, with smaller companies deriving substantially greater value from insurance protection. Figure~\ref{fig:growth_lift_by_cap} illustrates this relationship across three capitalization levels (\$5M, \$10M, \$25M) holding other parameters constant at their baseline values (70\% Loss Ratio, 1.0 Asset Turnover, and 10\%~Operating Margin).
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=1.0\textwidth]{images/growth_lift_by_capitalization.png}
-    \caption{Impact of initial capitalization on time-average growth rate.}
+    \caption{Impact of initial capitalization on time-average growth rate. Growth lift measures the improvement in time-average growth rate relative to self-insurance, quantifying the ergodic benefit of insurance.}
     \label{fig:growth_lift_by_cap}
 \end{figure}
 
-\subsection{Operating Margin Interactions}
+\textbf{Key Observations from Figure~\ref{fig:growth_lift_by_cap}:}
 
-Operating margins serve to "flatten out" the growth lift across asset turnover ratios (ATR), which can be seen in Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150}. This makes sense because both margin and ATR contribute to growth over time (ATR by generating revenue, and margins by retaining net income).
+\textbf{Declining Insurance Value with Size:} Growth lift decreases systematically as capitalization increases. At \$5M capitalization, even a \$500K deductible provides approximately 0.70\% annual growth lift, while at \$25M, the same deductible yields only 0.38\% lift. This \emph{scale effect} reflects the diminishing proportional impact of fixed-severity losses as the capital base expands. A \$5M catastrophic loss represents 100\% of equity for the smallest company but only 20\% for the largest, fundamentally altering the multiplicative growth dynamics.
 
-\subsection{Sensitivity to Insurance Pricing}
+\vspace{\baselineskip}
 
-As expected, lower target loss ratios (i.e., cheaper insurance) increase the growth lift from insurance and shift optimal deductibles lower. However, even at relatively costly loss ratios of 60\%, insurance still provides substantial growth benefits at lower capitalizations. This finding challenges traditional views that insurance is a cost to be minimized. The ergodic perspective reveals that the multiplicative impact of catastrophic losses creates value in variance reduction that outweighs premium costs, particularly for smaller firms. Even at "expensive" loss ratio of 60\%, a firm with \$5M capitalization still does well with a low deductible of \$100K, and even \$50K deductibles and Guaranteed Cost provide substantial lift over self-insurance.
+\textbf{Optimal Deductible Migration:} The optimal deductible (highest growth lift) shifts from \$100K-\$250K at \$5M capitalization to \$500K at \$10M-\$25M capitalization under baseline parameters. This progression aligns with the theoretical framework (Section~2.3): as capital grows relative to expected loss severity, companies can profitably retain more risk, trading premium savings against manageable volatility increases.
+
+\vspace{\baselineskip}
+
+\textbf{The Guaranteed Cost Penalty:} Critically, the \$0 deductible (guaranteed cost) strategy consistently delivers the \emph{lowest} growth lift across all capitalization levels, despite eliminating retained loss volatility. This counterintuitive finding demonstrates that \emph{eliminating all retention is suboptimal}. The premium burden of full coverage destroys more growth through guaranteed costs than it preserves through variance reduction. For the \$25M company, guaranteed cost actually produces \emph{negative} growth lift relative to self-insurance in some parameter combinations (visible in later figures), meaning full insurance coverage destroys value compared to retaining all risk.
+
+\vspace{\baselineskip}
+
+\textbf{The Retention Sweet Spot:} All scenarios exhibit an interior optimum: some retention is superior to both guaranteed cost and self-insurance. This result emerges from balancing two opposing forces: (1) premium savings from higher deductibles, which compound favorably over time, and (2) protection from catastrophic losses that trigger the multiplicative decay described in Section~2.2. The simulation suggests that \emph{moderate retention strategies dominate the extremes} across a wide parameter space.
+
+\vspace{\baselineskip}
+
+\textbf{Self-Insurance Threshold:} While not shown in this figure, additional analysis reveals that at capitalizations exceeding \$50M with the modeled loss distributions, self-insurance begins to dominate all insured strategies. At such scale, the company effectively becomes its own insurer, with sufficient capital to absorb tail losses without material growth impairment. This threshold will vary significantly with loss distribution parameters and operating characteristics, reinforcing the need for company-specific simulation analysis.
+
+\vspace{\baselineskip}
+
+\textbf{Practical Implications:} For corporate decision-makers, these patterns suggest several considerations:
+\begin{itemize}
+    \item Small and mid-market companies (\$5M-\$25M capital) derive substantial value from insurance even at relatively high premium loadings
+    \item Guaranteed cost programs should be questioned unless driven by non-economic factors (regulatory requirements, credit constraints, or other considerations not modeled here)
+    \item The optimal retention level depends critically on company-specific capitalization relative to loss exposure, not industry benchmarks or broker conventions
+    \item Companies approaching \$50M+ capitalization should rigorously evaluate whether traditional insurance programs remain economically justified
+\end{itemize}
+
+\subsection{The Asset Turnover Effect: Exposure Scaling and Insurance Value}
+
+Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150} display growth lift across asset turnover ratios (0.8 to 1.2) in a 3×3 grid format, with rows representing target loss ratios (60\%, 70\%, 80\%) and columns representing capitalization levels (\$5M, \$10M, \$25M). Each panel shows how growth lift varies with asset turnover for different deductible strategies.
+
+\vspace{\baselineskip}
+
+\textbf{Increasing Growth Lift with Turnover:} Within each panel, growth lift generally increases as asset turnover rises (moving right along the x-axis). This pattern is most pronounced at lower capitalizations and becomes muted or even reverses at \$25M. The mechanism driving this effect operates through the \emph{exposure scaling} built into the simulation framework: higher asset turnover generates proportionally more revenue, which increases loss frequency via the revenue-based exposure multiplier (Section~3.2, loss generation parameters).
+
+When a company with 1.2 asset turnover generates 50\% more revenue than an otherwise-identical company with 0.8 turnover, it faces approximately 50\% more loss events annually. This increased loss frequency amplifies the \emph{frequency of multiplicative shocks} to the capital base, intensifying the non-ergodic dynamics that insurance mitigates. Consequently, insurance provides greater growth value to high-turnover operations because they experience more frequent opportunities for catastrophic losses to compound negatively over time.
+
+\vspace{\baselineskip}
+
+\textbf{Interaction with Capitalization:} The asset turnover effect weakens dramatically at higher capitalizations. For \$25M companies (rightmost column in each figure), growth lift often \emph{decreases} with turnover, and in some cases high deductibles and self-insurance converge or cross. This reversal occurs because larger capital bases can absorb the increased loss frequency without triggering the multiplicative decay that dominates smaller companies. Once capital substantially exceeds typical loss severity, additional exposure increases revenues (and thus potential growth) faster than it introduces material risk, reducing the relative value of insurance protection.
+
+\vspace{\baselineskip}
+
+\textbf{Practical Implications:} Efficient capital users generating substantial revenues relative to their balance sheet (i.e., companies with high asset turnover ratios) should recognize that they face disproportionately greater insurance value than low-turnover peers with similar capitalization. This suggests that focus should shift from absolute exposure size towards \emph{turnover-adjusted exposure intensity} that drives time-average growth dynamics.
+
+\subsection{Operating Margin Interactions: The Profitability Buffer}
+
+Comparing growth lift patterns across the three margin levels (Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150}) reveals that higher operating margins systematically \emph{flatten} the response curves, reducing sensitivity to both asset turnover and insurance pricing variations.
+
+\vspace{\baselineskip}
+
+\textbf{The Margin Effect Mechanism:} Operating margins create a profitability buffer that dampens the impact of both insurance premiums and retained losses on growth rates. A company with 15\% operating margin can absorb a \$100K loss from a larger earnings base than an otherwise-identical company with 10\% margin, reducing the proportional impact on retained earnings and equity accumulation. Similarly, insurance premiums represent a smaller fraction of operating income for high-margin businesses, reducing the growth drag from premium costs.
+
+Both asset turnover and operating margin contribute to earnings growth, but through different mechanisms: turnover by scaling revenue generation, and margin by improving profitability per dollar of revenue. When margins are high, the \emph{variance in outcomes across different insurance strategies diminishes} because the strong underlying profitability swamps the differential premium costs and retained loss distributions. Conversely, low-margin operations exhibit greater sensitivity to insurance choices because premiums and retained losses represent a larger fraction of net income, materially affecting growth trajectories.
+
+\vspace{\baselineskip}
+
+\textbf{Practical Implications:} Low-margin businesses (10\% or below before losses in this simulation, translating to about 5\% ensemble-average after losses) should pay particularly close attention to insurance optimization, as suboptimal strategies impose larger relative growth penalties. High-margin enterprises enjoy greater strategic flexibility: while optimal deductibles still exist, the growth differential between good and poor insurance decisions is smaller, potentially justifying simpler risk management approaches or greater emphasis on non-financial considerations (administrative burden, credit concerns, etc.).
+
+\subsection{Sensitivity to Insurance Pricing: Loss Ratio Effects}
+
+The row structure in Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150} isolates the impact of target loss ratios (60\%, 70\%, 80\%), representing the insurer's pricing efficiency. Lower loss ratios indicate higher expense loadings and profit margins, making insurance more expensive for the buyer.
+
+\vspace{\baselineskip}
+
+\textbf{Pricing Impact on Growth Lift:} As expected, cheaper insurance (higher loss ratios, lower rows in each figure) produces substantially greater growth lift. At 80\% loss ratio (bottom row), even guaranteed cost (\$0 deductible) frequently exceeds the growth rate of self-insurance for \$5M and \$10M capitalizations, while at 60\% loss ratio (top row), only moderate-to-high deductibles remain attractive. This pattern confirms the theoretical prediction that insurance creates value through variance reduction, but excessive premium costs can overwhelm this benefit.
+
+\vspace{\baselineskip}
+
+\textbf{Robustness at Lower Capitalizations:} Critically, even at the \emph{expensive} 60\% loss ratio, insurance still delivers substantial growth lift for \$5M capitalization across nearly all deductible levels and turnover ratios. This robustness demonstrates that the ergodic benefit of reducing multiplicative volatility can justify significant premium loadings when capital is scarce relative to potential losses. For small companies, insurance remains economically rational even when premiums substantially exceed actuarially fair rates (a finding invisible to traditional expected value analysis).
+
+\vspace{\baselineskip}
+
+\textbf{Optimal Deductible Sensitivity:} Cheaper insurance (higher loss ratios) shifts optimal deductibles lower. At 80\% loss ratio, \$50K-\$100K deductibles often maximize growth lift even for \$10M companies, while at 60\% loss ratio, \$250K-\$500K deductibles dominate. This migration reflects the changing trade-off between premium savings and volatility protection: when insurance is expensive, companies must retain more risk to avoid excessive premium burden; when insurance is cheap, lower deductibles become attractive because the marginal premium cost of additional coverage is modest.
+
+\vspace{\baselineskip}
+
+\textbf{Practical Implications:} Corporate buyers should actively estimate loss costs and negotiate loss ratios, as pricing efficiency directly determines optimal retention strategies and realized growth lift. The substantial variation in growth outcomes across loss ratio scenarios suggests that \emph{insurance market cycles} (not modeled here) may create significant timing opportunities: companies purchasing programs during soft markets (high loss ratios) can justify lower deductibles, while hard markets (low loss ratios) favor higher retentions.
+
+\subsection{Limitations and Boundary Conditions}
+
+While the simulation results provide valuable directional insights, several important limitations constrain their generalizability. Corporate decision-makers should carefully consider whether their specific circumstances violate key modeling assumptions:
+
+\vspace{\baselineskip}
+
+\textbf{Frequency Tail Correlations:} The Poisson loss frequency assumption implies that high volumes of attritional losses below the deductible are extremely rare and statistically independent. In reality, many operational risks exhibit clustering, as adverse years produce multiple related losses (e.g., supply chain disruptions, product liability waves, regulatory actions). Such correlation would increase the volatility of retained losses, potentially shifting optimal deductibles lower than the simulation suggests and making guaranteed cost strategies more attractive. Companies with known loss correlation patterns should adjust their expectations accordingly.
+
+\vspace{\baselineskip}
+
+\textbf{Regulatory Capital Requirements:} The model does not incorporate regulatory capital requirements, rating agency capital adequacy standards, or debt covenant restrictions that may impose binding constraints on retention decisions. For publicly traded companies, regulated entities, or leveraged businesses, these external constraints may override growth optimization considerations, forcing lower retentions than the ergodic analysis would recommend. The \emph{shadow price} of regulatory capital can be substantial, potentially reversing the guaranteed cost penalty observed here.
+
+\vspace{\baselineskip}
+
+\textbf{Credit and Liquidity Constraints:} The Letter of Credit mechanism assumes companies can costlessly post collateral at 1.5\% annually and face no liquidity constraints. Real companies face:
+\begin{itemize}
+    \item Higher collateral costs or limited credit facility capacity, increasing the effective retention cost
+    \item Cash flow constraints that make large retained losses operationally disruptive, even if balance sheet equity remains positive
+    \item Credit rating impacts from reserve increases, raising borrowing costs and limiting growth opportunities
+\end{itemize}
+
+These frictions would increase the value of insurance beyond the modeled growth lift, particularly for companies with tight credit conditions or those relying on external financing for growth.
+
+\vspace{\baselineskip}
+
+\textbf{Other Unmodeled Factors:} Additional considerations that may affect real-world insurance decisions include:
+\begin{itemize}
+    \item \textbf{Loss control and risk engineering services} provided by insurers, which may reduce expected losses beyond the pure financial transfer
+    \item \textbf{Claims handling expertise} that insurers provide, particularly for complex liability or litigation-intensive exposures
+    \item \textbf{Tax asymmetries} beyond the basic corporate rate modeled (e.g., loss carryforward limitations, alternative minimum tax)
+    \item \textbf{Stakeholder preferences} from boards, shareholders, or management with non-growth objectives (e.g., earnings stability, dividend consistency)
+    \item \textbf{Competitive and strategic considerations} where financial distress creates market share losses or acquisition vulnerability
+\end{itemize}
+
+\vspace{\baselineskip}
+
+\textbf{Recommendations for Application:} Given these limitations, practitioners should view the simulation results as \emph{directional guidance} rather than prescriptive recommendations. The optimal strategy for any specific company requires:
+\begin{enumerate}
+    \item \textbf{Custom loss distribution calibration} using company-specific historical data, industry benchmarks, and exposure analysis
+    \item \textbf{Incorporation of company-specific constraints} including regulatory capital, credit facilities, and stakeholder requirements
+    \item \textbf{Sensitivity analysis} across parameter uncertainty ranges, particularly for catastrophic loss tail parameters
+    \item \textbf{Scenario testing} for correlated loss events, market cycle dynamics, and business strategy changes
+\end{enumerate}
+
+The simulation framework provides the analytical foundation for such company-specific analyses. CFOs, risk managers, and actuaries are encouraged to adapt the methodology to their particular circumstances rather than applying the illustrated results directly.
 
 \begin{figure}[htbp]
     \centering
