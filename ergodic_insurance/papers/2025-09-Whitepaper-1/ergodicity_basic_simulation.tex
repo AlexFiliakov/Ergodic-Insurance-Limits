@@ -100,15 +100,70 @@ This simulation-based framework provides tools for company-specific risk transfe
 
 \section{Executive Summary}
 
-This section should provide a concise overview of the entire paper, typically 1-2 pages covering:
+\subsection{The Challenge}
+
+Corporate insurance purchasing decisions typically rely on peer benchmarking, broker recommendations, or rules of thumb that may bear little relation to a company's specific financial circumstances. When evaluating whether to select a \$100K or \$500K deductible, most organizations lack rigorous analytical frameworks to quantify how different retention strategies affect long-term shareholder value. Traditional cost-benefit analysis focuses on minimizing expected costs, but this approach systematically undervalues insurance for companies where balance sheet dynamics and growth trajectories depend critically on avoiding capital impairment.
+
+The fundamental question facing corporate decision-makers is not "What deductible do similar companies choose?" but rather "What retention strategy maximizes our long-term growth given our specific capitalization, operating margins, and loss exposures?" Answering this question requires moving beyond expected value calculations to consider how insurance programs alter the time path of corporate wealth accumulation under uncertainty.
+
+\subsection{A New Framework for Risk Transfer Optimization}
+
+This paper introduces an open-source simulation framework that models complete corporate balance sheet dynamics under realistic loss distributions and insurance programs. Rather than treating insurance as a simple cost minimization problem, the framework optimizes time-average growth rates, the metric that determines actual shareholder value creation over multi-year horizons. Using rigorous Monte Carlo simulation with customizable paths and time periods, the model tracks how different deductible strategies affect equity accumulation, retained earnings, cash flow, and ultimately long-term enterprise value.
+
+The framework accounts for critical financial realities often ignored in traditional analysis: losses compound through balance sheet effects, claim payments follow multi-year schedules requiring collateral, operating margins buffer loss impacts, and asset turnover determines exposure intensity. By modeling these dynamics explicitly, the simulation reveals optimization opportunities invisible to conventional expected value frameworks.
+
+\subsection{Key Findings}
+
+The analysis produces several insights relevant to corporate risk transfer decisions:
+
+\vspace{\baselineskip}
+
+\textbf{The Retention Sweet Spot.} Moderate retention strategies consistently outperform both extremes. Companies maximizing long-term growth typically select deductibles in the middle of the feasible range: neither guaranteed cost (zero deductible) nor complete self-insurance. This finding challenges the common practice of defaulting to guaranteed cost programs for "certainty" or aggressively high retentions to "save premium dollars." The optimal strategy balances premium costs against catastrophic loss protection, recognizing that both excessive coverage and insufficient protection leave value on the table.
+
+\vspace{\baselineskip}
+
+\textbf{Company Size Drives Strategy.} Capitalization level relative to potential loss severity matters far more than industry sector or revenue scale. A company with \$5M in equity derives fundamentally different insurance value than a \$25M company facing identical loss distributions. Smaller companies benefit substantially from insurance protection even at higher relative premium costs, while larger organizations can profitably retain more risk.
+
+\vspace{\baselineskip}
+
+\textbf{Premium Loadings and Rational Insurance.} Small to mid-market companies can rationally purchase insurance even when premiums substantially exceed expected losses. This finding contradicts traditional expected value logic, which views such programs as "too expensive." The framework demonstrates that insurance creates value by reducing the multiplicative impact of large losses on balance sheet growth, particularly for companies where individual catastrophic events would meaningfully erode equity. The relevant question is not whether premiums exceed expected claims but whether insurance enhances time-average growth rates net of all costs.
+
+\vspace{\baselineskip}
+
+\textbf{Operating and Financial Characteristics Matter.} Asset turnover ratios and operating margins interact with capitalization to determine optimal strategies. Capital-efficient companies generating high revenues relative to their balance sheet face more frequent loss exposures per dollar of equity, amplifying insurance value. Similarly, low-margin operations exhibit greater sensitivity to retention choices because premium costs and retained losses represent larger fractions of net income. These company-specific factors drive optimal deductible selection far more than industry conventions or broker guidelines. This operational-dependent relationship explains why peer benchmarking often produces suboptimal strategies: companies at different operational efficiencies require different risk transfer approaches.
+
+\subsection{Practical Implications and Value Creation}
+
+Organizations that optimize retention strategies based on their specific financial characteristics rather than peer benchmarking or conventional wisdom can potentially create substantial shareholder value. The framework provides tools to quantify this impact for individual companies, translating abstract insurance decisions into concrete projections of equity accumulation under different scenarios.
+
+Current corporate insurance programs often exhibit one of two suboptimal patterns: excessive guaranteed cost coverage that trades growth for perceived certainty, or overly aggressive retention that exposes balance sheets to multiplicative erosion from tail losses. Both approaches leave value on the table. Companies implementing first-principles optimization can redirect these inefficiencies toward enhanced long-term growth.
+
+The framework is particularly relevant for organizations experiencing significant changes in capitalization, business model, or risk profile; situations where historical practices or peer comparisons provide limited guidance. It enables systematic evaluation of insurance programs as capital allocation decisions rather than cost centers, shifting the conversation from "How do we minimize insurance spending?" to "What retention strategy maximizes enterprise value?"
+
+\subsection{Implementation Path}
+
+The simulation framework is open-source and available for implementation by corporate risk management teams working with actuarial professionals. Organizations interested in applying this approach to their specific circumstances should:
+
 \begin{itemize}
-    \item The problem addressed
-    \item Your key methodology (simulation framework)
-    \item Primary finding about company size and insurance appetite
-    \item Practical implications for the industry
+    \item \textbf{Download the framework} and review the technical documentation, starting with this guide:
+
+        \url{https://docs.mostlyoptimal.com/api/tutorials/01_getting_started.html}
+
+    \item \textbf{Form an internal task force} including finance, risk management, and actuarial expertise to evaluate the methodology and identify company-specific calibration requirements
+    \item \textbf{Calibrate loss distributions} using historical claims data, industry benchmarks, and company-specific exposure analysis rather than relying solely on insurer estimates
+    \item \textbf{Run company-specific simulations} incorporating actual balance sheet parameters, operating margins, capital structure, and growth projections
+    \item \textbf{Evaluate current insurance programs} against optimized retention strategies to identify value creation opportunities
 \end{itemize}
 
-% TODO: Complete executive summary content
+Important caveats: The specific numerical results presented in this paper depend on modeled assumptions and loss distributions that do not reflect individual company circumstances. The framework provides directional guidance and analytical tools, not prescriptive formulas. Optimal strategies require company-specific calibration incorporating industry dynamics, regulatory constraints, and other factors not fully modeled in the baseline analysis. Organizations should view the framework as enabling rigorous internal analysis rather than offering one-size-fits-all recommendations.
+
+\subsection{Methodological Foundation}
+
+The simulation framework models corporate balance sheet evolution under stochastic loss processes, tracking assets, liabilities, equity, revenues, operating income, insurance premiums, claim payments, collateral requirements, and retained earnings through annual or monthly time steps. Loss distributions incorporate three tiers (attritional, large, and catastrophic events) calibrated to realistic manufacturing company exposures. Insurance programs feature varying deductible and limit levels with premiums scaled to exposure base and loaded for insurer expenses. The model maintains complete accounting relationships and implements realistic claim payment schedules requiring multi-year collateral posting.
+
+Time-average growth rate optimization provides the analytical lens, recognizing that companies experience temporal sequences of outcomes rather than statistical ensemble averages. This approach reveals insurance value that remains invisible when evaluating programs solely through expected cost minimization one year at a time. The framework is transparent and open-source, enabling peer review and adaptation to industry-specific requirements.
+
+The analysis demonstrates that rigorous, company-specific optimization of corporate risk transfer programs is both feasible and valuable. Organizations willing to move beyond conventional practices toward first-principles evaluation can enhance long-term shareholder value while maintaining appropriate protection against catastrophic losses.
 
 \section{Introduction}
 
@@ -1044,6 +1099,10 @@ contains the complete implementation, including additional features such as:
     \item Multi-layer insurance tower optimization
     \item Parallel Monte Carlo execution with checkpoint/resume capability
     \item Comprehensive visualization and sensitivity analysis tools
+    \item The starter guide is available at:
+
+        \url{https://docs.mostlyoptimal.com/api/tutorials/01_getting_started.html}
+
 \end{itemize}
 
 \end{document}
