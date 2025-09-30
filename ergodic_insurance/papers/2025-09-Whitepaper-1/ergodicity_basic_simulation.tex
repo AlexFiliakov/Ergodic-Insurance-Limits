@@ -108,23 +108,71 @@ This section should provide a concise overview of the entire paper, typically 1-
 
 \section{Introduction}
 
-\subsection{Current Challenges in Insurance Appetite Modeling}
+When a \$10M company selects a \$100K deductible for its property and casualty insurance program, is that decision based on rigorous analysis or industry convention? When a CFO approves premiums that exceed expected losses by 50\%, is that rational or wasteful? These questions matter: as the global insurance market reaches \$10T annually, most companies lack analytical frameworks to optimize retention strategies or quantify insurance value beyond vague notions of "risk transfer" and "protection."
 
-Traditional approaches to modeling insurance appetite in P\&C markets face several limitations:
+This paper develops a new simulation framework for analyzing \emph{corporate insurance purchasing decisions} through the lens of ergodicity economics. Unlike traditional expected value analysis, which treats insurance as a cost to be minimized and appeals to psychological utility curves to justify risk aversion, our approach recognizes that insurance fundamentally alters the \emph{time-average growth rate} of companies facing multiplicative risks. We demonstrate that this shift in perspective reveals substantial insurance value invisible to conventional analysis and produces counterintuitive results that challenge standard industry practices.
+
+\subsection{The Problem with Expected Value Analysis}
+
+Traditional approaches to corporate insurance decisions rely on ensemble averages and expected value calculations. Under this framework, insurance appears economically irrational whenever premiums exceed expected losses: why pay \$150K annually to cover losses averaging \$100K? The standard answer invokes risk aversion, behavioral biases, or non-economic factors like regulatory requirements and stakeholder preferences.
+
+But this framing misses something fundamental. Real companies don't experience ensemble averages, they experience \emph{temporal sequences of outcomes} that compound multiplicatively over time. A company suffering a \$5M uninsured loss doesn't care that the ensemble average across thousands of parallel universes would have been \$2M. What matters is the actual path its balance sheet follows: equity eroded, credit constrained, growth opportunities foreclosed.
+
+Traditional expected value analysis faces several critical limitations when applied to corporate insurance decisions:
 \begin{itemize}
-    \item Reliance on ensemble averages rather than temporal sequences
-    \item Inadequate consideration of path-dependent effects
-    \item Limited incorporation of company-specific factors
-    \item Over-reliance on peer benchmarking, potentially setting up systemic antipatterns
+    \item \textbf{Ignores path dependence:} Losses compound through balance sheet effects, making the \emph{sequence} of outcomes as important as their statistical distribution
+    \item \textbf{Misses multiplicative dynamics:} Wealth evolves through percentage changes that compound, not additive changes that average
+    \item \textbf{Overlooks company-specific factors:} Optimal strategies depend on capitalization, margins, and exposure intensity, not on industry benchmarks
+    \item \textbf{Encourages peer benchmarking:} "What deductible do similar companies choose?" often substitutes for first-principles analysis, potentially creating systemic antipatterns
 \end{itemize}
 
-\subsection{The Promise of Ergodicity Economics}
+These limitations matter most for growth-focused companies, where the question isn't "How do we minimize costs?" but rather "How do we maximize long-term shareholder value under uncertainty?"
 
-Ergodicity economics, developed by \citet{peters2025ergodicity} as a generalization of \citet{kelly1956new}, offers a new perspective on decision-making under uncertainty. Unlike traditional expected utility theory, which focuses on ensemble averages, ergodicity economics emphasizes the importance of time averages and growth rates.
+\subsection{The Ergodicity Economics Approach}
 
-In this paper, we apply ergodicity economics principles to develop a simulation framework that captures the temporal dynamics of insurance appetite. This approach allows us to analyze how different company characteristics influence optimal insurance strategies over time.
+Ergodicity economics, pioneered by \citet{peters2019ergodicity} and building on \citet{kelly1956new}, offers a fundamentally different lens for decision-making under uncertainty. The key insight: distinguish between \emph{ensemble averages} (expectations across many parallel scenarios) and \emph{time averages} (what individual entities experience over their actual lifetime). When these diverge, as they do for any system with multiplicative wealth dynamics and absorbing barriers like bankruptcy, optimizing ensemble averages leads to systematically poor long-term outcomes.
 
-We discover that insurance appetite varies significantly with company size, measured by capitalization and revenue. Smaller companies tend to favor lower deductibles despite higher relative premium costs, while larger companies can afford higher retentions. In most cases, insurance provides a growth advantage over self-insurance, although the magnitude of this advantage diminishes for larger firms, and some level of risk retention if often preferable to guaranteed cost options. These findings have profound implications for underwriting, risk management, and regulatory practices in the insurance industry.
+The Kelly Criterion, developed for gambling and investment allocation, provides the mathematical foundation: maximize the expected logarithm of wealth rather than expected wealth itself. This seemingly subtle shift from $\mathbb{E}[W]$ to $\mathbb{E}[\ln W]$ produces dramatically different optimal strategies because the logarithm penalizes downside outcomes multiplicatively. Applied to insurance, this framework reveals that variance reduction can enhance growth even when premiums substantially exceed actuarially fair rates. Precisely the situation corporate buyers face in competitive insurance markets.
+
+\subsection{What This Paper Demonstrates}
+
+We develop a comprehensive simulation framework that models corporate balance sheet dynamics under realistic loss distributions, insurance programs, and financial accounting relationships. The model tracks 100,000 Monte Carlo paths over 50-year horizons, computing time-average growth rates for companies across different capitalization levels, operating margins, asset turnover ratios, and insurance strategies.
+
+The analysis produces several counterintuitive findings that challenge conventional wisdom:
+
+\begin{itemize}
+    \item \textbf{Guaranteed cost programs often destroy value.} Full coverage with zero deductible consistently underperforms moderate retention strategies, even though it eliminates all retained loss volatility. For larger companies, guaranteed cost can even underperform \emph{complete self-insurance}.
+
+    \item \textbf{Moderate retention strategies dominate both extremes.} The optimal deductible typically falls in the middle of the feasible range—neither guaranteed cost nor self-insurance maximizes growth. This "retention sweet spot" emerges from balancing premium costs against catastrophic loss protection.
+
+    \item \textbf{Capitalization is the dominant driver.} Company size relative to potential loss severity matters far more than industry sector, revenue scale, or absolute premium dollars. A \$5M company derives fundamentally different insurance value than a \$25M company facing identical loss distributions.
+
+    \item \textbf{Asset turnover amplifies insurance value.} Capital-efficient companies generating high revenues relative to their balance sheet face disproportionately greater insurance value because they experience more frequent loss exposures per dollar of equity.
+\end{itemize}
+
+These findings emerge naturally from the ergodic framework but remain invisible to traditional expected value analysis. They suggest that many corporate insurance programs are suboptimally structured, leaving substantial value on the table through either excessive coverage (guaranteed cost) or insufficient protection (overly aggressive retention).
+
+\subsection{A Framework, Not a Formula}
+
+This paper provides a \emph{simulation framework} for studying time-average performance of insurance programs under flexible corporate dynamics, not a prescriptive formula for optimal deductibles. The specific numerical results depend heavily on loss distribution parameters, financial assumptions, and modeling choices, none of which perfectly reflect any particular company's reality.
+
+The goal is not to recommend "all \$10M companies should buy \$250K deductibles" but rather to demonstrate \emph{how} ergodic analysis changes insurance valuation and to provide tools for company-specific optimization. We develop a rigorous mathematical foundation with 100,000-path Monte Carlo simulations, a fully specified corporate balance sheet model, and actuarially realistic loss distributions, and then use this machinery to explore the parameter space systematically.
+
+The primary contribution is methodological: showing \emph{that} time-average growth optimization can be implemented for corporate insurance decisions, \emph{how} it produces qualitatively different recommendations than expected value analysis, and \emph{why} these differences matter for long-term shareholder value. Practitioners can adapt the framework to their specific circumstances, calibrating loss distributions to company data and incorporating constraints invisible to the baseline model.
+
+\subsection{Implications}
+
+The simulation results suggest that corporate insurance markets may be systematically mispricing insurance value. More precisely, \emph{correctly} pricing expected losses while \emph{undervaluing} the time-average growth benefits for certain buyer segments. Companies with low capitalization relative to potential losses should be willing to pay substantial premiums over actuarially fair rates, yet many pursue aggressive retention strategies driven by expected value logic or peer benchmarking.
+
+We encourage corporate risk practitioners to:
+\begin{itemize}
+    \item \textbf{Study company-specific loss costs} using historical claims data, industry benchmarks, and exposure analysis rather than relying solely on insurer-provided estimates
+    \item \textbf{Model corporate balance sheet dynamics} under stochastic loss scenarios to quantify growth impacts beyond point estimates of expected losses
+    \item \textbf{Challenge guaranteed cost conventions} that may persist due to institutional inertia rather than economic optimization
+    \item \textbf{Request time-average analytics} from insurance brokers and actuarial consultants, pushing the industry toward ergodic frameworks
+\end{itemize}
+
+Insurance should not be viewed merely as a cost center subject to minimization but as a \emph{strategic capital allocation decision} that fundamentally affects long-term growth trajectories. The simulation framework developed here provides the analytical foundation for making such decisions rigorously rather than conventionally.
 
 \section{Theoretical Foundation}
 
