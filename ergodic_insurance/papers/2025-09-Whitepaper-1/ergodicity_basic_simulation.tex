@@ -85,7 +85,7 @@ A Simulation Framework for Understanding Risk Appetite}}
 \maketitle
 
 \begin{abstract}
-This white paper introduces a new simulation framework based on ergodicity economics principles for analyzing insurance risk appetite in Property \& Casualty markets. Traditional ensemble-based risk models may not adequately capture the temporal dynamics of insurance company decision-making. This introductory paper demonstrates that insurance appetite varies significantly with company size, measured by revenue.
+This white paper introduces a new simulation framework based on ergodicity economics principles for analyzing insurance risk appetite in Property \& Casualty markets. Traditional ensemble-based risk models may not adequately capture the temporal dynamics of insurance company decision-making. This introductory paper demonstrates that insurance appetite varies significantly with company size, measured by capitalization and revenue.
 \\\\
 \textbf{Keywords:} ergodicity economics, insurance appetite, risk modeling, simulation framework
 \end{abstract}
@@ -411,11 +411,43 @@ The simulation reveals fundamental patterns in how company characteristics drive
 
 \subsection{The Size Effect: Capitalization and Insurance Value}
 
-\subsection{Optimal Retention Levels by Company Size}
+This experiment demonstrates that insurance provides the most value at low capitalizations, where capital preservation is paramount to business continuity. As can be seen in Figure~\ref{fig:growth_lift_by_cap} below, a high deductible plan of \$500K appears optimal at \$10M and above with default parameters (70\% Loss Ratio, Asset Turnover of 1.0, and 10\% Operating Margin), while lower capitalizations benefit from more conservative deductible levels. Furthermore, the growth lift from insurance is substantially higher at lower capitalizations, even when premiums exceed expected losses. This finding aligns with the ergodic economics principle that reducing multiplicative volatility through insurance enhances long-term growth, particularly for smaller firms facing proportionally larger risks in repation to available capital. Not shown here, at capitalizations exceeding \$50M, self-insurance begins to be more profitable. It is also important to point out that this simulation demonstrates that some level of retention appears to be profitable for almost all cases, evidenced by the \$0 Deductible never showing up as the optimal option. However, this could be because frequency tail correlations were not considered (i.e., high volume of losses below retention is extremely rare in a Poisson distribution).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/growth_lift_by_capitalization.png}
+    \caption{Impact of initial capitalization on time-average growth rate.}
+    \label{fig:growth_lift_by_cap}
+\end{figure}
 
 \subsection{Operating Margin Interactions}
 
+Operating margins serve to "flatten out" the growth lift across asset turnover ratios (ATR), which can be seen in Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150}. This makes sense because both margin and ATR contribute to growth over time (ATR by generating revenue, and margins by retaining net income).
+
 \subsection{Sensitivity to Insurance Pricing}
+
+As expected, lower target loss ratios (i.e., cheaper insurance) increase the growth lift from insurance and shift optimal deductibles lower. However, even at relatively costly loss ratios of 60\%, insurance still provides substantial growth benefits at lower capitalizations. This finding challenges traditional views that insurance is a cost to be minimized. The ergodic perspective reveals that the multiplicative impact of catastrophic losses creates value in variance reduction that outweighs premium costs, particularly for smaller firms. Even at "expensive" loss ratio of 60\%, a firm with \$5M capitalization still does well with a low deductible of \$100K, and even \$50K deductibles and Guaranteed Cost provide substantial lift over self-insurance.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.100.png}
+    \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 10\%.}
+    \label{fig:multiples_ebit_0.100}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.125.png}
+    \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 12.5\%.}
+    \label{fig:multiples_ebit_0.125}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.150.png}
+    \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 15\%.}
+    \label{fig:multiples_ebit_0.150}
+\end{figure}
 
 \section{Implications for Insurance Decision-Making}
 
