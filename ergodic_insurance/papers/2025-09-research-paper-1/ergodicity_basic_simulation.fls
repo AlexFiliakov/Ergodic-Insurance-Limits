@@ -1,6 +1,6 @@
-PWD c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\papers\2025-09-Whitepaper-1
+PWD c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\papers\2025-09-research-paper-1
 INPUT C:\Users\alexf\AppData\Local\MiKTeX\miktex\data\le\pdftex\pdflatex.fmt
-INPUT c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\papers\2025-09-Whitepaper-1\ergodicity_basic_simulation.tex
+INPUT c:\Users\alexf\OneDrive\Documents\Projects\Ergodic Insurance Limits\ergodic_insurance\papers\2025-09-research-paper-1\ergodicity_basic_simulation.tex
 OUTPUT ergodicity_basic_simulation.log
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
 INPUT C:\Users\alexf\AppData\Local\Programs\MiKTeX\tex\latex\base\article.cls
