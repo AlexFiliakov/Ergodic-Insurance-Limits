@@ -147,7 +147,7 @@ The simulation framework is open-source and available for implementation by corp
 \begin{itemize}
     \item \textbf{Download the framework} and review the technical documentation, starting with this guide:
 
-        \url{https://docs.mostlyoptimal.com/api/tutorials/01_getting_started.html}
+        \url{https://mostlyoptimal.com/tutorial}
 
     \item \textbf{Form an internal task force} including finance, risk management, and actuarial expertise to evaluate the methodology and identify company-specific calibration requirements
     \item \textbf{Calibrate loss distributions} using historical claims data, industry benchmarks, and company-specific exposure analysis rather than relying solely on insurer estimates
@@ -167,7 +167,7 @@ The analysis demonstrates that rigorous, company-specific optimization of corpor
 
 \section{Introduction}
 
-When a \$10M company selects a \$100K deductible for its property and casualty insurance program, is that decision based on rigorous analysis or industry convention? When a CFO approves premiums that exceed expected losses by 50\%, is that rational or wasteful? These questions matter: as the global insurance market reaches \$10T annually, most companies lack analytical frameworks to optimize retention strategies or quantify insurance value beyond vague notions of "risk transfer" and "protection."
+When a \$10M company selects a \$100K deductible for its property and casualty insurance program, is that decision based on rigorous analysis or industry convention? When a CFO approves premiums that exceed expected losses by 50\%, is that rational or wasteful? These questions matter: as the global insurance market reaches \$10 trillion annually, most companies lack analytical frameworks to optimize retention strategies or quantify insurance value beyond vague notions of "risk transfer" and "protection."
 
 This paper develops a new simulation framework for analyzing \emph{corporate insurance purchasing decisions} through the lens of ergodicity economics. Unlike traditional expected value analysis, which treats insurance as a cost to be minimized and appeals to psychological utility curves to justify risk aversion, our approach recognizes that insurance fundamentally alters the \emph{time-average growth rate} of companies facing multiplicative risks. We demonstrate that this shift in perspective reveals substantial insurance value invisible to conventional analysis and produces counterintuitive results that challenge standard industry practices.
 
@@ -175,7 +175,7 @@ This paper develops a new simulation framework for analyzing \emph{corporate ins
 
 Traditional approaches to corporate insurance decisions rely on ensemble averages and expected value calculations. Under this framework, insurance appears economically irrational whenever premiums exceed expected losses: why pay \$150K annually to cover losses averaging \$100K? The standard answer invokes risk aversion, behavioral biases, or non-economic factors like regulatory requirements and stakeholder preferences.
 
-But this framing misses something fundamental. Real companies don't experience ensemble averages, they experience \emph{temporal sequences of outcomes} that compound multiplicatively over time. A company suffering a \$5M uninsured loss doesn't care that the ensemble average across thousands of parallel universes would have been \$2M. What matters is the actual path its balance sheet follows: equity eroded, credit constrained, growth opportunities foreclosed.
+But this framing misses something fundamental. Real companies don't experience ensemble averages, they experience \emph{temporal sequences of outcomes} that compound multiplicatively over time. A company suffering a \$5M uninsured loss doesn't care that the ensemble average across thousands of parallel universes would have been \$2M. What matters is the actual path its balance sheet follows: equity eroded, credit constrained, growth opportunities eliminated.
 
 Traditional expected value analysis faces several critical limitations when applied to corporate insurance decisions:
 \begin{itemize}
@@ -204,9 +204,9 @@ The analysis produces several counterintuitive findings that challenge conventio
 
     \item \textbf{Moderate retention strategies dominate both extremes.} The optimal deductible typically falls in the middle of the feasible range—neither guaranteed cost nor self-insurance maximizes growth. This "retention sweet spot" emerges from balancing premium costs against catastrophic loss protection.
 
-    \item \textbf{Capitalization is the dominant driver.} Company size relative to potential loss severity matters far more than industry sector, revenue scale, or absolute premium dollars. A \$5M company derives fundamentally different insurance value than a \$25M company facing identical loss distributions.
+    \item \textbf{Capitalization is the dominant driver.} Company size relative to potential loss severity matters far more than industry sector, revenue scale, or absolute premium dollars. A \$5M company derives fundamentally different insurance value than a \$25M company facing similar loss severities.
 
-    \item \textbf{Asset turnover amplifies insurance value.} Capital-efficient companies generating high revenues relative to their balance sheet face disproportionately greater insurance value because they experience more frequent loss exposures per dollar of equity.
+    \item \textbf{Asset turnover amplifies insurance value.} Capital-efficient companies generating high revenues relative to their balance sheet derive disproportionately greater insurance value because they experience more frequent loss exposures per dollar of equity.
 \end{itemize}
 
 These findings emerge naturally from the ergodic framework but remain invisible to traditional expected value analysis. They suggest that many corporate insurance programs are suboptimally structured, leaving substantial value on the table through either excessive coverage (guaranteed cost) or insufficient protection (overly aggressive retention).
@@ -1091,7 +1091,7 @@ All loss counts are independent across tiers and years. Claim amounts are drawn 
 
 \subsection{Code Repository}\label{sec:code-repo}
 
-The GitHub repository at \url{https://github.com/AlexFiliakov/Ergodic-Insurance-Limits}\\
+The GitHub repository at \url{https://mostlyoptimal.com/GitHub}\\
 contains the complete implementation, including additional features such as:
 \begin{itemize}
     \item Stochastic revenue and margin processes for enhanced realism
@@ -1099,9 +1099,7 @@ contains the complete implementation, including additional features such as:
     \item Multi-layer insurance tower optimization
     \item Parallel Monte Carlo execution with checkpoint/resume capability
     \item Comprehensive visualization and sensitivity analysis tools
-    \item The starter guide is available at:
-
-        \url{https://docs.mostlyoptimal.com/api/tutorials/01_getting_started.html}
+    \item The starter guide is available at: \url{https://mostlyoptimal.com/tutorial}
 
 \end{itemize}
 
