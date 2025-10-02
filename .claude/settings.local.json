@@ -1,6 +1,7 @@
 {
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "simone"
   ],
-  "enableAllProjectMcpServers": true
+  "outputStyle": "default"
 }
