@@ -39,7 +39,8 @@ class TestCompleteManufacturerLifecycle:
         startup_manufacturer = TestDataGenerator.create_small_manufacturer(
             initial_assets=500_000,  # Small startup
             asset_turnover=0.8,  # Lower efficiency initially
-            base_operating_margin=0.12,  # Higher margin needed to cover depreciation and insurance
+            base_operating_margin=0.18,  # 18% margin needed to cover depreciation, insurance, and grow
+            ppe_ratio=0.4,  # Explicitly set PPE ratio to limit depreciation expense
         )
 
         # Phase 2: Create realistic loss environment
@@ -95,7 +96,9 @@ class TestCompleteManufacturerLifecycle:
         # With highly skewed losses (50% zeros, 5% catastrophic) and $500K startup capital,
         # achieving very low ruin probability is challenging. Insurance helps but can't eliminate risk.
         # The baseline without insurance is ~48-50% ruin probability
-        assert results.ruin_probability <= 0.50  # Insurance should keep ruin at or below baseline
+        # Access final ruin probability from dict
+        final_ruin_prob = results.ruin_probability[str(results.config.n_years)]
+        assert final_ruin_prob <= 0.50  # Insurance should keep ruin at or below baseline
 
         # Verify insurance effectiveness
         total_losses = np.sum(results.annual_losses)
@@ -182,7 +185,10 @@ class TestCompleteManufacturerLifecycle:
 
         # Insurance should reduce ruin probability or at least not increase it significantly
         # Allow small differences due to test randomness
-        assert results_with.ruin_probability <= results_without.ruin_probability + 0.01
+        # Access final ruin probability from dict (keyed by n_years)
+        ruin_with = results_with.ruin_probability[str(results_with.config.n_years)]
+        ruin_without = results_without.ruin_probability[str(results_without.config.n_years)]
+        assert ruin_with <= ruin_without + 0.01
 
 
 class TestInsuranceProgramEvaluation:
@@ -298,9 +304,9 @@ class TestInsuranceProgramEvaluation:
             if premium <= constraints["max_premium_budget"]:
                 # Relax ruin probability constraint for testing
                 # Using 0.35 threshold since the test scenario generates significant losses
-                if (
-                    results.ruin_probability <= 0.35
-                ):  # Increased from 0.2 to accommodate test scenario
+                # Access final ruin probability from dict
+                final_ruin_prob = results.ruin_probability[str(results.config.n_years)]
+                if final_ruin_prob <= 0.35:  # Increased from 0.2 to accommodate test scenario
                     avg_growth = np.mean(results.growth_rates[results.growth_rates > -10])
                     if avg_growth > best_growth:
                         best_growth = avg_growth
@@ -437,7 +443,9 @@ class TestDecisionFramework:
 
             # Score based on criteria
             score = 0
-            if results.ruin_probability < criteria["max_ruin_probability"]:
+            # Access final ruin probability from dict
+            final_ruin_prob = results.ruin_probability[str(results.config.n_years)]
+            if final_ruin_prob < criteria["max_ruin_probability"]:
                 score += 1
 
             avg_growth = np.mean(results.growth_rates[results.growth_rates > -10])

@@ -118,7 +118,7 @@ class TestAggregatedResults:
     def test_to_dataframe(self):
         """Test conversion to DataFrame."""
         sim_results = MagicMock(spec=SimulationResults)
-        sim_results.ruin_probability = 0.01
+        sim_results.ruin_probability = {"5": 0.01}
         sim_results.growth_rates = np.array([0.08, 0.09, 0.07])
         sim_results.final_assets = np.array([1e7, 1.1e7, 0.9e7])
         sim_results.metrics = {"var_99": 1000000, "tvar_99": 1500000}
@@ -446,7 +446,7 @@ class TestBatchProcessor:
 
         # Create mock simulation results
         sim_results = MagicMock(spec=SimulationResults)
-        sim_results.ruin_probability = 0.01
+        sim_results.ruin_probability = {"5": 0.01}
         sim_results.growth_rates = np.array([0.08, 0.09, 0.07])
         sim_results.final_assets = np.array([1e7, 1.1e7, 0.9e7])
         sim_results.metrics = {
@@ -478,13 +478,13 @@ class TestBatchProcessor:
 
         # Create multiple simulation results
         sim_results1 = MagicMock(spec=SimulationResults)
-        sim_results1.ruin_probability = 0.01
+        sim_results1.ruin_probability = {"5": 0.02, "10": 0.05, "20": 0.08}
         sim_results1.growth_rates = np.array([0.08, 0.09])
         sim_results1.final_assets = np.array([1e7, 1.1e7])
         sim_results1.metrics = {"var_95": 500000, "var_99": 1000000}
 
         sim_results2 = MagicMock(spec=SimulationResults)
-        sim_results2.ruin_probability = 0.02
+        sim_results2.ruin_probability = {"5": 0.01, "10": 0.03, "20": 0.06}
         sim_results2.growth_rates = np.array([0.06, 0.07])
         sim_results2.final_assets = np.array([0.9e7, 0.95e7])
         sim_results2.metrics = {"var_95": 600000, "var_99": 1200000}
@@ -508,12 +508,12 @@ class TestBatchProcessor:
 
         # Create baseline and sensitivity results
         baseline_results = MagicMock(spec=SimulationResults)
-        baseline_results.ruin_probability = 0.01
+        baseline_results.ruin_probability = {"5": 0.01}
         baseline_results.growth_rates = np.array([0.08])
         baseline_results.final_assets = np.array([1e7])
 
         sensitivity_results = MagicMock(spec=SimulationResults)
-        sensitivity_results.ruin_probability = 0.015
+        sensitivity_results.ruin_probability = {"5": 0.015}
         sensitivity_results.growth_rates = np.array([0.085])
         sensitivity_results.final_assets = np.array([1.05e7])
 
@@ -639,7 +639,7 @@ class TestBatchProcessor:
         processor = BatchProcessor(checkpoint_dir=temp_checkpoint_dir)
 
         sim_results = MagicMock(spec=SimulationResults)
-        sim_results.ruin_probability = 0.01
+        sim_results.ruin_probability = {"5": 0.01}
         sim_results.growth_rates = np.array([0.08])
         sim_results.final_assets = np.array([1e7])
         sim_results.metrics = {}

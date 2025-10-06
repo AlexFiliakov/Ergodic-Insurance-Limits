@@ -473,11 +473,28 @@ class BatchProcessor:
                 relative_performance = pd.DataFrame(index=summary_df["scenario"])
                 for metric in ["mean_growth_rate", "mean_final_assets", "ruin_probability"]:
                     if metric in summary_df.columns:
-                        baseline_value = summary_df[metric].iloc[baseline_idx]
-                        if baseline_value != 0:
-                            relative_performance[f"{metric}_relative"] = (
-                                summary_df[metric] / baseline_value
-                            )
+                        if metric == "ruin_probability":
+                            # Extract oldest time value from ruin_probability dict
+                            baseline_dict = summary_df[metric].iloc[baseline_idx]
+                            if isinstance(baseline_dict, dict) and baseline_dict:
+                                max_year = max(baseline_dict.keys(), key=lambda x: int(x))
+                                baseline_value = baseline_dict[max_year]
+                                # Extract same year from all scenarios
+                                metric_values = summary_df[metric].apply(
+                                    lambda d: d.get(max_year, np.nan)
+                                    if isinstance(d, dict)
+                                    else np.nan
+                                )
+                                if baseline_value != 0:
+                                    relative_performance[f"{metric}_relative"] = (
+                                        metric_values / baseline_value
+                                    )
+                        else:
+                            baseline_value = summary_df[metric].iloc[baseline_idx]
+                            if baseline_value != 0:
+                                relative_performance[f"{metric}_relative"] = (
+                                    summary_df[metric] / baseline_value
+                                )
                 comparison_metrics["relative_performance"] = relative_performance
 
             # Ranking by different metrics
@@ -491,9 +508,16 @@ class BatchProcessor:
 
                 # Ruin probability ranked ascending (lower is better)
                 if "ruin_probability" in summary_df.columns:
-                    ranking_df["ruin_probability_rank"] = (
-                        summary_df["ruin_probability"].rank(ascending=True).astype(int)
-                    )
+                    # Extract oldest time value from ruin_probability dict for ranking
+                    first_dict = summary_df["ruin_probability"].iloc[0]
+                    if isinstance(first_dict, dict) and first_dict:
+                        max_year = max(first_dict.keys(), key=lambda x: int(x))
+                        ruin_prob_values = summary_df["ruin_probability"].apply(
+                            lambda d: d.get(max_year, np.nan) if isinstance(d, dict) else np.nan
+                        )
+                        ranking_df["ruin_probability_rank"] = ruin_prob_values.rank(
+                            ascending=True
+                        ).astype(int)
 
                 comparison_metrics["rankings"] = ranking_df
 

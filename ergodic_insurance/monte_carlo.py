@@ -1742,7 +1742,7 @@ class MonteCarloEngine:
             insurance_recoveries=insurance_recoveries,
             retained_losses=retained_losses,
             growth_rates=growth_rates,
-            ruin_probability=np.mean(final_assets <= 0),
+            ruin_probability={str(self.config.n_years): float(np.mean(final_assets <= 0))},
             metrics={},
             convergence={},
             execution_time=sum(r.execution_time for r in results_list),

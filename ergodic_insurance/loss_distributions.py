@@ -195,6 +195,82 @@ class ParetoLoss(LossDistribution):
         return self.alpha * self.xm / (self.alpha - 1)
 
 
+class GeneralizedParetoLoss(LossDistribution):
+    """Generalized Pareto distribution for modeling excesses over threshold.
+
+    Implements the GPD using scipy.stats.genpareto for Peaks Over Threshold (POT)
+    extreme value modeling. According to the Pickands-Balkema-de Haan theorem,
+    excesses over a sufficiently high threshold asymptotically follow a GPD.
+
+    The distribution models: P(X - u | X > u) ~ GPD(ξ, β)
+
+    Shape parameter interpretation:
+    - ξ < 0: Bounded distribution (Type III - short-tailed)
+    - ξ = 0: Exponential distribution (Type I - medium-tailed)
+    - ξ > 0: Pareto-type distribution (Type II - heavy-tailed)
+    """
+
+    def __init__(
+        self,
+        severity_shape: float,
+        severity_scale: float,
+        seed: Optional[int] = None,
+    ):
+        """Initialize Generalized Pareto distribution.
+
+        Args:
+            severity_shape: Shape parameter ξ (any real value).
+                - Negative: bounded tail
+                - Zero: exponential tail
+                - Positive: Pareto-type heavy tail
+            severity_scale: Scale parameter β (must be positive).
+            seed: Random seed for reproducibility.
+
+        Raises:
+            ValueError: If severity_scale <= 0.
+        """
+        super().__init__(seed)
+
+        if severity_scale <= 0:
+            raise ValueError(f"Scale parameter must be positive, got {severity_scale}")
+
+        self.severity_shape = severity_shape
+        self.severity_scale = severity_scale
+
+    def generate_severity(self, n_samples: int) -> np.ndarray:
+        """Generate GPD samples (excesses above threshold).
+
+        Args:
+            n_samples: Number of samples to generate.
+
+        Returns:
+            Array of excess amounts above threshold.
+        """
+        if n_samples <= 0:
+            return np.array([])
+
+        # Use scipy.stats.genpareto with c=shape, scale=scale, loc=0
+        result = stats.genpareto.rvs(
+            c=self.severity_shape,
+            scale=self.severity_scale,
+            loc=0,
+            size=n_samples,
+            random_state=self.rng,
+        )
+        return np.asarray(result)
+
+    def expected_value(self) -> float:
+        """Calculate expected excess above threshold.
+
+        Returns:
+            Analytical expected value if it exists (ξ < 1), else inf.
+            E[X - u | X > u] = β / (1 - ξ) for ξ < 1
+        """
+        if self.severity_shape >= 1:
+            return np.inf
+        return self.severity_scale / (1 - self.severity_shape)
+
+
 @dataclass
 class LossEvent:
     """Represents a single loss event with timing and amount."""
@@ -710,6 +786,7 @@ class ManufacturingLossGenerator:
         attritional_params: Optional[dict] = None,
         large_params: Optional[dict] = None,
         catastrophic_params: Optional[dict] = None,
+        extreme_params: Optional[dict] = None,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
     ):
@@ -719,6 +796,10 @@ class ManufacturingLossGenerator:
             attritional_params: Parameters for attritional losses.
             large_params: Parameters for large losses.
             catastrophic_params: Parameters for catastrophic losses.
+            extreme_params: Optional parameters for extreme value modeling.
+                - threshold_value (float): Threshold for GPD application (required if extreme_params provided)
+                - severity_shape (float): GPD shape parameter ξ (required)
+                - severity_scale (float): GPD scale parameter β > 0 (required)
             exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
         """
@@ -746,6 +827,22 @@ class ManufacturingLossGenerator:
         self.attritional = AttritionalLossGenerator(**attritional_params)
         self.large = LargeLossGenerator(**large_params)
         self.catastrophic = CatastrophicLossGenerator(**catastrophic_params)
+
+        # Initialize extreme value modeling if parameters provided
+        self.extreme_params = extreme_params
+        self.threshold_value = None
+        self.gpd_generator = None
+
+        if extreme_params is not None:
+            self.threshold_value = extreme_params.get("threshold_value")
+            if self.threshold_value is not None:
+                # Create GPD generator with offset seed for reproducibility
+                gpd_seed = (seed + 3) % (2**32) if seed is not None else None
+                self.gpd_generator = GeneralizedParetoLoss(
+                    severity_shape=extreme_params["severity_shape"],
+                    severity_scale=extreme_params["severity_scale"],
+                    seed=gpd_seed,
+                )
 
     def generate_losses(
         self, duration: float, revenue: float, include_catastrophic: bool = True, time: float = 0.0
@@ -782,16 +879,47 @@ class ManufacturingLossGenerator:
         # Sort by time
         all_losses.sort(key=lambda x: x.time)
 
+        # Apply extreme value transformation if configured
+        extreme_losses = []
+        if self.extreme_params is not None and self.threshold_value is not None:
+            assert self.gpd_generator is not None  # For type checking
+            # Identify losses exceeding threshold
+            for loss in all_losses:
+                if loss.amount > self.threshold_value:
+                    # Generate GPD excess
+                    gpd_excess = self.gpd_generator.generate_severity(1)[0]
+                    # Create new extreme loss with transformed amount
+                    extreme_loss = LossEvent(
+                        amount=self.threshold_value + gpd_excess,
+                        time=loss.time,
+                        loss_type="extreme",
+                    )
+                    extreme_losses.append(extreme_loss)
+                    # Remove original loss from its category
+                    if loss in attritional_losses:
+                        attritional_losses.remove(loss)
+                    elif loss in large_losses:
+                        large_losses.remove(loss)
+                    elif loss in catastrophic_losses:
+                        catastrophic_losses.remove(loss)
+
+            # Add extreme losses to combined list
+            all_losses = attritional_losses + large_losses + catastrophic_losses + extreme_losses
+            # Re-sort by time after adding extreme losses
+            all_losses.sort(key=lambda x: x.time)
+
         # Calculate statistics
         statistics = {
             "total_losses": len(all_losses),
             "attritional_count": len(attritional_losses),
             "large_count": len(large_losses),
             "catastrophic_count": len(catastrophic_losses),
+            "extreme_count": len(extreme_losses),
             "total_amount": sum(loss.amount for loss in all_losses),
             "attritional_amount": sum(loss.amount for loss in attritional_losses),
             "large_amount": sum(loss.amount for loss in large_losses),
             "catastrophic_amount": sum(loss.amount for loss in catastrophic_losses),
+            "extreme_amount": sum(loss.amount for loss in extreme_losses),
             "average_loss": (
                 sum(loss.amount for loss in all_losses) / len(all_losses) if all_losses else 0
             ),
@@ -821,6 +949,7 @@ class ManufacturingLossGenerator:
             "attritional": [],
             "large": [],
             "catastrophic": [],
+            "extreme": [],
             "total": [],
         }
 
@@ -830,6 +959,7 @@ class ManufacturingLossGenerator:
             results["attritional"].append(stats["attritional_amount"])
             results["large"].append(stats["large_amount"])
             results["catastrophic"].append(stats["catastrophic_amount"])
+            results["extreme"].append(stats.get("extreme_amount", 0))
             results["total"].append(stats["total_amount"])
 
         # Calculate validation statistics

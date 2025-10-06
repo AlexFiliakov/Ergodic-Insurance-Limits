@@ -60,7 +60,7 @@ class TestSimulationResults:
             insurance_recoveries=np.zeros((3, 5)),
             retained_losses=np.zeros((3, 5)),
             growth_rates=np.array([0.05, 0.08, -0.02]),
-            ruin_probability=0.1,
+            ruin_probability={"5": 0.1},
             metrics={"var_99": 1_000_000, "tvar_99": 1_500_000},
             convergence={"growth_rate": ConvergenceStats(1.02, 1000, 0.01, True, 1000, 0.1)},
             execution_time=10.5,
@@ -71,7 +71,7 @@ class TestSimulationResults:
         assert "Simulations: 1,000" in summary
         assert "Years: 5" in summary
         assert "Execution Time: 10.50s" in summary
-        assert "Ruin Probability: 10.00%" in summary
+        assert "Year 5: 10.00%" in summary
         assert "Mean Growth Rate: 0.0367" in summary
         assert "VaR(99%): $1,000,000" in summary
         assert "TVaR(99%): $1,500,000" in summary
@@ -155,7 +155,9 @@ class TestMonteCarloEngine:
         assert results.annual_losses.shape == (100, 2)
         assert results.insurance_recoveries.shape == (100, 2)
         assert results.retained_losses.shape == (100, 2)
-        assert 0 <= results.ruin_probability <= 1
+        # Access final ruin probability from dict
+        final_ruin_prob = results.ruin_probability[str(results.config.n_years)]
+        assert 0 <= final_ruin_prob <= 1
         assert results.execution_time > 0
 
     def test_parallel_run(self, setup_engine):
@@ -218,7 +220,7 @@ class TestMonteCarloEngine:
             insurance_recoveries=np.random.exponential(50_000, (1000, 5)),
             retained_losses=np.random.exponential(50_000, (1000, 5)),
             growth_rates=np.random.normal(0.05, 0.02, 1000),
-            ruin_probability=0.05,
+            ruin_probability={"5": 0.05},
             metrics={},
             convergence={},
             execution_time=0,
@@ -248,7 +250,7 @@ class TestMonteCarloEngine:
             insurance_recoveries=np.random.exponential(50_000, (n_sims, 5)),
             retained_losses=np.random.exponential(50_000, (n_sims, 5)),
             growth_rates=np.random.normal(0.05, 0.02, n_sims),
-            ruin_probability=0.05,
+            ruin_probability={"5": 0.05},
             metrics={},
             convergence={},
             execution_time=0,
@@ -365,7 +367,7 @@ class TestMonteCarloEngine:
             insurance_recoveries=np.ones((2, 5)),
             retained_losses=np.ones((2, 5)),
             growth_rates=np.array([0.05, 0.08]),
-            ruin_probability=0.0,
+            ruin_probability={"5": 0.0},
             metrics={},
             convergence={},
             execution_time=1.0,
@@ -378,7 +380,7 @@ class TestMonteCarloEngine:
             insurance_recoveries=np.ones((2, 5)),
             retained_losses=np.ones((2, 5)),
             growth_rates=np.array([-0.02, 0.04]),
-            ruin_probability=0.25,
+            ruin_probability={"5": 0.25},
             metrics={},
             convergence={},
             execution_time=1.0,

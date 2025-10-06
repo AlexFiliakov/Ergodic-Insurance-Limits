@@ -65,7 +65,7 @@ def mock_simulation_results():
         insurance_recoveries=np.random.exponential(50000, (n_sims, n_years)),
         retained_losses=np.random.exponential(50000, (n_sims, n_years)),
         growth_rates=np.random.normal(0.05, 0.02, n_sims),
-        ruin_probability=0.02,
+        ruin_probability={"5": 0.02, "10": 0.05, "20": 0.08},
         metrics={"var_95": 14000000, "var_99": 12000000, "tvar_95": 13000000, "tvar_99": 11000000},
         convergence={},
         execution_time=5.5,
@@ -542,11 +542,11 @@ class TestBatchProcessor:
         # Create baseline and sensitivity results
         baseline_results = copy.deepcopy(mock_simulation_results)
         baseline_results.growth_rates = np.full_like(baseline_results.growth_rates, 0.05)
-        baseline_results.ruin_probability = 0.02
+        baseline_results.ruin_probability = {"5": 0.02}
 
         high_results = copy.deepcopy(mock_simulation_results)
         high_results.growth_rates = np.full_like(high_results.growth_rates, 0.06)
-        high_results.ruin_probability = 0.015
+        high_results.ruin_probability = {"5": 0.015}
 
         processor.batch_results = [
             BatchResult(

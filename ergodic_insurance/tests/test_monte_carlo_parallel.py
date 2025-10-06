@@ -175,7 +175,7 @@ class TestParallelProcessing:
                 insurance_recoveries=np.zeros((100, 5)),
                 retained_losses=np.zeros((100, 5)),
                 growth_rates=np.random.normal(0.05, 0.001, 100),
-                ruin_probability=0.01,
+                ruin_probability={"50": 0.01},
                 metrics={},
                 convergence={"growth_rate": Mock(r_hat=1.01)},
                 execution_time=1.0,
@@ -561,7 +561,9 @@ class TestCombinedChunkResults:
         assert len(combined.growth_rates) == 5
 
         # Check that ruin probability is calculated
-        assert 0 <= combined.ruin_probability <= 1
+        # Access final ruin probability from dict
+        final_ruin_prob = combined.ruin_probability[str(combined.config.n_years)]
+        assert 0 <= final_ruin_prob <= 1
 
         # Verify arrays are properly concatenated
         np.testing.assert_array_equal(

@@ -10,6 +10,7 @@ from ergodic_insurance.loss_distributions import (
     AttritionalLossGenerator,
     CatastrophicLossGenerator,
     FrequencyGenerator,
+    GeneralizedParetoLoss,
     LargeLossGenerator,
     LognormalLoss,
     LossDistribution,
@@ -159,6 +160,75 @@ class TestParetoLoss:
 
         samples1 = dist1.generate_severity(100)
         samples2 = dist2.generate_severity(100)
+
+        np.testing.assert_array_equal(samples1, samples2)
+
+
+class TestGeneralizedParetoLoss:
+    """Test the GeneralizedParetoLoss distribution class."""
+
+    def test_gpd_initialization_and_parameters(self):
+        """GPD accepts any shape and positive scale."""
+        # Negative shape (bounded)
+        gpd = GeneralizedParetoLoss(severity_shape=-0.2, severity_scale=1_000_000)
+        assert gpd.severity_shape == -0.2
+        assert gpd.severity_scale == 1_000_000
+
+        # Zero shape (exponential)
+        gpd = GeneralizedParetoLoss(severity_shape=0.0, severity_scale=500_000)
+        assert gpd.severity_shape == 0.0
+        assert gpd.severity_scale == 500_000
+
+        # Positive shape (heavy tail)
+        gpd = GeneralizedParetoLoss(severity_shape=0.4, severity_scale=2_000_000)
+        assert gpd.severity_shape == 0.4
+        assert gpd.severity_scale == 2_000_000
+
+        # Reject non-positive scale
+        with pytest.raises(ValueError, match="Scale parameter must be positive"):
+            GeneralizedParetoLoss(severity_shape=0.2, severity_scale=0)
+        with pytest.raises(ValueError, match="Scale parameter must be positive"):
+            GeneralizedParetoLoss(severity_shape=0.2, severity_scale=-100)
+
+    def test_gpd_generates_valid_samples(self):
+        """GPD generates positive excesses."""
+        gpd = GeneralizedParetoLoss(severity_shape=0.3, severity_scale=1_000_000, seed=42)
+        samples = gpd.generate_severity(1000)
+
+        assert len(samples) == 1000
+        assert np.all(samples >= 0)  # Excesses are non-negative
+        assert np.mean(samples) > 0
+
+    def test_gpd_expected_value_calculation(self):
+        """GPD expected value matches analytical formula."""
+        # Shape < 1: finite expected value
+        gpd = GeneralizedParetoLoss(severity_shape=0.4, severity_scale=1_000_000)
+        expected = gpd.expected_value()
+        assert abs(expected - 1_000_000 / (1 - 0.4)) < 1  # β / (1 - ξ)
+
+        # Shape >= 1: infinite expected value
+        gpd = GeneralizedParetoLoss(severity_shape=1.0, severity_scale=1_000_000)
+        assert gpd.expected_value() == np.inf
+
+        gpd = GeneralizedParetoLoss(severity_shape=1.5, severity_scale=1_000_000)
+        assert gpd.expected_value() == np.inf
+
+    def test_gpd_generate_empty(self):
+        """Test generating zero samples."""
+        gpd = GeneralizedParetoLoss(severity_shape=0.3, severity_scale=1_000_000)
+        samples = gpd.generate_severity(0)
+        assert len(samples) == 0
+
+        samples = gpd.generate_severity(-1)
+        assert len(samples) == 0
+
+    def test_gpd_reproducibility(self):
+        """Test that setting seed produces reproducible results."""
+        gpd1 = GeneralizedParetoLoss(severity_shape=0.3, severity_scale=1_000_000, seed=789)
+        gpd2 = GeneralizedParetoLoss(severity_shape=0.3, severity_scale=1_000_000, seed=789)
+
+        samples1 = gpd1.generate_severity(100)
+        samples2 = gpd2.generate_severity(100)
 
         np.testing.assert_array_equal(samples1, samples2)
 
@@ -460,6 +530,190 @@ class TestManufacturingLossGenerator:
             assert stats["std"] >= 0
             assert stats["p99"] >= stats["p95"]
             assert stats["p95"] >= stats["median"]
+
+    def test_extreme_threshold_no_exceedances(self):
+        """When no losses exceed threshold, no transformation occurs."""
+        extreme_params = {
+            "threshold_value": 100_000_000,  # Very high threshold
+            "severity_shape": 0.3,
+            "severity_scale": 5_000_000,
+        }
+
+        gen = ManufacturingLossGenerator(extreme_params=extreme_params, seed=42)
+
+        losses, stats = gen.generate_losses(duration=10, revenue=10_000_000)
+
+        # Should have no extreme losses
+        assert stats["extreme_count"] == 0
+        assert stats["extreme_amount"] == 0
+        assert all(loss.loss_type != "extreme" for loss in losses)
+
+    def test_extreme_threshold_with_exceedances(self):
+        """Losses exceeding threshold are transformed by GPD."""
+        extreme_params = {
+            "threshold_value": 2_000_000,  # Moderate threshold
+            "severity_shape": 0.4,
+            "severity_scale": 1_000_000,
+        }
+
+        gen = ManufacturingLossGenerator(extreme_params=extreme_params, seed=42)
+
+        losses, stats = gen.generate_losses(duration=100, revenue=10_000_000)
+
+        # Should have some extreme losses
+        extreme_losses = [loss for loss in losses if loss.loss_type == "extreme"]
+        assert len(extreme_losses) > 0
+        assert stats["extreme_count"] == len(extreme_losses)
+
+        # All extreme losses should exceed threshold
+        for loss in extreme_losses:
+            assert loss.amount > extreme_params["threshold_value"]
+
+        # Extreme amount should be sum of extreme losses
+        assert abs(stats["extreme_amount"] - sum(loss.amount for loss in extreme_losses)) < 0.01
+
+    def test_extreme_transformation_mechanics(self):
+        """GPD transformation follows threshold_value + excess formula."""
+        extreme_params = {
+            "threshold_value": 5_000_000,
+            "severity_shape": 0.2,
+            "severity_scale": 2_000_000,
+        }
+
+        # Use catastrophic-only to get predictable large losses
+        gen = ManufacturingLossGenerator(
+            attritional_params={"base_frequency": 0.0},
+            large_params={"base_frequency": 0.0},
+            catastrophic_params={"base_frequency": 1.0, "severity_xm": 6_000_000},
+            extreme_params=extreme_params,
+            seed=42,
+        )
+
+        losses, stats = gen.generate_losses(duration=10, revenue=10_000_000)
+
+        extreme_losses = [loss for loss in losses if loss.loss_type == "extreme"]
+
+        # Verify transformed losses follow threshold + GPD_excess structure
+        # All should be >= threshold_value
+        assert all(loss.amount >= extreme_params["threshold_value"] for loss in extreme_losses)
+
+    def test_extreme_params_none_backward_compatibility(self):
+        """When extreme_params=None, behavior is unchanged."""
+        gen1 = ManufacturingLossGenerator(seed=42)  # No extreme_params
+        gen2 = ManufacturingLossGenerator(extreme_params=None, seed=42)  # Explicit None
+
+        losses1, stats1 = gen1.generate_losses(duration=10, revenue=10_000_000)
+        losses2, stats2 = gen2.generate_losses(duration=10, revenue=10_000_000)
+
+        # Results should be identical
+        assert len(losses1) == len(losses2)
+        assert stats1["total_amount"] == stats2["total_amount"]
+        assert stats1.get("extreme_count", 0) == 0
+        assert stats2.get("extreme_count", 0) == 0
+
+    def test_extreme_threshold_value_none_disables_gpd(self):
+        """When threshold_value=None, GPD is disabled even if other params provided."""
+        extreme_params = {
+            "threshold_value": None,  # Explicitly disabled
+            "severity_shape": 0.3,
+            "severity_scale": 1_000_000,
+        }
+
+        gen = ManufacturingLossGenerator(extreme_params=extreme_params, seed=42)
+        losses, stats = gen.generate_losses(duration=10, revenue=10_000_000)
+
+        # Should behave as if extreme_params was None
+        assert stats.get("extreme_count", 0) == 0
+        assert all(loss.loss_type != "extreme" for loss in losses)
+
+    def test_extreme_preserves_original_loss_attributes(self):
+        """Extreme transformation preserves time and other attributes."""
+        extreme_params = {
+            "threshold_value": 3_000_000,
+            "severity_shape": 0.3,
+            "severity_scale": 1_500_000,
+        }
+
+        gen = ManufacturingLossGenerator(extreme_params=extreme_params, seed=42)
+        losses, _ = gen.generate_losses(duration=10, revenue=10_000_000)
+
+        extreme_losses = [loss for loss in losses if loss.loss_type == "extreme"]
+
+        # All extreme losses should have valid timestamps
+        for loss in extreme_losses:
+            assert 0 <= loss.time <= 10
+            assert loss.amount > 0
+
+    def test_extreme_handles_multiple_exceedances_per_year(self):
+        """Multiple losses can exceed threshold in single simulation."""
+        extreme_params = {
+            "threshold_value": 1_500_000,
+            "severity_shape": 0.5,
+            "severity_scale": 800_000,
+        }
+
+        gen = ManufacturingLossGenerator(
+            catastrophic_params={"base_frequency": 5.0},  # High frequency
+            extreme_params=extreme_params,
+            seed=42,
+        )
+
+        losses, stats = gen.generate_losses(duration=100, revenue=10_000_000)
+
+        # Should have multiple extreme events
+        assert stats["extreme_count"] > 1
+
+        # Losses should remain sorted by time
+        times = [loss.time for loss in losses]
+        assert times == sorted(times)
+
+    def test_extreme_statistics_accuracy(self):
+        """Statistics correctly reflect extreme transformations."""
+        extreme_params = {
+            "threshold_value": 2_500_000,
+            "severity_shape": 0.3,
+            "severity_scale": 1_200_000,
+        }
+
+        gen = ManufacturingLossGenerator(extreme_params=extreme_params, seed=42)
+        losses, stats = gen.generate_losses(duration=100, revenue=10_000_000)
+
+        # Manually calculate totals
+        attritional_total = sum(loss.amount for loss in losses if loss.loss_type == "attritional")
+        large_total = sum(loss.amount for loss in losses if loss.loss_type == "large")
+        catastrophic_total = sum(loss.amount for loss in losses if loss.loss_type == "catastrophic")
+        extreme_total = sum(loss.amount for loss in losses if loss.loss_type == "extreme")
+
+        # Verify statistics match
+        assert abs(stats["attritional_amount"] - attritional_total) < 0.01
+        assert abs(stats["large_amount"] - large_total) < 0.01
+        assert abs(stats["catastrophic_amount"] - catastrophic_total) < 0.01
+        assert abs(stats["extreme_amount"] - extreme_total) < 0.01
+
+        # Total should equal sum of all components
+        total_calculated = attritional_total + large_total + catastrophic_total + extreme_total
+        assert abs(stats["total_amount"] - total_calculated) < 0.01
+
+    def test_extreme_reproducibility_with_seed(self):
+        """Same seed produces identical results with GPD."""
+        extreme_params = {
+            "threshold_value": 3_000_000,
+            "severity_shape": 0.4,
+            "severity_scale": 1_500_000,
+        }
+
+        gen1 = ManufacturingLossGenerator(extreme_params=extreme_params, seed=123)
+        gen2 = ManufacturingLossGenerator(extreme_params=extreme_params, seed=123)
+
+        losses1, stats1 = gen1.generate_losses(duration=10, revenue=10_000_000)
+        losses2, stats2 = gen2.generate_losses(duration=10, revenue=10_000_000)
+
+        # Results should be identical
+        assert len(losses1) == len(losses2)
+        for l1, l2 in zip(losses1, losses2):
+            assert abs(l1.amount - l2.amount) < 0.01
+            assert abs(l1.time - l2.time) < 1e-10
+            assert l1.loss_type == l2.loss_type
 
 
 class TestStatisticalTests:
