@@ -83,7 +83,7 @@ class TestMonteCarloExtended:
             insurance_recoveries=np.ones((4, 2)) * 5_000,
             retained_losses=np.ones((4, 2)) * 5_000,
             growth_rates=np.array([0.05, 0.10, -1.0, -1.0]),
-            ruin_probability=0.5,
+            ruin_probability={"2": 0.5},
             metrics={"mean_loss": 10_000, "var_95": 20_000},
             convergence={
                 "metric1": ConvergenceStats(
@@ -100,7 +100,7 @@ class TestMonteCarloExtended:
         )
 
         custom_summary = custom_results.summary()
-        assert "Ruin Probability: 50.00%" in custom_summary
+        assert "Year 2: 50.00%" in custom_summary
         assert "Execution Time: 1.50s" in custom_summary
 
     def test_run_sequential_with_progress(self, setup_simple_engine):
@@ -114,8 +114,10 @@ class TestMonteCarloExtended:
         assert hasattr(results, "final_assets"), "Results should have final_assets attribute"
         assert len(results.final_assets) == 10, "Should have results for 10 simulations"
         assert np.all(np.isfinite(results.final_assets)), "All final assets should be finite"
-        assert results.ruin_probability >= 0, "Ruin probability should be non-negative"
-        assert results.ruin_probability <= 1, "Ruin probability should be at most 1"
+        # Access final ruin probability from dict
+        final_ruin_prob = results.ruin_probability[str(results.config.n_years)]
+        assert final_ruin_prob >= 0, "Ruin probability should be non-negative"
+        assert final_ruin_prob <= 1, "Ruin probability should be at most 1"
 
     def test_parallel_with_different_chunks(self, setup_simple_engine):
         """Test parallel processing with various chunk configurations."""
@@ -239,7 +241,7 @@ class TestMonteCarloExtended:
             insurance_recoveries=np.ones((2, 2)),
             retained_losses=np.ones((2, 2)),
             growth_rates=np.array([0.05, 0.10]),
-            ruin_probability=0.0,
+            ruin_probability={"2": 0.0},
             metrics={},
             convergence={},
             execution_time=1.0,
@@ -366,7 +368,9 @@ class TestMonteCarloExtended:
 
         assert len(results.final_assets) == 4
         assert results.annual_losses.shape == (4, 2)
-        assert results.ruin_probability == 0.0  # No ruins in test data
+        # Access final ruin probability from dict
+        final_ruin_prob = results.ruin_probability[str(results.config.n_years)]
+        assert final_ruin_prob == 0.0  # No ruins in test data
 
     def test_metrics_with_zero_variance(self, setup_simple_engine):
         """Test metrics calculation with zero variance data."""
@@ -379,7 +383,7 @@ class TestMonteCarloExtended:
             insurance_recoveries=np.ones((10, 2)) * 5_000,
             retained_losses=np.ones((10, 2)) * 5_000,
             growth_rates=np.zeros(10),  # Zero variance
-            ruin_probability=0.0,
+            ruin_probability={"2": 0.0},
             metrics={},
             convergence={},
             execution_time=1.0,

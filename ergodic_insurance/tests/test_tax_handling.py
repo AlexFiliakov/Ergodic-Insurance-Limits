@@ -248,10 +248,10 @@ class TestTaxHandling:
         assert manufacturer.period_insurance_premiums == 0
 
     def test_period_loss_tracking(self, manufacturer):
-        """Test that loss tracking works correctly.
+        """Test that deductibles create liabilities, not expenses.
 
-        Verifies that company payments on claims are properly tracked
-        for tax purposes.
+        With correct accounting, deductibles create liabilities that reduce equity
+        through the accounting equation, not expenses that reduce operating income.
         """
         # Process a claim to generate company payment
         claim_amount = 2_000_000
@@ -261,8 +261,9 @@ class TestTaxHandling:
             claim_amount, deductible, 10_000_000
         )
 
-        # Verify loss tracking
-        assert manufacturer.period_insurance_losses == company_payment
+        # Verify deductible creates liability, not expense
+        assert manufacturer.period_insurance_losses == 0  # No expense recorded
+        assert manufacturer.total_claim_liabilities == company_payment  # Liability created
         assert company_payment == deductible  # Should equal deductible amount
         assert insurance_payment == claim_amount - deductible
 
@@ -272,9 +273,11 @@ class TestTaxHandling:
         Verifies that period insurance costs are properly reset
         after each simulation step.
         """
-        # Add some period costs
+        # Add premium (which creates an expense)
         manufacturer.record_insurance_premium(300_000)
-        manufacturer.process_insurance_claim(1_000_000, 200_000, 5_000_000)
+
+        # Add uninsured claim with immediate payment (which creates an expense)
+        manufacturer.process_uninsured_claim(200_000, immediate_payment=True)
 
         # Verify costs are tracked
         assert manufacturer.period_insurance_premiums > 0

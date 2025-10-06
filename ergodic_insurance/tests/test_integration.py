@@ -477,10 +477,19 @@ class TestIntegration:
         # Create manufacturer
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
 
-        # Create insurance program (if using enhanced insurance)
-        from ergodic_insurance.insurance_program import InsuranceProgram
+        # Create insurance program with reasonable coverage
+        from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 
-        insurance_program = InsuranceProgram(layers=[])
+        # Based on loss statistics: mean ~$69k, p95 ~$202k, max ~$1.24M
+        # Attachment: $50k covers most attritional losses
+        # Limit: $5M covers catastrophic events
+        # Rate: 2% provides fair premium (~$100k on $5M limit)
+        layer = EnhancedInsuranceLayer(
+            attachment_point=50_000,
+            limit=5_000_000,
+            base_premium_rate=0.02,
+        )
+        insurance_program = InsuranceProgram(layers=[layer])
 
         # Create ergodic analyzer
         analyzer = ErgodicAnalyzer()

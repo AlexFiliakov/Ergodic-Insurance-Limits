@@ -1722,9 +1722,10 @@ class WidgetManufacturer:
             )
             self.claim_liabilities.append(claim)
 
-            # Record the company payment (deductible) immediately for tax purposes
-            # This ensures proper tax treatment in the same period as the claim
-            self.record_insurance_loss(company_payment)
+            # Note: We don't record an insurance loss expense here because the liability
+            # creation already reduces equity via the accounting equation (Assets - Liabilities = Equity).
+            # Recording it as both a liability AND an expense would double-count the impact.
+            # The tax deduction flows through naturally as the liability impacts equity.
 
             logger.info(
                 f"Company portion: ${company_payment:,.2f} - collateralized with payment schedule"
@@ -2185,13 +2186,23 @@ class WidgetManufacturer:
 
         return True
 
-    def calculate_metrics(self, period_revenue: Optional[float] = None) -> Dict[str, float]:
+    def calculate_metrics(
+        self,
+        period_revenue: Optional[float] = None,
+        letter_of_credit_rate: float = 0.015,
+    ) -> Dict[str, float]:
         """Calculate comprehensive financial metrics for analysis.
 
         This method computes a complete set of financial metrics including
         balance sheet items, income statement components, and financial ratios.
         It provides a standardized view of the company's financial performance
         and position for simulation analysis.
+
+        Args:
+            period_revenue (Optional[float]): Actual revenue earned during the period.
+                If None, calculates based on current assets.
+            letter_of_credit_rate (float): Annual interest rate for letter of credit
+                collateral. Defaults to 0.015 (1.5%).
 
         Returns:
             Dict[str, float]: Comprehensive metrics dictionary with keys:
@@ -2307,7 +2318,7 @@ class WidgetManufacturer:
         # Calculate depreciation for metrics (annual basis)
         annual_depreciation = self.gross_ppe / 10 if self.gross_ppe > 0 else 0.0
         operating_income = self.calculate_operating_income(revenue, annual_depreciation)
-        collateral_costs = self.calculate_collateral_costs()
+        collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
         # Insurance costs already deducted in calculate_operating_income
         # Don't accrue taxes here since this is just for metrics reporting
         net_income = self.calculate_net_income(
@@ -2712,8 +2723,10 @@ class WidgetManufacturer:
         self.check_solvency()
 
         # Calculate and store metrics
-        # Pass the actual period revenue to get accurate metrics
-        metrics = self.calculate_metrics(period_revenue=revenue)
+        # Pass the actual period revenue and LoC rate to get accurate metrics
+        metrics = self.calculate_metrics(
+            period_revenue=revenue, letter_of_credit_rate=letter_of_credit_rate
+        )
         metrics["year"] = self.current_year
         metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
         self.metrics_history.append(metrics)

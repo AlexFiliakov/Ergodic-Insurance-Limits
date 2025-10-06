@@ -314,6 +314,11 @@ class TestMonteCarloIntegration:
         manufacturer = MagicMock()
         manufacturer.total_assets = 10_000_000
 
+        # Set up manufacturer config with required attributes
+        manufacturer.config = MagicMock()
+        manufacturer.config.initial_assets = 10_000_000
+        manufacturer.config.asset_turnover_ratio = 0.5
+
         # Create a copy that returns a new mock with the same attributes
         manufacturer_copy = MagicMock()
         manufacturer_copy.total_assets = 10_000_000
