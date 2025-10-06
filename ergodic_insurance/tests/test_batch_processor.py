@@ -478,13 +478,13 @@ class TestBatchProcessor:
 
         # Create multiple simulation results
         sim_results1 = MagicMock(spec=SimulationResults)
-        sim_results1.ruin_probability = {"5": 0.01}
+        sim_results1.ruin_probability = {"5": 0.02, "10": 0.05, "20": 0.08}
         sim_results1.growth_rates = np.array([0.08, 0.09])
         sim_results1.final_assets = np.array([1e7, 1.1e7])
         sim_results1.metrics = {"var_95": 500000, "var_99": 1000000}
 
         sim_results2 = MagicMock(spec=SimulationResults)
-        sim_results2.ruin_probability = {"5": 0.02}
+        sim_results2.ruin_probability = {"5": 0.01, "10": 0.03, "20": 0.06}
         sim_results2.growth_rates = np.array([0.06, 0.07])
         sim_results2.final_assets = np.array([0.9e7, 0.95e7])
         sim_results2.metrics = {"var_95": 600000, "var_99": 1200000}

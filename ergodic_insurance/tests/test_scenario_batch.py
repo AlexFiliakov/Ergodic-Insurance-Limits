@@ -65,7 +65,7 @@ def mock_simulation_results():
         insurance_recoveries=np.random.exponential(50000, (n_sims, n_years)),
         retained_losses=np.random.exponential(50000, (n_sims, n_years)),
         growth_rates=np.random.normal(0.05, 0.02, n_sims),
-        ruin_probability={"5": 0.02},
+        ruin_probability={"5": 0.02, "10": 0.05, "20": 0.08},
         metrics={"var_95": 14000000, "var_99": 12000000, "tvar_95": 13000000, "tvar_99": 11000000},
         convergence={},
         execution_time=5.5,
