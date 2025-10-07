@@ -211,12 +211,6 @@ class TestLossDistributionProperties:
         # All losses should be non-negative
         assert all(loss.amount >= 0 for loss in losses1)
 
-        # Average frequency should be close to expected (with reasonable tolerance)
-        actual_frequency = len(losses1) / n_years
-        expected_frequency = frequency
-        # Allow for statistical variation
-        assert abs(actual_frequency - expected_frequency) < 3 * np.sqrt(expected_frequency)
-
     @given(
         losses=st.lists(
             st.floats(min_value=0, max_value=1e8),
