@@ -130,7 +130,7 @@ class TestWidgetManufacturer:
         assert manufacturer.retention_ratio == 1.0
         assert manufacturer.current_year == 0
         assert manufacturer.current_month == 0
-        assert manufacturer.is_ruined is False
+        assert not manufacturer.is_ruined
         assert len(manufacturer.claim_liabilities) == 0
         assert len(manufacturer.metrics_history) == 0
 
@@ -358,7 +358,7 @@ class TestWidgetManufacturer:
         assert metrics["equity"] == 10_000_000
         assert metrics["net_assets"] == 10_000_000
         assert metrics["claim_liabilities"] == 0
-        assert metrics["is_solvent"] is True
+        assert metrics["is_solvent"]
         assert metrics["revenue"] == 10_000_000
         # Operating income now includes depreciation expense
         # PP&E is $3M (30% of $10M for 8% margin business), depreciation is $300k/year
@@ -474,64 +474,56 @@ class TestWidgetManufacturer:
         assert manufacturer.equity == 10_000_000
         assert manufacturer.current_year == 0
         assert manufacturer.current_month == 0
-        assert manufacturer.is_ruined is False
+        assert not manufacturer.is_ruined
         assert len(manufacturer.claim_liabilities) == 0
         assert len(manufacturer.metrics_history) == 0
         assert manufacturer.asset_turnover_ratio == 1.0
 
     def test_check_solvency(self, manufacturer):
         """Test solvency checking."""
-        assert manufacturer.check_solvency() is True
-        assert manufacturer.is_ruined is False
+        assert manufacturer.check_solvency()
+        assert not manufacturer.is_ruined
 
         # Make insolvent by reducing cash to make equity = 0
         current_equity = manufacturer.equity
         manufacturer.cash -= current_equity  # This will make equity = 0
-        assert manufacturer.check_solvency() is False
-        assert manufacturer.is_ruined is True
+        assert not manufacturer.check_solvency()
+        assert manufacturer.is_ruined
 
     def test_check_solvency_payment_insolvency(self, manufacturer):
-        """Test solvency checking with payment insolvency (new realistic detection)."""
-        # Create a significant but manageable loss that won't cause immediate insolvency
-        # but will create unsustainable payment burden over time
+        """Test solvency checking with payment insolvency (limited liability enforcement)."""
+        # Create a significant loss that will eventually deplete equity over time
+        # but won't cause immediate insolvency
         significant_loss = 8_000_000  # $8M loss (less than $10M assets)
         manufacturer.process_uninsured_claim(significant_loss)
 
         # Should be solvent initially - liabilities < assets
         # Equity = $10M assets - $8M liabilities = $2M
-        assert manufacturer.check_solvency() is True
-        assert manufacturer.is_ruined is False
+        assert manufacturer.check_solvency()
+        assert not manufacturer.is_ruined
 
-        # Move to year 1 - 10% payment = $800k, should be manageable
-        metrics = manufacturer.step()
-        assert metrics["is_solvent"] is True  # Should still be solvent
+        # Step through years and verify company eventually becomes insolvent
+        # as claim payments deplete equity, but equity never goes below $0
+        insolvency_detected = False
+        for year in range(1, 10):
+            metrics = manufacturer.step()
 
-        # Year 2 - 20% payment = $1.6M, may trigger payment insolvency
-        # depending on reduced revenue after year 1 payment
-        manufacturer.current_year = 2
-        current_revenue = manufacturer.calculate_revenue()
+            # LIMITED LIABILITY: Verify equity never goes negative
+            assert manufacturer.equity >= 0, (
+                f"Year {year}: Equity violated limited liability! "
+                f"Equity = ${manufacturer.equity:,.2f}"
+            )
 
-        # Calculate expected payments for year 2
-        expected_payments = significant_loss * 0.20  # $1.6M
-        payment_ratio = expected_payments / current_revenue
+            # Check if company became insolvent
+            if not metrics["is_solvent"]:
+                assert manufacturer.is_ruined
+                assert manufacturer.equity == 0  # Should be exactly 0 at insolvency
+                insolvency_detected = True
+                break
 
-        # Check if payment burden is unsustainable (> 80% of revenue)
-        if payment_ratio > 0.80:
-            # Should trigger payment insolvency
-            solvency_result = manufacturer.check_solvency()
-            assert solvency_result is False
-            assert manufacturer.is_ruined is True
-        else:
-            # If still manageable, continue to see if equity goes negative
-            for year in range(3, 10):
-                metrics = manufacturer.step()
-                # Check if company became insolvent
-                if not metrics["is_solvent"]:
-                    assert manufacturer.is_ruined is True
-                    return  # type: ignore[unreachable]  # Exit test early if insolvency detected
-
-            # If we get here and company is still solvent, that's also valid
-            # as the $8M loss may be manageable with this company's profitability
+        # The $8M loss should cause insolvency within 10 years, but if not,
+        # that's acceptable given the company's profitability
+        # The key test is that equity never went negative (limited liability enforced)
 
     def test_check_solvency_zero_equity(self, config):
         """Test solvency checking with zero equity (limited liability).
@@ -547,8 +539,8 @@ class TestWidgetManufacturer:
         # Set equity to exactly zero by reducing cash
         current_equity = manufacturer.equity
         manufacturer.cash -= current_equity  # This will make equity = 0
-        assert manufacturer.check_solvency() is False
-        assert manufacturer.is_ruined is True
+        assert not manufacturer.check_solvency()
+        assert manufacturer.is_ruined
         # LIMITED LIABILITY: Equity should be exactly 0, not negative
         assert manufacturer.equity == 0
 
@@ -582,7 +574,7 @@ class TestWidgetManufacturer:
         assert len(manufacturer.claim_liabilities) == 1
         assert manufacturer.claim_liabilities[0].original_amount == 1_000_000
         assert manufacturer.claim_liabilities[0].remaining_amount == 1_000_000
-        assert manufacturer.claim_liabilities[0].is_insured is False  # Uninsured claim
+        assert not manufacturer.claim_liabilities[0].is_insured  # Uninsured claim
 
         # Pay first year payment (10% = $100K)
         total_paid = manufacturer.pay_claim_liabilities()
@@ -642,7 +634,7 @@ class TestWidgetManufacturer:
         if manufacturer.is_ruined:
             # Company is ruined - could be due to negative equity OR unsustainable payment burden
             # Payment insolvency can occur with positive equity if claim payments are unsustainable
-            assert manufacturer.is_ruined is True
+            assert manufacturer.is_ruined
         else:
             # Company survived - should have positive equity
             assert manufacturer.equity > 0

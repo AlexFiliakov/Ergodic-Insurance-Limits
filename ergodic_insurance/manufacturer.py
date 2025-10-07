@@ -1171,6 +1171,9 @@ class WidgetManufacturer:
         # Calculate taxes (only on positive income)
         taxes = max(0, income_before_tax * self.tax_rate)
 
+        # Track actual tax expense (may be capped due to limited liability)
+        actual_tax_expense = taxes
+
         # Handle tax accruals if enabled
         if use_accrual and taxes > 0:
             # In monthly mode, only accrue taxes at specific points to avoid duplication
@@ -1195,26 +1198,42 @@ class WidgetManufacturer:
                 payment_dates = None  # Will use default QUARTERLY schedule
 
             if should_accrue:
-                # Record tax expense as accrual with quarterly payment schedule
-                if payment_dates:
-                    # Use custom payment dates for annual accrual
-                    self.accrual_manager.record_expense_accrual(
-                        item_type=AccrualType.TAXES,
-                        amount=taxes,
-                        payment_schedule=PaymentSchedule.CUSTOM,
-                        payment_dates=payment_dates,
-                        description=description,
-                    )
-                else:
-                    # Use default quarterly schedule
-                    self.accrual_manager.record_expense_accrual(
-                        item_type=AccrualType.TAXES,
-                        amount=taxes,
-                        payment_schedule=PaymentSchedule.QUARTERLY,
-                        description=description,
+                # LIMITED LIABILITY: Only accrue taxes if we have equity to support the liability
+                current_equity = self.equity
+                max_accrual = min(taxes, current_equity) if current_equity > 0 else 0.0
+
+                # Update actual tax expense to capped amount
+                actual_tax_expense = max_accrual
+
+                if max_accrual < taxes:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Cannot accrue full tax liability of ${taxes:,.2f}. "
+                        f"Equity only ${current_equity:,.2f}. Accruing ${max_accrual:,.2f}. "
+                        f"Tax expense reduced to ${actual_tax_expense:,.2f}"
                     )
 
-        net_income = income_before_tax - taxes
+                if max_accrual > 0:
+                    # Record tax expense as accrual with quarterly payment schedule
+                    if payment_dates:
+                        # Use custom payment dates for annual accrual
+                        self.accrual_manager.record_expense_accrual(
+                            item_type=AccrualType.TAXES,
+                            amount=max_accrual,
+                            payment_schedule=PaymentSchedule.CUSTOM,
+                            payment_dates=payment_dates,
+                            description=description,
+                        )
+                    else:
+                        # Use default quarterly schedule
+                        self.accrual_manager.record_expense_accrual(
+                            item_type=AccrualType.TAXES,
+                            amount=max_accrual,
+                            payment_schedule=PaymentSchedule.QUARTERLY,
+                            description=description,
+                        )
+
+        # LIMITED LIABILITY: Use actual tax expense (which may be capped) in net income calculation
+        net_income = income_before_tax - actual_tax_expense
 
         # Enhanced profit waterfall logging for complete transparency
         logger.info("===== PROFIT WATERFALL =====")
@@ -1226,8 +1245,10 @@ class WidgetManufacturer:
         if collateral_costs > 0:
             logger.info(f"  - Collateral Costs:    ${collateral_costs:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
-        logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${taxes:,.2f}")
-        if use_accrual and taxes > 0:
+        logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${actual_tax_expense:,.2f}")
+        if actual_tax_expense < taxes:
+            logger.info(f"    (Capped from ${taxes:,.2f} due to limited liability)")
+        if use_accrual and actual_tax_expense > 0:
             logger.info(f"    (Accrued for quarterly payment)")
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
@@ -1322,9 +1343,37 @@ class WidgetManufacturer:
             logger.info(f"Loss Absorption:         ${retained_earnings:,.2f}")
         logger.info("=================================")
 
-        # Add retained earnings to cash (increases assets, which increases equity through accounting equation)
-        # Allow cash to go negative to properly detect insolvency
-        self.cash = self.cash + retained_earnings
+        # LIMITED LIABILITY: Cap loss absorption at available equity AND available cash
+        if retained_earnings < 0:
+            current_equity = self.equity
+            available_cash = self.cash
+            # Can't absorb more loss than we have equity OR cash for
+            max_loss = (
+                min(abs(retained_earnings), current_equity, available_cash)
+                if (current_equity > 0 and available_cash > 0)
+                else 0.0
+            )
+            capped_loss = -max_loss  # Make it negative for subtraction
+
+            if abs(retained_earnings) > max_loss:
+                logger.warning(
+                    f"LIMITED LIABILITY: Loss absorption capped at ${max_loss:,.2f} "
+                    f"(equity=${current_equity:,.2f}, cash=${available_cash:,.2f}). "
+                    f"Cannot absorb full loss of ${abs(retained_earnings):,.2f}"
+                )
+
+            # Apply capped loss
+            self.cash += capped_loss
+
+            # Check if company is now insolvent after absorbing losses
+            if self.equity <= 0:
+                logger.warning(
+                    "Company equity at or below $0 after loss absorption. "
+                    "Insolvency will be detected in check_solvency()"
+                )
+        else:
+            # Positive retained earnings - add to cash normally
+            self.cash += retained_earnings
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
@@ -1396,6 +1445,21 @@ class WidgetManufacturer:
         # Increases in AR and inventory reduce cash (cash converted to these assets)
         # Increases in AP increase cash (we have the cash but owe it to vendors)
         cash_impact = -(ar_change + inventory_change) + ap_change
+
+        # LIMITED LIABILITY: Don't let working capital changes make cash negative
+        if cash_impact < 0:
+            # Check if this would make cash negative
+            new_cash = self.cash + cash_impact
+            if new_cash < 0:
+                # Cap the negative impact to bring cash to exactly $0
+                actual_impact = -self.cash
+                logger.warning(
+                    f"LIMITED LIABILITY: Working capital impact capped at ${actual_impact:,.2f} "
+                    f"(requested: ${cash_impact:,.2f}, available cash: ${self.cash:,.2f}). "
+                    f"Cash floored at $0."
+                )
+                cash_impact = actual_impact
+
         self.cash += cash_impact
 
         # Now total assets remain constant - we've just reallocated between components
@@ -1841,8 +1905,10 @@ class WidgetManufacturer:
 
         if immediate_payment:
             # LIMITED LIABILITY: Cap payment at available equity to prevent negative equity
-            current_equity = self.equity
-            max_payable = min(claim_amount, current_equity) if current_equity > 0 else 0.0
+            equity_before_payment = self.equity
+            max_payable = (
+                min(claim_amount, equity_before_payment) if equity_before_payment > 0 else 0.0
+            )
 
             # Pay immediately - reduce cash, capped at equity
             # First, try to pay from cash
@@ -1882,13 +1948,25 @@ class WidgetManufacturer:
             # Create a liability for the unpaid portion (shortfall)
             shortfall = claim_amount - actual_payment
             if shortfall > 0:
-                # LIMITED LIABILITY: Only create liability up to remaining equity
+                # LIMITED LIABILITY: After making payment, don't create liability that would violate limited liability
+                # The payment already reduced equity. Creating additional liability reduces equity further.
+                # We can ONLY create liability if current equity can absorb both:
+                # 1. The loss from the payment we just made (already reflected in equity)
+                # 2. The additional liability we're about to create (not yet reflected)
+
                 current_equity_after_payment = self.equity
-                max_liability = (
-                    min(shortfall, current_equity_after_payment)
-                    if current_equity_after_payment > 0
-                    else 0.0
-                )
+
+                # CONSERVATIVE APPROACH: Don't create ANY additional liability after immediate payment
+                # The payment already stressed the balance sheet. Adding liability risks negative equity.
+                # This enforces strict limited liability: payment exhausts available resources.
+                max_liability = 0.0
+                if shortfall > 0:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Not creating liability for ${shortfall:,.2f} shortfall after immediate payment. "
+                        f"Paid ${actual_payment:,.2f} (equity was ${equity_before_payment:,.2f}). "
+                        f"Current equity: ${current_equity_after_payment:,.2f}. "
+                        f"Creating liability would risk negative equity."
+                    )
 
                 if max_liability > 0:
                     claim = ClaimLiability(
@@ -2319,6 +2397,14 @@ class WidgetManufacturer:
             :attr:`equity`: Financial equity determining solvency.
             :meth:`step`: Automatically includes solvency checking.
         """
+        # LIMITED LIABILITY ENFORCEMENT: Cash should never be negative
+        if self.cash < 0:
+            logger.error(
+                f"CRITICAL: Cash is negative (${self.cash:,.2f})! This violates limited liability. "
+                f"Adjusting cash to $0. This indicates a bug in payment capping logic."
+            )
+            self.cash = 0
+
         # LIMITED LIABILITY ENFORCEMENT: Equity should never be significantly negative
         # Allow small tolerance for floating-point rounding errors
         EQUITY_TOLERANCE = 1e-6
@@ -2612,19 +2698,46 @@ class WidgetManufacturer:
         # Get all payments due this period
         payments_due = self.accrual_manager.get_payments_due(period)
 
+        # LIMITED LIABILITY: Cap TOTAL payments at available equity
+        total_due = sum(payments_due.values())
+        current_equity = self.equity
+        max_total_payable = min(total_due, current_equity) if current_equity > 0 else 0.0
+
+        if total_due > max_total_payable:
+            logger.warning(
+                f"LIMITED LIABILITY: Capping total accrued payments. "
+                f"Due: ${total_due:,.2f}, Payable: ${max_total_payable:,.2f} (equity limit)"
+            )
+
+        # Calculate payment ratio to proportionally reduce each accrual
+        payment_ratio = max_total_payable / total_due if total_due > 0 else 0.0
+
         total_paid = 0.0
         for accrual_type, amount_due in payments_due.items():
-            # Process the payment
-            self.accrual_manager.process_payment(accrual_type, amount_due, period)
+            # Apply payment ratio to this accrual
+            payable_amount = amount_due * payment_ratio
+            unpayable_amount = amount_due - payable_amount
 
-            # Reduce cash for payment
-            self.cash -= amount_due
-            total_paid += amount_due
+            if payable_amount > 0:
+                # Process the payment (proportional share of what we can afford)
+                self.accrual_manager.process_payment(accrual_type, payable_amount, period)
 
-            # Update accrued_expenses balance
-            self.accrued_expenses = max(0, self.accrued_expenses - amount_due)
+                # Reduce cash for payment
+                self.cash -= payable_amount
+                total_paid += payable_amount
 
-            logger.debug(f"Paid accrued {accrual_type.value}: ${amount_due:,.2f}")
+                # Update accrued_expenses balance for paid amount
+                self.accrued_expenses = max(0, self.accrued_expenses - payable_amount)
+
+                logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
+
+            # LIMITED LIABILITY: Discharge unpayable accrued expenses from liabilities
+            if unpayable_amount > 0:
+                # Remove unpayable amount from accrued_expenses (discharge debt)
+                self.accrued_expenses = max(0, self.accrued_expenses - unpayable_amount)
+                logger.warning(
+                    f"LIMITED LIABILITY: Discharged ${unpayable_amount:,.2f} of unpayable {accrual_type.value} from liabilities"
+                )
 
         if total_paid > 0:
             logger.info(f"Total accrual payments this period: ${total_paid:,.2f}")
