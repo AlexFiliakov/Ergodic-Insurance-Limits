@@ -1707,32 +1707,80 @@ class WidgetManufacturer:
 
         # Company payment is collateralized and paid over time
         if company_payment > 0:
-            # Post letter of credit as collateral for company payment
-            # Transfer cash to restricted assets (no change in total assets)
-            self.collateral += company_payment
-            self.restricted_assets += company_payment
-            self.cash -= company_payment  # Move cash to restricted
-
-            # Create claim liability with payment schedule for company portion
-            claim = ClaimLiability(
-                original_amount=company_payment,
-                remaining_amount=company_payment,
-                year_incurred=self.current_year,
-                is_insured=True,  # This is the company portion of an insured claim
+            # LIMITED LIABILITY: Cap company payment at available equity AND available cash
+            current_equity = self.equity
+            available_cash = self.cash
+            # Can only post collateral up to the lesser of equity and cash
+            max_payable = (
+                min(company_payment, current_equity, available_cash) if current_equity > 0 else 0.0
             )
-            self.claim_liabilities.append(claim)
+            unpayable_amount = company_payment - max_payable
+
+            if max_payable > 0:
+                # Post letter of credit as collateral for the payable amount
+                # Transfer cash to restricted assets (no change in total assets)
+                self.collateral += max_payable
+                self.restricted_assets += max_payable
+                self.cash -= max_payable  # Move cash to restricted
+
+                # Create claim liability with payment schedule for payable portion
+                claim = ClaimLiability(
+                    original_amount=max_payable,
+                    remaining_amount=max_payable,
+                    year_incurred=self.current_year,
+                    is_insured=True,  # This is the company portion of an insured claim
+                )
+                self.claim_liabilities.append(claim)
+
+                logger.info(
+                    f"Company portion: ${max_payable:,.2f} - collateralized with payment schedule"
+                )
+                logger.info(
+                    f"Posted ${max_payable:,.2f} letter of credit as collateral for company portion"
+                )
+
+            # Handle unpayable portion (exceeds equity/cash)
+            if unpayable_amount > 0:
+                # LIMITED LIABILITY: Only create liability if we can afford it (won't make equity negative)
+                # Check current equity after posting collateral
+                current_equity_after_collateral = self.equity
+                max_liability = (
+                    min(unpayable_amount, current_equity_after_collateral)
+                    if current_equity_after_collateral > 0
+                    else 0.0
+                )
+
+                if max_liability > 0:
+                    # Create liability for the amount we can afford
+                    unpayable_claim = ClaimLiability(
+                        original_amount=max_liability,
+                        remaining_amount=max_liability,
+                        year_incurred=self.current_year,
+                        is_insured=False,  # No insurance coverage for this portion
+                    )
+                    self.claim_liabilities.append(unpayable_claim)
+
+                    logger.warning(
+                        f"LIMITED LIABILITY: Company payment capped at ${max_payable:,.2f} (cash/equity). "
+                        f"Additional liability recorded: ${max_liability:,.2f}"
+                    )
+
+                # Log the truly unpayable amount that can't even be recorded as liability
+                truly_unpayable = unpayable_amount - max_liability
+                if truly_unpayable > 0:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} as liability "
+                        f"(would violate limited liability). Company is insolvent."
+                    )
+
+                # Check if company is now insolvent
+                if self.equity <= 0:
+                    self.check_solvency()
 
             # Note: We don't record an insurance loss expense here because the liability
             # creation already reduces equity via the accounting equation (Assets - Liabilities = Equity).
             # Recording it as both a liability AND an expense would double-count the impact.
             # The tax deduction flows through naturally as the liability impacts equity.
-
-            logger.info(
-                f"Company portion: ${company_payment:,.2f} - collateralized with payment schedule"
-            )
-            logger.info(
-                f"Posted ${company_payment:,.2f} letter of credit as collateral for company portion"
-            )
 
         # Insurance payment creates a receivable
         if insurance_payment > 0:
@@ -1792,28 +1840,32 @@ class WidgetManufacturer:
             return 0.0
 
         if immediate_payment:
-            # Pay immediately - reduce cash
+            # LIMITED LIABILITY: Cap payment at available equity to prevent negative equity
+            current_equity = self.equity
+            max_payable = min(claim_amount, current_equity) if current_equity > 0 else 0.0
+
+            # Pay immediately - reduce cash, capped at equity
             # First, try to pay from cash
-            cash_payment = min(claim_amount, self.cash)
-            remaining_to_pay = claim_amount - cash_payment
+            cash_payment = min(max_payable, self.cash)
+            remaining_to_pay = max_payable - cash_payment
 
             # If cash isn't enough, liquidate other current assets proportionally
             if remaining_to_pay > 0:
                 # Total liquid assets we can use (cash + AR + inventory)
                 liquid_assets = self.cash + self.accounts_receivable + self.inventory
                 if liquid_assets > 0:
-                    # Pay what we can from liquid assets
-                    actual_payment = min(claim_amount, liquid_assets)
+                    # Pay what we can from liquid assets, but not more than max_payable
+                    actual_payment = min(max_payable, liquid_assets)
 
                     # Reduce liquid assets proportionally
-                    if liquid_assets > claim_amount:
+                    if liquid_assets > max_payable:
                         # We have enough liquid assets
-                        reduction_ratio = claim_amount / liquid_assets
+                        reduction_ratio = max_payable / liquid_assets
                         self.cash *= 1 - reduction_ratio
                         self.accounts_receivable *= 1 - reduction_ratio
                         self.inventory *= 1 - reduction_ratio
                     else:
-                        # Use all liquid assets
+                        # Use all liquid assets (up to max_payable)
                         self.cash = 0
                         self.accounts_receivable = 0
                         self.inventory = 0
@@ -1824,38 +1876,76 @@ class WidgetManufacturer:
                 actual_payment = cash_payment
                 self.cash -= cash_payment
 
-            # Record as tax-deductible loss
+            # Record as tax-deductible loss (only what we actually paid)
             self.period_insurance_losses += actual_payment
 
-            # If we couldn't pay the full amount, create a liability for the shortfall
+            # Create a liability for the unpaid portion (shortfall)
             shortfall = claim_amount - actual_payment
             if shortfall > 0:
-                claim = ClaimLiability(
-                    original_amount=shortfall,
-                    remaining_amount=shortfall,
-                    year_incurred=self.current_year,
-                    is_insured=False,  # This is an uninsured claim
+                # LIMITED LIABILITY: Only create liability up to remaining equity
+                current_equity_after_payment = self.equity
+                max_liability = (
+                    min(shortfall, current_equity_after_payment)
+                    if current_equity_after_payment > 0
+                    else 0.0
                 )
-                self.claim_liabilities.append(claim)
-                logger.info(
-                    f"Paid uninsured claim: ${actual_payment:,.2f} immediately, "
-                    f"created liability for shortfall: ${shortfall:,.2f}"
-                )
+
+                if max_liability > 0:
+                    claim = ClaimLiability(
+                        original_amount=max_liability,
+                        remaining_amount=max_liability,
+                        year_incurred=self.current_year,
+                        is_insured=False,  # This is an uninsured claim
+                    )
+                    self.claim_liabilities.append(claim)
+                    logger.warning(
+                        f"LIMITED LIABILITY: Paid ${actual_payment:,.2f} (capped at equity), "
+                        f"created liability for ${max_liability:,.2f}"
+                    )
+
+                # Log the truly unpayable amount
+                truly_unpayable = shortfall - max_liability
+                if truly_unpayable > 0:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} as liability "
+                        f"(would violate limited liability). Company is insolvent."
+                    )
+
+                # Check if company is now insolvent
+                if self.equity <= 0:
+                    self.check_solvency()
             else:
                 logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
             return float(claim_amount)  # Return the full claim amount processed
 
         # Create liability without collateral for payment over time
-        claim = ClaimLiability(
-            original_amount=claim_amount,
-            remaining_amount=claim_amount,
-            year_incurred=self.current_year,
-            is_insured=False,  # This is an uninsured claim
-        )
-        self.claim_liabilities.append(claim)
-        logger.info(
-            f"Created uninsured claim liability: ${claim_amount:,.2f} (no collateral required)"
-        )
+        # LIMITED LIABILITY: Only create liability up to available equity
+        current_equity = self.equity
+        max_liability = min(claim_amount, current_equity) if current_equity > 0 else 0.0
+
+        if max_liability > 0:
+            claim = ClaimLiability(
+                original_amount=max_liability,
+                remaining_amount=max_liability,
+                year_incurred=self.current_year,
+                is_insured=False,  # This is an uninsured claim
+            )
+            self.claim_liabilities.append(claim)
+            logger.info(
+                f"Created uninsured claim liability: ${max_liability:,.2f} (no collateral required)"
+            )
+
+        # Log truly unpayable amount
+        unpayable = claim_amount - max_liability
+        if unpayable > 0:
+            logger.warning(
+                f"LIMITED LIABILITY: Cannot record ${unpayable:,.2f} as liability "
+                f"(would violate limited liability). Company may become insolvent."
+            )
+            # Check solvency if we couldn't create the full liability
+            if self.equity <= 0:
+                self.check_solvency()
+
         return claim_amount
 
     def pay_claim_liabilities(self) -> float:
@@ -1922,14 +2012,37 @@ class WidgetManufacturer:
         """
         total_paid = 0.0
 
+        # LIMITED LIABILITY: Calculate total scheduled payments and cap at equity
+        current_equity = self.equity
+        total_scheduled = 0.0
+        for claim in self.claim_liabilities:
+            years_since = self.current_year - claim.year_incurred
+            scheduled_payment = claim.get_payment(years_since)
+            total_scheduled += scheduled_payment
+
+        # Cap total payments at available equity
+        max_total_payable = min(total_scheduled, current_equity) if current_equity > 0 else 0.0
+
+        # If we need to cap payments, calculate reduction ratio
+        payment_ratio = 1.0
+        if total_scheduled > max_total_payable and total_scheduled > 0:
+            payment_ratio = max_total_payable / total_scheduled
+            logger.warning(
+                f"LIMITED LIABILITY: Capping claim payments at ${max_total_payable:,.2f} "
+                f"(scheduled: ${total_scheduled:,.2f}, equity: ${current_equity:,.2f})"
+            )
+
         for claim in self.claim_liabilities:
             years_since = self.current_year - claim.year_incurred
             scheduled_payment = claim.get_payment(years_since)
 
             if scheduled_payment > 0:
+                # Apply payment ratio to cap at equity
+                capped_scheduled = scheduled_payment * payment_ratio
+
                 if claim.is_insured:
                     # For insured claims: Pay from restricted assets (collateral)
-                    available_for_payment = min(scheduled_payment, self.restricted_assets)
+                    available_for_payment = min(capped_scheduled, self.restricted_assets)
                     actual_payment = available_for_payment
 
                     if actual_payment > 0:
@@ -1945,7 +2058,7 @@ class WidgetManufacturer:
                 else:
                     # For uninsured claims: Pay from available cash
                     available_for_payment = max(0, self.cash - 100_000)  # Keep minimum cash
-                    actual_payment = min(scheduled_payment, available_for_payment)
+                    actual_payment = min(capped_scheduled, available_for_payment)
 
                     if actual_payment > 0:
                         claim.make_payment(actual_payment)
@@ -1960,6 +2073,10 @@ class WidgetManufacturer:
 
         if total_paid > 0:
             logger.info(f"Paid ${total_paid:,.2f} toward claim liabilities")
+
+        # Check solvency after making payments
+        if payment_ratio < 1.0 or self.equity <= 0:
+            self.check_solvency()
 
         return total_paid
 
@@ -2090,6 +2207,59 @@ class WidgetManufacturer:
 
         return company_payment, insurance_payment, claim_object
 
+    def handle_insolvency(self) -> None:
+        """Handle insolvency by enforcing zero equity floor and freezing operations.
+
+        Implements standard bankruptcy accounting with limited liability:
+        - Sets equity floor at $0 (never negative)
+        - Marks company as insolvent (is_ruined = True)
+        - Keeps unpayable liabilities on the books
+        - Freezes all further business operations
+
+        This method enforces the limited liability principle that shareholders
+        cannot lose more than their equity investment. When equity reaches zero,
+        the company enters insolvency and creditors cannot claim beyond available
+        assets.
+
+        Side Effects:
+            - Sets :attr:`is_ruined` to True
+            - May adjust equity to exactly 0 if slightly negative due to rounding
+            - Logs insolvency event with current financial state
+            - Company remains insolvent for remainder of simulation
+
+        Note:
+            Under limited liability and standard bankruptcy accounting:
+            - Equity is floored at $0 (Assets - Liabilities may be negative)
+            - Unpayable liabilities remain on books until bankruptcy proceedings
+            - No further operations or payments after insolvency
+            - This is an absorbing state in the simulation
+
+        See Also:
+            :meth:`check_solvency`: Detects insolvency and calls this method.
+            :attr:`is_ruined`: Insolvency status flag.
+        """
+        # Ensure equity never goes below zero (limited liability)
+        if self.equity < 0:
+            # Small negative equity due to rounding - adjust to exactly zero
+            adjustment = -self.equity
+            self.cash += adjustment  # Add to cash to bring equity to 0
+            logger.info(
+                f"Adjusted equity from ${self.equity - adjustment:,.2f} to $0 "
+                f"(limited liability floor)"
+            )
+
+        # Mark as insolvent
+        if not self.is_ruined:
+            self.is_ruined = True
+            total_liabilities = self.total_claim_liabilities
+            logger.warning(
+                f"INSOLVENCY: Company is now insolvent. "
+                f"Equity: ${self.equity:,.2f}, "
+                f"Assets: ${self.total_assets:,.2f}, "
+                f"Liabilities: ${total_liabilities:,.2f}, "
+                f"Unpayable debt: ${max(0, total_liabilities - self.total_assets):,.2f}"
+            )
+
     def check_solvency(self) -> bool:
         """Check if the company is solvent and update ruin status.
 
@@ -2149,11 +2319,20 @@ class WidgetManufacturer:
             :attr:`equity`: Financial equity determining solvency.
             :meth:`step`: Automatically includes solvency checking.
         """
+        # LIMITED LIABILITY ENFORCEMENT: Equity should never be significantly negative
+        # Allow small tolerance for floating-point rounding errors
+        EQUITY_TOLERANCE = 1e-6
+        if self.equity < -EQUITY_TOLERANCE:
+            raise ValueError(
+                f"CRITICAL: Equity violated limited liability constraint! "
+                f"Equity = ${self.equity:,.2f} (should never be < ${-EQUITY_TOLERANCE:.6f}). "
+                f"This indicates a bug in payment capping logic."
+            )
+
         # Traditional balance sheet insolvency
         if self.equity <= 0:
-            if not self.is_ruined:  # Only log once
-                self.is_ruined = True
-                logger.warning(f"Company became insolvent - negative equity: ${self.equity:,.2f}")
+            # Call handle_insolvency to enforce limited liability and freeze operations
+            self.handle_insolvency()
             return False
 
         # Payment insolvency - check if claim payment obligations are unsustainable

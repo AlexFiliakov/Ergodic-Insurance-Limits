@@ -533,21 +533,24 @@ class TestWidgetManufacturer:
             # If we get here and company is still solvent, that's also valid
             # as the $8M loss may be manageable with this company's profitability
 
-    def test_check_solvency_negative_equity(self, config):
-        """Test solvency checking with negative equity.
+    def test_check_solvency_zero_equity(self, config):
+        """Test solvency checking with zero equity (limited liability).
 
         Args:
             config: Manufacturer configuration fixture.
 
-        Tests solvency checking behavior with negative equity values.
+        Tests that company becomes insolvent when equity reaches zero,
+        and that limited liability prevents negative equity.
         """
-        # Create new manufacturer to test negative equity scenario
+        # Create new manufacturer to test zero equity scenario
         manufacturer = WidgetManufacturer(config)
-        # Set negative equity by reducing cash
+        # Set equity to exactly zero by reducing cash
         current_equity = manufacturer.equity
-        manufacturer.cash -= current_equity + 100_000  # This will make equity = -100_000
+        manufacturer.cash -= current_equity  # This will make equity = 0
         assert manufacturer.check_solvency() is False
         assert manufacturer.is_ruined is True
+        # LIMITED LIABILITY: Equity should be exactly 0, not negative
+        assert manufacturer.equity == 0
 
     def test_monthly_collateral_costs(self, manufacturer):
         """Test monthly letter of credit cost tracking."""

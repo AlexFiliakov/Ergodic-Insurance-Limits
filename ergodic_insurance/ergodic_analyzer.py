@@ -777,7 +777,10 @@ class ErgodicAnalyzer:
 
         # Calculate growth rate
         if final_value > 0 and initial_value > 0 and time_horizon > 0:
-            return float((1.0 / time_horizon) * np.log(final_value / initial_value))
+            growth_rate = float((1.0 / time_horizon) * np.log(final_value / initial_value))
+            # LIMITED LIABILITY: Floor at -100% (-1.0) due to equity constraint
+            # Companies with limited liability cannot lose more than 100% of equity
+            return max(growth_rate, -1.0)
 
         return 0.0 if time_horizon <= 0 else -np.inf
 
