@@ -1359,30 +1359,47 @@ class WidgetManufacturer:
         if retained_earnings < 0:
             current_equity = self.equity
             available_cash = self.cash
-            # Can't absorb more loss than we have equity OR cash for
-            max_loss = (
-                min(abs(retained_earnings), current_equity, available_cash)
-                if (current_equity > 0 and available_cash > 0)
-                else 0.0
-            )
-            capped_loss = -max_loss  # Make it negative for subtraction
 
-            if abs(retained_earnings) > max_loss:
+            # STRICT ENFORCEMENT: If equity is already at or below $1, don't absorb ANY more losses
+            # This prevents rounding errors from pushing equity negative
+            if current_equity <= 1.0:
                 logger.warning(
-                    f"LIMITED LIABILITY: Loss absorption capped at ${max_loss:,.2f} "
-                    f"(equity=${current_equity:,.2f}, cash=${available_cash:,.2f}). "
-                    f"Cannot absorb full loss of ${abs(retained_earnings):,.2f}"
+                    f"LIMITED LIABILITY: Equity too low (${current_equity:,.2f}) to absorb any losses. "
+                    f"Cannot absorb loss of ${abs(retained_earnings):,.2f}. "
+                    f"Company will be marked insolvent."
                 )
-
-            # Apply capped loss
-            self.cash += capped_loss
-
-            # Check if company is now insolvent after absorbing losses
-            if self.equity <= 0:
-                logger.warning(
-                    "Company equity at or below $0 after loss absorption. "
-                    "Insolvency will be detected in check_solvency()"
+                # Don't reduce cash - company is already insolvent
+                # Check solvency will handle this
+                if current_equity <= 0:
+                    logger.warning(
+                        "Company equity at or below $0. Insolvency will be detected in check_solvency()"
+                    )
+            else:
+                # Can't absorb more loss than we have equity OR cash for
+                # Leave small buffer (min $1) to prevent rounding issues
+                max_loss = (
+                    min(abs(retained_earnings), current_equity - 1.0, available_cash)
+                    if (current_equity > 1.0 and available_cash > 0)
+                    else 0.0
                 )
+                capped_loss = -max_loss  # Make it negative for subtraction
+
+                if abs(retained_earnings) > max_loss:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Loss absorption capped at ${max_loss:,.2f} "
+                        f"(equity=${current_equity:,.2f}, cash=${available_cash:,.2f}). "
+                        f"Cannot absorb full loss of ${abs(retained_earnings):,.2f}"
+                    )
+
+                # Apply capped loss
+                self.cash += capped_loss
+
+                # Check if company is now insolvent after absorbing losses
+                if self.equity <= 0:
+                    logger.warning(
+                        "Company equity at or below $0 after loss absorption. "
+                        "Insolvency will be detected in check_solvency()"
+                    )
         else:
             # Positive retained earnings - add to cash normally
             self.cash += retained_earnings
@@ -1977,27 +1994,22 @@ class WidgetManufacturer:
             # Create a liability for the unpaid portion (shortfall)
             shortfall = claim_amount - actual_payment
             if shortfall > 0:
-                # LIMITED LIABILITY: After making payment, don't create liability that would violate limited liability
+                # LIMITED LIABILITY: After making payment, create liability up to available equity
                 # The payment already reduced equity. Creating additional liability reduces equity further.
-                # We can ONLY create liability if current equity can absorb both:
-                # 1. The loss from the payment we just made (already reflected in equity)
-                # 2. The additional liability we're about to create (not yet reflected)
+                # We can ONLY create liability up to remaining equity to prevent negative equity.
 
                 current_equity_after_payment = self.equity
 
-                # CONSERVATIVE APPROACH: Don't create ANY additional liability after immediate payment
-                # The payment already stressed the balance sheet. Adding liability risks negative equity.
-                # This enforces strict limited liability: payment exhausts available resources.
-                max_liability = 0.0
-                if shortfall > 0:
-                    logger.warning(
-                        f"LIMITED LIABILITY: Not creating liability for ${shortfall:,.2f} shortfall after immediate payment. "
-                        f"Paid ${actual_payment:,.2f} (equity was ${equity_before_payment:,.2f}). "
-                        f"Current equity: ${current_equity_after_payment:,.2f}. "
-                        f"Creating liability would risk negative equity."
-                    )
+                # Create liability up to available equity (prevents equity from going below zero)
+                # This properly accounts for the loss while enforcing limited liability
+                max_liability = (
+                    min(shortfall, current_equity_after_payment)
+                    if current_equity_after_payment > 0
+                    else 0.0
+                )
 
                 if max_liability > 0:
+                    # Create liability for the portion we can afford without going insolvent
                     claim = ClaimLiability(
                         original_amount=max_liability,
                         remaining_amount=max_liability,
@@ -2005,17 +2017,18 @@ class WidgetManufacturer:
                         is_insured=False,  # This is an uninsured claim
                     )
                     self.claim_liabilities.append(claim)
-                    logger.warning(
-                        f"LIMITED LIABILITY: Paid ${actual_payment:,.2f} (capped at equity), "
-                        f"created liability for ${max_liability:,.2f}"
+                    logger.info(
+                        f"LIMITED LIABILITY: Immediate payment ${actual_payment:,.2f}, "
+                        f"created liability for ${max_liability:,.2f} (total claim: ${claim_amount:,.2f})"
                     )
 
-                # Log the truly unpayable amount
+                # Log the truly unpayable amount (amount exceeding both liquid assets and equity)
                 truly_unpayable = shortfall - max_liability
                 if truly_unpayable > 0:
                     logger.warning(
-                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} as liability "
-                        f"(would violate limited liability). Company is insolvent."
+                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} of ${claim_amount:,.2f} claim as liability "
+                        f"(would violate limited liability). "
+                        f"Paid ${actual_payment:,.2f}, liability ${max_liability:,.2f}, shortfall ${truly_unpayable:,.2f}."
                     )
 
                 # Check if company is now insolvent
@@ -2972,9 +2985,39 @@ class WidgetManufacturer:
         if self.is_ruined:
             return self._handle_insolvent_step(time_resolution)
 
+        # Store initial revenue for working capital calculation in monthly mode
+        # This must happen BEFORE any balance sheet changes
+        if time_resolution == "monthly" and self.current_month == 0:
+            # Calculate the annual revenue with working capital adjustment
+            # This ensures consistency with annual mode
+            self._annual_revenue_for_wc = self.calculate_revenue(
+                working_capital_pct, apply_stochastic
+            )
+
+        # Calculate financial performance
+        revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
+
+        # Calculate working capital components BEFORE payment coordination
+        # Working capital changes can affect AP (liabilities) which changes equity
+        # So we need to update working capital BEFORE calculating payment caps
+        if working_capital_pct > 0:
+            # Use consistent revenue measure to avoid compounding effects
+            if time_resolution == "annual":
+                # Annual mode: use the annual revenue
+                self.calculate_working_capital_components(revenue)
+            elif time_resolution == "monthly":
+                # Monthly mode: use the stored annual revenue from year start
+                # This was calculated before any balance sheet changes
+                if hasattr(self, "_annual_revenue_for_wc"):
+                    self.calculate_working_capital_components(self._annual_revenue_for_wc)
+                else:
+                    # Fallback: use current assets (should not happen normally)
+                    annual_revenue = self.total_assets * self.asset_turnover_ratio
+                    self.calculate_working_capital_components(annual_revenue)
+
         # COORDINATED LIMITED LIABILITY ENFORCEMENT
         # Calculate total payments needed for both accruals and claims
-        # Then cap at current equity and allocate proportionally
+        # Then cap at current equity (AFTER working capital adjustments) and allocate proportionally
 
         # Determine current period for accrual manager
         if time_resolution == "monthly":
@@ -2995,7 +3038,7 @@ class WidgetManufacturer:
                 scheduled_payment = claim.get_payment(years_since)
                 total_claim_due += scheduled_payment
 
-        # Cap TOTAL payments at current equity
+        # Cap TOTAL payments at current equity (after working capital adjustments)
         total_payments_due = total_accrual_due + total_claim_due
         current_equity = self.equity
         max_total_payable = min(total_payments_due, current_equity) if current_equity > 0 else 0.0
@@ -3023,18 +3066,6 @@ class WidgetManufacturer:
         # Pay scheduled claim liabilities with coordinated cap
         if time_resolution == "annual" or self.current_month == 0:
             self.pay_claim_liabilities(max_payable=max_claim_payable)
-
-        # Store initial revenue for working capital calculation in monthly mode
-        # This must happen BEFORE any balance sheet changes
-        if time_resolution == "monthly" and self.current_month == 0:
-            # Calculate the annual revenue with working capital adjustment
-            # This ensures consistency with annual mode
-            self._annual_revenue_for_wc = self.calculate_revenue(
-                working_capital_pct, apply_stochastic
-            )
-
-        # Calculate financial performance
-        revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
 
         # Calculate depreciation expense for the period
         if time_resolution == "annual":
@@ -3069,25 +3100,8 @@ class WidgetManufacturer:
             time_resolution=time_resolution,
         )
 
-        # Calculate working capital components only if working capital is being used
-        # When working_capital_pct is 0, we don't need to track AR/inventory/AP
-        if working_capital_pct > 0:
-            # Use consistent revenue measure to avoid compounding effects
-            if time_resolution == "annual":
-                # Annual mode: use the annual revenue
-                self.calculate_working_capital_components(revenue)
-            elif time_resolution == "monthly":
-                # Monthly mode: use the stored annual revenue from year start
-                # This was calculated before any balance sheet changes
-                if hasattr(self, "_annual_revenue_for_wc"):
-                    self.calculate_working_capital_components(self._annual_revenue_for_wc)
-                else:
-                    # Fallback: use current assets (should not happen normally)
-                    annual_revenue = self.total_assets * self.asset_turnover_ratio
-                    self.calculate_working_capital_components(annual_revenue)
-
-        # Update balance sheet with retained earnings AFTER working capital calculation
-        # This prevents working capital from compounding with asset growth
+        # Update balance sheet with retained earnings
+        # Working capital was already calculated earlier (before payment coordination)
         self.update_balance_sheet(net_income, growth_rate)
 
         # Amortize prepaid insurance if applicable

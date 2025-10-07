@@ -368,6 +368,11 @@ class RuinProbabilityAnalyzer:
         year: int,
     ) -> Dict[str, float]:
         """Process a single year of simulation."""
+        # Update state FIRST (process year's normal operations)
+        metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)
+
+        # Then apply losses at END of year
+        # This prevents newly-created liabilities from being paid in the same year
         revenue = manufacturer.calculate_revenue()
         events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
 
@@ -382,11 +387,9 @@ class RuinProbabilityAnalyzer:
         if retained > 0:
             manufacturer.process_uninsured_claim(
                 claim_amount=retained,
-                immediate_payment=False,  # Create liability with payment schedule
+                immediate_payment=False,  # Create liability with payment schedule starting next year
             )
 
-        # Update state
-        metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)
         return metrics
 
     def _run_single_ruin_simulation(
