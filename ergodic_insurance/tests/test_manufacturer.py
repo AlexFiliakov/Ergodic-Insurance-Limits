@@ -76,6 +76,57 @@ class TestClaimLiability:
         assert actual == 0
         assert claim.remaining_amount == 0
 
+    def test_payment_timing_year_zero(self):
+        """Test that claims incurred in year 0 receive first payment in year 0.
+
+        This test verifies the fix for issue #201 where claims were delayed by one year.
+        A claim with year_incurred=0 should receive its first payment (10%) when
+        years_since_incurred=0, not when years_since_incurred=1.
+        """
+        claim = ClaimLiability(
+            original_amount=1_000_000, remaining_amount=1_000_000, year_incurred=0
+        )
+
+        # Year 0: First payment should be 10%
+        assert claim.get_payment(0) == 100_000  # 10% of $1M
+
+        # Year 1: Second payment should be 20%
+        assert claim.get_payment(1) == 200_000  # 20% of $1M
+
+        # Year 2: Third payment should be 20%
+        assert claim.get_payment(2) == 200_000  # 20% of $1M
+
+    def test_payment_schedule_follows_actuarial_pattern(self):
+        """Test that full payment schedule follows expected actuarial pattern.
+
+        Verifies that claims follow the standard 10-year payment pattern:
+        10%, 20%, 20%, 15%, 10%, 8%, 7%, 5%, 3%, 2%
+        """
+        claim = ClaimLiability(
+            original_amount=1_000_000, remaining_amount=1_000_000, year_incurred=0
+        )
+
+        expected_payments = [
+            100_000,  # Year 0: 10%
+            200_000,  # Year 1: 20%
+            200_000,  # Year 2: 20%
+            150_000,  # Year 3: 15%
+            100_000,  # Year 4: 10%
+            80_000,  # Year 5: 8%
+            70_000,  # Year 6: 7%
+            50_000,  # Year 7: 5%
+            30_000,  # Year 8: 3%
+            20_000,  # Year 9: 2%
+        ]
+
+        for year, expected in enumerate(expected_payments):
+            actual = claim.get_payment(year)
+            assert actual == expected, f"Year {year}: expected {expected}, got {actual}"
+
+        # Verify total payments equal original amount
+        total = sum(claim.get_payment(i) for i in range(10))
+        assert total == 1_000_000
+
 
 class TestWidgetManufacturer:
     """Test suite for WidgetManufacturer class.

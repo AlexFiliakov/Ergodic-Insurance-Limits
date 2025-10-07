@@ -717,7 +717,7 @@ class Simulation:
                 self.roe[year + 1 :] = np.nan
                 self.revenue[year + 1 :] = 0
                 self.net_income[year + 1 :] = 0
-                break
+                # Continue simulation to maintain full array length
 
         # Calculate total time
         total_time = time.time() - start_time
@@ -725,18 +725,14 @@ class Simulation:
 
         # Create and return results
         results = SimulationResults(
-            years=self.years[: year + 1] if self.insolvency_year else self.years,
-            assets=self.assets[: year + 1] if self.insolvency_year else self.assets,
-            equity=self.equity[: year + 1] if self.insolvency_year else self.equity,
-            roe=self.roe[: year + 1] if self.insolvency_year else self.roe,
-            revenue=self.revenue[: year + 1] if self.insolvency_year else self.revenue,
-            net_income=self.net_income[: year + 1] if self.insolvency_year else self.net_income,
-            claim_counts=(
-                self.claim_counts[: year + 1] if self.insolvency_year else self.claim_counts
-            ),
-            claim_amounts=(
-                self.claim_amounts[: year + 1] if self.insolvency_year else self.claim_amounts
-            ),
+            years=self.years,
+            assets=self.assets,
+            equity=self.equity,
+            roe=self.roe,
+            revenue=self.revenue,
+            net_income=self.net_income,
+            claim_counts=self.claim_counts,
+            claim_amounts=self.claim_amounts,
             insolvency_year=self.insolvency_year,
         )
 
@@ -816,7 +812,7 @@ class Simulation:
                 self.roe[year + 1 :] = np.nan
                 self.revenue[year + 1 :] = 0
                 self.net_income[year + 1 :] = 0
-                break
+                # Continue simulation to maintain full array length
 
         # Log completion
         total_time = time.time() - start_time
@@ -824,18 +820,14 @@ class Simulation:
 
         # Create and return results
         results = SimulationResults(
-            years=self.years[: year + 1] if self.insolvency_year else self.years,
-            assets=self.assets[: year + 1] if self.insolvency_year else self.assets,
-            equity=self.equity[: year + 1] if self.insolvency_year else self.equity,
-            roe=self.roe[: year + 1] if self.insolvency_year else self.roe,
-            revenue=self.revenue[: year + 1] if self.insolvency_year else self.revenue,
-            net_income=self.net_income[: year + 1] if self.insolvency_year else self.net_income,
-            claim_counts=(
-                self.claim_counts[: year + 1] if self.insolvency_year else self.claim_counts
-            ),
-            claim_amounts=(
-                self.claim_amounts[: year + 1] if self.insolvency_year else self.claim_amounts
-            ),
+            years=self.years,
+            assets=self.assets,
+            equity=self.equity,
+            roe=self.roe,
+            revenue=self.revenue,
+            net_income=self.net_income,
+            claim_counts=self.claim_counts,
+            claim_amounts=self.claim_amounts,
             insolvency_year=self.insolvency_year,
         )
 
