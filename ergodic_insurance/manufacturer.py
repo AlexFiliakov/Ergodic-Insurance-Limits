@@ -740,6 +740,18 @@ class WidgetManufacturer:
         """
         if premium_amount > 0:
             if is_annual:
+                # COMPULSORY INSURANCE CHECK: Company cannot operate without upfront insurance
+                # If unable to pay, company becomes insolvent
+                if self.cash < premium_amount:
+                    logger.error(
+                        f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
+                        f"Required: ${premium_amount:,.2f}, Available cash: ${self.cash:,.2f}. "
+                        f"Company cannot operate without insurance."
+                    )
+                    # Mark as insolvent - company cannot operate without insurance
+                    self.handle_insolvency()
+                    return  # Exit - company is now insolvent and cannot proceed
+
                 # Record as prepaid asset using insurance accounting module
                 result = self.insurance_accounting.pay_annual_premium(premium_amount)
 
@@ -1496,6 +1508,7 @@ class WidgetManufacturer:
         Side Effects:
             - Increases prepaid_insurance by annual_premium
             - Decreases cash by annual_premium
+            - May trigger insolvency if company cannot afford payment
 
         Examples:
             Record annual premium payment::
@@ -1503,8 +1516,24 @@ class WidgetManufacturer:
                 manufacturer.record_prepaid_insurance(1_200_000)
                 # Prepaid insurance increases by $1.2M
                 # Will amortize at $100K/month over 12 months
+
+        Note:
+            Annual insurance is considered compulsory for operation. If the
+            company cannot afford the premium, it becomes insolvent.
         """
         if annual_premium > 0:
+            # COMPULSORY INSURANCE CHECK: Company cannot operate without upfront insurance
+            # If unable to pay, company becomes insolvent
+            if self.cash < annual_premium:
+                logger.error(
+                    f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
+                    f"Required: ${annual_premium:,.2f}, Available cash: ${self.cash:,.2f}. "
+                    f"Company cannot operate without insurance."
+                )
+                # Mark as insolvent - company cannot operate without insurance
+                self.handle_insolvency()
+                return  # Exit - company is now insolvent and cannot proceed
+
             # Use insurance accounting module to properly track prepaid insurance
             result = self.insurance_accounting.pay_annual_premium(annual_premium)
 
@@ -2026,7 +2055,7 @@ class WidgetManufacturer:
 
         return claim_amount
 
-    def pay_claim_liabilities(self) -> float:
+    def pay_claim_liabilities(self, max_payable: Optional[float] = None) -> float:
         """Pay scheduled claim liabilities for the current year.
 
         This method processes all scheduled claim payments based on each claim's
@@ -2036,6 +2065,10 @@ class WidgetManufacturer:
 
         The method automatically removes fully paid claims from the active
         liability list to maintain clean accounting records.
+
+        Args:
+            max_payable: Optional maximum amount that can be paid (for coordinated
+                limited liability enforcement). If None, caps at current equity.
 
         Returns:
             float: Total amount paid toward claims in dollars. May be less than
@@ -2090,16 +2123,21 @@ class WidgetManufacturer:
         """
         total_paid = 0.0
 
-        # LIMITED LIABILITY: Calculate total scheduled payments and cap at equity
-        current_equity = self.equity
+        # LIMITED LIABILITY: Calculate total scheduled payments and cap at equity or provided max
         total_scheduled = 0.0
         for claim in self.claim_liabilities:
             years_since = self.current_year - claim.year_incurred
             scheduled_payment = claim.get_payment(years_since)
             total_scheduled += scheduled_payment
 
-        # Cap total payments at available equity
-        max_total_payable = min(total_scheduled, current_equity) if current_equity > 0 else 0.0
+        # Cap total payments at available equity or provided max
+        if max_payable is not None:
+            # Use coordinated cap from step() method
+            max_total_payable = min(total_scheduled, max_payable)
+        else:
+            # Fallback to equity-based cap if called standalone
+            current_equity = self.equity
+            max_total_payable = min(total_scheduled, current_equity) if current_equity > 0 else 0.0
 
         # If we need to cap payments, calculate reduction ratio
         payment_ratio = 1.0
@@ -2107,7 +2145,7 @@ class WidgetManufacturer:
             payment_ratio = max_total_payable / total_scheduled
             logger.warning(
                 f"LIMITED LIABILITY: Capping claim payments at ${max_total_payable:,.2f} "
-                f"(scheduled: ${total_scheduled:,.2f}, equity: ${current_equity:,.2f})"
+                f"(scheduled: ${total_scheduled:,.2f})"
             )
 
         for claim in self.claim_liabilities:
@@ -2671,7 +2709,9 @@ class WidgetManufacturer:
         else:
             self.current_year += 1
 
-    def process_accrued_payments(self, time_resolution: str = "annual") -> float:
+    def process_accrued_payments(
+        self, time_resolution: str = "annual", max_payable: Optional[float] = None
+    ) -> float:
         """Process due accrual payments for the current period.
 
         Checks for accrual payments due in the current period and processes
@@ -2680,6 +2720,8 @@ class WidgetManufacturer:
 
         Args:
             time_resolution: "annual" or "monthly" for determining current period
+            max_payable: Optional maximum amount that can be paid (for coordinated
+                limited liability enforcement). If None, caps at current equity.
 
         Returns:
             Total cash payments made for accruals in this period
@@ -2698,15 +2740,20 @@ class WidgetManufacturer:
         # Get all payments due this period
         payments_due = self.accrual_manager.get_payments_due(period)
 
-        # LIMITED LIABILITY: Cap TOTAL payments at available equity
+        # LIMITED LIABILITY: Cap TOTAL payments at available equity or provided max
         total_due = sum(payments_due.values())
-        current_equity = self.equity
-        max_total_payable = min(total_due, current_equity) if current_equity > 0 else 0.0
+        if max_payable is not None:
+            # Use coordinated cap from step() method
+            max_total_payable = min(total_due, max_payable)
+        else:
+            # Fallback to equity-based cap if called standalone
+            current_equity = self.equity
+            max_total_payable = min(total_due, current_equity) if current_equity > 0 else 0.0
 
         if total_due > max_total_payable:
             logger.warning(
                 f"LIMITED LIABILITY: Capping total accrued payments. "
-                f"Due: ${total_due:,.2f}, Payable: ${max_total_payable:,.2f} (equity limit)"
+                f"Due: ${total_due:,.2f}, Payable: ${max_total_payable:,.2f}"
             )
 
         # Calculate payment ratio to proportionally reduce each accrual
@@ -2925,12 +2972,57 @@ class WidgetManufacturer:
         if self.is_ruined:
             return self._handle_insolvent_step(time_resolution)
 
-        # Process accrual payments due this period (e.g., quarterly taxes)
-        self.process_accrued_payments(time_resolution)
+        # COORDINATED LIMITED LIABILITY ENFORCEMENT
+        # Calculate total payments needed for both accruals and claims
+        # Then cap at current equity and allocate proportionally
 
-        # Pay scheduled claim liabilities first (annual payments)
+        # Determine current period for accrual manager
+        if time_resolution == "monthly":
+            period = self.current_year * 12 + self.current_month
+        else:
+            period = self.current_year * 12
+
+        # Calculate total accrual payments due
+        self.accrual_manager.current_period = period
+        accrual_payments_due = self.accrual_manager.get_payments_due(period)
+        total_accrual_due = sum(accrual_payments_due.values())
+
+        # Calculate total claim payments scheduled (if applicable)
+        total_claim_due = 0.0
         if time_resolution == "annual" or self.current_month == 0:
-            self.pay_claim_liabilities()
+            for claim in self.claim_liabilities:
+                years_since = self.current_year - claim.year_incurred
+                scheduled_payment = claim.get_payment(years_since)
+                total_claim_due += scheduled_payment
+
+        # Cap TOTAL payments at current equity
+        total_payments_due = total_accrual_due + total_claim_due
+        current_equity = self.equity
+        max_total_payable = min(total_payments_due, current_equity) if current_equity > 0 else 0.0
+
+        # Allocate the capped amount proportionally between accruals and claims
+        if total_payments_due > 0:
+            allocation_ratio = max_total_payable / total_payments_due
+            max_accrual_payable = total_accrual_due * allocation_ratio
+            max_claim_payable = total_claim_due * allocation_ratio
+        else:
+            max_accrual_payable = 0.0
+            max_claim_payable = 0.0
+
+        # Log coordination if payments are capped
+        if total_payments_due > max_total_payable:
+            logger.warning(
+                f"LIMITED LIABILITY COORDINATION: Total payments due ${total_payments_due:,.2f} "
+                f"exceeds equity ${current_equity:,.2f}. Capping at ${max_total_payable:,.2f} "
+                f"(Accruals: ${max_accrual_payable:,.2f}, Claims: ${max_claim_payable:,.2f})"
+            )
+
+        # Process accrual payments with coordinated cap
+        self.process_accrued_payments(time_resolution, max_payable=max_accrual_payable)
+
+        # Pay scheduled claim liabilities with coordinated cap
+        if time_resolution == "annual" or self.current_month == 0:
+            self.pay_claim_liabilities(max_payable=max_claim_payable)
 
         # Store initial revenue for working capital calculation in monthly mode
         # This must happen BEFORE any balance sheet changes

@@ -697,8 +697,9 @@ class TestClaimGeneratorIntegration:
         for seed in range(10):  # Run 10 simulations
             gen.reset_seed(seed)
 
-            # Reset manufacturer for each simulation
-            manufacturer.total_assets = 10_000_000
+            # Reset manufacturer completely for each simulation
+            # (resetting only total_assets leaves liabilities from previous iteration)
+            manufacturer = WidgetManufacturer(config)
 
             # Generate claims for early years
             early_claims = gen.generate_year(0)

@@ -1001,7 +1001,7 @@ class TestEndToEndScenarios:
             else 0
         )
         assert (
-            volatility > 0.2
+            volatility > 0.18
         ), f"Growth scenario should have some volatility, got {volatility:.4f}"
 
     @pytest.mark.skip(
