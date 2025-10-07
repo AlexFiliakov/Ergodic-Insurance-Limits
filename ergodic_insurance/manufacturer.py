@@ -1834,10 +1834,14 @@ class WidgetManufacturer:
                 self.cash -= max_payable  # Move cash to restricted
 
                 # Create claim liability with payment schedule for payable portion
+                # Adjust year_incurred only if current_year > 0 (after step() has been called)
+                year_incurred = (
+                    self.current_year - 1 if self.current_year > 0 else self.current_year
+                )
                 claim = ClaimLiability(
                     original_amount=max_payable,
                     remaining_amount=max_payable,
-                    year_incurred=self.current_year,
+                    year_incurred=year_incurred,  # Adjust for timing: claim occurred before step() incremented year
                     is_insured=True,  # This is the company portion of an insured claim
                 )
                 self.claim_liabilities.append(claim)
@@ -1862,10 +1866,14 @@ class WidgetManufacturer:
 
                 if max_liability > 0:
                     # Create liability for the amount we can afford
+                    # Adjust year_incurred only if current_year > 0 (after step() has been called)
+                    year_incurred = (
+                        self.current_year - 1 if self.current_year > 0 else self.current_year
+                    )
                     unpayable_claim = ClaimLiability(
                         original_amount=max_liability,
                         remaining_amount=max_liability,
-                        year_incurred=self.current_year,
+                        year_incurred=year_incurred,  # Adjust for timing: claim occurred before step() incremented year
                         is_insured=False,  # No insurance coverage for this portion
                     )
                     self.claim_liabilities.append(unpayable_claim)
@@ -2013,7 +2021,7 @@ class WidgetManufacturer:
                     claim = ClaimLiability(
                         original_amount=max_liability,
                         remaining_amount=max_liability,
-                        year_incurred=self.current_year,
+                        year_incurred=self.current_year,  # No adjustment: immediate payment occurs in current period
                         is_insured=False,  # This is an uninsured claim
                     )
                     self.claim_liabilities.append(claim)
@@ -2044,10 +2052,12 @@ class WidgetManufacturer:
         max_liability = min(claim_amount, current_equity) if current_equity > 0 else 0.0
 
         if max_liability > 0:
+            # Adjust year_incurred only if current_year > 0 (after step() has been called)
+            year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
             claim = ClaimLiability(
                 original_amount=max_liability,
                 remaining_amount=max_liability,
-                year_incurred=self.current_year,
+                year_incurred=year_incurred,  # Adjust for timing: claim occurred before step() incremented year
                 is_insured=False,  # This is an uninsured claim
             )
             self.claim_liabilities.append(claim)
