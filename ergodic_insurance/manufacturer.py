@@ -740,6 +740,18 @@ class WidgetManufacturer:
         """
         if premium_amount > 0:
             if is_annual:
+                # COMPULSORY INSURANCE CHECK: Company cannot operate without upfront insurance
+                # If unable to pay, company becomes insolvent
+                if self.cash < premium_amount:
+                    logger.error(
+                        f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
+                        f"Required: ${premium_amount:,.2f}, Available cash: ${self.cash:,.2f}. "
+                        f"Company cannot operate without insurance."
+                    )
+                    # Mark as insolvent - company cannot operate without insurance
+                    self.handle_insolvency()
+                    return  # Exit - company is now insolvent and cannot proceed
+
                 # Record as prepaid asset using insurance accounting module
                 result = self.insurance_accounting.pay_annual_premium(premium_amount)
 
@@ -1171,6 +1183,9 @@ class WidgetManufacturer:
         # Calculate taxes (only on positive income)
         taxes = max(0, income_before_tax * self.tax_rate)
 
+        # Track actual tax expense (may be capped due to limited liability)
+        actual_tax_expense = taxes
+
         # Handle tax accruals if enabled
         if use_accrual and taxes > 0:
             # In monthly mode, only accrue taxes at specific points to avoid duplication
@@ -1195,26 +1210,42 @@ class WidgetManufacturer:
                 payment_dates = None  # Will use default QUARTERLY schedule
 
             if should_accrue:
-                # Record tax expense as accrual with quarterly payment schedule
-                if payment_dates:
-                    # Use custom payment dates for annual accrual
-                    self.accrual_manager.record_expense_accrual(
-                        item_type=AccrualType.TAXES,
-                        amount=taxes,
-                        payment_schedule=PaymentSchedule.CUSTOM,
-                        payment_dates=payment_dates,
-                        description=description,
-                    )
-                else:
-                    # Use default quarterly schedule
-                    self.accrual_manager.record_expense_accrual(
-                        item_type=AccrualType.TAXES,
-                        amount=taxes,
-                        payment_schedule=PaymentSchedule.QUARTERLY,
-                        description=description,
+                # LIMITED LIABILITY: Only accrue taxes if we have equity to support the liability
+                current_equity = self.equity
+                max_accrual = min(taxes, current_equity) if current_equity > 0 else 0.0
+
+                # Update actual tax expense to capped amount
+                actual_tax_expense = max_accrual
+
+                if max_accrual < taxes:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Cannot accrue full tax liability of ${taxes:,.2f}. "
+                        f"Equity only ${current_equity:,.2f}. Accruing ${max_accrual:,.2f}. "
+                        f"Tax expense reduced to ${actual_tax_expense:,.2f}"
                     )
 
-        net_income = income_before_tax - taxes
+                if max_accrual > 0:
+                    # Record tax expense as accrual with quarterly payment schedule
+                    if payment_dates:
+                        # Use custom payment dates for annual accrual
+                        self.accrual_manager.record_expense_accrual(
+                            item_type=AccrualType.TAXES,
+                            amount=max_accrual,
+                            payment_schedule=PaymentSchedule.CUSTOM,
+                            payment_dates=payment_dates,
+                            description=description,
+                        )
+                    else:
+                        # Use default quarterly schedule
+                        self.accrual_manager.record_expense_accrual(
+                            item_type=AccrualType.TAXES,
+                            amount=max_accrual,
+                            payment_schedule=PaymentSchedule.QUARTERLY,
+                            description=description,
+                        )
+
+        # LIMITED LIABILITY: Use actual tax expense (which may be capped) in net income calculation
+        net_income = income_before_tax - actual_tax_expense
 
         # Enhanced profit waterfall logging for complete transparency
         logger.info("===== PROFIT WATERFALL =====")
@@ -1226,8 +1257,10 @@ class WidgetManufacturer:
         if collateral_costs > 0:
             logger.info(f"  - Collateral Costs:    ${collateral_costs:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
-        logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${taxes:,.2f}")
-        if use_accrual and taxes > 0:
+        logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${actual_tax_expense:,.2f}")
+        if actual_tax_expense < taxes:
+            logger.info(f"    (Capped from ${taxes:,.2f} due to limited liability)")
+        if use_accrual and actual_tax_expense > 0:
             logger.info(f"    (Accrued for quarterly payment)")
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
@@ -1322,9 +1355,54 @@ class WidgetManufacturer:
             logger.info(f"Loss Absorption:         ${retained_earnings:,.2f}")
         logger.info("=================================")
 
-        # Add retained earnings to cash (increases assets, which increases equity through accounting equation)
-        # Allow cash to go negative to properly detect insolvency
-        self.cash = self.cash + retained_earnings
+        # LIMITED LIABILITY: Cap loss absorption at available equity AND available cash
+        if retained_earnings < 0:
+            current_equity = self.equity
+            available_cash = self.cash
+
+            # STRICT ENFORCEMENT: If equity is already at or below $1, don't absorb ANY more losses
+            # This prevents rounding errors from pushing equity negative
+            if current_equity <= 1.0:
+                logger.warning(
+                    f"LIMITED LIABILITY: Equity too low (${current_equity:,.2f}) to absorb any losses. "
+                    f"Cannot absorb loss of ${abs(retained_earnings):,.2f}. "
+                    f"Company will be marked insolvent."
+                )
+                # Don't reduce cash - company is already insolvent
+                # Check solvency will handle this
+                if current_equity <= 0:
+                    logger.warning(
+                        "Company equity at or below $0. Insolvency will be detected in check_solvency()"
+                    )
+            else:
+                # Can't absorb more loss than we have equity OR cash for
+                # Leave small buffer (min $1) to prevent rounding issues
+                max_loss = (
+                    min(abs(retained_earnings), current_equity - 1.0, available_cash)
+                    if (current_equity > 1.0 and available_cash > 0)
+                    else 0.0
+                )
+                capped_loss = -max_loss  # Make it negative for subtraction
+
+                if abs(retained_earnings) > max_loss:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Loss absorption capped at ${max_loss:,.2f} "
+                        f"(equity=${current_equity:,.2f}, cash=${available_cash:,.2f}). "
+                        f"Cannot absorb full loss of ${abs(retained_earnings):,.2f}"
+                    )
+
+                # Apply capped loss
+                self.cash += capped_loss
+
+                # Check if company is now insolvent after absorbing losses
+                if self.equity <= 0:
+                    logger.warning(
+                        "Company equity at or below $0 after loss absorption. "
+                        "Insolvency will be detected in check_solvency()"
+                    )
+        else:
+            # Positive retained earnings - add to cash normally
+            self.cash += retained_earnings
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
@@ -1396,6 +1474,21 @@ class WidgetManufacturer:
         # Increases in AR and inventory reduce cash (cash converted to these assets)
         # Increases in AP increase cash (we have the cash but owe it to vendors)
         cash_impact = -(ar_change + inventory_change) + ap_change
+
+        # LIMITED LIABILITY: Don't let working capital changes make cash negative
+        if cash_impact < 0:
+            # Check if this would make cash negative
+            new_cash = self.cash + cash_impact
+            if new_cash < 0:
+                # Cap the negative impact to bring cash to exactly $0
+                actual_impact = -self.cash
+                logger.warning(
+                    f"LIMITED LIABILITY: Working capital impact capped at ${actual_impact:,.2f} "
+                    f"(requested: ${cash_impact:,.2f}, available cash: ${self.cash:,.2f}). "
+                    f"Cash floored at $0."
+                )
+                cash_impact = actual_impact
+
         self.cash += cash_impact
 
         # Now total assets remain constant - we've just reallocated between components
@@ -1432,6 +1525,7 @@ class WidgetManufacturer:
         Side Effects:
             - Increases prepaid_insurance by annual_premium
             - Decreases cash by annual_premium
+            - May trigger insolvency if company cannot afford payment
 
         Examples:
             Record annual premium payment::
@@ -1439,8 +1533,24 @@ class WidgetManufacturer:
                 manufacturer.record_prepaid_insurance(1_200_000)
                 # Prepaid insurance increases by $1.2M
                 # Will amortize at $100K/month over 12 months
+
+        Note:
+            Annual insurance is considered compulsory for operation. If the
+            company cannot afford the premium, it becomes insolvent.
         """
         if annual_premium > 0:
+            # COMPULSORY INSURANCE CHECK: Company cannot operate without upfront insurance
+            # If unable to pay, company becomes insolvent
+            if self.cash < annual_premium:
+                logger.error(
+                    f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
+                    f"Required: ${annual_premium:,.2f}, Available cash: ${self.cash:,.2f}. "
+                    f"Company cannot operate without insurance."
+                )
+                # Mark as insolvent - company cannot operate without insurance
+                self.handle_insolvency()
+                return  # Exit - company is now insolvent and cannot proceed
+
             # Use insurance accounting module to properly track prepaid insurance
             result = self.insurance_accounting.pay_annual_premium(annual_premium)
 
@@ -1707,32 +1817,80 @@ class WidgetManufacturer:
 
         # Company payment is collateralized and paid over time
         if company_payment > 0:
-            # Post letter of credit as collateral for company payment
-            # Transfer cash to restricted assets (no change in total assets)
-            self.collateral += company_payment
-            self.restricted_assets += company_payment
-            self.cash -= company_payment  # Move cash to restricted
-
-            # Create claim liability with payment schedule for company portion
-            claim = ClaimLiability(
-                original_amount=company_payment,
-                remaining_amount=company_payment,
-                year_incurred=self.current_year,
-                is_insured=True,  # This is the company portion of an insured claim
+            # LIMITED LIABILITY: Cap company payment at available equity AND available cash
+            current_equity = self.equity
+            available_cash = self.cash
+            # Can only post collateral up to the lesser of equity and cash
+            max_payable = (
+                min(company_payment, current_equity, available_cash) if current_equity > 0 else 0.0
             )
-            self.claim_liabilities.append(claim)
+            unpayable_amount = company_payment - max_payable
+
+            if max_payable > 0:
+                # Post letter of credit as collateral for the payable amount
+                # Transfer cash to restricted assets (no change in total assets)
+                self.collateral += max_payable
+                self.restricted_assets += max_payable
+                self.cash -= max_payable  # Move cash to restricted
+
+                # Create claim liability with payment schedule for payable portion
+                claim = ClaimLiability(
+                    original_amount=max_payable,
+                    remaining_amount=max_payable,
+                    year_incurred=self.current_year,
+                    is_insured=True,  # This is the company portion of an insured claim
+                )
+                self.claim_liabilities.append(claim)
+
+                logger.info(
+                    f"Company portion: ${max_payable:,.2f} - collateralized with payment schedule"
+                )
+                logger.info(
+                    f"Posted ${max_payable:,.2f} letter of credit as collateral for company portion"
+                )
+
+            # Handle unpayable portion (exceeds equity/cash)
+            if unpayable_amount > 0:
+                # LIMITED LIABILITY: Only create liability if we can afford it (won't make equity negative)
+                # Check current equity after posting collateral
+                current_equity_after_collateral = self.equity
+                max_liability = (
+                    min(unpayable_amount, current_equity_after_collateral)
+                    if current_equity_after_collateral > 0
+                    else 0.0
+                )
+
+                if max_liability > 0:
+                    # Create liability for the amount we can afford
+                    unpayable_claim = ClaimLiability(
+                        original_amount=max_liability,
+                        remaining_amount=max_liability,
+                        year_incurred=self.current_year,
+                        is_insured=False,  # No insurance coverage for this portion
+                    )
+                    self.claim_liabilities.append(unpayable_claim)
+
+                    logger.warning(
+                        f"LIMITED LIABILITY: Company payment capped at ${max_payable:,.2f} (cash/equity). "
+                        f"Additional liability recorded: ${max_liability:,.2f}"
+                    )
+
+                # Log the truly unpayable amount that can't even be recorded as liability
+                truly_unpayable = unpayable_amount - max_liability
+                if truly_unpayable > 0:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} as liability "
+                        f"(would violate limited liability). Company is insolvent."
+                    )
+
+                # Check if company is now insolvent
+                if self.equity <= 0:
+                    self.check_solvency()
 
             # Note: We don't record an insurance loss expense here because the liability
             # creation already reduces equity via the accounting equation (Assets - Liabilities = Equity).
             # Recording it as both a liability AND an expense would double-count the impact.
             # The tax deduction flows through naturally as the liability impacts equity.
-
-            logger.info(
-                f"Company portion: ${company_payment:,.2f} - collateralized with payment schedule"
-            )
-            logger.info(
-                f"Posted ${company_payment:,.2f} letter of credit as collateral for company portion"
-            )
 
         # Insurance payment creates a receivable
         if insurance_payment > 0:
@@ -1792,28 +1950,34 @@ class WidgetManufacturer:
             return 0.0
 
         if immediate_payment:
-            # Pay immediately - reduce cash
+            # LIMITED LIABILITY: Cap payment at available equity to prevent negative equity
+            equity_before_payment = self.equity
+            max_payable = (
+                min(claim_amount, equity_before_payment) if equity_before_payment > 0 else 0.0
+            )
+
+            # Pay immediately - reduce cash, capped at equity
             # First, try to pay from cash
-            cash_payment = min(claim_amount, self.cash)
-            remaining_to_pay = claim_amount - cash_payment
+            cash_payment = min(max_payable, self.cash)
+            remaining_to_pay = max_payable - cash_payment
 
             # If cash isn't enough, liquidate other current assets proportionally
             if remaining_to_pay > 0:
                 # Total liquid assets we can use (cash + AR + inventory)
                 liquid_assets = self.cash + self.accounts_receivable + self.inventory
                 if liquid_assets > 0:
-                    # Pay what we can from liquid assets
-                    actual_payment = min(claim_amount, liquid_assets)
+                    # Pay what we can from liquid assets, but not more than max_payable
+                    actual_payment = min(max_payable, liquid_assets)
 
                     # Reduce liquid assets proportionally
-                    if liquid_assets > claim_amount:
+                    if liquid_assets > max_payable:
                         # We have enough liquid assets
-                        reduction_ratio = claim_amount / liquid_assets
+                        reduction_ratio = max_payable / liquid_assets
                         self.cash *= 1 - reduction_ratio
                         self.accounts_receivable *= 1 - reduction_ratio
                         self.inventory *= 1 - reduction_ratio
                     else:
-                        # Use all liquid assets
+                        # Use all liquid assets (up to max_payable)
                         self.cash = 0
                         self.accounts_receivable = 0
                         self.inventory = 0
@@ -1824,41 +1988,87 @@ class WidgetManufacturer:
                 actual_payment = cash_payment
                 self.cash -= cash_payment
 
-            # Record as tax-deductible loss
+            # Record as tax-deductible loss (only what we actually paid)
             self.period_insurance_losses += actual_payment
 
-            # If we couldn't pay the full amount, create a liability for the shortfall
+            # Create a liability for the unpaid portion (shortfall)
             shortfall = claim_amount - actual_payment
             if shortfall > 0:
-                claim = ClaimLiability(
-                    original_amount=shortfall,
-                    remaining_amount=shortfall,
-                    year_incurred=self.current_year,
-                    is_insured=False,  # This is an uninsured claim
+                # LIMITED LIABILITY: After making payment, create liability up to available equity
+                # The payment already reduced equity. Creating additional liability reduces equity further.
+                # We can ONLY create liability up to remaining equity to prevent negative equity.
+
+                current_equity_after_payment = self.equity
+
+                # Create liability up to available equity (prevents equity from going below zero)
+                # This properly accounts for the loss while enforcing limited liability
+                max_liability = (
+                    min(shortfall, current_equity_after_payment)
+                    if current_equity_after_payment > 0
+                    else 0.0
                 )
-                self.claim_liabilities.append(claim)
-                logger.info(
-                    f"Paid uninsured claim: ${actual_payment:,.2f} immediately, "
-                    f"created liability for shortfall: ${shortfall:,.2f}"
-                )
+
+                if max_liability > 0:
+                    # Create liability for the portion we can afford without going insolvent
+                    claim = ClaimLiability(
+                        original_amount=max_liability,
+                        remaining_amount=max_liability,
+                        year_incurred=self.current_year,
+                        is_insured=False,  # This is an uninsured claim
+                    )
+                    self.claim_liabilities.append(claim)
+                    logger.info(
+                        f"LIMITED LIABILITY: Immediate payment ${actual_payment:,.2f}, "
+                        f"created liability for ${max_liability:,.2f} (total claim: ${claim_amount:,.2f})"
+                    )
+
+                # Log the truly unpayable amount (amount exceeding both liquid assets and equity)
+                truly_unpayable = shortfall - max_liability
+                if truly_unpayable > 0:
+                    logger.warning(
+                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} of ${claim_amount:,.2f} claim as liability "
+                        f"(would violate limited liability). "
+                        f"Paid ${actual_payment:,.2f}, liability ${max_liability:,.2f}, shortfall ${truly_unpayable:,.2f}."
+                    )
+
+                # Check if company is now insolvent
+                if self.equity <= 0:
+                    self.check_solvency()
             else:
                 logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
             return float(claim_amount)  # Return the full claim amount processed
 
         # Create liability without collateral for payment over time
-        claim = ClaimLiability(
-            original_amount=claim_amount,
-            remaining_amount=claim_amount,
-            year_incurred=self.current_year,
-            is_insured=False,  # This is an uninsured claim
-        )
-        self.claim_liabilities.append(claim)
-        logger.info(
-            f"Created uninsured claim liability: ${claim_amount:,.2f} (no collateral required)"
-        )
+        # LIMITED LIABILITY: Only create liability up to available equity
+        current_equity = self.equity
+        max_liability = min(claim_amount, current_equity) if current_equity > 0 else 0.0
+
+        if max_liability > 0:
+            claim = ClaimLiability(
+                original_amount=max_liability,
+                remaining_amount=max_liability,
+                year_incurred=self.current_year,
+                is_insured=False,  # This is an uninsured claim
+            )
+            self.claim_liabilities.append(claim)
+            logger.info(
+                f"Created uninsured claim liability: ${max_liability:,.2f} (no collateral required)"
+            )
+
+        # Log truly unpayable amount
+        unpayable = claim_amount - max_liability
+        if unpayable > 0:
+            logger.warning(
+                f"LIMITED LIABILITY: Cannot record ${unpayable:,.2f} as liability "
+                f"(would violate limited liability). Company may become insolvent."
+            )
+            # Check solvency if we couldn't create the full liability
+            if self.equity <= 0:
+                self.check_solvency()
+
         return claim_amount
 
-    def pay_claim_liabilities(self) -> float:
+    def pay_claim_liabilities(self, max_payable: Optional[float] = None) -> float:
         """Pay scheduled claim liabilities for the current year.
 
         This method processes all scheduled claim payments based on each claim's
@@ -1868,6 +2078,10 @@ class WidgetManufacturer:
 
         The method automatically removes fully paid claims from the active
         liability list to maintain clean accounting records.
+
+        Args:
+            max_payable: Optional maximum amount that can be paid (for coordinated
+                limited liability enforcement). If None, caps at current equity.
 
         Returns:
             float: Total amount paid toward claims in dollars. May be less than
@@ -1922,14 +2136,42 @@ class WidgetManufacturer:
         """
         total_paid = 0.0
 
+        # LIMITED LIABILITY: Calculate total scheduled payments and cap at equity or provided max
+        total_scheduled = 0.0
+        for claim in self.claim_liabilities:
+            years_since = self.current_year - claim.year_incurred
+            scheduled_payment = claim.get_payment(years_since)
+            total_scheduled += scheduled_payment
+
+        # Cap total payments at available equity or provided max
+        if max_payable is not None:
+            # Use coordinated cap from step() method
+            max_total_payable = min(total_scheduled, max_payable)
+        else:
+            # Fallback to equity-based cap if called standalone
+            current_equity = self.equity
+            max_total_payable = min(total_scheduled, current_equity) if current_equity > 0 else 0.0
+
+        # If we need to cap payments, calculate reduction ratio
+        payment_ratio = 1.0
+        if total_scheduled > max_total_payable and total_scheduled > 0:
+            payment_ratio = max_total_payable / total_scheduled
+            logger.warning(
+                f"LIMITED LIABILITY: Capping claim payments at ${max_total_payable:,.2f} "
+                f"(scheduled: ${total_scheduled:,.2f})"
+            )
+
         for claim in self.claim_liabilities:
             years_since = self.current_year - claim.year_incurred
             scheduled_payment = claim.get_payment(years_since)
 
             if scheduled_payment > 0:
+                # Apply payment ratio to cap at equity
+                capped_scheduled = scheduled_payment * payment_ratio
+
                 if claim.is_insured:
                     # For insured claims: Pay from restricted assets (collateral)
-                    available_for_payment = min(scheduled_payment, self.restricted_assets)
+                    available_for_payment = min(capped_scheduled, self.restricted_assets)
                     actual_payment = available_for_payment
 
                     if actual_payment > 0:
@@ -1945,7 +2187,7 @@ class WidgetManufacturer:
                 else:
                     # For uninsured claims: Pay from available cash
                     available_for_payment = max(0, self.cash - 100_000)  # Keep minimum cash
-                    actual_payment = min(scheduled_payment, available_for_payment)
+                    actual_payment = min(capped_scheduled, available_for_payment)
 
                     if actual_payment > 0:
                         claim.make_payment(actual_payment)
@@ -1960,6 +2202,10 @@ class WidgetManufacturer:
 
         if total_paid > 0:
             logger.info(f"Paid ${total_paid:,.2f} toward claim liabilities")
+
+        # Check solvency after making payments
+        if payment_ratio < 1.0 or self.equity <= 0:
+            self.check_solvency()
 
         return total_paid
 
@@ -2090,6 +2336,59 @@ class WidgetManufacturer:
 
         return company_payment, insurance_payment, claim_object
 
+    def handle_insolvency(self) -> None:
+        """Handle insolvency by enforcing zero equity floor and freezing operations.
+
+        Implements standard bankruptcy accounting with limited liability:
+        - Sets equity floor at $0 (never negative)
+        - Marks company as insolvent (is_ruined = True)
+        - Keeps unpayable liabilities on the books
+        - Freezes all further business operations
+
+        This method enforces the limited liability principle that shareholders
+        cannot lose more than their equity investment. When equity reaches zero,
+        the company enters insolvency and creditors cannot claim beyond available
+        assets.
+
+        Side Effects:
+            - Sets :attr:`is_ruined` to True
+            - May adjust equity to exactly 0 if slightly negative due to rounding
+            - Logs insolvency event with current financial state
+            - Company remains insolvent for remainder of simulation
+
+        Note:
+            Under limited liability and standard bankruptcy accounting:
+            - Equity is floored at $0 (Assets - Liabilities may be negative)
+            - Unpayable liabilities remain on books until bankruptcy proceedings
+            - No further operations or payments after insolvency
+            - This is an absorbing state in the simulation
+
+        See Also:
+            :meth:`check_solvency`: Detects insolvency and calls this method.
+            :attr:`is_ruined`: Insolvency status flag.
+        """
+        # Ensure equity never goes below zero (limited liability)
+        if self.equity < 0:
+            # Small negative equity due to rounding - adjust to exactly zero
+            adjustment = -self.equity
+            self.cash += adjustment  # Add to cash to bring equity to 0
+            logger.info(
+                f"Adjusted equity from ${self.equity - adjustment:,.2f} to $0 "
+                f"(limited liability floor)"
+            )
+
+        # Mark as insolvent
+        if not self.is_ruined:
+            self.is_ruined = True
+            total_liabilities = self.total_claim_liabilities
+            logger.warning(
+                f"INSOLVENCY: Company is now insolvent. "
+                f"Equity: ${self.equity:,.2f}, "
+                f"Assets: ${self.total_assets:,.2f}, "
+                f"Liabilities: ${total_liabilities:,.2f}, "
+                f"Unpayable debt: ${max(0, total_liabilities - self.total_assets):,.2f}"
+            )
+
     def check_solvency(self) -> bool:
         """Check if the company is solvent and update ruin status.
 
@@ -2149,11 +2448,28 @@ class WidgetManufacturer:
             :attr:`equity`: Financial equity determining solvency.
             :meth:`step`: Automatically includes solvency checking.
         """
+        # LIMITED LIABILITY ENFORCEMENT: Cash should never be negative
+        if self.cash < 0:
+            logger.error(
+                f"CRITICAL: Cash is negative (${self.cash:,.2f})! This violates limited liability. "
+                f"Adjusting cash to $0. This indicates a bug in payment capping logic."
+            )
+            self.cash = 0
+
+        # LIMITED LIABILITY ENFORCEMENT: Equity should never be significantly negative
+        # Allow small tolerance for floating-point rounding errors
+        EQUITY_TOLERANCE = 1e-6
+        if self.equity < -EQUITY_TOLERANCE:
+            raise ValueError(
+                f"CRITICAL: Equity violated limited liability constraint! "
+                f"Equity = ${self.equity:,.2f} (should never be < ${-EQUITY_TOLERANCE:.6f}). "
+                f"This indicates a bug in payment capping logic."
+            )
+
         # Traditional balance sheet insolvency
         if self.equity <= 0:
-            if not self.is_ruined:  # Only log once
-                self.is_ruined = True
-                logger.warning(f"Company became insolvent - negative equity: ${self.equity:,.2f}")
+            # Call handle_insolvency to enforce limited liability and freeze operations
+            self.handle_insolvency()
             return False
 
         # Payment insolvency - check if claim payment obligations are unsustainable
@@ -2406,7 +2722,9 @@ class WidgetManufacturer:
         else:
             self.current_year += 1
 
-    def process_accrued_payments(self, time_resolution: str = "annual") -> float:
+    def process_accrued_payments(
+        self, time_resolution: str = "annual", max_payable: Optional[float] = None
+    ) -> float:
         """Process due accrual payments for the current period.
 
         Checks for accrual payments due in the current period and processes
@@ -2415,6 +2733,8 @@ class WidgetManufacturer:
 
         Args:
             time_resolution: "annual" or "monthly" for determining current period
+            max_payable: Optional maximum amount that can be paid (for coordinated
+                limited liability enforcement). If None, caps at current equity.
 
         Returns:
             Total cash payments made for accruals in this period
@@ -2433,19 +2753,51 @@ class WidgetManufacturer:
         # Get all payments due this period
         payments_due = self.accrual_manager.get_payments_due(period)
 
+        # LIMITED LIABILITY: Cap TOTAL payments at available equity or provided max
+        total_due = sum(payments_due.values())
+        if max_payable is not None:
+            # Use coordinated cap from step() method
+            max_total_payable = min(total_due, max_payable)
+        else:
+            # Fallback to equity-based cap if called standalone
+            current_equity = self.equity
+            max_total_payable = min(total_due, current_equity) if current_equity > 0 else 0.0
+
+        if total_due > max_total_payable:
+            logger.warning(
+                f"LIMITED LIABILITY: Capping total accrued payments. "
+                f"Due: ${total_due:,.2f}, Payable: ${max_total_payable:,.2f}"
+            )
+
+        # Calculate payment ratio to proportionally reduce each accrual
+        payment_ratio = max_total_payable / total_due if total_due > 0 else 0.0
+
         total_paid = 0.0
         for accrual_type, amount_due in payments_due.items():
-            # Process the payment
-            self.accrual_manager.process_payment(accrual_type, amount_due, period)
+            # Apply payment ratio to this accrual
+            payable_amount = amount_due * payment_ratio
+            unpayable_amount = amount_due - payable_amount
 
-            # Reduce cash for payment
-            self.cash -= amount_due
-            total_paid += amount_due
+            if payable_amount > 0:
+                # Process the payment (proportional share of what we can afford)
+                self.accrual_manager.process_payment(accrual_type, payable_amount, period)
 
-            # Update accrued_expenses balance
-            self.accrued_expenses = max(0, self.accrued_expenses - amount_due)
+                # Reduce cash for payment
+                self.cash -= payable_amount
+                total_paid += payable_amount
 
-            logger.debug(f"Paid accrued {accrual_type.value}: ${amount_due:,.2f}")
+                # Update accrued_expenses balance for paid amount
+                self.accrued_expenses = max(0, self.accrued_expenses - payable_amount)
+
+                logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
+
+            # LIMITED LIABILITY: Discharge unpayable accrued expenses from liabilities
+            if unpayable_amount > 0:
+                # Remove unpayable amount from accrued_expenses (discharge debt)
+                self.accrued_expenses = max(0, self.accrued_expenses - unpayable_amount)
+                logger.warning(
+                    f"LIMITED LIABILITY: Discharged ${unpayable_amount:,.2f} of unpayable {accrual_type.value} from liabilities"
+                )
 
         if total_paid > 0:
             logger.info(f"Total accrual payments this period: ${total_paid:,.2f}")
@@ -2633,13 +2985,6 @@ class WidgetManufacturer:
         if self.is_ruined:
             return self._handle_insolvent_step(time_resolution)
 
-        # Process accrual payments due this period (e.g., quarterly taxes)
-        self.process_accrued_payments(time_resolution)
-
-        # Pay scheduled claim liabilities first (annual payments)
-        if time_resolution == "annual" or self.current_month == 0:
-            self.pay_claim_liabilities()
-
         # Store initial revenue for working capital calculation in monthly mode
         # This must happen BEFORE any balance sheet changes
         if time_resolution == "monthly" and self.current_month == 0:
@@ -2651,6 +2996,76 @@ class WidgetManufacturer:
 
         # Calculate financial performance
         revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
+
+        # Calculate working capital components BEFORE payment coordination
+        # Working capital changes can affect AP (liabilities) which changes equity
+        # So we need to update working capital BEFORE calculating payment caps
+        if working_capital_pct > 0:
+            # Use consistent revenue measure to avoid compounding effects
+            if time_resolution == "annual":
+                # Annual mode: use the annual revenue
+                self.calculate_working_capital_components(revenue)
+            elif time_resolution == "monthly":
+                # Monthly mode: use the stored annual revenue from year start
+                # This was calculated before any balance sheet changes
+                if hasattr(self, "_annual_revenue_for_wc"):
+                    self.calculate_working_capital_components(self._annual_revenue_for_wc)
+                else:
+                    # Fallback: use current assets (should not happen normally)
+                    annual_revenue = self.total_assets * self.asset_turnover_ratio
+                    self.calculate_working_capital_components(annual_revenue)
+
+        # COORDINATED LIMITED LIABILITY ENFORCEMENT
+        # Calculate total payments needed for both accruals and claims
+        # Then cap at current equity (AFTER working capital adjustments) and allocate proportionally
+
+        # Determine current period for accrual manager
+        if time_resolution == "monthly":
+            period = self.current_year * 12 + self.current_month
+        else:
+            period = self.current_year * 12
+
+        # Calculate total accrual payments due
+        self.accrual_manager.current_period = period
+        accrual_payments_due = self.accrual_manager.get_payments_due(period)
+        total_accrual_due = sum(accrual_payments_due.values())
+
+        # Calculate total claim payments scheduled (if applicable)
+        total_claim_due = 0.0
+        if time_resolution == "annual" or self.current_month == 0:
+            for claim in self.claim_liabilities:
+                years_since = self.current_year - claim.year_incurred
+                scheduled_payment = claim.get_payment(years_since)
+                total_claim_due += scheduled_payment
+
+        # Cap TOTAL payments at current equity (after working capital adjustments)
+        total_payments_due = total_accrual_due + total_claim_due
+        current_equity = self.equity
+        max_total_payable = min(total_payments_due, current_equity) if current_equity > 0 else 0.0
+
+        # Allocate the capped amount proportionally between accruals and claims
+        if total_payments_due > 0:
+            allocation_ratio = max_total_payable / total_payments_due
+            max_accrual_payable = total_accrual_due * allocation_ratio
+            max_claim_payable = total_claim_due * allocation_ratio
+        else:
+            max_accrual_payable = 0.0
+            max_claim_payable = 0.0
+
+        # Log coordination if payments are capped
+        if total_payments_due > max_total_payable:
+            logger.warning(
+                f"LIMITED LIABILITY COORDINATION: Total payments due ${total_payments_due:,.2f} "
+                f"exceeds equity ${current_equity:,.2f}. Capping at ${max_total_payable:,.2f} "
+                f"(Accruals: ${max_accrual_payable:,.2f}, Claims: ${max_claim_payable:,.2f})"
+            )
+
+        # Process accrual payments with coordinated cap
+        self.process_accrued_payments(time_resolution, max_payable=max_accrual_payable)
+
+        # Pay scheduled claim liabilities with coordinated cap
+        if time_resolution == "annual" or self.current_month == 0:
+            self.pay_claim_liabilities(max_payable=max_claim_payable)
 
         # Calculate depreciation expense for the period
         if time_resolution == "annual":
@@ -2685,25 +3100,8 @@ class WidgetManufacturer:
             time_resolution=time_resolution,
         )
 
-        # Calculate working capital components only if working capital is being used
-        # When working_capital_pct is 0, we don't need to track AR/inventory/AP
-        if working_capital_pct > 0:
-            # Use consistent revenue measure to avoid compounding effects
-            if time_resolution == "annual":
-                # Annual mode: use the annual revenue
-                self.calculate_working_capital_components(revenue)
-            elif time_resolution == "monthly":
-                # Monthly mode: use the stored annual revenue from year start
-                # This was calculated before any balance sheet changes
-                if hasattr(self, "_annual_revenue_for_wc"):
-                    self.calculate_working_capital_components(self._annual_revenue_for_wc)
-                else:
-                    # Fallback: use current assets (should not happen normally)
-                    annual_revenue = self.total_assets * self.asset_turnover_ratio
-                    self.calculate_working_capital_components(annual_revenue)
-
-        # Update balance sheet with retained earnings AFTER working capital calculation
-        # This prevents working capital from compounding with asset growth
+        # Update balance sheet with retained earnings
+        # Working capital was already calculated earlier (before payment coordination)
         self.update_balance_sheet(net_income, growth_rate)
 
         # Amortize prepaid insurance if applicable

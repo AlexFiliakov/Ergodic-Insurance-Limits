@@ -200,7 +200,7 @@ class TestEquityExposure:
         assert np.isclose(exposure.get_frequency_multiplier(1.0), expected_multiplier)
 
     def test_equity_exposure_handles_bankruptcy(self):
-        """Equity exposure should handle negative equity correctly."""
+        """Equity exposure should handle zero equity correctly (limited liability)."""
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.0,
@@ -211,14 +211,13 @@ class TestEquityExposure:
         manufacturer = WidgetManufacturer(config)
         exposure = EquityExposure(state_provider=manufacturer)
 
-        # WHEN: Claims cause negative equity (bankruptcy)
-        # To set equity to -500k, adjust cash
+        # WHEN: Claims cause zero equity (bankruptcy with limited liability)
+        # LIMITED LIABILITY: Equity is floored at 0, not negative
         current_equity = manufacturer.equity
-        equity_adjustment = -500_000 - current_equity
-        manufacturer.cash += equity_adjustment
+        manufacturer.cash -= current_equity  # Set equity to exactly 0
 
         # THEN: Frequency multiplier should be 0 (no exposure when bankrupt)
-        assert exposure.get_exposure(1.0) == -500_000
+        assert exposure.get_exposure(1.0) == 0
         assert exposure.get_frequency_multiplier(1.0) == 0.0
 
     def test_conservative_scaling(self):
@@ -698,8 +697,9 @@ class TestClaimGeneratorIntegration:
         for seed in range(10):  # Run 10 simulations
             gen.reset_seed(seed)
 
-            # Reset manufacturer for each simulation
-            manufacturer.total_assets = 10_000_000
+            # Reset manufacturer completely for each simulation
+            # (resetting only total_assets leaves liabilities from previous iteration)
+            manufacturer = WidgetManufacturer(config)
 
             # Generate claims for early years
             early_claims = gen.generate_year(0)

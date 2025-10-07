@@ -124,7 +124,7 @@ class TestProcessInsuranceClaim:
         assert insurance_payment == claim_amount - deductible
 
     def test_claim_exceeds_assets(self, manufacturer):
-        """Test claim when company doesn't have enough assets."""
+        """Test claim when company doesn't have enough assets (limited liability)."""
         # Set all assets to achieve low total assets of 50_000
         manufacturer.cash = 50_000
         manufacturer.accounts_receivable = 0
@@ -142,12 +142,16 @@ class TestProcessInsuranceClaim:
             claim_amount, deductible, limit
         )
 
-        # Company payment is the deductible amount
+        # Company payment is the deductible amount (but capped by limited liability)
         assert company_payment == deductible
         # Assets remain unchanged (collateral posted, paid over time)
         assert manufacturer.total_assets == 50_000
-        # Collateral posted for company payment
-        assert manufacturer.collateral == company_payment
+        # LIMITED LIABILITY: Collateral capped at available cash/equity ($50K), not full deductible
+        assert manufacturer.collateral == 50_000
+        # Remaining $50K of deductible cannot be paid (limited liability violation)
+        # Company should be marked as insolvent
+        assert manufacturer.is_ruined is True
+        assert manufacturer.equity == 0
         # Insurance still covers its portion
         assert insurance_payment == claim_amount - deductible
 
@@ -209,10 +213,16 @@ class TestProcessInsuranceClaim:
         # The method returns the full claim amount, not the actual payment
         assert processed_amount == 500_000
         assert manufacturer.total_assets == 0
-        # Equity becomes negative due to the unpaid liability (shortfall of 400k)
-        assert manufacturer.equity == -400_000
+        # LIMITED LIABILITY: Equity is floored at 0, not -400_000
+        # Company pays max $100K (all available equity), bringing equity to 0
+        assert manufacturer.equity == 0
         # Only the actual payment (100k) is recorded as a loss
         assert manufacturer.period_insurance_losses == 100_000
+        # Company should be marked as insolvent
+        assert manufacturer.is_ruined is True
+        # LIMITED LIABILITY: Cannot create $400K liability because it would violate limited liability
+        # Equity is already 0 after payment, so no additional liabilities can be recorded
+        assert len(manufacturer.claim_liabilities) == 0
 
     def test_uninsured_claim_deferred_payment(self, manufacturer):
         """Test uninsured claim with deferred payment schedule."""

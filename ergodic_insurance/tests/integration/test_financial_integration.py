@@ -230,17 +230,19 @@ class TestFinancialIntegration:
             assert (
                 results.insolvency_year == actual_years - 1
             ), "Insolvency year should match last year"
-            # Last recorded equity should be negative or zero
-            assert results.equity[-1] <= 0, "Final equity should be <= 0 at insolvency"
+            # LIMITED LIABILITY: Last recorded equity should be exactly zero at insolvency
+            assert (
+                results.equity[-1] == 0
+            ), "Final equity should be exactly 0 at insolvency (limited liability)"
 
         # Verify financial trajectories (only check if survived more than 1 year)
         if actual_years > 1:
-            # Allow negative equity in the final year if insolvent
+            # LIMITED LIABILITY: Equity should never be negative (floored at 0)
             assert validate_trajectory(
-                results.equity[:-1] if results.insolvency_year else results.equity,
+                results.equity,
                 min_value=0,
                 allow_negative=False,
-            ), "Equity trajectory invalid (except final insolvent year)"
+            ), "Equity trajectory invalid - should never be negative (limited liability)"
 
             # Allow negative assets in the final year if insolvent
             assert validate_trajectory(

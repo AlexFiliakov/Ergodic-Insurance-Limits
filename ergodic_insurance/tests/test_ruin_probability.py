@@ -147,6 +147,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer = MagicMock()
         manufacturer.total_assets = 10_000_000
         manufacturer.debt = 0  # Set default debt value
+        manufacturer.is_ruined = False
         manufacturer.calculate_revenue.return_value = 5_000_000
         manufacturer.step.return_value = {"equity": 1_000_000, "operating_income": 500_000}
 
@@ -155,6 +156,7 @@ class TestRuinProbabilityAnalyzer:
             copy_mfg = MagicMock()
             copy_mfg.total_assets = manufacturer.total_assets
             copy_mfg.debt = 0  # Important: set debt on copy
+            copy_mfg.is_ruined = False
             copy_mfg.calculate_revenue = manufacturer.calculate_revenue
             copy_mfg.step = manufacturer.step
             copy_mfg.process_insurance_claim = MagicMock()
@@ -258,6 +260,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer = MagicMock()
         manufacturer.total_assets = 500_000
         manufacturer.debt = 0
+        manufacturer.is_ruined = False
 
         config = RuinProbabilityConfig(min_assets_threshold=1_000_000)
         causes = {
@@ -279,6 +282,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer = MagicMock()
         manufacturer.total_assets = 2_000_000
         manufacturer.debt = 0
+        manufacturer.is_ruined = False
 
         config = RuinProbabilityConfig(min_equity_threshold=100_000)
         causes = {
@@ -300,6 +304,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer = MagicMock()
         manufacturer.total_assets = 2_000_000
         manufacturer.debt = 0
+        manufacturer.is_ruined = False
 
         config = RuinProbabilityConfig(
             consecutive_negative_periods=3,
@@ -337,6 +342,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer = MagicMock()
         manufacturer.total_assets = 2_000_000
         manufacturer.debt = 1_000_000
+        manufacturer.is_ruined = False
 
         config = RuinProbabilityConfig(debt_service_coverage_ratio=1.25)
         causes = {
@@ -359,6 +365,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer = MagicMock()
         manufacturer.total_assets = 2_000_000
         manufacturer.debt = 0
+        manufacturer.is_ruined = False
 
         config = RuinProbabilityConfig()
         causes = {

@@ -324,6 +324,13 @@ class RuinProbabilityAnalyzer:
         current_assets = manufacturer.total_assets
         current_equity = metrics.get("equity", 0)
 
+        # 0. Check manufacturer's is_ruined flag (set by check_solvency)
+        # This is the authoritative insolvency status from the manufacturer
+        if hasattr(manufacturer, "is_ruined") and manufacturer.is_ruined:
+            # Mark equity threshold as the primary cause since that's what triggers is_ruined
+            causes["equity_threshold"][year] = True
+            is_bankrupt = True
+
         # 1. Asset threshold
         if current_assets <= config.min_assets_threshold:
             causes["asset_threshold"][year] = True
@@ -361,6 +368,11 @@ class RuinProbabilityAnalyzer:
         year: int,
     ) -> Dict[str, float]:
         """Process a single year of simulation."""
+        # Update state FIRST (process year's normal operations)
+        metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)
+
+        # Then apply losses at END of year
+        # This prevents newly-created liabilities from being paid in the same year
         revenue = manufacturer.calculate_revenue()
         events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
 
@@ -370,13 +382,14 @@ class RuinProbabilityAnalyzer:
         recovery = claim_result.get("total_recovery", 0)
         retained = total_loss - recovery
 
-        # Apply retained loss to manufacturer cash
-        # Allow cash to go negative for proper bankruptcy detection
+        # Apply retained loss using proper claim processing to enforce limited liability
+        # This ensures cash never goes negative and equity is properly floored at $0
         if retained > 0:
-            manufacturer.cash -= retained
+            manufacturer.process_uninsured_claim(
+                claim_amount=retained,
+                immediate_payment=False,  # Create liability with payment schedule starting next year
+            )
 
-        # Update state
-        metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)
         return metrics
 
     def _run_single_ruin_simulation(

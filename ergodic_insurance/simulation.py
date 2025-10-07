@@ -575,7 +575,14 @@ class Simulation:
             - Modifies manufacturer.assets and manufacturer.equity
             - Updates manufacturer internal state via step() method
         """
-        # Process claims
+        # Step manufacturer forward FIRST (process year's normal operations)
+        # Then apply losses at END of year to prevent newly-created liabilities
+        # from being paid in the same year they're created
+        metrics = self.manufacturer.step(
+            working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
+        )
+
+        # Process claims at END of year
         total_claim_amount = sum(claim.amount for claim in claims)
         total_company_payment = 0.0
         total_insurance_recovery = 0.0
@@ -592,23 +599,19 @@ class Simulation:
                 total_company_payment += company_payment
                 total_insurance_recovery += insurance_recovery
 
-            # Record annual premium (will be handled in manufacturer's step method)
+            # Record annual premium (will be handled in manufacturer's step method next year)
             annual_premium = self.insurance_policy.calculate_premium()
             self.manufacturer.record_insurance_premium(annual_premium)
         else:
             # No insurance - process as uninsured claims
             for claim in claims:
                 # Company pays full amount with no insurance coverage
+                # Use deferred payment to avoid immediate double-hit on equity
                 self.manufacturer.process_uninsured_claim(
                     claim_amount=claim.amount,
-                    immediate_payment=True,  # Pay immediately when uninsured
+                    immediate_payment=False,  # Create liability with payment schedule starting next year
                 )
                 total_company_payment += claim.amount
-
-        # Step manufacturer forward
-        metrics = self.manufacturer.step(
-            working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
-        )
 
         # Add claim information to metrics
         metrics["claim_count"] = len(claims)
