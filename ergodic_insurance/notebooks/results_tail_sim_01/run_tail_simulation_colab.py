@@ -200,7 +200,7 @@ def run_tail_simulation(
             duration=1, revenue=base_manufacturer.base_revenue
         )
         for loss_event in loss_events:
-            insured_loss = max(min(loss_event.amount, policy_limit) - deductible, 0)
+            insured_loss = max(min(loss_event.amount - deductible, policy_limit), 0)
 
             total_insured_loss += insured_loss
             insured_loss_list.append(insured_loss)
@@ -271,6 +271,7 @@ def run_tail_simulation(
         parallel=False,
         insurance_program=None,
         seed=base_seed + 100,
+        extreme_params=None,
     ):
         """Set up Monte Carlo simulation engine."""
         generator = ManufacturingLossGenerator(
@@ -295,6 +296,7 @@ def run_tail_simulation(
                 "revenue_scaling_exponent": 1.0,
                 "reference_revenue": cur_revenue,
             },
+            extreme_params=extreme_params,
             seed=seed,
         )
 
@@ -332,6 +334,17 @@ def run_tail_simulation(
 
         return engine
 
+    # Prepare extreme_params for simulation engines
+    sim_extreme_params = (
+        {
+            "threshold_value": extreme_threshold,
+            "severity_shape": extreme_sev_shape,
+            "severity_scale": extreme_sev_scale,
+        }
+        if extreme_threshold is not None
+        else None
+    )
+
     # Create engine
     print("Setting up Monte Carlo engine with Insurance...")
     engine = setup_simulation_engine(
@@ -340,6 +353,7 @@ def run_tail_simulation(
         parallel=False,
         insurance_program=program,
         seed=base_seed + 100,
+        extreme_params=sim_extreme_params,
     )
 
     ### Set Up the Simulation Without Insurance #######
@@ -352,11 +366,13 @@ def run_tail_simulation(
         parallel=False,
         insurance_program=None,
         seed=base_seed + 200,
+        extreme_params=sim_extreme_params,
     )
 
     ## Run the Simulation
 
-    filename = f"{filepath}/Ded ({DEDUCTIBLE/1_000:.0f}K) - \
+    filename = f"{filepath}/Cap ({INITIAL_ASSETS/1_000_000:.0f}M) - \
+Ded ({DEDUCTIBLE/1_000:.0f}K) - \
 LR ({LOSS_RATIO}) - \
 Pol_Lim ({policy_limit/1_000_000:.0f}M) - \
 X_Th_%le ({extreme_threshold_percentile}) - \
@@ -365,7 +381,8 @@ X_Scale ({extreme_sev_scale_percentile}) - \
 {NUM_SIMULATIONS/1_000:.0f}K Sims - \
 {SIM_YEARS} Yrs.pkl"
 
-    filename_no_ins = f"{filepath}/X_Th_%le ({extreme_threshold_percentile}) - \
+    filename_no_ins = f"{filepath}/Cap ({INITIAL_ASSETS/1_000_000:.0f}M) - \
+X_Th_%le ({extreme_threshold_percentile}) - \
 X_Shape ({extreme_sev_shape}) - \
 X_Scale ({extreme_sev_scale_percentile}) - \
 NOINS - \
