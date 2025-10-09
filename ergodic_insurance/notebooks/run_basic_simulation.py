@@ -121,7 +121,7 @@ def run_basic_simulation(
             duration=1, revenue=base_manufacturer.base_revenue
         )
         for loss_event in loss_events:
-            insured_loss = max(min(loss_event.amount, policy_limit) - deductible, 0)
+            insured_loss = max(min(loss_event.amount - deductible, policy_limit), 0)
 
             total_insured_loss += insured_loss
             insured_loss_list.append(insured_loss)
