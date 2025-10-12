@@ -1,18 +1,20 @@
-# Introduction to Limit Selection
+# Introduction to Insurance Limit Selection
 
-A single employee error triggers a product recall affecting 2 million units. Total losses: $380 million. Your company purchased a $100 million liability policy because it "covered losses at the 99.9th percentile." The actuary who recommended that limit followed best practices, used sophisticated models, and got the probability calculations right.
+A single employee error triggers a product recall affecting 2 million units. Total losses: \$380 million. Your company purchased a \$100 million liability policy because it "covered losses at the 99.9th percentile." The actuary who recommended that limit followed best practices, used sophisticated models, and got the probability calculations right.
 
-And it doesn't matter. The remaining $280 million in uncovered losses wipes out 70% of your equity. Your credit rating collapses. Your expansion plans are cancelled. Competitors acquire market share while you're managing the crisis. Ten years later, you're still recovering from an event that happened in a single afternoon.
+And it doesn't matter. The remaining \$280 million in uncovered losses wipes out 70% of your equity. Your credit rating collapses. Your expansion plans are cancelled. Competitors acquire market share while you're managing the crisis. Ten years later, you're still recovering from an event that happened in a single afternoon.
 
-This is the tail wagging the dog. Not figuratively. Literally. A single extreme event, occurring once in a company's lifetime, dominates every strategic decision that came before it. Traditional insurance analytics, focused on expected values and ensemble averages, systematically underestimate how much these rare catastrophes matter to the one company experiencing them.
+## Power Laws
+
+This is the tail wagging the dog. A single extreme event, occurring once in a company's lifetime, dominates every strategic decision that came before it. Welcome to full contact statistics. Traditional insurance analytics, focused on expected values and ensemble averages, systematically underestimate how much these rare catastrophes matter to the one company experiencing them.
 
 This is why insurance limit selection matters more than most actuaries realize. It's not about expected values or ensemble averages. It's about protecting the actual trajectory of one company operating in one timeline. And that requires a fundamentally different analytical framework.
-
-*Want to see the results first? [Skip to Results & Analysis](#results--analysis).*
 
 ## The Problem
 
 Traditional actuarial limit selection optimizes ensemble averages. But companies don't operate across ensembles, they operate in time. This post explores how that distinction changes everything about optimal insurance limits.
+
+*Want to see the results and implications first? [Skip to Results & Analysis](#results--analysis).*
 
 ## The Ergodic Perspective
 
@@ -26,7 +28,7 @@ But the time average (what one actual company experiences) can be devastated by 
 
 Insurance transforms these dynamics by redistributing tail risk across the ensemble, allowing individual companies to track closer to time-average growth rather than suffering the full consequences of statistical outliers.
 
-For this analysis, I simulate corporate trajectories over 50 years to allow ergodic effects to fully materialize.
+For this analysis, I simulated corporate trajectories over 50 years to allow ergodic effects to fully materialize.
 
 While a 25-year horizon might be more realistic for strategic planning, the longer timeframe lets us observe how different insurance strategies affect growth convergence (or divergence) over time.
 
@@ -34,7 +36,7 @@ Each corporate configuration is tested across 250,000 scenarios, providing a rob
 
 ## Simulation Framework
 
-The framework builds on the methodology detailed in my research paper at [https://mostlyoptimal.com/research](https://mostlyoptimal.com/research), which introduced an ergodic approach to deductible selection. Here, I apply that framework to analyze insurance limits.
+The framework builds on the methodology detailed in my research paper at [https://mostlyoptimal.com/research](https://mostlyoptimal.com/research), which introduced a new open-source framework for ergodic insurance analysis, and then applied it to explore deductible selection. Here, I apply that framework to analyze insurance limits.
 
 ### Loss Structure
 
@@ -62,16 +64,16 @@ Revenue is deterministic and proportional to assets, making net income stochasti
 #### Insurance Structure
 
 The insurance structure consists of:
-- A per-occurrence deductible (held constant at $500K for this analysis, but other deductibles don't materially sway the analysis of limits)
+- A per-occurrence deductible (held constant at \$500K for this analysis, but other deductibles don't materially sway the analysis of limits)
 - A single per-occurrence limit (the variable under study)
 
 #### Insurance Pricing
 
 Insurance pricing assumes carriers can accurately estimate the underlying loss distribution; a strong but necessary assumption for this analysis.
 
-Premiums are loaded using a loss ratio to account for risk margin, profit load, and administrative expenses. For this particular study, I use a 60% loss ratio.
+Premiums are loaded using a loss ratio to account for risk margin, profit load, and administrative expenses. For this particular study, I used a 60% loss ratio.
 
-To maintain analytical clarity, I've removed time value of money effects, treating all calculations on an approximate present-value basis.
+To maintain analytical clarity, I've removed time value of money effects, treating all calculations on an approximate present-value basis. Letter of credit costs on insurance payouts serve to preserve a notion of preset-value borrowing costs.
 
 ### Key Assumptions & Limitations
 
@@ -104,9 +106,11 @@ Future posts will explore those more extreme scenarios.
 
 The Shape parameter in our results controls tail thickness: lower Shape values produce thicker tails with higher probability of extreme events.
 
-> **For Practitioners**: When estimating tail risk for your business, the Shape parameter is critical. A Shape of 0.5 vs 0.9 can mean the difference between recommending a $250M limit and a $500M+ limit for the same company. Historical loss data and industry benchmarks help calibrate this, but uncertainty remains substantial.
+> **For Practitioners**: When estimating tail risk for your business, the Shape parameter is critical. A Shape of 0.5 vs 0.9 can mean the difference between recommending a \$250M limit and a \$500M+ limit for the same company. Historical loss data and industry benchmarks help calibrate this, but uncertainty remains substantial.
 
 ## Results & Analysis
+
+> Real companies facing real insurance decisions need to model their specific exposure profiles, capital structures, and risk appetites. These results provide directional guidance, not prescriptive answers.
 
 The visualization below shows annualized growth rates over 50 years plotted against per-occurrence insurance limits:
 
@@ -115,7 +119,7 @@ The visualization below shows annualized growth rates over 50 years plotted agai
 ### Reading the Visualization
 
 The grid structure spans two key dimensions:
-- **Columns** (left to right): Increasing initial capitalization from $25M to $100M
+- **Columns** (left to right): Increasing initial capitalization from \$25M to \$150M
 - **Rows** (top to bottom): Increasing tail thickness (Shape parameters 0.5, 0.7, and 0.9)
 
 Each subplot displays:
@@ -124,6 +128,8 @@ Each subplot displays:
 - Red line with markers indicates the mean
 
 ### Pattern Analysis
+
+> Tail risk assessment is not an academic exercise**. Getting the tail wrong by even modest amounts can lead to catastrophically wrong limit selections.
 
 Several striking patterns emerge:
 
@@ -145,17 +151,17 @@ From an ensemble perspective (comparing many companies), lower limits look attra
 
 The relationship between company size and optimal limits is non-obvious but actuarially sound:
 
-- **$25M capitalization**: Across all tail assumptions, limits in the $350M-$500M range appear optimal. These companies are vulnerable to mid-sized catastrophic events and need substantial coverage relative to their capital base.
+- **\$25M capitalization**: Across all tail assumptions, limits in the \$350M-\$500M range appear optimal. These companies are vulnerable to mid-sized catastrophic events and need substantial coverage relative to their capital base.
 
-- **$50M capitalization**: Tail assumptions become crucial. With thinner tails (Shape 0.5), limits around $250M suffice. With thicker tails (Shape 0.9), optimal limits push toward $500M or higher. The risk profile materially changes the calculus.
+- **\$50M capitalization**: Tail assumptions become crucial. With thinner tails (Shape 0.5), limits around \$250M suffice. With thicker tails (Shape 0.9), optimal limits push toward \$500M or higher. The risk profile materially changes the calculus.
 
-- **$75M-$100M capitalization**: These larger companies show significant limit appetite, especially under thick-tail scenarios. Optimal limits can rationally exceed $500M.
+- **\$75M-\$100M capitalization**: These larger companies show significant limit appetite, especially under thick-tail scenarios. Optimal limits can rationally exceed \$500M.
 
 This pattern aligns with the capital preservation logic: companies with higher capitalization have more to lose from extreme events.
 
 While large companies often self-insure smaller losses (choosing high deductibles), they simultaneously purchase high limits to protect their substantial capital base.
 
-The limited liability structure of modern corporations reinforces this dynamic. A $25M company can "only" lose $25M, but a $100M company faces quadruple that downside.
+The limited liability structure of modern corporations reinforces this dynamic. A \$25M company can "only" lose \$25M, but a \$100M company faces quadruple that downside.
 
 High limits become proportionally more valuable as capitalization increases.
 
@@ -201,7 +207,7 @@ Several insights from this analysis should transfer to more complex scenarios:
 These specific results depend heavily on the configuration choices:
 
 - The tail assumptions
-- The $500K deductible assumption
+- The \$500K deductible assumption
 - The 60% uniform loss ratio
 - The deterministic revenue model
 - The absence of loss correlations
@@ -215,7 +221,7 @@ This analysis suggests several shifts in how we might approach limit selection:
 
 1. **Time horizons matter**: Evaluating limits over multi-decade horizons rather than single policy periods reveals different optimal choices. Strategic insurance buying should reflect strategic time horizons.
 
-2. **Distribution moments aren't enough**: Mean and variance don't fully capture tail dynamics. Actuaries need to engage seriously with distribution shape, particularly in the tails.
+2. **Two distribution moments aren't enough**: Mean and variance don't fully capture tail dynamics. Actuaries need to engage seriously with distribution shape, particularly in the tails.
 
 3. **Capital structure integration**: Limit selection shouldn't happen in isolation from capital planning. The optimal insurance program depends fundamentally on balance sheet structure and growth objectives.
 
@@ -247,7 +253,7 @@ My immediate next research focus will explore tail thickness more deeply and inv
 
 Insurance limit selection, viewed through an ergodic lens, reveals patterns that traditional actuarial analysis can miss. The tradeoff between median and mean performance, the interaction between capitalization and limit appetite, and the amplifying effects of tail thickness all emerge clearly from long-term simulation.
 
-Remember that $380M product recall from the opening? A company using this framework would have seen why a $100M limit left them catastrophically exposed. The mean growth trajectories for companies with Shape 0.9 and $50M capitalization clearly show that optimal limits approach or exceed $400M—precisely what's needed to avoid the tail-wagging-dog scenario that devastated our hypothetical company.
+Remember that \$380M product recall from the opening? A company using this framework would have seen why a \$100M limit left them catastrophically exposed. The mean growth trajectories for companies with Shape 0.9 and \$50M capitalization clearly show that optimal limits approach or exceed \$400M—precisely what's needed to avoid the tail-wagging-dog scenario that devastated our hypothetical company.
 
 For actuaries and risk managers, the message is clear: **insurance limits aren't just about expected loss coverage. They're about protecting time-average growth trajectories from tail events that can permanently impair corporate prospects**.
 
@@ -255,4 +261,4 @@ The specific limits that emerge from this analysis apply only to the configurati
 
 **Want to explore your own limit selection scenarios?** The complete methodology is at [mostlyoptimal.com/research](https://mostlyoptimal.com/research), and the framework tutorial is at [mostlyoptimal.com/tutorial](https://mostlyoptimal.com/tutorial).
 
-I welcome your feedback in the comments: Where do these insights align with your experience? Where do the simplifications break down most severely? What other scenarios would be valuable to explore?
+I welcome your feedback in the comments: Do these insights align with your experience? Where do the simplifications break down most severely? What other scenarios would be valuable to explore?
