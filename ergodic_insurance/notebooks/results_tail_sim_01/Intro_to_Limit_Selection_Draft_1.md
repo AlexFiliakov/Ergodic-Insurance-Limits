@@ -1,4 +1,4 @@
-# Introduction to Insurance Limit Selection
+# Insurance Limit Selection Through Ergodicity: When the 99.9th Percentile Isn't Enough
 
 A single employee error triggers a product recall affecting 2 million units. Total losses: \$380 million. Your company purchased a \$100 million liability policy because it "covered losses at the 99.9th percentile." The actuary who recommended that limit followed best practices, used sophisticated models, and got the probability calculations right.
 
