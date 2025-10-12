@@ -8,19 +8,29 @@ This is the tail wagging the dog. Not figuratively. Literally. A single extreme 
 
 This is why insurance limit selection matters more than most actuaries realize. It's not about expected values or ensemble averages. It's about protecting the actual trajectory of one company operating in one timeline. And that requires a fundamentally different analytical framework.
 
+*Want to see the results first? [Skip to Results & Analysis](#results--analysis).*
+
 ## The Problem
 
-Insurance limit selection has long been treated as an optimization problem balancing premium cost against coverage benefits. But traditional actuarial analysis often relies on ensemble averages (comparing expected outcomes across many companies) rather than time averages that reflect the actual path a single company experiences over decades.
-
-This distinction becomes crucial when tail risk enters the picture. A loss that occurs once in a company's 50-year history can derail growth permanently, even if the ensemble average suggests the company "should" have prospered. In this post, I explore insurance limit selection through the lens of ergodicity, using Monte Carlo simulation to understand how limits affect long-term growth trajectories rather than single-period expected values.
+Traditional actuarial limit selection optimizes ensemble averages. But companies don't operate across ensembles, they operate in time. This post explores how that distinction changes everything about optimal insurance limits.
 
 ## The Ergodic Perspective
 
 Ergodicity economics asks a deceptively simple question: does the average outcome across many parallel universes match the average outcome one entity experiences over time? For most business decisions with tail risk, the answer is no.
 
-When a company faces potential catastrophic losses, the ensemble average calculated across thousands of simulated companies may show strong expected returns. But the time average (what one actual company experiences) can be devastated by a single extreme event that occurs early in its history. Insurance transforms these dynamics by redistributing tail risk across the ensemble, allowing individual companies to track closer to time-average growth rather than suffering the full consequences of statistical outliers.
+> **For Students**: Ensemble averages calculate what happens "on average" if we ran 1,000 parallel companies. Time averages calculate what happens to one company over 1,000 periods. With tail risk, these diverge dramatically.
 
-For this analysis, I simulate corporate trajectories over 50 years to allow ergodic effects to fully materialize. While a 25-year horizon might be more realistic for strategic planning, the longer timeframe lets us observe how different insurance strategies affect growth convergence (or divergence) over time. Each corporate configuration is tested across 250,000 scenarios, providing a robust distribution of potential 50-year outcomes.
+When a company faces potential catastrophic losses, the ensemble average calculated across thousands of simulated companies may show strong expected returns.
+
+But the time average (what one actual company experiences) can be devastated by a single extreme event that occurs early in its history.
+
+Insurance transforms these dynamics by redistributing tail risk across the ensemble, allowing individual companies to track closer to time-average growth rather than suffering the full consequences of statistical outliers.
+
+For this analysis, I simulate corporate trajectories over 50 years to allow ergodic effects to fully materialize.
+
+While a 25-year horizon might be more realistic for strategic planning, the longer timeframe lets us observe how different insurance strategies affect growth convergence (or divergence) over time.
+
+Each corporate configuration is tested across 250,000 scenarios, providing a robust distribution of potential 50-year outcomes.
 
 ## Simulation Framework
 
@@ -30,22 +40,36 @@ The framework builds on the methodology detailed in my research paper at [https:
 
 The simulation employs a four-tier loss structure that reflects the reality of corporate risk exposure:
 
-1. **Attritional losses**: High-frequency, low-severity events modeled with Poisson frequency and Lognormal severity
-2. **Large losses**: Medium-frequency events, also Poisson/Lognormal, representing significant but manageable incidents
-3. **Catastrophic losses**: Low-frequency events with Pareto-distributed severity, introducing meaningful tail risk
-4. **Extreme losses**: A Generalized Pareto Distribution (GPD) that attaches at a specified threshold and replaces the tail with an even thicker distribution
+| Loss Type | Frequency Model | Severity Model | Purpose/Example |
+|-----------|----------------|----------------|-----------------|
+| **Attritional** | Poisson (High) | Lognormal | Routine operational losses (property damage, small claims) |
+| **Large** | Poisson (Medium) | Lognormal | Significant but manageable incidents (product liability, injuries) |
+| **Catastrophic** | Poisson (Low) | Pareto | Low-frequency events introducing meaningful tail risk (major recalls, lawsuits) |
+| **Extreme** | Threshold-triggered | Generalized Pareto (GPD) | Replaces the tail with thicker distribution at specified threshold (true black swans) |
 
-Revenue serves as the exposure base for all loss frequencies, scaling risk with company size. This four-tier approach captures the full spectrum from routine operational losses to true black swans, excepting loss correlations.
+Revenue serves as the exposure base for all loss frequencies, scaling risk with company size.
+
+This four-tier approach captures the full spectrum from routine operational losses to true black swans, excepting loss correlations.
 
 ### Financial Model
 
-The balance sheet simulation includes realistic (though intentionally simplified) corporate accounting. Revenue is deterministic and proportional to assets, making net income stochastic purely through loss realizations. This isolates the impact of insurance decisions from other business volatility.
+#### Corporate Accounting
+
+The balance sheet simulation includes realistic (though intentionally simplified) corporate accounting.
+
+Revenue is deterministic and proportional to assets, making net income stochastic purely through loss realizations. This isolates the impact of insurance decisions from other business volatility.
+
+#### Insurance Structure
 
 The insurance structure consists of:
 - A per-occurrence deductible (held constant at $500K for this analysis, but other deductibles don't materially sway the analysis of limits)
 - A single per-occurrence limit (the variable under study)
 
-Insurance pricing assumes carriers can accurately estimate the underlying loss distribution; a strong but necessary assumption for this analysis. Premiums are loaded using a loss ratio to account for risk margin, profit load, and administrative expenses. For this particular study, I use a 60% loss ratio.
+#### Insurance Pricing
+
+Insurance pricing assumes carriers can accurately estimate the underlying loss distribution; a strong but necessary assumption for this analysis.
+
+Premiums are loaded using a loss ratio to account for risk margin, profit load, and administrative expenses. For this particular study, I use a 60% loss ratio.
 
 To maintain analytical clarity, I've removed time value of money effects, treating all calculations on an approximate present-value basis.
 
@@ -62,13 +86,25 @@ These simplifications allow us to isolate the ergodic effects of limit selection
 
 ## Understanding Tail Risk
 
-Before diving into results, we need to establish what "tail risk" means in this context. The tail of a probability distribution represents extreme outcomes: events far from the mean that occur rarely but carry enormous consequences.
+Before diving into results, we need to establish what "tail risk" means in this context.
 
-Tail "thickness" determines how much probability mass sits in these extremes and how quickly probabilities decay as events become more severe. A thick-tailed distribution (like the Pareto we use for catastrophic losses) assigns non-trivial probability to events many standard deviations from the mean. This has profound implications for insurance: the thicker the tail, the more value high limits provide.
+The tail of a probability distribution represents extreme outcomes: events far from the mean that occur rarely but carry enormous consequences.
 
-For this study, I restrict analysis to distributions with finite mean and finite variance. While this excludes some "pathological" heavy-tailed distributions (like power laws with infinite variance), it still captures substantial tail risk and keeps the mathematics tractable. Future posts will explore those more extreme scenarios.
+Tail "thickness" determines how much probability mass sits in these extremes and how quickly probabilities decay as events become more severe.
+
+A thick-tailed distribution (like the Pareto we use for catastrophic losses) assigns non-trivial probability to events many standard deviations from the mean.
+
+This has profound implications for insurance: the thicker the tail, the more value high limits provide.
+
+For this study, I restrict analysis to distributions with finite mean and finite variance.
+
+While this excludes some "pathological" heavy-tailed distributions (like power laws with infinite variance), it still captures substantial tail risk and keeps the mathematics tractable.
+
+Future posts will explore those more extreme scenarios.
 
 The Shape parameter in our results controls tail thickness: lower Shape values produce thicker tails with higher probability of extreme events.
+
+> **For Practitioners**: When estimating tail risk for your business, the Shape parameter is critical. A Shape of 0.5 vs 0.9 can mean the difference between recommending a $250M limit and a $500M+ limit for the same company. Historical loss data and industry benchmarks help calibrate this, but uncertainty remains substantial.
 
 ## Results & Analysis
 
@@ -95,9 +131,15 @@ Several striking patterns emerge:
 
 As limits increase, we observe a consistent pattern: median growth rates remain relatively flat or decline slightly, while the separation between mean and median narrows. This is the ergodic effect in action.
 
-With low limits, catastrophic losses that exceed coverage devastate individual company trajectories, creating massive dispersion in outcomes. The mean gets pulled down by these tail events while the median (representing the "typical" outcome) stays relatively high. High limits eliminate this downside, compressing the distribution and bringing mean and median closer together.
+With low limits, catastrophic losses that exceed coverage devastate individual company trajectories, creating massive dispersion in outcomes.
 
-This represents a fundamental tradeoff: **higher limits sacrifice some median performance to protect against worst-case scenarios**. From an ensemble perspective (comparing many companies), lower limits look attractive. From a time-average perspective (one company's actual path), higher limits provide crucial protection.
+The mean gets pulled down by these tail events while the median (representing the "typical" outcome) stays relatively high.
+
+High limits eliminate this downside, compressing the distribution and bringing mean and median closer together.
+
+This represents a fundamental tradeoff: **higher limits sacrifice some median performance to protect against worst-case scenarios**.
+
+From an ensemble perspective (comparing many companies), lower limits look attractive. From a time-average perspective (one company's actual path), higher limits provide crucial protection.
 
 **2. Capitalization Effects**
 
@@ -109,15 +151,25 @@ The relationship between company size and optimal limits is non-obvious but actu
 
 - **$75M-$100M capitalization**: These larger companies show significant limit appetite, especially under thick-tail scenarios. Optimal limits can rationally exceed $500M.
 
-This pattern aligns with the capital preservation logic: companies with higher capitalization have more to lose from extreme events. While large companies often self-insure smaller losses (choosing high deductibles), they simultaneously purchase high limits to protect their substantial capital base.
+This pattern aligns with the capital preservation logic: companies with higher capitalization have more to lose from extreme events.
 
-The limited liability structure of modern corporations reinforces this dynamic. A $25M company can "only" lose $25M, but a $100M company faces quadruple that downside. High limits become proportionally more valuable as capitalization increases.
+While large companies often self-insure smaller losses (choosing high deductibles), they simultaneously purchase high limits to protect their substantial capital base.
+
+The limited liability structure of modern corporations reinforces this dynamic. A $25M company can "only" lose $25M, but a $100M company faces quadruple that downside.
+
+High limits become proportionally more valuable as capitalization increases.
 
 **3. Tail Thickness Amplification**
 
-Moving down the rows (increasing tail thickness), we see divergence patterns amplify. With thin tails (Shape 0.5, top row), all capitalizations show relatively modest mean-median gaps and limited sensitivity to insurance limits beyond certain thresholds.
+Moving down the rows (increasing tail thickness), we see divergence patterns amplify.
 
-With thick tails (Shape 0.9, bottom row), the distributions spread dramatically. The mean drops significantly relative to the median, and the value of high limits becomes unmistakable. The 10th percentile outcomes diverge sharply from median outcomes, illustrating how tail events can permanently impair growth trajectories.
+With thin tails (Shape 0.5, top row), all capitalizations show relatively modest mean-median gaps and limited sensitivity to insurance limits beyond certain thresholds.
+
+With thick tails (Shape 0.9, bottom row), the distributions spread dramatically.
+
+The mean drops significantly relative to the median, and the value of high limits becomes unmistakable.
+
+The 10th percentile outcomes diverge sharply from median outcomes, illustrating how tail events can permanently impair growth trajectories.
 
 This underscores a crucial point: **tail risk assessment is not an academic exercise**. Getting the tail wrong by even modest amounts can lead to catastrophically wrong limit selections.
 
@@ -195,10 +247,12 @@ My immediate next research focus will explore tail thickness more deeply and inv
 
 Insurance limit selection, viewed through an ergodic lens, reveals patterns that traditional actuarial analysis can miss. The tradeoff between median and mean performance, the interaction between capitalization and limit appetite, and the amplifying effects of tail thickness all emerge clearly from long-term simulation.
 
+Remember that $380M product recall from the opening? A company using this framework would have seen why a $100M limit left them catastrophically exposed. The mean growth trajectories for companies with Shape 0.9 and $50M capitalization clearly show that optimal limits approach or exceed $400M—precisely what's needed to avoid the tail-wagging-dog scenario that devastated our hypothetical company.
+
 For actuaries and risk managers, the message is clear: **insurance limits aren't just about expected loss coverage. They're about protecting time-average growth trajectories from tail events that can permanently impair corporate prospects**.
 
 The specific limits that emerge from this analysis apply only to the configuration studied. But the framework and approach generalize. Companies serious about strategic risk management should model their specific exposures, run long-term simulations, and evaluate insurance decisions as a dynamic strategy over multi-decade horizons rather than single policy periods.
 
-The complete methodological details are available in my research paper at [https://mostlyoptimal.com/research](https://mostlyoptimal.com/research). The simulation framework is open source and accessible at [https://mostlyoptimal.com/tutorial](https://mostlyoptimal.com/tutorial), allowing actuaries and risk managers to adapt it to their specific scenarios.
+**Want to explore your own limit selection scenarios?** The complete methodology is at [mostlyoptimal.com/research](https://mostlyoptimal.com/research), and the framework tutorial is at [mostlyoptimal.com/tutorial](https://mostlyoptimal.com/tutorial).
 
-Have you grappled with tail risk and limit selection questions in real corporate contexts? How well do these insights align with observed decision-making? Where do the simplifying assumptions break down most severely? What other scenarios would be valuable to explore? Please share your thoughts in the comments.
+I welcome your feedback in the comments: Where do these insights align with your experience? Where do the simplifications break down most severely? What other scenarios would be valuable to explore?
