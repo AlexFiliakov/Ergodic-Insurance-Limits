@@ -1,8 +1,14 @@
-# Introduction to Limit Selection - Draft 1
+# Introduction to Limit Selection
 
-[INTRODUCTION/HOOK TO BE WRITTEN]
+A single employee error triggers a product recall affecting 2 million units. Total losses: $380 million. Your company purchased a $100 million liability policy because it "covered losses at the 99.9th percentile." The actuary who recommended that limit followed best practices, used sophisticated models, and got the probability calculations right.
 
-## Why This Matters
+And it doesn't matter. The remaining $280 million in uncovered losses wipes out 70% of your equity. Your credit rating collapses. Your expansion plans are cancelled. Competitors acquire market share while you're managing the crisis. Ten years later, you're still recovering from an event that happened in a single afternoon.
+
+This is the tail wagging the dog. Not figuratively. Literally. A single extreme event, occurring once in a company's lifetime, dominates every strategic decision that came before it. Traditional insurance analytics, focused on expected values and ensemble averages, systematically underestimate how much these rare catastrophes matter to the one company experiencing them.
+
+This is why insurance limit selection matters more than most actuaries realize. It's not about expected values or ensemble averages. It's about protecting the actual trajectory of one company operating in one timeline. And that requires a fundamentally different analytical framework.
+
+## The Problem
 
 Insurance limit selection has long been treated as an optimization problem balancing premium cost against coverage benefits. But traditional actuarial analysis often relies on ensemble averages (comparing expected outcomes across many companies) rather than time averages that reflect the actual path a single company experiences over decades.
 
