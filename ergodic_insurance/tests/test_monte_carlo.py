@@ -35,7 +35,7 @@ class TestSimulationConfig:
         assert config.n_years == 10
         assert config.n_chains == 4
         assert config.parallel is True
-        assert config.use_float32 is True
+        assert config.use_float32 is False
         assert config.cache_results is True
         assert config.progress_bar is True
 

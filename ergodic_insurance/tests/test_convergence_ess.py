@@ -313,6 +313,7 @@ class TestMonteCarloIntegration:
         # Create a proper manufacturer mock with copy method
         manufacturer = MagicMock()
         manufacturer.total_assets = 10_000_000
+        manufacturer.equity = 10_000_000  # Add equity property for insolvency checks
 
         # Set up manufacturer config with required attributes
         manufacturer.config = MagicMock()
@@ -322,10 +323,12 @@ class TestMonteCarloIntegration:
         # Create a copy that returns a new mock with the same attributes
         manufacturer_copy = MagicMock()
         manufacturer_copy.total_assets = 10_000_000
+        manufacturer_copy.equity = 10_000_000  # Add equity property for insolvency checks
         manufacturer_copy.calculate_revenue.return_value = 5_000_000
         manufacturer_copy.process_insurance_claim.return_value = None
         manufacturer_copy.step.return_value = {"revenue": 5_000_000}
         manufacturer_copy.record_insurance_premium.return_value = None
+        manufacturer_copy.record_insurance_loss.return_value = None
         manufacturer_copy.stochastic_process = None
         manufacturer.copy.return_value = manufacturer_copy
 
