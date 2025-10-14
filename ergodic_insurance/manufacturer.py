@@ -1355,52 +1355,52 @@ class WidgetManufacturer:
             logger.info(f"Loss Absorption:         ${retained_earnings:,.2f}")
         logger.info("=================================")
 
-        # LIMITED LIABILITY: Cap loss absorption at available equity AND available cash
+        # LIMITED LIABILITY: Check liquidity and solvency before absorbing losses
         if retained_earnings < 0:
             current_equity = self.equity
             available_cash = self.cash
-
-            # STRICT ENFORCEMENT: If equity is already at or below insolvency tolerance, don't absorb ANY more losses
-            # This prevents the company from continuing operations when effectively insolvent
             tolerance = self.config.insolvency_tolerance
+            loss_amount = abs(retained_earnings)
+
+            # Check 1: Already insolvent by equity threshold
             if current_equity <= tolerance:
                 logger.warning(
                     f"LIMITED LIABILITY: Equity too low (${current_equity:,.2f}) to absorb any losses. "
-                    f"Cannot absorb loss of ${abs(retained_earnings):,.2f}. "
-                    f"Company will be marked insolvent (threshold: ${tolerance:,.2f})."
+                    f"Cannot absorb loss of ${loss_amount:,.2f}. "
+                    f"Company is already insolvent (threshold: ${tolerance:,.2f})."
                 )
                 # Don't reduce cash - company is already insolvent
-                # Check solvency will handle this
-                if current_equity <= 0:
-                    logger.warning(
-                        "Company equity at or below $0. Insolvency will be detected in check_solvency()"
-                    )
-            else:
-                # Can't absorb more loss than we have equity OR cash for
-                # Leave buffer equal to insolvency tolerance to prevent operational insolvency
-                max_loss = (
-                    min(abs(retained_earnings), current_equity - tolerance, available_cash)
-                    if (current_equity > tolerance and available_cash > 0)
-                    else 0.0
+                # Insolvency will be detected in check_solvency()
+                return
+
+            # Check 2: LIQUIDITY CHECK - must have cash to pay loss
+            # If loss exceeds available cash, company cannot meet obligations → insolvency
+            if loss_amount > available_cash:
+                logger.error(
+                    f"LIQUIDITY CRISIS → INSOLVENCY: Loss ${loss_amount:,.2f} exceeds "
+                    f"available cash ${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
+                    f"Company cannot meet obligations despite positive book equity."
                 )
-                capped_loss = -max_loss  # Make it negative for subtraction
+                self.handle_insolvency()
+                return  # Exit - company is now insolvent
 
-                if abs(retained_earnings) > max_loss:
-                    logger.warning(
-                        f"LIMITED LIABILITY: Loss absorption capped at ${max_loss:,.2f} "
-                        f"(equity=${current_equity:,.2f}, cash=${available_cash:,.2f}). "
-                        f"Cannot absorb full loss of ${abs(retained_earnings):,.2f}"
-                    )
+            # Check 3: Would paying the loss trigger equity insolvency?
+            equity_after_loss = current_equity - loss_amount
+            if equity_after_loss <= tolerance:
+                logger.error(
+                    f"EQUITY INSOLVENCY: Loss ${loss_amount:,.2f} would push equity to "
+                    f"${equity_after_loss:,.2f}, below threshold ${tolerance:,.2f}. "
+                    f"Current equity=${current_equity:,.2f}. Triggering insolvency."
+                )
+                self.handle_insolvency()
+                return  # Exit - company is now insolvent
 
-                # Apply capped loss
-                self.cash += capped_loss
-
-                # Check if company is now insolvent after absorbing losses
-                if self.equity <= 0:
-                    logger.warning(
-                        "Company equity at or below $0 after loss absorption. "
-                        "Insolvency will be detected in check_solvency()"
-                    )
+            # All checks passed - absorb the full loss
+            self.cash += retained_earnings  # retained_earnings is negative
+            logger.info(
+                f"Absorbed loss: ${loss_amount:,.2f}. "
+                f"Remaining cash: ${self.cash:,.2f}, Remaining equity: ${self.equity:,.2f}"
+            )
         else:
             # Positive retained earnings - add to cash normally
             self.cash += retained_earnings

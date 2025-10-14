@@ -1112,3 +1112,211 @@ class TestWidgetManufacturer:
         # Period costs should be reset after step
         assert manufacturer.period_insurance_premiums == 0
         assert manufacturer.period_insurance_losses == 0
+
+    def test_liquidity_crisis_triggers_insolvency(self, config):
+        """Test that loss exceeding available cash triggers immediate insolvency.
+
+        Regression test for liquidity crisis bug where companies with positive book
+        equity but insufficient cash were allowed to partially absorb losses,
+        with unpaid amounts "disappearing" unrealistically.
+
+        This test verifies that a company becomes insolvent when it cannot pay
+        a loss with available cash, even if book equity is positive.
+        """
+        # Create manufacturer with working capital to tie up cash in non-liquid assets
+        manufacturer = WidgetManufacturer(config)
+
+        # Set up scenario: Positive equity but most cash tied up in working capital
+        # Manually adjust balance sheet to create cash constraint
+        initial_cash = manufacturer.cash
+        manufacturer.accounts_receivable = 1_500_000  # Tie up cash in AR
+        manufacturer.inventory = 1_200_000  # Tie up cash in inventory
+        manufacturer.cash = 500_000  # Only $500K liquid cash remaining
+
+        # Verify initial state: Solvent with positive equity but limited cash
+        assert manufacturer.equity > 500_000  # Still has positive equity
+        assert manufacturer.cash == 500_000  # But limited cash
+        assert not manufacturer.is_ruined
+
+        # Incur a loss that exceeds available cash but not equity
+        # Loss = $800K, Cash = $500K, Equity ~ $9.8M
+        net_income = -800_000  # Larger loss than available cash
+
+        # Attempt to absorb the loss - should trigger liquidity crisis
+        manufacturer.update_balance_sheet(net_income)
+
+        # Company should now be insolvent due to liquidity crisis
+        assert manufacturer.is_ruined, "Company should be insolvent when loss exceeds cash"
+        # Limited liability floor is enforced in handle_insolvency(), so equity >= 0 is guaranteed
+
+    def test_equity_insolvency_triggers_when_loss_pushes_below_tolerance(self, manufacturer):
+        """Test that loss pushing equity below tolerance triggers insolvency.
+
+        Verifies that a company becomes insolvent when absorbing a loss would
+        push equity below the insolvency tolerance threshold, even if it has
+        sufficient cash to pay.
+        """
+        # Set up manufacturer near insolvency tolerance
+        tolerance = manufacturer.config.insolvency_tolerance  # $10,000
+        target_equity = tolerance + 50_000  # Equity at $60K (just above threshold)
+
+        # Reduce equity to target level by creating liabilities
+        equity_reduction = manufacturer.equity - target_equity
+        manufacturer.process_uninsured_claim(equity_reduction, immediate_payment=False)
+
+        # Verify starting state
+        assert manufacturer.equity == pytest.approx(target_equity)
+        assert manufacturer.cash > 100_000  # Has sufficient cash
+        assert not manufacturer.is_ruined
+
+        # Incur loss that would push equity below tolerance
+        # Loss = $60K, which would bring equity to $0 (below $10K threshold)
+        net_income = -60_000
+
+        # Attempt to absorb - should trigger insolvency
+        manufacturer.update_balance_sheet(net_income)
+
+        # Should be insolvent
+        assert manufacturer.is_ruined, "Should be insolvent when equity would fall below tolerance"
+        # Limited liability floor is enforced in handle_insolvency(), so equity >= 0 is guaranteed
+
+    def test_already_insolvent_company_does_not_absorb_further_losses(self, manufacturer):
+        """Test that companies at or below tolerance don't absorb additional losses.
+
+        Verifies that once a company reaches the insolvency tolerance threshold,
+        it doesn't attempt to absorb further losses.
+        """
+        # Reduce equity to exactly the tolerance level
+        tolerance = manufacturer.config.insolvency_tolerance  # $10,000
+        equity_reduction = manufacturer.equity - tolerance
+        manufacturer.process_uninsured_claim(equity_reduction, immediate_payment=False)
+
+        # Verify at tolerance
+        assert manufacturer.equity == pytest.approx(tolerance)
+        initial_cash = manufacturer.cash
+        assert not manufacturer.is_ruined
+
+        # Try to absorb another loss
+        net_income = -50_000
+
+        manufacturer.update_balance_sheet(net_income)
+
+        # Cash should not be reduced (loss not absorbed)
+        assert manufacturer.cash == pytest.approx(
+            initial_cash
+        ), "Should not reduce cash when already at tolerance"
+        # Equity should still be at tolerance
+        assert manufacturer.equity == pytest.approx(tolerance)
+
+    def test_normal_loss_absorption_when_sufficient_cash_and_equity(self, manufacturer):
+        """Test that losses are absorbed normally when sufficient cash and equity exist.
+
+        Verifies the "happy path" where a company has both sufficient cash to pay
+        and sufficient equity buffer to remain solvent after absorption.
+        """
+        tolerance = manufacturer.config.insolvency_tolerance
+        initial_cash = manufacturer.cash
+        initial_equity = manufacturer.equity
+
+        # Incur moderate loss that company can absorb
+        # Loss = $200K, well within both cash ($7M) and equity ($10M)
+        loss_amount = 200_000
+        net_income = -loss_amount
+
+        # Absorb the loss
+        manufacturer.update_balance_sheet(net_income)
+
+        # Loss should be fully absorbed
+        assert manufacturer.cash == pytest.approx(initial_cash - loss_amount)
+        assert manufacturer.equity == pytest.approx(initial_equity - loss_amount)
+        assert not manufacturer.is_ruined, "Should remain solvent with sufficient buffers"
+        assert manufacturer.equity > tolerance, "Should be well above insolvency threshold"
+
+    def test_edge_case_loss_exactly_equals_cash(self, manufacturer):
+        """Test edge case where loss exactly equals available cash.
+
+        Verifies behavior when loss amount precisely matches cash on hand.
+        """
+        # Set cash to specific amount
+        target_cash = 100_000
+        manufacturer.cash = target_cash
+        initial_equity = manufacturer.equity
+
+        # Loss exactly equals cash
+        net_income = -target_cash
+
+        manufacturer.update_balance_sheet(net_income)
+
+        # Should absorb the loss if equity remains above tolerance
+        tolerance = manufacturer.config.insolvency_tolerance
+        if initial_equity - target_cash > tolerance:
+            # Should successfully absorb
+            assert manufacturer.cash == pytest.approx(0)
+            assert not manufacturer.is_ruined
+        else:
+            # Should trigger insolvency
+            assert manufacturer.is_ruined
+
+    def test_liquidity_crisis_error_message_clarity(self, manufacturer, caplog):
+        """Test that liquidity crisis produces clear error messages for debugging.
+
+        Verifies that the liquidity crisis error message includes all relevant
+        information (loss amount, available cash, book equity) to help with
+        debugging and understanding the insolvency trigger.
+        """
+        import logging
+
+        # Set up cash-constrained scenario
+        manufacturer.cash = 100_000
+        initial_equity = manufacturer.equity
+
+        # Trigger liquidity crisis
+        loss_amount = 150_000
+        net_income = -loss_amount
+
+        with caplog.at_level(logging.ERROR):
+            manufacturer.update_balance_sheet(net_income)
+
+        # Check that error log contains key information
+        error_messages = [
+            record.message for record in caplog.records if record.levelname == "ERROR"
+        ]
+        assert any("LIQUIDITY CRISIS" in msg for msg in error_messages)
+        assert any(f"${loss_amount:,.2f}" in msg for msg in error_messages)
+        assert any(f"${100_000:,.2f}" in msg for msg in error_messages)
+
+    def test_working_capital_creates_liquidity_constraint_scenario(self, config):
+        """Integration test demonstrating real-world liquidity crisis scenario.
+
+        Shows how working capital requirements can create a situation where
+        a company has positive book equity but insufficient liquid cash to
+        meet obligations, leading to insolvency.
+        """
+        manufacturer = WidgetManufacturer(config)
+
+        # Run one period to establish working capital
+        manufacturer.step(working_capital_pct=0.2)
+
+        # Verify working capital has tied up cash
+        assert manufacturer.accounts_receivable > 0, "Should have AR (cash tied up)"
+        assert manufacturer.inventory > 0, "Should have inventory (cash tied up)"
+        assert manufacturer.equity > 0, "Should have positive equity"
+
+        # Record current state
+        available_cash = manufacturer.cash
+        total_equity = manufacturer.equity
+
+        # Simulate catastrophic loss that exceeds liquid cash but not book equity
+        # E.g., $5M loss when cash is ~$3M but equity is ~$10M
+        catastrophic_loss = available_cash + 1_000_000  # Exceeds cash by $1M
+
+        net_income = -catastrophic_loss
+
+        # This should trigger liquidity crisis despite positive book equity
+        manufacturer.update_balance_sheet(net_income)
+
+        # Verify insolvency triggered
+        assert manufacturer.is_ruined, (
+            f"Should be insolvent: needed ${catastrophic_loss:,.2f}, "
+            f"had cash ${available_cash:,.2f}, equity ${total_equity:,.2f}"
+        )
