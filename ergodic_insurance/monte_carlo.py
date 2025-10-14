@@ -139,8 +139,9 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         # manufacturer.step() is called, which properly accounts for tax benefits
         # and reinvestment of retained earnings.
 
-        # Check for ruin
-        if manufacturer.total_assets <= 0:
+        # Check for ruin - use insolvency tolerance from shared config
+        tolerance = shared.get("insolvency_tolerance", 10_000)
+        if manufacturer.equity <= tolerance:
             # Mark ruin for all future evaluation points
             if ruin_evaluation:
                 for eval_year in ruin_at_year:
@@ -183,7 +184,7 @@ class SimulationConfig:
     parallel: bool = True
     n_workers: Optional[int] = None
     chunk_size: int = 10_000
-    use_float32: bool = True
+    use_float32: bool = False
     cache_results: bool = True
     checkpoint_interval: Optional[int] = None
     progress_bar: bool = True
@@ -209,6 +210,8 @@ class SimulationConfig:
     ruin_evaluation: Optional[List[int]] = None
     # Working capital configuration
     working_capital_pct: float = 0.0  # Default to 0% for full asset revenue generation
+    # Insolvency tolerance
+    insolvency_tolerance: float = 10_000  # Company is insolvent when equity <= this threshold
 
 
 @dataclass
@@ -623,7 +626,8 @@ class MonteCarloEngine:
                     ruin_probability[str(eval_year)] = ruin_count / n_sims
 
         # Always add final ruin probability (at max runtime)
-        final_ruin_count = np.sum(final_assets <= 0)
+        # Use insolvency tolerance to determine ruin
+        final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
         ruin_probability[str(n_years)] = float(final_ruin_count / n_sims)
 
         return SimulationResults(
@@ -751,6 +755,7 @@ class MonteCarloEngine:
             "n_years": self.config.n_years,
             "use_float32": self.config.use_float32,
             "ruin_evaluation": self.config.ruin_evaluation,
+            "insolvency_tolerance": self.config.insolvency_tolerance,
             "manufacturer_config": self.manufacturer.__dict__.copy(),
             "insurance_layers": [layer.__dict__ for layer in self.insurance_program.layers],
             "loss_generator_params": {
@@ -826,7 +831,8 @@ class MonteCarloEngine:
                         ruin_probability[str(eval_year)] = ruin_count / total_simulations
 
             # Always add final ruin probability (at max runtime)
-            final_ruin_count = np.sum(final_assets <= 0)
+            # Use insolvency tolerance to determine ruin
+            final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
             ruin_probability[str(n_years)] = float(final_ruin_count / total_simulations)
 
             return SimulationResults(
@@ -1001,8 +1007,8 @@ class MonteCarloEngine:
                 apply_stochastic=apply_stochastic,
             )
 
-            # Check for ruin
-            if manufacturer.total_assets <= 0:
+            # Check for ruin using insolvency tolerance
+            if manufacturer.equity <= self.config.insolvency_tolerance:
                 # Mark ruin for all future evaluation points
                 if self.config.ruin_evaluation:
                     for eval_year in ruin_at_year:
@@ -1097,7 +1103,8 @@ class MonteCarloEngine:
                     ruin_probability[str(eval_year)] = ruin_count / total_simulations
 
         # Always add final ruin probability
-        final_ruin_count = np.sum(final_assets <= 0)
+        # Use insolvency tolerance to determine ruin
+        final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
         ruin_probability[str(self.config.n_years)] = float(final_ruin_count / total_simulations)
 
         return SimulationResults(
@@ -1379,8 +1386,8 @@ class MonteCarloEngine:
         confidence_intervals["Mean Growth Rate"] = ci
 
         # Bootstrap CI for ruin probability
-        # Create binary ruin indicator
-        ruin_indicator = (results.final_assets <= 0).astype(float)
+        # Create binary ruin indicator using insolvency tolerance
+        ruin_indicator = (results.final_assets <= self.config.insolvency_tolerance).astype(float)
         _, ci = bootstrap_confidence_interval(
             ruin_indicator,
             np.mean,
@@ -1742,7 +1749,11 @@ class MonteCarloEngine:
             insurance_recoveries=insurance_recoveries,
             retained_losses=retained_losses,
             growth_rates=growth_rates,
-            ruin_probability={str(self.config.n_years): float(np.mean(final_assets <= 0))},
+            ruin_probability={
+                str(self.config.n_years): float(
+                    np.mean(final_assets <= self.config.insolvency_tolerance)
+                )
+            },
             metrics={},
             convergence={},
             execution_time=sum(r.execution_time for r in results_list),

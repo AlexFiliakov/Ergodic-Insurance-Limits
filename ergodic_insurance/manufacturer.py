@@ -1360,13 +1360,14 @@ class WidgetManufacturer:
             current_equity = self.equity
             available_cash = self.cash
 
-            # STRICT ENFORCEMENT: If equity is already at or below $1, don't absorb ANY more losses
-            # This prevents rounding errors from pushing equity negative
-            if current_equity <= 1.0:
+            # STRICT ENFORCEMENT: If equity is already at or below insolvency tolerance, don't absorb ANY more losses
+            # This prevents the company from continuing operations when effectively insolvent
+            tolerance = self.config.insolvency_tolerance
+            if current_equity <= tolerance:
                 logger.warning(
                     f"LIMITED LIABILITY: Equity too low (${current_equity:,.2f}) to absorb any losses. "
                     f"Cannot absorb loss of ${abs(retained_earnings):,.2f}. "
-                    f"Company will be marked insolvent."
+                    f"Company will be marked insolvent (threshold: ${tolerance:,.2f})."
                 )
                 # Don't reduce cash - company is already insolvent
                 # Check solvency will handle this
@@ -1376,10 +1377,10 @@ class WidgetManufacturer:
                     )
             else:
                 # Can't absorb more loss than we have equity OR cash for
-                # Leave small buffer (min $1) to prevent rounding issues
+                # Leave buffer equal to insolvency tolerance to prevent operational insolvency
                 max_loss = (
-                    min(abs(retained_earnings), current_equity - 1.0, available_cash)
-                    if (current_equity > 1.0 and available_cash > 0)
+                    min(abs(retained_earnings), current_equity - tolerance, available_cash)
+                    if (current_equity > tolerance and available_cash > 0)
                     else 0.0
                 )
                 capped_loss = -max_loss  # Make it negative for subtraction
