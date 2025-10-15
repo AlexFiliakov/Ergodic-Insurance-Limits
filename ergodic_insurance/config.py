@@ -133,6 +133,13 @@ class ManufacturerConfig(BaseModel):
         description="Property, Plant & Equipment allocation ratio (fraction of initial assets). "
         "If None, defaults based on operating margin: <10%: 0.3, 10-15%: 0.5, >15%: 0.7",
     )
+    insolvency_tolerance: float = Field(
+        default=10_000,
+        gt=0,
+        description="Insolvency threshold in dollars. Company is considered insolvent when "
+        "equity falls below this level. Default of $10,000 (0.1%% of typical $10M assets) "
+        "represents practical insolvency where company cannot maintain operations.",
+    )
 
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):

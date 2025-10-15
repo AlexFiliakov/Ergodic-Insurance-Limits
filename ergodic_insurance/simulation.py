@@ -707,10 +707,13 @@ class Simulation:
             self.claim_counts[year] = metrics.get("claim_count", 0)
             self.claim_amounts[year] = metrics.get("claim_amount", 0)
 
-            # Check for insolvency
-            if metrics.get("equity", 0) <= 0 and self.insolvency_year is None:
+            # Check for insolvency using manufacturer's insolvency tolerance
+            tolerance = self.manufacturer.config.insolvency_tolerance
+            if metrics.get("equity", 0) <= tolerance and self.insolvency_year is None:
                 self.insolvency_year = year
-                logger.warning(f"Manufacturer became insolvent in year {year}")
+                logger.warning(
+                    f"Manufacturer became insolvent in year {year} (equity <= ${tolerance:,.2f})"
+                )
                 # Fill remaining years with zeros
                 self.assets[year + 1 :] = 0
                 self.equity[year + 1 :] = 0
@@ -802,10 +805,13 @@ class Simulation:
             self.claim_counts[year] = metrics.get("claim_count", 0)
             self.claim_amounts[year] = metrics.get("claim_amount", 0)
 
-            # Check for insolvency
-            if metrics.get("equity", 0) <= 0 and self.insolvency_year is None:
+            # Check for insolvency using manufacturer's insolvency tolerance
+            tolerance = self.manufacturer.config.insolvency_tolerance
+            if metrics.get("equity", 0) <= tolerance and self.insolvency_year is None:
                 self.insolvency_year = year
-                logger.warning(f"Manufacturer became insolvent in year {year}")
+                logger.warning(
+                    f"Manufacturer became insolvent in year {year} (equity <= ${tolerance:,.2f})"
+                )
                 # Fill remaining years with zeros
                 self.assets[year + 1 :] = 0
                 self.equity[year + 1 :] = 0
