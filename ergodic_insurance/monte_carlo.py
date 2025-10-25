@@ -626,8 +626,13 @@ class MonteCarloEngine:
                     ruin_probability[str(eval_year)] = ruin_count / n_sims
 
         # Always add final ruin probability (at max runtime)
-        # Use insolvency tolerance to determine ruin
-        final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
+        # Count both: companies with low final assets AND companies marked as ruined earlier
+        if self.config.ruin_evaluation or ruin_at_year_all:
+            # Count from ruin_at_year tracking (includes early bankruptcies)
+            final_ruin_count = sum(r.get(n_years, False) for r in ruin_at_year_all)
+        else:
+            # Fallback to equity check if no tracking
+            final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
         ruin_probability[str(n_years)] = float(final_ruin_count / n_sims)
 
         return SimulationResults(
@@ -831,8 +836,13 @@ class MonteCarloEngine:
                         ruin_probability[str(eval_year)] = ruin_count / total_simulations
 
             # Always add final ruin probability (at max runtime)
-            # Use insolvency tolerance to determine ruin
-            final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
+            # Count both: companies with low final assets AND companies marked as ruined earlier
+            if self.config.ruin_evaluation and ruin_at_year_all:
+                # Count from ruin_at_year tracking (includes early bankruptcies)
+                final_ruin_count = sum(r.get(n_years, False) for r in ruin_at_year_all)
+            else:
+                # Fallback to equity check if no tracking
+                final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
             ruin_probability[str(n_years)] = float(final_ruin_count / total_simulations)
 
             return SimulationResults(
@@ -929,6 +939,8 @@ class MonteCarloEngine:
             for eval_year in self.config.ruin_evaluation:
                 if eval_year <= n_years:  # Only track if within simulation period
                     ruin_at_year[eval_year] = False
+        # Always track final year to ensure early bankruptcies propagate
+        ruin_at_year[n_years] = False
 
         # Run simulation for each year
         for year in range(n_years):
@@ -1007,8 +1019,8 @@ class MonteCarloEngine:
                 apply_stochastic=apply_stochastic,
             )
 
-            # Check for ruin using insolvency tolerance
-            if manufacturer.equity <= self.config.insolvency_tolerance:
+            # Check for ruin using insolvency tolerance or is_ruined flag
+            if manufacturer.equity <= self.config.insolvency_tolerance or manufacturer.is_ruined:
                 # Mark ruin for all future evaluation points
                 if self.config.ruin_evaluation:
                     for eval_year in ruin_at_year:
@@ -1103,8 +1115,18 @@ class MonteCarloEngine:
                     ruin_probability[str(eval_year)] = ruin_count / total_simulations
 
         # Always add final ruin probability
-        # Use insolvency tolerance to determine ruin
-        final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
+        # Count both: companies with low final assets AND companies marked as ruined earlier
+        if self.config.ruin_evaluation and chunk_results:
+            # Count from ruin_at_year tracking (includes early bankruptcies)
+            final_ruin_count = 0
+            for chunk in chunk_results:
+                if "ruin_at_year" in chunk:
+                    for sim_ruin_data in chunk["ruin_at_year"]:
+                        if sim_ruin_data.get(self.config.n_years, False):
+                            final_ruin_count += 1
+        else:
+            # Fallback to equity check if no tracking
+            final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
         ruin_probability[str(self.config.n_years)] = float(final_ruin_count / total_simulations)
 
         return SimulationResults(

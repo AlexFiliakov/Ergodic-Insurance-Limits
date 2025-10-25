@@ -292,5 +292,5 @@ class TestPeriodicRuinTracking:
             # Probability should not decrease over time
             assert (
                 current_prob >= prev_prob
-            ), f"Ruin probability decreased from {prev_prob} to {current_prob} at year {year}"
+            ), f"Ruin probability did not increase from previous {prev_prob} to current {current_prob} at year {year}"
             prev_prob = current_prob

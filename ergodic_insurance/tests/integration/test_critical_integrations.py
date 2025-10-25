@@ -684,7 +684,7 @@ class TestEndToEndScenarios:
                 "severity_cv": 1.5,  # Reduced variability (was 2.0)
             },
             large_params={
-                "base_frequency": 0.05,  # Rare large losses (was 0.3)
+                "base_frequency": 0.1,  # Rare large losses (was 0.3)
                 "severity_mean": 200_000,  # Scaled to startup size (was 1M)
                 "severity_cv": 1.8,  # Reduced variability (was 2.5)
             },
@@ -956,7 +956,7 @@ class TestEndToEndScenarios:
                 "severity_cv": 1.5,
             },
             large_params={
-                "base_frequency": 0.2,  # Reduced from 0.4 - large losses every 5 years
+                "base_frequency": 0.3,  # Reduced from 0.4 - large losses every 5 years
                 "severity_mean": 800_000,  # Reduced from 1.5M - more manageable
                 "severity_cv": 1.8,
             },

@@ -1392,6 +1392,8 @@ class WidgetManufacturer:
                     f"${equity_after_loss:,.2f}, below threshold ${tolerance:,.2f}. "
                     f"Current equity=${current_equity:,.2f}. Triggering insolvency."
                 )
+                # Apply the loss to the balance sheet before handling insolvency
+                self.cash += retained_earnings  # retained_earnings is negative
                 self.handle_insolvency()
                 return  # Exit - company is now insolvent
 
@@ -2392,6 +2394,9 @@ class WidgetManufacturer:
         if not self.is_ruined:
             self.is_ruined = True
             total_liabilities = self.total_claim_liabilities
+            pre_liquidation_equity = self.equity
+            pre_liquidation_assets = self.total_assets
+
             logger.warning(
                 f"INSOLVENCY: Company is now insolvent. "
                 f"Equity: ${self.equity:,.2f}, "
@@ -2399,6 +2404,19 @@ class WidgetManufacturer:
                 f"Liabilities: ${total_liabilities:,.2f}, "
                 f"Unpayable debt: ${max(0, total_liabilities - self.total_assets):,.2f}"
             )
+
+            # Apply bankruptcy/liquidation: Company's assets are liquidated
+            # In bankruptcy, assets are sold at a discount and costs are incurred
+            # Set remaining value to insolvency_tolerance (near-zero value after liquidation)
+            if self.equity > self.config.insolvency_tolerance:
+                # Reduce cash to represent liquidation costs and asset haircuts
+                liquidation_loss = self.cash - self.config.insolvency_tolerance
+                if liquidation_loss > 0:
+                    self.cash = self.config.insolvency_tolerance
+                    logger.info(
+                        f"LIQUIDATION: Assets reduced from ${pre_liquidation_assets:,.2f} "
+                        f"to ${self.total_assets:,.2f} due to bankruptcy liquidation costs"
+                    )
 
     def check_solvency(self) -> bool:
         """Check if the company is solvent and update ruin status.
