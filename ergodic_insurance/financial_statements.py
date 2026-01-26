@@ -746,7 +746,9 @@ class FinancialStatementGenerator:
         gross_profit, operating_income = self._build_gaap_expenses_section(
             income_data, metrics, revenue, monthly
         )
-        self._build_gaap_bottom_section(income_data, metrics, operating_income, revenue, monthly)
+        self._build_gaap_bottom_section(
+            income_data, metrics, operating_income, gross_profit, revenue, monthly
+        )
 
         # Create DataFrame
         period_label = "Month" if monthly else "Year"
@@ -906,6 +908,7 @@ class FinancialStatementGenerator:
         data: List[Tuple[str, Union[str, float, int], str, str]],
         metrics: Dict[str, float],
         operating_income: float,
+        gross_profit: float,
         revenue: float,
         monthly: bool = False,
     ) -> None:
@@ -917,6 +920,7 @@ class FinancialStatementGenerator:
             data: List to append statement lines to
             metrics: Year metrics dictionary
             operating_income: Operating income (EBIT) for the period
+            gross_profit: Gross profit (revenue - COGS) for the period
             revenue: Total revenue for the period
             monthly: If True, use monthly figures
         """
@@ -980,7 +984,7 @@ class FinancialStatementGenerator:
         data.append(("KEY FINANCIAL METRICS", "", "", ""))
 
         # Calculate key margins
-        gross_margin = (revenue - operating_income) / revenue if revenue > 0 else 0
+        gross_margin = gross_profit / revenue if revenue > 0 else 0
         operating_margin = operating_income / revenue if revenue > 0 else 0
         net_margin = net_income / revenue if revenue > 0 else 0
         effective_tax_rate = tax_provision / pretax_income if pretax_income > 0 else 0

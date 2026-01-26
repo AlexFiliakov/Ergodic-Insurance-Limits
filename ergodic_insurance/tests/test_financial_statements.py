@@ -556,6 +556,65 @@ class TestFinancialStatementGenerator:
                 abs(actual_margin - 0.20) < 0.05
             ), f"Gross margin should be ~20%, got {actual_margin*100:.1f}%"
 
+    def test_gross_margin_calculation(self):
+        """Test that gross margin is calculated correctly as gross_profit/revenue.
+
+        Issue #210: gross_margin was incorrectly calculated as (revenue - operating_income) / revenue
+        which overstates gross margin by including operating expenses.
+
+        Correct formula: gross_margin = gross_profit / revenue = (revenue - COGS) / revenue
+        """
+        # Create manufacturer with specific expense ratios to verify calculation
+        manufacturer = Mock(spec=WidgetManufacturer)
+
+        # Create config with known expense ratios
+        expense_config = ExpenseRatioConfig(
+            gross_margin_ratio=0.25,  # 25% gross margin (75% COGS)
+            sga_expense_ratio=0.10,  # 10% SG&A
+            manufacturing_depreciation_allocation=0.7,
+            admin_depreciation_allocation=0.3,
+        )
+
+        config = Mock()
+        config.initial_assets = 10_000_000
+        config.tax_rate = 0.25
+        config.expense_ratios = expense_config
+
+        manufacturer.config = config
+
+        manufacturer.metrics_history = [
+            {
+                "year": 0,
+                "assets": 10_000_000,
+                "equity": 10_000_000,
+                "revenue": 1_000_000,  # Simple round number for easy calculation
+                "depreciation_expense": 100_000,
+                "cash": 1_000_000,
+                "debt_balance": 0,
+                "insurance_premiums": 0,
+                "insurance_losses": 0,
+            }
+        ]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+        df = generator.generate_income_statement(year=0)
+
+        # Find the Gross Margin % row
+        gross_margin_row = None
+        for i, item in enumerate(df["Item"].values):
+            if "Gross Margin %" in str(item):
+                gross_margin_row = i
+                break
+
+        assert gross_margin_row is not None, "Gross Margin % row not found"
+
+        # Gross margin should be approximately 25% (the configured gross_margin_ratio)
+        # The value is stored as percentage (e.g., 25.0 for 25%)
+        actual_margin = df["Year 0"].values[gross_margin_row]
+        assert (
+            abs(actual_margin - 25.0) < 1.0
+        ), f"Gross margin should be ~25% (configured), got {actual_margin:.1f}%"
+
 
 class TestMonteCarloStatementAggregator:
     """Test MonteCarloStatementAggregator class."""
