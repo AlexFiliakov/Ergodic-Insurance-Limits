@@ -128,6 +128,36 @@ class TestSimulationResults:
         # Geometric mean should be less than arithmetic mean for variable returns
         assert time_weighted < np.mean(results.roe)
 
+    def test_time_weighted_roe_total_loss(self):
+        """Test time-weighted ROE with total loss scenarios (ROE <= -1).
+
+        Regression test for issue #211: Math domain error when ROE <= -1
+        causes np.log(1 + roe) to fail with domain error or return -inf.
+        """
+        results = SimulationResults(
+            years=np.array([0, 1, 2, 3, 4]),
+            assets=np.array([100, 110, 50, 0, 0]),
+            equity=np.array([50, 55, 25, 0, 0]),
+            roe=np.array([0.10, 0.10, -1.0, -1.0, np.nan]),  # Total loss in years 2-3
+            revenue=np.array([100, 105, 50, 0, 0]),
+            net_income=np.array([5, 5.5, -30, 0, 0]),
+            claim_counts=np.array([0, 0, 1, 0, 0]),
+            claim_amounts=np.array([0, 0, 50, 0, 0]),
+        )
+
+        # Should not raise domain error and should return a valid float
+        time_weighted = results.calculate_time_weighted_roe()
+        assert isinstance(time_weighted, float)
+        assert np.isfinite(time_weighted)
+        # The result should be negative due to the large losses
+        assert time_weighted < 0
+
+        # Test with ROE even worse than -100% (edge case)
+        results.roe = np.array([0.10, -1.5, -2.0, 0.05, 0.08])
+        time_weighted = results.calculate_time_weighted_roe()
+        assert isinstance(time_weighted, float)
+        assert np.isfinite(time_weighted)
+
     def test_rolling_roe_calculations(self):
         """Test rolling window ROE calculations."""
         results = SimulationResults(

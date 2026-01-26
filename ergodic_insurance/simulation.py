@@ -176,8 +176,12 @@ class SimulationResults:
             return 0.0
 
         # For time-weighted average, we use geometric mean for compounding returns
+        # Guard against total loss scenarios where ROE <= -1 would cause log domain errors
+        # Clip to -0.99 (99% loss) to maintain valid growth factors >= 0.01
+        clipped_roe = np.clip(valid_roe, -0.99, None)
+
         # Convert ROE to growth factors (1 + roe)
-        growth_factors = 1 + valid_roe
+        growth_factors = 1 + clipped_roe
 
         # Geometric mean minus 1 to get average return
         time_weighted_roe = np.exp(np.mean(np.log(growth_factors))) - 1
