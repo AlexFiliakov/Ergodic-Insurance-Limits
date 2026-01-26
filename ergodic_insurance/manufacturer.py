@@ -494,14 +494,28 @@ class WidgetManufacturer:
         self.gross_ppe = config.initial_assets * config.ppe_ratio  # type: ignore
         self.accumulated_depreciation = 0.0  # Will accumulate over time
 
-        # Current Assets
-        self.cash = config.initial_assets * (1 - config.ppe_ratio)  # type: ignore
-        self.accounts_receivable = 0.0  # Based on DSO
-        self.inventory = 0.0  # Based on DIO
+        # Current Assets - initialize working capital to steady state
+        # Calculate initial revenue based on asset turnover
+        initial_revenue = config.initial_assets * config.asset_turnover_ratio
+        # Calculate COGS for inventory
+        initial_cogs = initial_revenue * (1 - config.base_operating_margin)
+
+        # Initialize AR and Inventory to steady state levels based on industry-standard ratios
+        # DSO (Days Sales Outstanding) = 45, DIO (Days Inventory Outstanding) = 60
+        # These match the defaults in calculate_working_capital_components()
+        # This prevents Year 1 "warm-up" distortion where working capital builds from zero
+        self.accounts_receivable = initial_revenue * (45 / 365)  # Based on DSO
+        self.inventory = initial_cogs * (60 / 365)  # Based on DIO
         self.prepaid_insurance = 0.0  # Annual premiums paid in advance
 
-        # Current Liabilities
-        self.accounts_payable = 0.0  # Based on DPO
+        # Adjust cash to fund the working capital assets (AR + Inventory)
+        # This maintains total_assets = initial_assets while establishing steady-state working capital
+        working_capital_assets = self.accounts_receivable + self.inventory
+        self.cash = config.initial_assets * (1 - config.ppe_ratio) - working_capital_assets  # type: ignore
+
+        # Current Liabilities - AP will build up on first step based on actual COGS
+        # Starting with zero AP maintains total_assets = initial_assets at initialization
+        self.accounts_payable = 0.0  # Will be calculated on first step
         self.accrued_expenses = 0.0  # Other accrued items
 
         # Track original prepaid premium for amortization calculation

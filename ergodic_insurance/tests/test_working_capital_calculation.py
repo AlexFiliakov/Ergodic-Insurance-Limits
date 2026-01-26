@@ -125,19 +125,30 @@ class TestWorkingCapitalCalculation:
         assert payables[0] > payables[1] > payables[2]
 
     def test_working_capital_integration_with_step(self, manufacturer):
-        """Test that working capital is calculated during step() method."""
-        # Initial state should have zero working capital components
-        assert manufacturer.accounts_receivable == 0
-        assert manufacturer.inventory == 0
-        assert manufacturer.accounts_payable == 0
+        """Test that working capital assets are initialized to steady state and maintained during step() method."""
+        # Initial state should have non-zero AR and Inventory (steady state)
+        # AP starts at zero and builds up on first step
+        # This prevents Year 1 distortion from working capital buildup
+        initial_ar = manufacturer.accounts_receivable
+        initial_inv = manufacturer.inventory
+        initial_ap = manufacturer.accounts_payable
+
+        assert initial_ar > 0, "AR should be initialized to steady state"
+        assert initial_inv > 0, "Inventory should be initialized to steady state"
+        assert initial_ap == 0, "AP starts at zero (will build up on first step)"
 
         # Run a step
         metrics = manufacturer.step()
 
-        # After step, working capital components should be calculated
+        # After step, working capital components should all be positive
         assert manufacturer.accounts_receivable > 0
         assert manufacturer.inventory > 0
-        assert manufacturer.accounts_payable > 0
+        assert manufacturer.accounts_payable > 0, "AP should build up on first step"
+
+        # AR and Inventory changes should be modest (within 20% of initial values)
+        # since we're starting from steady state
+        assert abs(manufacturer.accounts_receivable - initial_ar) < initial_ar * 0.2
+        assert abs(manufacturer.inventory - initial_inv) < initial_inv * 0.2
 
         # Components should be in metrics
         assert metrics["accounts_receivable"] > 0
@@ -258,3 +269,59 @@ class TestWorkingCapitalCalculation:
 
         # Should be reasonably close
         assert annual_ar == pytest.approx(final_monthly_ar, rel=0.1)
+
+    def test_no_year1_working_capital_distortion(self, manufacturer):
+        """Test that Year 1 doesn't have unusual working capital buildup (Issue #223).
+
+        This test verifies that initializing AR and Inventory to steady state
+        eliminates the Year 1 distortion where a large working capital buildup
+        artificially depresses ROE and cash flow.
+
+        The key test is that AR and Inventory start at substantial levels
+        (not building up from zero), preventing the Year 1 cash flow distortion.
+        """
+        # Store initial working capital values
+        initial_ar = manufacturer.accounts_receivable
+        initial_inv = manufacturer.inventory
+        initial_ap = manufacturer.accounts_payable
+
+        # Verify AR and Inventory start at steady state (the core fix for Issue #223)
+        assert initial_ar > 0, "AR should start at steady state, not zero"
+        assert initial_inv > 0, "Inventory should start at steady state, not zero"
+        assert (
+            initial_ap == 0
+        ), "AP starts at zero (builds up on first step to maintain total_assets)"
+
+        # Calculate expected initial values based on initialization formula
+        initial_revenue = (
+            manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
+        )
+        initial_cogs = initial_revenue * (1 - manufacturer.config.base_operating_margin)
+        expected_initial_ar = initial_revenue * (45 / 365)
+        expected_initial_inv = initial_cogs * (60 / 365)
+
+        # Verify AR and Inventory initialization matches expected steady-state values
+        assert initial_ar == pytest.approx(expected_initial_ar, rel=0.01)
+        assert initial_inv == pytest.approx(expected_initial_inv, rel=0.01)
+
+        # Run first step
+        year1_metrics = manufacturer.step()
+
+        # Year 1 AR and Inventory should remain substantial (not building from zero)
+        # The values should be in the same order of magnitude as initialization
+        assert (
+            year1_metrics["accounts_receivable"] > initial_ar * 0.5
+        ), "Year 1 AR should remain substantial"
+        assert (
+            year1_metrics["inventory"] > initial_inv * 0.5
+        ), "Year 1 inventory should remain substantial"
+
+        # AP will build up on first step
+        assert (
+            year1_metrics["accounts_payable"] > 0
+        ), "Year 1 AP should be positive after first step"
+
+        # The key benefit: AR and Inventory are NOT building from zero in Year 1
+        # If they were building from zero, Year 1 ending values would represent the full buildup
+        # But with steady-state init, Year 1 only shows modest adjustments from initialization
+        # This prevents the massive cash outflow that was depressing Year 1 ROE and cash flow
