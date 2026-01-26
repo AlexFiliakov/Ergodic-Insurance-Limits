@@ -130,18 +130,22 @@ class TestWorkingCapitalChanges:
         """Test mixed increases and decreases in working capital."""
         metrics = [
             {
-                "accounts_receivable": 150000,
-                "inventory": 100000,
-                "prepaid_insurance": 20000,
-                "accounts_payable": 80000,
-                "accrued_expenses": 40000,
+                "net_income": 100000.0,
+                "depreciation_expense": 10000.0,
+                "accounts_receivable": 150000.0,
+                "inventory": 100000.0,
+                "prepaid_insurance": 20000.0,
+                "accounts_payable": 80000.0,
+                "accrued_expenses": 40000.0,
             },
             {
-                "accounts_receivable": 120000,  # Decreased by 30k (source)
-                "inventory": 150000,  # Increased by 50k (use)
-                "prepaid_insurance": 25000,  # Increased by 5k (use)
-                "accounts_payable": 90000,  # Increased by 10k (source)
-                "accrued_expenses": 35000,  # Decreased by 5k (use)
+                "net_income": 120000.0,
+                "depreciation_expense": 12000.0,
+                "accounts_receivable": 120000.0,  # Decreased by 30k (source)
+                "inventory": 150000.0,  # Increased by 50k (use)
+                "prepaid_insurance": 25000.0,  # Increased by 5k (use)
+                "accounts_payable": 90000.0,  # Increased by 10k (source)
+                "accrued_expenses": 35000.0,  # Decreased by 5k (use)
             },
         ]
 
@@ -261,12 +265,16 @@ class TestWorkingCapitalChanges:
         """Test that monthly periods scale working capital changes correctly."""
         annual_metrics = [
             {
-                "accounts_receivable": 120000,  # Annual average
-                "inventory": 60000,
+                "net_income": 200000.0,
+                "depreciation_expense": 20000.0,
+                "accounts_receivable": 120000.0,  # Annual average
+                "inventory": 60000.0,
             },
             {
-                "accounts_receivable": 180000,  # Annual increase of 60k
-                "inventory": 84000,  # Annual increase of 24k
+                "net_income": 240000.0,
+                "depreciation_expense": 24000.0,
+                "accounts_receivable": 180000.0,  # Annual increase of 60k
+                "inventory": 84000.0,  # Annual increase of 24k
             },
         ]
 
