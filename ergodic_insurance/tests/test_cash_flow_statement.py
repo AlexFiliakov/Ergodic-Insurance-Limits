@@ -259,3 +259,63 @@ class TestCashFlowStatement:
         items = df["Item"].str.strip().tolist()
         for section in required_sections:
             assert section in items, f"Missing required section: {section}"
+
+    def test_insurance_premiums_not_in_financing(self):
+        """Test that insurance premiums are NOT in financing section (prevents double counting).
+
+        Insurance premiums are already deducted from Net Income (which flows into
+        Operating Activities). Including them in Financing Activities would result
+        in double counting, understating the company's ending cash position.
+
+        This is a regression test for GitHub Issue #212.
+        """
+        # Create metrics that include insurance_premiums_paid
+        metrics_with_insurance = [
+            {
+                "net_income": 800000,  # Already has insurance premiums deducted
+                "depreciation_expense": 100000,
+                "cash": 500000,
+                "accounts_receivable": 200000,
+                "inventory": 150000,
+                "prepaid_insurance": 20000,
+                "accounts_payable": 100000,
+                "accrued_expenses": 50000,
+                "claim_liabilities": 0,
+                "gross_ppe": 1000000,
+                "assets": 2000000,
+                "equity": 1500000,
+                "insurance_premiums_paid": 200000,  # This should NOT appear in financing
+            },
+        ]
+
+        cash_flow = CashFlowStatement(metrics_with_insurance)
+        financing_cf = cash_flow._calculate_financing_cash_flow(
+            metrics_with_insurance[0], {}, "annual"
+        )
+
+        # Verify insurance_premiums key is NOT in financing items
+        assert "insurance_premiums" not in financing_cf, (
+            "Insurance premiums should not be in financing section - "
+            "they are already reflected in Net Income (Operating section)"
+        )
+
+        # Verify total only includes dividends (default 30% payout ratio on 800k = 240k)
+        expected_dividends = 800000 * 0.3  # 240,000
+        assert financing_cf["dividends_paid"] == pytest.approx(-expected_dividends)
+        assert financing_cf["total"] == pytest.approx(-expected_dividends)
+
+        # Verify the statement doesn't show insurance premiums in financing section
+        df = cash_flow.generate_statement(0, period="annual")
+        items = df["Item"].str.strip().tolist()
+
+        # Insurance premiums should NOT appear as a line item in financing section
+        # Find the financing section and check its line items
+        financing_start = items.index("CASH FLOWS FROM FINANCING ACTIVITIES")
+        financing_end = items.index("NET INCREASE (DECREASE) IN CASH")
+        financing_items = items[financing_start:financing_end]
+
+        for item in financing_items:
+            assert "Insurance Premium" not in item and "insurance_premium" not in item.lower(), (
+                f"Found insurance premiums in financing section: {item}. "
+                "This indicates double counting - premiums are already in Net Income."
+            )

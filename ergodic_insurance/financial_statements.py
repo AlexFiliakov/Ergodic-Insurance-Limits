@@ -248,10 +248,12 @@ class CashFlowStatement:
     def _calculate_financing_cash_flow(
         self, current: Dict[str, float], prior: Dict[str, float], period: str
     ) -> Dict[str, float]:
-        """Calculate financing cash flow (dividends, equity changes, and insurance premiums).
+        """Calculate financing cash flow (dividends and equity changes).
 
-        Insurance premium payments are included in financing activities as they
-        represent pre-funding of risk management activities, similar to debt service.
+        Note: Insurance premiums are NOT included here because they are already
+        reflected in Net Income (which flows into Operating Activities). Including
+        them here would result in double counting. Insurance premiums are deducted
+        as an operating expense when calculating Net Income in the manufacturer.
 
         Args:
             current: Current period metrics
@@ -266,15 +268,9 @@ class CashFlowStatement:
         if period == "monthly":
             dividends = dividends / 12
 
-        # Get insurance premium payments
-        insurance_premiums = current.get("insurance_premiums_paid", 0)
-        if period == "monthly":
-            insurance_premiums = insurance_premiums / 12
-
         financing_items = {
             "dividends_paid": -dividends,  # Cash outflow
-            "insurance_premiums": -insurance_premiums,  # Cash outflow
-            "total": -(dividends + insurance_premiums),
+            "total": -dividends,
         }
 
         return financing_items
