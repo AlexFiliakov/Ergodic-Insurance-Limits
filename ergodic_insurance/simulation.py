@@ -902,9 +902,9 @@ class Simulation:
 
             layer = EnhancedInsuranceLayer(
                 attachment_point=0,
-                limit=insurance_policy.limit
-                if hasattr(insurance_policy, "limit")
-                else float("inf"),
+                limit=(
+                    insurance_policy.limit if hasattr(insurance_policy, "limit") else float("inf")
+                ),
                 base_premium_rate=0.01,
             )
             insurance_program.layers.append(layer)
@@ -925,41 +925,94 @@ class Simulation:
             seed=seed,
         )
 
-        engine = MonteCarloEngine(
+        # Run simulation WITH insurance
+        engine_with_insurance = MonteCarloEngine(
             loss_generator=loss_generator,
             insurance_program=insurance_program,
             manufacturer=manufacturer,
             config=sim_config,
         )
 
-        results = engine.run()
+        logger.info("Running Monte Carlo simulation WITH insurance...")
+        results_with_insurance = engine_with_insurance.run()
 
-        # Add ergodic analysis
-        if hasattr(results, "statistics"):
-            stats = results.statistics
-        else:
-            stats = {}
+        # Run simulation WITHOUT insurance using the same seed for fair comparison
+        logger.info("Running Monte Carlo simulation WITHOUT insurance (same seed)...")
 
-        # Calculate ergodic premium justification
-        if "geometric_return" in stats:
-            geo_stats = stats["geometric_return"]
-            premium_cost = insurance_policy.calculate_premium()
-            initial_assets = config.manufacturer.initial_assets
+        # Create new loss generator with same seed for reproducibility
+        loss_generator_no_insurance = ManufacturingLossGenerator(seed=seed)
 
-            # Premium as percentage of assets
-            premium_rate = premium_cost / initial_assets
+        # Create new manufacturer instance (must be fresh for second run)
+        manufacturer_no_insurance = WidgetManufacturer(config=config.manufacturer)
 
-            # Compare geometric returns with and without insurance
-            # This is simplified - actual comparison would require running without insurance
-            ergodic_analysis = {
-                "premium_rate": premium_rate,
-                "geometric_mean_return": geo_stats["geometric_mean"],
-                "survival_rate": geo_stats["survival_rate"],
-                "volatility_reduction": geo_stats["std"],
-            }
-            return {"results": results, "ergodic_analysis": ergodic_analysis}
+        # Create empty insurance program (no coverage)
+        insurance_program_no_insurance = InsuranceProgram(layers=[])
 
-        return {"results": results}
+        engine_without_insurance = MonteCarloEngine(
+            loss_generator=loss_generator_no_insurance,
+            insurance_program=insurance_program_no_insurance,
+            manufacturer=manufacturer_no_insurance,
+            config=sim_config,
+        )
+
+        results_without_insurance = engine_without_insurance.run()
+
+        # Calculate empirical ergodic analysis by comparing the two runs
+        ergodic_analysis = {}
+
+        if hasattr(results_with_insurance, "statistics") and hasattr(
+            results_without_insurance, "statistics"
+        ):
+            stats_with = results_with_insurance.statistics
+            stats_without = results_without_insurance.statistics
+
+            # Extract metrics from both runs
+            if "geometric_return" in stats_with and "geometric_return" in stats_without:
+                geo_with = stats_with["geometric_return"]
+                geo_without = stats_without["geometric_return"]
+
+                premium_cost = insurance_policy.calculate_premium()
+                initial_assets = config.manufacturer.initial_assets
+                premium_rate = premium_cost / initial_assets
+
+                # Calculate empirical insurance impact
+                ergodic_analysis = {
+                    "premium_rate": premium_rate,
+                    # With insurance metrics
+                    "geometric_mean_return_with_insurance": geo_with.get("geometric_mean", 0.0),
+                    "survival_rate_with_insurance": geo_with.get("survival_rate", 0.0),
+                    "volatility_with_insurance": geo_with.get("std", 0.0),
+                    # Without insurance metrics
+                    "geometric_mean_return_without_insurance": geo_without.get(
+                        "geometric_mean", 0.0
+                    ),
+                    "survival_rate_without_insurance": geo_without.get("survival_rate", 0.0),
+                    "volatility_without_insurance": geo_without.get("std", 0.0),
+                    # Empirical deltas (insurance impact)
+                    "growth_impact": geo_with.get("geometric_mean", 0.0)
+                    - geo_without.get("geometric_mean", 0.0),
+                    "survival_benefit": geo_with.get("survival_rate", 0.0)
+                    - geo_without.get("survival_rate", 0.0),
+                    "volatility_reduction": geo_without.get("std", 0.0) - geo_with.get("std", 0.0),
+                }
+
+                logger.info(
+                    f"Empirical insurance impact: growth={ergodic_analysis['growth_impact']:.2%}, "
+                    f"survival={ergodic_analysis['survival_benefit']:.2%}, "
+                    f"volatility_reduction={ergodic_analysis['volatility_reduction']:.2%}"
+                )
+
+                return {
+                    "results_with_insurance": results_with_insurance,
+                    "results_without_insurance": results_without_insurance,
+                    "ergodic_analysis": ergodic_analysis,
+                }
+
+        # Fallback if statistics not available
+        return {
+            "results_with_insurance": results_with_insurance,
+            "results_without_insurance": results_without_insurance,
+        }
 
     @classmethod
     def compare_insurance_strategies(
