@@ -68,33 +68,38 @@ class TestAccrualIntegration:
         assert manufacturer.accrual_manager.get_total_accrued_expenses() == 0
 
     def test_claim_accrual_multi_year_payment(self, manufacturer):
-        """Test insurance claim with multi-year payment schedule."""
+        """Test insurance claim with multi-year payment schedule.
+
+        Note: record_claim_accrual() now creates ClaimLiability objects
+        (the single source of truth) instead of AccrualManager items.
+        Claims are paid via pay_claim_liabilities(). See GitHub issue #213.
+        """
         claim_amount = 1_000_000.0
         development_pattern = [0.5, 0.3, 0.2]  # 3-year payment pattern
 
-        # Record claim accrual
+        # Record claim accrual - now creates ClaimLiability
         manufacturer.record_claim_accrual(claim_amount, development_pattern)
 
-        # Check accrual was recorded
-        total_accrued = manufacturer.accrual_manager.get_total_accrued_expenses()
-        assert total_accrued >= claim_amount
+        # Check ClaimLiability was created (single source of truth)
+        assert len(manufacturer.claim_liabilities) == 1
+        assert manufacturer.claim_liabilities[0].original_amount == claim_amount
+        assert manufacturer.total_claim_liabilities == claim_amount
 
-        # Simulate 3 years of payments
-        initial_cash = manufacturer.cash
+        # Simulate 3 years of payments using pay_claim_liabilities
         total_paid = 0.0
 
         for year in range(3):
             # Advance to next year
             manufacturer.current_year = year
-            # Periods are tracked in months for claims, so year 0 = period 0, year 1 = period 12, etc.
-            manufacturer.accrual_manager.current_period = year * 12
 
-            # Process payments
-            paid_this_year = manufacturer.process_accrued_payments("annual")
+            # Pay claims via ClaimLiability system (source of truth)
+            paid_this_year = manufacturer.pay_claim_liabilities()
             total_paid += paid_this_year
 
         # Verify total payments match claim amount
         assert abs(total_paid - claim_amount) < 0.01  # Floating point tolerance
+        # Verify claim is fully paid
+        assert manufacturer.total_claim_liabilities < 0.01
 
     def test_accrual_in_metrics_history(self, manufacturer):
         """Test that accrual details appear in metrics history."""

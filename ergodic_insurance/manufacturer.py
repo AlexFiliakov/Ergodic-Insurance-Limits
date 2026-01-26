@@ -637,19 +637,35 @@ class WidgetManufacturer:
 
         Total liabilities include current liabilities and long-term claim liabilities.
 
+        Note:
+            ClaimLiability objects are the single source of truth for insurance claim
+            liabilities. INSURANCE_CLAIMS in AccrualManager are excluded from this
+            calculation to prevent double-counting. See GitHub issue #213.
+
         Returns:
             float: Total liabilities in dollars, sum of all liability components.
         """
-        # Get accrued expenses from accrual manager (includes taxes, wages, etc.)
+        # Get accrued expenses from accrual manager (excludes INSURANCE_CLAIMS to avoid
+        # double-counting with ClaimLiability objects which are the source of truth)
         accrual_items = self.accrual_manager.get_balance_sheet_items()
         total_accrued_expenses = accrual_items.get("accrued_expenses", 0)
+
+        # Subtract any insurance claims from accrual manager to prevent double-counting
+        # ClaimLiability is the authoritative source for claim liabilities
+        insurance_claims_in_accrual = sum(
+            a.remaining_balance
+            for a in self.accrual_manager.accrued_expenses.get(AccrualType.INSURANCE_CLAIMS, [])
+            if not a.is_fully_paid
+        )
+        adjusted_accrued_expenses = total_accrued_expenses - insurance_claims_in_accrual
+
         # Also include any legacy accrued_expenses not in the manager
-        total_accrued = max(self.accrued_expenses, total_accrued_expenses)
+        total_accrued = max(self.accrued_expenses, adjusted_accrued_expenses)
 
         # Current liabilities
         current_liabilities = self.accounts_payable + total_accrued
 
-        # Long-term liabilities (claim liabilities)
+        # Long-term liabilities (claim liabilities) - single source of truth
         claim_liability_total = sum(
             liability.remaining_amount for liability in self.claim_liabilities
         )
@@ -2847,23 +2863,51 @@ class WidgetManufacturer:
     ) -> None:
         """Record insurance claim with multi-year payment schedule.
 
+        This method creates a ClaimLiability object which is the single source of
+        truth for claim lifecycle tracking. The claim will be paid via
+        pay_claim_liabilities() according to the development pattern.
+
+        Note:
+            ClaimLiability is the authoritative source for claim tracking.
+            This method no longer creates AccrualManager entries to prevent
+            state drift between the two tracking systems. See GitHub issue #213.
+
+            For claims with insurance coverage, use process_insurance_claim()
+            or process_uninsured_claim() instead, which handle collateral
+            and insurance accounting properly.
+
         Args:
             claim_amount: Total claim amount to be paid
-            development_pattern: Optional custom payment pattern over years
+            development_pattern: Optional custom payment pattern over years.
+                Defaults to [0.4, 0.3, 0.2, 0.1] if None.
         """
-        payment_schedule = self.accrual_manager.get_claim_payment_schedule(
-            claim_amount, development_pattern
-        )
+        # Create a ClaimLiability as the single source of truth
+        # Use year_incurred - 1 if current_year > 0 to match timing convention
+        year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
 
-        # Create separate accrual items for each payment to preserve amounts
-        for period, payment_amount in payment_schedule:
-            self.accrual_manager.record_expense_accrual(
-                item_type=AccrualType.INSURANCE_CLAIMS,
-                amount=payment_amount,
-                payment_schedule=PaymentSchedule.CUSTOM,
-                payment_dates=[period],
-                description=f"Claim from year {self.current_year}",
+        # Create claim with custom pattern if provided, otherwise use ClaimLiability default
+        if development_pattern is not None:
+            claim = ClaimLiability(
+                original_amount=claim_amount,
+                remaining_amount=claim_amount,
+                year_incurred=year_incurred,
+                is_insured=False,  # Standalone accrual without insurance coverage
+                payment_schedule=development_pattern,
             )
+        else:
+            claim = ClaimLiability(
+                original_amount=claim_amount,
+                remaining_amount=claim_amount,
+                year_incurred=year_incurred,
+                is_insured=False,  # Standalone accrual without insurance coverage
+                # Uses ClaimLiability default payment_schedule
+            )
+        self.claim_liabilities.append(claim)
+
+        logger.info(
+            f"Created claim liability via record_claim_accrual: ${claim_amount:,.2f} "
+            f"with pattern {development_pattern or 'default'}"
+        )
 
     def _apply_growth(
         self, growth_rate: float, time_resolution: str, apply_stochastic: bool
