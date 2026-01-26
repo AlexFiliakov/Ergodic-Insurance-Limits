@@ -817,12 +817,20 @@ class ManufacturingLossGenerator:
             large_params["exposure"] = exposure
             catastrophic_params["exposure"] = exposure
 
-        # Set seed for all generators
+        # Set seed for all generators using SeedSequence for statistical independence
         if seed is not None:
-            # Use modulo to prevent overflow when seed is close to 2**32
-            attritional_params["seed"] = seed
-            large_params["seed"] = (seed + 1) % (2**32)  # Different seed for each
-            catastrophic_params["seed"] = (seed + 2) % (2**32)
+            # Use SeedSequence to spawn statistically independent child sequences
+            # This ensures proper independence between generator streams
+            ss = np.random.SeedSequence(seed)
+            child_seeds = ss.spawn(4)  # 4 generators: attritional, large, catastrophic, gpd
+
+            # Extract integer seeds from child sequences for RandomState compatibility
+            attritional_params["seed"] = int(child_seeds[0].generate_state(1)[0])
+            large_params["seed"] = int(child_seeds[1].generate_state(1)[0])
+            catastrophic_params["seed"] = int(child_seeds[2].generate_state(1)[0])
+            gpd_child_seed = int(child_seeds[3].generate_state(1)[0])
+        else:
+            gpd_child_seed = None
 
         self.attritional = AttritionalLossGenerator(**attritional_params)
         self.large = LargeLossGenerator(**large_params)
@@ -836,8 +844,8 @@ class ManufacturingLossGenerator:
         if extreme_params is not None:
             self.threshold_value = extreme_params.get("threshold_value")
             if self.threshold_value is not None:
-                # Create GPD generator with offset seed for reproducibility
-                gpd_seed = (seed + 3) % (2**32) if seed is not None else None
+                # Create GPD generator with independent seed from SeedSequence
+                gpd_seed = gpd_child_seed if seed is not None else None
                 self.gpd_generator = GeneralizedParetoLoss(
                     severity_shape=extreme_params["severity_shape"],
                     severity_scale=extreme_params["severity_scale"],
