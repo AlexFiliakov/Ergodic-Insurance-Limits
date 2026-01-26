@@ -448,13 +448,36 @@ class TestManufacturingLossGenerator:
         assert gen.catastrophic.severity_distribution.alpha == 3.0
 
     def test_seed_propagation(self):
-        """Test that seeds are properly propagated to sub-generators."""
-        gen = ManufacturingLossGenerator(seed=42)
+        """Test that seeds are properly propagated to sub-generators.
 
-        # Each generator should have a different seed
-        assert int(gen.attritional.frequency_generator.rng.get_state()[1][0]) == 42  # type: ignore
-        assert int(gen.large.frequency_generator.rng.get_state()[1][0]) == 43  # type: ignore
-        assert int(gen.catastrophic.frequency_generator.rng.get_state()[1][0]) == 44  # type: ignore
+        Uses SeedSequence to ensure statistical independence between generators.
+        Verifies reproducibility by checking that same seed produces identical results.
+        """
+        # Create two generators with the same seed
+        gen1 = ManufacturingLossGenerator(seed=42)
+        gen2 = ManufacturingLossGenerator(seed=42)
+
+        # Generate losses from both
+        losses1, stats1 = gen1.generate_losses(duration=10, revenue=10_000_000)
+        losses2, stats2 = gen2.generate_losses(duration=10, revenue=10_000_000)
+
+        # Results should be identical (reproducibility)
+        assert len(losses1) == len(losses2)
+        for l1, l2 in zip(losses1, losses2):
+            assert abs(l1.amount - l2.amount) < 0.01
+            assert abs(l1.time - l2.time) < 1e-10
+            assert l1.loss_type == l2.loss_type
+
+        # Verify sub-generators have different internal states (independence)
+        # They should not all have the same random state
+        state_att = gen1.attritional.frequency_generator.rng.get_state()[1][0]  # type: ignore[index]
+        state_large = gen1.large.frequency_generator.rng.get_state()[1][0]  # type: ignore[index]
+        state_cat = gen1.catastrophic.frequency_generator.rng.get_state()[1][0]  # type: ignore[index]
+
+        # All three should be different (statistical independence)
+        assert state_att != state_large
+        assert state_large != state_cat
+        assert state_att != state_cat
 
     def test_generate_losses(self):
         """Test comprehensive loss generation."""
