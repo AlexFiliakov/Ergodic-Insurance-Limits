@@ -124,11 +124,13 @@ class CashFlowStatement:
             net_income = net_income / 12
 
         # Add back non-cash items
-        depreciation = current.get("depreciation_expense", 0)
-        if depreciation == 0:
-            # Estimate if not available
-            gross_ppe = current.get("gross_ppe", current.get("assets", 0) * 0.7)
-            depreciation = gross_ppe * 0.1
+        # Depreciation expense MUST be provided by the Manufacturer class
+        if "depreciation_expense" not in current:
+            raise ValueError(
+                "depreciation_expense missing from metrics. "
+                "The Manufacturer class must calculate and provide depreciation_expense explicitly."
+            )
+        depreciation = current["depreciation_expense"]
         if period == "monthly":
             depreciation = depreciation / 12
 
@@ -233,10 +235,13 @@ class CashFlowStatement:
         prior_ppe = prior.get("gross_ppe", 0) if prior else 0
 
         # Get depreciation for the period
-        depreciation = current.get("depreciation_expense", 0)
-        if depreciation == 0:
-            # Estimate if not available
-            depreciation = current_ppe * 0.1
+        # Depreciation expense MUST be provided by the Manufacturer class
+        if "depreciation_expense" not in current:
+            raise ValueError(
+                "depreciation_expense missing from metrics. "
+                "The Manufacturer class must calculate and provide depreciation_expense explicitly."
+            )
+        depreciation = current["depreciation_expense"]
 
         # Capex = Change in PP&E + Depreciation
         # (Since depreciation reduces net PP&E, we add it back)
@@ -826,12 +831,13 @@ class FinancialStatementGenerator:
             admin_depreciation_alloc = 0.3  # 30% to SG&A
 
         # Calculate total depreciation
-        # Get from metrics or estimate from assets
-        total_depreciation = metrics.get("depreciation_expense", 0)
-        if total_depreciation == 0:
-            # Estimate depreciation if not available (10% of gross PP&E)
-            gross_ppe = metrics.get("gross_ppe", metrics.get("assets", 0) * 0.7)
-            total_depreciation = gross_ppe * 0.1
+        # Depreciation expense MUST be provided by the Manufacturer class
+        if "depreciation_expense" not in metrics:
+            raise ValueError(
+                "depreciation_expense missing from metrics. "
+                "The Manufacturer class must calculate and provide depreciation_expense explicitly."
+            )
+        total_depreciation = metrics["depreciation_expense"]
 
         if monthly:
             total_depreciation = total_depreciation / 12
