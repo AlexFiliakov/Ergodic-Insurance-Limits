@@ -64,6 +64,8 @@ class TestFinancialStatementGenerator:
         )
 
         # Create sample metrics history
+        # Note: Balance sheet calculates total_assets = current_assets + net_ppe + restricted_assets
+        # Where net_ppe = gross_ppe - accumulated_depreciation
         manufacturer.metrics_history = [
             {
                 "year": 0,
@@ -81,6 +83,10 @@ class TestFinancialStatementGenerator:
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,
+                "gross_ppe": 7_000_000,
+                "accumulated_depreciation": 0,
+                "depreciation_expense": 700_000,  # 10-year useful life
+                "cash": 3_000_000,  # Current assets to make total = 10M
             },
             {
                 "year": 1,
@@ -98,6 +104,10 @@ class TestFinancialStatementGenerator:
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,
+                "gross_ppe": 7_200_000,
+                "accumulated_depreciation": 700_000,
+                "depreciation_expense": 720_000,
+                "cash": 3_300_000,  # Year 1: 3.3M cash + 6.5M net_ppe + 0.5M restricted = 10.3M
             },
             {
                 "year": 2,
@@ -115,6 +125,10 @@ class TestFinancialStatementGenerator:
                 "roe": 0.03,
                 "roa": 0.03,
                 "asset_turnover": 0.5,
+                "gross_ppe": 7_400_000,
+                "accumulated_depreciation": 1_420_000,
+                "depreciation_expense": 740_000,
+                "cash": 4_429_000,  # Year 2: 4.429M cash + 5.98M net_ppe + 0.2M restricted = 10.609M
             },
         ]
 
