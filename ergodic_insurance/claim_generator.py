@@ -44,9 +44,12 @@ Since:
 """
 
 from dataclasses import dataclass
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Import trend classes for frequency and severity adjustments
 from .trends import NoTrend, Trend
@@ -58,7 +61,17 @@ try:
     from .loss_distributions import ManufacturingLossGenerator
 
     ENHANCED_DISTRIBUTIONS_AVAILABLE = True
-except ImportError:
+except ModuleNotFoundError:
+    # Module doesn't exist - this is expected in minimal installations
+    ENHANCED_DISTRIBUTIONS_AVAILABLE = False
+    LossData = None  # type: ignore
+except ImportError as e:
+    # Module exists but has issues (syntax error, missing dependency, etc.)
+    logger.warning(
+        "loss_distributions module exists but failed to import: %s. "
+        "Falling back to standard distributions.",
+        e,
+    )
     ENHANCED_DISTRIBUTIONS_AVAILABLE = False
     LossData = None  # type: ignore
 
@@ -67,7 +80,17 @@ try:
     from .exposure_base import ExposureBase
 
     EXPOSURE_BASE_AVAILABLE = True
-except ImportError:
+except ModuleNotFoundError:
+    # Module doesn't exist - this is expected in minimal installations
+    EXPOSURE_BASE_AVAILABLE = False
+    ExposureBase = None  # type: ignore
+except ImportError as e:
+    # Module exists but has issues (syntax error, missing dependency, etc.)
+    logger.warning(
+        "exposure_base module exists but failed to import: %s. "
+        "Dynamic exposure scaling will be unavailable.",
+        e,
+    )
     EXPOSURE_BASE_AVAILABLE = False
     ExposureBase = None  # type: ignore
 
