@@ -2172,22 +2172,24 @@ class WidgetManufacturer:
             scheduled_payment = claim.get_payment(years_since)
             total_scheduled += scheduled_payment
 
-        # Cap total payments at available equity or provided max
+        # Cap total payments at available liquid resources or provided max
         if max_payable is not None:
             # Use coordinated cap from step() method
             max_total_payable = min(total_scheduled, max_payable)
         else:
-            # Fallback to equity-based cap if called standalone
-            current_equity = self.equity
-            max_total_payable = min(total_scheduled, current_equity) if current_equity > 0 else 0.0
+            # Fallback to liquidity-based cap if called standalone
+            available_liquidity = self.cash + self.restricted_assets
+            max_total_payable = (
+                min(total_scheduled, available_liquidity) if available_liquidity > 0 else 0.0
+            )
 
         # If we need to cap payments, calculate reduction ratio
         payment_ratio = 1.0
         if total_scheduled > max_total_payable and total_scheduled > 0:
             payment_ratio = max_total_payable / total_scheduled
             logger.warning(
-                f"LIMITED LIABILITY: Capping claim payments at ${max_total_payable:,.2f} "
-                f"(scheduled: ${total_scheduled:,.2f})"
+                f"LIQUIDITY CONSTRAINT: Capping claim payments at ${max_total_payable:,.2f} "
+                f"(scheduled: ${total_scheduled:,.2f}, available liquidity: ${self.cash + self.restricted_assets:,.2f})"
             )
 
         for claim in self.claim_liabilities:
@@ -2195,7 +2197,7 @@ class WidgetManufacturer:
             scheduled_payment = claim.get_payment(years_since)
 
             if scheduled_payment > 0:
-                # Apply payment ratio to cap at equity
+                # Apply payment ratio to cap at available cash
                 capped_scheduled = scheduled_payment * payment_ratio
 
                 if claim.is_insured:
@@ -3102,10 +3104,12 @@ class WidgetManufacturer:
                 scheduled_payment = claim.get_payment(years_since)
                 total_claim_due += scheduled_payment
 
-        # Cap TOTAL payments at current equity (after working capital adjustments)
+        # Cap TOTAL payments at available liquid resources (cash + restricted assets for claims)
         total_payments_due = total_accrual_due + total_claim_due
-        current_equity = self.equity
-        max_total_payable = min(total_payments_due, current_equity) if current_equity > 0 else 0.0
+        available_liquidity = self.cash + self.restricted_assets
+        max_total_payable = (
+            min(total_payments_due, available_liquidity) if available_liquidity > 0 else 0.0
+        )
 
         # Allocate the capped amount proportionally between accruals and claims
         if total_payments_due > 0:
@@ -3119,8 +3123,10 @@ class WidgetManufacturer:
         # Log coordination if payments are capped
         if total_payments_due > max_total_payable:
             logger.warning(
-                f"LIMITED LIABILITY COORDINATION: Total payments due ${total_payments_due:,.2f} "
-                f"exceeds equity ${current_equity:,.2f}. Capping at ${max_total_payable:,.2f} "
+                f"LIQUIDITY CONSTRAINT: Total payments due ${total_payments_due:,.2f} "
+                f"exceeds available liquidity ${available_liquidity:,.2f} "
+                f"(cash: ${self.cash:,.2f}, restricted: ${self.restricted_assets:,.2f}). "
+                f"Capping at ${max_total_payable:,.2f} "
                 f"(Accruals: ${max_accrual_payable:,.2f}, Claims: ${max_claim_payable:,.2f})"
             )
 
