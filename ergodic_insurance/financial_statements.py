@@ -283,14 +283,24 @@ class CashFlowStatement:
         return financing_items
 
     def _calculate_dividends(self, current: Dict[str, float]) -> float:
-        """Calculate dividends paid based on retention ratio.
+        """Get dividends paid from metrics or calculate as fallback.
+
+        Issue #239: The WidgetManufacturer now tracks actual dividends_paid
+        considering cash constraints. This method should read that value
+        instead of calculating it, which may report phantom payments.
 
         Args:
             current: Current period metrics
 
         Returns:
-            Dividends paid amount
+            Dividends paid amount (actual from metrics if available)
         """
+        # Prefer actual dividends_paid from metrics (tracks cash constraints)
+        if "dividends_paid" in current:
+            return current["dividends_paid"]
+
+        # Fallback: Calculate from net income (backward compatibility)
+        # This path is used when metrics don't have dividends_paid
         net_income = current.get("net_income", 0)
 
         # Only pay dividends on positive income

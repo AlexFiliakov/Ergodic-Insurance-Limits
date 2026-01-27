@@ -542,6 +542,10 @@ class WidgetManufacturer:
         self.period_insurance_premiums = 0.0  # Premiums paid this period
         self.period_insurance_losses = 0.0  # Losses paid this period (deductibles)
 
+        # Track actual dividends paid (for cash flow statement accuracy)
+        # This tracks dividends that were actually paid considering cash constraints
+        self._last_dividends_paid = 0.0
+
         # Solvency tracking
         self.is_ruined = False
 
@@ -1398,6 +1402,7 @@ class WidgetManufacturer:
                 )
                 # Don't reduce cash - company is already insolvent
                 # Insolvency will be detected in check_solvency()
+                self._last_dividends_paid = 0.0  # No dividends when insolvent
                 return
 
             # Check 2: LIQUIDITY CHECK - must have cash to pay loss
@@ -1408,6 +1413,7 @@ class WidgetManufacturer:
                     f"available cash ${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
                     f"Company cannot meet obligations despite positive book equity."
                 )
+                self._last_dividends_paid = 0.0  # No dividends when insolvent
                 self.handle_insolvency()
                 return  # Exit - company is now insolvent
 
@@ -1421,24 +1427,53 @@ class WidgetManufacturer:
                 )
                 # Apply the loss to the balance sheet before handling insolvency
                 self.cash += retained_earnings  # retained_earnings is negative
+                self._last_dividends_paid = 0.0  # No dividends when insolvent
                 self.handle_insolvency()
                 return  # Exit - company is now insolvent
 
             # All checks passed - absorb the full loss
             self.cash += retained_earnings  # retained_earnings is negative
+            self._last_dividends_paid = 0.0  # No dividends on losses
             logger.info(
                 f"Absorbed loss: ${loss_amount:,.2f}. "
                 f"Remaining cash: ${self.cash:,.2f}, Remaining equity: ${self.equity:,.2f}"
             )
         else:
-            # Positive retained earnings - add to cash normally
-            self.cash += retained_earnings
+            # Positive retained earnings - check cash constraints for dividends
+            # Issue #239: Only pay dividends if there's actually cash to pay them
+            projected_cash = self.cash + retained_earnings
+
+            if projected_cash <= 0:
+                # Can't pay any dividends - company has no cash after operations
+                actual_dividends = 0.0
+                additional_retained = dividends  # Keep all earnings
+                logger.warning(
+                    f"DIVIDEND CONSTRAINT: Projected cash ${projected_cash:,.2f} <= 0. "
+                    f"No dividends can be paid. All ${dividends:,.2f} retained."
+                )
+            elif projected_cash < dividends:
+                # Can only pay partial dividends
+                actual_dividends = projected_cash  # Pay what we can, keeping cash at $0
+                additional_retained = dividends - actual_dividends
+                logger.warning(
+                    f"DIVIDEND CONSTRAINT: Projected cash ${projected_cash:,.2f} "
+                    f"< theoretical dividends ${dividends:,.2f}. "
+                    f"Paying only ${actual_dividends:,.2f}."
+                )
+            else:
+                # Can pay full dividends
+                actual_dividends = dividends
+                additional_retained = 0.0
+
+            # Add retained earnings + any unpaid dividends to cash
+            self.cash += retained_earnings + additional_retained
+            self._last_dividends_paid = actual_dividends
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
         )
-        if dividends > 0:
-            logger.info(f"Dividends paid: ${dividends:,.2f}")
+        if self._last_dividends_paid > 0:
+            logger.info(f"Dividends paid: ${self._last_dividends_paid:,.2f}")
 
     def calculate_working_capital_components(
         self, revenue: float, dso: float = 45, dio: float = 60, dpo: float = 30
@@ -2701,11 +2736,10 @@ class WidgetManufacturer:
             self.period_insurance_premiums + self.period_insurance_losses
         )
 
-        # Calculate and track dividends paid
-        dividends_paid = 0.0
-        if net_income > 0:
-            dividends_paid = net_income * (1 - self.retention_ratio)
-        metrics["dividends_paid"] = dividends_paid
+        # Track actual dividends paid (from update_balance_sheet)
+        # Issue #239: Use actual dividends paid (considering cash constraints)
+        # instead of theoretical calculation based on retention ratio
+        metrics["dividends_paid"] = self._last_dividends_paid
 
         # Track depreciation expense for cash flow statement
         metrics["depreciation_expense"] = annual_depreciation
@@ -3299,6 +3333,9 @@ class WidgetManufacturer:
         # Reset period insurance cost tracking
         self.period_insurance_premiums = 0.0
         self.period_insurance_losses = 0.0
+
+        # Reset dividend tracking
+        self._last_dividends_paid = 0.0
 
         # Reset initial values (for exposure bases)
         self._initial_assets = self.config.initial_assets
