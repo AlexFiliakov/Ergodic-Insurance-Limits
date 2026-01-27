@@ -13,6 +13,7 @@ import pytest
 
 from ergodic_insurance.ledger import (
     CHART_OF_ACCOUNTS,
+    AccountName,
     AccountType,
     EntryType,
     Ledger,
@@ -415,8 +416,20 @@ class TestLedger:
         ledger_with_entries.clear()
         assert len(ledger_with_entries) == 0
 
-    def test_unknown_account_defaults_to_asset(self, ledger):
-        """Test that unknown accounts are added to chart as ASSET."""
+    def test_unknown_account_raises_error(self, ledger):
+        """Test that unknown accounts raise ValueError in strict mode (Issue #260)."""
+        with pytest.raises(ValueError, match="Unknown account name"):
+            ledger.record_double_entry(
+                date=1,
+                debit_account="new_custom_account",
+                credit_account="cash",
+                amount=1000,
+                transaction_type=TransactionType.PAYMENT,
+            )
+
+    def test_unknown_account_defaults_to_asset_nonstrict(self):
+        """Test that unknown accounts are added as ASSET in non-strict mode."""
+        ledger = Ledger(strict_validation=False)
         ledger.record_double_entry(
             date=1,
             debit_account="new_custom_account",
@@ -428,6 +441,19 @@ class TestLedger:
         assert "new_custom_account" in ledger.chart_of_accounts
         assert ledger.chart_of_accounts["new_custom_account"] == AccountType.ASSET
 
+    def test_account_name_enum_works(self, ledger):
+        """Test that AccountName enum can be used for accounts (Issue #260)."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.REVENUE,
+            amount=1000,
+            transaction_type=TransactionType.REVENUE,
+        )
+
+        assert ledger.get_balance(AccountName.CASH) == 1000
+        assert ledger.get_balance(AccountName.REVENUE) == 1000
+
 
 class TestChartOfAccounts:
     """Tests for the standard chart of accounts."""
@@ -435,11 +461,11 @@ class TestChartOfAccounts:
     def test_asset_accounts(self):
         """Test that asset accounts are classified correctly."""
         assets = [
-            "cash",
-            "accounts_receivable",
-            "inventory",
-            "prepaid_insurance",
-            "gross_ppe",
+            AccountName.CASH,
+            AccountName.ACCOUNTS_RECEIVABLE,
+            AccountName.INVENTORY,
+            AccountName.PREPAID_INSURANCE,
+            AccountName.GROSS_PPE,
         ]
         for account in assets:
             assert CHART_OF_ACCOUNTS[account] == AccountType.ASSET
@@ -447,35 +473,42 @@ class TestChartOfAccounts:
     def test_liability_accounts(self):
         """Test that liability accounts are classified correctly."""
         liabilities = [
-            "accounts_payable",
-            "accrued_expenses",
-            "claim_liabilities",
+            AccountName.ACCOUNTS_PAYABLE,
+            AccountName.ACCRUED_EXPENSES,
+            AccountName.CLAIM_LIABILITIES,
         ]
         for account in liabilities:
             assert CHART_OF_ACCOUNTS[account] == AccountType.LIABILITY
 
     def test_equity_accounts(self):
         """Test that equity accounts are classified correctly."""
-        equity = ["retained_earnings", "common_stock"]
+        equity = [AccountName.RETAINED_EARNINGS, AccountName.COMMON_STOCK]
         for account in equity:
             assert CHART_OF_ACCOUNTS[account] == AccountType.EQUITY
 
     def test_revenue_accounts(self):
         """Test that revenue accounts are classified correctly."""
-        revenue = ["revenue", "sales_revenue", "interest_income"]
+        revenue = [AccountName.REVENUE, AccountName.SALES_REVENUE, AccountName.INTEREST_INCOME]
         for account in revenue:
             assert CHART_OF_ACCOUNTS[account] == AccountType.REVENUE
 
     def test_expense_accounts(self):
         """Test that expense accounts are classified correctly."""
         expenses = [
-            "cost_of_goods_sold",
-            "operating_expenses",
-            "depreciation_expense",
-            "insurance_expense",
+            AccountName.COST_OF_GOODS_SOLD,
+            AccountName.OPERATING_EXPENSES,
+            AccountName.DEPRECIATION_EXPENSE,
+            AccountName.INSURANCE_EXPENSE,
         ]
         for account in expenses:
             assert CHART_OF_ACCOUNTS[account] == AccountType.EXPENSE
+
+    def test_account_name_enum_values_match(self):
+        """Test that AccountName enum values are consistent (Issue #260)."""
+        # Verify enum values are lowercase strings matching expected format
+        assert AccountName.CASH.value == "cash"
+        assert AccountName.ACCOUNTS_RECEIVABLE.value == "accounts_receivable"
+        assert AccountName.CLAIM_LIABILITIES.value == "claim_liabilities"
 
 
 class TestCashFlowIntegration:

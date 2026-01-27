@@ -97,6 +97,7 @@ __all__ = [
     "TransactionType",
     "EntryType",
     "AccountType",
+    "AccountName",
 ]
 
 
@@ -261,8 +262,16 @@ def __getattr__(name):
         )
 
         return locals()[name]
-    if name in ("Ledger", "LedgerEntry", "TransactionType", "EntryType", "AccountType"):
+    if name in (
+        "Ledger",
+        "LedgerEntry",
+        "TransactionType",
+        "EntryType",
+        "AccountType",
+        "AccountName",
+    ):
         from .ledger import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AccountName,
             AccountType,
             EntryType,
             Ledger,

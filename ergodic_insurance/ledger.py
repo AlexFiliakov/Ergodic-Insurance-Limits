@@ -57,6 +57,95 @@ class AccountType(Enum):
     EXPENSE = "expense"
 
 
+class AccountName(Enum):
+    """Standard account names for the chart of accounts.
+
+    Using this enum instead of raw strings prevents typos that would
+    silently result in zero balances on financial statements. See Issue #260.
+
+    Account names are grouped by their AccountType:
+
+    Assets (debit normal balance):
+        CASH, ACCOUNTS_RECEIVABLE, INVENTORY, PREPAID_INSURANCE,
+        INSURANCE_RECEIVABLES, GROSS_PPE, ACCUMULATED_DEPRECIATION,
+        RESTRICTED_CASH, COLLATERAL
+
+    Liabilities (credit normal balance):
+        ACCOUNTS_PAYABLE, ACCRUED_EXPENSES, ACCRUED_WAGES, ACCRUED_TAXES,
+        ACCRUED_INTEREST, CLAIM_LIABILITIES, UNEARNED_REVENUE
+
+    Equity (credit normal balance):
+        RETAINED_EARNINGS, COMMON_STOCK, DIVIDENDS
+
+    Revenue (credit normal balance):
+        REVENUE, SALES_REVENUE, INTEREST_INCOME, INSURANCE_RECOVERY
+
+    Expenses (debit normal balance):
+        COST_OF_GOODS_SOLD, OPERATING_EXPENSES, DEPRECIATION_EXPENSE,
+        INSURANCE_EXPENSE, INSURANCE_LOSS, TAX_EXPENSE, INTEREST_EXPENSE,
+        COLLATERAL_EXPENSE, WAGE_EXPENSE
+
+    Example:
+        Use AccountName instead of strings to prevent typos::
+
+            from ergodic_insurance.ledger import AccountName, Ledger
+
+            ledger = Ledger()
+            ledger.record_double_entry(
+                date=5,
+                debit_account=AccountName.ACCOUNTS_RECEIVABLE,  # Safe
+                credit_account=AccountName.REVENUE,
+                amount=1_000_000,
+                transaction_type=TransactionType.REVENUE,
+            )
+
+            # This would be a compile/lint error:
+            # debit_account=AccountName.ACCOUNT_RECEIVABLE  # Typo caught!
+    """
+
+    # Assets (debit normal balance)
+    CASH = "cash"
+    ACCOUNTS_RECEIVABLE = "accounts_receivable"
+    INVENTORY = "inventory"
+    PREPAID_INSURANCE = "prepaid_insurance"
+    INSURANCE_RECEIVABLES = "insurance_receivables"
+    GROSS_PPE = "gross_ppe"
+    ACCUMULATED_DEPRECIATION = "accumulated_depreciation"
+    RESTRICTED_CASH = "restricted_cash"
+    COLLATERAL = "collateral"
+
+    # Liabilities (credit normal balance)
+    ACCOUNTS_PAYABLE = "accounts_payable"
+    ACCRUED_EXPENSES = "accrued_expenses"
+    ACCRUED_WAGES = "accrued_wages"
+    ACCRUED_TAXES = "accrued_taxes"
+    ACCRUED_INTEREST = "accrued_interest"
+    CLAIM_LIABILITIES = "claim_liabilities"
+    UNEARNED_REVENUE = "unearned_revenue"
+
+    # Equity (credit normal balance)
+    RETAINED_EARNINGS = "retained_earnings"
+    COMMON_STOCK = "common_stock"
+    DIVIDENDS = "dividends"
+
+    # Revenue (credit normal balance)
+    REVENUE = "revenue"
+    SALES_REVENUE = "sales_revenue"
+    INTEREST_INCOME = "interest_income"
+    INSURANCE_RECOVERY = "insurance_recovery"
+
+    # Expenses (debit normal balance)
+    COST_OF_GOODS_SOLD = "cost_of_goods_sold"
+    OPERATING_EXPENSES = "operating_expenses"
+    DEPRECIATION_EXPENSE = "depreciation_expense"
+    INSURANCE_EXPENSE = "insurance_expense"
+    INSURANCE_LOSS = "insurance_loss"
+    TAX_EXPENSE = "tax_expense"
+    INTEREST_EXPENSE = "interest_expense"
+    COLLATERAL_EXPENSE = "collateral_expense"
+    WAGE_EXPENSE = "wage_expense"
+
+
 class EntryType(Enum):
     """Type of ledger entry - debit or credit.
 
@@ -160,45 +249,90 @@ class LedgerEntry:
 
 
 # Standard chart of accounts with their types
-CHART_OF_ACCOUNTS: Dict[str, AccountType] = {
+# Uses AccountName enum for type safety (Issue #260)
+CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     # Assets (debit normal balance)
-    "cash": AccountType.ASSET,
-    "accounts_receivable": AccountType.ASSET,
-    "inventory": AccountType.ASSET,
-    "prepaid_insurance": AccountType.ASSET,
-    "insurance_receivables": AccountType.ASSET,
-    "gross_ppe": AccountType.ASSET,
-    "accumulated_depreciation": AccountType.ASSET,  # Contra-asset
-    "restricted_cash": AccountType.ASSET,
-    "collateral": AccountType.ASSET,
+    AccountName.CASH: AccountType.ASSET,
+    AccountName.ACCOUNTS_RECEIVABLE: AccountType.ASSET,
+    AccountName.INVENTORY: AccountType.ASSET,
+    AccountName.PREPAID_INSURANCE: AccountType.ASSET,
+    AccountName.INSURANCE_RECEIVABLES: AccountType.ASSET,
+    AccountName.GROSS_PPE: AccountType.ASSET,
+    AccountName.ACCUMULATED_DEPRECIATION: AccountType.ASSET,  # Contra-asset
+    AccountName.RESTRICTED_CASH: AccountType.ASSET,
+    AccountName.COLLATERAL: AccountType.ASSET,
     # Liabilities (credit normal balance)
-    "accounts_payable": AccountType.LIABILITY,
-    "accrued_expenses": AccountType.LIABILITY,
-    "accrued_wages": AccountType.LIABILITY,
-    "accrued_taxes": AccountType.LIABILITY,
-    "accrued_interest": AccountType.LIABILITY,
-    "claim_liabilities": AccountType.LIABILITY,
-    "unearned_revenue": AccountType.LIABILITY,
+    AccountName.ACCOUNTS_PAYABLE: AccountType.LIABILITY,
+    AccountName.ACCRUED_EXPENSES: AccountType.LIABILITY,
+    AccountName.ACCRUED_WAGES: AccountType.LIABILITY,
+    AccountName.ACCRUED_TAXES: AccountType.LIABILITY,
+    AccountName.ACCRUED_INTEREST: AccountType.LIABILITY,
+    AccountName.CLAIM_LIABILITIES: AccountType.LIABILITY,
+    AccountName.UNEARNED_REVENUE: AccountType.LIABILITY,
     # Equity (credit normal balance)
-    "retained_earnings": AccountType.EQUITY,
-    "common_stock": AccountType.EQUITY,
-    "dividends": AccountType.EQUITY,  # Contra-equity
+    AccountName.RETAINED_EARNINGS: AccountType.EQUITY,
+    AccountName.COMMON_STOCK: AccountType.EQUITY,
+    AccountName.DIVIDENDS: AccountType.EQUITY,  # Contra-equity
     # Revenue (credit normal balance)
-    "revenue": AccountType.REVENUE,
-    "sales_revenue": AccountType.REVENUE,
-    "interest_income": AccountType.REVENUE,
-    "insurance_recovery": AccountType.REVENUE,
+    AccountName.REVENUE: AccountType.REVENUE,
+    AccountName.SALES_REVENUE: AccountType.REVENUE,
+    AccountName.INTEREST_INCOME: AccountType.REVENUE,
+    AccountName.INSURANCE_RECOVERY: AccountType.REVENUE,
     # Expenses (debit normal balance)
-    "cost_of_goods_sold": AccountType.EXPENSE,
-    "operating_expenses": AccountType.EXPENSE,
-    "depreciation_expense": AccountType.EXPENSE,
-    "insurance_expense": AccountType.EXPENSE,
-    "insurance_loss": AccountType.EXPENSE,
-    "tax_expense": AccountType.EXPENSE,
-    "interest_expense": AccountType.EXPENSE,
-    "collateral_expense": AccountType.EXPENSE,
-    "wage_expense": AccountType.EXPENSE,
+    AccountName.COST_OF_GOODS_SOLD: AccountType.EXPENSE,
+    AccountName.OPERATING_EXPENSES: AccountType.EXPENSE,
+    AccountName.DEPRECIATION_EXPENSE: AccountType.EXPENSE,
+    AccountName.INSURANCE_EXPENSE: AccountType.EXPENSE,
+    AccountName.INSURANCE_LOSS: AccountType.EXPENSE,
+    AccountName.TAX_EXPENSE: AccountType.EXPENSE,
+    AccountName.INTEREST_EXPENSE: AccountType.EXPENSE,
+    AccountName.COLLATERAL_EXPENSE: AccountType.EXPENSE,
+    AccountName.WAGE_EXPENSE: AccountType.EXPENSE,
 }
+
+# String-keyed version for backward compatibility and internal lookups
+# This allows get_balance("cash") to work while we transition
+_CHART_OF_ACCOUNTS_BY_STRING: Dict[str, AccountType] = {
+    name.value: account_type for name, account_type in CHART_OF_ACCOUNTS.items()
+}
+
+# Set of valid account name strings for fast validation
+_VALID_ACCOUNT_NAMES: set[str] = {name.value for name in AccountName}
+
+
+def _resolve_account_name(account: Union[AccountName, str]) -> str:
+    """Resolve an account identifier to its string name with validation.
+
+    Args:
+        account: Either an AccountName enum member or a string account name
+
+    Returns:
+        The string name of the account
+
+    Raises:
+        ValueError: If the account name is not in the chart of accounts
+
+    Example:
+        >>> _resolve_account_name(AccountName.CASH)
+        'cash'
+        >>> _resolve_account_name("cash")
+        'cash'
+        >>> _resolve_account_name("typo_account")  # Raises ValueError
+    """
+    if isinstance(account, AccountName):
+        return account.value
+
+    # String path - validate against known accounts
+    if account not in _VALID_ACCOUNT_NAMES:
+        # Provide helpful error message with suggestions
+        similar = [name for name in _VALID_ACCOUNT_NAMES if account in name or name in account]
+        error_msg = f"Unknown account name: '{account}'. "
+        if similar:
+            error_msg += f"Did you mean one of: {similar}? "
+        error_msg += "Use AccountName enum to prevent typos (Issue #260)."
+        raise ValueError(error_msg)
+
+    return account
 
 
 class Ledger:
@@ -212,10 +346,18 @@ class Ledger:
         chart_of_accounts: Mapping of account names to their types
     """
 
-    def __init__(self) -> None:
-        """Initialize an empty ledger."""
+    def __init__(self, strict_validation: bool = True) -> None:
+        """Initialize an empty ledger.
+
+        Args:
+            strict_validation: If True (default), unknown account names
+                raise ValueError. If False, unknown accounts are added
+                as ASSET type (backward compatible behavior). The strict
+                mode is recommended to catch typos early (Issue #260).
+        """
         self.entries: List[LedgerEntry] = []
-        self.chart_of_accounts: Dict[str, AccountType] = CHART_OF_ACCOUNTS.copy()
+        self.chart_of_accounts: Dict[str, AccountType] = _CHART_OF_ACCOUNTS_BY_STRING.copy()
+        self._strict_validation = strict_validation
 
     def record(self, entry: LedgerEntry) -> None:
         """Record a single ledger entry.
@@ -223,22 +365,39 @@ class Ledger:
         Args:
             entry: The LedgerEntry to add to the ledger
 
+        Raises:
+            ValueError: If strict_validation is True and the account name
+                is not in the chart of accounts.
+
         Note:
             Prefer using record_double_entry() for complete transactions
             to ensure debits always equal credits.
         """
-        # Add account to chart if not present
+        # Validate account name
         if entry.account not in self.chart_of_accounts:
-            # Default to ASSET for unknown accounts
-            self.chart_of_accounts[entry.account] = AccountType.ASSET
+            if self._strict_validation:
+                # Provide helpful error message with suggestions
+                similar = [
+                    name
+                    for name in self.chart_of_accounts.keys()
+                    if entry.account in name or name in entry.account
+                ]
+                error_msg = f"Unknown account name: '{entry.account}'. "
+                if similar:
+                    error_msg += f"Did you mean one of: {similar}? "
+                error_msg += "Use AccountName enum to prevent typos (Issue #260)."
+                raise ValueError(error_msg)
+            else:
+                # Backward compatible: add unknown account as ASSET
+                self.chart_of_accounts[entry.account] = AccountType.ASSET
 
         self.entries.append(entry)
 
     def record_double_entry(
         self,
         date: int,
-        debit_account: str,
-        credit_account: str,
+        debit_account: Union[AccountName, str],
+        credit_account: Union[AccountName, str],
         amount: Union[Decimal, float, int],
         transaction_type: TransactionType,
         description: str = "",
@@ -250,8 +409,10 @@ class Ledger:
 
         Args:
             date: Period (year) of the transaction
-            debit_account: Account to debit (increase assets/expenses)
-            credit_account: Account to credit (increase liabilities/equity/revenue)
+            debit_account: Account to debit (increase assets/expenses).
+                Can be AccountName enum (recommended) or string.
+            credit_account: Account to credit (increase liabilities/equity/revenue).
+                Can be AccountName enum (recommended) or string.
             amount: Dollar amount of the transaction (converted to Decimal)
             transaction_type: Classification for cash flow mapping
             description: Human-readable description
@@ -261,20 +422,45 @@ class Ledger:
             Tuple of (debit_entry, credit_entry)
 
         Raises:
-            ValueError: If amount is negative
+            ValueError: If amount is negative, or if account names are invalid
+                (when strict_validation is True)
 
         Example:
-            Record a cash sale::
+            Record a cash sale using AccountName enum (recommended)::
 
                 debit, credit = ledger.record_double_entry(
                     date=5,
-                    debit_account="cash",
-                    credit_account="revenue",
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.REVENUE,
                     amount=500_000,
                     transaction_type=TransactionType.REVENUE,
                     description="Cash sales"
                 )
+
+            String account names still work but are validated::
+
+                debit, credit = ledger.record_double_entry(
+                    date=5,
+                    debit_account="cash",  # Validated against chart
+                    credit_account="revenue",
+                    amount=500_000,
+                    transaction_type=TransactionType.REVENUE,
+                )
         """
+        # Resolve account names - in strict mode, validates against known accounts
+        # In non-strict mode, allows any account name (backward compatible)
+        if self._strict_validation:
+            debit_account_str = _resolve_account_name(debit_account)
+            credit_account_str = _resolve_account_name(credit_account)
+        else:
+            # Non-strict: just convert to string, validation happens in record()
+            debit_account_str = (
+                debit_account.value if isinstance(debit_account, AccountName) else debit_account
+            )
+            credit_account_str = (
+                credit_account.value if isinstance(credit_account, AccountName) else credit_account
+            )
+
         # Convert to Decimal for precise calculations
         amount = to_decimal(amount)
 
@@ -286,7 +472,7 @@ class Ledger:
             return (
                 LedgerEntry(
                     date=date,
-                    account=debit_account,
+                    account=debit_account_str,
                     amount=ZERO,
                     entry_type=EntryType.DEBIT,
                     transaction_type=transaction_type,
@@ -295,7 +481,7 @@ class Ledger:
                 ),
                 LedgerEntry(
                     date=date,
-                    account=credit_account,
+                    account=credit_account_str,
                     amount=ZERO,
                     entry_type=EntryType.CREDIT,
                     transaction_type=transaction_type,
@@ -310,7 +496,7 @@ class Ledger:
 
         debit_entry = LedgerEntry(
             date=date,
-            account=debit_account,
+            account=debit_account_str,
             amount=amount,
             entry_type=EntryType.DEBIT,
             transaction_type=transaction_type,
@@ -322,7 +508,7 @@ class Ledger:
 
         credit_entry = LedgerEntry(
             date=date,
-            account=credit_account,
+            account=credit_account_str,
             amount=amount,
             entry_type=EntryType.CREDIT,
             transaction_type=transaction_type,
@@ -337,11 +523,13 @@ class Ledger:
 
         return debit_entry, credit_entry
 
-    def get_balance(self, account: str, as_of_date: Optional[int] = None) -> Decimal:
+    def get_balance(
+        self, account: Union[AccountName, str], as_of_date: Optional[int] = None
+    ) -> Decimal:
         """Calculate the balance for an account.
 
         Args:
-            account: Name of the account
+            account: Name of the account (AccountName enum recommended, string accepted)
             as_of_date: Optional period to calculate balance as of (inclusive)
 
         Returns:
@@ -353,14 +541,18 @@ class Ledger:
         Example:
             Get current cash balance::
 
-                cash = ledger.get_balance("cash")
+                cash = ledger.get_balance(AccountName.CASH)
                 print(f"Cash: ${cash:,.0f}")
+
+                # String also works (validated)
+                cash = ledger.get_balance("cash")
         """
-        account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
+        account_str = _resolve_account_name(account)
+        account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
         total = ZERO
         for entry in self.entries:
-            if entry.account != account:
+            if entry.account != account_str:
                 continue
             if as_of_date is not None and entry.date > as_of_date:
                 continue
@@ -381,22 +573,25 @@ class Ledger:
 
         return total
 
-    def get_period_change(self, account: str, period: int, month: Optional[int] = None) -> Decimal:
+    def get_period_change(
+        self, account: Union[AccountName, str], period: int, month: Optional[int] = None
+    ) -> Decimal:
         """Calculate the change in account balance for a specific period.
 
         Args:
-            account: Name of the account
+            account: Name of the account (AccountName enum recommended, string accepted)
             period: Year/period to calculate change for
             month: Optional specific month within the period
 
         Returns:
             Net change in account balance during the period as Decimal
         """
-        account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
+        account_str = _resolve_account_name(account)
+        account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
         total = ZERO
         for entry in self.entries:
-            if entry.account != account:
+            if entry.account != account_str:
                 continue
             if entry.date != period:
                 continue
@@ -419,7 +614,7 @@ class Ledger:
 
     def get_entries(
         self,
-        account: Optional[str] = None,
+        account: Optional[Union[AccountName, str]] = None,
         start_date: Optional[int] = None,
         end_date: Optional[int] = None,
         transaction_type: Optional[TransactionType] = None,
@@ -427,7 +622,7 @@ class Ledger:
         """Query ledger entries with optional filters.
 
         Args:
-            account: Filter by account name
+            account: Filter by account name (AccountName enum or string)
             start_date: Filter by minimum period (inclusive)
             end_date: Filter by maximum period (inclusive)
             transaction_type: Filter by transaction classification
@@ -439,16 +634,19 @@ class Ledger:
             Get all cash entries for year 5::
 
                 cash_entries = ledger.get_entries(
-                    account="cash",
+                    account=AccountName.CASH,
                     start_date=5,
                     end_date=5
                 )
         """
+        # Resolve account name if provided
+        account_str = _resolve_account_name(account) if account is not None else None
+
         results = []
 
         for entry in self.entries:
             # Apply filters
-            if account is not None and entry.account != account:
+            if account_str is not None and entry.account != account_str:
                 continue
             if start_date is not None and entry.date < start_date:
                 continue
@@ -465,7 +663,7 @@ class Ledger:
         self,
         transaction_type: TransactionType,
         period: int,
-        account: Optional[str] = None,
+        account: Optional[Union[AccountName, str]] = None,
         entry_type: Optional[EntryType] = None,
     ) -> Decimal:
         """Sum entries by transaction type for cash flow extraction.
@@ -473,7 +671,7 @@ class Ledger:
         Args:
             transaction_type: Classification to sum
             period: Year/period to sum
-            account: Optional account filter
+            account: Optional account filter (AccountName enum or string)
             entry_type: Optional debit/credit filter
 
         Returns:
@@ -485,10 +683,13 @@ class Ledger:
                 collections = ledger.sum_by_transaction_type(
                     transaction_type=TransactionType.COLLECTION,
                     period=5,
-                    account="cash",
+                    account=AccountName.CASH,
                     entry_type=EntryType.DEBIT
                 )
         """
+        # Resolve account name if provided
+        account_str = _resolve_account_name(account) if account is not None else None
+
         total = ZERO
 
         for entry in self.entries:
@@ -496,7 +697,7 @@ class Ledger:
                 continue
             if entry.date != period:
                 continue
-            if account is not None and entry.account != account:
+            if account_str is not None and entry.account != account_str:
                 continue
             if entry_type is not None and entry.entry_type != entry_type:
                 continue
