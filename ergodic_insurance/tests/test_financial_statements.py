@@ -5,6 +5,7 @@ functionality, including balance sheets, income statements, cash flow
 statements, and reconciliation reports.
 """
 
+from typing import Optional
 from unittest.mock import MagicMock, Mock
 
 import numpy as np
@@ -49,6 +50,76 @@ class TestFinancialStatementConfig:
         assert config.fiscal_year_end == 6
 
 
+def _add_cogs_sga_breakdown(
+    metrics: dict,
+    expense_config: Optional[ExpenseRatioConfig] = None,
+) -> dict:
+    """Add COGS and SG&A breakdown fields to metrics.
+
+    Issue #255: The Manufacturer now provides these values explicitly.
+    This helper function calculates them using the provided or default ratios for test data.
+
+    Args:
+        metrics: Dictionary of financial metrics
+        expense_config: Optional ExpenseRatioConfig with custom ratios
+
+    Returns:
+        Updated metrics dictionary with COGS/SG&A breakdown
+    """
+    revenue = metrics.get("revenue", 0)
+    depreciation = metrics.get("depreciation_expense", 0)
+
+    # Use provided expense config or defaults (matching Manufacturer defaults)
+    if expense_config:
+        gross_margin_ratio = expense_config.gross_margin_ratio
+        sga_expense_ratio = expense_config.sga_expense_ratio
+        mfg_depreciation_alloc = expense_config.manufacturing_depreciation_allocation
+        admin_depreciation_alloc = expense_config.admin_depreciation_allocation
+        direct_materials_ratio = expense_config.direct_materials_ratio
+        direct_labor_ratio = expense_config.direct_labor_ratio
+        manufacturing_overhead_ratio = expense_config.manufacturing_overhead_ratio
+        selling_expense_ratio = expense_config.selling_expense_ratio
+        general_admin_ratio = expense_config.general_admin_ratio
+    else:
+        gross_margin_ratio = 0.15
+        sga_expense_ratio = 0.07
+        mfg_depreciation_alloc = 0.7
+        admin_depreciation_alloc = 0.3
+        direct_materials_ratio = 0.4
+        direct_labor_ratio = 0.3
+        manufacturing_overhead_ratio = 0.3
+        selling_expense_ratio = 0.4
+        general_admin_ratio = 0.6
+
+    # Calculate COGS breakdown
+    cogs_ratio = 1.0 - gross_margin_ratio
+    base_cogs = revenue * cogs_ratio
+    mfg_depreciation = depreciation * mfg_depreciation_alloc
+    cogs_before_depreciation = base_cogs - mfg_depreciation
+
+    metrics["direct_materials"] = cogs_before_depreciation * direct_materials_ratio
+    metrics["direct_labor"] = cogs_before_depreciation * direct_labor_ratio
+    metrics["manufacturing_overhead"] = cogs_before_depreciation * manufacturing_overhead_ratio
+    metrics["mfg_depreciation"] = mfg_depreciation
+    metrics["total_cogs"] = base_cogs
+
+    # Calculate SG&A breakdown
+    base_sga = revenue * sga_expense_ratio
+    admin_depreciation = depreciation * admin_depreciation_alloc
+    sga_before_depreciation = base_sga - admin_depreciation
+
+    metrics["selling_expenses"] = sga_before_depreciation * selling_expense_ratio
+    metrics["general_admin_expenses"] = sga_before_depreciation * general_admin_ratio
+    metrics["admin_depreciation"] = admin_depreciation
+    metrics["total_sga"] = base_sga
+
+    # Store expense ratios for reporting reference
+    metrics["gross_margin_ratio"] = gross_margin_ratio
+    metrics["sga_expense_ratio"] = sga_expense_ratio
+
+    return metrics
+
+
 class TestFinancialStatementGenerator:
     """Test FinancialStatementGenerator class."""
 
@@ -68,70 +139,77 @@ class TestFinancialStatementGenerator:
         # Create sample metrics history
         # Note: Balance sheet calculates total_assets = current_assets + net_ppe + restricted_assets
         # Where net_ppe = gross_ppe - accumulated_depreciation
+        # Issue #255: COGS/SG&A breakdown is now added via helper function
         manufacturer.metrics_history = [
-            {
-                "year": 0,
-                "assets": 10_000_000,
-                "equity": 10_000_000,
-                "revenue": 5_000_000,
-                "operating_income": 400_000,
-                "net_income": 300_000,
-                "collateral": 0,
-                "restricted_assets": 0,
-                "available_assets": 10_000_000,
-                "claim_liabilities": 0,
-                "is_solvent": True,
-                "base_operating_margin": 0.08,
-                "roe": 0.03,
-                "roa": 0.03,
-                "asset_turnover": 0.5,
-                "gross_ppe": 7_000_000,
-                "accumulated_depreciation": 0,
-                "depreciation_expense": 700_000,  # 10-year useful life
-                "cash": 3_000_000,  # Current assets to make total = 10M
-            },
-            {
-                "year": 1,
-                "assets": 10_300_000,
-                "equity": 10_300_000,
-                "revenue": 5_150_000,
-                "operating_income": 412_000,
-                "net_income": 309_000,
-                "collateral": 100_000,
-                "restricted_assets": 100_000,
-                "available_assets": 10_200_000,
-                "claim_liabilities": 0,
-                "is_solvent": True,
-                "base_operating_margin": 0.08,
-                "roe": 0.03,
-                "roa": 0.03,
-                "asset_turnover": 0.5,
-                "gross_ppe": 7_200_000,
-                "accumulated_depreciation": 700_000,
-                "depreciation_expense": 720_000,
-                "cash": 3_300_000,  # Year 1: 3.3M cash + 6.5M net_ppe + 0.5M restricted = 10.3M
-            },
-            {
-                "year": 2,
-                "assets": 10_609_000,
-                "equity": 10_509_000,
-                "revenue": 5_304_500,
-                "operating_income": 424_360,
-                "net_income": 318_270,
-                "collateral": 200_000,
-                "restricted_assets": 200_000,
-                "available_assets": 10_409_000,
-                "claim_liabilities": 100_000,
-                "is_solvent": True,
-                "base_operating_margin": 0.08,
-                "roe": 0.03,
-                "roa": 0.03,
-                "asset_turnover": 0.5,
-                "gross_ppe": 7_400_000,
-                "accumulated_depreciation": 1_420_000,
-                "depreciation_expense": 740_000,
-                "cash": 4_429_000,  # Year 2: 4.429M cash + 5.98M net_ppe + 0.2M restricted = 10.609M
-            },
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 0,
+                    "assets": 10_000_000,
+                    "equity": 10_000_000,
+                    "revenue": 5_000_000,
+                    "operating_income": 400_000,
+                    "net_income": 300_000,
+                    "collateral": 0,
+                    "restricted_assets": 0,
+                    "available_assets": 10_000_000,
+                    "claim_liabilities": 0,
+                    "is_solvent": True,
+                    "base_operating_margin": 0.08,
+                    "roe": 0.03,
+                    "roa": 0.03,
+                    "asset_turnover": 0.5,
+                    "gross_ppe": 7_000_000,
+                    "accumulated_depreciation": 0,
+                    "depreciation_expense": 700_000,  # 10-year useful life
+                    "cash": 3_000_000,  # Current assets to make total = 10M
+                }
+            ),
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 1,
+                    "assets": 10_300_000,
+                    "equity": 10_300_000,
+                    "revenue": 5_150_000,
+                    "operating_income": 412_000,
+                    "net_income": 309_000,
+                    "collateral": 100_000,
+                    "restricted_assets": 100_000,
+                    "available_assets": 10_200_000,
+                    "claim_liabilities": 0,
+                    "is_solvent": True,
+                    "base_operating_margin": 0.08,
+                    "roe": 0.03,
+                    "roa": 0.03,
+                    "asset_turnover": 0.5,
+                    "gross_ppe": 7_200_000,
+                    "accumulated_depreciation": 700_000,
+                    "depreciation_expense": 720_000,
+                    "cash": 3_300_000,  # Year 1: 3.3M cash + 6.5M net_ppe + 0.5M restricted
+                }
+            ),
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 2,
+                    "assets": 10_609_000,
+                    "equity": 10_509_000,
+                    "revenue": 5_304_500,
+                    "operating_income": 424_360,
+                    "net_income": 318_270,
+                    "collateral": 200_000,
+                    "restricted_assets": 200_000,
+                    "available_assets": 10_409_000,
+                    "claim_liabilities": 100_000,
+                    "is_solvent": True,
+                    "base_operating_margin": 0.08,
+                    "roe": 0.03,
+                    "roa": 0.03,
+                    "asset_turnover": 0.5,
+                    "gross_ppe": 7_400_000,
+                    "accumulated_depreciation": 1_420_000,
+                    "depreciation_expense": 740_000,
+                    "cash": 4_429_000,  # Year 2: 4.429M cash + 5.98M net_ppe + 0.2M restricted
+                }
+            ),
         ]
 
         return manufacturer
@@ -486,6 +564,76 @@ class TestFinancialStatementGenerator:
         for component in cogs_components:
             assert any(component in item for item in items), f"Missing COGS component: {component}"
 
+    def test_missing_cogs_breakdown_raises_error(self):
+        """Test that missing COGS breakdown raises ValueError.
+
+        Issue #255: The reporting layer no longer estimates COGS/SG&A breakdown.
+        These values must be provided explicitly by the Manufacturer.
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        # Metrics WITHOUT COGS/SG&A breakdown (old format)
+        manufacturer.metrics_history = [
+            {
+                "year": 0,
+                "assets": 10_000_000,
+                "equity": 10_000_000,
+                "revenue": 5_000_000,
+                "depreciation_expense": 700_000,
+                "cash": 3_000_000,
+            }
+        ]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+
+        with pytest.raises(ValueError, match="COGS breakdown fields missing"):
+            generator.generate_income_statement(year=0)
+
+    def test_missing_sga_breakdown_raises_error(self):
+        """Test that missing SG&A breakdown raises ValueError.
+
+        Issue #255: The reporting layer no longer estimates COGS/SG&A breakdown.
+        These values must be provided explicitly by the Manufacturer.
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        # Metrics WITH COGS breakdown but WITHOUT SG&A breakdown
+        manufacturer.metrics_history = [
+            {
+                "year": 0,
+                "assets": 10_000_000,
+                "equity": 10_000_000,
+                "revenue": 5_000_000,
+                "depreciation_expense": 700_000,
+                "cash": 3_000_000,
+                # COGS breakdown present
+                "direct_materials": 1_504_000,
+                "direct_labor": 1_128_000,
+                "manufacturing_overhead": 1_128_000,
+                "mfg_depreciation": 490_000,
+                # SG&A breakdown MISSING
+            }
+        ]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+
+        with pytest.raises(ValueError, match="SG&A breakdown fields missing"):
+            generator.generate_income_statement(year=0)
+
     def test_operating_expenses_components(self, generator):
         """Test that operating expenses include proper SG&A components."""
         df = generator.generate_income_statement(year=2)
@@ -595,18 +743,22 @@ class TestFinancialStatementGenerator:
 
         manufacturer.config = config
 
+        # Issue #255: COGS/SG&A breakdown now provided by Manufacturer (via helper)
         manufacturer.metrics_history = [
-            {
-                "year": 0,
-                "assets": 10_000_000,
-                "equity": 10_000_000,
-                "revenue": 5_000_000,
-                "depreciation_expense": 500_000,
-                "cash": 2_000_000,
-                "debt_balance": 0,
-                "insurance_premiums": 100_000,
-                "insurance_losses": 50_000,
-            }
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 0,
+                    "assets": 10_000_000,
+                    "equity": 10_000_000,
+                    "revenue": 5_000_000,
+                    "depreciation_expense": 500_000,
+                    "cash": 2_000_000,
+                    "debt_balance": 0,
+                    "insurance_premiums": 100_000,
+                    "insurance_losses": 50_000,
+                },
+                expense_config=expense_config,
+            )
         ]
 
         generator = FinancialStatementGenerator(manufacturer=manufacturer)
@@ -656,18 +808,22 @@ class TestFinancialStatementGenerator:
 
         manufacturer.config = config
 
+        # Issue #255: COGS/SG&A breakdown now provided by Manufacturer (via helper)
         manufacturer.metrics_history = [
-            {
-                "year": 0,
-                "assets": 10_000_000,
-                "equity": 10_000_000,
-                "revenue": 1_000_000,  # Simple round number for easy calculation
-                "depreciation_expense": 100_000,
-                "cash": 1_000_000,
-                "debt_balance": 0,
-                "insurance_premiums": 0,
-                "insurance_losses": 0,
-            }
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 0,
+                    "assets": 10_000_000,
+                    "equity": 10_000_000,
+                    "revenue": 1_000_000,  # Simple round number for easy calculation
+                    "depreciation_expense": 100_000,
+                    "cash": 1_000_000,
+                    "debt_balance": 0,
+                    "insurance_premiums": 0,
+                    "insurance_losses": 0,
+                },
+                expense_config=expense_config,
+            )
         ]
 
         generator = FinancialStatementGenerator(manufacturer=manufacturer)

@@ -1237,6 +1237,11 @@ class FinancialStatementGenerator:
         Separates COGS from operating expenses, allocates depreciation appropriately,
         and follows US GAAP income statement structure.
 
+        Issue #255: COGS and SG&A breakdown values are now read from metrics instead
+        of being calculated with hardcoded ratios. This moves business logic to the
+        Manufacturer model where it belongs, leaving the Reporting layer to only
+        format existing data.
+
         Args:
             data: List to append statement lines to
             metrics: Year metrics dictionary
@@ -1246,22 +1251,6 @@ class FinancialStatementGenerator:
         Returns:
             Tuple of (gross_profit, operating_income)
         """
-        # Get expense ratio configuration if available
-        config = self.manufacturer_data.get("config")
-
-        # Default expense ratios following GAAP
-        if hasattr(config, "expense_ratios") and config.expense_ratios:
-            gross_margin_ratio = config.expense_ratios.gross_margin_ratio
-            sga_expense_ratio = config.expense_ratios.sga_expense_ratio
-            mfg_depreciation_alloc = config.expense_ratios.manufacturing_depreciation_allocation
-            admin_depreciation_alloc = config.expense_ratios.admin_depreciation_allocation
-        else:
-            # Default ratios if not configured
-            gross_margin_ratio = 0.15  # 15% gross margin
-            sga_expense_ratio = 0.07  # 7% SG&A
-            mfg_depreciation_alloc = 0.7  # 70% to COGS
-            admin_depreciation_alloc = 0.3  # 30% to SG&A
-
         # Calculate total depreciation
         # Depreciation expense MUST be provided by the Manufacturer class
         if "depreciation_expense" not in metrics:
@@ -1269,32 +1258,68 @@ class FinancialStatementGenerator:
                 "depreciation_expense missing from metrics. "
                 "The Manufacturer class must calculate and provide depreciation_expense explicitly."
             )
-        total_depreciation = metrics["depreciation_expense"]
 
+        # Issue #255: COGS breakdown MUST be provided by the Manufacturer class
+        # This removes hardcoded ratios from the reporting layer
+        required_cogs_fields = [
+            "direct_materials",
+            "direct_labor",
+            "manufacturing_overhead",
+            "mfg_depreciation",
+        ]
+        required_sga_fields = [
+            "selling_expenses",
+            "general_admin_expenses",
+            "admin_depreciation",
+        ]
+
+        missing_cogs = [f for f in required_cogs_fields if f not in metrics]
+        missing_sga = [f for f in required_sga_fields if f not in metrics]
+
+        if missing_cogs:
+            raise ValueError(
+                f"COGS breakdown fields missing from metrics: {missing_cogs}. "
+                "The Manufacturer class must calculate and provide COGS breakdown explicitly. "
+                "(Issue #255: Removed hardcoded business logic from reporting layer)"
+            )
+
+        if missing_sga:
+            raise ValueError(
+                f"SG&A breakdown fields missing from metrics: {missing_sga}. "
+                "The Manufacturer class must calculate and provide SG&A breakdown explicitly. "
+                "(Issue #255: Removed hardcoded business logic from reporting layer)"
+            )
+
+        # Read COGS breakdown from metrics (Issue #255)
+        direct_materials = metrics["direct_materials"]
+        direct_labor = metrics["direct_labor"]
+        manufacturing_overhead = metrics["manufacturing_overhead"]
+        mfg_depreciation = metrics["mfg_depreciation"]
+
+        # Read SG&A breakdown from metrics (Issue #255)
+        selling_expenses = metrics["selling_expenses"]
+        general_admin = metrics["general_admin_expenses"]
+        admin_depreciation = metrics["admin_depreciation"]
+
+        # Apply monthly scaling if needed
         if monthly:
-            total_depreciation = total_depreciation / 12
-
-        # Allocate depreciation
-        mfg_depreciation = total_depreciation * mfg_depreciation_alloc
-        admin_depreciation = total_depreciation * admin_depreciation_alloc
+            direct_materials = direct_materials / 12
+            direct_labor = direct_labor / 12
+            manufacturing_overhead = manufacturing_overhead / 12
+            mfg_depreciation = mfg_depreciation / 12
+            selling_expenses = selling_expenses / 12
+            general_admin = general_admin / 12
+            admin_depreciation = admin_depreciation / 12
 
         # COST OF GOODS SOLD SECTION
         data.append(("COST OF GOODS SOLD", "", "", ""))
 
-        # Calculate base COGS from gross margin
-        base_cogs = revenue * (1 - gross_margin_ratio)
-
-        # Components of COGS
-        direct_materials = base_cogs * 0.4  # 40% materials
-        direct_labor = base_cogs * 0.3  # 30% labor
-        mfg_overhead = base_cogs * 0.3 - mfg_depreciation  # 30% overhead minus depreciation
-
         data.append(("  Direct Materials", direct_materials, "", ""))
         data.append(("  Direct Labor", direct_labor, "", ""))
-        data.append(("  Manufacturing Overhead", mfg_overhead, "", ""))
+        data.append(("  Manufacturing Overhead", manufacturing_overhead, "", ""))
         data.append(("  Manufacturing Depreciation", mfg_depreciation, "", ""))
 
-        total_cogs = direct_materials + direct_labor + mfg_overhead + mfg_depreciation
+        total_cogs = direct_materials + direct_labor + manufacturing_overhead + mfg_depreciation
         data.append(("  Total Cost of Goods Sold", total_cogs, "", "subtotal"))
         data.append(("", "", "", ""))
 
@@ -1305,13 +1330,6 @@ class FinancialStatementGenerator:
 
         # OPERATING EXPENSES (SG&A)
         data.append(("OPERATING EXPENSES", "", "", ""))
-
-        # Calculate SG&A components
-        base_sga = revenue * sga_expense_ratio
-
-        # Break down SG&A
-        selling_expenses = base_sga * 0.4  # 40% selling
-        general_admin = base_sga * 0.6 - admin_depreciation  # 60% G&A minus depreciation
 
         data.append(("  Selling Expenses", selling_expenses, "", ""))
         data.append(("  General & Administrative", general_admin, "", ""))
