@@ -787,6 +787,154 @@ class TestFinancialStatementGenerator:
         # Verify no deferred taxes (flat rate only)
         assert values[deferred_tax_idx] == 0, "Deferred taxes should be zero"
 
+    def test_tax_expense_from_ledger(self, mock_manufacturer):
+        """Test that tax expense is read from Ledger when available.
+
+        Issue #257: The Income Statement should read tax_expense from the Ledger
+        (sum of TAX_ACCRUAL entries) rather than recalculating using a flat rate.
+        """
+        # Create a ledger with TAX_ACCRUAL entries
+        ledger = Ledger()
+
+        # Record tax accrual for year 2 (expected: 75,000)
+        ledger.record_double_entry(
+            date=2,
+            debit_account="tax_expense",
+            credit_account="accrued_taxes",
+            amount=75_000,
+            transaction_type=TransactionType.TAX_ACCRUAL,
+            description="Q1-Q4 Tax accrual",
+        )
+
+        # Create generator with ledger
+        generator = FinancialStatementGenerator(
+            manufacturer=mock_manufacturer,
+            ledger=ledger,
+        )
+
+        df = generator.generate_income_statement(year=2)
+
+        # Find the Current Tax Expense value
+        tax_expense_value = None
+        for i, item in enumerate(df["Item"].values):
+            if "Current Tax Expense" in str(item):
+                tax_expense_value = df["Year 2"].values[i]
+                break
+
+        # Verify the tax expense matches what's in the ledger
+        assert tax_expense_value is not None, "Current Tax Expense row not found"
+        assert (
+            abs(tax_expense_value - 75_000) < 1
+        ), f"Tax expense should be 75,000 from ledger, got {tax_expense_value}"
+
+    def test_tax_expense_from_metrics(self, mock_manufacturer):
+        """Test that tax expense is read from metrics when Ledger not available.
+
+        Issue #257: If no Ledger is available, fall back to tax_expense
+        provided in metrics by the Manufacturer.
+        """
+        # Add tax_expense to metrics
+        mock_manufacturer.metrics_history[2]["tax_expense"] = 85_000
+
+        # Create generator without ledger
+        generator = FinancialStatementGenerator(
+            manufacturer=mock_manufacturer,
+        )
+
+        df = generator.generate_income_statement(year=2)
+
+        # Find the Current Tax Expense value
+        tax_expense_value = None
+        for i, item in enumerate(df["Item"].values):
+            if "Current Tax Expense" in str(item):
+                tax_expense_value = df["Year 2"].values[i]
+                break
+
+        # Verify the tax expense matches what's in metrics
+        assert tax_expense_value is not None, "Current Tax Expense row not found"
+        assert (
+            abs(tax_expense_value - 85_000) < 1
+        ), f"Tax expense should be 85,000 from metrics, got {tax_expense_value}"
+
+    def test_tax_expense_ledger_priority_over_metrics(self, mock_manufacturer):
+        """Test that Ledger tax expense takes priority over metrics.
+
+        Issue #257: Priority order should be: Ledger > metrics > flat rate.
+        """
+        # Create a ledger with TAX_ACCRUAL entries
+        ledger = Ledger()
+
+        # Record tax accrual for year 2 (expected: 60,000)
+        ledger.record_double_entry(
+            date=2,
+            debit_account="tax_expense",
+            credit_account="accrued_taxes",
+            amount=60_000,
+            transaction_type=TransactionType.TAX_ACCRUAL,
+            description="Ledger tax accrual",
+        )
+
+        # Also add different tax_expense to metrics (should be ignored)
+        mock_manufacturer.metrics_history[2]["tax_expense"] = 100_000
+
+        # Create generator with ledger
+        generator = FinancialStatementGenerator(
+            manufacturer=mock_manufacturer,
+            ledger=ledger,
+        )
+
+        df = generator.generate_income_statement(year=2)
+
+        # Find the Current Tax Expense value
+        tax_expense_value = None
+        for i, item in enumerate(df["Item"].values):
+            if "Current Tax Expense" in str(item):
+                tax_expense_value = df["Year 2"].values[i]
+                break
+
+        # Verify the tax expense matches ledger (not metrics)
+        assert tax_expense_value is not None, "Current Tax Expense row not found"
+        assert (
+            abs(tax_expense_value - 60_000) < 1
+        ), f"Tax expense should be 60,000 from ledger (not 100,000 from metrics), got {tax_expense_value}"
+
+    def test_tax_expense_flat_rate_fallback(self, mock_manufacturer):
+        """Test that flat rate calculation is used when no tax data available.
+
+        Issue #257: When neither Ledger nor metrics provides tax_expense,
+        fall back to the original flat rate calculation for backward compatibility.
+        """
+        # Ensure no tax_expense in metrics (remove if exists)
+        if "tax_expense" in mock_manufacturer.metrics_history[2]:
+            del mock_manufacturer.metrics_history[2]["tax_expense"]
+
+        # Create generator without ledger
+        generator = FinancialStatementGenerator(
+            manufacturer=mock_manufacturer,
+        )
+
+        df = generator.generate_income_statement(year=2)
+
+        # Find the Current Tax Expense value
+        tax_expense_value = None
+        pretax_income_value = None
+        for i, item in enumerate(df["Item"].values):
+            if "Current Tax Expense" in str(item):
+                tax_expense_value = df["Year 2"].values[i]
+            elif "INCOME BEFORE TAXES" in str(item):
+                pretax_income_value = df["Year 2"].values[i]
+
+        # Verify tax expense is calculated (non-zero for positive income)
+        assert tax_expense_value is not None, "Current Tax Expense row not found"
+        assert pretax_income_value is not None, "INCOME BEFORE TAXES row not found"
+
+        # If pretax income is positive, tax should be ~25% (default rate)
+        if pretax_income_value > 0:
+            expected_tax = pretax_income_value * 0.25
+            assert (
+                abs(tax_expense_value - expected_tax) < 1
+            ), f"Tax expense should be ~25% of pretax income ({expected_tax}), got {tax_expense_value}"
+
     def test_monthly_income_statement(self, generator):
         """Test monthly income statement generation."""
         # Generate monthly statement

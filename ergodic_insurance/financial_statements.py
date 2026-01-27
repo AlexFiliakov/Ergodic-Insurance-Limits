@@ -832,6 +832,23 @@ class FinancialStatementGenerator:
             metrics["insurance_losses"] = mfr_metrics.get("insurance_losses", 0)
             metrics["total_insurance_costs"] = mfr_metrics.get("total_insurance_costs", 0)
             metrics["dividends_paid"] = mfr_metrics.get("dividends_paid", 0)
+            # COGS breakdown (Issue #255)
+            metrics["direct_materials"] = mfr_metrics.get("direct_materials", 0)
+            metrics["direct_labor"] = mfr_metrics.get("direct_labor", 0)
+            metrics["manufacturing_overhead"] = mfr_metrics.get("manufacturing_overhead", 0)
+            metrics["mfg_depreciation"] = mfr_metrics.get("mfg_depreciation", 0)
+            metrics["total_cogs"] = mfr_metrics.get("total_cogs", 0)
+            # SG&A breakdown (Issue #255)
+            metrics["selling_expenses"] = mfr_metrics.get("selling_expenses", 0)
+            metrics["general_admin_expenses"] = mfr_metrics.get("general_admin_expenses", 0)
+            metrics["admin_depreciation"] = mfr_metrics.get("admin_depreciation", 0)
+            metrics["total_sga"] = mfr_metrics.get("total_sga", 0)
+            # Expense ratios for reporting reference
+            metrics["gross_margin_ratio"] = mfr_metrics.get("gross_margin_ratio", 0.15)
+            metrics["sga_expense_ratio"] = mfr_metrics.get("sga_expense_ratio", 0.07)
+            # Tax expense (Issue #257)
+            if "tax_expense" in mfr_metrics:
+                metrics["tax_expense"] = mfr_metrics["tax_expense"]
         else:
             # Fallback: use ledger period changes (may be 0 if not recorded)
             metrics["revenue"] = self.ledger.get_period_change("revenue", year)
@@ -1191,7 +1208,7 @@ class FinancialStatementGenerator:
             income_data, metrics, revenue, monthly
         )
         self._build_gaap_bottom_section(
-            income_data, metrics, operating_income, gross_profit, revenue, monthly
+            income_data, metrics, operating_income, gross_profit, revenue, monthly, year
         )
 
         # Create DataFrame
@@ -1374,10 +1391,18 @@ class FinancialStatementGenerator:
         gross_profit: float,
         revenue: float,
         monthly: bool = False,
+        year: int = 0,
     ) -> None:
         """Build the bottom section with non-operating items, taxes, and net income.
 
-        Follows GAAP structure with separate non-operating section and flat tax rate.
+        Follows GAAP structure with separate non-operating section. Tax expense
+        is read from the Ledger or metrics when available, falling back to flat
+        rate calculation only when no actual tax data exists.
+
+        Issue #257: Tax expense should be read from the Ledger (sum of TAX_ACCRUAL
+        entries) rather than recalculated. This ensures the Income Statement
+        reports what actually happened in the simulation, not what should have
+        happened based on a flat rate.
 
         Args:
             data: List to append statement lines to
@@ -1386,6 +1411,7 @@ class FinancialStatementGenerator:
             gross_profit: Gross profit (revenue - COGS) for the period
             revenue: Total revenue for the period
             monthly: If True, use monthly figures
+            year: Year index for ledger queries
         """
         # NON-OPERATING INCOME (EXPENSES)
         data.append(("NON-OPERATING INCOME (EXPENSES)", "", "", ""))
@@ -1431,12 +1457,32 @@ class FinancialStatementGenerator:
         data.append(("INCOME BEFORE TAXES", pretax_income, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # INCOME TAX PROVISION (Flat tax rate, no deferred taxes)
-        config = self.manufacturer_data.get("config")
-        tax_rate = config.tax_rate if config and hasattr(config, "tax_rate") else 0.25
+        # INCOME TAX PROVISION
+        # Issue #257: Read tax expense from Ledger (preferred) or metrics (fallback)
+        # The Reporting layer should report what happened, not recalculate it.
+        # Priority: 1) Ledger TAX_ACCRUAL entries, 2) metrics["tax_expense"], 3) flat rate
+        tax_provision: Optional[float] = None
 
-        # Calculate tax provision on positive income only
-        tax_provision = max(0, pretax_income * tax_rate)
+        # Priority 1: Get tax expense from Ledger if available
+        if self.ledger is not None:
+            ledger_tax = self.ledger.get_period_change("tax_expense", year)
+            if ledger_tax > 0:
+                tax_provision = ledger_tax
+                if monthly:
+                    tax_provision = tax_provision / 12
+
+        # Priority 2: Get tax expense from metrics if provided by Manufacturer
+        if tax_provision is None and "tax_expense" in metrics:
+            tax_provision = metrics["tax_expense"]
+            if monthly:
+                tax_provision = tax_provision / 12
+
+        # Priority 3: Fall back to flat rate calculation (backward compatibility)
+        if tax_provision is None:
+            config = self.manufacturer_data.get("config")
+            tax_rate = config.tax_rate if config and hasattr(config, "tax_rate") else 0.25
+            # Calculate tax provision on positive income only
+            tax_provision = max(0, pretax_income * tax_rate)
 
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
