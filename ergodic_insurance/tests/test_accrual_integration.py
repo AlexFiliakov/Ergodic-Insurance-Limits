@@ -56,8 +56,8 @@ class TestAccrualIntegration:
         # Record wage accrual
         manufacturer.record_wage_accrual(wage_amount, PaymentSchedule.IMMEDIATE)
 
-        # Check accrual was recorded
-        assert manufacturer.accrued_expenses == wage_amount
+        # Check accrual was recorded in AccrualManager (single source of truth - issue #238)
+        assert manufacturer.accrual_manager.get_total_accrued_expenses() == wage_amount
 
         # Process payment in same period
         initial_cash = manufacturer.cash
@@ -134,9 +134,8 @@ class TestAccrualIntegration:
         # Reset manufacturer
         manufacturer.reset()
 
-        # Verify accruals cleared
+        # Verify accruals cleared (AccrualManager is single source of truth - issue #238)
         assert manufacturer.accrual_manager.get_total_accrued_expenses() == 0
-        assert manufacturer.accrued_expenses == 0
 
     def test_monthly_resolution_accrual_sync(self, manufacturer):
         """Test accrual manager syncs with monthly resolution."""
