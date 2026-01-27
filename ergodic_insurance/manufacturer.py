@@ -193,6 +193,7 @@ Note:
 from dataclasses import dataclass, field
 import logging
 from typing import TYPE_CHECKING, Dict, List, Optional
+import warnings
 
 try:
     # Try absolute import first (for installed package)
@@ -1181,17 +1182,14 @@ class WidgetManufacturer:
 
         Revenue is calculated using the asset turnover ratio, which represents
         how efficiently the company converts assets into sales. The calculation
-        accounts for working capital requirements and can include stochastic
-        shocks for realistic modeling.
-
-        The working capital adjustment recognizes that some portion of revenue
-        is tied up in inventory and receivables, reducing the effective assets
-        available for revenue generation.
+        can include stochastic shocks for realistic modeling.
 
         Args:
-            working_capital_pct (float): Percentage of revenue tied up in working
-                capital (inventory + receivables - payables). Typical values
-                range from 0.15 to 0.25. Defaults to 0.0 for simplified modeling.
+            working_capital_pct (float): DEPRECATED (Issue #244). This parameter
+                no longer affects revenue calculation to avoid double-counting.
+                Working capital impact flows through the cash flow statement via
+                :meth:`calculate_working_capital_components`. Passing a non-zero
+                value will emit a DeprecationWarning. Defaults to 0.0.
             apply_stochastic (bool): Whether to apply stochastic shock to revenue
                 calculation. Requires stochastic_process to be initialized.
                 Defaults to False for deterministic calculation.
@@ -1200,7 +1198,6 @@ class WidgetManufacturer:
             float: Annual revenue in dollars. Always non-negative.
 
         Raises:
-            ValueError: If working_capital_pct < 0 or >= 1.
             RuntimeError: If apply_stochastic=True but no stochastic process provided.
 
         Examples:
@@ -1209,14 +1206,6 @@ class WidgetManufacturer:
                 # Deterministic revenue
                 revenue = manufacturer.calculate_revenue()
                 print(f"Base revenue: ${revenue:,.2f}")
-
-            With working capital::
-
-                # Account for 20% working capital
-                revenue_wc = manufacturer.calculate_revenue(
-                    working_capital_pct=0.2
-                )
-                # Revenue will be lower due to working capital tie-up
 
             With stochastic shocks::
 
@@ -1234,27 +1223,40 @@ class WidgetManufacturer:
 
         Note:
             The asset turnover ratio can be modified during simulation to model
-            business growth or decline. Working capital adjustments follow the
-            formula: Effective Assets = Total Assets / (1 + Turnover * WC%).
+            business growth or decline.
+
+            Issue #244: The working_capital_pct parameter previously adjusted
+            revenue using the formula: Revenue = Assets * Turnover / (1 + Turnover * WC%).
+            This caused double-counting because the cash flow statement also
+            deducts working capital changes from operating cash flow. The fix
+            removes the revenue adjustment so working capital impact flows
+            only through the cash flow statement (GAAP-compliant).
 
         See Also:
             :attr:`asset_turnover_ratio`: Core parameter for revenue calculation.
+            :meth:`calculate_working_capital_components`: Working capital calculation.
             :class:`~ergodic_insurance.stochastic_processes.StochasticProcess`:
             For stochastic modeling options.
         """
-        # Adjust for working capital if specified
+        # Issue #244: Deprecation warning for working_capital_pct
+        # The working_capital_pct adjustment was causing double-counting because:
+        # 1. It reduced revenue (and thus Net Income) in the P&L
+        # 2. The cash flow statement also deducted working capital changes
+        # Working capital impact now flows only through calculate_working_capital_components()
+        # and the cash flow statement (GAAP-compliant)
+        if working_capital_pct > 0:
+            warnings.warn(
+                "working_capital_pct parameter is deprecated and has no effect on revenue "
+                "calculation (Issue #244). Working capital impact now flows through the "
+                "cash flow statement via calculate_working_capital_components() to avoid "
+                "double-counting. This parameter will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         # Ensure assets are non-negative for revenue calculation
         # (negative assets would mean business has ceased operations)
         available_assets = max(0, self.total_assets)
-        if working_capital_pct > 0:
-            # Working capital reduces assets available for operations
-            # Revenue = Available Assets * Turnover, where
-            # Available Assets = Total Assets - Working Capital
-            # Working Capital = Revenue * working_capital_pct
-            # Solving: Revenue = Assets * Turnover / (1 + Turnover * WC%)
-            denominator = 1 + self.asset_turnover_ratio * working_capital_pct
-            available_assets = max(0, self.total_assets) / denominator
-
         revenue = available_assets * self.asset_turnover_ratio
 
         # Apply stochastic shock if requested and process is available

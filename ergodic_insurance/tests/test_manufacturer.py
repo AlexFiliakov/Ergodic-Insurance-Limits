@@ -216,12 +216,30 @@ class TestWidgetManufacturer:
         revenue = manufacturer.calculate_revenue(working_capital_pct=0.0)
         assert revenue == 10_000_000  # Assets * Turnover = 10M * 1.0
 
-    def test_calculate_revenue_with_working_capital(self, manufacturer):
-        """Test revenue calculation with working capital constraint."""
-        revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
-        # Revenue = Assets / (1 + Turnover * WC%)
-        # Revenue = 10M / (1 + 1.0 * 0.2) = 10M / 1.2
-        expected = 10_000_000 / 1.2
+    def test_calculate_revenue_with_working_capital_deprecated(self, manufacturer):
+        """Test that working_capital_pct is deprecated and has no effect on revenue.
+
+        Issue #244: The working_capital_pct adjustment in calculate_revenue() was
+        causing double-counting because the cash flow statement also deducts
+        working capital changes. Working capital impact now flows only through
+        calculate_working_capital_components() and the cash flow statement.
+        """
+        import warnings
+
+        # Test that deprecation warning is emitted
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
+
+            # Check deprecation warning was emitted
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "working_capital_pct" in str(w[0].message)
+            assert "Issue #244" in str(w[0].message)
+
+        # Revenue should be unchanged (no reduction for working capital)
+        # This fixes the double-counting issue
+        expected = 10_000_000  # Assets * Turnover = 10M * 1.0
         assert revenue == pytest.approx(expected)
 
     def test_calculate_operating_income(self, manufacturer):
