@@ -385,6 +385,254 @@ class ClaimLiability:
         return payment
 
 
+@dataclass
+class TaxHandler:
+    """Consolidates tax calculation, accrual, and payment logic.
+
+    This class centralizes all tax-related operations to provide clear documentation
+    and prevent confusion about the tax calculation flow. The design explicitly
+    addresses concerns about potential circular dependencies in the tax logic.
+
+    Tax Flow Sequence (IMPORTANT - No Circular Dependency):
+    --------------------------------------------------------
+    The tax calculation follows a strict sequential flow that prevents circularity:
+
+    1. **Read Current State**: At the start of tax calculation, we read the current
+       equity value. This equity includes any PREVIOUSLY accrued taxes (from prior
+       periods) but NOT the tax we are about to calculate.
+
+    2. **Calculate Tax**: Based on income_before_tax and tax_rate, we calculate
+       the theoretical tax liability.
+
+    3. **Apply Limited Liability Cap**: If equity is insufficient to support the
+       full tax liability, we cap the accrual at available equity. This protects
+       against creating liabilities the company cannot support.
+
+    4. **Record Accrual**: ONLY AFTER the equity check and cap calculation do we
+       record the new tax accrual to the AccrualManager. This means the equity
+       value read in step 1 was NOT affected by the accrual we're recording.
+
+    5. **Future Payment**: The accrued tax becomes a liability on the balance sheet
+       and will be paid in future periods via process_accrued_payments().
+
+    Why This Is Not Circular:
+    -------------------------
+    - Equity_t is read BEFORE Tax_t is accrued
+    - Tax_t is recorded AFTER Equity_t check
+    - Equity_t+1 will include Tax_t, but Tax_t+1 calculation will read Equity_t+1
+    - Each period's tax is based on that period's pre-accrual equity
+
+    This is analogous to how real companies operate: they determine tax liability
+    based on their financial position, then record it. The liability affects
+    future equity, but doesn't retroactively change the calculation.
+
+    Integration Points:
+    -------------------
+    - `calculate_net_income()`: Calls calculate_and_accrue_tax() to handle taxes
+    - `process_accrued_payments()`: Pays previously accrued taxes
+    - `AccrualManager`: Stores tax accruals as liabilities
+    - `total_liabilities`: Includes accrued taxes from AccrualManager
+
+    Attributes:
+        tax_rate: Corporate tax rate (0.0 to 1.0)
+        accrual_manager: Reference to the AccrualManager for recording accruals
+
+    Example:
+        Within WidgetManufacturer.calculate_net_income()::
+
+            tax_handler = TaxHandler(self.tax_rate, self.accrual_manager)
+            actual_tax, capped = tax_handler.calculate_and_accrue_tax(
+                income_before_tax=1_000_000,
+                current_equity=5_000_000,
+                use_accrual=True,
+                time_resolution="annual",
+                current_year=2024,
+                current_month=0
+            )
+            # actual_tax is the expense to deduct from net income
+            # capped indicates if limited liability was applied
+
+    See Also:
+        :meth:`WidgetManufacturer.calculate_net_income`: Uses this handler
+        :meth:`WidgetManufacturer.process_accrued_payments`: Pays accrued taxes
+        :class:`AccrualManager`: Tracks tax liabilities
+    """
+
+    tax_rate: float
+    accrual_manager: "AccrualManager"
+
+    def calculate_tax_liability(self, income_before_tax: float) -> float:
+        """Calculate theoretical tax liability from pre-tax income.
+
+        This is a pure calculation with no side effects. Taxes are only
+        applied to positive income; losses generate no tax benefit.
+
+        Args:
+            income_before_tax: Pre-tax income in dollars
+
+        Returns:
+            Theoretical tax liability (>=0). Returns 0 for negative income.
+        """
+        return max(0.0, income_before_tax * self.tax_rate)
+
+    def apply_limited_liability_cap(
+        self, tax_amount: float, current_equity: float
+    ) -> tuple[float, bool]:
+        """Apply limited liability protection to cap tax accrual at equity.
+
+        Companies cannot accrue more liabilities than their equity can support.
+        This method caps the tax accrual at the current equity value.
+
+        Args:
+            tax_amount: Calculated tax liability
+            current_equity: Current shareholder equity
+
+        Returns:
+            Tuple of (capped_amount, was_capped):
+            - capped_amount: Tax amount after applying equity cap
+            - was_capped: True if the cap was applied (original > capped)
+        """
+        if current_equity <= 0:
+            return 0.0, tax_amount > 0
+
+        capped_amount = min(tax_amount, current_equity)
+        was_capped = capped_amount < tax_amount
+
+        return capped_amount, was_capped
+
+    def record_tax_accrual(
+        self,
+        amount: float,
+        time_resolution: str,
+        current_year: int,
+        current_month: int,
+        description: str = "",
+    ) -> None:
+        """Record tax accrual to the AccrualManager.
+
+        This method records the tax liability and sets up the payment schedule.
+        For annual resolution, taxes are accrued with quarterly payment dates
+        in the following year. For monthly resolution, quarterly taxes are
+        accrued at quarter-end for more immediate payment.
+
+        Args:
+            amount: Tax amount to accrue
+            time_resolution: "annual" or "monthly"
+            current_year: Current simulation year
+            current_month: Current simulation month (0-11)
+            description: Optional description for the accrual
+        """
+        if amount <= 0:
+            return
+
+        if time_resolution == "annual":
+            # Annual taxes are paid quarterly in the NEXT year
+            next_year_base = (current_year + 1) * 12
+            payment_dates = [next_year_base + month for month in [3, 5, 8, 11]]
+
+            self.accrual_manager.record_expense_accrual(
+                item_type=AccrualType.TAXES,
+                amount=amount,
+                payment_schedule=PaymentSchedule.CUSTOM,
+                payment_dates=payment_dates,
+                description=description or f"Year {current_year} tax liability",
+            )
+        else:
+            # Monthly mode: use default quarterly schedule
+            self.accrual_manager.record_expense_accrual(
+                item_type=AccrualType.TAXES,
+                amount=amount,
+                payment_schedule=PaymentSchedule.QUARTERLY,
+                description=description,
+            )
+
+    def calculate_and_accrue_tax(
+        self,
+        income_before_tax: float,
+        current_equity: float,
+        use_accrual: bool,
+        time_resolution: str,
+        current_year: int,
+        current_month: int,
+    ) -> tuple[float, bool]:
+        """Calculate tax and optionally accrue it - the main entry point.
+
+        This method orchestrates the complete tax calculation flow:
+        1. Calculate theoretical tax
+        2. Apply limited liability cap based on current equity
+        3. Record accrual if enabled and timing is appropriate
+
+        IMPORTANT: The current_equity parameter should be the equity value
+        BEFORE this tax is accrued. This ensures no circular dependency.
+
+        Args:
+            income_before_tax: Pre-tax income in dollars
+            current_equity: Current equity (BEFORE this tax accrual)
+            use_accrual: Whether to use accrual accounting
+            time_resolution: "annual" or "monthly"
+            current_year: Current simulation year
+            current_month: Current simulation month (0-11)
+
+        Returns:
+            Tuple of (actual_tax_expense, was_capped):
+            - actual_tax_expense: Tax expense for net income calculation
+            - was_capped: True if limited liability cap was applied
+
+        Example:
+            actual_tax, capped = handler.calculate_and_accrue_tax(
+                income_before_tax=1_000_000,
+                current_equity=5_000_000,
+                use_accrual=True,
+                time_resolution="annual",
+                current_year=2024,
+                current_month=0
+            )
+        """
+        # Step 1: Calculate theoretical tax
+        theoretical_tax = self.calculate_tax_liability(income_before_tax)
+
+        if theoretical_tax <= 0:
+            return 0.0, False
+
+        # Step 2: Determine if this period should accrue taxes
+        should_accrue = False
+        description = ""
+
+        if use_accrual:
+            if time_resolution == "annual":
+                should_accrue = True
+                description = f"Year {current_year} tax liability"
+            elif time_resolution == "monthly" and current_month in [2, 5, 8, 11]:
+                should_accrue = True
+                quarter = (current_month // 3) + 1
+                description = f"Year {current_year} Q{quarter} tax liability"
+
+        if not should_accrue:
+            # No accrual needed - return full tax as expense
+            return theoretical_tax, False
+
+        # Step 3: Apply limited liability cap
+        # This is where we read current_equity to cap the accrual
+        capped_tax, was_capped = self.apply_limited_liability_cap(theoretical_tax, current_equity)
+
+        if was_capped:
+            logger.warning(
+                f"LIMITED LIABILITY: Cannot accrue full tax liability of ${theoretical_tax:,.2f}. "
+                f"Equity only ${current_equity:,.2f}. Accruing ${capped_tax:,.2f}."
+            )
+
+        # Step 4: Record the accrual (AFTER equity check)
+        self.record_tax_accrual(
+            amount=capped_tax,
+            time_resolution=time_resolution,
+            current_year=current_year,
+            current_month=current_month,
+            description=description,
+        )
+
+        return capped_tax, was_capped
+
+
 class WidgetManufacturer:
     """Financial model for a widget manufacturing company.
 
@@ -1196,86 +1444,55 @@ class WidgetManufacturer:
             - Loss years generate no tax benefit in this model
             - When use_accrual=True, taxes are accrued and paid quarterly
 
-            The tax calculation is:
+            The tax calculation is delegated to :class:`TaxHandler` which:
             - Income before tax = operating_income - collateral_costs
               (Note: insurance costs are already included in operating_income)
             - Taxes = max(0, income_before_tax * tax_rate)
-            - Net income = income_before_tax - taxes
+            - LIMITED LIABILITY: Caps tax accrual at current equity
+            - Net income = income_before_tax - actual_tax_expense
+
+            Tax Flow (No Circular Dependency):
+            The tax logic reads equity BEFORE recording the tax accrual.
+            This ensures no circular dependency: the equity used to cap the
+            tax does NOT include the tax being calculated. See TaxHandler
+            class documentation for detailed explanation.
 
         See Also:
+            :class:`TaxHandler`: Consolidated tax calculation logic.
             :attr:`tax_rate`: Tax rate applied to positive income.
             :attr:`retention_ratio`: Portion of net income retained vs. distributed.
+            :meth:`process_accrued_payments`: Pays accrued taxes.
         """
         # Deduct all costs from operating income
         # For backward compatibility, also deduct insurance costs if provided as parameters
         total_insurance_costs = insurance_premiums + insurance_losses
         income_before_tax = operating_income - collateral_costs - total_insurance_costs
 
-        # Calculate taxes (only on positive income)
-        taxes = max(0, income_before_tax * self.tax_rate)
+        # Use TaxHandler for consolidated tax calculation
+        # See TaxHandler docstring for explanation of tax flow and why there's no circular dependency
+        tax_handler = TaxHandler(
+            tax_rate=self.tax_rate,
+            accrual_manager=self.accrual_manager,
+        )
 
-        # Track actual tax expense (may be capped due to limited liability)
-        actual_tax_expense = taxes
+        # Calculate theoretical tax for logging purposes
+        taxes = tax_handler.calculate_tax_liability(income_before_tax)
 
-        # Handle tax accruals if enabled
-        if use_accrual and taxes > 0:
-            # In monthly mode, only accrue taxes at specific points to avoid duplication
-            # Taxes are accrued quarterly in months 2, 5, 8, 11 (for Q1, Q2, Q3, Q4)
-            # This aligns with quarterly estimated tax payment requirements
-            should_accrue = False
-            payment_dates = None
-            if time_resolution == "annual":
-                # In annual mode, accrue the full year's taxes
-                # Payments will be made quarterly in the NEXT year
-                should_accrue = True
-                description = f"Year {self.current_year} tax liability"
-                # Set payment dates for next year's quarterly payments
-                next_year_base = (self.current_year + 1) * 12
-                payment_dates = [next_year_base + month for month in [3, 5, 8, 11]]
-            elif time_resolution == "monthly" and self.current_month in [2, 5, 8, 11]:
-                # In monthly mode, accrue quarterly taxes at end of each quarter
-                should_accrue = True
-                quarter = (self.current_month // 3) + 1
-                description = f"Year {self.current_year} Q{quarter} tax liability"
-                # For quarterly accruals, use immediate payment
-                payment_dates = None  # Will use default QUARTERLY schedule
+        # Read equity BEFORE tax accrual (critical for non-circular flow)
+        # This equity value does NOT include the tax we're about to calculate
+        current_equity = self.equity
 
-            if should_accrue:
-                # LIMITED LIABILITY: Only accrue taxes if we have equity to support the liability
-                current_equity = self.equity
-                max_accrual = min(taxes, current_equity) if current_equity > 0 else 0.0
+        # Calculate and optionally accrue tax using consolidated handler
+        actual_tax_expense, was_capped = tax_handler.calculate_and_accrue_tax(
+            income_before_tax=income_before_tax,
+            current_equity=current_equity,
+            use_accrual=use_accrual,
+            time_resolution=time_resolution,
+            current_year=self.current_year,
+            current_month=self.current_month,
+        )
 
-                # Update actual tax expense to capped amount
-                actual_tax_expense = max_accrual
-
-                if max_accrual < taxes:
-                    logger.warning(
-                        f"LIMITED LIABILITY: Cannot accrue full tax liability of ${taxes:,.2f}. "
-                        f"Equity only ${current_equity:,.2f}. Accruing ${max_accrual:,.2f}. "
-                        f"Tax expense reduced to ${actual_tax_expense:,.2f}"
-                    )
-
-                if max_accrual > 0:
-                    # Record tax expense as accrual with quarterly payment schedule
-                    if payment_dates:
-                        # Use custom payment dates for annual accrual
-                        self.accrual_manager.record_expense_accrual(
-                            item_type=AccrualType.TAXES,
-                            amount=max_accrual,
-                            payment_schedule=PaymentSchedule.CUSTOM,
-                            payment_dates=payment_dates,
-                            description=description,
-                        )
-                    else:
-                        # Use default quarterly schedule
-                        self.accrual_manager.record_expense_accrual(
-                            item_type=AccrualType.TAXES,
-                            amount=max_accrual,
-                            payment_schedule=PaymentSchedule.QUARTERLY,
-                            description=description,
-                        )
-
-        # LIMITED LIABILITY: Use actual tax expense (which may be capped) in net income calculation
+        # Net income uses the actual tax expense (which may be capped)
         net_income = income_before_tax - actual_tax_expense
 
         # Enhanced profit waterfall logging for complete transparency
@@ -1289,7 +1506,7 @@ class WidgetManufacturer:
             logger.info(f"  - Collateral Costs:    ${collateral_costs:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
         logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${actual_tax_expense:,.2f}")
-        if actual_tax_expense < taxes:
+        if was_capped:
             logger.info(f"    (Capped from ${taxes:,.2f} due to limited liability)")
         if use_accrual and actual_tax_expense > 0:
             logger.info(f"    (Accrued for quarterly payment)")
