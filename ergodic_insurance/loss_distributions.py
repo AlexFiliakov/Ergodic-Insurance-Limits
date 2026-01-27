@@ -852,6 +852,90 @@ class ManufacturingLossGenerator:
                     seed=gpd_seed,
                 )
 
+    @classmethod
+    def create_simple(
+        cls,
+        frequency: float = 0.1,
+        severity_mean: float = 5_000_000,
+        severity_std: float = 2_000_000,
+        seed: Optional[int] = None,
+    ) -> "ManufacturingLossGenerator":
+        """Create a simple loss generator (migration helper from ClaimGenerator).
+
+        This factory method provides a simplified interface similar to ClaimGenerator,
+        making migration easier. It creates a generator with mostly attritional losses
+        and minimal catastrophic risk.
+
+        Args:
+            frequency: Annual frequency of losses (Poisson lambda).
+            severity_mean: Mean loss amount in dollars.
+            severity_std: Standard deviation of loss amount.
+            seed: Random seed for reproducibility.
+
+        Returns:
+            ManufacturingLossGenerator configured for simple use case.
+
+        Examples:
+            Simple usage (equivalent to ClaimGenerator)::
+
+                generator = ManufacturingLossGenerator.create_simple(
+                    frequency=0.1,
+                    severity_mean=5_000_000,
+                    severity_std=2_000_000,
+                    seed=42
+                )
+                losses, stats = generator.generate_losses(duration=10, revenue=10_000_000)
+
+            Accessing loss amounts::
+
+                total_loss = sum(loss.amount for loss in losses)
+                print(f"Total losses: ${total_loss:,.0f}")
+                print(f"Number of events: {stats['total_losses']}")
+
+        Note:
+            For advanced features (multiple loss types, extreme value modeling),
+            use the standard __init__ method with explicit parameters.
+
+        See Also:
+            Migration guide: docs/migration_guides/claim_generator_migration.md
+        """
+        # Convert coefficient of variation to lognormal parameters
+        if severity_mean <= 0:
+            raise ValueError(f"severity_mean must be positive, got {severity_mean}")
+        if severity_std < 0:
+            raise ValueError(f"severity_std must be non-negative, got {severity_std}")
+
+        cv = severity_std / severity_mean if severity_mean > 0 else 0
+
+        # Configure as primarily attritional with small large loss component
+        # Attritional losses: 90% of events, use mean/cv approach
+        attritional_params = {
+            "base_frequency": frequency * 0.9,  # 90% of frequency
+            "severity_mean": severity_mean * 0.5,  # Smaller attritional losses
+            "severity_cv": cv,
+        }
+
+        # Large losses: 10% of events, use mean/cv approach
+        large_params = {
+            "base_frequency": frequency * 0.1,  # 10% of frequency
+            "severity_mean": severity_mean * 2,  # Larger losses
+            "severity_cv": cv * 1.5,  # More variable
+        }
+
+        # Catastrophic losses: very rare, use Pareto distribution
+        catastrophic_params = {
+            "base_frequency": 0.001,  # Very rare
+            "severity_alpha": 2.5,  # Pareto shape
+            "severity_xm": severity_mean * 5,  # Much larger severities
+        }
+
+        return cls(
+            attritional_params=attritional_params,
+            large_params=large_params,
+            catastrophic_params=catastrophic_params,
+            seed=seed,
+        )
+
     def generate_losses(
         self, duration: float, revenue: float, include_catastrophic: bool = True, time: float = 0.0
     ) -> Tuple[List[LossEvent], Dict[str, Any]]:

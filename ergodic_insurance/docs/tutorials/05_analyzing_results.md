@@ -264,7 +264,7 @@ from ergodic_insurance import (
     ManufacturerConfig, Simulation, ErgodicAnalyzer
 )
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.insurance_program import InsuranceProgram, EnhancedInsuranceLayer
 
 # Configuration
@@ -286,7 +286,7 @@ uninsured_results = []
 for seed in range(n_sims):
     # Insured simulation
     mfg = WidgetManufacturer(config)
-    claims = ClaimGenerator(base_frequency=0.2, severity_mean=1_000_000, severity_std=1_500_000, seed=seed)
+    claims = ManufacturingLossGenerator.create_simple(frequency=0.2, severity_mean=1_000_000, severity_std=1_500_000, seed=seed)
     insurance = InsuranceProgram(deductible=100_000)
     insurance.add_layer(EnhancedInsuranceLayer(
         attachment_point=100_000, limit=5_000_000, base_premium_rate=0.02
@@ -297,7 +297,7 @@ for seed in range(n_sims):
 
     # Uninsured simulation
     mfg = WidgetManufacturer(config)
-    claims = ClaimGenerator(base_frequency=0.2, severity_mean=1_000_000, severity_std=1_500_000, seed=seed)
+    claims = ManufacturingLossGenerator.create_simple(frequency=0.2, severity_mean=1_000_000, severity_std=1_500_000, seed=seed)
     sim = Simulation(manufacturer=mfg, claim_generator=claims, time_horizon=time_horizon)
     uninsured_results.append(sim.run())
 

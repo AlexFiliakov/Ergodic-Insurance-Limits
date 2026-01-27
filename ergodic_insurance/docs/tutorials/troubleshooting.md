@@ -102,7 +102,7 @@ ImportError: cannot import name 'ClaimGenerator' from 'ergodic_insurance.src'
 **Solution:**
 ```python
 # Use correct import path
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 # Check available modules
 import ergodic_insurance.src
@@ -123,7 +123,7 @@ print(dir(ergodic_insurance.src))
 ```python
 # Check loss severity relative to assets
 manufacturer = Manufacturer(initial_assets=10_000_000)
-claim_generator = ClaimGenerator(
+claim_generator = ManufacturingLossGenerator.create_simple(
     frequency=5,
     severity_mu=10.0,
     severity_sigma=1.5
@@ -142,7 +142,7 @@ if loss_ratio > 0.1:
 
     # Solutions:
     # 1. Reduce loss severity
-    claim_generator = ClaimGenerator(
+    claim_generator = ManufacturingLossGenerator.create_simple(
         frequency=5,
         severity_mu=9.0,  # Reduced
         severity_sigma=1.0  # Reduced
