@@ -356,7 +356,6 @@ class TestStepMethod:
         initial_equity = manufacturer.equity
 
         metrics = manufacturer.step(
-            working_capital_pct=0.2,
             letter_of_credit_rate=0.015,
             growth_rate=0.0,
         )
@@ -549,34 +548,25 @@ class TestStepMethod:
                 rel=0.01,
             )
 
-    def test_zero_working_capital(self, manufacturer):
-        """Test operation with zero working capital."""
+    def test_revenue_calculation(self, manufacturer):
+        """Test revenue calculation.
+
+        Issue #244: working_capital_pct parameter was removed to fix double-counting.
+        Revenue is now simply: Assets * Turnover Ratio.
+        Working capital impact flows through calculate_working_capital_components()
+        and the cash flow statement.
+        """
         # Capture initial assets before step modifies them
         initial_assets = manufacturer.total_assets
         initial_turnover = manufacturer.asset_turnover_ratio
 
-        metrics = manufacturer.step(working_capital_pct=0.0)
+        metrics = manufacturer.step()
 
-        # Should still generate revenue
+        # Should generate revenue based on assets and turnover
         assert metrics["revenue"] > 0
-        # Revenue should be higher with no working capital constraint
-        # Revenue is calculated at the start of step, using initial assets
+        # Revenue = Assets * Turnover Ratio
         expected_revenue = initial_assets * initial_turnover
         assert metrics["revenue"] == pytest.approx(expected_revenue, rel=0.01)
-
-    def test_high_working_capital(self, manufacturer):
-        """Test operation with high working capital requirement."""
-        # Get baseline revenue with no working capital
-        metrics_zero_wc = manufacturer.step(working_capital_pct=0.0)
-        manufacturer.reset()  # Reset for next test
-
-        # Now test with high working capital
-        metrics = manufacturer.step(working_capital_pct=0.5)
-
-        # Revenue should be reduced due to working capital constraint
-        assert metrics["revenue"] > 0
-        # But less than with zero working capital
-        assert metrics["revenue"] < metrics_zero_wc["revenue"]
 
     def test_claim_liability_payments(self, manufacturer):
         """Test that claim liabilities are paid according to schedule."""
@@ -659,15 +649,6 @@ class TestStepMethod:
         # Depreciation = PP&E / 10 = $5M / 10 = $500K
         expected_operating_income = -(manufacturer.gross_ppe / 10)
         assert metrics["operating_income"] == expected_operating_income
-
-        # Test with very high working capital requirement
-        manufacturer.reset()
-        metrics = manufacturer.step(working_capital_pct=0.99)
-
-        # Revenue should be constrained by working capital
-        # With 99% working capital requirement, revenue is limited
-        max_revenue = manufacturer.total_assets / 0.99
-        assert metrics["revenue"] <= max_revenue
 
         # Test with negative growth rate
         manufacturer.reset()

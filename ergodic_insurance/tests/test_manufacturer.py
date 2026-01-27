@@ -211,36 +211,15 @@ class TestWidgetManufacturer:
         manufacturer.claim_liabilities.append(claim)
         assert manufacturer.total_claim_liabilities == 400_000
 
-    def test_calculate_revenue_no_working_capital(self, manufacturer):
-        """Test revenue calculation without working capital."""
-        revenue = manufacturer.calculate_revenue(working_capital_pct=0.0)
-        assert revenue == 10_000_000  # Assets * Turnover = 10M * 1.0
+    def test_calculate_revenue(self, manufacturer):
+        """Test revenue calculation.
 
-    def test_calculate_revenue_with_working_capital_deprecated(self, manufacturer):
-        """Test that working_capital_pct is deprecated and has no effect on revenue.
-
-        Issue #244: The working_capital_pct adjustment in calculate_revenue() was
-        causing double-counting because the cash flow statement also deducts
-        working capital changes. Working capital impact now flows only through
-        calculate_working_capital_components() and the cash flow statement.
+        Issue #244: working_capital_pct parameter was removed to fix double-counting.
+        Working capital impact now flows only through calculate_working_capital_components()
+        and the cash flow statement.
         """
-        import warnings
-
-        # Test that deprecation warning is emitted
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
-
-            # Check deprecation warning was emitted
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "working_capital_pct" in str(w[0].message)
-            assert "Issue #244" in str(w[0].message)
-
-        # Revenue should be unchanged (no reduction for working capital)
-        # This fixes the double-counting issue
-        expected = 10_000_000  # Assets * Turnover = 10M * 1.0
-        assert revenue == pytest.approx(expected)
+        revenue = manufacturer.calculate_revenue()
+        assert revenue == 10_000_000  # Assets * Turnover = 10M * 1.0
 
     def test_calculate_operating_income(self, manufacturer):
         """Test operating income calculation."""
@@ -477,7 +456,7 @@ class TestWidgetManufacturer:
 
     def test_step_basic(self, manufacturer):
         """Test basic step execution."""
-        metrics = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+        metrics = manufacturer.step(growth_rate=0.05)
 
         assert manufacturer.current_year == 1
         assert len(manufacturer.metrics_history) == 1
@@ -680,7 +659,7 @@ class TestWidgetManufacturer:
         including claim processing, collateral management, and payments.
         """
         # Year 0: Normal operations
-        metrics_0 = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+        metrics_0 = manufacturer.step(growth_rate=0.05)
         assert metrics_0["net_income"] > 0
         initial_equity = manufacturer.equity
 
@@ -691,7 +670,7 @@ class TestWidgetManufacturer:
         )
 
         # Year 1: Operations with claim payments and collateral costs
-        metrics_1 = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+        metrics_1 = manufacturer.step(letter_of_credit_rate=0.015)
 
         # Should have collateral now
         assert manufacturer.collateral > 0
@@ -699,7 +678,7 @@ class TestWidgetManufacturer:
 
         # Year 2-10: Pay down claim
         for year in range(2, 11):
-            metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+            metrics = manufacturer.step(letter_of_credit_rate=0.015)
             assert metrics["year"] == year
 
         # After 10 years, claim should be significantly paid down (company portion only)
@@ -861,7 +840,7 @@ class TestWidgetManufacturer:
         initial_equity = manufacturer.equity
 
         # Run step
-        metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+        metrics = manufacturer.step(letter_of_credit_rate=0.015)
 
         # Verify period costs were reset after step
         assert manufacturer.period_insurance_premiums == 0
@@ -1314,7 +1293,7 @@ class TestWidgetManufacturer:
         manufacturer = WidgetManufacturer(config)
 
         # Run one period to establish working capital
-        manufacturer.step(working_capital_pct=0.2)
+        manufacturer.step()
 
         # Verify working capital has tied up cash
         assert manufacturer.accounts_receivable > 0, "Should have AR (cash tied up)"

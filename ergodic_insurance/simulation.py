@@ -583,9 +583,7 @@ class Simulation:
         # Step manufacturer forward FIRST (process year's normal operations)
         # Then apply losses at END of year to prevent newly-created liabilities
         # from being paid in the same year they're created
-        metrics = self.manufacturer.step(
-            working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
-        )
+        metrics = self.manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
 
         # Process losses at END of year
         total_loss_amount = sum(loss.amount for loss in losses)

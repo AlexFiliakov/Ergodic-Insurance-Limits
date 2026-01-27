@@ -1131,7 +1131,7 @@ class TestClaimPaymentTiming:
         manufacturer.current_year = 0  # Start at year 0
 
         # Simulate the step/claim processing flow
-        manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03)
+        manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
         # After step(), current_year is now 1
 
         # Process a claim (this happens after step() increments the year)
@@ -1193,7 +1193,7 @@ class TestClaimPaymentTiming:
         # Create an uninsured claim with scheduled payments
         claim_amount = 1_000_000
         manufacturer.current_year = 0
-        manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03)
+        manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
 
         # Process uninsured claim (creates liability with payment schedule)
         manufacturer.process_uninsured_claim(
@@ -1223,9 +1223,7 @@ class TestClaimPaymentTiming:
         # Test with insurance
         manufacturer_insured = WidgetManufacturer(config.manufacturer)
         manufacturer_insured.current_year = 0
-        manufacturer_insured.step(
-            working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
-        )
+        manufacturer_insured.step(letter_of_credit_rate=0.015, growth_rate=0.03)
 
         manufacturer_insured.process_insurance_claim(
             claim_amount=500_000,
@@ -1240,9 +1238,7 @@ class TestClaimPaymentTiming:
         # Test without insurance
         manufacturer_uninsured = WidgetManufacturer(config.manufacturer)
         manufacturer_uninsured.current_year = 0
-        manufacturer_uninsured.step(
-            working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
-        )
+        manufacturer_uninsured.step(letter_of_credit_rate=0.015, growth_rate=0.03)
 
         manufacturer_uninsured.process_uninsured_claim(
             claim_amount=500_000,

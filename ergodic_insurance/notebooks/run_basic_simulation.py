@@ -231,7 +231,6 @@ def run_basic_simulation(
             cache_results=False,
             progress_bar=True,
             ruin_evaluation=[5, 10, 15, 20, 25, 30, 35, 40, 45, 50],
-            working_capital_pct=0.0,  # Set working capital to 0% for full asset revenue generation
             seed=seed + 450,
         )
 

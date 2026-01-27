@@ -29,7 +29,7 @@ class TestAccrualIntegration:
     def test_quarterly_tax_accrual_and_payment(self, manufacturer):
         """Test quarterly tax accrual and payment schedule."""
         # Generate income and accrue taxes
-        metrics = manufacturer.step(working_capital_pct=0.2, time_resolution="annual")
+        metrics = manufacturer.step(time_resolution="annual")
 
         # Check that taxes were accrued
         assert metrics["accrued_taxes"] > 0
@@ -39,7 +39,7 @@ class TestAccrualIntegration:
         tax_payments_made = False
         for month in range(12):
             cash_before_step = manufacturer.cash
-            month_metrics = manufacturer.step(working_capital_pct=0.2, time_resolution="monthly")
+            month_metrics = manufacturer.step(time_resolution="monthly")
 
             # Check if tax payment was made (accrued taxes decreased)
             if month_metrics["accrued_taxes"] < initial_accrued_taxes:
@@ -110,7 +110,7 @@ class TestAccrualIntegration:
         )
 
         # Run a simulation step
-        metrics = manufacturer.step(working_capital_pct=0.2)
+        metrics = manufacturer.step()
 
         # Check metrics include accrual breakdown
         assert "accrued_wages" in metrics
@@ -141,7 +141,7 @@ class TestAccrualIntegration:
         """Test accrual manager syncs with monthly resolution."""
         # Run monthly steps
         for month in range(6):
-            manufacturer.step(working_capital_pct=0.2, time_resolution="monthly")
+            manufacturer.step(time_resolution="monthly")
 
         # Check accrual manager period is synchronized
         # After 6 steps, we've processed periods 0-5, and current_period should be 5
@@ -152,7 +152,7 @@ class TestAccrualIntegration:
     def test_accrual_impact_on_cash_flow(self, manufacturer):
         """Test that accruals affect cash flow timing."""
         # Run first year to generate tax liability
-        metrics_year1 = manufacturer.step(working_capital_pct=0.2, time_resolution="annual")
+        metrics_year1 = manufacturer.step(time_resolution="annual")
 
         net_income_year1 = metrics_year1["net_income"]
         accrued_taxes_year1 = metrics_year1["accrued_taxes"]
@@ -168,7 +168,7 @@ class TestAccrualIntegration:
             for quarter in range(4):
                 # Each quarter is 3 months
                 for month in range(3):
-                    manufacturer.step(working_capital_pct=0.2, time_resolution="monthly")
+                    manufacturer.step(time_resolution="monthly")
 
             # Cash should have decreased by tax payments
             cash_after = manufacturer.cash

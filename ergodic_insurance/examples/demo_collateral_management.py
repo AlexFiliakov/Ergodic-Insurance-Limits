@@ -42,7 +42,7 @@ def main():
 
     # Year 0: Normal operations
     print("YEAR 0: Normal Operations")
-    metrics = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+    metrics = manufacturer.step(growth_rate=0.05)
     print(f"  Revenue:            ${metrics['revenue']:,.0f}")
     print(f"  Net Income:         ${metrics['net_income']:,.0f}")
     print(f"  New Assets:         ${metrics['assets']:,.0f}")
@@ -78,7 +78,7 @@ def main():
     print("-" * 70)
 
     for year in range(1, 6):
-        metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=annual_rate)
+        metrics = manufacturer.step(letter_of_credit_rate=annual_rate)
         print(
             f"{year:<6} ${metrics['net_income']:>12,.0f}  ${metrics['assets']:>12,.0f}  "
             f"${metrics['collateral']:>12,.0f}  ${metrics['claim_liabilities']:>12,.0f}  "
@@ -108,7 +108,7 @@ def main():
     print("Running simulation until insolvency...")
     year = 1
     while not manufacturer.is_ruined and year <= 20:
-        metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=annual_rate)
+        metrics = manufacturer.step(letter_of_credit_rate=annual_rate)
         if year % 2 == 0 or manufacturer.is_ruined:  # Print every other year or on ruin
             print(
                 f"  Year {year:2}: Equity = ${metrics['equity']:>12,.0f}, "

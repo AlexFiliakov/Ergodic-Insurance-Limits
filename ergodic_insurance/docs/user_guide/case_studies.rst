@@ -48,7 +48,6 @@ Analysis Process
        'base_revenue': 15_000_000,
        'base_operating_margin': 0.08,
        'tax_rate': 0.25,
-       'working_capital_pct': 0.20,
        'growth_volatility': 0.15
    }
 
