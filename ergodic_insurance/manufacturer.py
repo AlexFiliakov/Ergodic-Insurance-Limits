@@ -516,7 +516,7 @@ class WidgetManufacturer:
         # Current Liabilities - AP will build up on first step based on actual COGS
         # Starting with zero AP maintains total_assets = initial_assets at initialization
         self.accounts_payable = 0.0  # Will be calculated on first step
-        self.accrued_expenses = 0.0  # Other accrued items
+        # Note: Accrued expenses are tracked solely via AccrualManager (see issue #238)
 
         # Track original prepaid premium for amortization calculation
         self._original_prepaid_premium = 0.0
@@ -673,11 +673,8 @@ class WidgetManufacturer:
         )
         adjusted_accrued_expenses = total_accrued_expenses - insurance_claims_in_accrual
 
-        # Also include any legacy accrued_expenses not in the manager
-        total_accrued = max(self.accrued_expenses, adjusted_accrued_expenses)
-
-        # Current liabilities
-        current_liabilities = self.accounts_payable + total_accrued
+        # Current liabilities - AccrualManager is single source of truth (issue #238)
+        current_liabilities = self.accounts_payable + adjusted_accrued_expenses
 
         # Long-term liabilities (claim liabilities) - single source of truth
         claim_liability_total = sum(
@@ -2661,13 +2658,9 @@ class WidgetManufacturer:
         metrics["prepaid_insurance"] = self.prepaid_insurance
         metrics["accounts_payable"] = self.accounts_payable
 
-        # Get detailed accrual breakdown from AccrualManager
+        # Get detailed accrual breakdown from AccrualManager (single source of truth - issue #238)
         accrual_items = self.accrual_manager.get_balance_sheet_items()
-
-        # Update total accrued expenses from accrual manager
-        total_accrued_expenses = accrual_items.get("accrued_expenses", 0)
-        # Also include any legacy accrued_expenses not in the manager
-        metrics["accrued_expenses"] = max(self.accrued_expenses, total_accrued_expenses)
+        metrics["accrued_expenses"] = accrual_items.get("accrued_expenses", 0)
 
         metrics["gross_ppe"] = self.gross_ppe
         metrics["accumulated_depreciation"] = self.accumulated_depreciation
@@ -2838,15 +2831,10 @@ class WidgetManufacturer:
                 self.cash -= payable_amount
                 total_paid += payable_amount
 
-                # Update accrued_expenses balance for paid amount
-                self.accrued_expenses = max(0, self.accrued_expenses - payable_amount)
-
                 logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
 
             # LIMITED LIABILITY: Discharge unpayable accrued expenses from liabilities
             if unpayable_amount > 0:
-                # Remove unpayable amount from accrued_expenses (discharge debt)
-                self.accrued_expenses = max(0, self.accrued_expenses - unpayable_amount)
                 logger.warning(
                     f"LIMITED LIABILITY: Discharged ${unpayable_amount:,.2f} of unpayable {accrual_type.value} from liabilities"
                 )
@@ -2871,8 +2859,6 @@ class WidgetManufacturer:
             payment_schedule=payment_schedule,
             description=f"Period {self.current_year} wages",
         )
-        # Update balance sheet accrued expenses
-        self.accrued_expenses += amount
 
     def record_claim_accrual(
         self, claim_amount: float, development_pattern: Optional[List[float]] = None
@@ -3308,7 +3294,6 @@ class WidgetManufacturer:
         self.inventory = 0.0
         self.prepaid_insurance = 0.0
         self.accounts_payable = 0.0
-        self.accrued_expenses = 0.0
         self._original_prepaid_premium = 0.0
 
         # Reset period insurance cost tracking
