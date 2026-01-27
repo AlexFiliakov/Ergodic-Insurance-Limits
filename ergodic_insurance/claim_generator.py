@@ -1,43 +1,53 @@
 """Claim generation for insurance simulations.
 
+.. deprecated:: 0.2.0
+    ``ClaimGenerator`` is deprecated and will be removed in version 1.0.0.
+    Use :class:`~ergodic_insurance.loss_distributions.ManufacturingLossGenerator` instead.
+    See the migration guide at ``docs/migration_guides/claim_generator_migration.md``.
+
 This module provides classes for generating realistic insurance claims
 with configurable frequency and severity distributions, supporting
 both regular and catastrophic event modeling.
 
-The module integrates with the enhanced loss_distributions module
-for more sophisticated risk modeling with revenue-dependent frequencies
-and parametric severity distributions. It provides backward compatibility
-with legacy systems while supporting advanced features when available.
+**DEPRECATION NOTICE**: The ``ClaimGenerator`` class is deprecated in favor of
+``ManufacturingLossGenerator`` which provides:
+    - Better statistical independence (using SeedSequence)
+    - Multiple loss types (attritional, large, catastrophic)
+    - Extreme value modeling (GPD)
+    - Simplified configuration
 
 Key Features:
     - Poisson frequency and lognormal severity distributions
     - Separate handling of attritional and catastrophic losses
-    - Integration with enhanced loss distributions (when available)
     - Reproducible random generation with seed support
     - Conversion utilities between ClaimEvent and LossData formats
 
-Examples:
-    Basic claim generation::
+Migration Example:
+    Before (deprecated)::
 
         generator = ClaimGenerator(
-            base_frequency=0.1,  # 10% chance per year
+            base_frequency=0.1,
             severity_mean=5_000_000,
             severity_std=2_000_000,
             seed=42
         )
         claims = generator.generate_claims(years=10)
 
-    Including catastrophic events::
+    After (recommended)::
 
-        regular, catastrophic = generator.generate_all_claims(
-            years=10,
-            include_catastrophic=True,
-            cat_frequency=0.01  # 1% chance per year
+        from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+
+        generator = ManufacturingLossGenerator.create_simple(
+            frequency=0.1,
+            severity_mean=5_000_000,
+            severity_std=2_000_000,
+            seed=42
         )
+        losses, stats = generator.generate_losses(duration=10, revenue=10_000_000)
 
-Note:
-    The module automatically detects if enhanced loss distributions are
-    available and can fall back to standard generation methods.
+See Also:
+    - :class:`~ergodic_insurance.loss_distributions.ManufacturingLossGenerator`: Recommended replacement
+    - Migration guide: ``docs/migration_guides/claim_generator_migration.md``
 
 Since:
     Version 0.1.0
@@ -51,48 +61,16 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Import exposure base for dynamic frequency scaling
+from .exposure_base import ExposureBase
+
+# Import enhanced distributions (these are now required dependencies)
+from .loss_distributions import LossData
+from .loss_distributions import LossEvent as EnhancedLossEvent
+from .loss_distributions import ManufacturingLossGenerator
+
 # Import trend classes for frequency and severity adjustments
 from .trends import NoTrend, Trend
-
-# Import enhanced distributions if available (backward compatibility)
-try:
-    from .loss_distributions import LossData
-    from .loss_distributions import LossEvent as EnhancedLossEvent
-    from .loss_distributions import ManufacturingLossGenerator
-
-    ENHANCED_DISTRIBUTIONS_AVAILABLE = True
-except ModuleNotFoundError:
-    # Module doesn't exist - this is expected in minimal installations
-    ENHANCED_DISTRIBUTIONS_AVAILABLE = False
-    LossData = None  # type: ignore
-except ImportError as e:
-    # Module exists but has issues (syntax error, missing dependency, etc.)
-    logger.warning(
-        "loss_distributions module exists but failed to import: %s. "
-        "Falling back to standard distributions.",
-        e,
-    )
-    ENHANCED_DISTRIBUTIONS_AVAILABLE = False
-    LossData = None  # type: ignore
-
-# Import exposure base for dynamic frequency scaling
-try:
-    from .exposure_base import ExposureBase
-
-    EXPOSURE_BASE_AVAILABLE = True
-except ModuleNotFoundError:
-    # Module doesn't exist - this is expected in minimal installations
-    EXPOSURE_BASE_AVAILABLE = False
-    ExposureBase = None  # type: ignore
-except ImportError as e:
-    # Module exists but has issues (syntax error, missing dependency, etc.)
-    logger.warning(
-        "exposure_base module exists but failed to import: %s. "
-        "Dynamic exposure scaling will be unavailable.",
-        e,
-    )
-    EXPOSURE_BASE_AVAILABLE = False
-    ExposureBase = None  # type: ignore
 
 
 @dataclass
@@ -233,6 +211,17 @@ class ClaimGenerator:
                     severity_trend=LinearTrend(annual_rate=0.05)   # 5% severity inflation
                 )
         """
+        # Issue deprecation warning
+        import warnings
+
+        warnings.warn(
+            "ClaimGenerator is deprecated and will be removed in version 1.0.0. "
+            "Use ManufacturingLossGenerator.create_simple() instead. "
+            "See docs/migration_guides/claim_generator_migration.md for details.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         # Validate parameters
         if base_frequency < 0:
             raise ValueError(f"Base frequency must be non-negative, got {base_frequency}")
@@ -833,7 +822,7 @@ class ClaimGenerator:
             Tuple of (claim_events, statistics_dict).
             Falls back to standard generation if enhanced not available.
         """
-        if not ENHANCED_DISTRIBUTIONS_AVAILABLE or not use_enhanced_distributions:
+        if not use_enhanced_distributions:
             # Fall back to standard generation
             regular, catastrophic = self.generate_all_claims(years)
             all_claims = regular + catastrophic
@@ -913,8 +902,7 @@ class ClaimGenerator:
             The conversion preserves all claim information and adds metadata
             about the generator configuration for traceability.
         """
-        if not ENHANCED_DISTRIBUTIONS_AVAILABLE or LossData is None:
-            raise ImportError("LossData not available. Install enhanced distributions.")
+        # LossData is now always available (imported at module level)
 
         if not claims:
             return LossData()

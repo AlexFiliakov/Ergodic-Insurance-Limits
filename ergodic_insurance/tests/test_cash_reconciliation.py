@@ -1,9 +1,14 @@
 """Tests for cash flow reconciliation."""
 
+from typing import Union
+
 import numpy as np
 import pytest
 
 from ergodic_insurance.financial_statements import CashFlowStatement
+
+# Type alias for metrics dictionaries
+MetricsDict = list[dict[str, Union[int, float]]]
 
 
 class TestCashReconciliation:
@@ -11,9 +16,21 @@ class TestCashReconciliation:
 
     def test_simple_reconciliation(self):
         """Test basic cash reconciliation: Beginning + Net Change = Ending."""
-        metrics = [
-            {"cash": 1000000, "net_income": 500000, "dividends_paid": 150000},
-            {"cash": 1350000, "net_income": 600000, "dividends_paid": 180000},
+        metrics: MetricsDict = [
+            {
+                "cash": 1000000,
+                "net_income": 500000,
+                "dividends_paid": 150000,
+                "depreciation_expense": 50000,
+                "gross_ppe": 500000,
+            },
+            {
+                "cash": 1350000,
+                "net_income": 600000,
+                "dividends_paid": 180000,
+                "depreciation_expense": 60000,
+                "gross_ppe": 600000,
+            },
         ]
 
         cash_flow = CashFlowStatement(metrics)
@@ -43,7 +60,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_with_operating_activities(self):
         """Test reconciliation with detailed operating activities."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 500000,
                 "net_income": 200000,
@@ -84,7 +101,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_negative_cash_flow(self):
         """Test reconciliation when cash decreases."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 1000000,
                 "net_income": 100000,
@@ -116,7 +133,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_first_year(self):
         """Test cash reconciliation for year 0 (no prior period)."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 500000,
                 "net_income": 100000,
@@ -149,7 +166,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_with_all_working_capital_changes(self):
         """Test reconciliation with comprehensive working capital changes."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 1000000,
                 "net_income": 500000,
@@ -203,7 +220,7 @@ class TestCashReconciliation:
 
     def test_monthly_reconciliation(self):
         """Test cash reconciliation for monthly periods."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 100000,
                 "net_income": 120000,  # Annual
@@ -243,7 +260,7 @@ class TestCashReconciliation:
 
     def test_zero_beginning_cash(self):
         """Test reconciliation when beginning cash is zero."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 0,
                 "net_income": 100000,
@@ -273,7 +290,7 @@ class TestCashReconciliation:
 
     def test_large_capex_reconciliation(self):
         """Test reconciliation with large capital expenditures."""
-        metrics = [
+        metrics: MetricsDict = [
             {
                 "cash": 5000000,
                 "net_income": 1000000,

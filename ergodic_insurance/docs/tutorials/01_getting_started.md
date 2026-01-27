@@ -64,9 +64,12 @@ Let's run a simple simulation to see the framework in action.
 ```python
 from ergodic_insurance import Config, ManufacturerConfig
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.simulation import Simulation
 ```
+
+> **Note**: `ClaimGenerator` is deprecated as of version 0.2.0. Use `ManufacturingLossGenerator` instead.
+> See the [migration guide](../migration_guides/claim_generator_migration.md) for details.
 
 ### Step 2: Configure a Manufacturer
 
@@ -95,18 +98,18 @@ Initial Equity: $10,000,000
 Initial Cash: $7,000,000
 ```
 
-### Step 3: Configure Claims
+### Step 3: Configure Loss Generation
 
-Set up a claim generator to simulate random loss events:
+Set up a loss generator to simulate random loss events:
 
 ```python
-# Create a claim generator with:
-# - 10% annual claim frequency (average 0.1 claims per year)
+# Create a loss generator with:
+# - 10% annual loss frequency (average 0.1 losses per year)
 # - Lognormal severity distribution (mean $500K, std $500K)
 # - Reproducible results with seed
-claim_generator = ClaimGenerator(
-    base_frequency=0.1,       # Expected claims per year
-    severity_mean=500_000,    # Average claim size
+loss_generator = ManufacturingLossGenerator.create_simple(
+    frequency=0.1,            # Expected losses per year
+    severity_mean=500_000,    # Average loss size
     severity_std=500_000,     # Standard deviation
     seed=42
 )
@@ -116,9 +119,10 @@ claim_generator = ClaimGenerator(
 
 ```python
 # Create and run the simulation
+# Note: Simulation will use the loss generator internally
 simulation = Simulation(
     manufacturer=manufacturer,
-    claim_generator=claim_generator,
+    claim_generator=loss_generator,  # Accepts both ClaimGenerator and ManufacturingLossGenerator
     time_horizon=20  # Simulate 20 years
 )
 
@@ -181,7 +185,8 @@ Now that you've run your first simulation, continue with:
 |-------|---------|
 | `ManufacturerConfig` | Configure business financial parameters |
 | `WidgetManufacturer` | Business model with financial operations |
-| `ClaimGenerator` | Generate random loss events |
+| `ManufacturingLossGenerator` | Generate random loss events (recommended) |
+| `ClaimGenerator` | ⚠️ **Deprecated** - Use ManufacturingLossGenerator instead |
 | `Simulation` | Run time evolution of the business |
 | `SimulationResults` | Container for simulation output |
 

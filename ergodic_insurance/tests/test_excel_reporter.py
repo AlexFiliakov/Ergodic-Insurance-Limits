@@ -106,6 +106,9 @@ class TestExcelReporter:
                 "asset_turnover": 0.5,
                 "collateral_to_equity": 0.01 * year,
                 "collateral_to_assets": 0.01 * year,
+                "depreciation_expense": 200_000
+                * (1.03**year),  # Required for financial statements
+                "gross_ppe": 2_000_000 * (1.03**year),  # Required for cash flow statement
             }
             manufacturer.metrics_history.append(metrics)
 
@@ -212,6 +215,9 @@ class TestExcelReporter:
                 assert not df.empty
                 assert "Item" in df.columns
 
+    @pytest.mark.skipif(
+        not OPENPYXL_AVAILABLE, reason="openpyxl not available (required by pandas Excel writer)"
+    )
     def test_generate_trajectory_report_pandas(self, mock_manufacturer, reporter_config):
         """Test trajectory report generation with pandas fallback."""
         reporter_config.engine = "pandas"
@@ -229,6 +235,9 @@ class TestExcelReporter:
             sheet_names = xls.sheet_names
             assert len(sheet_names) > 0
 
+    @pytest.mark.skipif(
+        not OPENPYXL_AVAILABLE and not XLSXWRITER_AVAILABLE, reason="No Excel library available"
+    )
     def test_selective_sheet_inclusion(self, mock_manufacturer, reporter_config):
         """Test selective inclusion of sheets."""
         # Configure to include only specific sheets
@@ -321,6 +330,9 @@ class TestExcelReporter:
             if Path(tmp_path).exists():
                 Path(tmp_path).unlink()
 
+    @pytest.mark.skipif(
+        not OPENPYXL_AVAILABLE and not XLSXWRITER_AVAILABLE, reason="No Excel library available"
+    )
     def test_metrics_dashboard_data(self, mock_manufacturer, reporter_config):
         """Test that metrics dashboard contains correct data."""
         reporter = ExcelReporter(reporter_config)
@@ -370,6 +382,9 @@ class TestExcelReporter:
                         assert data_df["Year"].nunique() > 0
                         assert all(pd.to_numeric(data_df["Assets"], errors="coerce") > 0)
 
+    @pytest.mark.skipif(
+        not OPENPYXL_AVAILABLE and not XLSXWRITER_AVAILABLE, reason="No Excel library available"
+    )
     def test_pivot_data_structure(self, mock_manufacturer, reporter_config):
         """Test that pivot data is properly structured."""
         reporter = ExcelReporter(reporter_config)
@@ -391,6 +406,9 @@ class TestExcelReporter:
                     assert df["Category"].nunique() > 1
                     assert df["Metric"].nunique() > 1
 
+    @pytest.mark.skipif(
+        not OPENPYXL_AVAILABLE and not XLSXWRITER_AVAILABLE, reason="No Excel library available"
+    )
     @patch("ergodic_insurance.excel_reporter.FinancialStatementGenerator")
     def test_monte_carlo_report_placeholder(self, mock_generator_class, reporter_config):
         """Test Monte Carlo report generation (placeholder test)."""

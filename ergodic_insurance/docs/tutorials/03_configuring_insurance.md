@@ -206,7 +206,7 @@ if config.insurance:
 ```python
 from ergodic_insurance import ManufacturerConfig
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.simulation import Simulation
 from ergodic_insurance.insurance_program import InsuranceProgram, EnhancedInsuranceLayer
 
@@ -229,8 +229,8 @@ insurance.add_layer(EnhancedInsuranceLayer(
 ))
 
 # Create claim generator
-claims = ClaimGenerator(
-    base_frequency=0.2,
+claims = ManufacturingLossGenerator.create_simple(
+    frequency=0.2,
     severity_mean=1_000_000,
     severity_std=1_500_000,
     seed=42
@@ -255,7 +255,7 @@ print(f"Insured Final Equity: ${results_insured.equity[-1]:,.0f}")
 manufacturer_no_ins = WidgetManufacturer(mfg_config)
 sim_no_ins = Simulation(
     manufacturer=manufacturer_no_ins,
-    claim_generator=ClaimGenerator(base_frequency=0.2, severity_mean=1_000_000, severity_std=1_500_000, seed=42),
+    claim_generator=ManufacturingLossGenerator.create_simple(frequency=0.2, severity_mean=1_000_000, severity_std=1_500_000, seed=42),
     time_horizon=30
 )
 results_uninsured = sim_no_ins.run()

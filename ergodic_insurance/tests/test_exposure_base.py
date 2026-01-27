@@ -217,8 +217,9 @@ class TestEquityExposure:
         manufacturer.cash -= current_equity  # Set equity to exactly 0
 
         # THEN: Frequency multiplier should be 0 (no exposure when bankrupt)
-        assert exposure.get_exposure(1.0) == 0
-        assert exposure.get_frequency_multiplier(1.0) == 0.0
+        # Use approx for floating point comparison (may have tiny rounding errors)
+        assert exposure.get_exposure(1.0) == pytest.approx(0, abs=1e-9)
+        assert exposure.get_frequency_multiplier(1.0) == pytest.approx(0.0, abs=1e-9)
 
     def test_conservative_scaling(self):
         """Verify frequency scales conservatively with equity using cube root."""

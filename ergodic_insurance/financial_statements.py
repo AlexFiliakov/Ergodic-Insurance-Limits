@@ -67,7 +67,7 @@ class CashFlowStatement:
 
     def __init__(
         self,
-        metrics_history: List[Dict[str, float]],
+        metrics_history: List[Dict[str, Union[int, float]]],
         config: Optional[Any] = None,
     ):
         """Initialize cash flow statement generator.

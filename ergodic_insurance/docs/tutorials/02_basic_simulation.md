@@ -108,14 +108,14 @@ For multi-year simulations, use the `Simulation` class:
 
 ```python
 from ergodic_insurance.simulation import Simulation
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 # Reset manufacturer
 manufacturer = WidgetManufacturer(config)
 
 # Create claim generator
-claims = ClaimGenerator(
-    base_frequency=0.15,      # 15% annual claim probability
+claims = ManufacturingLossGenerator.create_simple(
+    frequency=0.15,      # 15% annual claim probability
     severity_mean=800_000,    # $800K average claim
     severity_std=960_000,     # High variability (1.2x mean)
     seed=42                   # Reproducible results
@@ -271,7 +271,7 @@ To understand the range of outcomes:
 ```python
 from ergodic_insurance import ManufacturerConfig
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.simulation import Simulation
 
 # Run multiple simulations
@@ -283,8 +283,8 @@ for seed in range(n_simulations):
     mfg = WidgetManufacturer(config)
 
     # Claim generator with different seed
-    claims = ClaimGenerator(
-        base_frequency=0.15,
+    claims = ManufacturingLossGenerator.create_simple(
+        frequency=0.15,
         severity_mean=800_000,
         severity_std=960_000,
         seed=seed

@@ -40,9 +40,11 @@ class TestDepreciationTracking:
         assert manufacturer.accumulated_depreciation == 0
         assert manufacturer.net_ppe == expected_ppe
 
-        # Cash should be the remainder
-        expected_cash = manufacturer.config.initial_assets - expected_ppe
-        assert manufacturer.cash == expected_cash
+        # Cash should be the remainder minus working capital assets (AR + inventory)
+        # Working capital is initialized to steady-state to avoid warm-up distortion
+        working_capital_assets = manufacturer.accounts_receivable + manufacturer.inventory
+        expected_cash = manufacturer.config.initial_assets - expected_ppe - working_capital_assets
+        assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
 
     def test_custom_ppe_ratio(self):
         """Test that custom PPE ratio overrides the default."""
@@ -61,7 +63,10 @@ class TestDepreciationTracking:
         assert config.ppe_ratio == 0.6
         expected_ppe = config.initial_assets * 0.6
         assert manufacturer.gross_ppe == expected_ppe
-        assert manufacturer.cash == config.initial_assets * 0.4
+        # Cash = remaining assets minus working capital (AR + inventory initialized to steady-state)
+        working_capital_assets = manufacturer.accounts_receivable + manufacturer.inventory
+        expected_cash = config.initial_assets * 0.4 - working_capital_assets
+        assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
 
     def test_default_ppe_ratio_based_on_margin(self):
         """Test that default PPE ratio is correctly set based on operating margin."""

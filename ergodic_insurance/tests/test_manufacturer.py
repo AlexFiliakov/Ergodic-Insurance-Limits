@@ -148,6 +148,7 @@ class TestWidgetManufacturer:
             base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
+            ppe_ratio=0.1,  # Lower PPE ratio ensures sufficient cash for large claim tests
         )
 
     @pytest.fixture
@@ -412,14 +413,14 @@ class TestWidgetManufacturer:
         assert metrics["is_solvent"]
         assert metrics["revenue"] == 10_000_000
         # Operating income now includes depreciation expense
-        # PP&E is $3M (30% of $10M for 8% margin business), depreciation is $300k/year
-        # Operating income = $10M * 8% - $300k = $500k
-        assert metrics["operating_income"] == 500_000
+        # PP&E is $1M (10% of $10M with ppe_ratio=0.1), depreciation is $100k/year
+        # Operating income = $10M * 8% - $100k = $700k
+        assert metrics["operating_income"] == 700_000
         assert metrics["asset_turnover"] == 1.0
         assert metrics["base_operating_margin"] == 0.08
-        # Net income after tax: $500k * (1 - 0.25) = $375k
-        assert metrics["roe"] == pytest.approx(0.0375)  # 375k / 10M
-        assert metrics["roa"] == pytest.approx(0.0375)  # 375k / 10M
+        # Net income after tax: $700k * (1 - 0.25) = $525k
+        assert metrics["roe"] == pytest.approx(0.0525)  # 525k / 10M
+        assert metrics["roa"] == pytest.approx(0.0525)  # 525k / 10M
         assert metrics["collateral_to_equity"] == 0
         assert metrics["collateral_to_assets"] == 0
 
