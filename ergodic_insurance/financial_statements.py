@@ -289,11 +289,19 @@ class CashFlowStatement:
         considering cash constraints. This method should read that value
         instead of calculating it, which may report phantom payments.
 
+        Issue #243: Removed hardcoded retention_ratio=0.7 fallback to prevent
+        inconsistent configuration. Now requires either dividends_paid in metrics
+        or a config with retention_ratio attribute.
+
         Args:
             current: Current period metrics
 
         Returns:
             Dividends paid amount (actual from metrics if available)
+
+        Raises:
+            ValueError: If neither dividends_paid in metrics nor config with
+                retention_ratio is available.
         """
         # Prefer actual dividends_paid from metrics (tracks cash constraints)
         if "dividends_paid" in current:
@@ -307,12 +315,17 @@ class CashFlowStatement:
         if net_income <= 0:
             return 0
 
-        # Get retention ratio from config or use default
-        retention_ratio = 0.7  # Default 70% retention
+        # Get retention ratio from config - no hardcoded default (Issue #243)
         if self.config and hasattr(self.config, "retention_ratio"):
-            retention_ratio = self.config.retention_ratio
+            retention_ratio: float = float(self.config.retention_ratio)
+        else:
+            raise ValueError(
+                "Cannot calculate dividends: config must have 'retention_ratio' attribute "
+                "when 'dividends_paid' is not in metrics. Pass a ManufacturerConfig or "
+                "ensure metrics include 'dividends_paid' from the simulation."
+            )
 
-        dividends = net_income * (1 - retention_ratio)
+        dividends: float = net_income * (1 - retention_ratio)
         return dividends
 
     def _format_statement(

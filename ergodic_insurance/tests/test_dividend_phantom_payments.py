@@ -174,7 +174,10 @@ class TestDividendPhantomPayments:
         assert financing_cf["dividends_paid"] == pytest.approx(-123456)
 
     def test_cash_flow_statement_fallback_without_metrics(self):
-        """Test CashFlowStatement falls back to calculation when no dividends_paid."""
+        """Test CashFlowStatement falls back to calculation when no dividends_paid.
+
+        Issue #243: Must now pass a config with retention_ratio (no hardcoded default).
+        """
         # Create metrics WITHOUT dividends_paid
         # Use float literals for type consistency
         metrics_history: list[dict[str, float]] = [
@@ -187,12 +190,76 @@ class TestDividendPhantomPayments:
             },
         ]
 
-        cash_flow = CashFlowStatement(metrics_history)
+        # Create config with retention_ratio (Issue #243: required for fallback)
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,  # 70% retention = 30% dividend payout
+            asset_turnover_ratio=0.8,
+        )
+
+        cash_flow = CashFlowStatement(metrics_history, config=config)
         financing_cf = cash_flow._calculate_financing_cash_flow(metrics_history[0], {}, "annual")
 
-        # Should fall back to calculation: 1M * 0.3 = 300K
-        expected_dividends = 1000000 * 0.3  # Default 30% payout
+        # Should fall back to calculation using config: 1M * 0.3 = 300K
+        expected_dividends = 1000000 * 0.3  # 30% payout based on config
         assert financing_cf["dividends_paid"] == pytest.approx(-expected_dividends)
+
+    def test_cash_flow_statement_fallback_with_custom_retention(self):
+        """Test CashFlowStatement respects custom retention_ratio in fallback.
+
+        Issue #243: Verifies that custom retention ratio is used, not hardcoded default.
+        """
+        # Create metrics WITHOUT dividends_paid
+        metrics_history: list[dict[str, float]] = [
+            {
+                "net_income": 1000000.0,
+                "depreciation_expense": 100000.0,
+                "cash": 500000.0,
+                "gross_ppe": 1000000.0,
+                # No dividends_paid key
+            },
+        ]
+
+        # Create config with custom retention_ratio (50% retention = 50% dividend)
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.5,  # 50% retention = 50% dividend payout
+            asset_turnover_ratio=0.8,
+        )
+
+        cash_flow = CashFlowStatement(metrics_history, config=config)
+        financing_cf = cash_flow._calculate_financing_cash_flow(metrics_history[0], {}, "annual")
+
+        # Should use the custom retention ratio: 1M * 0.5 = 500K (not 300K from old default)
+        expected_dividends = 1000000 * 0.5  # 50% payout based on custom config
+        assert financing_cf["dividends_paid"] == pytest.approx(-expected_dividends)
+
+    def test_cash_flow_statement_error_without_config_or_metrics(self):
+        """Test CashFlowStatement raises error when no config and no dividends_paid.
+
+        Issue #243: No hardcoded fallback - must have config or metrics.
+        """
+        # Create metrics WITHOUT dividends_paid
+        metrics_history: list[dict[str, float]] = [
+            {
+                "net_income": 1000000.0,
+                "depreciation_expense": 100000.0,
+                "cash": 500000.0,
+                "gross_ppe": 1000000.0,
+                # No dividends_paid key
+            },
+        ]
+
+        # Create CashFlowStatement without config
+        cash_flow = CashFlowStatement(metrics_history)
+
+        # Should raise ValueError because no config with retention_ratio
+        with pytest.raises(ValueError, match="config must have 'retention_ratio'"):
+            cash_flow._calculate_financing_cash_flow(metrics_history[0], {}, "annual")
 
     def test_insolvency_sets_dividends_to_zero(self):
         """Test that insolvency scenarios set dividends to zero."""

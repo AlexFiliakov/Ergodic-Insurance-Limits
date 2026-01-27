@@ -10,20 +10,20 @@ class TestWorkingCapitalChanges:
 
     def test_basic_working_capital_increase(self):
         """Test that increases in working capital assets reduce cash flow."""
-        metrics = [
+        metrics: list[dict[str, float]] = [
             {
-                "accounts_receivable": 100000,
-                "inventory": 50000,
-                "prepaid_insurance": 10000,
-                "accounts_payable": 30000,
-                "accrued_expenses": 20000,
+                "accounts_receivable": 100000.0,
+                "inventory": 50000.0,
+                "prepaid_insurance": 10000.0,
+                "accounts_payable": 30000.0,
+                "accrued_expenses": 20000.0,
             },
             {
-                "accounts_receivable": 150000,  # Increased by 50k (use of cash)
-                "inventory": 70000,  # Increased by 20k (use of cash)
-                "prepaid_insurance": 15000,  # Increased by 5k (use of cash)
-                "accounts_payable": 35000,  # Increased by 5k (source of cash)
-                "accrued_expenses": 25000,  # Increased by 5k (source of cash)
+                "accounts_receivable": 150000.0,  # Increased by 50k (use of cash)
+                "inventory": 70000.0,  # Increased by 20k (use of cash)
+                "prepaid_insurance": 15000.0,  # Increased by 5k (use of cash)
+                "accounts_payable": 35000.0,  # Increased by 5k (source of cash)
+                "accrued_expenses": 25000.0,  # Increased by 5k (source of cash)
             },
         ]
 
@@ -41,16 +41,16 @@ class TestWorkingCapitalChanges:
 
     def test_working_capital_decrease(self):
         """Test that decreases in working capital assets increase cash flow."""
-        metrics = [
+        metrics: list[dict[str, float]] = [
             {
-                "accounts_receivable": 200000,
-                "inventory": 100000,
-                "accounts_payable": 50000,
+                "accounts_receivable": 200000.0,
+                "inventory": 100000.0,
+                "accounts_payable": 50000.0,
             },
             {
-                "accounts_receivable": 150000,  # Decreased by 50k (source of cash)
-                "inventory": 80000,  # Decreased by 20k (source of cash)
-                "accounts_payable": 40000,  # Decreased by 10k (use of cash)
+                "accounts_receivable": 150000.0,  # Decreased by 50k (source of cash)
+                "inventory": 80000.0,  # Decreased by 20k (source of cash)
+                "accounts_payable": 40000.0,  # Decreased by 10k (use of cash)
             },
         ]
 
@@ -66,20 +66,20 @@ class TestWorkingCapitalChanges:
 
     def test_operating_cash_flow_with_working_capital(self):
         """Test that working capital changes affect operating cash flow correctly."""
-        metrics = [
+        metrics: list[dict[str, float]] = [
             {
-                "net_income": 500000,
-                "depreciation_expense": 50000,
-                "accounts_receivable": 100000,
-                "inventory": 80000,
-                "accounts_payable": 60000,
+                "net_income": 500000.0,
+                "depreciation_expense": 50000.0,
+                "accounts_receivable": 100000.0,
+                "inventory": 80000.0,
+                "accounts_payable": 60000.0,
             },
             {
-                "net_income": 600000,
-                "depreciation_expense": 60000,
-                "accounts_receivable": 130000,  # +30k
-                "inventory": 100000,  # +20k
-                "accounts_payable": 75000,  # +15k
+                "net_income": 600000.0,
+                "depreciation_expense": 60000.0,
+                "accounts_receivable": 130000.0,  # +30k
+                "inventory": 100000.0,  # +20k
+                "accounts_payable": 75000.0,  # +15k
             },
         ]
 
@@ -93,9 +93,9 @@ class TestWorkingCapitalChanges:
 
     def test_claim_liabilities_change(self):
         """Test that claim liability changes are handled correctly."""
-        metrics = [
-            {"claim_liabilities": 0, "net_income": 100000},
-            {"claim_liabilities": 500000, "net_income": 200000},  # New claims
+        metrics: list[dict[str, float]] = [
+            {"claim_liabilities": 0.0, "net_income": 100000.0},
+            {"claim_liabilities": 500000.0, "net_income": 200000.0},  # New claims
         ]
 
         cash_flow = CashFlowStatement(metrics)
@@ -106,16 +106,16 @@ class TestWorkingCapitalChanges:
 
     def test_zero_starting_working_capital(self):
         """Test working capital changes when starting from zero."""
-        metrics = [
+        metrics: list[dict[str, float]] = [
             {
-                "accounts_receivable": 0,
-                "inventory": 0,
-                "accounts_payable": 0,
+                "accounts_receivable": 0.0,
+                "inventory": 0.0,
+                "accounts_payable": 0.0,
             },
             {
-                "accounts_receivable": 100000,
-                "inventory": 50000,
-                "accounts_payable": 30000,
+                "accounts_receivable": 100000.0,
+                "inventory": 50000.0,
+                "accounts_payable": 30000.0,
             },
         ]
 
@@ -128,7 +128,7 @@ class TestWorkingCapitalChanges:
 
     def test_mixed_working_capital_changes(self):
         """Test mixed increases and decreases in working capital."""
-        metrics = [
+        metrics: list[dict[str, float]] = [
             {
                 "net_income": 100000.0,
                 "depreciation_expense": 10000.0,
@@ -167,30 +167,33 @@ class TestWorkingCapitalChanges:
 
     def test_statement_shows_working_capital_changes(self):
         """Test that working capital changes appear correctly in statement."""
-        metrics = [
+        # Issue #243: Include dividends_paid in metrics (preferred path since Issue #239)
+        metrics: list[dict[str, float]] = [
             {
-                "cash": 500000,
-                "net_income": 300000,
-                "depreciation_expense": 40000,
-                "accounts_receivable": 80000,
-                "inventory": 60000,
-                "prepaid_insurance": 10000,
-                "accounts_payable": 40000,
-                "accrued_expenses": 20000,
-                "claim_liabilities": 0,
-                "gross_ppe": 400000,
+                "cash": 500000.0,
+                "net_income": 300000.0,
+                "depreciation_expense": 40000.0,
+                "accounts_receivable": 80000.0,
+                "inventory": 60000.0,
+                "prepaid_insurance": 10000.0,
+                "accounts_payable": 40000.0,
+                "accrued_expenses": 20000.0,
+                "claim_liabilities": 0.0,
+                "gross_ppe": 400000.0,
+                "dividends_paid": 300000.0 * 0.3,  # 30% payout
             },
             {
-                "cash": 600000,
-                "net_income": 400000,
-                "depreciation_expense": 50000,
-                "accounts_receivable": 100000,  # +20k
-                "inventory": 75000,  # +15k
-                "prepaid_insurance": 12000,  # +2k
-                "accounts_payable": 50000,  # +10k
-                "accrued_expenses": 25000,  # +5k
-                "claim_liabilities": 30000,  # +30k
-                "gross_ppe": 500000,
+                "cash": 600000.0,
+                "net_income": 400000.0,
+                "depreciation_expense": 50000.0,
+                "accounts_receivable": 100000.0,  # +20k
+                "inventory": 75000.0,  # +15k
+                "prepaid_insurance": 12000.0,  # +2k
+                "accounts_payable": 50000.0,  # +10k
+                "accrued_expenses": 25000.0,  # +5k
+                "claim_liabilities": 30000.0,  # +30k
+                "gross_ppe": 500000.0,
+                "dividends_paid": 400000.0 * 0.3,  # 30% payout
             },
         ]
 
@@ -226,16 +229,16 @@ class TestWorkingCapitalChanges:
 
     def test_no_working_capital_changes(self):
         """Test when there are no working capital changes."""
-        metrics = [
+        metrics: list[dict[str, float]] = [
             {
-                "accounts_receivable": 100000,
-                "inventory": 50000,
-                "accounts_payable": 30000,
+                "accounts_receivable": 100000.0,
+                "inventory": 50000.0,
+                "accounts_payable": 30000.0,
             },
             {
-                "accounts_receivable": 100000,  # No change
-                "inventory": 50000,  # No change
-                "accounts_payable": 30000,  # No change
+                "accounts_receivable": 100000.0,  # No change
+                "inventory": 50000.0,  # No change
+                "accounts_payable": 30000.0,  # No change
             },
         ]
 
@@ -248,9 +251,9 @@ class TestWorkingCapitalChanges:
 
     def test_missing_working_capital_fields(self):
         """Test handling of missing working capital fields."""
-        metrics = [
-            {"net_income": 100000},
-            {"net_income": 150000, "accounts_receivable": 50000},
+        metrics: list[dict[str, float]] = [
+            {"net_income": 100000.0},
+            {"net_income": 150000.0, "accounts_receivable": 50000.0},
         ]
 
         cash_flow = CashFlowStatement(metrics)
@@ -263,7 +266,7 @@ class TestWorkingCapitalChanges:
 
     def test_monthly_working_capital_changes(self):
         """Test that monthly periods scale working capital changes correctly."""
-        annual_metrics = [
+        annual_metrics: list[dict[str, float]] = [
             {
                 "net_income": 200000.0,
                 "depreciation_expense": 20000.0,
