@@ -17,6 +17,7 @@ from ergodic_insurance.financial_statements import (
     FinancialStatementGenerator,
     MonteCarloStatementAggregator,
 )
+from ergodic_insurance.ledger import Ledger, TransactionType
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -301,9 +302,63 @@ class TestFinancialStatementGenerator:
         assert any("Net Income" in str(item) for item in items)
         assert any("Depreciation" in str(item) for item in items)
 
-    def test_generate_cash_flow_statement_direct(self, generator):
-        """Test that direct method defaults to indirect (not implemented)."""
-        # Direct method not implemented, defaults to indirect
+    def test_generate_cash_flow_statement_direct_requires_ledger(self, generator):
+        """Test that direct method raises error without a ledger."""
+        with pytest.raises(ValueError, match="requires a ledger"):
+            generator.generate_cash_flow_statement(year=2, method="direct")
+
+    def test_generate_cash_flow_statement_direct_with_ledger(self, mock_manufacturer):
+        """Test direct method cash flow statement with ledger."""
+        # Create a ledger with sample transactions
+        ledger = Ledger()
+
+        # Year 2 transactions (matching our test data)
+        # Cash from customers
+        ledger.record_double_entry(
+            date=2,
+            debit_account="cash",
+            credit_account="accounts_receivable",
+            amount=5_500_000,
+            transaction_type=TransactionType.COLLECTION,
+            description="Collections from customers",
+        )
+
+        # Cash to suppliers
+        ledger.record_double_entry(
+            date=2,
+            debit_account="operating_expenses",
+            credit_account="cash",
+            amount=2_000_000,
+            transaction_type=TransactionType.PAYMENT,
+            description="Payments to suppliers",
+        )
+
+        # Capital expenditure
+        ledger.record_double_entry(
+            date=2,
+            debit_account="gross_ppe",
+            credit_account="cash",
+            amount=500_000,
+            transaction_type=TransactionType.CAPEX,
+            description="Equipment purchase",
+        )
+
+        # Dividend payment
+        ledger.record_double_entry(
+            date=2,
+            debit_account="retained_earnings",
+            credit_account="cash",
+            amount=300_000,
+            transaction_type=TransactionType.DIVIDEND,
+            description="Dividend payment",
+        )
+
+        # Create generator with ledger
+        generator = FinancialStatementGenerator(
+            manufacturer=mock_manufacturer,
+            ledger=ledger,
+        )
+
         df = generator.generate_cash_flow_statement(year=2, method="direct")
 
         # Check DataFrame structure
@@ -311,10 +366,14 @@ class TestFinancialStatementGenerator:
         assert "Item" in df.columns
         assert "Year 2" in df.columns
 
-        # Should still use indirect method (direct not implemented)
+        # Direct method shows cash receipts and payments, not net income
         items = df["Item"].values
-        assert any("Net Income" in str(item) for item in items)
-        assert any("Depreciation" in str(item) for item in items)
+        assert any("Direct Method" in str(item) for item in items)
+        assert any("Cash Received from Customers" in str(item) for item in items)
+        # Net Income should NOT be in direct method
+        assert not any(
+            item == "  Net Income" for item in items
+        ), "Direct method should not show Net Income line"
 
     def test_generate_reconciliation_report(self, generator):
         """Test reconciliation report generation."""

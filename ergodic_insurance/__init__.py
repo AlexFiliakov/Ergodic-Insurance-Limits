@@ -91,6 +91,12 @@ __all__ = [
     "SensitivityAnalyzer",
     "SensitivityResult",
     "TwoWaySensitivityResult",
+    # Ledger for event sourcing
+    "Ledger",
+    "LedgerEntry",
+    "TransactionType",
+    "EntryType",
+    "AccountType",
 ]
 
 
@@ -252,6 +258,16 @@ def __getattr__(name):
             SensitivityAnalyzer,
             SensitivityResult,
             TwoWaySensitivityResult,
+        )
+
+        return locals()[name]
+    if name in ("Ledger", "LedgerEntry", "TransactionType", "EntryType", "AccountType"):
+        from .ledger import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AccountType,
+            EntryType,
+            Ledger,
+            LedgerEntry,
+            TransactionType,
         )
 
         return locals()[name]
