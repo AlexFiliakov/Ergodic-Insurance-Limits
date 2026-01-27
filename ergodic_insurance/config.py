@@ -382,6 +382,9 @@ class SimulationConfig(BaseModel):
         max_horizon_years: Maximum supported horizon to prevent excessive
             memory usage.
         random_seed: Random seed for reproducibility. None for random.
+        fiscal_year_end: Month of fiscal year end (1-12). Default is 12
+            (December) for calendar year alignment. Set to 6 for June,
+            3 for March, etc. to match different fiscal calendars.
 
     Examples:
         Quick test simulation::
@@ -401,6 +404,14 @@ class SimulationConfig(BaseModel):
                 random_seed=None  # Random each run
             )
 
+        Non-calendar fiscal year::
+
+            sim = SimulationConfig(
+                time_resolution='annual',
+                time_horizon_years=50,
+                fiscal_year_end=6  # June fiscal year end
+            )
+
     Note:
         For ergodic analysis, horizons of 100+ years are recommended
         to observe long-term time averages.
@@ -415,6 +426,12 @@ class SimulationConfig(BaseModel):
     )
     random_seed: Optional[int] = Field(
         default=None, ge=0, description="Random seed for reproducibility"
+    )
+    fiscal_year_end: int = Field(
+        default=12,
+        ge=1,
+        le=12,
+        description="Month of fiscal year end (1-12). Default is 12 (December) for calendar year.",
     )
 
     @model_validator(mode="after")

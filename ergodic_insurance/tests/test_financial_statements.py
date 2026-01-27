@@ -31,7 +31,9 @@ class TestFinancialStatementConfig:
         assert config.decimal_places == 0
         assert config.include_yoy_change is True
         assert config.include_percentages is True
-        assert config.fiscal_year_end == 12
+        # fiscal_year_end defaults to None, allowing inheritance from central config
+        # It gets resolved to 12 when used with a generator without central config
+        assert config.fiscal_year_end is None
         assert config.consolidate_monthly is True
 
     def test_custom_config(self):
