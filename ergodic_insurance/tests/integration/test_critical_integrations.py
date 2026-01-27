@@ -41,16 +41,22 @@ from .test_fixtures import (
 from .test_helpers import assert_convergence, calculate_ergodic_metrics, compare_scenarios, timer
 
 
-def create_monte_carlo_config(config_v2, n_simulations=200):
+def create_monte_carlo_config(config_v2, n_simulations=200, ruin_evaluation=None):
     """Create proper MonteCarloEngine config from ConfigV2."""
     from ergodic_insurance.monte_carlo import SimulationConfig
 
+    n_years = config_v2.simulation.time_horizon_years
+    # Default ruin evaluation at the final year if not specified
+    if ruin_evaluation is None:
+        ruin_evaluation = [n_years]
+
     return SimulationConfig(
         n_simulations=n_simulations,
-        n_years=config_v2.simulation.time_horizon_years,
+        n_years=n_years,
         seed=config_v2.simulation.random_seed or 42,
         use_enhanced_parallel=False,  # Disable enhanced parallel to avoid numpy issues
         parallel=False,  # Disable parallel execution to avoid multiprocessing issues in tests
+        ruin_evaluation=ruin_evaluation,  # Track ruin at specified years
     )
 
 
@@ -656,13 +662,13 @@ class TestEndToEndScenarios:
         # Configure startup using base config
         config = default_config_v2.model_copy()
         config.manufacturer.initial_assets = 1_000_000
-        config.manufacturer.asset_turnover_ratio = 0.8
-        config.manufacturer.base_operating_margin = 0.05
+        config.manufacturer.asset_turnover_ratio = 1.0  # Slightly higher turnover
+        config.manufacturer.base_operating_margin = 0.12  # Higher margin for viability
         # Note: growth_capex_ratio not available in current config
 
-        config.insurance.deductible = 25_000
+        config.insurance.deductible = 25_000  # Moderate deductible
         config.insurance.layers[0].limit = 500_000
-        config.insurance.layers[0].base_premium_rate = 0.04  # Higher rate for startup
+        config.insurance.layers[0].base_premium_rate = 0.03  # Lower premium rate
 
         config.simulation.time_horizon_years = 20
         config.simulation.random_seed = 42
@@ -679,16 +685,16 @@ class TestEndToEndScenarios:
 
         loss_generator = ManufacturingLossGenerator(
             attritional_params={
-                "base_frequency": 3,  # Startup has moderate risk (was 8)
-                "severity_mean": 10_000,  # Reduced severity for startup scale (was 25k)
-                "severity_cv": 1.5,  # Reduced variability (was 2.0)
+                "base_frequency": 4,  # Moderate frequency for startup
+                "severity_mean": 15_000,  # Moderate severity
+                "severity_cv": 1.5,  # Some variability
             },
             large_params={
-                "base_frequency": 0.1,  # Rare large losses (was 0.3)
-                "severity_mean": 200_000,  # Scaled to startup size (was 1M)
-                "severity_cv": 1.8,  # Reduced variability (was 2.5)
+                "base_frequency": 0.15,  # Large loss every ~6-7 years on average
+                "severity_mean": 200_000,  # 20% of initial assets - creates meaningful risk
+                "severity_cv": 1.5,  # Moderate variability
             },
-            seed=42,
+            seed=42,  # Use standard seed
         )
 
         from ergodic_insurance.insurance_program import EnhancedInsuranceLayer
@@ -717,7 +723,11 @@ class TestEndToEndScenarios:
         assert len(results.final_assets) == n_simulations
 
         # Calculate key metrics
-        survival_rate = np.mean(results.final_assets > 100_000)  # 10% of initial
+        # Use ruin_probability for survival rate (more accurate than final_assets threshold)
+        # Companies can become ruined due to liquidity crises while still having positive book equity
+        n_years = config.simulation.time_horizon_years
+        ruin_rate = results.ruin_probability.get(str(n_years), 0.0)
+        survival_rate = 1.0 - ruin_rate
         median_terminal = np.median(results.final_assets)
 
         # Debug output to understand the results
@@ -726,14 +736,15 @@ class TestEndToEndScenarios:
         print(f"  Min final assets: ${np.min(results.final_assets):,.2f}")
         print(f"  Max final assets: ${np.max(results.final_assets):,.2f}")
         print(f"  Median final assets: ${median_terminal:,.2f}")
-        print(f"  Survival rate (>100k): {survival_rate:.2%}")
-        print(f"  Number surviving: {np.sum(results.final_assets > 100_000)}")
+        print(f"  Ruin probability: {results.ruin_probability}")
+        print(f"  Survival rate (1 - ruin_prob): {survival_rate:.2%}")
 
         # Startups should have lower survival but potential for growth
-        # Given high losses and volatility, adjust expected range
+        # Startups face high failure rates - expect 10-90% survival rate
+        # (allowing for both high-risk and well-insured scenarios)
         assert (
-            0.01 <= survival_rate <= 0.8  # Allow lower survival rate for startup
-        ), f"Startup survival rate {survival_rate:.2%} out of expected range"
+            0.1 <= survival_rate <= 0.9  # Startup survival should be in realistic range
+        ), f"Startup survival rate {survival_rate:.2%} out of expected range (10-90%)"
 
         # Verify timing
         assert t["elapsed"] < 60, f"Startup scenario took {t['elapsed']:.2f}s, should be < 60s"

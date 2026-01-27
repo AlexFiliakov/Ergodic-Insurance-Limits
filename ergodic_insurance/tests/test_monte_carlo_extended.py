@@ -126,6 +126,8 @@ class TestMonteCarloExtended:
         engine.config.n_workers = 2
         engine.config.chunk_size = 25
         engine.config.n_simulations = 50
+        # Disable enhanced parallel to test standard parallel path
+        engine.config.use_enhanced_parallel = False
 
         results = engine.run()
         assert results is not None, "Results should be returned from parallel run"

@@ -632,7 +632,7 @@ class MonteCarloEngine:
             final_ruin_count = sum(r.get(n_years, False) for r in ruin_at_year_all)
         else:
             # Fallback to equity check if no tracking
-            final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
+            final_ruin_count = np.sum(np.less_equal(final_assets, self.config.insolvency_tolerance))
         ruin_probability[str(n_years)] = float(final_ruin_count / n_sims)
 
         return SimulationResults(
@@ -828,6 +828,16 @@ class MonteCarloEngine:
             ruin_probability = {}
             total_simulations = len(final_assets)
 
+            # Guard against division by zero when no valid results
+            if total_simulations == 0:
+                warnings.warn(
+                    "No valid simulation results from parallel execution. "
+                    "Falling back to sequential execution.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                return self._run_sequential()
+
             if self.config.ruin_evaluation and ruin_at_year_all:
                 # Aggregate periodic ruin probabilities
                 for eval_year in self.config.ruin_evaluation:
@@ -842,7 +852,9 @@ class MonteCarloEngine:
                 final_ruin_count = sum(r.get(n_years, False) for r in ruin_at_year_all)
             else:
                 # Fallback to equity check if no tracking
-                final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
+                final_ruin_count = np.sum(
+                    np.less_equal(final_assets, self.config.insolvency_tolerance)
+                )
             ruin_probability[str(n_years)] = float(final_ruin_count / total_simulations)
 
             return SimulationResults(
@@ -1126,7 +1138,7 @@ class MonteCarloEngine:
                             final_ruin_count += 1
         else:
             # Fallback to equity check if no tracking
-            final_ruin_count = np.sum(final_assets <= self.config.insolvency_tolerance)
+            final_ruin_count = np.sum(np.less_equal(final_assets, self.config.insolvency_tolerance))
         ruin_probability[str(self.config.n_years)] = float(final_ruin_count / total_simulations)
 
         return SimulationResults(
