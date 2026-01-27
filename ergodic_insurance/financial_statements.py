@@ -973,11 +973,22 @@ class FinancialStatementGenerator:
         total_assets_actual = metrics.get("assets", 0)
         restricted_assets = metrics.get("restricted_assets", 0)
 
-        # Available assets for operations (unrestricted)
-        unrestricted_assets = total_assets_actual - restricted_assets
+        # Issue #256: Critical financial keys MUST be provided by the Manufacturer
+        # Fabricating data hides simulation bugs and produces misleading reports
+        if "cash" not in metrics:
+            raise ValueError(
+                "cash missing from metrics. "
+                "The Manufacturer class must calculate and provide cash balance explicitly. "
+                "(Issue #256: Removed unsafe data estimation from reporting layer)"
+            )
+        if "gross_ppe" not in metrics:
+            raise ValueError(
+                "gross_ppe missing from metrics. "
+                "The Manufacturer class must calculate and provide gross PP&E explicitly. "
+                "(Issue #256: Removed unsafe data estimation from reporting layer)"
+            )
 
-        # Use detailed components if available, otherwise estimate from unrestricted assets
-        cash = metrics.get("cash", unrestricted_assets * 0.3)
+        cash = metrics["cash"]
         accounts_receivable = metrics.get("accounts_receivable", 0)
         inventory = metrics.get("inventory", 0)
         prepaid_insurance = metrics.get("prepaid_insurance", 0)
@@ -998,8 +1009,8 @@ class FinancialStatementGenerator:
         # Non-Current Assets
         data.append(("Non-Current Assets", "", "", ""))
 
-        # Property, Plant & Equipment - base on unrestricted assets only
-        gross_ppe = metrics.get("gross_ppe", unrestricted_assets * 0.7)
+        # Property, Plant & Equipment (Issue #256: gross_ppe must be provided)
+        gross_ppe = metrics["gross_ppe"]
         accumulated_depreciation = metrics.get("accumulated_depreciation", 0)
         net_ppe = gross_ppe - accumulated_depreciation
 
@@ -1380,7 +1391,14 @@ class FinancialStatementGenerator:
         data.append(("NON-OPERATING INCOME (EXPENSES)", "", "", ""))
 
         # Interest income on cash balances
-        cash = metrics.get("cash", metrics.get("available_assets", 0) * 0.3)
+        # Issue #256: cash must be provided by Manufacturer (validated in _build_assets_section)
+        if "cash" not in metrics:
+            raise ValueError(
+                "cash missing from metrics. "
+                "The Manufacturer class must calculate and provide cash balance explicitly. "
+                "(Issue #256: Removed unsafe data estimation from reporting layer)"
+            )
+        cash = metrics["cash"]
         interest_rate = 0.02  # 2% annual interest rate on cash
         interest_income = cash * interest_rate
         if monthly:
