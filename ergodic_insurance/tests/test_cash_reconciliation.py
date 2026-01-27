@@ -67,6 +67,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_with_operating_activities(self):
         """Test reconciliation with detailed operating activities."""
+        # Issue #243: Include dividends_paid in metrics (preferred path since Issue #239)
         metrics: MetricsDict = [
             {
                 "cash": 500000,
@@ -76,6 +77,7 @@ class TestCashReconciliation:
                 "inventory": 80000,
                 "accounts_payable": 60000,
                 "gross_ppe": 500000,
+                "dividends_paid": 200000 * 0.3,  # 30% payout on net income
             },
             {
                 "cash": 680000,  # Should reconcile with cash flow
@@ -85,6 +87,7 @@ class TestCashReconciliation:
                 "inventory": 90000,  # Increased by 10k
                 "accounts_payable": 70000,  # Increased by 10k
                 "gross_ppe": 600000,  # Increased by 100k
+                "dividends_paid": 250000 * 0.3,  # 30% payout on net income (75k)
             },
         ]
 

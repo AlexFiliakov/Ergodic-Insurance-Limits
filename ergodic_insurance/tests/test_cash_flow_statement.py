@@ -9,25 +9,28 @@ from ergodic_insurance.financial_statements import CashFlowStatement
 class TestCashFlowStatement:
     """Test suite for cash flow statement generation."""
 
+    metrics_history: list[dict[str, float]]
+    cash_flow: CashFlowStatement
+
     def setup_method(self):
         """Set up test fixtures."""
         # Create sample metrics history
-        self.metrics_history = [
+        self.metrics_history: list[dict[str, float]] = [
             {
                 # Year 0 metrics
-                "net_income": 1000000,
-                "depreciation_expense": 100000,
-                "cash": 500000,
-                "accounts_receivable": 200000,
-                "inventory": 150000,
-                "prepaid_insurance": 20000,
-                "accounts_payable": 100000,
-                "accrued_expenses": 50000,
-                "claim_liabilities": 0,
-                "gross_ppe": 1000000,
-                "dividends_paid": 300000,  # 30% payout ratio
-                "assets": 2000000,
-                "equity": 1500000,
+                "net_income": 1000000.0,
+                "depreciation_expense": 100000.0,
+                "cash": 500000.0,
+                "accounts_receivable": 200000.0,
+                "inventory": 150000.0,
+                "prepaid_insurance": 20000.0,
+                "accounts_payable": 100000.0,
+                "accrued_expenses": 50000.0,
+                "claim_liabilities": 0.0,
+                "gross_ppe": 1000000.0,
+                "dividends_paid": 300000.0,  # 30% payout ratio
+                "assets": 2000000.0,
+                "equity": 1500000.0,
             },
             {
                 # Year 1 metrics - with changes
@@ -38,19 +41,19 @@ class TestCashFlowStatement:
                 #   Financing: -360k dividends
                 #   Net: 1,305k - 310k - 360k = 635k
                 # Ending cash = 500k + 635k = 1,135k
-                "net_income": 1200000,
-                "depreciation_expense": 110000,
-                "cash": 1135000,  # Consistent with cash flow calculation
-                "accounts_receivable": 250000,  # Increased by 50k
-                "inventory": 180000,  # Increased by 30k
-                "prepaid_insurance": 25000,  # Increased by 5k
-                "accounts_payable": 120000,  # Increased by 20k
-                "accrued_expenses": 60000,  # Increased by 10k
-                "claim_liabilities": 50000,  # New claims
-                "gross_ppe": 1200000,  # Increased by 200k
-                "dividends_paid": 360000,  # 30% of 1.2M
-                "assets": 2500000,
-                "equity": 1900000,
+                "net_income": 1200000.0,
+                "depreciation_expense": 110000.0,
+                "cash": 1135000.0,  # Consistent with cash flow calculation
+                "accounts_receivable": 250000.0,  # Increased by 50k
+                "inventory": 180000.0,  # Increased by 30k
+                "prepaid_insurance": 25000.0,  # Increased by 5k
+                "accounts_payable": 120000.0,  # Increased by 20k
+                "accrued_expenses": 60000.0,  # Increased by 10k
+                "claim_liabilities": 50000.0,  # New claims
+                "gross_ppe": 1200000.0,  # Increased by 200k
+                "dividends_paid": 360000.0,  # 30% of 1.2M
+                "assets": 2500000.0,
+                "equity": 1900000.0,
             },
         ]
 
@@ -186,8 +189,8 @@ class TestCashFlowStatement:
     def test_no_dividends_on_loss(self):
         """Test that no dividends are paid when there's a loss."""
         # Create metrics with a loss
-        loss_metrics = [
-            {"net_income": -500000, "cash": 100000, "dividends_paid": 0},
+        loss_metrics: list[dict[str, float]] = [
+            {"net_income": -500000.0, "cash": 100000.0, "dividends_paid": 0.0},
         ]
 
         cash_flow = CashFlowStatement(loss_metrics)
@@ -225,7 +228,7 @@ class TestCashFlowStatement:
     def test_capex_with_no_prior_period(self):
         """Test capex calculation for first period."""
         current = self.metrics_history[0]
-        prior = {}
+        prior: dict[str, float] = {}
 
         capex = self.cash_flow._calculate_capex(current, prior)
 
@@ -277,21 +280,24 @@ class TestCashFlowStatement:
         This is a regression test for GitHub Issue #212.
         """
         # Create metrics that include insurance_premiums_paid
-        metrics_with_insurance = [
+        # Issue #243: Include dividends_paid in metrics (preferred path since Issue #239)
+        expected_dividends = 800000.0 * 0.3  # 30% payout on 800k net income = 240,000
+        metrics_with_insurance: list[dict[str, float]] = [
             {
-                "net_income": 800000,  # Already has insurance premiums deducted
-                "depreciation_expense": 100000,
-                "cash": 500000,
-                "accounts_receivable": 200000,
-                "inventory": 150000,
-                "prepaid_insurance": 20000,
-                "accounts_payable": 100000,
-                "accrued_expenses": 50000,
-                "claim_liabilities": 0,
-                "gross_ppe": 1000000,
-                "assets": 2000000,
-                "equity": 1500000,
-                "insurance_premiums_paid": 200000,  # This should NOT appear in financing
+                "net_income": 800000.0,  # Already has insurance premiums deducted
+                "depreciation_expense": 100000.0,
+                "cash": 500000.0,
+                "accounts_receivable": 200000.0,
+                "inventory": 150000.0,
+                "prepaid_insurance": 20000.0,
+                "accounts_payable": 100000.0,
+                "accrued_expenses": 50000.0,
+                "claim_liabilities": 0.0,
+                "gross_ppe": 1000000.0,
+                "assets": 2000000.0,
+                "equity": 1500000.0,
+                "insurance_premiums_paid": 200000.0,  # This should NOT appear in financing
+                "dividends_paid": expected_dividends,  # Actual dividends from simulation
             },
         ]
 
@@ -306,8 +312,7 @@ class TestCashFlowStatement:
             "they are already reflected in Net Income (Operating section)"
         )
 
-        # Verify total only includes dividends (default 30% payout ratio on 800k = 240k)
-        expected_dividends = 800000 * 0.3  # 240,000
+        # Verify total only includes dividends (30% payout ratio on 800k = 240k)
         assert financing_cf["dividends_paid"] == pytest.approx(-expected_dividends)
         assert financing_cf["total"] == pytest.approx(-expected_dividends)
 
