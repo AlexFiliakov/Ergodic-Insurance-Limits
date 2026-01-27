@@ -9,8 +9,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.claim_development import ClaimDevelopment
-from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
-from ergodic_insurance.loss_distributions import LossData, LossEvent
+from ergodic_insurance.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.simulation import Simulation
 
@@ -21,7 +20,7 @@ from .test_fixtures import (
     claim_development,
     default_config_v2,
     generate_sample_losses,
-    standard_claim_generator,
+    standard_loss_generator,
 )
 from .test_helpers import timer, validate_trajectory
 
@@ -29,29 +28,29 @@ from .test_helpers import timer, validate_trajectory
 class TestFinancialIntegration:
     """Test financial model component integration."""
 
-    def test_manufacturer_claim_generator_integration(
+    def test_manufacturer_loss_generator_integration(
         self,
         base_manufacturer: WidgetManufacturer,
-        standard_claim_generator: ClaimGenerator,
+        standard_loss_generator: ManufacturingLossGenerator,
     ):
-        """Test integration between manufacturer and claim generator.
+        """Test integration between manufacturer and loss generator.
 
         Verifies that:
-        - Claims are properly generated and applied
+        - Losses are properly generated and applied
         - Financial state remains consistent
         - Cash flow impacts are correct
         """
         manufacturer = base_manufacturer.copy()
         initial_equity = manufacturer.equity
 
-        # Generate claims for one year
-        claims = standard_claim_generator.generate_claims(years=1)
-        total_losses = sum(claim.amount for claim in claims)
+        # Generate losses for one year
+        losses, _ = standard_loss_generator.generate_losses(duration=1, revenue=10_000_000)
+        total_losses = sum(loss.amount for loss in losses)
 
-        # Apply claims to manufacturer
-        for claim in claims:
+        # Apply losses to manufacturer
+        for loss in losses:
             manufacturer.process_insurance_claim(
-                claim_amount=claim.amount,
+                claim_amount=loss.amount,
                 deductible_amount=0,  # No insurance
                 insurance_limit=0,  # No insurance coverage
             )
@@ -85,11 +84,11 @@ class TestFinancialIntegration:
         """
         manufacturer = base_manufacturer.copy()
 
-        # Create a large claim
-        initial_claim = ClaimEvent(year=0, amount=5_000_000)
+        # Create a large loss
+        initial_loss = LossEvent(time=0.0, amount=5_000_000, loss_type="test")
 
-        # Develop the claim over multiple years
-        developed_claims = claim_development.develop_claims([initial_claim])
+        # Develop the loss over multiple years
+        developed_claims = claim_development.develop_losses([initial_loss])
 
         # Track financial state over development period
         states = []
@@ -118,9 +117,9 @@ class TestFinancialIntegration:
             # Step manufacturer forward
             manufacturer.step()
 
-        # Verify total payments match original claim
+        # Verify total payments match original loss
         total_paid = sum(state["payments"] for state in states)
-        expected_total = initial_claim.amount * claim_development.ultimate_factor
+        expected_total = initial_loss.amount * claim_development.ultimate_factor
 
         assert np.isclose(total_paid, expected_total, rtol=0.01), (
             f"Total payments {total_paid:.2f} should match " f"ultimate claim {expected_total:.2f}"
@@ -129,7 +128,7 @@ class TestFinancialIntegration:
         # Verify payment pattern matches development factors
         for i, state in enumerate(states[: len(claim_development.pattern)]):
             expected_pct = claim_development.pattern[i] if i < len(claim_development.pattern) else 0
-            actual_pct = state["payments"] / initial_claim.amount
+            actual_pct = state["payments"] / initial_loss.amount
             assert np.isclose(actual_pct, expected_pct, rtol=0.01), (
                 f"Year {i} payment percentage {actual_pct:.2%} should match "
                 f"pattern {expected_pct:.2%}"
@@ -138,7 +137,7 @@ class TestFinancialIntegration:
     def test_working_capital_effects(
         self,
         base_manufacturer: WidgetManufacturer,
-        standard_claim_generator: ClaimGenerator,
+        standard_loss_generator: ManufacturingLossGenerator,
     ):
         """Test working capital impacts from losses.
 
@@ -153,15 +152,15 @@ class TestFinancialIntegration:
         wc_history = []
 
         for year in range(5):
-            # Generate and apply claims
-            claims = standard_claim_generator.generate_claims(years=1)
+            # Generate and apply losses
+            losses, _ = standard_loss_generator.generate_losses(duration=1, revenue=10_000_000)
 
-            # Track asset position before claims
+            # Track asset position before losses
             assets_before = manufacturer.total_assets
 
-            for claim in claims:
+            for loss in losses:
                 manufacturer.process_insurance_claim(
-                    claim_amount=claim.amount,
+                    claim_amount=loss.amount,
                     deductible_amount=0,
                     insurance_limit=0,
                 )
@@ -169,7 +168,7 @@ class TestFinancialIntegration:
             # Step forward (this pays the liabilities and affects assets)
             manufacturer.step()
 
-            # Track asset position after claims and step
+            # Track asset position after losses and step
             assets_after = manufacturer.total_assets
 
             wc_history.append(
@@ -177,7 +176,7 @@ class TestFinancialIntegration:
                     "year": year,
                     "assets_before": assets_before,
                     "assets_after": assets_after,
-                    "claims": sum(c.amount for c in claims),
+                    "claims": sum(loss.amount for loss in losses),
                 }
             )
 
@@ -195,7 +194,7 @@ class TestFinancialIntegration:
     def test_multi_year_financial_flow(
         self,
         base_manufacturer: WidgetManufacturer,
-        standard_claim_generator: ClaimGenerator,
+        standard_loss_generator: ManufacturingLossGenerator,
         claim_development: ClaimDevelopment,
     ):
         """Test complete multi-year financial flow.
@@ -208,7 +207,7 @@ class TestFinancialIntegration:
         manufacturer = base_manufacturer.copy()
         simulation = Simulation(
             manufacturer=manufacturer,
-            claim_generator=standard_claim_generator,
+            loss_generator=standard_loss_generator,
             time_horizon=10,
             seed=42,
         )
@@ -269,14 +268,14 @@ class TestFinancialIntegration:
         """
         # Setup
         manufacturer = base_manufacturer.copy()
-        claim_gen = ClaimGenerator(
-            base_frequency=5, severity_mean=100_000, severity_std=20_000, seed=42
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=5, severity_mean=100_000, severity_std=20_000, seed=42
         )
         claim_dev = ClaimDevelopmentWrapper(pattern=[0.6, 0.3, 0.1])
 
         # Generate losses with development
-        annual_losses = claim_gen.generate_claims(years=1)
-        payment_schedule = claim_dev.develop_claims(annual_losses)
+        annual_losses, _ = loss_gen.generate_losses(duration=1, revenue=10_000_000)
+        payment_schedule = claim_dev.develop_losses(annual_losses)
 
         # Apply to manufacturer
         initial_equity = manufacturer.equity
@@ -326,29 +325,29 @@ class TestFinancialIntegration:
         """
         manufacturer = base_manufacturer.copy()
 
-        # Create claims with different payment patterns
-        immediate_claim = ClaimEvent(year=0, amount=1_000_000)
-        developed_claim = ClaimEvent(year=0, amount=2_000_000)
+        # Create losses with different payment patterns
+        immediate_loss = LossEvent(time=0.0, amount=1_000_000, loss_type="test")
+        developed_loss = LossEvent(time=0.0, amount=2_000_000, loss_type="test")
 
-        # Process immediate claim using uninsured claim method for immediate payment
+        # Process immediate loss using uninsured claim method for immediate payment
         assets_before_immediate = manufacturer.total_assets
         manufacturer.process_uninsured_claim(
-            claim_amount=immediate_claim.amount,
+            claim_amount=immediate_loss.amount,
             immediate_payment=True,
         )
         assets_after_immediate = manufacturer.total_assets
 
         # Verify immediate asset impact
         asset_impact_immediate = assets_before_immediate - assets_after_immediate
-        assert asset_impact_immediate > 0, "Immediate claim should reduce assets"
+        assert asset_impact_immediate > 0, "Immediate loss should reduce assets"
 
-        # Reset for developed claim test
+        # Reset for developed loss test
         manufacturer2 = base_manufacturer.copy()
 
-        # Process developed claim using uninsured claim method with payment schedule
+        # Process developed loss using uninsured claim method with payment schedule
         assets_before_developed = manufacturer2.total_assets
         manufacturer2.process_uninsured_claim(
-            claim_amount=developed_claim.amount,
+            claim_amount=developed_loss.amount,
             immediate_payment=False,  # This creates a liability with payment schedule
         )
 
@@ -356,14 +355,14 @@ class TestFinancialIntegration:
         manufacturer2.pay_claim_liabilities()
         assets_after_developed = manufacturer2.total_assets
 
-        # First year impact should be less than total claim
+        # First year impact should be less than total loss
         first_year_impact = assets_before_developed - assets_after_developed
         assert (
-            first_year_impact < developed_claim.amount
-        ), "First year payment should be less than total claim"
+            first_year_impact < developed_loss.amount
+        ), "First year payment should be less than total loss"
 
         # Verify it matches the default ClaimLiability payment pattern (10% in first year)
-        expected_first_year = developed_claim.amount * 0.10  # Default first year is 10%
+        expected_first_year = developed_loss.amount * 0.10  # Default first year is 10%
         assert np.isclose(first_year_impact, expected_first_year, rtol=0.1), (
             f"First year payment {first_year_impact:.2f} should match "
             f"default pattern {expected_first_year:.2f}"
@@ -393,8 +392,8 @@ class TestFinancialIntegration:
         # Low revenue losses
         low_revenue = low_revenue_mfg.calculate_revenue()
         low_frequency = base_frequency * (low_revenue / 10_000_000)
-        low_claim_gen = ClaimGenerator(
-            base_frequency=low_frequency,
+        low_loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=low_frequency,
             severity_mean=100_000,
             severity_std=20_000,
             seed=42,
@@ -403,16 +402,16 @@ class TestFinancialIntegration:
         # High revenue losses
         high_revenue = high_revenue_mfg.calculate_revenue()
         high_frequency = base_frequency * (high_revenue / 10_000_000)
-        high_claim_gen = ClaimGenerator(
-            base_frequency=high_frequency,
+        high_loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=high_frequency,
             severity_mean=100_000,
             severity_std=20_000,
             seed=42,
         )
 
-        # Generate claims
-        low_claims = low_claim_gen.generate_claims(years=1)
-        high_claims = high_claim_gen.generate_claims(years=1)
+        # Generate losses
+        low_losses, _ = low_loss_gen.generate_losses(duration=1, revenue=low_revenue)
+        high_losses, _ = high_loss_gen.generate_losses(duration=1, revenue=high_revenue)
 
         # Verify scaling
         if high_revenue > low_revenue:
@@ -424,7 +423,7 @@ class TestFinancialIntegration:
     def test_financial_state_persistence(
         self,
         base_manufacturer: WidgetManufacturer,
-        standard_claim_generator: ClaimGenerator,
+        standard_loss_generator: ManufacturingLossGenerator,
     ):
         """Test that financial state persists correctly across operations.
 
@@ -438,10 +437,10 @@ class TestFinancialIntegration:
         original_equity = original.equity
 
         # Apply losses to original using uninsured claims for immediate impact
-        claims = standard_claim_generator.generate_claims(years=1)
-        for claim in claims:
+        losses, _ = standard_loss_generator.generate_losses(duration=1, revenue=10_000_000)
+        for loss in losses:
             original.process_uninsured_claim(
-                claim_amount=claim.amount,
+                claim_amount=loss.amount,
                 immediate_payment=True,
             )
 
@@ -516,9 +515,9 @@ class TestFinancialIntegration:
         """
         # Generate loss events
         losses = [
-            LossEvent(timestamp=0.5, amount=100_000, event_type="operational"),
-            LossEvent(timestamp=1.2, amount=200_000, event_type="liability"),
-            LossEvent(timestamp=1.8, amount=150_000, event_type="property"),
+            LossEvent(time=0.5, amount=100_000, loss_type="operational"),
+            LossEvent(time=1.2, amount=200_000, loss_type="liability"),
+            LossEvent(time=1.8, amount=150_000, loss_type="property"),
         ]
 
         # Convert to LossData
@@ -529,15 +528,15 @@ class TestFinancialIntegration:
         assert len(loss_data.timestamps) == 3
         assert np.sum(loss_data.loss_amounts) == 450_000
 
-        # Convert to ClaimEvents
-        claims = ClaimGenerator.from_loss_data(loss_data)
+        # Convert back to LossEvents
+        converted_losses = loss_data.to_loss_events()
 
         # Verify conversion
-        assert len(claims) == 3
-        total_claims = sum(c.amount for c in claims)
-        assert np.isclose(total_claims, 450_000, rtol=1e-10)
+        assert len(converted_losses) == 3
+        total_losses = sum(loss.amount for loss in converted_losses)
+        assert np.isclose(total_losses, 450_000, rtol=1e-10)
 
-        # Verify year assignments
-        for claim, loss in zip(claims, losses):
-            assert claim.year == int(loss.timestamp)
-            assert claim.amount == loss.amount
+        # Verify time assignments
+        for converted, orig in zip(converted_losses, losses):
+            assert np.isclose(converted.time, orig.time, rtol=1e-10)
+            assert converted.amount == orig.amount

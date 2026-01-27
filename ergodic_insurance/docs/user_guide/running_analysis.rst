@@ -184,13 +184,14 @@ First, establish your baseline risk:
    :caption: Baseline simulation without insurance
 
    from ergodic_insurance.monte_carlo import MonteCarloEngine
-   from ergodic_insurance.claim_generator import ClaimGenerator
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
-   # Set up claim generator
-   claim_gen = ClaimGenerator(
-       frequency=5.0,  # Expected claims per year
+   # Set up loss generator
+   loss_gen = ManufacturingLossGenerator.create_simple(
+       frequency=5.0,  # Expected losses per year
        severity_mean=500_000,
-       severity_cv=1.2
+       severity_std=600_000,  # CV of 1.2
+       seed=42
    )
 
    # Run baseline simulation
@@ -201,7 +202,7 @@ First, establish your baseline risk:
 
    baseline_results = engine.run(
        manufacturer=manufacturer,
-       claim_generator=claim_gen,
+       loss_generator=loss_gen,
        insurance_program=None,  # No insurance
        n_years=10
    )
@@ -247,7 +248,7 @@ Evaluate different insurance configurations:
        # Run simulation
        sim_results = engine.run(
            manufacturer=manufacturer,
-           claim_generator=claim_gen,
+           loss_generator=loss_gen,
            insurance_program=insurance,
            n_years=10
        )
@@ -298,7 +299,7 @@ Test sensitivity to key assumptions:
            # Run simulation
            result = engine.run(
                manufacturer=manufacturer,
-               claim_generator=claim_gen,
+               loss_generator=loss_gen,
                insurance_program=optimal_insurance,
                n_years=10
            )

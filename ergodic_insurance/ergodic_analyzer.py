@@ -2206,7 +2206,7 @@ class ErgodicAnalyzer:
             :class:`~ergodic_insurance.insurance_program.InsuranceProgram`: Insurance setup
             :meth:`validate_insurance_ergodic_impact`: Additional validation methods
         """
-        from .claim_generator import ClaimEvent
+        from .loss_distributions import LossEvent
         from .simulation import Simulation
 
         # Validate input data
@@ -2260,13 +2260,15 @@ class ErgodicAnalyzer:
                 # Get losses for this year (if any)
                 loss_amount = annual_losses.get(year, 0.0)
 
-                # Create claim events for this year
-                claims = []
+                # Create loss events for this year
+                losses = []
                 if loss_amount > 0:
-                    claims.append(ClaimEvent(year=year, amount=loss_amount))
+                    losses.append(
+                        LossEvent(time=float(year), amount=loss_amount, loss_type="aggregate")
+                    )
 
                 # Execute time step
-                metrics = sim.step_annual(year, claims)
+                metrics = sim.step_annual(year, losses)
 
                 # Store results
                 sim.assets[year] = metrics.get("assets", 0)

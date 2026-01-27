@@ -126,10 +126,10 @@ pre-commit install
 ```python
 # test_installation.py
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.config import ManufacturerConfig
 
-print("✅ Framework imported successfully!")
+print("Framework imported successfully!")
 
 # Create configuration
 config = ManufacturerConfig(
@@ -143,8 +143,8 @@ config = ManufacturerConfig(
 # Create a simple manufacturer
 company = WidgetManufacturer(config)
 
-print(f"✅ Created company with ${company.assets:,.0f} in assets")
-print("🎉 Installation successful!")
+print(f"Created company with ${company.assets:,.0f} in assets")
+print("Installation successful!")
 ```
 
 ## Exploratory Notebooks
@@ -166,7 +166,7 @@ Ergodic-Insurance-Limits/
 │   │   ├── config_*.py        # Configuration system v2.0 - 3-tier architecture with profiles, modules, and presets
 │   │   ├── manufacturer.py    # Widget manufacturer financial model with balance sheet management
 │   │   ├── insurance*.py      # Insurance optimization, pricing, and multi-layer program management
-│   │   ├── claim_*.py         # Claim generation and multi-year payment development patterns
+│   │   ├── claim_development.py # Multi-year claim payment development patterns
 │   │   ├── loss_distributions.py # Statistical loss modeling (lognormal, pareto, etc.)
 │   │   ├── monte_carlo.py     # Enhanced Monte Carlo simulation engine with parallel processing
 │   │   ├── ergodic_analyzer.py # Ergodic theory implementation for time-average growth analysis

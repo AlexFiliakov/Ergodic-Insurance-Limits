@@ -19,13 +19,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from ergodic_insurance.tests.integration.test_fixtures import (
     base_manufacturer,
     basic_insurance_policy,
-    catastrophic_generator,
+    catastrophic_loss_generator,
     claim_development,
     config_manager,
     default_config_v2,
     enhanced_insurance_program,
     gbm_process,
-    high_frequency_generator,
+    high_frequency_loss_generator,
     integration_test_dir,
     lognormal_volatility,
     manufacturing_loss_generator,
@@ -33,7 +33,7 @@ from ergodic_insurance.tests.integration.test_fixtures import (
     mean_reverting_process,
     monte_carlo_engine,
     multi_layer_insurance,
-    standard_claim_generator,
+    standard_loss_generator,
     startup_manufacturer,
 )
 

@@ -8,10 +8,9 @@ insurance programs, and manufacturer components.
 import numpy as np
 import pytest
 
-from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.loss_distributions import LossEvent
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.simulation import Simulation
 
@@ -21,7 +20,7 @@ from .test_fixtures import (
     basic_insurance_policy,
     enhanced_insurance_program,
     multi_layer_insurance,
-    standard_claim_generator,
+    standard_loss_generator,
 )
 from .test_helpers import timer
 
@@ -190,23 +189,23 @@ class TestInsuranceStack:
 
             year_data["premium_paid"] = total_premium
 
-            # Generate and process claims
-            claim_gen = ClaimGenerator(
-                base_frequency=2, severity_mean=200_000, severity_std=300_000, seed=42 + year
+            # Generate and process losses
+            loss_gen = ManufacturingLossGenerator.create_simple(
+                frequency=2, severity_mean=200_000, severity_std=300_000, seed=42 + year
             )
-            claims = claim_gen.generate_year()
+            losses, _ = loss_gen.generate_losses(duration=1, revenue=10_000_000)
 
             total_claims = 0
             total_recoveries = 0
 
-            for claim in claims:
-                recovery = policy.calculate_recovery(claim.amount)
+            for loss in losses:
+                recovery = policy.calculate_recovery(loss.amount)
                 manufacturer.process_insurance_claim(
-                    claim_amount=claim.amount,
+                    claim_amount=loss.amount,
                     insurance_recovery=recovery,
                     deductible_amount=policy.deductible,
                 )
-                total_claims += claim.amount
+                total_claims += loss.amount
                 total_recoveries += recovery
 
             year_data["total_claims"] = total_claims
@@ -396,7 +395,7 @@ class TestInsuranceStack:
         self,
         base_manufacturer: WidgetManufacturer,
         basic_insurance_policy: InsurancePolicy,
-        standard_claim_generator: ClaimGenerator,
+        standard_loss_generator: ManufacturingLossGenerator,
     ):
         """Test complete claim submission and recovery flow.
 
@@ -408,17 +407,17 @@ class TestInsuranceStack:
         manufacturer = base_manufacturer.copy()
         policy = basic_insurance_policy
 
-        # Generate claims for a year
-        claims = standard_claim_generator.generate_year()
+        # Generate losses for a year
+        losses, _ = standard_loss_generator.generate_losses(duration=1, revenue=10_000_000)
 
         # Track claim submissions and recoveries
         submissions = []
-        for i, claim in enumerate(claims):
+        for i, loss in enumerate(losses):
             submission = {
                 "claim_id": i,
-                "amount": claim.amount,
-                "submission_time": claim.year,
-                "recovery_expected": policy.calculate_recovery(claim.amount),
+                "amount": loss.amount,
+                "submission_time": int(loss.time),
+                "recovery_expected": policy.calculate_recovery(loss.amount),
             }
             submissions.append(submission)
 
@@ -508,8 +507,8 @@ class TestInsuranceStack:
 
             # Run simulation
             sim_mfg = manufacturer.copy()
-            claim_gen = ClaimGenerator(
-                base_frequency=0.5,  # 0.5 claims per year on average (more realistic)
+            loss_gen = ManufacturingLossGenerator.create_simple(
+                frequency=0.5,  # 0.5 claims per year on average (more realistic)
                 severity_mean=200_000,  # Lower mean severity
                 severity_std=300_000,  # Lower standard deviation
                 seed=42 + i,  # Different seed for each structure to ensure independent claims
@@ -524,16 +523,16 @@ class TestInsuranceStack:
                 sim_mfg.cash -= structure["annual_premium"]
                 total_premiums += structure["annual_premium"]
 
-                # Generate and process claims
-                claims = claim_gen.generate_year()
-                for claim in claims:
-                    recovery = policy.calculate_recovery(claim.amount)
+                # Generate and process losses
+                losses, _ = loss_gen.generate_losses(duration=1, revenue=10_000_000)
+                for loss in losses:
+                    recovery = policy.calculate_recovery(loss.amount)
                     sim_mfg.process_insurance_claim(
-                        claim_amount=claim.amount,
+                        claim_amount=loss.amount,
                         insurance_recovery=recovery,
                         deductible_amount=policy.deductible,
                     )
-                    total_claims += claim.amount
+                    total_claims += loss.amount
                     total_recoveries += recovery
 
                 sim_mfg.step()
@@ -696,8 +695,8 @@ class TestInsuranceStack:
                     severity_mean = 300_000
                     severity_std = 150_000
 
-                claim_gen = ClaimGenerator(
-                    base_frequency=frequency,
+                loss_gen = ManufacturingLossGenerator.create_simple(
+                    frequency=frequency,
                     severity_mean=severity_mean,
                     severity_std=severity_std,
                     seed=42 + year_counter,
@@ -707,19 +706,19 @@ class TestInsuranceStack:
                 annual_premium = sum(layer.limit * layer.rate for layer in policy.layers)
                 manufacturer.cash -= annual_premium
 
-                # Generate and process claims
-                claims = claim_gen.generate_year()
+                # Generate and process losses
+                losses, _ = loss_gen.generate_losses(duration=1, revenue=10_000_000)
                 total_claims = 0
                 total_recovery = 0
 
-                for claim in claims:
-                    recovery = policy.calculate_recovery(claim.amount)
+                for loss in losses:
+                    recovery = policy.calculate_recovery(loss.amount)
                     manufacturer.process_insurance_claim(
-                        claim_amount=claim.amount,
+                        claim_amount=loss.amount,
                         insurance_recovery=recovery,
                         deductible_amount=policy.deductible,
                     )
-                    total_claims += claim.amount
+                    total_claims += loss.amount
                     total_recovery += recovery
 
                 # Step manufacturer

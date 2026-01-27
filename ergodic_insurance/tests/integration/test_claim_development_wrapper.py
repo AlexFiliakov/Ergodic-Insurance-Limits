@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from ergodic_insurance.claim_generator import ClaimEvent
+from ergodic_insurance.loss_distributions import LossEvent
 
 
 class ClaimDevelopmentWrapper:
@@ -18,25 +18,32 @@ class ClaimDevelopmentWrapper:
         self.pattern = pattern or [0.6, 0.3, 0.1]
         self.ultimate_factor = ultimate_factor
 
-    def develop_claims(self, claims: List[ClaimEvent]) -> List[List[ClaimEvent]]:
-        """Develop claims over multiple years based on pattern.
+    def develop_losses(self, losses: List[LossEvent]) -> List[List[LossEvent]]:
+        """Develop losses over multiple years based on pattern.
 
         Args:
-            claims: List of initial claims
+            losses: List of initial losses
 
         Returns:
-            List of claim lists by year
+            List of loss lists by year
         """
         developed = []
 
         for year_idx, pattern_value in enumerate(self.pattern):
-            year_claims = []
-            for claim in claims:
+            year_losses = []
+            for loss in losses:
                 if year_idx < len(self.pattern):
-                    amount = claim.amount * pattern_value * self.ultimate_factor
+                    amount = loss.amount * pattern_value * self.ultimate_factor
                     if amount > 0:
-                        year_claims.append(ClaimEvent(year=claim.year + year_idx, amount=amount))
-            if year_claims:
-                developed.append(year_claims)
+                        base_year = int(loss.time)
+                        year_losses.append(
+                            LossEvent(
+                                time=float(base_year + year_idx),
+                                amount=amount,
+                                loss_type=loss.loss_type,
+                            )
+                        )
+            if year_losses:
+                developed.append(year_losses)
 
         return developed

@@ -11,7 +11,6 @@ import numpy as np
 import psutil
 import pytest
 
-from ergodic_insurance.claim_generator import ClaimGenerator
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
@@ -69,19 +68,19 @@ class TestIntegration:
             initial_assets=base_config["initial_assets"],
         )
 
-        # Create claim generator with reasonable parameters
+        # Create loss generator with reasonable parameters
         # Total expected annual loss ≈ $450K
-        claim_gen = ClaimGenerator(
-            seed=base_config["random_seed"],
-            base_frequency=3.0,  # Moderate frequency for stability
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=3.0,  # Moderate frequency for stability
             severity_mean=150_000,  # Expected $450K annual loss
             severity_std=200_000,  # Moderate variability
+            seed=base_config["random_seed"],
         )
 
         # Run single simulation
         simulation = Simulation(
             manufacturer=manufacturer,
-            claim_generator=claim_gen,
+            loss_generator=loss_gen,
             time_horizon=base_config["time_horizon"],
             insurance_policy=insurance_policy,
         )
@@ -102,10 +101,10 @@ class TestIntegration:
         process = psutil.Process()
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
 
-        # Create manufacturer and claim generator
+        # Create manufacturer and loss generator
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-        claim_gen = ClaimGenerator(
-            base_frequency=5.0,
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=5.0,
             severity_mean=100_000,
             severity_std=50_000,
             seed=base_config["random_seed"],
@@ -118,7 +117,7 @@ class TestIntegration:
             mfg = self.create_manufacturer(initial_assets=base_config["initial_assets"])
             sim = Simulation(
                 manufacturer=mfg,
-                claim_generator=claim_gen,
+                loss_generator=loss_gen,
                 time_horizon=base_config["time_horizon"],
                 seed=base_config["random_seed"] + i,
             )
@@ -139,8 +138,8 @@ class TestIntegration:
         """Test comparison between insured and uninsured scenarios."""
         # Set up components
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-        claim_gen = ClaimGenerator(
-            base_frequency=2.0,
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=2.0,
             severity_mean=200_000,
             severity_std=100_000,
             seed=base_config["random_seed"],
@@ -152,7 +151,7 @@ class TestIntegration:
             mfg = self.create_manufacturer(initial_assets=base_config["initial_assets"])
             simulation = Simulation(
                 manufacturer=mfg,
-                claim_generator=claim_gen,
+                loss_generator=loss_gen,
                 time_horizon=base_config["time_horizon"],
                 insurance_policy=insurance_policy,
                 seed=base_config["random_seed"] + i,
@@ -166,7 +165,7 @@ class TestIntegration:
             mfg = self.create_manufacturer(initial_assets=base_config["initial_assets"])
             simulation = Simulation(
                 manufacturer=mfg,
-                claim_generator=claim_gen,
+                loss_generator=loss_gen,
                 time_horizon=base_config["time_horizon"],
                 insurance_policy=None,
                 seed=base_config["random_seed"] + 100 + i,
@@ -201,11 +200,11 @@ class TestIntegration:
 
         # More reasonable loss parameters for testing
         # Lower frequency and severity to prevent immediate bankruptcy
-        claim_gen = ClaimGenerator(
-            seed=base_config["random_seed"],
-            base_frequency=3.0,  # Reduced frequency for stability
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=3.0,  # Reduced frequency for stability
             severity_mean=150_000,  # Lower mean for expected $450k annual loss
             severity_std=200_000,  # Reduced std for less volatility
+            seed=base_config["random_seed"],
         )
 
         # Better calibrated insurance for testing
@@ -232,7 +231,7 @@ class TestIntegration:
             )
             insured_simulation = Simulation(
                 manufacturer=insured_mfg,
-                claim_generator=claim_gen,
+                loss_generator=loss_gen,
                 time_horizon=50,  # Shorter for testing
                 insurance_policy=insurance,
                 seed=base_config["random_seed"] + i,
@@ -248,7 +247,7 @@ class TestIntegration:
             )
             uninsured_simulation = Simulation(
                 manufacturer=uninsured_mfg,
-                claim_generator=claim_gen,
+                loss_generator=loss_gen,
                 time_horizon=50,
                 insurance_policy=None,
                 seed=base_config["random_seed"] + 100 + i,
@@ -285,8 +284,8 @@ class TestIntegration:
         ]
 
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-        claim_gen = ClaimGenerator(
-            base_frequency=0.1,
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=0.1,
             severity_mean=5_000_000,
             severity_std=2_000_000,
             seed=base_config["random_seed"],
@@ -301,7 +300,7 @@ class TestIntegration:
                 mfg = self.create_manufacturer(initial_assets=base_config["initial_assets"])
                 sim = Simulation(
                     manufacturer=mfg,
-                    claim_generator=claim_gen,
+                    loss_generator=loss_gen,
                     time_horizon=20,  # Short horizon for speed
                     seed=base_config["random_seed"] + i,
                 )
@@ -318,26 +317,26 @@ class TestIntegration:
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
 
         # Run twice with same seed
-        claim_gen1 = ClaimGenerator(
-            base_frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+        loss_gen1 = ManufacturingLossGenerator.create_simple(
+            frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
         )
         mfg1 = self.create_manufacturer(initial_assets=base_config["initial_assets"])
         sim1 = Simulation(
             manufacturer=mfg1,
-            claim_generator=claim_gen1,
+            loss_generator=loss_gen1,
             time_horizon=10,
             insurance_policy=None,
             seed=42,
         )
         result1 = sim1.run()
 
-        claim_gen2 = ClaimGenerator(
-            base_frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+        loss_gen2 = ManufacturingLossGenerator.create_simple(
+            frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
         )
         mfg2 = self.create_manufacturer(initial_assets=base_config["initial_assets"])
         sim2 = Simulation(
             manufacturer=mfg2,
-            claim_generator=claim_gen2,
+            loss_generator=loss_gen2,
             time_horizon=10,
             insurance_policy=None,
             seed=42,
@@ -368,10 +367,10 @@ class TestIntegration:
                 rate=-0.01,  # Negative premium
             )
 
-        # Test claim generator validation
+        # Test loss generator validation
         with pytest.raises(ValueError):
-            ClaimGenerator(
-                base_frequency=-1,  # Negative frequency
+            ManufacturingLossGenerator.create_simple(
+                frequency=-1,  # Negative frequency
                 severity_mean=100_000,
                 severity_std=20_000,
             )
@@ -440,29 +439,29 @@ class TestIntegration:
         assert np.sum(result.claim_amounts) > 0
 
     def test_loss_data_conversion(self):
-        """Test conversion between ClaimEvent and LossData formats."""
-        # Create claim generator
-        claim_gen = ClaimGenerator(
-            base_frequency=2.0, severity_mean=100_000, severity_std=50_000, seed=42
+        """Test conversion between LossEvent and LossData formats."""
+        # Create loss generator
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=2.0, severity_mean=100_000, severity_std=50_000, seed=42
         )
 
-        # Generate claims
-        claims = claim_gen.generate_claims(years=5)
+        # Generate losses
+        losses, _ = loss_gen.generate_losses(duration=5, revenue=10_000_000)
 
         # Convert to LossData
-        loss_data = claim_gen.to_loss_data(claims)
+        loss_data = LossData.from_loss_events(losses)
 
         # Validate
         assert loss_data.validate()
-        assert len(loss_data.timestamps) == len(claims)
+        assert len(loss_data.timestamps) == len(losses)
 
-        # Convert back to ClaimEvents
-        converted_claims = ClaimGenerator.from_loss_data(loss_data)
+        # Convert back to LossEvents
+        converted_losses = loss_data.to_loss_events()
 
         # Check conversion preserves data
-        assert len(converted_claims) == len(claims)
-        for orig, conv in zip(claims, converted_claims):
-            assert orig.year == conv.year
+        assert len(converted_losses) == len(losses)
+        for orig, conv in zip(losses, converted_losses):
+            assert abs(orig.time - conv.time) < 0.01
             assert abs(orig.amount - conv.amount) < 0.01
 
     def test_ergodic_loss_integration(self, base_config: dict):
@@ -517,9 +516,9 @@ class TestIntegration:
             initial_assets=base_config["initial_assets"]
         )
 
-        # Create claim generator
-        claim_gen = ClaimGenerator(
-            base_frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
+        # Create loss generator
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=1.0, severity_mean=500_000, severity_std=200_000, seed=42
         )
 
         # Create insurance
@@ -529,7 +528,7 @@ class TestIntegration:
         # Run base scenario (no insurance)
         sim_base = Simulation(
             manufacturer=manufacturer_base,
-            claim_generator=claim_gen,
+            loss_generator=loss_gen,
             time_horizon=20,
             insurance_policy=None,
             seed=42,
@@ -539,7 +538,7 @@ class TestIntegration:
         # Run insured scenario
         sim_insured = Simulation(
             manufacturer=manufacturer_insured,
-            claim_generator=claim_gen,
+            loss_generator=loss_gen,
             time_horizon=20,
             insurance_policy=insurance,
             seed=42,
@@ -580,21 +579,22 @@ class TestIntegration:
         insured_data = loss_data.apply_insurance(program)
         assert insured_data.validate()
 
-        # Step 3: Convert to ClaimEvents for simulation
-        claims = ClaimGenerator.from_loss_data(insured_data)
+        # Step 3: Convert to LossEvents for simulation
+        insured_losses = insured_data.to_loss_events()
 
         # Step 4: Run simulation
         manufacturer = self.create_manufacturer(initial_assets=base_config["initial_assets"])
         simulation = Simulation(manufacturer=manufacturer, time_horizon=5, seed=123)
 
-        # Manually apply claims
-        for claim in claims:
-            if 0 <= claim.year < 5:
-                simulation.step_annual(claim.year, [claim])
+        # Manually apply losses
+        for loss in insured_losses:
+            year = int(loss.time)
+            if 0 <= year < 5:
+                simulation.step_annual(year, [loss])
 
         # Verify data consistency
         total_original = sum(loss.amount for loss in original_losses)
-        total_insured = sum(claim.amount for claim in claims)
+        total_insured = sum(loss.amount for loss in insured_losses)
 
         # Insured amount should be less due to recoveries
         assert total_insured <= total_original

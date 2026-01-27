@@ -51,8 +51,9 @@ __all__ = [
     "OptimalStrategy",
     "BusinessOptimizationResult",
     "BusinessOptimizer",
-    "ClaimEvent",
-    "ClaimGenerator",
+    "LossEvent",
+    "LossData",
+    "ManufacturingLossGenerator",
     "Config",
     "ManufacturerConfig",
     "ErgodicAnalyzer",
@@ -128,10 +129,11 @@ def __getattr__(name):
         )
 
         return locals()[name]
-    if name in ("ClaimEvent", "ClaimGenerator"):
-        from .claim_generator import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
-            ClaimEvent,
-            ClaimGenerator,
+    if name in ("LossEvent", "LossData", "ManufacturingLossGenerator"):
+        from .loss_distributions import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            LossData,
+            LossEvent,
+            ManufacturingLossGenerator,
         )
 
         return locals()[name]

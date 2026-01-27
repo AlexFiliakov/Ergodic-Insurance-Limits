@@ -32,21 +32,25 @@ Basic Usage
    print(f"Initial assets: ${manufacturer.total_assets:,.0f}")
    print(f"Base operating margin: {manufacturer.config.base_operating_margin:.1%}")
 
-3. Generate Claims
+3. Generate Losses
 ~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   from ergodic_insurance.claim_generator import ClaimGenerator
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
-   # Set up claim generator
-   generator = ClaimGenerator()
+   # Set up loss generator
+   generator = ManufacturingLossGenerator.create_simple(
+       frequency=5,
+       severity_mean=100_000,
+       severity_std=50_000,
+       seed=42
+   )
 
-   # Generate annual claims
-   claims = generator.generate_claims(
-       n_years=1,
-       attritional_frequency=5,
-       large_loss_frequency=0.2
+   # Generate annual losses
+   losses, stats = generator.generate_losses(
+       duration=1,
+       revenue=10_000_000
    )
 
 4. Run Simulation
@@ -59,14 +63,15 @@ Basic Usage
    # Create and run simulation
    sim = Simulation(
        manufacturer=manufacturer,
-       claim_generator=generator,
-       config=config.simulation
+       loss_generator=generator,
+       time_horizon=10
    )
 
-   results = sim.run(years=10)
+   results = sim.run()
+   stats = results.summary_stats()
 
-   print(f"Final equity: ${results['final_equity']:,.0f}")
-   print(f"Average ROE: {results['avg_roe']:.1%}")
+   print(f"Final equity: ${stats['final_equity']:,.0f}")
+   print(f"Average ROE: {stats['mean_roe']:.1%}")
 
 Complete Example
 ----------------
@@ -77,7 +82,7 @@ Here's a complete example that demonstrates the key features:
 
    from ergodic_insurance.config_manager import ConfigManager
    from ergodic_insurance.manufacturer import WidgetManufacturer
-   from ergodic_insurance.claim_generator import ClaimGenerator
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
    from ergodic_insurance.insurance import optimize_insurance_limit
 
    # Configuration
@@ -90,12 +95,17 @@ Here's a complete example that demonstrates the key features:
 
    # Setup
    manufacturer = WidgetManufacturer(config.manufacturer)
-   generator = ClaimGenerator()
+   generator = ManufacturingLossGenerator.create_simple(
+       frequency=5,
+       severity_mean=100_000,
+       severity_std=50_000,
+       seed=42
+   )
 
    # Optimize insurance
    optimal_limit = optimize_insurance_limit(
        manufacturer=manufacturer,
-       claim_generator=generator,
+       loss_generator=generator,
        limits_to_test=[5e6, 10e6, 15e6, 20e6],
        n_simulations=100
    )

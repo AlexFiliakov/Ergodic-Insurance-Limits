@@ -174,7 +174,7 @@ Performance Considerations:
 Integration Points:
     - :mod:`~ergodic_insurance.config`: Parameter configuration and validation
     - :mod:`~ergodic_insurance.stochastic_processes`: Uncertainty modeling
-    - :mod:`~ergodic_insurance.claim_generator`: Automated claim generation
+    - :mod:`~ergodic_insurance.loss_distributions`: Automated loss generation
     - :mod:`~ergodic_insurance.insurance_program`: Multi-layer insurance structures
     - :mod:`~ergodic_insurance.simulation`: High-level simulation orchestration
 
@@ -415,13 +415,13 @@ class WidgetManufacturer:
             manufacturer = WidgetManufacturer(config)
 
             for year in range(10):
-                # Generate claims for this year
-                claims = claim_generator.generate_claims()
+                # Generate losses for this year
+                losses, _ = loss_generator.generate_losses(duration=1, revenue=revenue)
 
-                # Process claims through insurance
-                for claim in claims:
+                # Process losses through insurance
+                for loss in losses:
                     manufacturer.process_insurance_claim(
-                        claim.amount, deductible, limit
+                        loss.amount, deductible, limit
                     )
 
                 # Run annual business operations

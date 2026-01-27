@@ -2,7 +2,9 @@
 
 ## Overview
 
-The `ClaimGenerator` class is deprecated as of version 0.2.0 and will be removed in version 1.0.0. This guide helps you migrate to `ManufacturingLossGenerator`, which provides better statistical independence, multiple loss types, and more sophisticated risk modeling.
+**Note**: As of version 1.0.0, the `ClaimGenerator` class has been removed. All code must now use `ManufacturingLossGenerator`. This guide documents the migration patterns for reference.
+
+The `ManufacturingLossGenerator` provides better statistical independence, multiple loss types, and more sophisticated risk modeling compared to the legacy `ClaimGenerator`.
 
 ## Why Migrate?
 
@@ -198,13 +200,11 @@ class LossEvent:
 ### Conversion Example
 
 ```python
-# If you need ClaimEvent format
-from ergodic_insurance.claim_generator import ClaimEvent
-
+# LossEvent to dictionary conversion (ClaimEvent no longer available)
 losses, stats = generator.generate_losses(duration=10, revenue=10_000_000)
 
-# Convert LossEvent to ClaimEvent
-claims = [ClaimEvent(year=int(loss.time), amount=loss.amount) for loss in losses]
+# Convert LossEvent to simple dict format if needed
+claims = [{"year": int(loss.time), "amount": loss.amount} for loss in losses]
 ```
 
 ## Testing Considerations
@@ -302,6 +302,6 @@ For questions or issues during migration:
 
 - **Version 0.2.0**: ClaimGenerator deprecated (deprecation warnings added)
 - **Version 0.5.0**: ClaimGenerator marked as legacy (moved to `ergodic_insurance.legacy`)
-- **Version 1.0.0**: ClaimGenerator removed entirely
+- **Version 1.0.0**: ClaimGenerator removed entirely (current version)
 
-Migrate before version 1.0.0 to avoid breaking changes!
+The ClaimGenerator module has been removed. Use ManufacturingLossGenerator for all new code.
