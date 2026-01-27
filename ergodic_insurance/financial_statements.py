@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import pandas as pd
 
 if TYPE_CHECKING:
+    from .ledger import Ledger
     from .manufacturer import WidgetManufacturer
 
 
@@ -56,55 +57,98 @@ class FinancialStatementConfig:
 
 
 class CashFlowStatement:
-    """Generates cash flow statements using indirect method.
+    """Generates cash flow statements using indirect or direct method.
 
     This class creates properly structured cash flow statements with three
     sections (Operating, Investing, Financing) following GAAP standards.
-    Uses the indirect method starting from net income for operating activities.
+    Supports both the indirect method (starting from net income) and the
+    direct method (summing ledger entries) for operating activities.
+
+    When a ledger is provided, the direct method is available, which provides
+    perfect reconciliation and audit trail for all cash flows.
 
     Attributes:
         metrics_history: List of metrics dictionaries from simulation
         config: Configuration object with business parameters
+        ledger: Optional Ledger for direct method cash flow generation
     """
 
     def __init__(
         self,
         metrics_history: List[Dict[str, Union[int, float]]],
         config: Optional[Any] = None,
+        ledger: Optional["Ledger"] = None,
     ):
         """Initialize cash flow statement generator.
 
         Args:
             metrics_history: List of annual metrics from manufacturer
             config: Optional configuration object
+            ledger: Optional Ledger instance for direct method cash flow.
+                When provided, enables direct method generation which sums
+                actual cash transactions rather than inferring from balance
+                sheet deltas.
         """
         self.metrics_history = metrics_history
         self.config = config
+        self.ledger = ledger
 
-    def generate_statement(self, year: int, period: str = "annual") -> pd.DataFrame:
+    def generate_statement(
+        self, year: int, period: str = "annual", method: str = "indirect"
+    ) -> pd.DataFrame:
         """Generate cash flow statement for specified year.
 
         Args:
             year: Year index (0-based) for statement
             period: 'annual' or 'monthly' period type
+            method: 'indirect' (default) or 'direct'. Direct method requires
+                a ledger to be provided during initialization.
 
         Returns:
             DataFrame containing formatted cash flow statement
+
+        Raises:
+            IndexError: If year is out of range
+            ValueError: If direct method requested but no ledger available
         """
         if year >= len(self.metrics_history) or year < 0:
             raise IndexError(f"Year {year} out of range")
 
+        if method == "direct" and self.ledger is None:
+            raise ValueError(
+                "Direct method requires a ledger. Provide a Ledger instance "
+                "when initializing CashFlowStatement."
+            )
+
         current_metrics = self.metrics_history[year]
         prior_metrics = self.metrics_history[year - 1] if year > 0 else {}
 
-        # Generate the three sections
-        operating_cf = self._calculate_operating_cash_flow(current_metrics, prior_metrics, period)
-        investing_cf = self._calculate_investing_cash_flow(current_metrics, prior_metrics, period)
-        financing_cf = self._calculate_financing_cash_flow(current_metrics, prior_metrics, period)
+        # Generate the three sections based on method
+        if method == "direct" and self.ledger is not None:
+            operating_cf = self._calculate_operating_cash_flow_direct(year, period)
+            investing_cf = self._calculate_investing_cash_flow_direct(year, period)
+            financing_cf = self._calculate_financing_cash_flow_direct(year, period)
+        else:
+            operating_cf = self._calculate_operating_cash_flow(
+                current_metrics, prior_metrics, period
+            )
+            investing_cf = self._calculate_investing_cash_flow(
+                current_metrics, prior_metrics, period
+            )
+            financing_cf = self._calculate_financing_cash_flow(
+                current_metrics, prior_metrics, period
+            )
 
         # Format the complete statement
         return self._format_statement(
-            operating_cf, investing_cf, financing_cf, current_metrics, prior_metrics, year, period
+            operating_cf,
+            investing_cf,
+            financing_cf,
+            current_metrics,
+            prior_metrics,
+            year,
+            period,
+            method,
         )
 
     def _calculate_operating_cash_flow(
@@ -328,6 +372,95 @@ class CashFlowStatement:
         dividends: float = net_income * (1 - retention_ratio)
         return dividends
 
+    def _calculate_operating_cash_flow_direct(self, year: int, period: str) -> Dict[str, float]:
+        """Calculate operating cash flow using direct method from ledger.
+
+        The direct method sums actual cash transactions from the ledger,
+        providing perfect audit trail and reconciliation.
+
+        Args:
+            year: Period to extract cash flows for
+            period: 'annual' or 'monthly'
+
+        Returns:
+            Dictionary with operating cash flow components
+        """
+        if self.ledger is None:
+            raise ValueError("Direct method requires a ledger")
+
+        flows = self.ledger.get_cash_flows(period=year)
+
+        operating_items = {
+            "cash_from_customers": flows.get("cash_from_customers", 0),
+            "cash_from_insurance": flows.get("cash_from_insurance", 0),
+            "cash_to_suppliers": -flows.get("cash_to_suppliers", 0),
+            "cash_for_insurance": -flows.get("cash_for_insurance", 0),
+            "cash_for_taxes": -flows.get("cash_for_taxes", 0),
+            "cash_for_wages": -flows.get("cash_for_wages", 0),
+        }
+
+        # Calculate total
+        operating_items["total"] = sum(operating_items.values())
+
+        if period == "monthly":
+            operating_items = {k: v / 12 for k, v in operating_items.items()}
+
+        return operating_items
+
+    def _calculate_investing_cash_flow_direct(self, year: int, period: str) -> Dict[str, float]:
+        """Calculate investing cash flow using direct method from ledger.
+
+        Args:
+            year: Period to extract cash flows for
+            period: 'annual' or 'monthly'
+
+        Returns:
+            Dictionary with investing cash flow components
+        """
+        if self.ledger is None:
+            raise ValueError("Direct method requires a ledger")
+
+        flows = self.ledger.get_cash_flows(period=year)
+
+        investing_items = {
+            "capital_expenditures": -flows.get("capital_expenditures", 0),
+            "asset_sales": flows.get("asset_sales", 0),
+        }
+
+        investing_items["total"] = sum(investing_items.values())
+
+        if period == "monthly":
+            investing_items = {k: v / 12 for k, v in investing_items.items()}
+
+        return investing_items
+
+    def _calculate_financing_cash_flow_direct(self, year: int, period: str) -> Dict[str, float]:
+        """Calculate financing cash flow using direct method from ledger.
+
+        Args:
+            year: Period to extract cash flows for
+            period: 'annual' or 'monthly'
+
+        Returns:
+            Dictionary with financing cash flow components
+        """
+        if self.ledger is None:
+            raise ValueError("Direct method requires a ledger")
+
+        flows = self.ledger.get_cash_flows(period=year)
+
+        financing_items = {
+            "dividends_paid": -flows.get("dividends_paid", 0),
+            "equity_issuance": flows.get("equity_issuance", 0),
+        }
+
+        financing_items["total"] = sum(financing_items.values())
+
+        if period == "monthly":
+            financing_items = {k: v / 12 for k, v in financing_items.items()}
+
+        return financing_items
+
     def _format_statement(
         self,
         operating: Dict[str, float],
@@ -337,6 +470,7 @@ class CashFlowStatement:
         prior_metrics: Dict[str, float],
         year: int,
         period: str,
+        method: str = "indirect",
     ) -> pd.DataFrame:
         """Format the cash flow statement into a DataFrame.
 
@@ -348,6 +482,7 @@ class CashFlowStatement:
             prior_metrics: Prior period metrics
             year: Year index
             period: 'annual' or 'monthly'
+            method: 'indirect' or 'direct' - affects formatting
 
         Returns:
             Formatted DataFrame with cash flow statement
@@ -356,35 +491,61 @@ class CashFlowStatement:
         period_label = "Month" if period == "monthly" else "Year"
 
         # OPERATING ACTIVITIES SECTION
-        cash_flow_data.append(("CASH FLOWS FROM OPERATING ACTIVITIES", "", ""))
-        cash_flow_data.append(("  Net Income", operating["net_income"], ""))
-        cash_flow_data.append(("  Adjustments to reconcile net income to cash:", "", ""))
-        cash_flow_data.append(("    Depreciation and Amortization", operating["depreciation"], ""))
+        if method == "direct":
+            cash_flow_data.append(("CASH FLOWS FROM OPERATING ACTIVITIES (Direct Method)", "", ""))
+            # Direct method shows actual cash receipts and payments
+            if operating.get("cash_from_customers", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Received from Customers", operating["cash_from_customers"], "")
+                )
+            if operating.get("cash_from_insurance", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Received from Insurance", operating["cash_from_insurance"], "")
+                )
+            if operating.get("cash_to_suppliers", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Paid to Suppliers", operating["cash_to_suppliers"], "")
+                )
+            if operating.get("cash_for_insurance", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Paid for Insurance", operating["cash_for_insurance"], "")
+                )
+            if operating.get("cash_for_taxes", 0) != 0:
+                cash_flow_data.append(("  Cash Paid for Taxes", operating["cash_for_taxes"], ""))
+            if operating.get("cash_for_wages", 0) != 0:
+                cash_flow_data.append(("  Cash Paid for Wages", operating["cash_for_wages"], ""))
+        else:
+            cash_flow_data.append(("CASH FLOWS FROM OPERATING ACTIVITIES", "", ""))
+            cash_flow_data.append(("  Net Income", operating["net_income"], ""))
+            cash_flow_data.append(("  Adjustments to reconcile net income to cash:", "", ""))
+            cash_flow_data.append(
+                ("    Depreciation and Amortization", operating["depreciation"], "")
+            )
 
-        # Working capital changes
-        cash_flow_data.append(("  Changes in operating assets and liabilities:", "", ""))
-        if operating["accounts_receivable_change"] != 0:
-            cash_flow_data.append(
-                ("    Accounts Receivable", operating["accounts_receivable_change"], "")
-            )
-        if operating["inventory_change"] != 0:
-            cash_flow_data.append(("    Inventory", operating["inventory_change"], ""))
-        if operating["prepaid_insurance_change"] != 0:
-            cash_flow_data.append(
-                ("    Prepaid Insurance", operating["prepaid_insurance_change"], "")
-            )
-        if operating["accounts_payable_change"] != 0:
-            cash_flow_data.append(
-                ("    Accounts Payable", operating["accounts_payable_change"], "")
-            )
-        if operating["accrued_expenses_change"] != 0:
-            cash_flow_data.append(
-                ("    Accrued Expenses", operating["accrued_expenses_change"], "")
-            )
-        if operating["claim_liabilities_change"] != 0:
-            cash_flow_data.append(
-                ("    Claim Liabilities", operating["claim_liabilities_change"], "")
-            )
+            # Working capital changes
+            cash_flow_data.append(("  Changes in operating assets and liabilities:", "", ""))
+            if operating["accounts_receivable_change"] != 0:
+                cash_flow_data.append(
+                    ("    Accounts Receivable", operating["accounts_receivable_change"], "")
+                )
+            if operating["inventory_change"] != 0:
+                cash_flow_data.append(("    Inventory", operating["inventory_change"], ""))
+            if operating["prepaid_insurance_change"] != 0:
+                cash_flow_data.append(
+                    ("    Prepaid Insurance", operating["prepaid_insurance_change"], "")
+                )
+            if operating["accounts_payable_change"] != 0:
+                cash_flow_data.append(
+                    ("    Accounts Payable", operating["accounts_payable_change"], "")
+                )
+            if operating["accrued_expenses_change"] != 0:
+                cash_flow_data.append(
+                    ("    Accrued Expenses", operating["accrued_expenses_change"], "")
+                )
+            if operating["claim_liabilities_change"] != 0:
+                cash_flow_data.append(
+                    ("    Claim Liabilities", operating["claim_liabilities_change"], "")
+                )
 
         cash_flow_data.append(
             ("  Net Cash Provided by Operating Activities", operating["total"], "subtotal")
@@ -394,6 +555,8 @@ class CashFlowStatement:
         # INVESTING ACTIVITIES SECTION
         cash_flow_data.append(("CASH FLOWS FROM INVESTING ACTIVITIES", "", ""))
         cash_flow_data.append(("  Capital Expenditures", investing["capital_expenditures"], ""))
+        if method == "direct" and investing.get("asset_sales", 0) != 0:
+            cash_flow_data.append(("  Proceeds from Asset Sales", investing["asset_sales"], ""))
         cash_flow_data.append(
             ("  Net Cash Used in Investing Activities", investing["total"], "subtotal")
         )
@@ -403,6 +566,10 @@ class CashFlowStatement:
         cash_flow_data.append(("CASH FLOWS FROM FINANCING ACTIVITIES", "", ""))
         if financing["dividends_paid"] != 0:
             cash_flow_data.append(("  Dividends Paid", financing["dividends_paid"], ""))
+        if method == "direct" and financing.get("equity_issuance", 0) != 0:
+            cash_flow_data.append(
+                ("  Proceeds from Equity Issuance", financing["equity_issuance"], "")
+            )
         cash_flow_data.append(
             ("  Net Cash Used in Financing Activities", financing["total"], "subtotal")
         )
@@ -421,9 +588,6 @@ class CashFlowStatement:
         else:
             # First year - calculate implied beginning cash
             beginning_cash = ending_cash - net_cash_flow
-
-        # The actual cash change
-        actual_cash_change = ending_cash - beginning_cash
 
         # Use the actual cash change instead of calculated net_cash_flow
         # This ensures perfect reconciliation
@@ -445,11 +609,16 @@ class FinancialStatementGenerator:
     It handles both annual and monthly data, performs reconciliation
     checks, and calculates derived financial metrics.
 
+    When a ledger is provided (either directly or via the manufacturer),
+    direct method cash flow statements can be generated, providing perfect
+    reconciliation and audit trail for all cash transactions.
+
     Attributes:
         manufacturer_data: Raw simulation data from manufacturer
         config: Configuration for statement generation
         metrics_history: List of metrics dictionaries from simulation
         years_available: Number of years of data available
+        ledger: Optional Ledger for direct method cash flow generation
     """
 
     def __init__(
@@ -457,13 +626,18 @@ class FinancialStatementGenerator:
         manufacturer: Optional["WidgetManufacturer"] = None,
         manufacturer_data: Optional[Dict[str, Any]] = None,
         config: Optional[FinancialStatementConfig] = None,
+        ledger: Optional["Ledger"] = None,
     ):
         """Initialize financial statement generator.
 
         Args:
-            manufacturer: WidgetManufacturer instance with simulation data
+            manufacturer: WidgetManufacturer instance with simulation data.
+                If the manufacturer has a ledger attribute, it will be used
+                for direct method cash flow generation.
             manufacturer_data: Alternative dictionary of manufacturer data
             config: Configuration for statement generation
+            ledger: Optional Ledger instance for direct method cash flow.
+                Overrides any ledger from manufacturer.
 
         Raises:
             ValueError: If neither manufacturer nor manufacturer_data provided
@@ -475,12 +649,16 @@ class FinancialStatementGenerator:
                 "initial_assets": manufacturer.config.initial_assets,
                 "config": manufacturer.config,
             }
+            # Use ledger from manufacturer if available and not overridden
+            if ledger is None and hasattr(manufacturer, "ledger"):
+                ledger = manufacturer.ledger
         elif manufacturer_data is not None:
             self.manufacturer_data = manufacturer_data
         else:
             raise ValueError("Either manufacturer or manufacturer_data must be provided")
 
         self.config = config or FinancialStatementConfig()
+        self.ledger = ledger
 
         # Resolve fiscal_year_end from central config if not explicitly set
         if self.config.fiscal_year_end is None:
@@ -1026,21 +1204,29 @@ class FinancialStatementGenerator:
     def generate_cash_flow_statement(
         self, year: int, period: str = "annual", method: str = "indirect"
     ) -> pd.DataFrame:
-        """Generate cash flow statement for specified year using new CashFlowStatement class.
+        """Generate cash flow statement for specified year using CashFlowStatement class.
 
         Creates a cash flow statement with three distinct sections (Operating,
-        Investing, Financing) using the indirect method for operating activities.
+        Investing, Financing). Supports both indirect method (starting from
+        net income) and direct method (summing ledger entries) for operating
+        activities.
+
+        The direct method requires a ledger to be available (either provided
+        during initialization or from the manufacturer). It provides perfect
+        reconciliation and audit trail for all cash transactions.
 
         Args:
             year: Year index (0-based) for cash flow statement
             period: 'annual' or 'monthly' for period type
-            method: 'indirect' method for operating activities (direct not implemented)
+            method: 'indirect' (default) or 'direct'. Direct method requires
+                a ledger to be available.
 
         Returns:
             DataFrame containing cash flow statement data
 
         Raises:
             IndexError: If year is out of range
+            ValueError: If direct method requested but no ledger available
         """
         # Update metrics cache to get latest data
         self._update_metrics_cache()
@@ -1048,13 +1234,15 @@ class FinancialStatementGenerator:
         if year >= self.years_available or year < 0:
             raise IndexError(f"Year {year} out of range. Available: 0-{self.years_available-1}")
 
-        # Create CashFlowStatement instance
+        # Create CashFlowStatement instance with ledger if available
         cash_flow_generator = CashFlowStatement(
-            self.metrics_history, self.manufacturer_data.get("config")
+            self.metrics_history,
+            self.manufacturer_data.get("config"),
+            ledger=self.ledger,
         )
 
-        # Generate and return the statement
-        return cash_flow_generator.generate_statement(year, period=period)
+        # Generate and return the statement with specified method
+        return cash_flow_generator.generate_statement(year, period=period, method=method)
 
     def _build_operating_activities(
         self,
