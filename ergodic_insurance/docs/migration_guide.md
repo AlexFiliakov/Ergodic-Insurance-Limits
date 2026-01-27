@@ -186,7 +186,7 @@ variant = config.with_overrides(
 
 ```python
 # Validate a configuration
-from ergodic_insurance.config_v2 import ConfigV2
+from ergodic_insurance.config import ConfigV2
 
 config = manager.load_profile("default")
 assert isinstance(config, ConfigV2)  # New config type

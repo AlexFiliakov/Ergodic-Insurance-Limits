@@ -211,7 +211,7 @@ except ValidationError as e:
 ### 2. Use Type Hints
 
 ```python
-from ergodic_insurance.config_v2 import ConfigV2
+from ergodic_insurance.config import ConfigV2
 
 def run_analysis(config: ConfigV2) -> dict:
     """Run analysis with validated configuration."""

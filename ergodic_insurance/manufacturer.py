@@ -25,7 +25,7 @@ Key Components:
 Examples:
     Basic manufacturer setup and simulation::
 
-        from ergodic_insurance.config_v2 import ManufacturerConfig
+        from ergodic_insurance.config import ManufacturerConfig
         from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Configure manufacturer with realistic parameters
@@ -172,14 +172,14 @@ Performance Considerations:
     - Reset and copy methods enable parallel simulation scenarios
 
 Integration Points:
-    - :mod:`~ergodic_insurance.config_v2`: Parameter configuration and validation
+    - :mod:`~ergodic_insurance.config`: Parameter configuration and validation
     - :mod:`~ergodic_insurance.stochastic_processes`: Uncertainty modeling
     - :mod:`~ergodic_insurance.claim_generator`: Automated claim generation
     - :mod:`~ergodic_insurance.insurance_program`: Multi-layer insurance structures
     - :mod:`~ergodic_insurance.simulation`: High-level simulation orchestration
 
 See Also:
-    :class:`~ergodic_insurance.config_v2.ManufacturerConfig`: Configuration parameters
+    :class:`~ergodic_insurance.config.ManufacturerConfig`: Configuration parameters
     :mod:`~ergodic_insurance.stochastic_processes`: Stochastic modeling options
     :mod:`~ergodic_insurance.claim_development`: Advanced actuarial patterns
     :mod:`~ergodic_insurance.simulation`: Simulation framework integration

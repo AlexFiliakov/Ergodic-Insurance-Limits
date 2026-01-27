@@ -12,20 +12,18 @@ import yaml
 
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.config import Config
+    from ergodic_insurance.config import Config, ConfigV2
     from ergodic_insurance.config_manager import ConfigManager
-    from ergodic_insurance.config_v2 import ConfigV2
 except ImportError:
     try:
         # Try relative import (for package context)
-        from .config import Config
+        from .config import Config, ConfigV2
         from .config_manager import ConfigManager
-        from .config_v2 import ConfigV2
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
         from config import Config  # type: ignore[no-redef]
+        from config import ConfigV2  # type: ignore[no-redef]
         from config_manager import ConfigManager  # type: ignore[no-redef]
-        from config_v2 import ConfigV2  # type: ignore[no-redef]
 
 
 class LegacyConfigAdapter:

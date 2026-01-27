@@ -11,8 +11,8 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
-from ergodic_insurance.config_v2 import ConfigV2
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 

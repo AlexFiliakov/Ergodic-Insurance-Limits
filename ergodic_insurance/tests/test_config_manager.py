@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+from ergodic_insurance.config import ConfigV2, ProfileMetadata
 from ergodic_insurance.config_manager import ConfigManager
-from ergodic_insurance.config_v2 import ConfigV2, ProfileMetadata
 
 
 class TestConfigManager:

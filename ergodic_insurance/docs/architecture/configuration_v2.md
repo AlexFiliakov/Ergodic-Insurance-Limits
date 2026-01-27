@@ -310,8 +310,8 @@ class LegacyConfigAdapter:
         """Load config using old interface."""
         # Maps to new system internally
         profile_name = self._map_legacy_name(config_name)
-        config_v2 = self.config_manager.load_profile(profile_name)
-        return self._convert_to_legacy(config_v2)
+        config = self.config_manager.load_profile(profile_name)
+        return self._convert_to_legacy(config)
 ```
 
 ### Migration Tool

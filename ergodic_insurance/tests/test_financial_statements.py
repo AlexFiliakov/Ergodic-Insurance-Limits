@@ -11,8 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.config_v2 import ExpenseRatioConfig
+from ergodic_insurance.config import ExpenseRatioConfig, ManufacturerConfig
 from ergodic_insurance.financial_statements import (
     FinancialStatementConfig,
     FinancialStatementGenerator,

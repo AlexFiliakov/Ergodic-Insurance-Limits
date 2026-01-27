@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.batch_processor import BatchProcessor
-from ergodic_insurance.config_v2 import ConfigV2
+from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer

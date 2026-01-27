@@ -2,8 +2,7 @@
 
 import pytest
 
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.config_v2 import WorkingCapitalRatiosConfig
+from ergodic_insurance.config import ManufacturerConfig, WorkingCapitalRatiosConfig
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 

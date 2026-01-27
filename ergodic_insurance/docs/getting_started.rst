@@ -37,7 +37,7 @@ Here's a simple example to get you started:
     from ergodic_insurance.manufacturer import WidgetManufacturer
     from ergodic_insurance.claim_generator import ClaimGenerator
     from ergodic_insurance.manufacturer import WidgetManufacturer
-    from ergodic_insurance.config_v2 import ManufacturerConfig
+    from ergodic_insurance.config import ManufacturerConfig
 
     # Create configuration
     manufacturer_config = ManufacturerConfig(
@@ -143,7 +143,7 @@ You can override any parameter programmatically:
 .. code-block:: python
 
     # Create configuration with custom parameters
-    from ergodic_insurance.config_v2 import ManufacturerConfig
+    from ergodic_insurance.config import ManufacturerConfig
 
     config = ManufacturerConfig(
         initial_assets=10_000_000,

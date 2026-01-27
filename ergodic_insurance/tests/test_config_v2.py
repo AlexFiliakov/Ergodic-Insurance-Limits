@@ -13,23 +13,21 @@ import pytest
 import yaml
 
 from ergodic_insurance.config import (
+    ConfigV2,
     DebtConfig,
     GrowthConfig,
-    LoggingConfig,
-    ManufacturerConfig,
-    OutputConfig,
-    SimulationConfig,
-    WorkingCapitalConfig,
-)
-from ergodic_insurance.config_v2 import (
-    ConfigV2,
     InsuranceConfig,
     InsuranceLayerConfig,
+    LoggingConfig,
     LossDistributionConfig,
+    ManufacturerConfig,
     ModuleConfig,
+    OutputConfig,
     PresetConfig,
     PresetLibrary,
     ProfileMetadata,
+    SimulationConfig,
+    WorkingCapitalConfig,
 )
 
 
