@@ -41,7 +41,9 @@ class FinancialStatementConfig:
         decimal_places: Number of decimal places for numeric values
         include_yoy_change: Whether to include year-over-year changes
         include_percentages: Whether to include percentage breakdowns
-        fiscal_year_end: Month of fiscal year end (1-12)
+        fiscal_year_end: Month of fiscal year end (1-12). If None, inherits from
+            the central Config.simulation.fiscal_year_end setting. Defaults to 12
+            (December) if neither is set, for calendar year alignment.
         consolidate_monthly: Whether to consolidate monthly data into annual
     """
 
@@ -49,7 +51,7 @@ class FinancialStatementConfig:
     decimal_places: int = 0
     include_yoy_change: bool = True
     include_percentages: bool = True
-    fiscal_year_end: int = 12
+    fiscal_year_end: Optional[int] = None
     consolidate_monthly: bool = True
 
 
@@ -468,6 +470,18 @@ class FinancialStatementGenerator:
             raise ValueError("Either manufacturer or manufacturer_data must be provided")
 
         self.config = config or FinancialStatementConfig()
+
+        # Resolve fiscal_year_end from central config if not explicitly set
+        if self.config.fiscal_year_end is None:
+            central_config = self.manufacturer_data.get("config")
+            if central_config is not None and hasattr(central_config, "simulation"):
+                simulation_config = central_config.simulation
+                if hasattr(simulation_config, "fiscal_year_end"):
+                    self.config.fiscal_year_end = simulation_config.fiscal_year_end
+            # Fall back to default of 12 (December) if still not set
+            if self.config.fiscal_year_end is None:
+                self.config.fiscal_year_end = 12
+
         self._update_metrics_cache()
 
     def _update_metrics_cache(self):
@@ -1378,6 +1392,10 @@ class MonteCarloStatementAggregator:
         """
         self.results = monte_carlo_results
         self.config = config or FinancialStatementConfig()
+
+        # Default fiscal_year_end to 12 if not set (no central config available here)
+        if self.config.fiscal_year_end is None:
+            self.config.fiscal_year_end = 12
 
     def aggregate_balance_sheets(
         self, year: int, percentiles: Optional[List[float]] = None
