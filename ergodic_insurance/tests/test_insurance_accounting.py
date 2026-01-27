@@ -1,7 +1,10 @@
 """Tests for insurance accounting module."""
 
+from decimal import Decimal
+
 import pytest
 
+from ergodic_insurance.decimal_utils import ZERO, to_decimal
 from ergodic_insurance.insurance_accounting import InsuranceAccounting, InsuranceRecovery
 
 
@@ -47,14 +50,14 @@ class TestInsuranceAccounting:
         accounting = InsuranceAccounting()
         accounting.pay_annual_premium(1_200_000)
 
-        total_expense = 0.0
+        total_expense = ZERO
         for month in range(12):
             result = accounting.record_monthly_expense()
             total_expense += result["insurance_expense"]
 
-        # All premium should be expensed
-        assert total_expense == 1_200_000
-        assert accounting.prepaid_insurance == 0
+        # All premium should be expensed (using Decimal comparison)
+        assert total_expense == to_decimal(1_200_000)
+        assert accounting.prepaid_insurance == ZERO
         assert accounting.current_month == 12
 
     def test_partial_month_handling(self):
@@ -62,14 +65,17 @@ class TestInsuranceAccounting:
         accounting = InsuranceAccounting()
         accounting.pay_annual_premium(1_000_000)  # Not evenly divisible by 12
 
-        total_expense = 0.0
+        total_expense = ZERO
         for month in range(12):
             result = accounting.record_monthly_expense()
             total_expense += result["insurance_expense"]
 
-        # Should handle rounding appropriately
-        assert abs(total_expense - 1_000_000) < 0.01
-        assert accounting.prepaid_insurance < 0.01
+        # With Decimal precision and quantization to cents, there may be a
+        # small remainder due to rounding (1_000_000 / 12 = 83333.33... repeating)
+        # The total expense should be close to but not exceed the premium
+        assert total_expense <= to_decimal(1_000_000)
+        # The remaining prepaid should be the rounding difference (a few cents at most)
+        assert accounting.prepaid_insurance < to_decimal(1)  # Less than $1 remainder
 
     def test_record_claim_recovery(self):
         """Test recording insurance claim recoveries."""

@@ -31,9 +31,12 @@ Example:
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import uuid
+
+from .decimal_utils import ZERO, is_zero, quantize_currency, to_decimal
 
 
 class AccountType(Enum):
@@ -123,7 +126,7 @@ class LedgerEntry:
 
     date: int  # Year/period
     account: str
-    amount: float
+    amount: Decimal
     entry_type: EntryType
     transaction_type: TransactionType
     description: str = ""
@@ -133,11 +136,14 @@ class LedgerEntry:
 
     def __post_init__(self) -> None:
         """Validate entry after initialization."""
-        if self.amount < 0:
+        # Convert amount to Decimal if not already (runtime check for backwards compatibility)
+        if not isinstance(self.amount, Decimal):
+            object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
+        if self.amount < ZERO:
             raise ValueError(f"Ledger entry amount must be non-negative, got {self.amount}")
 
     @property
-    def signed_amount(self) -> float:
+    def signed_amount(self) -> Decimal:
         """Return amount with sign based on entry type.
 
         For balance calculations:
@@ -233,7 +239,7 @@ class Ledger:
         date: int,
         debit_account: str,
         credit_account: str,
-        amount: float,
+        amount: Union[Decimal, float, int],
         transaction_type: TransactionType,
         description: str = "",
         month: int = 0,
@@ -246,7 +252,7 @@ class Ledger:
             date: Period (year) of the transaction
             debit_account: Account to debit (increase assets/expenses)
             credit_account: Account to credit (increase liabilities/equity/revenue)
-            amount: Dollar amount of the transaction
+            amount: Dollar amount of the transaction (converted to Decimal)
             transaction_type: Classification for cash flow mapping
             description: Human-readable description
             month: Optional month within the year (0-11)
@@ -269,16 +275,19 @@ class Ledger:
                     description="Cash sales"
                 )
         """
-        if amount < 0:
+        # Convert to Decimal for precise calculations
+        amount = to_decimal(amount)
+
+        if amount < ZERO:
             raise ValueError(f"Transaction amount must be non-negative, got {amount}")
 
-        if amount == 0:
+        if amount == ZERO:
             # Skip zero-amount transactions
             return (
                 LedgerEntry(
                     date=date,
                     account=debit_account,
-                    amount=0,
+                    amount=ZERO,
                     entry_type=EntryType.DEBIT,
                     transaction_type=transaction_type,
                     description=description,
@@ -287,7 +296,7 @@ class Ledger:
                 LedgerEntry(
                     date=date,
                     account=credit_account,
-                    amount=0,
+                    amount=ZERO,
                     entry_type=EntryType.CREDIT,
                     transaction_type=transaction_type,
                     description=description,
@@ -328,7 +337,7 @@ class Ledger:
 
         return debit_entry, credit_entry
 
-    def get_balance(self, account: str, as_of_date: Optional[int] = None) -> float:
+    def get_balance(self, account: str, as_of_date: Optional[int] = None) -> Decimal:
         """Calculate the balance for an account.
 
         Args:
@@ -336,7 +345,8 @@ class Ledger:
             as_of_date: Optional period to calculate balance as of (inclusive)
 
         Returns:
-            Current balance of the account, properly signed based on account type:
+            Current balance of the account as Decimal, properly signed based on
+            account type:
             - Assets/Expenses: positive = debit balance
             - Liabilities/Equity/Revenue: positive = credit balance
 
@@ -348,7 +358,7 @@ class Ledger:
         """
         account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
 
-        total = 0.0
+        total = ZERO
         for entry in self.entries:
             if entry.account != account:
                 continue
@@ -371,7 +381,7 @@ class Ledger:
 
         return total
 
-    def get_period_change(self, account: str, period: int, month: Optional[int] = None) -> float:
+    def get_period_change(self, account: str, period: int, month: Optional[int] = None) -> Decimal:
         """Calculate the change in account balance for a specific period.
 
         Args:
@@ -380,11 +390,11 @@ class Ledger:
             month: Optional specific month within the period
 
         Returns:
-            Net change in account balance during the period
+            Net change in account balance during the period as Decimal
         """
         account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
 
-        total = 0.0
+        total = ZERO
         for entry in self.entries:
             if entry.account != account:
                 continue
@@ -457,7 +467,7 @@ class Ledger:
         period: int,
         account: Optional[str] = None,
         entry_type: Optional[EntryType] = None,
-    ) -> float:
+    ) -> Decimal:
         """Sum entries by transaction type for cash flow extraction.
 
         Args:
@@ -467,7 +477,7 @@ class Ledger:
             entry_type: Optional debit/credit filter
 
         Returns:
-            Sum of matching entries (absolute value)
+            Sum of matching entries as Decimal (absolute value)
 
         Example:
             Get total collections for year 5::
@@ -479,7 +489,7 @@ class Ledger:
                     entry_type=EntryType.DEBIT
                 )
         """
-        total = 0.0
+        total = ZERO
 
         for entry in self.entries:
             if entry.transaction_type != transaction_type:
@@ -495,7 +505,7 @@ class Ledger:
 
         return total
 
-    def get_cash_flows(self, period: int) -> Dict[str, float]:
+    def get_cash_flows(self, period: int) -> Dict[str, Decimal]:
         """Extract cash flows for direct method cash flow statement.
 
         Sums all cash-affecting transactions by category for the specified period.
@@ -504,7 +514,7 @@ class Ledger:
             period: Year/period to extract cash flows for
 
         Returns:
-            Dictionary with cash flow categories:
+            Dictionary with cash flow categories as Decimal values:
             - cash_from_customers: Collections on AR + cash sales
             - cash_to_suppliers: Inventory + expense payments
             - cash_for_insurance: Premium payments
@@ -524,7 +534,7 @@ class Ledger:
                 print(f"Investing: ${flows['net_investing']:,.0f}")
                 print(f"Financing: ${flows['net_financing']:,.0f}")
         """
-        flows: Dict[str, float] = {}
+        flows: Dict[str, Decimal] = {}
 
         # Cash receipts (debits to cash)
         flows["cash_from_customers"] = self.sum_by_transaction_type(
@@ -591,13 +601,13 @@ class Ledger:
 
         return flows
 
-    def verify_balance(self) -> Tuple[bool, float]:
+    def verify_balance(self) -> Tuple[bool, Decimal]:
         """Verify that debits equal credits (accounting equation).
 
         Returns:
             Tuple of (is_balanced, difference)
-            - is_balanced: True if debits equal credits within tolerance
-            - difference: Total debits minus total credits
+            - is_balanced: True if debits exactly equal credits (using Decimal precision)
+            - difference: Total debits minus total credits as Decimal
 
         Example:
             Check ledger integrity::
@@ -606,22 +616,29 @@ class Ledger:
                 if not balanced:
                     print(f"Warning: Ledger out of balance by ${diff:,.2f}")
         """
-        total_debits = sum(e.amount for e in self.entries if e.entry_type == EntryType.DEBIT)
-        total_credits = sum(e.amount for e in self.entries if e.entry_type == EntryType.CREDIT)
+        total_debits = sum(
+            (e.amount for e in self.entries if e.entry_type == EntryType.DEBIT),
+            ZERO,
+        )
+        total_credits = sum(
+            (e.amount for e in self.entries if e.entry_type == EntryType.CREDIT),
+            ZERO,
+        )
 
         difference = total_debits - total_credits
-        is_balanced = abs(difference) < 0.01  # Tolerance for floating point
+        # With Decimal precision, we can use exact comparison
+        is_balanced = difference == ZERO
 
         return is_balanced, difference
 
-    def get_trial_balance(self, as_of_date: Optional[int] = None) -> Dict[str, float]:
+    def get_trial_balance(self, as_of_date: Optional[int] = None) -> Dict[str, Decimal]:
         """Generate a trial balance showing all account balances.
 
         Args:
             as_of_date: Optional period to generate balance as of
 
         Returns:
-            Dictionary mapping account names to their balances
+            Dictionary mapping account names to their balances as Decimal
 
         Example:
             Review all balances::
@@ -635,7 +652,7 @@ class Ledger:
         trial_balance = {}
         for account in sorted(accounts):
             balance = self.get_balance(account, as_of_date)
-            if abs(balance) > 0.01:  # Skip zero balances
+            if balance != ZERO:  # Skip zero balances (exact comparison with Decimal)
                 trial_balance[account] = balance
 
         return trial_balance

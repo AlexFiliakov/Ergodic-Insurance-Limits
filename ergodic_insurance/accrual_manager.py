@@ -2,12 +2,17 @@
 
 This module provides functionality to track timing differences between
 cash movements and accounting recognition, following GAAP principles.
+
+Uses Decimal for all currency amounts to prevent floating-point precision errors.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+
+from .decimal_utils import ZERO, to_decimal
 
 
 class AccrualType(Enum):
@@ -32,25 +37,41 @@ class PaymentSchedule(Enum):
 
 @dataclass
 class AccrualItem:
-    """Individual accrual item with tracking information."""
+    """Individual accrual item with tracking information.
+
+    Uses Decimal for all currency amounts to ensure precise calculations.
+    """
 
     item_type: AccrualType
-    amount: float
+    amount: Decimal
     period_incurred: int  # Month or year when expense/revenue incurred
     payment_schedule: PaymentSchedule
     payment_dates: List[int] = field(default_factory=list)
-    amounts_paid: List[float] = field(default_factory=list)
+    amounts_paid: List[Decimal] = field(default_factory=list)
     description: str = ""
 
+    def __post_init__(self) -> None:
+        """Convert amounts to Decimal if needed (runtime check for backwards compatibility)."""
+        if not isinstance(self.amount, Decimal):
+            object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
+        # Convert any float amounts in amounts_paid to Decimal
+        converted_paid = [
+            to_decimal(a) if not isinstance(a, Decimal) else a for a in self.amounts_paid
+        ]
+        object.__setattr__(self, "amounts_paid", converted_paid)
+
     @property
-    def remaining_balance(self) -> float:
+    def remaining_balance(self) -> Decimal:
         """Calculate remaining unpaid balance."""
-        return self.amount - sum(self.amounts_paid)
+        # Convert any float values that may have been added after construction
+        paid_total = sum((to_decimal(a) for a in self.amounts_paid), ZERO)
+        return self.amount - paid_total
 
     @property
     def is_fully_paid(self) -> bool:
         """Check if accrual has been fully paid."""
-        return abs(self.remaining_balance) < 0.01  # Floating point tolerance
+        # With Decimal precision, we can use exact comparison
+        return self.remaining_balance == ZERO
 
 
 class AccrualManager:
@@ -72,7 +93,7 @@ class AccrualManager:
     def record_expense_accrual(
         self,
         item_type: AccrualType,
-        amount: float,
+        amount: Union[Decimal, float, int],
         payment_schedule: PaymentSchedule = PaymentSchedule.IMMEDIATE,
         payment_dates: Optional[List[int]] = None,
         description: str = "",
@@ -81,7 +102,7 @@ class AccrualManager:
 
         Args:
             item_type: Type of expense being accrued
-            amount: Total amount to be accrued
+            amount: Total amount to be accrued (converted to Decimal)
             payment_schedule: Schedule for payments
             payment_dates: Custom payment dates if schedule is CUSTOM
             description: Optional description of the accrual
@@ -89,6 +110,7 @@ class AccrualManager:
         Returns:
             The created AccrualItem
         """
+        amount = to_decimal(amount)
         if payment_schedule == PaymentSchedule.CUSTOM and not payment_dates:
             raise ValueError("Custom schedule requires payment_dates")
 
@@ -115,18 +137,22 @@ class AccrualManager:
         return accrual
 
     def record_revenue_accrual(
-        self, amount: float, collection_dates: Optional[List[int]] = None, description: str = ""
+        self,
+        amount: Union[Decimal, float, int],
+        collection_dates: Optional[List[int]] = None,
+        description: str = "",
     ) -> AccrualItem:
         """Record accrued revenue not yet collected.
 
         Args:
-            amount: Amount of revenue accrued
+            amount: Amount of revenue accrued (converted to Decimal)
             collection_dates: Expected collection dates
             description: Optional description
 
         Returns:
             The created AccrualItem
         """
+        amount = to_decimal(amount)
         accrual = AccrualItem(
             item_type=AccrualType.REVENUE,
             amount=amount,
@@ -142,18 +168,23 @@ class AccrualManager:
         return accrual
 
     def process_payment(
-        self, item_type: AccrualType, amount: float, period: Optional[int] = None
-    ) -> List[Tuple[AccrualItem, float]]:
+        self,
+        item_type: AccrualType,
+        amount: Union[Decimal, float, int],
+        period: Optional[int] = None,
+    ) -> List[Tuple[AccrualItem, Decimal]]:
         """Process a payment against accrued items using FIFO.
 
         Args:
             item_type: Type of accrual being paid
-            amount: Payment amount
+            amount: Payment amount (converted to Decimal)
             period: Period when payment is made (defaults to current)
 
         Returns:
-            List of (AccrualItem, amount_applied) tuples
+            List of (AccrualItem, amount_applied) tuples with Decimal amounts
         """
+        amount = to_decimal(amount)
+
         if period is None:
             period = self.current_period
 
@@ -163,11 +194,11 @@ class AccrualManager:
             accruals = self.accrued_expenses[item_type]
 
         remaining_payment = amount
-        payments_applied = []
+        payments_applied: List[Tuple[AccrualItem, Decimal]] = []
 
         # Apply payment to accruals in FIFO order
         for accrual in accruals:
-            if accrual.is_fully_paid or remaining_payment <= 0:
+            if accrual.is_fully_paid or remaining_payment <= ZERO:
                 continue
 
             amount_to_apply = min(remaining_payment, accrual.remaining_balance)
@@ -177,16 +208,19 @@ class AccrualManager:
 
         return payments_applied
 
-    def get_quarterly_tax_schedule(self, annual_tax: float) -> List[Tuple[int, float]]:
+    def get_quarterly_tax_schedule(
+        self, annual_tax: Union[Decimal, float, int]
+    ) -> List[Tuple[int, Decimal]]:
         """Calculate quarterly tax payment schedule.
 
         Args:
-            annual_tax: Total annual tax liability
+            annual_tax: Total annual tax liability (converted to Decimal)
 
         Returns:
-            List of (period, amount) tuples for quarterly payments
+            List of (period, amount) tuples for quarterly payments (Decimal amounts)
         """
-        quarterly_amount = annual_tax / 4
+        annual_tax = to_decimal(annual_tax)
+        quarterly_amount = annual_tax / Decimal(4)
         base_year = self.current_period // 12
 
         return [
@@ -197,44 +231,56 @@ class AccrualManager:
         ]
 
     def get_claim_payment_schedule(
-        self, claim_amount: float, development_pattern: Optional[List[float]] = None
-    ) -> List[Tuple[int, float]]:
+        self,
+        claim_amount: Union[Decimal, float, int],
+        development_pattern: Optional[List[Union[Decimal, float]]] = None,
+    ) -> List[Tuple[int, Decimal]]:
         """Calculate insurance claim payment schedule over multiple years.
 
         Args:
-            claim_amount: Total claim amount
+            claim_amount: Total claim amount (converted to Decimal)
             development_pattern: Percentage paid each year (defaults to standard pattern)
 
         Returns:
-            List of (period, amount) tuples for claim payments
+            List of (period, amount) tuples for claim payments (Decimal amounts)
         """
+        claim_amount = to_decimal(claim_amount)
+
         if development_pattern is None:
             # Standard claim development pattern
-            development_pattern = [0.4, 0.3, 0.2, 0.1]  # 40%, 30%, 20%, 10%
+            development_pattern = [
+                Decimal("0.4"),
+                Decimal("0.3"),
+                Decimal("0.2"),
+                Decimal("0.1"),
+            ]  # 40%, 30%, 20%, 10%
 
-        schedule = []
+        schedule: List[Tuple[int, Decimal]] = []
         for year, percentage in enumerate(development_pattern):
             period = self.current_period + (year * 12)
-            amount = claim_amount * percentage
+            amount = claim_amount * to_decimal(percentage)
             schedule.append((period, amount))
 
         return schedule
 
-    def get_total_accrued_expenses(self) -> float:
-        """Get total outstanding accrued expenses."""
-        total = 0.0
+    def get_total_accrued_expenses(self) -> Decimal:
+        """Get total outstanding accrued expenses as Decimal."""
+        total = ZERO
         for expense_list in self.accrued_expenses.values():
             for accrual in expense_list:
                 if not accrual.is_fully_paid:
                     total += accrual.remaining_balance
         return total
 
-    def get_total_accrued_revenues(self) -> float:
-        """Get total outstanding accrued revenues."""
+    def get_total_accrued_revenues(self) -> Decimal:
+        """Get total outstanding accrued revenues as Decimal."""
         return sum(
-            accrual.remaining_balance
-            for accrual in self.accrued_revenues
-            if not accrual.is_fully_paid
+            (
+                accrual.remaining_balance
+                for accrual in self.accrued_revenues
+                if not accrual.is_fully_paid
+            ),
+            ZERO,
         )
 
     def get_accruals_by_type(self, item_type: AccrualType) -> List[AccrualItem]:
@@ -250,23 +296,23 @@ class AccrualManager:
             return self.accrued_revenues
         return self.accrued_expenses[item_type]
 
-    def get_payments_due(self, period: Optional[int] = None) -> Dict[AccrualType, float]:
+    def get_payments_due(self, period: Optional[int] = None) -> Dict[AccrualType, Decimal]:
         """Get payments due in a specific period.
 
         Args:
             period: Period to check (defaults to current)
 
         Returns:
-            Dictionary of payment amounts by type
+            Dictionary of payment amounts by type (Decimal values)
         """
         if period is None:
             period = self.current_period
 
-        payments_due = {}
+        payments_due: Dict[AccrualType, Decimal] = {}
 
         # Check expense accruals
         for expense_type, accruals in self.accrued_expenses.items():
-            amount_due = 0.0
+            amount_due = ZERO
             for accrual in accruals:
                 if not accrual.is_fully_paid:
                     # Count how many payment dates are due (including past-due)
@@ -282,10 +328,10 @@ class AccrualManager:
                     if unpaid_due > 0:
                         # Calculate proportional payment amount
                         total_periods = len(accrual.payment_dates)
-                        amount_per_payment = accrual.amount / total_periods
-                        amount_due += amount_per_payment * unpaid_due
+                        amount_per_payment = accrual.amount / Decimal(total_periods)
+                        amount_due += amount_per_payment * Decimal(unpaid_due)
 
-            if amount_due > 0:
+            if amount_due > ZERO:
                 payments_due[expense_type] = amount_due
 
         return payments_due
@@ -298,29 +344,38 @@ class AccrualManager:
         """
         self.current_period += periods
 
-    def get_balance_sheet_items(self) -> Dict[str, float]:
+    def get_balance_sheet_items(self) -> Dict[str, Decimal]:
         """Get accrual items for balance sheet reporting.
 
         Returns:
-            Dictionary with balance sheet line items
+            Dictionary with balance sheet line items (Decimal values)
         """
         return {
             "accrued_expenses": self.get_total_accrued_expenses(),
             "accrued_revenues": self.get_total_accrued_revenues(),
             "accrued_wages": sum(
-                a.remaining_balance
-                for a in self.accrued_expenses[AccrualType.WAGES]
-                if not a.is_fully_paid
+                (
+                    a.remaining_balance
+                    for a in self.accrued_expenses[AccrualType.WAGES]
+                    if not a.is_fully_paid
+                ),
+                ZERO,
             ),
             "accrued_taxes": sum(
-                a.remaining_balance
-                for a in self.accrued_expenses[AccrualType.TAXES]
-                if not a.is_fully_paid
+                (
+                    a.remaining_balance
+                    for a in self.accrued_expenses[AccrualType.TAXES]
+                    if not a.is_fully_paid
+                ),
+                ZERO,
             ),
             "accrued_interest": sum(
-                a.remaining_balance
-                for a in self.accrued_expenses[AccrualType.INTEREST]
-                if not a.is_fully_paid
+                (
+                    a.remaining_balance
+                    for a in self.accrued_expenses[AccrualType.INTEREST]
+                    if not a.is_fully_paid
+                ),
+                ZERO,
             ),
         }
 

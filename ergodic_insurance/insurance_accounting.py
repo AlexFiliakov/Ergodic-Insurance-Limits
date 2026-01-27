@@ -2,11 +2,17 @@
 
 This module provides proper insurance premium accounting with prepaid asset tracking
 and systematic monthly amortization following GAAP principles.
+
+Uses Decimal for all currency amounts to prevent floating-point precision errors
+in iterative calculations.
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+
+from .decimal_utils import ZERO, quantize_currency, to_decimal
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +22,26 @@ class InsuranceRecovery:
     """Represents an insurance claim recovery receivable.
 
     Attributes:
-        amount: Recovery amount approved by insurance
+        amount: Recovery amount approved by insurance (Decimal)
         claim_id: Unique identifier for the claim
         year_approved: Year when recovery was approved
-        amount_received: Amount received to date
+        amount_received: Amount received to date (Decimal)
     """
 
-    amount: float
+    amount: Decimal
     claim_id: str
     year_approved: int
-    amount_received: float = 0.0
+    amount_received: Decimal = field(default_factory=lambda: ZERO)
+
+    def __post_init__(self) -> None:
+        """Convert amounts to Decimal if needed (runtime check for backwards compatibility)."""
+        if not isinstance(self.amount, Decimal):
+            object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
+        if not isinstance(self.amount_received, Decimal):
+            object.__setattr__(self, "amount_received", to_decimal(self.amount_received))  # type: ignore[unreachable]
 
     @property
-    def outstanding(self) -> float:
+    def outstanding(self) -> Decimal:
         """Calculate outstanding receivable amount."""
         return self.amount - self.amount_received
 
@@ -42,40 +55,54 @@ class InsuranceAccounting:
     amortization. It also tracks insurance claim recoveries separately from
     claim liabilities.
 
+    All currency amounts use Decimal for precise financial calculations.
+
     Attributes:
-        prepaid_insurance: Current prepaid insurance asset balance
-        monthly_expense: Calculated monthly insurance expense
-        annual_premium: Total annual premium amount
+        prepaid_insurance: Current prepaid insurance asset balance (Decimal)
+        monthly_expense: Calculated monthly insurance expense (Decimal)
+        annual_premium: Total annual premium amount (Decimal)
         months_in_period: Number of months in coverage period (default 12)
         current_month: Current month in coverage period
         recoveries: List of insurance recoveries receivable
     """
 
-    prepaid_insurance: float = 0.0
-    monthly_expense: float = 0.0
-    annual_premium: float = 0.0
+    prepaid_insurance: Decimal = field(default_factory=lambda: ZERO)
+    monthly_expense: Decimal = field(default_factory=lambda: ZERO)
+    annual_premium: Decimal = field(default_factory=lambda: ZERO)
     months_in_period: int = 12
     current_month: int = 0
     recoveries: List[InsuranceRecovery] = field(default_factory=list)
 
-    def pay_annual_premium(self, premium_amount: float) -> Dict[str, float]:
+    def __post_init__(self) -> None:
+        """Convert amounts to Decimal if needed (runtime check for backwards compatibility)."""
+        if not isinstance(self.prepaid_insurance, Decimal):
+            self.prepaid_insurance = to_decimal(self.prepaid_insurance)  # type: ignore[unreachable]
+        if not isinstance(self.monthly_expense, Decimal):
+            self.monthly_expense = to_decimal(self.monthly_expense)  # type: ignore[unreachable]
+        if not isinstance(self.annual_premium, Decimal):
+            self.annual_premium = to_decimal(self.annual_premium)  # type: ignore[unreachable]
+
+    def pay_annual_premium(self, premium_amount: Union[Decimal, float, int]) -> Dict[str, Decimal]:
         """Record annual premium payment at start of coverage period.
 
         Args:
-            premium_amount: Annual premium amount to pay
+            premium_amount: Annual premium amount to pay (converted to Decimal)
 
         Returns:
-            Dictionary with transaction details:
+            Dictionary with transaction details as Decimal:
                 - cash_outflow: Cash paid for premium
                 - prepaid_asset: Prepaid insurance asset created
                 - monthly_expense: Calculated monthly expense
         """
-        if premium_amount < 0:
+        premium_amount = to_decimal(premium_amount)
+
+        if premium_amount < ZERO:
             raise ValueError("Premium amount must be non-negative")
 
         self.annual_premium = premium_amount
         self.prepaid_insurance = premium_amount
-        self.monthly_expense = premium_amount / self.months_in_period
+        # Quantize monthly expense to cents to avoid accumulation errors
+        self.monthly_expense = quantize_currency(premium_amount / Decimal(self.months_in_period))
         self.current_month = 0
 
         logger.info(f"Paid annual premium: ${premium_amount:,.2f}")
@@ -87,7 +114,7 @@ class InsuranceAccounting:
             "monthly_expense": self.monthly_expense,
         }
 
-    def record_monthly_expense(self) -> Dict[str, float]:
+    def record_monthly_expense(self) -> Dict[str, Decimal]:
         """Amortize monthly insurance expense from prepaid asset.
 
         Records one month of insurance expense by reducing the prepaid
@@ -95,7 +122,7 @@ class InsuranceAccounting:
         over the coverage period.
 
         Returns:
-            Dictionary with transaction details:
+            Dictionary with transaction details as Decimal:
                 - insurance_expense: Monthly expense recognized
                 - prepaid_reduction: Reduction in prepaid asset
                 - remaining_prepaid: Remaining prepaid balance
@@ -119,21 +146,26 @@ class InsuranceAccounting:
         }
 
     def record_claim_recovery(
-        self, recovery_amount: float, claim_id: Optional[str] = None, year: int = 0
-    ) -> Dict[str, float]:
+        self,
+        recovery_amount: Union[Decimal, float, int],
+        claim_id: Optional[str] = None,
+        year: int = 0,
+    ) -> Dict[str, Decimal]:
         """Record insurance claim recovery as receivable.
 
         Args:
-            recovery_amount: Amount approved for recovery from insurance
+            recovery_amount: Amount approved for recovery from insurance (converted to Decimal)
             claim_id: Optional unique identifier for the claim
             year: Year when recovery was approved
 
         Returns:
-            Dictionary with recovery details:
+            Dictionary with recovery details as Decimal:
                 - insurance_receivable: New receivable amount
                 - total_receivables: Total outstanding receivables
         """
-        if recovery_amount < 0:
+        recovery_amount = to_decimal(recovery_amount)
+
+        if recovery_amount < ZERO:
             raise ValueError("Recovery amount must be non-negative")
 
         # Generate claim ID if not provided
@@ -151,21 +183,23 @@ class InsuranceAccounting:
         }
 
     def receive_recovery_payment(
-        self, amount: float, claim_id: Optional[str] = None
-    ) -> Dict[str, float]:
+        self, amount: Union[Decimal, float, int], claim_id: Optional[str] = None
+    ) -> Dict[str, Decimal]:
         """Record receipt of insurance recovery payment.
 
         Args:
-            amount: Amount received from insurance
+            amount: Amount received from insurance (converted to Decimal)
             claim_id: Optional claim ID to apply payment to
 
         Returns:
-            Dictionary with payment details:
+            Dictionary with payment details as Decimal:
                 - cash_received: Cash inflow amount
                 - receivable_reduction: Reduction in receivables
                 - remaining_receivables: Total remaining receivables
         """
-        if amount <= 0:
+        amount = to_decimal(amount)
+
+        if amount <= ZERO:
             raise ValueError("Payment amount must be positive")
 
         # Apply to specific claim or oldest outstanding
@@ -175,7 +209,7 @@ class InsuranceAccounting:
                 raise ValueError(f"No recovery found with ID {claim_id}")
         else:
             # Apply to oldest outstanding recovery
-            outstanding_recoveries = [r for r in self.recoveries if r.outstanding > 0]
+            outstanding_recoveries = [r for r in self.recoveries if r.outstanding > ZERO]
             if not outstanding_recoveries:
                 raise ValueError("No outstanding recoveries to apply payment to")
             recovery = outstanding_recoveries[0]
@@ -192,21 +226,21 @@ class InsuranceAccounting:
             "remaining_receivables": self.get_total_receivables(),
         }
 
-    def get_total_receivables(self) -> float:
+    def get_total_receivables(self) -> Decimal:
         """Calculate total outstanding insurance receivables.
 
         Returns:
-            Total amount of outstanding insurance receivables
+            Total amount of outstanding insurance receivables as Decimal
         """
-        return sum(r.outstanding for r in self.recoveries)
+        return sum((r.outstanding for r in self.recoveries), ZERO)
 
-    def get_amortization_schedule(self) -> List[Dict[str, float]]:
+    def get_amortization_schedule(self) -> List[Dict[str, Union[int, Decimal]]]:
         """Generate remaining amortization schedule.
 
         Returns:
-            List of monthly amortization entries remaining
+            List of monthly amortization entries remaining (amounts as Decimal)
         """
-        schedule = []
+        schedule: List[Dict[str, Union[int, Decimal]]] = []
         remaining = self.prepaid_insurance
         months_left = self.months_in_period - self.current_month
 
@@ -228,17 +262,17 @@ class InsuranceAccounting:
 
         Clears current period data while preserving recoveries.
         """
-        self.prepaid_insurance = 0.0
-        self.monthly_expense = 0.0
-        self.annual_premium = 0.0
+        self.prepaid_insurance = ZERO
+        self.monthly_expense = ZERO
+        self.annual_premium = ZERO
         self.current_month = 0
         # Keep recoveries as they span multiple periods
 
-    def get_summary(self) -> Dict[str, float]:
+    def get_summary(self) -> Dict[str, Union[int, Decimal]]:
         """Get summary of current insurance accounting status.
 
         Returns:
-            Dictionary with key accounting metrics
+            Dictionary with key accounting metrics (amounts as Decimal)
         """
         return {
             "prepaid_insurance": self.prepaid_insurance,
