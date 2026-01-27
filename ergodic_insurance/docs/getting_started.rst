@@ -35,8 +35,7 @@ Here's a simple example to get you started:
 .. code-block:: python
 
     from ergodic_insurance.manufacturer import WidgetManufacturer
-    from ergodic_insurance.claim_generator import ClaimGenerator
-    from ergodic_insurance.manufacturer import WidgetManufacturer
+    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
     from ergodic_insurance.config import ManufacturerConfig
 
     # Create configuration
@@ -54,54 +53,50 @@ Here's a simple example to get you started:
 
     # Two-tier loss structure to demonstrate insurance value:
     # 1. Regular operational losses (frequent, manageable)
-    regular_generator = ClaimGenerator(
-        base_frequency=5.0 * (revenue / 10_000_000),  # ~5 per year, scales with revenue
+    regular_generator = ManufacturingLossGenerator.create_simple(
+        frequency=5.0 * (revenue / 10_000_000),  # ~5 per year, scales with revenue
         severity_mean=80_000,     # Mean $80K
         severity_std=50_000,      # Moderate variation
         seed=42
     )
 
     # 2. Catastrophic losses (rare but potentially ruinous)
-    catastrophic_generator = ClaimGenerator(
-        base_frequency=0.3 * (revenue / 10_000_000),  # ~0.3 per year (once every 3 years)
+    catastrophic_generator = ManufacturingLossGenerator.create_simple(
+        frequency=0.3 * (revenue / 10_000_000),  # ~0.3 per year (once every 3 years)
         severity_mean=2_000_000,  # Mean $2M
         severity_std=1_500_000,   # Can reach $5M+
         seed=43
     )
 
-    # Generate both regular and catastrophic claims
-    regular_claims, _ = regular_generator.generate_enhanced_claims(
-        years=1,
-        revenue=revenue,
-        use_enhanced_distributions=False
+    # Generate both regular and catastrophic losses
+    regular_losses, _ = regular_generator.generate_losses(
+        duration=1,
+        revenue=revenue
     )
-    catastrophic_claims, _ = catastrophic_generator.generate_enhanced_claims(
-        years=1,
-        revenue=revenue,
-        use_enhanced_distributions=False
+    catastrophic_losses, _ = catastrophic_generator.generate_losses(
+        duration=1,
+        revenue=revenue
     )
 
-    # Combine all claims
-    all_claims = regular_claims + catastrophic_claims
+    # Combine all losses
+    all_losses = regular_losses + catastrophic_losses
 
     # Calculate company's net loss after insurance
     total_company_payment = 0
     annual_premium = 100_000  # Annual insurance premium
 
-    for claim in all_claims:
-        claim_amount = claim.amount
-        if claim_amount <= 100_000:
+    for loss in all_losses:
+        loss_amount = loss.amount
+        if loss_amount <= 100_000:
             # Below deductible, company pays all
-            company_payment = claim_amount
+            company_payment = loss_amount
         else:
             # Above deductible, insurance covers rest up to limit
             company_payment = 100_000  # Deductible
-            if claim_amount > 5_000_000:
-                company_payment += claim_amount - 5_000_000  # Excess over limit
+            if loss_amount > 5_000_000:
+                company_payment += loss_amount - 5_000_000  # Excess over limit
 
         total_company_payment += company_payment
-
-
 
     # Apply losses to manufacturer using the apply_loss method
     if total_company_payment > 0:

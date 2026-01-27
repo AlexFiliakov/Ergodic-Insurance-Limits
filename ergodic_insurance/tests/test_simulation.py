@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.config import Config, ManufacturerConfig
+from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.simulation import Simulation, SimulationResults
 
@@ -32,10 +32,10 @@ def manufacturer(manufacturer_config):
 
 
 @pytest.fixture
-def claim_generator():
-    """Create a test claim generator."""
-    return ClaimGenerator(
-        base_frequency=0.1, severity_mean=1_000_000, severity_std=500_000, seed=42
+def loss_generator():
+    """Create a test loss generator."""
+    return ManufacturingLossGenerator.create_simple(
+        frequency=0.1, severity_mean=1_000_000, severity_std=500_000, seed=42
     )
 
 
@@ -278,28 +278,31 @@ class TestSimulationResults:
 class TestSimulation:
     """Test Simulation class."""
 
-    def test_initialization(self, manufacturer, claim_generator):
+    def test_initialization(self, manufacturer, loss_generator):
         """Test simulation initialization."""
         sim = Simulation(
-            manufacturer=manufacturer, claim_generator=claim_generator, time_horizon=100, seed=42
+            manufacturer=manufacturer, loss_generator=loss_generator, time_horizon=100, seed=42
         )
 
         assert sim.manufacturer == manufacturer
-        assert sim.claim_generator == [claim_generator]  # Simulation wraps single generator in list
+        assert sim.loss_generator == [loss_generator]  # Simulation wraps single generator in list
         assert sim.time_horizon == 100
         assert sim.seed == 42
         assert len(sim.years) == 100
         assert len(sim.assets) == 100
         assert sim.insolvency_year is None
 
-    def test_step_annual(self, manufacturer, claim_generator):
+    def test_step_annual(self, manufacturer, loss_generator):
         """Test single annual step."""
-        sim = Simulation(manufacturer, claim_generator, time_horizon=10)
+        sim = Simulation(manufacturer, loss_generator, time_horizon=10)
 
-        # Create test claims
-        claims = [ClaimEvent(year=0, amount=500_000), ClaimEvent(year=0, amount=300_000)]
+        # Create test losses
+        losses = [
+            LossEvent(time=0.0, amount=500_000, loss_type="test"),
+            LossEvent(time=0.0, amount=300_000, loss_type="test"),
+        ]
 
-        metrics = sim.step_annual(0, claims)
+        metrics = sim.step_annual(0, losses)
 
         assert "assets" in metrics
         assert "equity" in metrics
@@ -308,10 +311,10 @@ class TestSimulation:
         assert metrics["claim_count"] == 2
         assert metrics["claim_amount"] == 800_000
 
-    def test_run_short_simulation(self, manufacturer, claim_generator):
+    def test_run_short_simulation(self, manufacturer, loss_generator):
         """Test running a short simulation."""
         sim = Simulation(
-            manufacturer=manufacturer, claim_generator=claim_generator, time_horizon=10, seed=42
+            manufacturer=manufacturer, loss_generator=loss_generator, time_horizon=10, seed=42
         )
 
         results = sim.run(progress_interval=5)
@@ -321,14 +324,14 @@ class TestSimulation:
         assert len(results.assets) == 10
         assert results.assets[0] > 0  # Should have initial assets
 
-        # Check that some claims were generated
+        # Check that some losses were generated
         assert np.sum(results.claim_counts) >= 0
 
     @pytest.mark.skip(reason="Performance benchmark, not regular test")
-    def test_run_performance(self, manufacturer, claim_generator):
+    def test_run_performance(self, manufacturer, loss_generator):
         """Test that 1000-year simulation completes in reasonable time."""
         sim = Simulation(
-            manufacturer=manufacturer, claim_generator=claim_generator, time_horizon=1000, seed=42
+            manufacturer=manufacturer, loss_generator=loss_generator, time_horizon=1000, seed=42
         )
 
         start = time.time()
@@ -340,12 +343,12 @@ class TestSimulation:
 
         assert len(results.years) == 1000 or results.insolvency_year is not None
 
-    def test_memory_efficiency(self, manufacturer, claim_generator):
+    def test_memory_efficiency(self, manufacturer, loss_generator):
         """Test memory usage for 1000-year simulation."""
         import sys
 
         sim = Simulation(
-            manufacturer=manufacturer, claim_generator=claim_generator, time_horizon=1000, seed=42
+            manufacturer=manufacturer, loss_generator=loss_generator, time_horizon=1000, seed=42
         )
 
         # Estimate memory usage of pre-allocated arrays
@@ -375,16 +378,16 @@ class TestSimulation:
         config = manufacturer_config.model_copy(update={"initial_assets": 50_000})
         poor_manufacturer = WidgetManufacturer(config)
 
-        # Create claim generator with high frequency/severity
-        harsh_claims = ClaimGenerator(
-            base_frequency=5.0,  # Many claims per year
-            severity_mean=100_000,  # Large claims relative to assets
+        # Create loss generator with high frequency/severity
+        harsh_losses = ManufacturingLossGenerator.create_simple(
+            frequency=5.0,  # Many losses per year
+            severity_mean=100_000,  # Large losses relative to assets
             severity_std=20_000,
             seed=42,
         )
 
         sim = Simulation(
-            manufacturer=poor_manufacturer, claim_generator=harsh_claims, time_horizon=100, seed=42
+            manufacturer=poor_manufacturer, loss_generator=harsh_losses, time_horizon=100, seed=42
         )
 
         results = sim.run()
@@ -397,10 +400,10 @@ class TestSimulation:
         assert len(results.years) == 100
         assert results.equity[results.insolvency_year] <= 0
 
-    def test_get_trajectory(self, manufacturer, claim_generator):
+    def test_get_trajectory(self, manufacturer, loss_generator):
         """Test get_trajectory convenience method."""
         sim = Simulation(
-            manufacturer=manufacturer, claim_generator=claim_generator, time_horizon=10, seed=42
+            manufacturer=manufacturer, loss_generator=loss_generator, time_horizon=10, seed=42
         )
 
         df = sim.get_trajectory()
@@ -411,12 +414,12 @@ class TestSimulation:
         assert "assets" in df.columns
         assert "roe" in df.columns
 
-    def test_reproducibility(self, manufacturer, claim_generator):
+    def test_reproducibility(self, manufacturer, loss_generator):
         """Test that simulations with same seed produce same results."""
         sim1 = Simulation(
             manufacturer=WidgetManufacturer(manufacturer.config),
-            claim_generator=ClaimGenerator(
-                base_frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
+            loss_generator=ManufacturingLossGenerator.create_simple(
+                frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
             ),
             time_horizon=50,
             seed=42,
@@ -424,8 +427,8 @@ class TestSimulation:
 
         sim2 = Simulation(
             manufacturer=WidgetManufacturer(manufacturer.config),
-            claim_generator=ClaimGenerator(
-                base_frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
+            loss_generator=ManufacturingLossGenerator.create_simple(
+                frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
             ),
             time_horizon=50,
             seed=42,

@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.claim_development import ClaimDevelopment
-from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.config import (
     ConfigV2,
     DebtConfig,
@@ -269,14 +268,14 @@ def enhanced_insurance_program() -> InsuranceProgram:
 
 
 @pytest.fixture
-def standard_claim_generator() -> ClaimGenerator:
-    """Create a standard claim generator with typical parameters.
+def standard_loss_generator() -> ManufacturingLossGenerator:
+    """Create a standard loss generator with typical parameters.
 
     Returns:
-        ClaimGenerator: Standard loss generator.
+        ManufacturingLossGenerator: Standard loss generator.
     """
-    return ClaimGenerator(
-        base_frequency=5.0,
+    return ManufacturingLossGenerator.create_simple(
+        frequency=5.0,
         severity_mean=200_000,
         severity_std=300_000,
         seed=42,
@@ -284,14 +283,14 @@ def standard_claim_generator() -> ClaimGenerator:
 
 
 @pytest.fixture
-def high_frequency_generator() -> ClaimGenerator:
-    """Create a high-frequency, low-severity claim generator.
+def high_frequency_loss_generator() -> ManufacturingLossGenerator:
+    """Create a high-frequency, low-severity loss generator.
 
     Returns:
-        ClaimGenerator: High frequency generator.
+        ManufacturingLossGenerator: High frequency generator.
     """
-    return ClaimGenerator(
-        base_frequency=20.0,
+    return ManufacturingLossGenerator.create_simple(
+        frequency=20.0,
         severity_mean=50_000,
         severity_std=30_000,
         seed=42,
@@ -299,14 +298,14 @@ def high_frequency_generator() -> ClaimGenerator:
 
 
 @pytest.fixture
-def catastrophic_generator() -> ClaimGenerator:
-    """Create a low-frequency, high-severity claim generator.
+def catastrophic_loss_generator() -> ManufacturingLossGenerator:
+    """Create a low-frequency, high-severity loss generator.
 
     Returns:
-        ClaimGenerator: Catastrophic loss generator.
+        ManufacturingLossGenerator: Catastrophic loss generator.
     """
-    return ClaimGenerator(
-        base_frequency=0.1,
+    return ManufacturingLossGenerator.create_simple(
+        frequency=0.1,
         severity_mean=10_000_000,
         severity_std=5_000_000,
         seed=42,
@@ -453,32 +452,34 @@ def generate_sample_losses(
     base_frequency: float = 5.0,
     severity_mean: float = 200_000,
     seed: Optional[int] = None,
-) -> List[ClaimEvent]:
+) -> List[LossEvent]:
     """Generate sample loss events for testing.
 
     Args:
         n_years: Number of years to generate.
-        frequency: Average claims per year.
-        severity_mean: Mean claim severity.
+        frequency: Average losses per year.
+        severity_mean: Mean loss severity.
         seed: Random seed for reproducibility.
 
     Returns:
-        List[ClaimEvent]: Generated claim events.
+        List[LossEvent]: Generated loss events.
     """
     if seed is not None:
         np.random.seed(seed)
 
-    claims = []
+    losses = []
     for year in range(n_years):
-        n_claims = np.random.poisson(base_frequency)
-        for _ in range(n_claims):
+        n_losses = np.random.poisson(base_frequency)
+        for _ in range(n_losses):
             amount = np.random.lognormal(
                 np.log(severity_mean),
                 0.5,
             )
-            claims.append(ClaimEvent(year=year, amount=amount))
+            # Add random fractional time within the year
+            time = year + np.random.random()
+            losses.append(LossEvent(time=time, amount=amount, loss_type="test"))
 
-    return claims
+    return losses
 
 
 def generate_loss_data(

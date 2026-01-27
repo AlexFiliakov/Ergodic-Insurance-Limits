@@ -18,7 +18,6 @@ import numpy as np
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.claim_generator import ClaimGenerator
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.excel_reporter import ExcelReportConfig, ExcelReporter
 from ergodic_insurance.financial_statements import (
@@ -26,6 +25,7 @@ from ergodic_insurance.financial_statements import (
     FinancialStatementGenerator,
 )
 from ergodic_insurance.insurance import InsurancePolicy
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -53,12 +53,12 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
 
     manufacturer = WidgetManufacturer(manufacturer_config)
 
-    # Configure claim generator
+    # Configure loss generator
     # Loss frequency scales with revenue (more activity = more risk exposure)
     base_frequency = 3.0  # Base frequency for $10M revenue company
     initial_revenue = manufacturer_config.initial_assets * manufacturer_config.asset_turnover_ratio
 
-    claim_generator = ClaimGenerator(
+    loss_generator = ManufacturingLossGenerator.create_simple(
         frequency=base_frequency * (initial_revenue / 10_000_000),  # Scale with revenue
         severity_mean=500_000,  # Average severity
         severity_std=1_000_000,  # Standard deviation
@@ -75,11 +75,9 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
         # Get current revenue for frequency scaling
         current_revenue = manufacturer.assets * manufacturer_config.asset_turnover_ratio
 
-        # Generate claims for the year based on current revenue
-        claim_events, _ = claim_generator.generate_enhanced_claims(
-            years=1, revenue=current_revenue, use_enhanced_distributions=False
-        )
-        claims = [claim.amount for claim in claim_events]
+        # Generate losses for the year based on current revenue
+        loss_events, _ = loss_generator.generate_losses(duration=1, revenue=current_revenue)
+        claims = [loss.amount for loss in loss_events]
 
         # Process claims through insurance
         total_claims = sum(claims)

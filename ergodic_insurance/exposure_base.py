@@ -1,7 +1,7 @@
-"""Exposure base module for dynamic frequency scaling in insurance claims.
+"""Exposure base module for dynamic frequency scaling in insurance losses.
 
 This module provides a hierarchy of exposure classes that dynamically adjust
-claim frequencies based on actual business metrics from the simulation.
+loss frequencies based on actual business metrics from the simulation.
 The exposure bases now work with real financial state from the manufacturer,
 not artificial growth projections.
 
@@ -16,7 +16,7 @@ Example:
 
         from ergodic_insurance.exposure_base import RevenueExposure
         from ergodic_insurance.manufacturer import WidgetManufacturer
-        from ergodic_insurance.claim_generator import ClaimGenerator
+        from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
         # Create manufacturer
         manufacturer = WidgetManufacturer(config)
@@ -25,13 +25,12 @@ Example:
         exposure = RevenueExposure(state_provider=manufacturer)
 
         # Create generator with exposure
-        generator = ClaimGenerator(
-            base_frequency=0.5,
-            exposure_base=exposure,
+        generator = ManufacturingLossGenerator.create_simple(
+            frequency=0.5,
             severity_mean=1_000_000
         )
 
-        # Claims will be generated based on actual revenue during simulation
+        # Losses will be generated based on actual revenue during simulation
 
 Since:
     Version 0.3.0 - Complete refactor to state-driven approach

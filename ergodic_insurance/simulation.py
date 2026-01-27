@@ -2,7 +2,7 @@
 
 This module provides the main simulation engine that orchestrates the
 time evolution of the widget manufacturer financial model, managing
-claim events, financial calculations, and result collection.
+loss events, financial calculations, and result collection.
 
 The simulation framework supports both single-path and Monte Carlo simulations,
 enabling comprehensive analysis of insurance strategies and business outcomes
@@ -22,15 +22,17 @@ Examples:
 
         from ergodic_insurance import Simulation, Config
         from ergodic_insurance.manufacturer import WidgetManufacturer
-        from ergodic_insurance.claim_generator import ClaimGenerator
+        from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
         config = Config()
         manufacturer = WidgetManufacturer(config.manufacturer)
-        claims = ClaimGenerator(frequency=0.1, seed=42)
+        loss_generator = ManufacturingLossGenerator.create_simple(
+            frequency=0.1, severity_mean=5_000_000, seed=42
+        )
 
         sim = Simulation(
             manufacturer=manufacturer,
-            claim_generator=claims,
+            loss_generator=loss_generator,
             time_horizon=50
         )
         results = sim.run()
@@ -54,15 +56,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from .claim_generator import ClaimEvent, ClaimGenerator
 from .config import Config
 from .insurance import InsurancePolicy
 from .insurance_program import InsuranceProgram
+from .loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine
-
-if TYPE_CHECKING:
-    from .loss_distributions import LossData
 
 logger = logging.getLogger(__name__)
 
@@ -400,18 +399,18 @@ class Simulation:
     """Simulation engine for widget manufacturer time evolution.
 
     The main simulation class that coordinates the time evolution of the
-    widget manufacturer model, processing claims and tracking financial
+    widget manufacturer model, processing losses and tracking financial
     performance over the specified time horizon.
 
     Supports both single-path and Monte Carlo simulations, with comprehensive
-    tracking of financial metrics, claim events, and bankruptcy conditions.
+    tracking of financial metrics, loss events, and bankruptcy conditions.
 
     Examples:
         Basic simulation setup and execution::
 
             from ergodic_insurance.config import ManufacturerConfig
             from ergodic_insurance.manufacturer import WidgetManufacturer
-            from ergodic_insurance.claim_generator import ClaimGenerator
+            from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
             from ergodic_insurance.insurance import InsurancePolicy
             from ergodic_insurance.simulation import Simulation
 
@@ -429,7 +428,7 @@ class Simulation:
             # Run simulation
             sim = Simulation(
                 manufacturer=manufacturer,
-                claim_generator=ClaimGenerator(seed=42),
+                loss_generator=ManufacturingLossGenerator.create_simple(seed=42),
                 insurance_policy=policy,
                 time_horizon=10
             )
@@ -454,7 +453,7 @@ class Simulation:
 
     Attributes:
         manufacturer: The widget manufacturer being simulated
-        claim_generator: Generator for insurance claim events
+        loss_generator: Generator for loss events
         insurance_policy: Optional insurance coverage
         time_horizon: Simulation duration in years
         seed: Random seed for reproducibility
@@ -463,13 +462,15 @@ class Simulation:
         :class:`SimulationResults`: Container for simulation output
         :class:`MonteCarloEngine`: For running multiple simulation paths
         :class:`WidgetManufacturer`: The core financial model
-        :class:`ClaimGenerator`: For generating loss events
+        :class:`ManufacturingLossGenerator`: For generating loss events
     """
 
     def __init__(
         self,
         manufacturer: WidgetManufacturer,
-        claim_generator: Optional[Union[ClaimGenerator, List[ClaimGenerator]]] = None,
+        loss_generator: Optional[
+            Union[ManufacturingLossGenerator, List[ManufacturingLossGenerator]]
+        ] = None,
         insurance_policy: Optional[InsurancePolicy] = None,
         time_horizon: int = 100,
         seed: Optional[int] = None,
@@ -479,14 +480,14 @@ class Simulation:
         Args:
             manufacturer: WidgetManufacturer instance to simulate. This object
                 maintains the financial state and is modified during simulation.
-            claim_generator: ClaimGenerator or list of ClaimGenerators for creating
-                insurance claims. If a list is provided, claims from all generators
-                are combined. If None, a default generator with standard parameters
-                is created.
+            loss_generator: ManufacturingLossGenerator or list of generators for
+                creating loss events. If a list is provided, losses from all
+                generators are combined. If None, a default generator with
+                standard parameters is created.
             insurance_policy: Insurance policy for claim processing. If None,
                 legacy claim processing is used with fixed parameters.
             time_horizon: Number of years to simulate. Must be positive.
-            seed: Random seed for reproducibility. Passed to claim generator(s).
+            seed: Random seed for reproducibility. Passed to loss generator(s).
 
         Note:
             The manufacturer object is modified in-place during simulation.
@@ -509,11 +510,11 @@ class Simulation:
                     time_horizon=50
                 )
 
-            Setup with multiple claim generators::
+            Setup with multiple loss generators::
 
                 sim = Simulation(
                     manufacturer=manufacturer,
-                    claim_generator=[standard_losses, catastrophic_risk, operational_risk],
+                    loss_generator=[standard_losses, catastrophic_risk],
                     insurance_policy=policy,
                     time_horizon=20
                 )
@@ -521,20 +522,20 @@ class Simulation:
         self.manufacturer = manufacturer
 
         # Handle single generator or list of generators
-        if claim_generator is None:
-            # Create default claim generator with reasonable parameters
-            self.claim_generator = [
-                ClaimGenerator(
-                    base_frequency=0.1,  # 10% chance per year
+        if loss_generator is None:
+            # Create default loss generator with reasonable parameters
+            self.loss_generator = [
+                ManufacturingLossGenerator.create_simple(
+                    frequency=0.1,  # 10% chance per year
                     severity_mean=5_000_000,  # $5M mean claim
                     severity_std=2_000_000,  # $2M standard deviation
                     seed=seed,
                 )
             ]
-        elif isinstance(claim_generator, list):
-            self.claim_generator = claim_generator
+        elif isinstance(loss_generator, list):
+            self.loss_generator = loss_generator
         else:
-            self.claim_generator = [claim_generator]
+            self.loss_generator = [loss_generator]
 
         self.insurance_policy = insurance_policy
         self.time_horizon = time_horizon
@@ -552,21 +553,21 @@ class Simulation:
 
         self.insolvency_year: Optional[int] = None
 
-    def step_annual(self, year: int, claims: List[ClaimEvent]) -> Dict[str, float]:
+    def step_annual(self, year: int, losses: List[LossEvent]) -> Dict[str, float]:
         """Execute single annual time step.
 
-        Processes claims for the year, applies insurance coverage,
+        Processes losses for the year, applies insurance coverage,
         updates manufacturer financial state, and returns metrics.
 
         Args:
             year: Current simulation year (0-indexed).
-            claims: List of ClaimEvent objects for this year.
+            losses: List of LossEvent objects for this year.
 
         Returns:
             Dict[str, float]: Dictionary containing metrics:
                 - All metrics from manufacturer.step()
-                - 'claim_count': Number of claims this year
-                - 'claim_amount': Total claim amount before insurance
+                - 'claim_count': Number of losses this year
+                - 'claim_amount': Total loss amount before insurance
                 - 'company_payment': Amount paid by company after deductible
                 - 'insurance_recovery': Amount recovered from insurance
 
@@ -586,17 +587,17 @@ class Simulation:
             working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
         )
 
-        # Process claims at END of year
-        total_claim_amount = sum(claim.amount for claim in claims)
+        # Process losses at END of year
+        total_loss_amount = sum(loss.amount for loss in losses)
         total_company_payment = 0.0
         total_insurance_recovery = 0.0
 
         # Apply insurance
         if self.insurance_policy:
-            for claim in claims:
+            for loss in losses:
                 # Use manufacturer's built-in claim processing which handles collateral and payment schedules
                 company_payment, insurance_recovery = self.manufacturer.process_insurance_claim(
-                    claim_amount=claim.amount,
+                    claim_amount=loss.amount,
                     deductible_amount=self.insurance_policy.deductible,
                     insurance_limit=self.insurance_policy.get_total_coverage(),
                 )
@@ -608,18 +609,18 @@ class Simulation:
             self.manufacturer.record_insurance_premium(annual_premium)
         else:
             # No insurance - process as uninsured claims
-            for claim in claims:
+            for loss in losses:
                 # Company pays full amount with no insurance coverage
                 # Use deferred payment to avoid immediate double-hit on equity
                 self.manufacturer.process_uninsured_claim(
-                    claim_amount=claim.amount,
+                    claim_amount=loss.amount,
                     immediate_payment=False,  # Create liability with payment schedule starting next year
                 )
-                total_company_payment += claim.amount
+                total_company_payment += loss.amount
 
-        # Add claim information to metrics
-        metrics["claim_count"] = len(claims)
-        metrics["claim_amount"] = total_claim_amount
+        # Add loss information to metrics
+        metrics["claim_count"] = len(losses)
+        metrics["claim_amount"] = total_loss_amount
         metrics["company_payment"] = total_company_payment
         metrics["insurance_recovery"] = total_insurance_recovery
 
@@ -679,7 +680,7 @@ class Simulation:
         """
         start_time = time.time()
 
-        logger.info(f"Starting {self.time_horizon}-year simulation with dynamic claim generation")
+        logger.info(f"Starting {self.time_horizon}-year simulation with dynamic loss generation")
 
         # Run simulation
         for year in range(self.time_horizon):
@@ -692,15 +693,18 @@ class Simulation:
                     f"Year {year}/{self.time_horizon} - {elapsed:.1f}s elapsed, {remaining:.1f}s remaining"
                 )
 
-            # Generate claims for this year based on current financial state
-            year_claims = []
-            for generator in self.claim_generator:
-                # Generator will use exposure base to query current financial state
-                claims = generator.generate_year(year)
-                year_claims.extend(claims)
+            # Generate losses for this year based on current financial state
+            year_losses: List[LossEvent] = []
+            revenue = (
+                self.manufacturer.revenue if hasattr(self.manufacturer, "revenue") else 10_000_000
+            )
+            for generator in self.loss_generator:
+                # Generate losses for one year duration
+                losses, _ = generator.generate_losses(duration=1, revenue=revenue, time=float(year))
+                year_losses.extend(losses)
 
             # Execute time step
-            metrics = self.step_annual(year, year_claims)
+            metrics = self.step_annual(year, year_losses)
 
             # Store results
             self.assets[year] = metrics.get("assets", 0)
@@ -746,7 +750,7 @@ class Simulation:
         return results
 
     def run_with_loss_data(
-        self, loss_data: "LossData", validate: bool = True, progress_interval: int = 100
+        self, loss_data: LossData, validate: bool = True, progress_interval: int = 100
     ) -> SimulationResults:
         """Run simulation using standardized LossData.
 
@@ -758,27 +762,23 @@ class Simulation:
         Returns:
             SimulationResults object with full trajectory.
         """
-        # Import here to avoid circular dependency
-        from .loss_distributions import LossData
-
         # Validate if requested
         if validate and not loss_data.validate():
             logger.warning("Loss data validation failed")
             raise ValueError("Invalid loss data provided")
 
-        # Convert to ClaimEvents
-        claims = ClaimGenerator.from_loss_data(loss_data)
+        # Convert to LossEvents
+        losses = loss_data.to_loss_events()
 
-        # Group claims by year
-        claims_by_year: Dict[int, List[ClaimEvent]] = {
-            year: [] for year in range(self.time_horizon)
-        }
-        for claim in claims:
-            if 0 <= claim.year < self.time_horizon:
-                claims_by_year[claim.year].append(claim)
+        # Group losses by year
+        losses_by_year: Dict[int, List[LossEvent]] = {year: [] for year in range(self.time_horizon)}
+        for loss in losses:
+            year = int(loss.time)
+            if 0 <= year < self.time_horizon:
+                losses_by_year[year].append(loss)
 
         logger.info(
-            f"Starting {self.time_horizon}-year simulation with {len(claims)} claims from LossData"
+            f"Starting {self.time_horizon}-year simulation with {len(losses)} losses from LossData"
         )
 
         start_time = time.time()
@@ -794,11 +794,11 @@ class Simulation:
                     f"Year {year}/{self.time_horizon} - {elapsed:.1f}s elapsed, {remaining:.1f}s remaining"
                 )
 
-            # Get claims for this year
-            year_claims = claims_by_year.get(year, [])
+            # Get losses for this year
+            year_losses = losses_by_year.get(year, [])
 
             # Execute time step
-            metrics = self.step_annual(year, year_claims)
+            metrics = self.step_annual(year, year_losses)
 
             # Store results
             self.assets[year] = metrics.get("assets", 0)

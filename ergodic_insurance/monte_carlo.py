@@ -956,17 +956,14 @@ class MonteCarloEngine:
 
         # Run simulation for each year
         for year in range(n_years):
-            # Generate losses
+            # Generate losses using ManufacturingLossGenerator
             revenue = manufacturer.calculate_revenue()
 
-            # Handle both ClaimGenerator and ManufacturingLossGenerator
             if hasattr(self.loss_generator, "generate_losses"):
                 events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
-            elif hasattr(self.loss_generator, "generate_claims"):
-                events = self.loss_generator.generate_claims(years=1)
             else:
                 raise AttributeError(
-                    f"Loss generator {type(self.loss_generator).__name__} has neither generate_losses nor generate_claims method"
+                    f"Loss generator {type(self.loss_generator).__name__} has no generate_losses method"
                 )
 
             # Calculate total loss

@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from ergodic_insurance.claim_generator import ClaimGenerator
 from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
 from ergodic_insurance.config_migrator import ConfigMigrator

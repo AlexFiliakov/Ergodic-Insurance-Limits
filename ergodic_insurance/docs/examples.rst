@@ -11,7 +11,7 @@ Run a simple 100-year simulation with baseline parameters:
 
 .. code-block:: python
 
-    from ergodic_insurance import WidgetManufacturer, ClaimGenerator, Simulation
+    from ergodic_insurance import WidgetManufacturer, ManufacturingLossGenerator, Simulation
     from ergodic_insurance.config_loader import load_config
 
     # Load configuration
@@ -19,12 +19,14 @@ Run a simple 100-year simulation with baseline parameters:
 
     # Create components
     manufacturer = WidgetManufacturer(config.manufacturer)
-    claim_generator = ClaimGenerator.from_config(config)
+    loss_generator = ManufacturingLossGenerator.create_simple(
+        frequency=0.1, severity_mean=5_000_000, seed=42
+    )
 
     # Run simulation
     sim = Simulation(
         manufacturer=manufacturer,
-        claim_generator=claim_generator,
+        loss_generator=loss_generator,
         time_horizon=100,
         seed=42
     )
@@ -32,10 +34,10 @@ Run a simple 100-year simulation with baseline parameters:
     results = sim.run()
 
     # Get summary statistics
-    stats = results.summary_statistics()
+    stats = results.summary_stats()
     print(f"Final Assets: ${stats['final_assets']:,.0f}")
     print(f"Average ROE: {stats['mean_roe']:.2%}")
-    print(f"Ruin Probability: {stats['ruin_probability']:.2%}")
+    print(f"Ruin Probability: {1 - stats['survived']:.2%}")
 
 Scenario Comparison
 -------------------

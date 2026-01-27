@@ -7,9 +7,9 @@ expenses (premiums and claim deductibles) and that the fix doesn't regress.
 import numpy as np
 import pytest
 
-from ergodic_insurance.claim_generator import ClaimGenerator
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.simulation import Simulation
 
@@ -156,8 +156,10 @@ class TestROEWithInsurance:
         # Create a new manufacturer for simulation
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        # Create claim generator with moderate losses
-        claim_gen = ClaimGenerator(base_frequency=2, severity_mean=150_000, severity_std=50_000)
+        # Create loss generator with moderate losses
+        loss_gen = ManufacturingLossGenerator.create_simple(
+            frequency=2, severity_mean=150_000, severity_std=50_000
+        )
 
         # Create insurance policy
         insurance = InsurancePolicy(
@@ -170,7 +172,7 @@ class TestROEWithInsurance:
         # Run short simulation
         sim = Simulation(
             manufacturer=manufacturer,
-            claim_generator=claim_gen,
+            loss_generator=loss_gen,
             insurance_policy=insurance,
             time_horizon=3,
             seed=42,
@@ -239,9 +241,11 @@ class TestROEWithInsurance:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create multiple risk profiles
-        standard = ClaimGenerator(base_frequency=2, severity_mean=50_000, severity_std=20_000)
-        catastrophic = ClaimGenerator(
-            base_frequency=0.1, severity_mean=1_000_000, severity_std=500_000
+        standard = ManufacturingLossGenerator.create_simple(
+            frequency=2, severity_mean=50_000, severity_std=20_000
+        )
+        catastrophic = ManufacturingLossGenerator.create_simple(
+            frequency=0.1, severity_mean=1_000_000, severity_std=500_000
         )
 
         # Create insurance
@@ -253,7 +257,7 @@ class TestROEWithInsurance:
         # Run simulation with multiple generators
         sim = Simulation(
             manufacturer=manufacturer,
-            claim_generator=[standard, catastrophic],
+            loss_generator=[standard, catastrophic],
             insurance_policy=insurance,
             time_horizon=5,
             seed=42,

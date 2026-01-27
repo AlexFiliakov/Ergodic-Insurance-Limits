@@ -55,7 +55,7 @@ Traditional analysis would compare premium costs to expected losses. The ergodic
 import numpy as np
 import matplotlib.pyplot as plt
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.monte_carlo import MonteCarloEngine
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
@@ -89,26 +89,24 @@ print(f"Expected annual profit: ${manufacturer.assets * config.asset_turnover_ra
 ### Step 3: Define Loss Characteristics
 
 ```python
-# Configure claim generator for operational losses
+# Configure loss generator for operational losses
 # Loss frequency scales with revenue (more activity = more risk exposure)
 base_frequency = 3.0  # Base frequency for $10M revenue company
 revenue = manufacturer.assets * config.asset_turnover_ratio  # Current revenue
 
-claim_generator = ClaimGenerator(
+loss_generator = ManufacturingLossGenerator.create_simple(
     frequency=base_frequency * (revenue / 10_000_000),  # Scale with revenue
-    severity_mean=100_000,      # Mean claim size
+    severity_mean=100_000,      # Mean loss size
     severity_std=200_000,       # Standard deviation
     seed=42                     # For reproducibility
 )
 
-# Generate sample claims for one year using revenue-dependent frequency
-sample_claim_events, stats = claim_generator.generate_enhanced_claims(
-    years=1,
-    revenue=revenue,
-    use_enhanced_distributions=False
+# Generate sample losses for one year using revenue-dependent frequency
+sample_losses, stats = loss_generator.generate_losses(
+    duration=1,
+    revenue=revenue
 )
-sample_claims = [claim.amount for claim in sample_claim_events]
-print(f"Sample year losses: ${sum(sample_claims):,.0f}")
+print(f"Sample year losses: ${sum(loss.amount for loss in sample_losses):,.0f}")
 ```
 
 ## Part 3: Comparing Insurance Strategies
@@ -119,7 +117,7 @@ print(f"Sample year losses: ${sum(sample_claims):,.0f}")
 # Run simulation without insurance
 no_insurance_sim = MonteCarloEngine(
     manufacturer=manufacturer,
-    claim_generator=claim_generator,
+    loss_generator=loss_generator,
     insurance_program=None,
     n_simulations=1000,
     time_horizon=20
@@ -142,7 +140,7 @@ basic_insurance = InsuranceProgram([
 
 basic_sim = MonteCarloEngine(
     manufacturer=manufacturer,
-    claim_generator=claim_generator,
+    loss_generator=loss_generator,
     insurance_program=basic_insurance,
     n_simulations=1000,
     time_horizon=20
@@ -170,7 +168,7 @@ optimal_insurance = InsuranceProgram([
 
 optimal_sim = MonteCarloEngine(
     manufacturer=manufacturer,
-    claim_generator=claim_generator,
+    loss_generator=loss_generator,
     insurance_program=optimal_insurance,
     n_simulations=1000,
     time_horizon=20
@@ -268,7 +266,7 @@ tech_company = Manufacturer(
 cat_base_frequency = 0.05  # Base catastrophe frequency
 revenue = manufacturer.assets * 1.5  # Assuming 1.5x turnover
 
-catastrophic_risks = ClaimGenerator(
+catastrophic_risks = ManufacturingLossGenerator.create_simple(
     frequency=cat_base_frequency * (revenue / 10_000_000)**0.5,  # Square root scaling
     severity_mean=10_000_000,   # Massive potential losses
     severity_std=5_000_000,

@@ -37,7 +37,7 @@ graph TB
     subgraph Business["Business Integration"]
         SIMULATION["Simulation"]
         INSURANCE["InsuranceProgram"]
-        CLAIM_GEN["ClaimGenerator"]
+        LOSS_GEN["LossGenerator"]
     end
 
     %% Relationships
@@ -55,8 +55,8 @@ graph TB
     EXPOSURE_BASE -.-> SCENARIO
     EXPOSURE_BASE -.-> STOCHASTIC
 
-    SIMULATION --> CLAIM_GEN
-    CLAIM_GEN --> EXPOSURE_BASE
+    SIMULATION --> LOSS_GEN
+    LOSS_GEN --> EXPOSURE_BASE
     INSURANCE --> EXPOSURE_BASE
 
     %% Styling
@@ -70,7 +70,7 @@ graph TB
     class EXPOSURE_BASE abstract
     class REVENUE,ASSET,EQUITY impl
     class EMPLOYEE,PRODUCTION,COMPOSITE,SCENARIO,STOCHASTIC future
-    class MANUFACTURER,SIMULATION,INSURANCE,CLAIM_GEN business
+    class MANUFACTURER,SIMULATION,INSURANCE,LOSS_GEN business
 ```
 
 ## State-Driven Architecture
@@ -80,7 +80,7 @@ The new exposure base system queries real-time financial state from providers in
 ```{mermaid}
 sequenceDiagram
     participant Sim as Simulation
-    participant Gen as ClaimGenerator
+    participant Gen as LossGenerator
     participant Exp as ExposureBase
     participant Mfg as Manufacturer
 
@@ -221,7 +221,7 @@ class EquityExposure(ExposureBase):
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.exposure_base import RevenueExposure
-from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 # Create manufacturer with initial state
 config = ManufacturerConfig(
@@ -236,25 +236,25 @@ manufacturer = WidgetManufacturer(config)
 # Create state-driven exposure
 exposure = RevenueExposure(state_provider=manufacturer)
 
-# Create claim generator using the exposure
-generator = ClaimGenerator(
-    base_frequency=2.0,
-    exposure_base=exposure,
+# Create loss generator
+generator = ManufacturingLossGenerator.create_simple(
+    frequency=2.0,
     severity_mean=100_000,
-    severity_std=50_000
+    severity_std=50_000,
+    seed=42
 )
 ```
 
-### Dynamic Claim Generation
+### Dynamic Loss Generation
 
 ```python
 from ergodic_insurance.simulation import Simulation
 
-# Simulation now generates claims year-by-year
+# Simulation generates losses year-by-year
 simulation = Simulation(
     manufacturer=manufacturer,
-    claim_generators=[generator],
-    insurance_programs=[]
+    loss_generator=generator,
+    time_horizon=10
 )
 
 # Run simulation - claims adapt to actual business state
