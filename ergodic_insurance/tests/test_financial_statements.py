@@ -634,6 +634,104 @@ class TestFinancialStatementGenerator:
         with pytest.raises(ValueError, match="SG&A breakdown fields missing"):
             generator.generate_income_statement(year=0)
 
+    def test_missing_cash_raises_error(self):
+        """Test that missing cash raises ValueError.
+
+        Issue #256: The reporting layer no longer estimates cash balance.
+        Cash must be provided explicitly by the Manufacturer to avoid
+        hiding simulation bugs with fabricated "phantom cash".
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        # Metrics WITHOUT cash (missing critical field)
+        manufacturer.metrics_history = [
+            {
+                "year": 0,
+                "assets": 10_000_000,
+                "equity": 10_000_000,
+                "gross_ppe": 7_000_000,
+                "restricted_assets": 0,
+                # cash is MISSING - this should raise an error
+            }
+        ]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+
+        with pytest.raises(ValueError, match="cash missing from metrics"):
+            generator.generate_balance_sheet(year=0)
+
+    def test_missing_gross_ppe_raises_error(self):
+        """Test that missing gross_ppe raises ValueError.
+
+        Issue #256: The reporting layer no longer estimates gross PP&E.
+        Gross PP&E must be provided explicitly by the Manufacturer to avoid
+        hiding simulation bugs with fabricated asset values.
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        # Metrics WITHOUT gross_ppe (missing critical field)
+        manufacturer.metrics_history = [
+            {
+                "year": 0,
+                "assets": 10_000_000,
+                "equity": 10_000_000,
+                "cash": 3_000_000,
+                "restricted_assets": 0,
+                # gross_ppe is MISSING - this should raise an error
+            }
+        ]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+
+        with pytest.raises(ValueError, match="gross_ppe missing from metrics"):
+            generator.generate_balance_sheet(year=0)
+
+    def test_missing_cash_in_income_statement_raises_error(self):
+        """Test that missing cash raises ValueError in income statement.
+
+        Issue #256: The reporting layer no longer estimates cash balance
+        for interest income calculation.
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        # Build metrics with COGS/SG&A breakdown but WITHOUT cash
+        # The helper function doesn't add cash, so we just don't include it
+        base_metrics = {
+            "year": 0,
+            "assets": 10_000_000,
+            "equity": 10_000_000,
+            "revenue": 5_000_000,
+            "depreciation_expense": 700_000,
+            # cash is MISSING - this should raise an error
+        }
+        manufacturer.metrics_history = [_add_cogs_sga_breakdown(base_metrics)]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+
+        with pytest.raises(ValueError, match="cash missing from metrics"):
+            generator.generate_income_statement(year=0)
+
     def test_operating_expenses_components(self, generator):
         """Test that operating expenses include proper SG&A components."""
         df = generator.generate_income_statement(year=2)
