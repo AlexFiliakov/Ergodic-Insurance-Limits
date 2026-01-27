@@ -28,6 +28,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
+from .decimal_utils import is_zero, to_decimal
+
 if TYPE_CHECKING:
     from .ledger import Ledger
     from .manufacturer import WidgetManufacturer
@@ -1723,14 +1725,16 @@ class FinancialStatementGenerator:
     ) -> None:
         """Check if balance sheet equation balances."""
         data.append(("BALANCE SHEET RECONCILIATION", "", "", ""))
-        assets = metrics.get("assets", 0)
-        liabilities = metrics.get("claim_liabilities", 0)
-        equity = metrics.get("equity", 0)
+        assets = to_decimal(metrics.get("assets", 0))
+        liabilities = to_decimal(metrics.get("claim_liabilities", 0))
+        equity = to_decimal(metrics.get("equity", 0))
 
-        balance_check = abs(assets - (liabilities + equity)) < 0.01
-        data.append(("  Assets", assets, "", ""))
-        data.append(("  Liabilities + Equity", liabilities + equity, "", ""))
-        data.append(("  Difference", assets - (liabilities + equity), "", ""))
+        difference = assets - (liabilities + equity)
+        # Using is_zero() for precise comparison after quantization
+        balance_check = is_zero(difference)
+        data.append(("  Assets", float(assets), "", ""))
+        data.append(("  Liabilities + Equity", float(liabilities + equity), "", ""))
+        data.append(("  Difference", float(difference), "", ""))
         data.append(("  Status", "BALANCED" if balance_check else "IMBALANCED", "", "status"))
         data.append(("", "", "", ""))
 
@@ -1739,13 +1743,17 @@ class FinancialStatementGenerator:
     ) -> None:
         """Check net assets reconciliation."""
         data.append(("NET ASSETS RECONCILIATION", "", "", ""))
-        net_assets = metrics.get("net_assets", 0)
-        calc_net_assets = metrics.get("assets", 0) - metrics.get("restricted_assets", 0)
-        net_assets_check = abs(net_assets - calc_net_assets) < 0.01
+        net_assets = to_decimal(metrics.get("net_assets", 0))
+        calc_net_assets = to_decimal(metrics.get("assets", 0)) - to_decimal(
+            metrics.get("restricted_assets", 0)
+        )
+        difference = net_assets - calc_net_assets
+        # Using is_zero() for precise comparison after quantization
+        net_assets_check = is_zero(difference)
 
-        data.append(("  Reported Net Assets", net_assets, "", ""))
-        data.append(("  Calculated (Assets - Restricted)", calc_net_assets, "", ""))
-        data.append(("  Difference", net_assets - calc_net_assets, "", ""))
+        data.append(("  Reported Net Assets", float(net_assets), "", ""))
+        data.append(("  Calculated (Assets - Restricted)", float(calc_net_assets), "", ""))
+        data.append(("  Difference", float(difference), "", ""))
         data.append(("  Status", "MATCHED" if net_assets_check else "MISMATCHED", "", "status"))
         data.append(("", "", "", ""))
 
