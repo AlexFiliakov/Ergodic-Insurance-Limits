@@ -88,7 +88,7 @@ The `process_insurance_claim()` method needs to:
 ### Implementation Steps
 1. Add `step()` method to WidgetManufacturer class:
    ```python
-   def step(self, working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03):
+   def step(self, letter_of_credit_rate=0.015, growth_rate=0.0):
        # Calculate revenue from assets
        # Apply operating margin for profit
        # Deduct taxes

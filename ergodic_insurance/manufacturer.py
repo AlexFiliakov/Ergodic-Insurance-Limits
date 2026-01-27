@@ -51,7 +51,6 @@ Examples:
 
         # Run annual business operations
         metrics = manufacturer.step(
-            working_capital_pct=0.2,         # 20% working capital
             letter_of_credit_rate=0.015,     # 1.5% LoC rate
             growth_rate=0.05                 # 5% annual growth
         )
@@ -77,7 +76,6 @@ Examples:
 
             # Run annual operations
             metrics = manufacturer.step(
-                working_capital_pct=0.18,
                 growth_rate=0.03
             )
 
@@ -112,7 +110,6 @@ Examples:
 
             for year in range(10):
                 metrics = stochastic_manufacturer.step(
-                    working_capital_pct=0.2,
                     apply_stochastic=True  # Enable volatility
                 )
 
@@ -674,7 +671,6 @@ class WidgetManufacturer:
 
                 # Run annual business operations
                 metrics = manufacturer.step(
-                    working_capital_pct=0.2,
                     letter_of_credit_rate=0.015
                 )
 
@@ -1174,24 +1170,14 @@ class WidgetManufacturer:
         """
         return sum(claim.remaining_amount for claim in self.claim_liabilities)
 
-    def calculate_revenue(
-        self, working_capital_pct: float = 0.0, apply_stochastic: bool = False
-    ) -> float:
+    def calculate_revenue(self, apply_stochastic: bool = False) -> float:
         """Calculate revenue based on available assets and turnover ratio.
 
         Revenue is calculated using the asset turnover ratio, which represents
         how efficiently the company converts assets into sales. The calculation
-        accounts for working capital requirements and can include stochastic
-        shocks for realistic modeling.
-
-        The working capital adjustment recognizes that some portion of revenue
-        is tied up in inventory and receivables, reducing the effective assets
-        available for revenue generation.
+        can include stochastic shocks for realistic modeling.
 
         Args:
-            working_capital_pct (float): Percentage of revenue tied up in working
-                capital (inventory + receivables - payables). Typical values
-                range from 0.15 to 0.25. Defaults to 0.0 for simplified modeling.
             apply_stochastic (bool): Whether to apply stochastic shock to revenue
                 calculation. Requires stochastic_process to be initialized.
                 Defaults to False for deterministic calculation.
@@ -1200,7 +1186,6 @@ class WidgetManufacturer:
             float: Annual revenue in dollars. Always non-negative.
 
         Raises:
-            ValueError: If working_capital_pct < 0 or >= 1.
             RuntimeError: If apply_stochastic=True but no stochastic process provided.
 
         Examples:
@@ -1209,14 +1194,6 @@ class WidgetManufacturer:
                 # Deterministic revenue
                 revenue = manufacturer.calculate_revenue()
                 print(f"Base revenue: ${revenue:,.2f}")
-
-            With working capital::
-
-                # Account for 20% working capital
-                revenue_wc = manufacturer.calculate_revenue(
-                    working_capital_pct=0.2
-                )
-                # Revenue will be lower due to working capital tie-up
 
             With stochastic shocks::
 
@@ -1234,27 +1211,22 @@ class WidgetManufacturer:
 
         Note:
             The asset turnover ratio can be modified during simulation to model
-            business growth or decline. Working capital adjustments follow the
-            formula: Effective Assets = Total Assets / (1 + Turnover * WC%).
+            business growth or decline.
+
+            Issue #244: Working capital components (AR, Inventory, AP) are calculated
+            separately via :meth:`calculate_working_capital_components` and impact
+            the cash flow statement. Revenue is not adjusted for working capital
+            to avoid double-counting (GAAP-compliant).
 
         See Also:
             :attr:`asset_turnover_ratio`: Core parameter for revenue calculation.
+            :meth:`calculate_working_capital_components`: Working capital calculation.
             :class:`~ergodic_insurance.stochastic_processes.StochasticProcess`:
             For stochastic modeling options.
         """
-        # Adjust for working capital if specified
         # Ensure assets are non-negative for revenue calculation
         # (negative assets would mean business has ceased operations)
         available_assets = max(0, self.total_assets)
-        if working_capital_pct > 0:
-            # Working capital reduces assets available for operations
-            # Revenue = Available Assets * Turnover, where
-            # Available Assets = Total Assets - Working Capital
-            # Working Capital = Revenue * working_capital_pct
-            # Solving: Revenue = Assets * Turnover / (1 + Turnover * WC%)
-            denominator = 1 + self.asset_turnover_ratio * working_capital_pct
-            available_assets = max(0, self.total_assets) / denominator
-
         revenue = available_assets * self.asset_turnover_ratio
 
         # Apply stochastic shock if requested and process is available
@@ -1424,7 +1396,7 @@ class WidgetManufacturer:
         Examples:
             Calculate full income statement with insurance costs::
 
-                revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
+                revenue = manufacturer.calculate_revenue()
                 operating_income = manufacturer.calculate_operating_income(revenue)
                 collateral_costs = manufacturer.calculate_collateral_costs(0.015)
                 net_income = manufacturer.calculate_net_income(
@@ -3192,7 +3164,6 @@ class WidgetManufacturer:
 
     def step(
         self,
-        working_capital_pct: float = 0.2,
         letter_of_credit_rate: float = 0.015,
         growth_rate: float = 0.0,
         time_resolution: str = "annual",
@@ -3209,10 +3180,11 @@ class WidgetManufacturer:
         modeling. Monthly resolution provides more granular cash flow tracking
         but requires careful scaling of annual parameters.
 
+        Working capital components (AR, Inventory, AP) are automatically calculated
+        each step based on revenue using standard DSO/DIO/DPO ratios. These
+        components affect the balance sheet and cash flow statement (Issue #244).
+
         Args:
-            working_capital_pct (float): Working capital as percentage of sales.
-                Represents inventory and receivables minus payables. Typical
-                manufacturing values: 0.15-0.25. Defaults to 0.2 (20%).
             letter_of_credit_rate (float): Annual interest rate for letter of
                 credit collateral. Market rates typically 0.01-0.02 (1-2%).
                 Defaults to 0.015 (1.5%).
@@ -3237,11 +3209,7 @@ class WidgetManufacturer:
         Examples:
             Basic annual simulation step::
 
-                # Standard annual step with 20% working capital
-                metrics = manufacturer.step(
-                    working_capital_pct=0.2,
-                    letter_of_credit_rate=0.015
-                )
+                metrics = manufacturer.step(letter_of_credit_rate=0.015)
 
                 print(f"ROE: {metrics['roe']:.1%}")
                 print(f"Assets: ${metrics['assets']:,.2f}")
@@ -3251,7 +3219,6 @@ class WidgetManufacturer:
                 # Monthly steps with 5% annual growth
                 for month in range(12):
                     metrics = manufacturer.step(
-                        working_capital_pct=0.18,
                         growth_rate=0.05,
                         time_resolution="monthly"
                     )
@@ -3262,16 +3229,14 @@ class WidgetManufacturer:
             Stochastic simulation::
 
                 # With revenue volatility
-                metrics = manufacturer.step(
-                    working_capital_pct=0.2,
-                    apply_stochastic=True
-                )
+                metrics = manufacturer.step(apply_stochastic=True)
 
                 # Revenue will vary based on stochastic process
 
         Side Effects:
             - Updates current_year and/or current_month
             - Modifies balance sheet (assets, equity, collateral)
+            - Updates working capital components (AR, Inventory, AP)
             - Processes scheduled claim payments
             - May trigger insolvency if losses exceed equity
             - Appends metrics to metrics_history
@@ -3279,7 +3244,6 @@ class WidgetManufacturer:
 
         Raises:
             ValueError: If time_resolution not "annual" or "monthly".
-            ValueError: If working_capital_pct < 0 or >= 1.
             RuntimeError: If apply_stochastic=True but no stochastic process.
 
         Note:
@@ -3294,6 +3258,7 @@ class WidgetManufacturer:
 
         See Also:
             :meth:`calculate_revenue`: Core revenue calculation logic.
+            :meth:`calculate_working_capital_components`: Working capital calculation.
             :meth:`pay_claim_liabilities`: Claim payment processing.
             :meth:`check_solvency`: Solvency evaluation.
             :meth:`calculate_metrics`: Metrics calculation details.
@@ -3305,32 +3270,30 @@ class WidgetManufacturer:
         # Store initial revenue for working capital calculation in monthly mode
         # This must happen BEFORE any balance sheet changes
         if time_resolution == "monthly" and self.current_month == 0:
-            # Calculate the annual revenue with working capital adjustment
-            # This ensures consistency with annual mode
-            self._annual_revenue_for_wc = self.calculate_revenue(
-                working_capital_pct, apply_stochastic
-            )
+            # Calculate the annual revenue for working capital consistency
+            self._annual_revenue_for_wc = self.calculate_revenue(apply_stochastic)
 
         # Calculate financial performance
-        revenue = self.calculate_revenue(working_capital_pct, apply_stochastic)
+        revenue = self.calculate_revenue(apply_stochastic)
 
         # Calculate working capital components BEFORE payment coordination
         # Working capital changes can affect AP (liabilities) which changes equity
         # So we need to update working capital BEFORE calculating payment caps
-        if working_capital_pct > 0:
-            # Use consistent revenue measure to avoid compounding effects
-            if time_resolution == "annual":
-                # Annual mode: use the annual revenue
-                self.calculate_working_capital_components(revenue)
-            elif time_resolution == "monthly":
-                # Monthly mode: use the stored annual revenue from year start
-                # This was calculated before any balance sheet changes
-                if hasattr(self, "_annual_revenue_for_wc"):
-                    self.calculate_working_capital_components(self._annual_revenue_for_wc)
-                else:
-                    # Fallback: use current assets (should not happen normally)
-                    annual_revenue = self.total_assets * self.asset_turnover_ratio
-                    self.calculate_working_capital_components(annual_revenue)
+        # Issue #244: Always calculate working capital components (AR, Inventory, AP)
+        # to maintain accurate balance sheet. Working capital impact flows through
+        # the cash flow statement, not revenue.
+        if time_resolution == "annual":
+            # Annual mode: use the annual revenue
+            self.calculate_working_capital_components(revenue)
+        elif time_resolution == "monthly":
+            # Monthly mode: use the stored annual revenue from year start
+            # This was calculated before any balance sheet changes
+            if hasattr(self, "_annual_revenue_for_wc"):
+                self.calculate_working_capital_components(self._annual_revenue_for_wc)
+            else:
+                # Fallback: use current assets (should not happen normally)
+                annual_revenue = self.total_assets * self.asset_turnover_ratio
+                self.calculate_working_capital_components(annual_revenue)
 
         # COORDINATED LIMITED LIABILITY ENFORCEMENT
         # Calculate total payments needed for both accruals and claims

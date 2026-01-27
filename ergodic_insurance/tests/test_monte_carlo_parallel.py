@@ -375,7 +375,7 @@ class TestParallelRuinProbability:
         # Mock step to return low operating income that triggers debt service failure
         call_count = [0]
 
-        def mock_step(working_capital_pct, growth_rate):
+        def mock_step(growth_rate=0.0, **kwargs):
             call_count[0] += 1
             return {
                 "equity": 3_000_000,

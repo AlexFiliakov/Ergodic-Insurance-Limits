@@ -505,7 +505,6 @@ class TestParameterSweeper:
         """Test manufacturer creation from parameters."""
         params = {
             "initial_assets": 20e6,
-            "working_capital_pct": 0.15,
             "base_operating_margin": 0.10,
             "asset_turnover": 1.2,
             "tax_rate": 0.30,

@@ -52,7 +52,7 @@ classDiagram
         +calculate_revenue() float
         +calculate_operating_income() float
         +process_insurance_claim(amount, deductible, limit) tuple
-        +step(working_capital_pct, growth_rate) dict
+        +step(growth_rate) dict
         +apply_dividends(retention_ratio: float)
         +update_balance_sheet()
         +is_solvent() bool

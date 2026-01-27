@@ -84,7 +84,7 @@ class TestRevenueExposure:
         initial_multiplier = exposure.get_frequency_multiplier(1.0)
 
         # Simulate business growth through retained earnings
-        manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+        manufacturer.step(growth_rate=0.05)
 
         # Exposure should reflect actual business state, not artificial growth
         # The multiplier will depend on actual financial performance

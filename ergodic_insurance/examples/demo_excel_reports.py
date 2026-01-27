@@ -92,9 +92,7 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
         insurance_premium = revenue_estimate * insurance.base_premium_rate
 
         # Run annual step
-        metrics = manufacturer.step(
-            working_capital_pct=0.2, letter_of_credit_rate=0.015, growth_rate=0.03
-        )
+        metrics = manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
 
         # Deduct insurance costs
         manufacturer.assets -= insurance_premium

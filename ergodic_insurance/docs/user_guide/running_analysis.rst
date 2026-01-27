@@ -52,7 +52,6 @@ Edit your configuration file with company-specific parameters:
        base_revenue=15_000_000,
        base_operating_margin=0.08,
        tax_rate=0.25,
-       working_capital_pct=0.20,
        dividend_rate=0.30,  # 30% of profits as dividends
        capex_rate=0.05,      # 5% of revenue for capital expenditure
        debt_capacity=0.5     # Can borrow up to 50% of assets

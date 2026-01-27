@@ -175,7 +175,6 @@ class SimulationConfig:
         monitor_performance: Track detailed performance metrics
         adaptive_chunking: Enable adaptive chunk sizing
         shared_memory: Enable shared memory for read-only data
-        working_capital_pct: Working capital as percentage of revenue (typical: 0.15-0.25)
     """
 
     n_simulations: int = 100_000
@@ -208,8 +207,6 @@ class SimulationConfig:
     bootstrap_method: str = "percentile"
     # Periodic ruin evaluation options
     ruin_evaluation: Optional[List[int]] = None
-    # Working capital configuration
-    working_capital_pct: float = 0.0  # Default to 0% for full asset revenue generation
     # Insolvency tolerance
     insolvency_tolerance: float = 10_000  # Company is insolvent when equity <= this threshold
 
@@ -1023,7 +1020,6 @@ class MonteCarloEngine:
             growth_rate = 0.0  # No exogenous growth, only endogenous growth from retained earnings
 
             manufacturer.step(
-                working_capital_pct=self.config.working_capital_pct,  # Use configured working capital
                 growth_rate=growth_rate,  # Only endogenous growth from retained earnings
                 apply_stochastic=apply_stochastic,
             )

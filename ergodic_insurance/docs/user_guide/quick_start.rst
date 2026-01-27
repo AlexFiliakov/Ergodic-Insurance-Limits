@@ -33,7 +33,6 @@ First, let's define your company using our configuration system. Create a YAML f
      base_revenue: 15_000_000     # Annual revenue
      base_operating_margin: 0.08        # 8% profit margin
      tax_rate: 0.25                # 25% corporate tax
-     working_capital_pct: 0.20     # 20% of revenue tied up in working capital
 
    growth:
      base_growth_rate: 0.06        # 6% organic growth

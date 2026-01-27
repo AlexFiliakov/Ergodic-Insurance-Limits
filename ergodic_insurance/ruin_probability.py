@@ -369,7 +369,7 @@ class RuinProbabilityAnalyzer:
     ) -> Dict[str, float]:
         """Process a single year of simulation."""
         # Update state FIRST (process year's normal operations)
-        metrics: Dict[str, float] = manufacturer.step(working_capital_pct=0.2, growth_rate=0.0)
+        metrics: Dict[str, float] = manufacturer.step(growth_rate=0.0)
 
         # Then apply losses at END of year
         # This prevents newly-created liabilities from being paid in the same year

@@ -39,7 +39,7 @@ def main():
 
     # Year 0: Normal operations
     print("YEAR 0: Normal Operations")
-    metrics = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+    metrics = manufacturer.step(growth_rate=0.05)
     print(f"  Revenue:          ${metrics['revenue']:,.0f}")
     print(f"  Operating Income: ${metrics['operating_income']:,.0f}")
     print(f"  Net Income:       ${metrics['net_income']:,.0f}")
@@ -56,7 +56,7 @@ def main():
     )
     print(f"  Collateral added: ${manufacturer.collateral:,.0f}")
 
-    metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+    metrics = manufacturer.step(letter_of_credit_rate=0.015)
     print(f"  Revenue:          ${metrics['revenue']:,.0f}")
     print(f"  Operating Income: ${metrics['operating_income']:,.0f}")
     print(f"  Collateral Costs: ${manufacturer.calculate_collateral_costs():,.0f}")
@@ -68,7 +68,7 @@ def main():
     # Years 2-5: Recovery period
     print("YEARS 2-5: Recovery Period")
     for year in range(2, 6):
-        metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+        metrics = manufacturer.step(letter_of_credit_rate=0.015)
         print(f"  Year {year}:")
         print(f"    Net Income:     ${metrics['net_income']:,.0f}")
         print(f"    Assets:         ${metrics['assets']:,.0f}")

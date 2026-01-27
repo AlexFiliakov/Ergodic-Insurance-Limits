@@ -211,18 +211,15 @@ class TestWidgetManufacturer:
         manufacturer.claim_liabilities.append(claim)
         assert manufacturer.total_claim_liabilities == 400_000
 
-    def test_calculate_revenue_no_working_capital(self, manufacturer):
-        """Test revenue calculation without working capital."""
-        revenue = manufacturer.calculate_revenue(working_capital_pct=0.0)
-        assert revenue == 10_000_000  # Assets * Turnover = 10M * 1.0
+    def test_calculate_revenue(self, manufacturer):
+        """Test revenue calculation.
 
-    def test_calculate_revenue_with_working_capital(self, manufacturer):
-        """Test revenue calculation with working capital constraint."""
-        revenue = manufacturer.calculate_revenue(working_capital_pct=0.2)
-        # Revenue = Assets / (1 + Turnover * WC%)
-        # Revenue = 10M / (1 + 1.0 * 0.2) = 10M / 1.2
-        expected = 10_000_000 / 1.2
-        assert revenue == pytest.approx(expected)
+        Issue #244: working_capital_pct parameter was removed to fix double-counting.
+        Working capital impact now flows only through calculate_working_capital_components()
+        and the cash flow statement.
+        """
+        revenue = manufacturer.calculate_revenue()
+        assert revenue == 10_000_000  # Assets * Turnover = 10M * 1.0
 
     def test_calculate_operating_income(self, manufacturer):
         """Test operating income calculation."""
@@ -459,7 +456,7 @@ class TestWidgetManufacturer:
 
     def test_step_basic(self, manufacturer):
         """Test basic step execution."""
-        metrics = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+        metrics = manufacturer.step(growth_rate=0.05)
 
         assert manufacturer.current_year == 1
         assert len(manufacturer.metrics_history) == 1
@@ -662,7 +659,7 @@ class TestWidgetManufacturer:
         including claim processing, collateral management, and payments.
         """
         # Year 0: Normal operations
-        metrics_0 = manufacturer.step(working_capital_pct=0.2, growth_rate=0.05)
+        metrics_0 = manufacturer.step(growth_rate=0.05)
         assert metrics_0["net_income"] > 0
         initial_equity = manufacturer.equity
 
@@ -673,7 +670,7 @@ class TestWidgetManufacturer:
         )
 
         # Year 1: Operations with claim payments and collateral costs
-        metrics_1 = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+        metrics_1 = manufacturer.step(letter_of_credit_rate=0.015)
 
         # Should have collateral now
         assert manufacturer.collateral > 0
@@ -681,7 +678,7 @@ class TestWidgetManufacturer:
 
         # Year 2-10: Pay down claim
         for year in range(2, 11):
-            metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+            metrics = manufacturer.step(letter_of_credit_rate=0.015)
             assert metrics["year"] == year
 
         # After 10 years, claim should be significantly paid down (company portion only)
@@ -843,7 +840,7 @@ class TestWidgetManufacturer:
         initial_equity = manufacturer.equity
 
         # Run step
-        metrics = manufacturer.step(working_capital_pct=0.2, letter_of_credit_rate=0.015)
+        metrics = manufacturer.step(letter_of_credit_rate=0.015)
 
         # Verify period costs were reset after step
         assert manufacturer.period_insurance_premiums == 0
@@ -1296,7 +1293,7 @@ class TestWidgetManufacturer:
         manufacturer = WidgetManufacturer(config)
 
         # Run one period to establish working capital
-        manufacturer.step(working_capital_pct=0.2)
+        manufacturer.step()
 
         # Verify working capital has tied up cash
         assert manufacturer.accounts_receivable > 0, "Should have AR (cash tied up)"

@@ -44,7 +44,6 @@ The `step()` method advances the simulation by one year:
 ```python
 # Run one year of operations
 metrics = manufacturer.step(
-    working_capital_pct=0.2,   # 20% of assets as working capital
     growth_rate=0.05           # 5% asset growth target
 )
 
@@ -73,7 +72,6 @@ manufacturer.process_insurance_claim(
 
 # Run the year with the claim impact
 metrics = manufacturer.step(
-    working_capital_pct=0.2,
     letter_of_credit_rate=0.015  # 1.5% collateral cost
 )
 
