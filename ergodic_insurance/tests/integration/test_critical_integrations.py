@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.business_optimizer import BusinessConstraints, BusinessOptimizer
+from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
-from ergodic_insurance.config_v2 import ConfigV2
 from ergodic_insurance.convergence import ConvergenceDiagnostics
 from ergodic_insurance.decision_engine import InsuranceDecisionEngine, OptimizationConstraints
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer

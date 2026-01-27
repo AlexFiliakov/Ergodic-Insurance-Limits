@@ -24,9 +24,9 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from ergodic_insurance.claim_generator import ClaimGenerator
+from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
 from ergodic_insurance.config_migrator import ConfigMigrator
-from ergodic_insurance.config_v2 import ConfigV2
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig

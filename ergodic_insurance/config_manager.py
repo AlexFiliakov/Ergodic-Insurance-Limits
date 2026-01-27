@@ -51,14 +51,14 @@ logger = logging.getLogger(__name__)
 
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.config_v2 import ConfigV2, PresetLibrary
+    from ergodic_insurance.config import ConfigV2, PresetLibrary
 except ImportError:
     try:
         # Try relative import (for package context)
-        from .config_v2 import ConfigV2, PresetLibrary
+        from .config import ConfigV2, PresetLibrary
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config_v2 import ConfigV2, PresetLibrary  # type: ignore[no-redef]
+        from config import ConfigV2, PresetLibrary  # type: ignore[no-redef]
 
 
 class ConfigManager:
@@ -303,10 +303,7 @@ class ConfigManager:
                     current = getattr(config, key)
                     if current is None:
                         # Create new instance if field is None
-                        from ergodic_insurance.config_v2 import (
-                            InsuranceConfig,
-                            LossDistributionConfig,
-                        )
+                        from ergodic_insurance.config import InsuranceConfig, LossDistributionConfig
 
                         # Map key names to config classes
                         field_mapping = {

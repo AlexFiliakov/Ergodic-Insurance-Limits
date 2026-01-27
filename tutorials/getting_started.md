@@ -59,7 +59,7 @@ from ergodic_insurance.claim_generator import ClaimGenerator
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.monte_carlo import MonteCarloEngine
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
-from ergodic_insurance.config_v2 import ManufacturerConfig
+from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.src import visualization
 
 # Set random seed for reproducibility

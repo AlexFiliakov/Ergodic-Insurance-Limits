@@ -127,7 +127,7 @@ pre-commit install
 # test_installation.py
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.claim_generator import ClaimGenerator
-from ergodic_insurance.config_v2 import ManufacturerConfig
+from ergodic_insurance.config import ManufacturerConfig
 
 print("✅ Framework imported successfully!")
 

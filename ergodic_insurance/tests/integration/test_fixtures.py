@@ -14,21 +14,19 @@ import pytest
 from ergodic_insurance.claim_development import ClaimDevelopment
 from ergodic_insurance.claim_generator import ClaimEvent, ClaimGenerator
 from ergodic_insurance.config import (
+    ConfigV2,
     DebtConfig,
     GrowthConfig,
+    InsuranceConfig,
+    InsuranceLayerConfig,
     LoggingConfig,
     ManufacturerConfig,
     OutputConfig,
+    ProfileMetadata,
     SimulationConfig,
     WorkingCapitalConfig,
 )
 from ergodic_insurance.config_manager import ConfigManager
-from ergodic_insurance.config_v2 import (
-    ConfigV2,
-    InsuranceConfig,
-    InsuranceLayerConfig,
-    ProfileMetadata,
-)
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator

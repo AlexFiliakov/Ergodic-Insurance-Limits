@@ -7,7 +7,7 @@ graph LR
        %% Configuration Layer
        subgraph Config["Configuration Management"]
            CONFIG_BASE["config.py<br/>Base Configuration"]
-           CONFIG_V2["config_v2.py<br/>Enhanced Config"]
+           CONFIG_V2["config.py<br/>Enhanced Config"]
            CONFIG_MGR["config_manager.py<br/>Config Manager"]
            CONFIG_LOADER["config_loader.py<br/>Config Loader"]
            CONFIG_COMPAT["config_compat.py<br/>Compatibility Layer"]

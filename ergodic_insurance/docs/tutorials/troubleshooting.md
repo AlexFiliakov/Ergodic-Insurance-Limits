@@ -534,7 +534,7 @@ ValidationError: 1 validation error for ManufacturerConfig
 **Solution:**
 ```python
 # 1. Check required fields
-from ergodic_insurance.config_v2 import ManufacturerConfig
+from ergodic_insurance.config import ManufacturerConfig
 
 # See what's required
 print(ManufacturerConfig.schema())

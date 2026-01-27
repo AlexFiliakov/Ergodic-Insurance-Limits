@@ -2,9 +2,9 @@
 
 import pytest
 
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.config_v2 import (
+from ergodic_insurance.config import (
     IndustryConfig,
+    ManufacturerConfig,
     ManufacturingConfig,
     RetailConfig,
     ServiceConfig,

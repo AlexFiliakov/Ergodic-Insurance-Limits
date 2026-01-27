@@ -9,6 +9,7 @@ import yaml
 
 from ergodic_insurance.config import (
     Config,
+    ConfigV2,
     DebtConfig,
     GrowthConfig,
     LoggingConfig,
@@ -24,7 +25,6 @@ from ergodic_insurance.config_compat import (
     migrate_config_usage,
 )
 from ergodic_insurance.config_manager import ConfigManager
-from ergodic_insurance.config_v2 import ConfigV2
 
 
 @pytest.fixture
@@ -345,7 +345,7 @@ class TestLegacyConfigAdapter:
     def test_load_with_dict_overrides_merging(self, legacy_adapter, sample_config_dict):
         """Test that dictionary overrides merge instead of replace."""
         # Create a mock ConfigV2 with proper structure
-        from ergodic_insurance.config_v2 import ProfileMetadata
+        from ergodic_insurance.config import ProfileMetadata
 
         # Build a proper ConfigV2 object from sample config
         config_data = sample_config_dict.copy()

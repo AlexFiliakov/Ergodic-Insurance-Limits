@@ -2028,7 +2028,7 @@ class ErgodicAnalyzer:
                 from ergodic_insurance.loss_distributions import LossData
                 from ergodic_insurance.insurance_program import InsuranceProgram
                 from ergodic_insurance.manufacturer import WidgetManufacturer
-                from ergodic_insurance.config_v2 import ManufacturerConfig
+                from ergodic_insurance.config import ManufacturerConfig
 
                 # Set up loss data
                 loss_data = LossData.from_poisson_lognormal(
