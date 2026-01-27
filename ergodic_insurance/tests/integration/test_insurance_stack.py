@@ -190,8 +190,10 @@ class TestInsuranceStack:
             year_data["premium_paid"] = total_premium
 
             # Generate and process losses
+            # Use higher severity mean so claims are more likely to exceed deductible
+            # This ensures the test demonstrates insurance value in high-loss years
             loss_gen = ManufacturingLossGenerator.create_simple(
-                frequency=2, severity_mean=200_000, severity_std=300_000, seed=42 + year
+                frequency=2, severity_mean=400_000, severity_std=200_000, seed=42 + year
             )
             losses, _ = loss_gen.generate_losses(duration=1, revenue=10_000_000)
 

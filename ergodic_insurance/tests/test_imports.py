@@ -25,10 +25,10 @@ class TestImportPatterns:
         # Expected naming patterns (module_name: primary_class)
         expected_patterns = {
             "business_optimizer": "BusinessOptimizer",
-            "claim_generator": "ClaimGenerator",
             "claim_development": "ClaimDevelopment",
             "config_loader": "ConfigLoader",
             "ergodic_analyzer": "ErgodicAnalyzer",
+            "loss_distributions": "ManufacturingLossGenerator",
             "manufacturer": "WidgetManufacturer",
             "simulation": "Simulation",
             "risk_metrics": "RiskMetrics",
@@ -58,11 +58,11 @@ class TestImportPatterns:
             BusinessConstraints,
             BusinessObjective,
             BusinessOptimizer,
-            ClaimEvent,
-            ClaimGenerator,
             Config,
             ErgodicAnalyzer,
+            LossEvent,
             ManufacturerConfig,
+            ManufacturingLossGenerator,
             Simulation,
             SimulationResults,
             WidgetManufacturer,
@@ -72,8 +72,10 @@ class TestImportPatterns:
         assert isinstance(BusinessOptimizer, type), "BusinessOptimizer should be a class"
         assert isinstance(BusinessObjective, type), "BusinessObjective should be a class"
         assert isinstance(BusinessConstraints, type), "BusinessConstraints should be a class"
-        assert isinstance(ClaimEvent, type), "ClaimEvent should be a class"
-        assert isinstance(ClaimGenerator, type), "ClaimGenerator should be a class"
+        assert isinstance(LossEvent, type), "LossEvent should be a class"
+        assert isinstance(
+            ManufacturingLossGenerator, type
+        ), "ManufacturingLossGenerator should be a class"
         assert isinstance(Config, type), "Config should be a class"
         assert isinstance(ManufacturerConfig, type), "ManufacturerConfig should be a class"
         assert isinstance(ErgodicAnalyzer, type), "ErgodicAnalyzer should be a class"
@@ -84,28 +86,27 @@ class TestImportPatterns:
         # Verify classes have expected methods/attributes
         assert hasattr(BusinessOptimizer, "__init__"), "BusinessOptimizer should be instantiable"
         assert hasattr(
-            ClaimGenerator, "generate_claims"
-        ), "ClaimGenerator should have generate_claims method"
+            ManufacturingLossGenerator, "generate_losses"
+        ), "ManufacturingLossGenerator should have generate_losses method"
         assert hasattr(WidgetManufacturer, "__init__"), "WidgetManufacturer should be instantiable"
         assert hasattr(ErgodicAnalyzer, "__init__"), "ErgodicAnalyzer should be instantiable"
 
         # Test that basic instantiation works for simple classes
         try:
-            # ClaimEvent should be instantiable with basic parameters
-            event = ClaimEvent(amount=1000, event_type="test", year=1)
-            assert event.amount == 1000, "ClaimEvent should store amount"
+            # LossEvent should be instantiable with basic parameters
+            event = LossEvent(amount=1000, event_type="test", time=1)
+            assert event.amount == 1000, "LossEvent should store amount"
         except TypeError:
             # If it needs different parameters, at least verify it's a proper class
-            assert ClaimEvent.__module__.startswith(
+            assert LossEvent.__module__.startswith(
                 "ergodic_insurance"
-            ), "ClaimEvent should be from ergodic_insurance module"
+            ), "LossEvent should be from ergodic_insurance module"
 
     def test_no_circular_imports(self):
         """Verify there are no circular import dependencies."""
         # This test passes if all modules can be imported individually
         modules_to_test = [
             "business_optimizer",
-            "claim_generator",
             "claim_development",
             "config",
             "config_loader",
