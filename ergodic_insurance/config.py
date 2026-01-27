@@ -143,6 +143,12 @@ class ManufacturerConfig(BaseModel):
         "equity falls below this level. Default of $10,000 (0.1%% of typical $10M assets) "
         "represents practical insolvency where company cannot maintain operations.",
     )
+    expense_ratios: Optional["ExpenseRatioConfig"] = Field(
+        default=None,
+        description="Expense ratio configuration for COGS and SG&A breakdown. "
+        "If None, default ratios from ExpenseRatioConfig are used. "
+        "(Issue #255: Enables explicit COGS/SG&A calculation in Manufacturer)",
+    )
 
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):
@@ -1112,6 +1118,10 @@ class ExpenseRatioConfig(BaseModel):
 
     Defines how revenue translates to expenses with proper GAAP categorization
     between COGS and operating expenses (SG&A).
+
+    Issue #255: COGS and SG&A breakdown ratios are now configurable to allow
+    the Manufacturer to calculate these values explicitly, rather than having
+    the Reporting layer estimate them with hardcoded ratios.
     """
 
     gross_margin_ratio: float = Field(
@@ -1139,12 +1149,66 @@ class ExpenseRatioConfig(BaseModel):
         description="Percentage of depreciation allocated to SG&A (administrative)",
     )
 
+    # COGS breakdown ratios (Issue #255)
+    direct_materials_ratio: float = Field(
+        default=0.4,
+        ge=0,
+        le=1,
+        description="Direct materials as percentage of COGS (excluding depreciation)",
+    )
+    direct_labor_ratio: float = Field(
+        default=0.3,
+        ge=0,
+        le=1,
+        description="Direct labor as percentage of COGS (excluding depreciation)",
+    )
+    manufacturing_overhead_ratio: float = Field(
+        default=0.3,
+        ge=0,
+        le=1,
+        description="Manufacturing overhead as percentage of COGS (excluding depreciation)",
+    )
+
+    # SG&A breakdown ratios (Issue #255)
+    selling_expense_ratio: float = Field(
+        default=0.4,
+        ge=0,
+        le=1,
+        description="Selling expenses as percentage of SG&A (excluding depreciation)",
+    )
+    general_admin_ratio: float = Field(
+        default=0.6,
+        ge=0,
+        le=1,
+        description="General & Admin as percentage of SG&A (excluding depreciation)",
+    )
+
     @model_validator(mode="after")
     def validate_depreciation_allocation(self):
         """Ensure depreciation allocations sum to 100%."""
         total = self.manufacturing_depreciation_allocation + self.admin_depreciation_allocation
         if abs(total - 1.0) > 0.001:
             raise ValueError(f"Depreciation allocations must sum to 100%, got {total*100:.1f}%")
+        return self
+
+    @model_validator(mode="after")
+    def validate_cogs_breakdown(self):
+        """Ensure COGS breakdown ratios sum to 100%."""
+        total = (
+            self.direct_materials_ratio
+            + self.direct_labor_ratio
+            + self.manufacturing_overhead_ratio
+        )
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(f"COGS breakdown ratios must sum to 100%, got {total*100:.1f}%")
+        return self
+
+    @model_validator(mode="after")
+    def validate_sga_breakdown(self):
+        """Ensure SG&A breakdown ratios sum to 100%."""
+        total = self.selling_expense_ratio + self.general_admin_ratio
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(f"SG&A breakdown ratios must sum to 100%, got {total*100:.1f}%")
         return self
 
     @property

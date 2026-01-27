@@ -3174,6 +3174,60 @@ class WidgetManufacturer:
         # Track depreciation expense for cash flow statement
         metrics["depreciation_expense"] = annual_depreciation
 
+        # Issue #255: Calculate COGS and SG&A breakdown explicitly
+        # This removes hardcoded ratios from the reporting layer and puts
+        # the business logic where it belongs - in the Manufacturer model.
+        expense_ratios = getattr(self.config, "expense_ratios", None)
+
+        # Get expense ratios from config or use defaults
+        if expense_ratios is not None:
+            gross_margin_ratio = expense_ratios.gross_margin_ratio
+            sga_expense_ratio = expense_ratios.sga_expense_ratio
+            mfg_depreciation_alloc = expense_ratios.manufacturing_depreciation_allocation
+            admin_depreciation_alloc = expense_ratios.admin_depreciation_allocation
+            direct_materials_ratio = expense_ratios.direct_materials_ratio
+            direct_labor_ratio = expense_ratios.direct_labor_ratio
+            manufacturing_overhead_ratio = expense_ratios.manufacturing_overhead_ratio
+            selling_expense_ratio = expense_ratios.selling_expense_ratio
+            general_admin_ratio = expense_ratios.general_admin_ratio
+        else:
+            # Default ratios (matching former hardcoded values in financial_statements.py)
+            gross_margin_ratio = 0.15
+            sga_expense_ratio = 0.07
+            mfg_depreciation_alloc = 0.7
+            admin_depreciation_alloc = 0.3
+            direct_materials_ratio = 0.4
+            direct_labor_ratio = 0.3
+            manufacturing_overhead_ratio = 0.3
+            selling_expense_ratio = 0.4
+            general_admin_ratio = 0.6
+
+        # Calculate COGS breakdown
+        cogs_ratio = 1.0 - gross_margin_ratio
+        base_cogs = revenue * cogs_ratio
+        mfg_depreciation = annual_depreciation * mfg_depreciation_alloc
+        cogs_before_depreciation = base_cogs - mfg_depreciation
+
+        metrics["direct_materials"] = cogs_before_depreciation * direct_materials_ratio
+        metrics["direct_labor"] = cogs_before_depreciation * direct_labor_ratio
+        metrics["manufacturing_overhead"] = cogs_before_depreciation * manufacturing_overhead_ratio
+        metrics["mfg_depreciation"] = mfg_depreciation
+        metrics["total_cogs"] = base_cogs
+
+        # Calculate SG&A breakdown
+        base_sga = revenue * sga_expense_ratio
+        admin_depreciation = annual_depreciation * admin_depreciation_alloc
+        sga_before_depreciation = base_sga - admin_depreciation
+
+        metrics["selling_expenses"] = sga_before_depreciation * selling_expense_ratio
+        metrics["general_admin_expenses"] = sga_before_depreciation * general_admin_ratio
+        metrics["admin_depreciation"] = admin_depreciation
+        metrics["total_sga"] = base_sga
+
+        # Store expense ratios for reporting reference
+        metrics["gross_margin_ratio"] = gross_margin_ratio
+        metrics["sga_expense_ratio"] = sga_expense_ratio
+
         # Financial ratios - ROE now includes all expenses
         metrics["asset_turnover"] = revenue / self.total_assets if self.total_assets > 0 else 0
 
