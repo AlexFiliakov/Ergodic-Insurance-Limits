@@ -196,6 +196,7 @@ try:
     from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
     from ergodic_insurance.config import ManufacturerConfig
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
+    from ergodic_insurance.ledger import Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
 except ImportError:
     try:
@@ -203,6 +204,7 @@ except ImportError:
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
         from .config import ManufacturerConfig
         from .insurance_accounting import InsuranceAccounting
+        from .ledger import Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
@@ -213,6 +215,7 @@ except ImportError:
         )
         from config import ManufacturerConfig  # type: ignore[no-redef]
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
+        from ledger import Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
 
 # Optional import for claim development integration
@@ -799,6 +802,82 @@ class WidgetManufacturer:
         # Store initial values for base comparisons (for exposure bases)
         self._initial_assets = config.initial_assets
         self._initial_equity = config.initial_assets
+
+        # Initialize the event-sourcing ledger for financial statements
+        self.ledger = Ledger()
+        self._record_initial_balances()
+
+    def _record_initial_balances(self) -> None:
+        """Record initial balance sheet entries in the ledger.
+
+        This establishes the opening balances for all accounts at year 0.
+        Uses equity as the balancing entry for all asset positions.
+        """
+        # Record initial cash position
+        if self.cash > 0:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account="cash",
+                credit_account="retained_earnings",
+                amount=self.cash,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial cash position",
+            )
+
+        # Record initial accounts receivable
+        if self.accounts_receivable > 0:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account="accounts_receivable",
+                credit_account="retained_earnings",
+                amount=self.accounts_receivable,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial accounts receivable",
+            )
+
+        # Record initial inventory
+        if self.inventory > 0:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account="inventory",
+                credit_account="retained_earnings",
+                amount=self.inventory,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial inventory",
+            )
+
+        # Record initial prepaid insurance (if any)
+        if self.prepaid_insurance > 0:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account="prepaid_insurance",
+                credit_account="retained_earnings",
+                amount=self.prepaid_insurance,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial prepaid insurance",
+            )
+
+        # Record initial gross PP&E
+        if self.gross_ppe > 0:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account="gross_ppe",
+                credit_account="retained_earnings",
+                amount=self.gross_ppe,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial gross PP&E",
+            )
+
+        # Record initial accounts payable (if any)
+        if self.accounts_payable > 0:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account="retained_earnings",
+                credit_account="accounts_payable",
+                amount=self.accounts_payable,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial accounts payable",
+            )
 
     # Properties for FinancialStateProvider protocol
     @property
@@ -1622,6 +1701,18 @@ class WidgetManufacturer:
 
             # All checks passed - absorb the full loss
             self.cash += retained_earnings  # retained_earnings is negative
+
+            # Record loss absorption in ledger
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="retained_earnings",
+                credit_account="cash",
+                amount=loss_amount,
+                transaction_type=TransactionType.EXPENSE,
+                description=f"Year {self.current_year} operating loss",
+                month=self.current_month,
+            )
+
             self._last_dividends_paid = 0.0  # No dividends on losses
             logger.info(
                 f"Absorbed loss: ${loss_amount:,.2f}. "
@@ -1657,6 +1748,31 @@ class WidgetManufacturer:
             # Add retained earnings + any unpaid dividends to cash
             self.cash += retained_earnings + additional_retained
             self._last_dividends_paid = actual_dividends
+
+            # Record retained earnings in ledger (net income increases cash and retained earnings)
+            total_retained = retained_earnings + additional_retained
+            if total_retained > 0:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account="cash",
+                    credit_account="retained_earnings",
+                    amount=total_retained,
+                    transaction_type=TransactionType.REVENUE,
+                    description=f"Year {self.current_year} retained earnings",
+                    month=self.current_month,
+                )
+
+            # Record dividends paid in ledger
+            if actual_dividends > 0:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account="dividends",
+                    credit_account="cash",
+                    amount=actual_dividends,
+                    transaction_type=TransactionType.DIVIDEND,
+                    description=f"Year {self.current_year} dividends paid",
+                    month=self.current_month,
+                )
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
@@ -1718,6 +1834,73 @@ class WidgetManufacturer:
         ar_change = new_ar - self.accounts_receivable
         inventory_change = new_inventory - self.inventory
         ap_change = new_ap - self.accounts_payable
+
+        # Record working capital changes in ledger
+        # AR increase: Debit AR, Credit Cash (collection cycle)
+        if ar_change > 0:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="accounts_receivable",
+                credit_account="cash",
+                amount=ar_change,
+                transaction_type=TransactionType.WORKING_CAPITAL,
+                description=f"AR increase from revenue growth",
+                month=self.current_month,
+            )
+        elif ar_change < 0:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="cash",
+                credit_account="accounts_receivable",
+                amount=abs(ar_change),
+                transaction_type=TransactionType.COLLECTION,
+                description=f"AR decrease (net collections)",
+                month=self.current_month,
+            )
+
+        # Inventory increase: Debit Inventory, Credit Cash (purchase cycle)
+        if inventory_change > 0:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="inventory",
+                credit_account="cash",
+                amount=inventory_change,
+                transaction_type=TransactionType.INVENTORY_PURCHASE,
+                description=f"Inventory increase",
+                month=self.current_month,
+            )
+        elif inventory_change < 0:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="cash",
+                credit_account="inventory",
+                amount=abs(inventory_change),
+                transaction_type=TransactionType.WORKING_CAPITAL,
+                description=f"Inventory decrease",
+                month=self.current_month,
+            )
+
+        # AP increase: Debit Cash, Credit AP (we owe more to vendors)
+        if ap_change > 0:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="cash",
+                credit_account="accounts_payable",
+                amount=ap_change,
+                transaction_type=TransactionType.WORKING_CAPITAL,
+                description=f"AP increase from purchases",
+                month=self.current_month,
+            )
+        elif ap_change < 0:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="accounts_payable",
+                credit_account="cash",
+                amount=abs(ap_change),
+                transaction_type=TransactionType.PAYMENT,
+                description=f"AP decrease (payments to vendors)",
+                month=self.current_month,
+            )
 
         # Update components
         self.accounts_receivable = new_ar
@@ -1812,6 +1995,17 @@ class WidgetManufacturer:
             self.prepaid_insurance = result["prepaid_asset"]
             self.cash -= result["cash_outflow"]
 
+            # Record insurance premium payment in ledger
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account="prepaid_insurance",
+                credit_account="cash",
+                amount=result["cash_outflow"],
+                transaction_type=TransactionType.INSURANCE_PREMIUM,
+                description=f"Annual insurance premium payment",
+                month=self.current_month,
+            )
+
             logger.info(f"Recorded prepaid insurance: ${annual_premium:,.2f}")
 
     def amortize_prepaid_insurance(self, months: int = 1) -> float:
@@ -1850,6 +2044,18 @@ class WidgetManufacturer:
                 self.prepaid_insurance = result["remaining_prepaid"]
                 self.period_insurance_premiums += result["insurance_expense"]
                 total_amortized += result["insurance_expense"]
+
+                # Record insurance expense amortization in ledger
+                if result["insurance_expense"] > 0:
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account="insurance_expense",
+                        credit_account="prepaid_insurance",
+                        amount=result["insurance_expense"],
+                        transaction_type=TransactionType.EXPENSE,
+                        description=f"Insurance premium amortization",
+                        month=self.current_month,
+                    )
 
                 logger.debug(
                     f"Month {self.insurance_accounting.current_month}: "
@@ -1941,6 +2147,17 @@ class WidgetManufacturer:
             if net_ppe > 0:
                 depreciation_expense = min(annual_depreciation, net_ppe)
                 self.accumulated_depreciation += depreciation_expense
+
+                # Record depreciation in ledger
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account="depreciation_expense",
+                    credit_account="accumulated_depreciation",
+                    amount=depreciation_expense,
+                    transaction_type=TransactionType.DEPRECIATION,
+                    description=f"Year {self.current_year} depreciation",
+                    month=self.current_month,
+                )
 
                 logger.debug(
                     f"Recorded depreciation: ${depreciation_expense:,.2f}, "
@@ -2446,6 +2663,18 @@ class WidgetManufacturer:
                         # The collateral was set aside for this purpose
                         self.restricted_assets -= actual_payment
                         self.collateral -= actual_payment
+
+                        # Record claim payment from restricted assets in ledger
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account="claim_liabilities",
+                            credit_account="restricted_cash",
+                            amount=actual_payment,
+                            transaction_type=TransactionType.INSURANCE_CLAIM,
+                            description=f"Insured claim payment from collateral",
+                            month=self.current_month,
+                        )
+
                         logger.debug(
                             f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
                         )
@@ -2459,6 +2688,18 @@ class WidgetManufacturer:
                         claim.make_payment(actual_payment)
                         total_paid += actual_payment
                         self.cash -= actual_payment  # Reduce cash for uninsured claims
+
+                        # Record uninsured claim payment in ledger
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account="claim_liabilities",
+                            credit_account="cash",
+                            amount=actual_payment,
+                            transaction_type=TransactionType.INSURANCE_CLAIM,
+                            description=f"Uninsured claim payment",
+                            month=self.current_month,
+                        )
+
                         logger.debug(
                             f"Paid ${actual_payment:,.2f} toward uninsured claim (regular business expense)"
                         )
@@ -3054,6 +3295,31 @@ class WidgetManufacturer:
                 self.cash -= payable_amount
                 total_paid += payable_amount
 
+                # Record accrued payment in ledger
+                # Determine transaction type based on accrual type
+                if accrual_type == AccrualType.TAXES:
+                    trans_type = TransactionType.TAX_PAYMENT
+                    debit_account = "accrued_taxes"
+                elif accrual_type == AccrualType.WAGES:
+                    trans_type = TransactionType.PAYMENT
+                    debit_account = "accrued_wages"
+                elif accrual_type == AccrualType.INTEREST:
+                    trans_type = TransactionType.PAYMENT
+                    debit_account = "accrued_interest"
+                else:
+                    trans_type = TransactionType.PAYMENT
+                    debit_account = "accrued_expenses"
+
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=debit_account,
+                    credit_account="cash",
+                    amount=payable_amount,
+                    transaction_type=trans_type,
+                    description=f"Accrued {accrual_type.value} payment",
+                    month=self.current_month,
+                )
+
                 logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
 
             # LIMITED LIABILITY: Discharge unpayable accrued expenses from liabilities
@@ -3523,6 +3789,10 @@ class WidgetManufacturer:
 
         # Reset accrual manager
         self.accrual_manager = AccrualManager()
+
+        # Reset ledger and record initial balances
+        self.ledger = Ledger()
+        self._record_initial_balances()
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:
