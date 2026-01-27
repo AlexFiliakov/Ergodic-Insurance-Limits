@@ -31,9 +31,16 @@ class TestCashFlowStatement:
             },
             {
                 # Year 1 metrics - with changes
+                # Cash flow calculation:
+                #   Operating: 1,200k NI + 110k Dep - 50k AR - 30k Inv - 5k Prepaid
+                #              + 20k AP + 10k Accrued + 50k Claims = 1,305k
+                #   Investing: -(200k PP&E change + 110k Dep) = -310k
+                #   Financing: -360k dividends
+                #   Net: 1,305k - 310k - 360k = 635k
+                # Ending cash = 500k + 635k = 1,135k
                 "net_income": 1200000,
                 "depreciation_expense": 110000,
-                "cash": 600000,
+                "cash": 1135000,  # Consistent with cash flow calculation
                 "accounts_receivable": 250000,  # Increased by 50k
                 "inventory": 180000,  # Increased by 30k
                 "prepaid_insurance": 25000,  # Increased by 5k
@@ -153,11 +160,11 @@ class TestCashFlowStatement:
         # Beginning cash (Year 0) = 500,000
         assert values["beginning"] == 500000
 
-        # Ending cash (Year 1) = 600,000
-        assert values["ending"] == 600000
+        # Ending cash (Year 1) = 1,135,000 (consistent with cash flow calculation)
+        assert values["ending"] == 1135000
 
-        # The net change is what makes the equation balance
-        # We're not testing the exact amount, just that the reconciliation works
+        # The calculated cash flow must equal the actual cash change
+        # This is a critical integrity check - no "plug" allowed
         assert abs((values["beginning"] + values["net_change"]) - values["ending"]) < 0.01
 
     def test_monthly_period(self):

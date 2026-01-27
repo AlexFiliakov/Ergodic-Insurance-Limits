@@ -416,20 +416,8 @@ class CashFlowStatement:
         # This ensures perfect reconciliation
         cash_flow_data.append(("CASH RECONCILIATION", "", ""))
         cash_flow_data.append(("  Cash - Beginning of Period", beginning_cash, ""))
-        cash_flow_data.append(("  Net Change in Cash", actual_cash_change, ""))
+        cash_flow_data.append(("  Net Change in Cash", net_cash_flow, ""))
         cash_flow_data.append(("  Cash - End of Period", ending_cash, ""))
-
-        # Check if our calculated cash flow matches actual
-        if abs(net_cash_flow - actual_cash_change) > 0.01:
-            # Replace the NET INCREASE (DECREASE) IN CASH with actual
-            for i, item in enumerate(cash_flow_data):
-                if item[0] == "NET INCREASE (DECREASE) IN CASH":
-                    cash_flow_data[i] = (
-                        "NET INCREASE (DECREASE) IN CASH",
-                        actual_cash_change,
-                        "total",
-                    )
-                    break
 
         # Create DataFrame
         df = pd.DataFrame(cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"])
