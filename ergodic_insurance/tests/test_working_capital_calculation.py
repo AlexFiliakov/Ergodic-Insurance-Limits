@@ -3,6 +3,7 @@
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig, WorkingCapitalRatiosConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -37,8 +38,8 @@ class TestWorkingCapitalCalculation:
 
         # AR = Revenue * (DSO / 365)
         expected_ar = revenue * (dso / 365)
-        assert components["accounts_receivable"] == pytest.approx(expected_ar, rel=0.01)
-        assert manufacturer.accounts_receivable == pytest.approx(expected_ar, rel=0.01)
+        assert float(components["accounts_receivable"]) == pytest.approx(expected_ar, rel=0.01)
+        assert float(manufacturer.accounts_receivable) == pytest.approx(expected_ar, rel=0.01)
 
     def test_inventory_calculation(self, manufacturer):
         """Test inventory calculation using DIO."""
@@ -52,8 +53,8 @@ class TestWorkingCapitalCalculation:
 
         # Inventory = COGS * (DIO / 365)
         expected_inventory = cogs * (dio / 365)
-        assert components["inventory"] == pytest.approx(expected_inventory, rel=0.01)
-        assert manufacturer.inventory == pytest.approx(expected_inventory, rel=0.01)
+        assert float(components["inventory"]) == pytest.approx(expected_inventory, rel=0.01)
+        assert float(manufacturer.inventory) == pytest.approx(expected_inventory, rel=0.01)
 
     def test_accounts_payable_calculation(self, manufacturer):
         """Test accounts payable calculation using DPO."""
@@ -67,8 +68,8 @@ class TestWorkingCapitalCalculation:
 
         # AP = COGS * (DPO / 365)
         expected_ap = cogs * (dpo / 365)
-        assert components["accounts_payable"] == pytest.approx(expected_ap, rel=0.01)
-        assert manufacturer.accounts_payable == pytest.approx(expected_ap, rel=0.01)
+        assert float(components["accounts_payable"]) == pytest.approx(expected_ap, rel=0.01)
+        assert float(manufacturer.accounts_payable) == pytest.approx(expected_ap, rel=0.01)
 
     def test_net_working_capital_calculation(self, manufacturer):
         """Test net working capital calculation."""
@@ -85,7 +86,9 @@ class TestWorkingCapitalCalculation:
             + components["inventory"]
             - components["accounts_payable"]
         )
-        assert components["net_working_capital"] == pytest.approx(expected_net_wc, rel=0.01)
+        assert float(components["net_working_capital"]) == pytest.approx(
+            float(expected_net_wc), rel=0.01
+        )
 
     def test_cash_conversion_cycle(self, manufacturer):
         """Test cash conversion cycle calculation."""
@@ -146,8 +149,8 @@ class TestWorkingCapitalCalculation:
 
         # AR and Inventory changes should be modest (within 20% of initial values)
         # since we're starting from steady state
-        assert abs(manufacturer.accounts_receivable - initial_ar) < initial_ar * 0.2
-        assert abs(manufacturer.inventory - initial_inv) < initial_inv * 0.2
+        assert abs(manufacturer.accounts_receivable - initial_ar) < initial_ar * to_decimal(0.2)
+        assert abs(manufacturer.inventory - initial_inv) < initial_inv * to_decimal(0.2)
 
         # Components should be in metrics
         assert metrics["accounts_receivable"] > 0
@@ -225,8 +228,8 @@ class TestWorkingCapitalCalculation:
         manufacturer.step()
 
         # Verify that the accounting equation holds: Assets = Liabilities + Equity
-        assert manufacturer.total_assets == pytest.approx(
-            manufacturer.total_liabilities + manufacturer.equity, rel=0.01
+        assert float(manufacturer.total_assets) == pytest.approx(
+            float(manufacturer.total_liabilities + manufacturer.equity), rel=0.01
         ), "Accounting equation should balance: Assets = Liabilities + Equity"
 
         # Verify that cash is correctly calculated as part of total assets
@@ -239,7 +242,7 @@ class TestWorkingCapitalCalculation:
             - manufacturer.net_ppe
             - manufacturer.restricted_assets
         )
-        assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
+        assert float(manufacturer.cash) == pytest.approx(float(expected_cash), rel=0.01)
 
     def test_working_capital_with_zero_revenue(self, manufacturer):
         """Test working capital calculation with zero revenue."""
@@ -292,27 +295,29 @@ class TestWorkingCapitalCalculation:
         ), "AP starts at zero (builds up on first step to maintain total_assets)"
 
         # Calculate expected initial values based on initialization formula
-        initial_revenue = (
-            manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
+        initial_revenue = to_decimal(manufacturer.config.initial_assets) * to_decimal(
+            manufacturer.config.asset_turnover_ratio
         )
-        initial_cogs = initial_revenue * (1 - manufacturer.config.base_operating_margin)
-        expected_initial_ar = initial_revenue * (45 / 365)
-        expected_initial_inv = initial_cogs * (60 / 365)
+        initial_cogs = initial_revenue * (
+            to_decimal(1) - to_decimal(manufacturer.config.base_operating_margin)
+        )
+        expected_initial_ar = initial_revenue * to_decimal(45 / 365)
+        expected_initial_inv = initial_cogs * to_decimal(60 / 365)
 
         # Verify AR and Inventory initialization matches expected steady-state values
-        assert initial_ar == pytest.approx(expected_initial_ar, rel=0.01)
-        assert initial_inv == pytest.approx(expected_initial_inv, rel=0.01)
+        assert float(initial_ar) == pytest.approx(float(expected_initial_ar), rel=0.01)
+        assert float(initial_inv) == pytest.approx(float(expected_initial_inv), rel=0.01)
 
         # Run first step
         year1_metrics = manufacturer.step()
 
         # Year 1 AR and Inventory should remain substantial (not building from zero)
         # The values should be in the same order of magnitude as initialization
-        assert (
-            year1_metrics["accounts_receivable"] > initial_ar * 0.5
+        assert year1_metrics["accounts_receivable"] > initial_ar * to_decimal(
+            0.5
         ), "Year 1 AR should remain substantial"
-        assert (
-            year1_metrics["inventory"] > initial_inv * 0.5
+        assert year1_metrics["inventory"] > initial_inv * to_decimal(
+            0.5
         ), "Year 1 inventory should remain substantial"
 
         # AP will build up on first step

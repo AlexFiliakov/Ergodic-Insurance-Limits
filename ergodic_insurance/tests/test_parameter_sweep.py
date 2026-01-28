@@ -174,9 +174,11 @@ class TestParameterSweeper:
             )
             mock_create.return_value = mock_manufacturer
 
-            with patch("ergodic_insurance.parameter_sweep.BusinessOptimizer") as MockOptimizer:
+            # Patch at the source module where BusinessOptimizer is defined
+            with patch("ergodic_insurance.business_optimizer.BusinessOptimizer") as MockOptimizer:
                 mock_opt_instance = MockOptimizer.return_value
-                mock_opt_instance.maximize_roe_with_insurance.side_effect = Exception(
+                # Use ValueError which is caught by _run_single
+                mock_opt_instance.maximize_roe_with_insurance.side_effect = ValueError(
                     "Optimization failed"
                 )
 

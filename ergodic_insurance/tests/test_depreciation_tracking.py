@@ -3,6 +3,7 @@
 import pytest
 
 from ergodic_insurance.config import DepreciationConfig, ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -34,7 +35,7 @@ class TestDepreciationTracking:
         """Test that initial assets are properly allocated to PP&E."""
         # PPE ratio is now configurable, with defaults based on operating margin
         expected_ppe_ratio = manufacturer.config.ppe_ratio
-        expected_ppe = manufacturer.config.initial_assets * expected_ppe_ratio
+        expected_ppe = to_decimal(manufacturer.config.initial_assets * expected_ppe_ratio)
         assert manufacturer.gross_ppe == expected_ppe
         assert manufacturer.accumulated_depreciation == 0
         assert manufacturer.net_ppe == expected_ppe
@@ -42,7 +43,9 @@ class TestDepreciationTracking:
         # Cash should be the remainder minus working capital assets (AR + inventory)
         # Working capital is initialized to steady-state to avoid warm-up distortion
         working_capital_assets = manufacturer.accounts_receivable + manufacturer.inventory
-        expected_cash = manufacturer.config.initial_assets - expected_ppe - working_capital_assets
+        expected_cash = (
+            to_decimal(manufacturer.config.initial_assets) - expected_ppe - working_capital_assets
+        )
         assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
 
     def test_custom_ppe_ratio(self):
@@ -60,11 +63,11 @@ class TestDepreciationTracking:
 
         # Verify custom ratio is used
         assert config.ppe_ratio == 0.6
-        expected_ppe = config.initial_assets * 0.6
+        expected_ppe = to_decimal(config.initial_assets * 0.6)
         assert manufacturer.gross_ppe == expected_ppe
         # Cash = remaining assets minus working capital (AR + inventory initialized to steady-state)
         working_capital_assets = manufacturer.accounts_receivable + manufacturer.inventory
-        expected_cash = config.initial_assets * 0.4 - working_capital_assets
+        expected_cash = to_decimal(config.initial_assets * 0.4) - working_capital_assets
         assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
 
     def test_default_ppe_ratio_based_on_margin(self):
@@ -289,7 +292,9 @@ class TestDepreciationTracking:
             expected_ppe_ratio = 0.5
         else:
             expected_ppe_ratio = 0.7
-        assert manufacturer.gross_ppe == manufacturer.config.initial_assets * expected_ppe_ratio
+        assert manufacturer.gross_ppe == to_decimal(
+            manufacturer.config.initial_assets * expected_ppe_ratio
+        )
 
     def test_different_useful_lives(self, manufacturer):
         """Test depreciation with different useful life assumptions."""

@@ -859,7 +859,7 @@ class TestEnhancedOptimizationMethods:
         assert decision.retained_limit <= constraints.max_retention_limit
 
         # Verify insurance cost ceiling
-        revenue = engine.manufacturer.total_assets * engine.manufacturer.asset_turnover_ratio
+        revenue = float(engine.manufacturer.total_assets) * engine.manufacturer.asset_turnover_ratio
         cost_ratio = decision.total_premium / revenue
         assert cost_ratio <= constraints.max_insurance_cost_ratio
 

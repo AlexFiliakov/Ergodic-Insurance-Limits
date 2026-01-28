@@ -546,7 +546,7 @@ class FrequencyGenerator:
         """Calculate revenue-scaled frequency.
 
         Args:
-            revenue: Current revenue level.
+            revenue: Current revenue level (can be float or Decimal).
 
         Returns:
             Scaled frequency parameter.
@@ -554,7 +554,9 @@ class FrequencyGenerator:
         if revenue <= 0:
             return 0.0
 
-        scaling_factor = (revenue / self.reference_revenue) ** self.revenue_scaling_exponent
+        # Convert to float to handle Decimal inputs - power operation requires float
+        revenue_float = float(revenue)
+        scaling_factor = (revenue_float / self.reference_revenue) ** self.revenue_scaling_exponent
         return float(self.base_frequency * scaling_factor)
 
     def generate_event_times(self, duration: float, revenue: float) -> np.ndarray:

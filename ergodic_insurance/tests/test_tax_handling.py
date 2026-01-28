@@ -8,6 +8,7 @@ tax-deductible business expenses.
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -46,7 +47,7 @@ class TestTaxHandling:
         net_income = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
 
         # Expected: Operating income = $1.5M, taxes = $375K, net = $1.125M
-        expected_taxes = operating_income * manufacturer.tax_rate
+        expected_taxes = operating_income * to_decimal(manufacturer.tax_rate)
         expected_net = operating_income - expected_taxes
 
         assert abs(net_income - expected_net) < 0.01
@@ -65,15 +66,15 @@ class TestTaxHandling:
         net_income_with_premium = manufacturer.calculate_net_income(operating_income, 0, premium, 0)
 
         # Expected calculation
-        income_before_tax = operating_income - premium  # $1M
-        expected_taxes = income_before_tax * manufacturer.tax_rate  # $250K
+        income_before_tax = operating_income - to_decimal(premium)  # $1M
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $250K
         expected_net = income_before_tax - expected_taxes  # $750K
 
-        assert abs(net_income_with_premium - expected_net) < 0.01
-        assert expected_net == pytest.approx(750_000)
+        assert abs(float(net_income_with_premium) - float(expected_net)) < 0.01
+        assert float(expected_net) == pytest.approx(750_000)
 
         # Verify tax savings
-        baseline_taxes = operating_income * manufacturer.tax_rate
+        baseline_taxes = operating_income * to_decimal(manufacturer.tax_rate)
         tax_savings = baseline_taxes - expected_taxes
         assert tax_savings == pytest.approx(125_000)  # 25% of $500K
 
@@ -90,15 +91,15 @@ class TestTaxHandling:
         net_income_with_loss = manufacturer.calculate_net_income(operating_income, 0, 0, loss)
 
         # Expected calculation
-        income_before_tax = operating_income - loss  # $1.2M
-        expected_taxes = income_before_tax * manufacturer.tax_rate  # $300K
+        income_before_tax = operating_income - to_decimal(loss)  # $1.2M
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $300K
         expected_net = income_before_tax - expected_taxes  # $900K
 
-        assert abs(net_income_with_loss - expected_net) < 0.01
-        assert expected_net == pytest.approx(900_000)
+        assert abs(float(net_income_with_loss) - float(expected_net)) < 0.01
+        assert float(expected_net) == pytest.approx(900_000)
 
         # Verify tax savings
-        baseline_taxes = operating_income * manufacturer.tax_rate
+        baseline_taxes = operating_income * to_decimal(manufacturer.tax_rate)
         tax_savings = baseline_taxes - expected_taxes
         assert tax_savings == pytest.approx(75_000)  # 25% of $300K
 
@@ -116,16 +117,16 @@ class TestTaxHandling:
         net_income_combined = manufacturer.calculate_net_income(operating_income, 0, premium, loss)
 
         # Expected calculation
-        total_insurance_costs = premium + loss  # $600K
+        total_insurance_costs = to_decimal(premium + loss)  # $600K
         income_before_tax = operating_income - total_insurance_costs  # $900K
-        expected_taxes = income_before_tax * manufacturer.tax_rate  # $225K
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $225K
         expected_net = income_before_tax - expected_taxes  # $675K
 
-        assert abs(net_income_combined - expected_net) < 0.01
-        assert expected_net == pytest.approx(675_000)
+        assert abs(float(net_income_combined) - float(expected_net)) < 0.01
+        assert float(expected_net) == pytest.approx(675_000)
 
         # Verify combined tax savings
-        baseline_taxes = operating_income * manufacturer.tax_rate
+        baseline_taxes = operating_income * to_decimal(manufacturer.tax_rate)
         tax_savings = baseline_taxes - expected_taxes
         assert tax_savings == pytest.approx(150_000)  # 25% of $600K
 
@@ -147,13 +148,13 @@ class TestTaxHandling:
         )
 
         # Expected calculation
-        total_deductible_costs = collateral_costs + premium + loss  # $450K
+        total_deductible_costs = to_decimal(collateral_costs + premium + loss)  # $450K
         income_before_tax = operating_income - total_deductible_costs  # $1.05M
-        expected_taxes = income_before_tax * manufacturer.tax_rate  # $262.5K
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $262.5K
         expected_net = income_before_tax - expected_taxes  # $787.5K
 
-        assert abs(net_income - expected_net) < 0.01
-        assert expected_net == pytest.approx(787_500)
+        assert abs(float(net_income) - float(expected_net)) < 0.01
+        assert float(expected_net) == pytest.approx(787_500)
 
     def test_zero_insurance_costs(self, manufacturer):
         """Test that zero insurance costs work correctly.
@@ -233,11 +234,11 @@ class TestTaxHandling:
         # Net income should be lower due to premiums (tax-deductible expense)
         # The premiums reduce pre-tax income, which reduces taxes, so the net impact
         # is premiums * (1 - tax_rate) * retention_ratio
-        tax_rate = manufacturer.tax_rate
-        retention_ratio = manufacturer.retention_ratio
+        tax_rate = to_decimal(manufacturer.tax_rate)
+        retention_ratio = to_decimal(manufacturer.retention_ratio)
 
         # Expected reduction in retained earnings due to premiums
-        premium_impact = total_premiums * (1 - tax_rate) * retention_ratio
+        premium_impact = to_decimal(total_premiums) * (to_decimal(1) - tax_rate) * retention_ratio
 
         # Without premiums, assets would have been higher
         # We can't directly test final assets since we don't know all the other income/expenses
@@ -307,7 +308,8 @@ class TestTaxHandling:
         # We can't easily calculate the exact expected value without duplicating
         # the entire calculation, but we can verify it's reasonable
         assert "net_income" in metrics
-        assert isinstance(metrics["net_income"], (int, float))
+        # net_income is Decimal, convert to float for type checking
+        assert isinstance(float(metrics["net_income"]), (int, float))
 
         # Verify that period costs were used and then reset
         assert manufacturer.period_insurance_premiums == 0.0
@@ -347,18 +349,18 @@ class TestTaxHandling:
         net_income = manufacturer.calculate_net_income(operating_income, 0, insurance_costs, 0)
 
         # Calculate expected values
-        income_before_tax = operating_income - insurance_costs
-        expected_taxes = max(0, income_before_tax * tax_rate)
+        income_before_tax = operating_income - to_decimal(insurance_costs)
+        expected_taxes = max(to_decimal(0), income_before_tax * to_decimal(tax_rate))
         expected_net = income_before_tax - expected_taxes
 
-        assert abs(net_income - expected_net) < 0.01
+        assert abs(float(net_income) - float(expected_net)) < 0.01
 
         # Calculate tax savings
-        baseline_taxes = max(0, operating_income * tax_rate)
+        baseline_taxes = max(to_decimal(0), operating_income * to_decimal(tax_rate))
         tax_savings = baseline_taxes - expected_taxes
-        expected_savings = insurance_costs * tax_rate
+        expected_savings = to_decimal(insurance_costs) * to_decimal(tax_rate)
 
-        assert abs(tax_savings - expected_savings) < 0.01
+        assert abs(float(tax_savings) - float(expected_savings)) < 0.01
 
     def test_large_insurance_costs_edge_case(self, manufacturer):
         """Test handling of insurance costs larger than operating income.
@@ -395,11 +397,11 @@ class TestTaxHandling:
             operating_income, 0, small_premium, small_loss
         )
 
-        income_before_tax = operating_income - small_premium - small_loss
-        expected_taxes = income_before_tax * manufacturer.tax_rate
+        income_before_tax = operating_income - to_decimal(small_premium) - to_decimal(small_loss)
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)
         expected_net = income_before_tax - expected_taxes
 
-        assert abs(net_income - expected_net) < 0.01
+        assert abs(float(net_income) - float(expected_net)) < 0.01
 
 
 class TestTaxHandler:

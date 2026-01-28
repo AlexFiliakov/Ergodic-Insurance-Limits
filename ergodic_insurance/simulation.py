@@ -57,6 +57,7 @@ import numpy as np
 import pandas as pd
 
 from .config import Config
+from .decimal_utils import ZERO, to_decimal
 from .insurance import InsurancePolicy
 from .insurance_program import InsuranceProgram
 from .loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
@@ -553,7 +554,7 @@ class Simulation:
 
         self.insolvency_year: Optional[int] = None
 
-    def step_annual(self, year: int, losses: List[LossEvent]) -> Dict[str, float]:
+    def step_annual(self, year: int, losses: List[LossEvent]) -> Dict[str, Any]:
         """Execute single annual time step.
 
         Processes losses for the year, applies insurance coverage,
@@ -587,8 +588,8 @@ class Simulation:
 
         # Process losses at END of year
         total_loss_amount = sum(loss.amount for loss in losses)
-        total_company_payment = 0.0
-        total_insurance_recovery = 0.0
+        total_company_payment = ZERO
+        total_insurance_recovery = ZERO
 
         # Apply insurance
         if self.insurance_policy:
@@ -614,7 +615,7 @@ class Simulation:
                     claim_amount=loss.amount,
                     immediate_payment=False,  # Create liability with payment schedule starting next year
                 )
-                total_company_payment += loss.amount
+                total_company_payment += to_decimal(loss.amount)
 
         # Add loss information to metrics
         metrics["claim_count"] = len(losses)

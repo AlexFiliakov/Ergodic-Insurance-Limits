@@ -4,6 +4,7 @@ import pytest
 
 from ergodic_insurance.accrual_manager import AccrualType, PaymentSchedule
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -51,7 +52,7 @@ class TestAccrualIntegration:
 
     def test_wage_accrual_immediate_payment(self, manufacturer):
         """Test wage accrual with immediate payment."""
-        wage_amount = 50000.0
+        wage_amount = to_decimal(50000)
 
         # Record wage accrual
         manufacturer.record_wage_accrual(wage_amount, PaymentSchedule.IMMEDIATE)
@@ -74,7 +75,7 @@ class TestAccrualIntegration:
         (the single source of truth) instead of AccrualManager items.
         Claims are paid via pay_claim_liabilities(). See GitHub issue #213.
         """
-        claim_amount = 1_000_000.0
+        claim_amount = to_decimal(1_000_000)
         development_pattern = [0.5, 0.3, 0.2]  # 3-year payment pattern
 
         # Record claim accrual - now creates ClaimLiability
@@ -86,7 +87,7 @@ class TestAccrualIntegration:
         assert manufacturer.total_claim_liabilities == claim_amount
 
         # Simulate 3 years of payments using pay_claim_liabilities
-        total_paid = 0.0
+        total_paid = to_decimal(0)
 
         for year in range(3):
             # Advance to next year
@@ -97,16 +98,18 @@ class TestAccrualIntegration:
             total_paid += paid_this_year
 
         # Verify total payments match claim amount
-        assert abs(total_paid - claim_amount) < 0.01  # Floating point tolerance
+        assert abs(total_paid - claim_amount) < to_decimal("0.01")
         # Verify claim is fully paid
-        assert manufacturer.total_claim_liabilities < 0.01
+        assert manufacturer.total_claim_liabilities < to_decimal("0.01")
 
     def test_accrual_in_metrics_history(self, manufacturer):
         """Test that accrual details appear in metrics history."""
         # Record various accruals with non-immediate payment schedules
-        manufacturer.record_wage_accrual(25000.0, PaymentSchedule.ANNUAL)
+        manufacturer.record_wage_accrual(to_decimal(25000), PaymentSchedule.ANNUAL)
         manufacturer.accrual_manager.record_expense_accrual(
-            item_type=AccrualType.INTEREST, amount=5000.0, payment_schedule=PaymentSchedule.ANNUAL
+            item_type=AccrualType.INTEREST,
+            amount=to_decimal(5000),
+            payment_schedule=PaymentSchedule.ANNUAL,
         )
 
         # Run a simulation step
@@ -114,18 +117,18 @@ class TestAccrualIntegration:
 
         # Check metrics include accrual breakdown
         assert "accrued_wages" in metrics
-        assert metrics["accrued_wages"] == 25000.0
+        assert metrics["accrued_wages"] == to_decimal(25000)
         assert "accrued_interest" in metrics
-        assert metrics["accrued_interest"] == 5000.0
+        assert metrics["accrued_interest"] == to_decimal(5000)
         assert "accrued_taxes" in metrics
         assert metrics["accrued_taxes"] > 0  # Should have tax accrual from step
 
     def test_accrual_reset(self, manufacturer):
         """Test that accruals are properly reset."""
         # Create accruals
-        manufacturer.record_wage_accrual(10000.0)
+        manufacturer.record_wage_accrual(to_decimal(10000))
         manufacturer.accrual_manager.record_expense_accrual(
-            AccrualType.TAXES, 20000.0, PaymentSchedule.QUARTERLY
+            AccrualType.TAXES, to_decimal(20000), PaymentSchedule.QUARTERLY
         )
 
         # Verify accruals exist
@@ -179,14 +182,16 @@ class TestAccrualIntegration:
             unpaid_from_year1 = sum(
                 a.remaining_balance for a in remaining_accrued if a.period_incurred == 0
             )
-            assert unpaid_from_year1 < accrued_taxes_year1 * 0.1  # Less than 10% unpaid
+            assert unpaid_from_year1 < accrued_taxes_year1 * to_decimal(
+                "0.1"
+            )  # Less than 10% unpaid
 
     def test_accrual_with_insolvency(self, manufacturer):
         """Test accrual behavior when company becomes insolvent."""
         # Create significant accruals
-        manufacturer.record_wage_accrual(100000.0)
+        manufacturer.record_wage_accrual(to_decimal(100000))
         manufacturer.accrual_manager.record_expense_accrual(
-            AccrualType.TAXES, 50000.0, PaymentSchedule.QUARTERLY
+            AccrualType.TAXES, to_decimal(50000), PaymentSchedule.QUARTERLY
         )
 
         # Force insolvency
@@ -202,17 +207,17 @@ class TestAccrualIntegration:
     def test_accrual_fifo_payment_order(self, manufacturer):
         """Test that accrual payments follow FIFO order."""
         # Create multiple wage accruals in sequence
-        manufacturer.record_wage_accrual(10000.0)
+        manufacturer.record_wage_accrual(to_decimal(10000))
         manufacturer.accrual_manager.advance_period()
-        manufacturer.record_wage_accrual(20000.0)
+        manufacturer.record_wage_accrual(to_decimal(20000))
         manufacturer.accrual_manager.advance_period()
-        manufacturer.record_wage_accrual(30000.0)
+        manufacturer.record_wage_accrual(to_decimal(30000))
 
         # Process partial payment
-        manufacturer.accrual_manager.process_payment(AccrualType.WAGES, 15000.0)
+        manufacturer.accrual_manager.process_payment(AccrualType.WAGES, to_decimal(15000))
 
         # Check FIFO: first accrual fully paid, second partially
         wage_accruals = manufacturer.accrual_manager.get_accruals_by_type(AccrualType.WAGES)
         assert wage_accruals[0].is_fully_paid
-        assert wage_accruals[1].remaining_balance == 15000.0
-        assert wage_accruals[2].remaining_balance == 30000.0
+        assert wage_accruals[1].remaining_balance == to_decimal(15000)
+        assert wage_accruals[2].remaining_balance == to_decimal(30000)

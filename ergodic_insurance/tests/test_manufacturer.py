@@ -5,12 +5,14 @@ model including balance sheet operations, insurance claim processing,
 and financial metrics calculations.
 """
 
+from decimal import Decimal
 import math
 from typing import Dict
 
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import ZERO, to_decimal
 from ergodic_insurance.manufacturer import ClaimLiability, WidgetManufacturer
 
 
@@ -27,9 +29,13 @@ class TestClaimLiability:
         Verifies that ClaimLiability objects are properly initialized
         with correct payment schedules and amounts.
         """
-        claim = ClaimLiability(original_amount=1000000, remaining_amount=1000000, year_incurred=0)
-        assert claim.original_amount == 1000000
-        assert claim.remaining_amount == 1000000
+        claim = ClaimLiability(
+            original_amount=to_decimal(1000000),
+            remaining_amount=to_decimal(1000000),
+            year_incurred=0,
+        )
+        assert claim.original_amount == to_decimal(1000000)
+        assert claim.remaining_amount == to_decimal(1000000)
         assert claim.year_incurred == 0
         assert len(claim.payment_schedule) == 10
         assert sum(claim.payment_schedule) == pytest.approx(1.0)
@@ -293,7 +299,7 @@ class TestWidgetManufacturer:
         manufacturer.update_balance_sheet(net_income)
 
         # 60% retention, 40% dividends
-        retained = 500_000 * 0.6
+        retained = to_decimal(500_000 * 0.6)
         assert manufacturer.total_assets == initial_assets + retained
         assert manufacturer.equity == initial_equity + retained
 
@@ -400,26 +406,26 @@ class TestWidgetManufacturer:
         """Test metrics calculation."""
         metrics = manufacturer.calculate_metrics()
 
-        assert metrics["assets"] == 10_000_000
-        assert metrics["collateral"] == 0
-        assert metrics["restricted_assets"] == 0
-        assert metrics["available_assets"] == 10_000_000
-        assert metrics["equity"] == 10_000_000
-        assert metrics["net_assets"] == 10_000_000
-        assert metrics["claim_liabilities"] == 0
+        assert metrics["assets"] == to_decimal(10_000_000)
+        assert metrics["collateral"] == ZERO
+        assert metrics["restricted_assets"] == ZERO
+        assert metrics["available_assets"] == to_decimal(10_000_000)
+        assert metrics["equity"] == to_decimal(10_000_000)
+        assert metrics["net_assets"] == to_decimal(10_000_000)
+        assert metrics["claim_liabilities"] == ZERO
         assert metrics["is_solvent"]
-        assert metrics["revenue"] == 10_000_000
+        assert metrics["revenue"] == to_decimal(10_000_000)
         # Operating income now includes depreciation expense
         # PP&E is $1M (10% of $10M with ppe_ratio=0.1), depreciation is $100k/year
         # Operating income = $10M * 8% - $100k = $700k
-        assert metrics["operating_income"] == 700_000
-        assert metrics["asset_turnover"] == 1.0
-        assert metrics["base_operating_margin"] == 0.08
+        assert metrics["operating_income"] == to_decimal(700_000)
+        assert float(metrics["asset_turnover"]) == pytest.approx(1.0)
+        assert metrics["base_operating_margin"] == to_decimal(0.08)
         # Net income after tax: $700k * (1 - 0.25) = $525k
-        assert metrics["roe"] == pytest.approx(0.0525)  # 525k / 10M
-        assert metrics["roa"] == pytest.approx(0.0525)  # 525k / 10M
-        assert metrics["collateral_to_equity"] == 0
-        assert metrics["collateral_to_assets"] == 0
+        assert float(metrics["roe"]) == pytest.approx(0.0525)  # 525k / 10M
+        assert float(metrics["roa"]) == pytest.approx(0.0525)  # 525k / 10M
+        assert metrics["collateral_to_equity"] == ZERO
+        assert metrics["collateral_to_assets"] == ZERO
 
     def test_calculate_metrics_with_collateral(self, manufacturer):
         """Test metrics with collateral."""
@@ -430,29 +436,31 @@ class TestWidgetManufacturer:
 
         metrics = manufacturer.calculate_metrics()
 
-        assert metrics["collateral"] == 500_000
-        assert metrics["restricted_assets"] == 500_000
-        assert metrics["claim_liabilities"] == 500_000
+        assert metrics["collateral"] == to_decimal(500_000)
+        assert metrics["restricted_assets"] == to_decimal(500_000)
+        assert metrics["claim_liabilities"] == to_decimal(500_000)
         # When claim is processed, equity = Assets - Liabilities = 10M - 500k = 9.5M
-        assert metrics["collateral_to_equity"] == pytest.approx(500_000 / 9_500_000)  # 500k / 9.5M
-        assert metrics["collateral_to_assets"] == pytest.approx(0.05)  # 500k / 10M
+        assert float(metrics["collateral_to_equity"]) == pytest.approx(
+            500_000 / 9_500_000
+        )  # 500k / 9.5M
+        assert float(metrics["collateral_to_assets"]) == pytest.approx(0.05)  # 500k / 10M
 
     def test_calculate_metrics_zero_equity(self, manufacturer):
         """Test metrics calculation with zero equity (avoid division by zero)."""
         # Set all assets to zero
-        manufacturer.cash = 0
-        manufacturer.accounts_receivable = 0
-        manufacturer.inventory = 0
-        manufacturer.prepaid_insurance = 0
-        manufacturer.gross_ppe = 0
-        manufacturer.restricted_assets = 0
+        manufacturer.cash = ZERO
+        manufacturer.accounts_receivable = ZERO
+        manufacturer.inventory = ZERO
+        manufacturer.prepaid_insurance = ZERO
+        manufacturer.gross_ppe = ZERO
+        manufacturer.restricted_assets = ZERO
 
         metrics = manufacturer.calculate_metrics()
 
-        assert metrics["roe"] == 0
-        assert metrics["roa"] == 0
-        assert metrics["collateral_to_equity"] == 0
-        assert metrics["collateral_to_assets"] == 0
+        assert metrics["roe"] == ZERO
+        assert metrics["roa"] == ZERO
+        assert metrics["collateral_to_equity"] == ZERO
+        assert metrics["collateral_to_assets"] == ZERO
 
     def test_step_basic(self, manufacturer):
         """Test basic step execution."""
@@ -538,20 +546,22 @@ class TestWidgetManufacturer:
         total_assets = manufacturer.total_assets
         # Create liability equal to 1.5x total assets
         # This will reduce equity below 0, triggering insolvency
-        manufacturer.process_uninsured_claim(total_assets * 1.5, immediate_payment=False)
+        manufacturer.process_uninsured_claim(
+            total_assets * to_decimal(1.5), immediate_payment=False
+        )
 
         # Should be insolvent now (equity = assets - liabilities < 0)
         assert not manufacturer.check_solvency()
         assert manufacturer.is_ruined
         # LIMITED LIABILITY: Equity should be exactly 0, not negative
-        assert manufacturer.equity == 0
+        assert manufacturer.equity == ZERO
 
     def test_check_solvency_payment_insolvency(self, manufacturer):
         """Test solvency checking with payment insolvency (limited liability enforcement)."""
         # Create a significant loss that will eventually deplete equity over time
         # but won't cause immediate insolvency
         # Use $3M loss (sustainable given company profitability and payment schedule)
-        significant_loss = 3_000_000  # $3M loss (less than $10M assets)
+        significant_loss = to_decimal(3_000_000)  # $3M loss (less than $10M assets)
         manufacturer.process_uninsured_claim(significant_loss)
 
         # Should be solvent initially - liabilities < assets
@@ -566,7 +576,7 @@ class TestWidgetManufacturer:
             metrics = manufacturer.step()
 
             # LIMITED LIABILITY: Verify equity never goes negative
-            assert manufacturer.equity >= 0, (
+            assert manufacturer.equity >= ZERO, (
                 f"Year {year}: Equity violated limited liability! "
                 f"Equity = ${manufacturer.equity:,.2f}"
             )
@@ -592,12 +602,14 @@ class TestWidgetManufacturer:
         # Create liability that exceeds total assets
         total_assets = manufacturer.total_assets
         # Use deferred payment to create liability
-        manufacturer.process_uninsured_claim(total_assets * 1.5, immediate_payment=False)
+        manufacturer.process_uninsured_claim(
+            total_assets * to_decimal(1.5), immediate_payment=False
+        )
 
         assert not manufacturer.check_solvency()
         assert manufacturer.is_ruined
         # LIMITED LIABILITY: Equity should be exactly 0, not negative
-        assert manufacturer.equity == 0
+        assert manufacturer.equity == ZERO
 
     def test_monthly_collateral_costs(self, manufacturer):
         """Test monthly letter of credit cost tracking."""
@@ -905,9 +917,9 @@ class TestWidgetManufacturer:
         )
 
         # Calculate collateral costs
-        loc_rate = 0.02
+        loc_rate = to_decimal(0.02)
         collateral_costs = manufacturer.calculate_collateral_costs(loc_rate)
-        expected_costs = 100_000 * loc_rate  # Based on deductible collateral
+        expected_costs = to_decimal(100_000) * loc_rate  # Based on deductible collateral
         assert collateral_costs == expected_costs
 
         # Calculate net income with and without collateral costs
@@ -915,16 +927,19 @@ class TestWidgetManufacturer:
         operating_income = manufacturer.calculate_operating_income(revenue)
 
         net_income_with_costs = manufacturer.calculate_net_income(
-            operating_income, collateral_costs, 0, 0
+            operating_income, collateral_costs, ZERO, ZERO
         )
 
-        net_income_without_costs = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+        net_income_without_costs = manufacturer.calculate_net_income(
+            operating_income, ZERO, ZERO, ZERO
+        )
 
         # Collateral costs should reduce net income by (costs * (1 - tax_rate))
-        expected_reduction = collateral_costs * (1 - manufacturer.tax_rate)
+        tax_rate = to_decimal(manufacturer.tax_rate)
+        expected_reduction = collateral_costs * (to_decimal(1) - tax_rate)
         actual_reduction = net_income_without_costs - net_income_with_costs
 
-        assert actual_reduction == pytest.approx(expected_reduction)
+        assert float(actual_reduction) == pytest.approx(float(expected_reduction))
 
     def test_premium_does_not_reduce_productive_assets(self, manufacturer):
         """Test that insurance premiums don't immediately reduce productive assets.
@@ -964,7 +979,7 @@ class TestWidgetManufacturer:
         assert revenue_after_premium == baseline_revenue
 
         # Revenue = Assets × Turnover Ratio, and should not change
-        expected_revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
+        expected_revenue = manufacturer.total_assets * to_decimal(manufacturer.asset_turnover_ratio)
         assert revenue_after_premium == expected_revenue
 
     def test_premium_flows_through_net_income(self, manufacturer):

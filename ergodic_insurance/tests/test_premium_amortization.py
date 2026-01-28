@@ -3,6 +3,7 @@
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.insurance_accounting import InsuranceAccounting
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
@@ -56,12 +57,12 @@ class TestPremiumAmortization:
         premium_amount = 1_200_000
         self.manufacturer.record_insurance_premium(premium_amount, is_annual=True)
 
-        total_expense = 0.0
+        total_expense = to_decimal(0)
         for month in range(12):
             expense = self.manufacturer.amortize_prepaid_insurance(1)
             total_expense += expense
 
-        assert total_expense == premium_amount
+        assert float(total_expense) == premium_amount
         assert self.manufacturer.prepaid_insurance == 0
         assert self.manufacturer.insurance_accounting.prepaid_insurance == 0
 
@@ -125,14 +126,14 @@ class TestPremiumAmortization:
         premium_amount = 1_000_000
         self.manufacturer.record_insurance_premium(premium_amount, is_annual=True)
 
-        total_expense = 0.0
+        total_expense = to_decimal(0)
         for _ in range(12):
             expense = self.manufacturer.amortize_prepaid_insurance(1)
             total_expense += expense
 
         # Should handle rounding appropriately
-        assert abs(total_expense - premium_amount) < 1.0
-        assert self.manufacturer.prepaid_insurance < 1.0
+        assert abs(float(total_expense) - premium_amount) < 1.0
+        assert float(self.manufacturer.prepaid_insurance) < 1.0
 
     def test_amortization_with_no_prepaid(self):
         """Test amortization when no prepaid exists."""
@@ -185,7 +186,7 @@ class TestPremiumAmortization:
         operating_income = self.manufacturer.calculate_operating_income(revenue)
 
         # Operating income should be reduced by monthly expense
-        base_income = revenue * self.manufacturer.base_operating_margin
-        expected_income = base_income - 100_000  # Monthly premium expense
+        base_income = revenue * to_decimal(self.manufacturer.base_operating_margin)
+        expected_income = base_income - to_decimal(100_000)  # Monthly premium expense
 
-        assert abs(operating_income - expected_income) < 1.0
+        assert abs(float(operating_income) - float(expected_income)) < 1.0

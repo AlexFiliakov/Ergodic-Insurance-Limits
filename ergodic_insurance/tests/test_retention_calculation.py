@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -28,17 +29,21 @@ class TestRetentionCalculation:
         manufacturer = WidgetManufacturer(config)
 
         # Calculate expected values
-        expected_revenue = manufacturer.total_assets * manufacturer.asset_turnover_ratio
-        expected_operating_income = expected_revenue * manufacturer.base_operating_margin
+        expected_revenue = manufacturer.total_assets * to_decimal(manufacturer.asset_turnover_ratio)
+        expected_operating_income = expected_revenue * to_decimal(
+            manufacturer.base_operating_margin
+        )
 
         # No additional costs for this test
         expected_income_before_tax = expected_operating_income
-        expected_taxes = expected_income_before_tax * manufacturer.tax_rate
+        expected_taxes = expected_income_before_tax * to_decimal(manufacturer.tax_rate)
         expected_net_income = expected_income_before_tax - expected_taxes
 
         # Expected retained earnings (70% of net income, NOT revenue)
-        expected_retained = expected_net_income * manufacturer.retention_ratio
-        expected_dividends = expected_net_income * (1 - manufacturer.retention_ratio)
+        expected_retained = expected_net_income * to_decimal(manufacturer.retention_ratio)
+        expected_dividends = expected_net_income * (
+            to_decimal(1) - to_decimal(manufacturer.retention_ratio)
+        )
 
         # Run actual calculation
         revenue = manufacturer.calculate_revenue()
@@ -47,7 +52,7 @@ class TestRetentionCalculation:
 
         # Verify net income calculation
         assert (
-            abs(net_income - expected_net_income) < 0.01
+            abs(float(net_income) - float(expected_net_income)) < 0.01
         ), f"Net income {net_income} != expected {expected_net_income}"
 
         # Verify retention is applied to net income, not revenue
@@ -56,13 +61,13 @@ class TestRetentionCalculation:
         equity_increase = manufacturer.equity - initial_equity
 
         assert (
-            abs(equity_increase - expected_retained) < 0.01
+            abs(float(equity_increase) - float(expected_retained)) < 0.01
         ), f"Retained earnings {equity_increase} != expected {expected_retained}"
 
         # Ensure it's NOT applied to revenue
-        wrong_retained = expected_revenue * manufacturer.retention_ratio
+        wrong_retained = expected_revenue * to_decimal(manufacturer.retention_ratio)
         assert (
-            abs(equity_increase - wrong_retained) > 1000
+            abs(float(equity_increase) - float(wrong_retained)) > 1000
         ), "Retention seems to be applied to revenue instead of net income"
 
     def test_all_costs_deducted_before_retention(self):
@@ -86,9 +91,9 @@ class TestRetentionCalculation:
         collateral_costs = 75_000
 
         # Calculate expected net income with all costs
-        total_insurance = insurance_premiums + insurance_losses
-        income_before_tax = operating_income - collateral_costs - total_insurance
-        expected_taxes = max(0, income_before_tax * manufacturer.tax_rate)
+        total_insurance = to_decimal(insurance_premiums + insurance_losses)
+        income_before_tax = operating_income - to_decimal(collateral_costs) - total_insurance
+        expected_taxes = max(to_decimal(0), income_before_tax * to_decimal(manufacturer.tax_rate))
         expected_net_income = income_before_tax - expected_taxes
 
         # Run actual calculation
@@ -98,17 +103,17 @@ class TestRetentionCalculation:
 
         # Verify all costs were deducted
         assert (
-            abs(actual_net_income - expected_net_income) < 0.01
+            abs(float(actual_net_income) - float(expected_net_income)) < 0.01
         ), f"Net income {actual_net_income} != expected {expected_net_income}"
 
         # Verify retention applies to this fully-costed net income
-        expected_retained = expected_net_income * manufacturer.retention_ratio
+        expected_retained = expected_net_income * to_decimal(manufacturer.retention_ratio)
         initial_equity = manufacturer.equity
         manufacturer.update_balance_sheet(actual_net_income)
         equity_increase = manufacturer.equity - initial_equity
 
         assert (
-            abs(equity_increase - expected_retained) < 0.01
+            abs(float(equity_increase) - float(expected_retained)) < 0.01
         ), f"Retained earnings {equity_increase} != expected {expected_retained}"
 
     def test_profit_waterfall_calculation(self):
@@ -127,7 +132,9 @@ class TestRetentionCalculation:
 
         # Step 1: Revenue
         waterfall["revenue"] = manufacturer.calculate_revenue()
-        assert waterfall["revenue"] == manufacturer.total_assets * manufacturer.asset_turnover_ratio
+        assert waterfall["revenue"] == manufacturer.total_assets * to_decimal(
+            manufacturer.asset_turnover_ratio
+        )
 
         # Step 2: Operating Income (after operating costs)
         waterfall["operating_income"] = manufacturer.calculate_operating_income(
@@ -136,9 +143,9 @@ class TestRetentionCalculation:
         waterfall["operating_costs"] = waterfall["revenue"] - waterfall["operating_income"]
 
         # Step 3: Add other costs
-        waterfall["insurance_premiums"] = 80_000
-        waterfall["insurance_losses"] = 40_000
-        waterfall["collateral_costs"] = 60_000
+        waterfall["insurance_premiums"] = to_decimal(80_000)
+        waterfall["insurance_losses"] = to_decimal(40_000)
+        waterfall["collateral_costs"] = to_decimal(60_000)
 
         # Step 4: Income before tax
         waterfall["income_before_tax"] = (
@@ -149,14 +156,20 @@ class TestRetentionCalculation:
         )
 
         # Step 5: Taxes
-        waterfall["taxes"] = max(0, waterfall["income_before_tax"] * manufacturer.tax_rate)
+        waterfall["taxes"] = max(
+            to_decimal(0), waterfall["income_before_tax"] * to_decimal(manufacturer.tax_rate)
+        )
 
         # Step 6: Net income
         waterfall["net_income"] = waterfall["income_before_tax"] - waterfall["taxes"]
 
         # Step 7: Retained earnings and dividends
-        waterfall["retained_earnings"] = waterfall["net_income"] * manufacturer.retention_ratio
-        waterfall["dividends"] = waterfall["net_income"] * (1 - manufacturer.retention_ratio)
+        waterfall["retained_earnings"] = waterfall["net_income"] * to_decimal(
+            manufacturer.retention_ratio
+        )
+        waterfall["dividends"] = waterfall["net_income"] * (
+            to_decimal(1) - to_decimal(manufacturer.retention_ratio)
+        )
 
         # Verify actual calculation matches waterfall
         actual_net_income = manufacturer.calculate_net_income(
@@ -167,7 +180,7 @@ class TestRetentionCalculation:
         )
 
         assert (
-            abs(actual_net_income - waterfall["net_income"]) < 0.01
+            abs(float(actual_net_income) - float(waterfall["net_income"])) < 0.01
         ), f"Waterfall net income {waterfall['net_income']} != actual {actual_net_income}"
 
         # Verify balance sheet update
@@ -176,7 +189,7 @@ class TestRetentionCalculation:
         equity_increase = manufacturer.equity - initial_equity
 
         assert (
-            abs(equity_increase - waterfall["retained_earnings"]) < 0.01
+            abs(float(equity_increase) - float(waterfall["retained_earnings"])) < 0.01
         ), f"Retained {equity_increase} != waterfall {waterfall['retained_earnings']}"
 
         # Verify the complete chain
@@ -210,15 +223,17 @@ class TestRetentionCalculation:
         collateral_costs = 100_000
 
         # Calculate expected loss
-        income_before_tax = operating_income - collateral_costs - large_insurance_loss
+        income_before_tax = (
+            operating_income - to_decimal(collateral_costs) - to_decimal(large_insurance_loss)
+        )
         assert income_before_tax < 0, "Should create a loss scenario"
 
         # No taxes on losses
-        expected_taxes = 0
+        expected_taxes = to_decimal(0)
         expected_net_loss = income_before_tax  # Negative value
 
         # Loss retention (reduces equity)
-        expected_retained_loss = expected_net_loss * manufacturer.retention_ratio
+        expected_retained_loss = expected_net_loss * to_decimal(manufacturer.retention_ratio)
 
         # Run actual calculation
         actual_net_income = manufacturer.calculate_net_income(
@@ -226,7 +241,7 @@ class TestRetentionCalculation:
         )
 
         assert actual_net_income < 0, "Should result in a net loss"
-        assert abs(actual_net_income - expected_net_loss) < 0.01
+        assert abs(float(actual_net_income) - float(expected_net_loss)) < 0.01
 
         # Verify equity reduction
         initial_equity = manufacturer.equity
@@ -235,7 +250,7 @@ class TestRetentionCalculation:
 
         # Equity should decrease by retained portion of loss
         assert equity_change < 0, "Equity should decrease with losses"
-        assert abs(equity_change - expected_retained_loss) < 0.01
+        assert abs(float(equity_change) - float(expected_retained_loss)) < 0.01
 
     def test_retention_with_insurance_in_operating_income(self):
         """Test that insurance costs in operating income aren't double-counted."""
@@ -249,8 +264,8 @@ class TestRetentionCalculation:
         manufacturer = WidgetManufacturer(config)
 
         # Set period insurance costs (these affect operating_income)
-        manufacturer.period_insurance_premiums = 100_000
-        manufacturer.period_insurance_losses = 50_000
+        manufacturer.period_insurance_premiums = to_decimal(100_000)
+        manufacturer.period_insurance_losses = to_decimal(50_000)
 
         # Calculate with insurance already in operating income
         revenue = manufacturer.calculate_revenue()
@@ -267,12 +282,12 @@ class TestRetentionCalculation:
         )
 
         # Verify retention applies correctly
-        expected_retained = net_income * manufacturer.retention_ratio
+        expected_retained = net_income * to_decimal(manufacturer.retention_ratio)
         initial_equity = manufacturer.equity
         manufacturer.update_balance_sheet(net_income)
         equity_increase = manufacturer.equity - initial_equity
 
-        assert abs(equity_increase - expected_retained) < 0.01
+        assert abs(float(equity_increase) - float(expected_retained)) < 0.01
 
     def test_period_cost_accumulation(self):
         """Verify period costs are properly accumulated and don't affect retention ratio."""
@@ -309,12 +324,12 @@ class TestRetentionCalculation:
         )
 
         # Retention should apply to final net income after all costs
-        expected_retained = net_income * manufacturer.retention_ratio
+        expected_retained = net_income * to_decimal(manufacturer.retention_ratio)
         initial_equity = manufacturer.equity
         manufacturer.update_balance_sheet(net_income)
         equity_increase = manufacturer.equity - initial_equity
 
-        assert abs(equity_increase - expected_retained) < 0.01
+        assert abs(float(equity_increase) - float(expected_retained)) < 0.01
 
         # Reset for next period
         manufacturer.reset_period_insurance_costs()
@@ -391,25 +406,26 @@ class TestRetentionValidation:
 
         # Calculate what retention would be if mistakenly applied to wrong values
         wrong_applications = {
-            "revenue": revenue * manufacturer.retention_ratio,
-            "operating_income": operating_income * manufacturer.retention_ratio,
-            "income_before_tax": (operating_income - total_costs) * manufacturer.retention_ratio,
+            "revenue": revenue * to_decimal(manufacturer.retention_ratio),
+            "operating_income": operating_income * to_decimal(manufacturer.retention_ratio),
+            "income_before_tax": (operating_income - to_decimal(total_costs))
+            * to_decimal(manufacturer.retention_ratio),
         }
 
         # Correct application
-        correct_retained = net_income * manufacturer.retention_ratio
+        correct_retained = net_income * to_decimal(manufacturer.retention_ratio)
 
         initial_equity = manufacturer.equity
         manufacturer.update_balance_sheet(net_income)
         actual_retained = manufacturer.equity - initial_equity
 
         # Verify it matches correct calculation
-        assert abs(actual_retained - correct_retained) < 0.01
+        assert abs(float(actual_retained) - float(correct_retained)) < 0.01
 
         # Verify it doesn't match any wrong calculation
         for name, wrong_value in wrong_applications.items():
             assert (
-                abs(actual_retained - wrong_value) > 100
+                abs(float(actual_retained) - float(wrong_value)) > 100
             ), f"Retention seems to be applied to {name} instead of net income"
 
     def test_retention_calculation_consistency(self):
@@ -438,7 +454,7 @@ class TestRetentionValidation:
                 manufacturer.update_balance_sheet(net_income)
                 actual_retained = manufacturer.equity - initial_equity
 
-                actual_ratio = actual_retained / net_income
+                actual_ratio = float(actual_retained / net_income)
                 retained_ratios.append(actual_ratio)
 
                 # Each period should have the same retention ratio

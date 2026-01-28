@@ -6,11 +6,15 @@ Property-based testing helps catch edge cases that traditional example-based
 tests might miss.
 """
 
+import numpy as np
+import pytest
+
+# Skip entire module if hypothesis is not installed
+hypothesis = pytest.importorskip("hypothesis", reason="hypothesis not installed")
+# pylint: disable=wrong-import-position
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
-import numpy as np
-import pytest
 
 from ergodic_insurance.convergence import ConvergenceStats
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
@@ -18,6 +22,8 @@ from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGen
 
 # InsuranceOptimizer doesn't exist, removed import
 from ergodic_insurance.risk_metrics import RiskMetrics
+
+# pylint: enable=wrong-import-position
 
 
 class TestErgodicProperties:

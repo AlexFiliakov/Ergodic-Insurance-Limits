@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.claim_development import ClaimDevelopment
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.simulation import Simulation
@@ -306,8 +307,8 @@ class TestFinancialIntegration:
 
         # Verify balance sheet equation: Assets = Liabilities + Equity
         assert np.isclose(
-            manufacturer.total_assets,
-            manufacturer.total_liabilities + manufacturer.equity,
+            float(manufacturer.total_assets),
+            float(manufacturer.total_liabilities + manufacturer.equity),
             rtol=1e-10,
         ), f"Balance sheet equation must hold (Assets = Liabilities + Equity). Assets: {manufacturer.total_assets}, Liabilities: {manufacturer.total_liabilities}, Equity: {manufacturer.equity}"
 
@@ -363,7 +364,7 @@ class TestFinancialIntegration:
 
         # Verify it matches the default ClaimLiability payment pattern (10% in first year)
         expected_first_year = developed_loss.amount * 0.10  # Default first year is 10%
-        assert np.isclose(first_year_impact, expected_first_year, rtol=0.1), (
+        assert np.isclose(float(first_year_impact), float(expected_first_year), rtol=0.1), (
             f"First year payment {first_year_impact:.2f} should match "
             f"default pattern {expected_first_year:.2f}"
         )
@@ -391,7 +392,7 @@ class TestFinancialIntegration:
 
         # Low revenue losses
         low_revenue = low_revenue_mfg.calculate_revenue()
-        low_frequency = base_frequency * (low_revenue / 10_000_000)
+        low_frequency = base_frequency * (float(low_revenue) / 10_000_000)
         low_loss_gen = ManufacturingLossGenerator.create_simple(
             frequency=low_frequency,
             severity_mean=100_000,
@@ -401,7 +402,7 @@ class TestFinancialIntegration:
 
         # High revenue losses
         high_revenue = high_revenue_mfg.calculate_revenue()
-        high_frequency = base_frequency * (high_revenue / 10_000_000)
+        high_frequency = base_frequency * (float(high_revenue) / 10_000_000)
         high_loss_gen = ManufacturingLossGenerator.create_simple(
             frequency=high_frequency,
             severity_mean=100_000,
@@ -410,8 +411,8 @@ class TestFinancialIntegration:
         )
 
         # Generate losses
-        low_losses, _ = low_loss_gen.generate_losses(duration=1, revenue=low_revenue)
-        high_losses, _ = high_loss_gen.generate_losses(duration=1, revenue=high_revenue)
+        low_losses, _ = low_loss_gen.generate_losses(duration=1, revenue=float(low_revenue))
+        high_losses, _ = high_loss_gen.generate_losses(duration=1, revenue=float(high_revenue))
 
         # Verify scaling
         if high_revenue > low_revenue:
@@ -476,22 +477,22 @@ class TestFinancialIntegration:
         initial_equity = manufacturer.equity
 
         # Apply catastrophic loss (50% of assets) with immediate payment
-        catastrophic_loss = manufacturer.total_assets * 0.5
+        catastrophic_loss = manufacturer.total_assets * to_decimal(0.5)
         manufacturer.process_uninsured_claim(
             claim_amount=catastrophic_loss,
             immediate_payment=True,
         )
 
         # Verify significant impact but consistency
-        assert (
-            manufacturer.equity < initial_equity * 0.6
+        assert manufacturer.equity < initial_equity * to_decimal(
+            0.6
         ), "Catastrophic loss should severely impact equity"
         assert_financial_consistency(manufacturer)
 
         # Test near-bankruptcy scenario
         manufacturer2 = base_manufacturer.copy()
         initial_equity2 = manufacturer2.equity
-        bankruptcy_loss = manufacturer2.total_assets * 0.95
+        bankruptcy_loss = manufacturer2.total_assets * to_decimal(0.95)
         manufacturer2.process_uninsured_claim(
             claim_amount=bankruptcy_loss,
             immediate_payment=True,
@@ -499,8 +500,8 @@ class TestFinancialIntegration:
 
         # Should be near bankruptcy but still consistent
         # In this model without debt: assets = equity, so both drop by 95%
-        assert (
-            manufacturer2.equity < initial_equity2 * 0.1
+        assert manufacturer2.equity < initial_equity2 * to_decimal(
+            0.1
         ), "Should retain less than 10% of original equity"
         assert manufacturer2.equity >= 0, "Equity should not go negative in basic model"
         assert_financial_consistency(manufacturer2)

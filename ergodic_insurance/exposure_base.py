@@ -453,7 +453,7 @@ class CompositeExposure(ExposureBase):
         total = 0.0
         for name, exposure in self.exposures.items():
             weight = self.weights.get(name, 0.0)
-            total += weight * exposure.get_frequency_multiplier(time)
+            total += weight * float(exposure.get_frequency_multiplier(time))
         return total
 
     def reset(self) -> None:
