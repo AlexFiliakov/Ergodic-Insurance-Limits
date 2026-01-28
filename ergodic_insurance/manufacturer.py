@@ -198,7 +198,7 @@ try:
     from ergodic_insurance.config import ManufacturerConfig
     from ergodic_insurance.decimal_utils import ONE, ZERO, quantize_currency, to_decimal
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
-    from ergodic_insurance.ledger import Ledger, TransactionType
+    from ergodic_insurance.ledger import AccountName, Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
 except ImportError:
     try:
@@ -207,7 +207,7 @@ except ImportError:
         from .config import ManufacturerConfig
         from .decimal_utils import ONE, ZERO, quantize_currency, to_decimal
         from .insurance_accounting import InsuranceAccounting
-        from .ledger import Ledger, TransactionType
+        from .ledger import AccountName, Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
@@ -219,7 +219,7 @@ except ImportError:
         from config import ManufacturerConfig  # type: ignore[no-redef]
         from decimal_utils import ONE, ZERO, quantize_currency, to_decimal  # type: ignore[no-redef]
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
-        from ledger import Ledger, TransactionType  # type: ignore[no-redef]
+        from ledger import AccountName, Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
 
 # Optional import for claim development integration
@@ -757,41 +757,9 @@ class WidgetManufacturer:
         self.config = config
         self.stochastic_process = stochastic_process
 
-        # Balance sheet items - removed self.assets and self.equity
-        # as they are now calculated properties
-        self.collateral: Decimal = ZERO  # Letter of credit collateral for claims
-        self.restricted_assets: Decimal = ZERO  # Assets restricted as collateral
-
-        # Enhanced balance sheet components for GAAP compliance
-        # Fixed Assets (allocate first to determine cash)
-        # Use PPE ratio from config (defaults based on operating margin if not specified)
-        # Type ignore: ppe_ratio is guaranteed non-None after model_validator
-        self.gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)  # type: ignore
-        self.accumulated_depreciation: Decimal = ZERO  # Will accumulate over time
-
-        # Current Assets - initialize working capital to steady state
-        # Calculate initial revenue based on asset turnover
-        initial_revenue = to_decimal(config.initial_assets * config.asset_turnover_ratio)
-        # Calculate COGS for inventory
-        initial_cogs = initial_revenue * to_decimal(1 - config.base_operating_margin)
-
-        # Initialize AR and Inventory to steady state levels based on industry-standard ratios
-        # DSO (Days Sales Outstanding) = 45, DIO (Days Inventory Outstanding) = 60
-        # These match the defaults in calculate_working_capital_components()
-        # This prevents Year 1 "warm-up" distortion where working capital builds from zero
-        self.accounts_receivable: Decimal = initial_revenue * to_decimal(45 / 365)  # Based on DSO
-        self.inventory: Decimal = initial_cogs * to_decimal(60 / 365)  # Based on DIO
-        self.prepaid_insurance: Decimal = ZERO  # Annual premiums paid in advance
-
-        # Adjust cash to fund the working capital assets (AR + Inventory)
-        # This maintains total_assets = initial_assets while establishing steady-state working capital
-        working_capital_assets = self.accounts_receivable + self.inventory
-        self.cash: Decimal = to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets  # type: ignore
-
-        # Current Liabilities - AP will build up on first step based on actual COGS
-        # Starting with zero AP maintains total_assets = initial_assets at initialization
-        self.accounts_payable: Decimal = ZERO  # Will be calculated on first step
-        # Note: Accrued expenses are tracked solely via AccrualManager (see issue #238)
+        # Initialize the event-sourcing ledger FIRST - it's the single source of truth
+        # for all balance sheet accounts (Issue #275: Cash Flow Logic Divergence)
+        self.ledger = Ledger()
 
         # Track original prepaid premium for amortization calculation
         self._original_prepaid_premium: Decimal = ZERO
@@ -831,80 +799,572 @@ class WidgetManufacturer:
         self._initial_assets: Decimal = to_decimal(config.initial_assets)
         self._initial_equity: Decimal = to_decimal(config.initial_assets)
 
-        # Initialize the event-sourcing ledger for financial statements
-        self.ledger = Ledger()
-        self._record_initial_balances()
+        # Compute initial balance sheet values (these will be recorded to ledger)
+        # Enhanced balance sheet components for GAAP compliance
+        # Fixed Assets (allocate first to determine cash)
+        # Use PPE ratio from config (defaults based on operating margin if not specified)
+        # Type ignore: ppe_ratio is guaranteed non-None after model_validator
+        initial_gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)  # type: ignore
+        initial_accumulated_depreciation: Decimal = ZERO  # Will accumulate over time
 
-    def _record_initial_balances(self) -> None:
+        # Current Assets - initialize working capital to steady state
+        # Calculate initial revenue based on asset turnover
+        initial_revenue = to_decimal(config.initial_assets * config.asset_turnover_ratio)
+        # Calculate COGS for inventory
+        initial_cogs = initial_revenue * to_decimal(1 - config.base_operating_margin)
+
+        # Initialize AR and Inventory to steady state levels based on industry-standard ratios
+        # DSO (Days Sales Outstanding) = 45, DIO (Days Inventory Outstanding) = 60
+        # These match the defaults in calculate_working_capital_components()
+        # This prevents Year 1 "warm-up" distortion where working capital builds from zero
+        initial_accounts_receivable: Decimal = initial_revenue * to_decimal(
+            45 / 365
+        )  # Based on DSO
+        initial_inventory: Decimal = initial_cogs * to_decimal(60 / 365)  # Based on DIO
+        initial_prepaid_insurance: Decimal = ZERO  # Annual premiums paid in advance
+
+        # Adjust cash to fund the working capital assets (AR + Inventory)
+        # This maintains total_assets = initial_assets while establishing steady-state working capital
+        working_capital_assets = initial_accounts_receivable + initial_inventory
+        initial_cash: Decimal = to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets  # type: ignore
+
+        # Current Liabilities - AP will build up on first step based on actual COGS
+        # Starting with zero AP maintains total_assets = initial_assets at initialization
+        initial_accounts_payable: Decimal = ZERO  # Will be calculated on first step
+        # Note: Accrued expenses are tracked solely via AccrualManager (see issue #238)
+
+        # Initial collateral and restricted assets are zero
+        initial_collateral: Decimal = ZERO
+        initial_restricted_assets: Decimal = ZERO
+
+        # Record all initial balances to ledger (single source of truth)
+        self._record_initial_balances(
+            cash=initial_cash,
+            accounts_receivable=initial_accounts_receivable,
+            inventory=initial_inventory,
+            prepaid_insurance=initial_prepaid_insurance,
+            gross_ppe=initial_gross_ppe,
+            accumulated_depreciation=initial_accumulated_depreciation,
+            accounts_payable=initial_accounts_payable,
+            collateral=initial_collateral,
+            restricted_assets=initial_restricted_assets,
+        )
+
+    def _record_initial_balances(
+        self,
+        cash: Decimal,
+        accounts_receivable: Decimal,
+        inventory: Decimal,
+        prepaid_insurance: Decimal,
+        gross_ppe: Decimal,
+        accumulated_depreciation: Decimal,
+        accounts_payable: Decimal,
+        collateral: Decimal,
+        restricted_assets: Decimal,
+    ) -> None:
         """Record initial balance sheet entries in the ledger.
 
         This establishes the opening balances for all accounts at year 0.
-        Uses equity as the balancing entry for all asset positions.
+        Uses equity (retained_earnings) as the balancing entry for all positions.
+
+        The ledger is the single source of truth for all balance sheet accounts.
+        After this method is called, all balance sheet properties read from the ledger.
+
+        Args:
+            cash: Initial cash position
+            accounts_receivable: Initial accounts receivable
+            inventory: Initial inventory
+            prepaid_insurance: Initial prepaid insurance
+            gross_ppe: Initial gross property, plant & equipment
+            accumulated_depreciation: Initial accumulated depreciation
+            accounts_payable: Initial accounts payable
+            collateral: Initial letter of credit collateral
+            restricted_assets: Initial restricted assets
         """
         # Record initial cash position
-        if self.cash > 0:
+        if cash > ZERO:
             self.ledger.record_double_entry(
                 date=0,
-                debit_account="cash",
-                credit_account="retained_earnings",
-                amount=self.cash,
+                debit_account=AccountName.CASH,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=cash,
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial cash position",
             )
 
         # Record initial accounts receivable
-        if self.accounts_receivable > 0:
+        if accounts_receivable > ZERO:
             self.ledger.record_double_entry(
                 date=0,
-                debit_account="accounts_receivable",
-                credit_account="retained_earnings",
-                amount=self.accounts_receivable,
+                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=accounts_receivable,
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial accounts receivable",
             )
 
         # Record initial inventory
-        if self.inventory > 0:
+        if inventory > ZERO:
             self.ledger.record_double_entry(
                 date=0,
-                debit_account="inventory",
-                credit_account="retained_earnings",
-                amount=self.inventory,
+                debit_account=AccountName.INVENTORY,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=inventory,
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial inventory",
             )
 
         # Record initial prepaid insurance (if any)
-        if self.prepaid_insurance > 0:
+        if prepaid_insurance > ZERO:
             self.ledger.record_double_entry(
                 date=0,
-                debit_account="prepaid_insurance",
-                credit_account="retained_earnings",
-                amount=self.prepaid_insurance,
+                debit_account=AccountName.PREPAID_INSURANCE,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=prepaid_insurance,
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial prepaid insurance",
             )
 
         # Record initial gross PP&E
-        if self.gross_ppe > 0:
+        if gross_ppe > ZERO:
             self.ledger.record_double_entry(
                 date=0,
-                debit_account="gross_ppe",
-                credit_account="retained_earnings",
-                amount=self.gross_ppe,
+                debit_account=AccountName.GROSS_PPE,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=gross_ppe,
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial gross PP&E",
             )
 
-        # Record initial accounts payable (if any)
-        if self.accounts_payable > 0:
+        # Record initial accumulated depreciation (contra-asset)
+        if accumulated_depreciation > ZERO:
             self.ledger.record_double_entry(
                 date=0,
-                debit_account="retained_earnings",
-                credit_account="accounts_payable",
-                amount=self.accounts_payable,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.ACCUMULATED_DEPRECIATION,
+                amount=accumulated_depreciation,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial accumulated depreciation",
+            )
+
+        # Record initial accounts payable (if any)
+        if accounts_payable > ZERO:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.ACCOUNTS_PAYABLE,
+                amount=accounts_payable,
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial accounts payable",
+            )
+
+        # Record initial collateral (if any)
+        if collateral > ZERO:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account=AccountName.COLLATERAL,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=collateral,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial collateral",
+            )
+
+        # Record initial restricted assets (if any)
+        if restricted_assets > ZERO:
+            self.ledger.record_double_entry(
+                date=0,
+                debit_account=AccountName.RESTRICTED_CASH,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=restricted_assets,
+                transaction_type=TransactionType.EQUITY_ISSUANCE,
+                description="Initial restricted assets",
+            )
+
+    # ========================================================================
+    # Balance Sheet Properties - Ledger is Single Source of Truth (Issue #275)
+    # ========================================================================
+    # These properties read from the ledger, ensuring that Direct and Indirect
+    # cash flow methods produce consistent results. All modifications must go
+    # through ledger transactions, not direct attribute assignment.
+
+    @property
+    def cash(self) -> Decimal:
+        """Cash balance derived from ledger (single source of truth).
+
+        Returns:
+            Current cash balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.CASH)
+
+    @property
+    def accounts_receivable(self) -> Decimal:
+        """Accounts receivable balance derived from ledger (single source of truth).
+
+        Returns:
+            Current accounts receivable balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.ACCOUNTS_RECEIVABLE)
+
+    @property
+    def inventory(self) -> Decimal:
+        """Inventory balance derived from ledger (single source of truth).
+
+        Returns:
+            Current inventory balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.INVENTORY)
+
+    @property
+    def prepaid_insurance(self) -> Decimal:
+        """Prepaid insurance balance derived from ledger (single source of truth).
+
+        Returns:
+            Current prepaid insurance balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.PREPAID_INSURANCE)
+
+    @property
+    def gross_ppe(self) -> Decimal:
+        """Gross PP&E balance derived from ledger (single source of truth).
+
+        Returns:
+            Current gross property, plant & equipment balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.GROSS_PPE)
+
+    @property
+    def accumulated_depreciation(self) -> Decimal:
+        """Accumulated depreciation balance derived from ledger (single source of truth).
+
+        Returns:
+            Current accumulated depreciation balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.ACCUMULATED_DEPRECIATION)
+
+    @property
+    def restricted_assets(self) -> Decimal:
+        """Restricted assets balance derived from ledger (single source of truth).
+
+        Returns:
+            Current restricted assets (restricted cash) balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.RESTRICTED_CASH)
+
+    @property
+    def accounts_payable(self) -> Decimal:
+        """Accounts payable balance derived from ledger (single source of truth).
+
+        Returns:
+            Current accounts payable balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.ACCOUNTS_PAYABLE)
+
+    @property
+    def collateral(self) -> Decimal:
+        """Letter of credit collateral balance derived from ledger (single source of truth).
+
+        Returns:
+            Current collateral balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.COLLATERAL)
+
+    # ========================================================================
+    # Ledger Helper Methods for Balance Sheet Modifications (Issue #275)
+    # ========================================================================
+    # These methods ensure all balance sheet changes go through the ledger,
+    # maintaining consistency between Direct and Indirect cash flow methods.
+
+    def _record_cash_adjustment(
+        self,
+        amount: Decimal,
+        description: str,
+        transaction_type: TransactionType = TransactionType.ADJUSTMENT,
+    ) -> None:
+        """Record a cash adjustment through the ledger.
+
+        Used for insolvency adjustments, limited liability enforcement, etc.
+
+        Args:
+            amount: Positive to increase cash, negative to decrease
+            description: Description of the adjustment
+            transaction_type: Type of transaction (default: ADJUSTMENT)
+        """
+        if amount > ZERO:
+            # Increase cash - debit cash, credit retained earnings
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.CASH,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=amount,
+                transaction_type=transaction_type,
+                description=description,
+            )
+        elif amount < ZERO:
+            # Decrease cash - debit retained earnings, credit cash
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.CASH,
+                amount=-amount,
+                transaction_type=transaction_type,
+                description=description,
+            )
+
+    def _record_asset_transfer(
+        self,
+        from_account: AccountName,
+        to_account: AccountName,
+        amount: Decimal,
+        description: str,
+    ) -> None:
+        """Record a transfer between asset accounts through the ledger.
+
+        Used for moving cash to restricted assets, etc.
+
+        Args:
+            from_account: Source account
+            to_account: Destination account
+            amount: Amount to transfer (must be positive)
+            description: Description of the transfer
+        """
+        if amount <= ZERO:
+            return
+        self.ledger.record_double_entry(
+            date=self.current_year,
+            debit_account=to_account,
+            credit_account=from_account,
+            amount=amount,
+            transaction_type=TransactionType.TRANSFER,
+            description=description,
+        )
+
+    def _record_proportional_revaluation(
+        self,
+        target_total: Decimal,
+        description: str = "Proportional asset revaluation",
+    ) -> None:
+        """Record proportional revaluation of all assets through the ledger.
+
+        Adjusts all asset accounts proportionally to reach a target total.
+        Used by the total_assets setter.
+
+        Args:
+            target_total: Target total asset value
+            description: Description of the revaluation
+        """
+        current_total = self.total_assets
+        if current_total <= ZERO or target_total <= ZERO:
+            # Handle edge cases - write off all assets
+            self._write_off_all_assets(description)
+            if target_total > ZERO:
+                # Record new cash position
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.RETAINED_EARNINGS,
+                    amount=target_total,
+                    transaction_type=TransactionType.REVALUATION,
+                    description=description,
+                )
+            return
+
+        ratio = target_total / current_total
+        if ratio == ONE:
+            return
+
+        # Calculate adjustments for each account
+        accounts = [
+            (AccountName.CASH, self.cash),
+            (AccountName.ACCOUNTS_RECEIVABLE, self.accounts_receivable),
+            (AccountName.INVENTORY, self.inventory),
+            (AccountName.PREPAID_INSURANCE, self.prepaid_insurance),
+            (AccountName.GROSS_PPE, self.gross_ppe),
+            (AccountName.RESTRICTED_CASH, self.restricted_assets),
+        ]
+
+        for account, current_balance in accounts:
+            if current_balance <= ZERO:
+                continue
+            new_balance = current_balance * ratio
+            adjustment = new_balance - current_balance
+
+            if adjustment > ZERO:
+                # Increase asset
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=account,
+                    credit_account=AccountName.RETAINED_EARNINGS,
+                    amount=adjustment,
+                    transaction_type=TransactionType.REVALUATION,
+                    description=f"{description} - {account.value}",
+                )
+            elif adjustment < ZERO:
+                # Decrease asset
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=account,
+                    amount=-adjustment,
+                    transaction_type=TransactionType.REVALUATION,
+                    description=f"{description} - {account.value}",
+                )
+
+        # Also adjust accumulated depreciation proportionally (contra-asset)
+        current_accum_depr = self.accumulated_depreciation
+        if current_accum_depr > ZERO:
+            new_accum_depr = current_accum_depr * ratio
+            adjustment = new_accum_depr - current_accum_depr
+            if adjustment > ZERO:
+                # Increase accumulated depreciation (credit)
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=AccountName.ACCUMULATED_DEPRECIATION,
+                    amount=adjustment,
+                    transaction_type=TransactionType.REVALUATION,
+                    description=f"{description} - accumulated_depreciation",
+                )
+            elif adjustment < ZERO:
+                # Decrease accumulated depreciation (debit)
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.ACCUMULATED_DEPRECIATION,
+                    credit_account=AccountName.RETAINED_EARNINGS,
+                    amount=-adjustment,
+                    transaction_type=TransactionType.REVALUATION,
+                    description=f"{description} - accumulated_depreciation",
+                )
+
+    def _write_off_all_assets(self, description: str = "Asset write-off") -> None:
+        """Write off all asset balances to zero through the ledger.
+
+        Args:
+            description: Description of the write-off
+        """
+        # Write off each asset account that has a balance
+        asset_accounts = [
+            (AccountName.CASH, self.cash),
+            (AccountName.ACCOUNTS_RECEIVABLE, self.accounts_receivable),
+            (AccountName.INVENTORY, self.inventory),
+            (AccountName.PREPAID_INSURANCE, self.prepaid_insurance),
+            (AccountName.GROSS_PPE, self.gross_ppe),
+            (AccountName.RESTRICTED_CASH, self.restricted_assets),
+            (AccountName.COLLATERAL, self.collateral),
+        ]
+
+        for account, balance in asset_accounts:
+            if balance > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=account,
+                    amount=balance,
+                    transaction_type=TransactionType.WRITE_OFF,
+                    description=f"{description} - {account.value}",
+                )
+
+        # Write off accumulated depreciation (contra-asset - has credit balance)
+        accum_depr = self.accumulated_depreciation
+        if accum_depr > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.ACCUMULATED_DEPRECIATION,
+                credit_account=AccountName.RETAINED_EARNINGS,
+                amount=accum_depr,
+                transaction_type=TransactionType.WRITE_OFF,
+                description=f"{description} - accumulated_depreciation",
+            )
+
+    def _record_liquidation(
+        self,
+        amount: Decimal,
+        description: str = "Liquidation loss",
+    ) -> None:
+        """Record liquidation loss through the ledger.
+
+        Used during bankruptcy to record asset liquidation costs.
+
+        Args:
+            amount: Amount of liquidation loss
+            description: Description of the liquidation
+        """
+        if amount <= ZERO:
+            return
+        self.ledger.record_double_entry(
+            date=self.current_year,
+            debit_account=AccountName.RETAINED_EARNINGS,
+            credit_account=AccountName.CASH,
+            amount=amount,
+            transaction_type=TransactionType.LIQUIDATION,
+            description=description,
+        )
+
+    def _record_liquid_asset_reduction(
+        self,
+        total_reduction: Decimal,
+        description: str = "Liquid asset reduction for claim payment",
+    ) -> None:
+        """Reduce liquid assets proportionally to make a payment.
+
+        Reduces cash, accounts receivable, and inventory proportionally
+        to fund a payment amount.
+
+        Args:
+            total_reduction: Total amount to reduce from liquid assets
+            description: Description of the reduction
+        """
+        if total_reduction <= ZERO:
+            return
+
+        # Get current liquid asset balances
+        current_cash = self.cash
+        current_ar = self.accounts_receivable
+        current_inventory = self.inventory
+        total_liquid = current_cash + current_ar + current_inventory
+
+        if total_liquid <= ZERO:
+            return
+
+        # Calculate reduction ratio
+        if total_liquid <= total_reduction:
+            # Use all liquid assets
+            reduction_ratio = ONE
+        else:
+            reduction_ratio = total_reduction / total_liquid
+
+        # Reduce each account proportionally
+        cash_reduction = current_cash * reduction_ratio
+        ar_reduction = current_ar * reduction_ratio
+        inventory_reduction = current_inventory * reduction_ratio
+
+        if cash_reduction > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.CASH,
+                amount=quantize_currency(cash_reduction),
+                transaction_type=TransactionType.WRITE_OFF,
+                description=f"{description} - cash",
+            )
+
+        if ar_reduction > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                amount=quantize_currency(ar_reduction),
+                transaction_type=TransactionType.WRITE_OFF,
+                description=f"{description} - accounts_receivable",
+            )
+
+        if inventory_reduction > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.INVENTORY,
+                amount=quantize_currency(inventory_reduction),
+                transaction_type=TransactionType.WRITE_OFF,
+                description=f"{description} - inventory",
             )
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> "WidgetManufacturer":
@@ -1020,46 +1480,17 @@ class WidgetManufacturer:
         """Set total assets by proportionally adjusting all asset components.
 
         This setter maintains the relative proportions of all asset components
-        when changing the total asset value. If current assets are zero,
-        it sets cash to the full value.
+        when changing the total asset value. All changes go through the ledger
+        to maintain consistency between Direct and Indirect cash flow methods.
 
         Args:
             value: New total asset value in dollars.
         """
         value_decimal = to_decimal(value)
-        current_total = self.total_assets
-
-        # Handle zero or negative values
-        if value_decimal <= ZERO:
-            self.cash = ZERO
-            self.accounts_receivable = ZERO
-            self.inventory = ZERO
-            self.prepaid_insurance = ZERO
-            self.gross_ppe = ZERO
-            self.restricted_assets = ZERO
-            return
-
-        # If current total is zero, put everything in cash
-        if current_total <= ZERO:
-            self.cash = value_decimal
-            self.accounts_receivable = ZERO
-            self.inventory = ZERO
-            self.prepaid_insurance = ZERO
-            self.gross_ppe = ZERO
-            self.restricted_assets = ZERO
-            return
-
-        # Calculate adjustment ratio
-        ratio = value_decimal / current_total
-
-        # Adjust all asset components proportionally
-        self.cash *= ratio
-        self.accounts_receivable *= ratio
-        self.inventory *= ratio
-        self.prepaid_insurance *= ratio
-        self.gross_ppe *= ratio
-        self.accumulated_depreciation *= ratio
-        self.restricted_assets *= ratio
+        self._record_proportional_revaluation(
+            target_total=value_decimal,
+            description="Proportional asset revaluation via total_assets setter",
+        )
 
     @property
     def total_liabilities(self) -> Decimal:
@@ -1204,9 +1635,19 @@ class WidgetManufacturer:
                 # Record as prepaid asset using insurance accounting module
                 result = self.insurance_accounting.pay_annual_premium(premium_decimal)
 
-                # Update balance sheet
-                self.prepaid_insurance = result["prepaid_asset"]
-                self.cash -= result["cash_outflow"]
+                # Update balance sheet via ledger (Issue #275)
+                # Debit prepaid insurance (asset increases), credit cash (decreases)
+                cash_outflow = result["cash_outflow"]
+                if cash_outflow > ZERO:
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.PREPAID_INSURANCE,
+                        credit_account=AccountName.CASH,
+                        amount=cash_outflow,
+                        transaction_type=TransactionType.INSURANCE_PREMIUM,
+                        description=f"Annual insurance premium payment",
+                        month=self.current_month,
+                    )
 
                 # Store for later amortization tracking
                 self._original_prepaid_premium = premium_decimal
@@ -1805,20 +2246,26 @@ class WidgetManufacturer:
                     f"${equity_after_loss:,.2f}, below threshold ${tolerance:,.2f}. "
                     f"Current equity=${current_equity:,.2f}. Triggering insolvency."
                 )
-                # Apply the loss to the balance sheet before handling insolvency
-                self.cash += retained_earnings  # retained_earnings is negative
+                # Apply the loss to the balance sheet via ledger (Issue #275)
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=AccountName.CASH,
+                    amount=loss_amount,
+                    transaction_type=TransactionType.EXPENSE,
+                    description=f"Year {self.current_year} operating loss (pre-insolvency)",
+                    month=self.current_month,
+                )
                 self._last_dividends_paid = ZERO  # No dividends when insolvent
                 self.handle_insolvency()
                 return  # Exit - company is now insolvent
 
-            # All checks passed - absorb the full loss
-            self.cash += retained_earnings  # retained_earnings is negative
-
-            # Record loss absorption in ledger
+            # All checks passed - absorb the full loss via ledger (Issue #275)
+            # The ledger entry is the single source of truth for cash balance
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account="retained_earnings",
-                credit_account="cash",
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.CASH,
                 amount=loss_amount,
                 transaction_type=TransactionType.EXPENSE,
                 description=f"Year {self.current_year} operating loss",
@@ -1857,32 +2304,46 @@ class WidgetManufacturer:
                 actual_dividends = dividends
                 additional_retained = ZERO
 
-            # Add retained earnings + any unpaid dividends to cash
-            self.cash += retained_earnings + additional_retained
+            # Record net income via ledger (Issue #275)
+            # Net income increases assets (cash) and retained earnings by the FULL amount
+            # Dividends are then paid from cash, reducing assets
+            # Net effect: assets increase by (net_income - dividends) = retained_earnings
             self._last_dividends_paid = actual_dividends
 
-            # Record retained earnings in ledger (net income increases cash and retained earnings)
+            # Calculate total amount to add to cash:
+            # = net_income (the full profit) - actual_dividends (paid out)
+            # = retained_earnings + (dividends - actual_dividends) = total actually retained
             total_retained = retained_earnings + additional_retained
+            # Net cash increase = total_retained (what stays in company after dividends)
+            # This is equivalent to: net_income - actual_dividends
+
             if total_retained > ZERO:
                 self.ledger.record_double_entry(
                     date=self.current_year,
-                    debit_account="cash",
-                    credit_account="retained_earnings",
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.RETAINED_EARNINGS,
                     amount=total_retained,
                     transaction_type=TransactionType.REVENUE,
                     description=f"Year {self.current_year} retained earnings",
                     month=self.current_month,
                 )
 
-            # Record dividends paid in ledger
+            # Note: Dividends are NOT recorded as a separate cash outflow here because
+            # the net_income already excludes them. The total_retained calculation
+            # (retained_earnings + additional_retained) gives us the net cash impact.
+            # Recording dividends as cash outflow would double-count.
+            # However, we do record the dividend declaration for financial statement purposes.
             if actual_dividends > ZERO:
+                # Record dividends declared (affects equity, not cash again)
+                # This entry: Debit Retained Earnings, Credit Dividends Payable (or direct to equity)
+                # But since we're on a cash basis here, we just track it for reporting
                 self.ledger.record_double_entry(
                     date=self.current_year,
-                    debit_account="dividends",
-                    credit_account="cash",
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=AccountName.DIVIDENDS,
                     amount=actual_dividends,
                     transaction_type=TransactionType.DIVIDEND,
-                    description=f"Year {self.current_year} dividends paid",
+                    description=f"Year {self.current_year} dividends declared",
                     month=self.current_month,
                 )
 
@@ -2021,31 +2482,31 @@ class WidgetManufacturer:
                 month=self.current_month,
             )
 
-        # Update components
-        self.accounts_receivable = new_ar
-        self.inventory = new_inventory
-        self.accounts_payable = new_ap
+        # Working capital components are now updated via ledger entries above (Issue #275)
+        # The ledger is the single source of truth - no direct assignments needed
 
-        # CRITICAL FIX: Reallocate assets from/to cash to fund working capital changes
+        # Calculate cash impact for logging (the actual impact is recorded in ledger entries)
         # Increases in AR and inventory reduce cash (cash converted to these assets)
         # Increases in AP increase cash (we have the cash but owe it to vendors)
         cash_impact = -(ar_change + inventory_change) + ap_change
 
-        # LIMITED LIABILITY: Don't let working capital changes make cash negative
-        if cash_impact < ZERO:
-            # Check if this would make cash negative
-            new_cash = self.cash + cash_impact
-            if new_cash < ZERO:
-                # Cap the negative impact to bring cash to exactly $0
-                actual_impact = -self.cash
-                logger.warning(
-                    f"LIMITED LIABILITY: Working capital impact capped at ${actual_impact:,.2f} "
-                    f"(requested: ${cash_impact:,.2f}, available cash: ${self.cash:,.2f}). "
-                    f"Cash floored at $0."
-                )
-                cash_impact = actual_impact
-
-        self.cash += cash_impact
+        # LIMITED LIABILITY: Check if ledger-based changes would make cash negative
+        # The ledger entries above have already been recorded, so we need to handle
+        # the case where cash went negative by recording an adjustment
+        if self.cash < ZERO:
+            # Cash went negative from working capital changes - record adjustment
+            adjustment = -self.cash
+            logger.warning(
+                f"LIMITED LIABILITY: Working capital changes pushed cash to ${self.cash:,.2f}. "
+                f"Adjusting to floor at $0."
+            )
+            self._record_cash_adjustment(
+                amount=adjustment,
+                description="Limited liability floor - working capital cash constraint",
+                transaction_type=TransactionType.ADJUSTMENT,
+            )
+            # Recalculate effective cash impact
+            cash_impact = cash_impact + adjustment
 
         # Now total assets remain constant - we've just reallocated between components
         # This prevents artificial asset creation that was causing growth distortions
@@ -2111,20 +2572,18 @@ class WidgetManufacturer:
             # Use insurance accounting module to properly track prepaid insurance
             result = self.insurance_accounting.pay_annual_premium(annual_premium_decimal)
 
-            # Update balance sheet
-            self.prepaid_insurance = result["prepaid_asset"]
-            self.cash -= result["cash_outflow"]
-
-            # Record insurance premium payment in ledger
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account="prepaid_insurance",
-                credit_account="cash",
-                amount=result["cash_outflow"],
-                transaction_type=TransactionType.INSURANCE_PREMIUM,
-                description=f"Annual insurance premium payment",
-                month=self.current_month,
-            )
+            # Update balance sheet via ledger only (Issue #275)
+            # The ledger is the single source of truth
+            if result["cash_outflow"] > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.PREPAID_INSURANCE,
+                    credit_account=AccountName.CASH,
+                    amount=result["cash_outflow"],
+                    transaction_type=TransactionType.INSURANCE_PREMIUM,
+                    description=f"Annual insurance premium payment",
+                    month=self.current_month,
+                )
 
             logger.info(f"Recorded prepaid insurance: ${annual_premium_decimal:,.2f}")
 
@@ -2160,17 +2619,17 @@ class WidgetManufacturer:
             if self.prepaid_insurance > ZERO:
                 result = self.insurance_accounting.record_monthly_expense()
 
-                # Update balance sheet and P&L
-                self.prepaid_insurance = result["remaining_prepaid"]
+                # Update P&L tracking (not balance sheet - that's via ledger)
                 self.period_insurance_premiums += result["insurance_expense"]
                 total_amortized += result["insurance_expense"]
 
-                # Record insurance expense amortization in ledger
+                # Record insurance expense amortization via ledger only (Issue #275)
+                # The ledger is the single source of truth for prepaid_insurance balance
                 if result["insurance_expense"] > ZERO:
                     self.ledger.record_double_entry(
                         date=self.current_year,
-                        debit_account="insurance_expense",
-                        credit_account="prepaid_insurance",
+                        debit_account=AccountName.INSURANCE_EXPENSE,
+                        credit_account=AccountName.PREPAID_INSURANCE,
                         amount=result["insurance_expense"],
                         transaction_type=TransactionType.EXPENSE,
                         description=f"Insurance premium amortization",
@@ -2227,8 +2686,17 @@ class WidgetManufacturer:
         # Record receipt through insurance accounting module
         result = self.insurance_accounting.receive_recovery_payment(amount, claim_id)
 
-        # Update cash position
-        self.cash += result["cash_received"]
+        # Update cash position via ledger (Issue #275)
+        if result["cash_received"] > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.CASH,
+                credit_account=AccountName.INSURANCE_RECEIVABLES,
+                amount=result["cash_received"],
+                transaction_type=TransactionType.INSURANCE_CLAIM,
+                description=f"Insurance recovery received",
+                month=self.current_month,
+            )
 
         logger.info(f"Received insurance recovery: ${result['cash_received']:,.2f}")
         logger.debug(f"Remaining receivables: ${result['remaining_receivables']:,.2f}")
@@ -2271,13 +2739,13 @@ class WidgetManufacturer:
             net_ppe = self.gross_ppe - self.accumulated_depreciation
             if net_ppe > ZERO:
                 depreciation_expense = min(annual_depreciation, net_ppe)
-                self.accumulated_depreciation += depreciation_expense
 
-                # Record depreciation in ledger
+                # Record depreciation via ledger only (Issue #275)
+                # The ledger is the single source of truth for accumulated_depreciation
                 self.ledger.record_double_entry(
                     date=self.current_year,
-                    debit_account="depreciation_expense",
-                    credit_account="accumulated_depreciation",
+                    debit_account=AccountName.DEPRECIATION_EXPENSE,
+                    credit_account=AccountName.ACCUMULATED_DEPRECIATION,
                     amount=depreciation_expense,
                     transaction_type=TransactionType.DEPRECIATION,
                     description=f"Year {self.current_year} depreciation",
@@ -2433,10 +2901,23 @@ class WidgetManufacturer:
 
             if max_payable > ZERO:
                 # Post letter of credit as collateral for the payable amount
-                # Transfer cash to restricted assets (no change in total assets)
-                self.collateral += max_payable
-                self.restricted_assets += max_payable
-                self.cash -= max_payable  # Move cash to restricted
+                # Transfer cash to restricted assets via ledger (Issue #275)
+                # This maintains consistency between Direct and Indirect cash flow methods
+                self._record_asset_transfer(
+                    from_account=AccountName.CASH,
+                    to_account=AccountName.RESTRICTED_CASH,
+                    amount=max_payable,
+                    description=f"Cash to restricted for insurance claim collateral",
+                )
+                # Also record the collateral posting
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.COLLATERAL,
+                    credit_account=AccountName.RETAINED_EARNINGS,
+                    amount=max_payable,
+                    transaction_type=TransactionType.TRANSFER,
+                    description=f"Letter of credit collateral posted for insurance claim",
+                )
 
                 # Create claim liability with payment schedule for payable portion
                 # Adjust year_incurred only if current_year > 0 (after step() has been called)
@@ -2583,24 +3064,21 @@ class WidgetManufacturer:
                     # Pay what we can from liquid assets, but not more than max_payable
                     actual_payment: Decimal = min(max_payable, liquid_assets)
 
-                    # Reduce liquid assets proportionally
-                    if liquid_assets > max_payable:
-                        # We have enough liquid assets
-                        reduction_ratio = max_payable / liquid_assets
-                        self.cash *= ONE - reduction_ratio
-                        self.accounts_receivable *= ONE - reduction_ratio
-                        self.inventory *= ONE - reduction_ratio
-                    else:
-                        # Use all liquid assets (up to max_payable)
-                        self.cash = ZERO
-                        self.accounts_receivable = ZERO
-                        self.inventory = ZERO
+                    # Reduce liquid assets proportionally via ledger (Issue #275)
+                    self._record_liquid_asset_reduction(
+                        total_reduction=actual_payment,
+                        description="Liquid asset reduction for uninsured claim payment",
+                    )
                 else:
                     actual_payment = ZERO
             else:
-                # Cash was sufficient
+                # Cash was sufficient - record via ledger (Issue #275)
                 actual_payment = cash_payment
-                self.cash -= cash_payment
+                if cash_payment > ZERO:
+                    self._record_liquidation(
+                        amount=cash_payment,
+                        description="Cash payment for uninsured claim",
+                    )
 
             # Record as tax-deductible loss (only what we actually paid)
             self.period_insurance_losses += actual_payment
@@ -2798,18 +3276,26 @@ class WidgetManufacturer:
                     if actual_payment > ZERO:
                         claim_item.make_payment(actual_payment)
                         total_paid += actual_payment
-                        # The collateral was set aside for this purpose
-                        self.restricted_assets -= actual_payment
-                        self.collateral -= actual_payment
 
-                        # Record claim payment from restricted assets in ledger
+                        # Record claim payment from restricted assets via ledger only (Issue #275)
+                        # The ledger is the single source of truth for restricted_assets
                         self.ledger.record_double_entry(
                             date=self.current_year,
-                            debit_account="claim_liabilities",
-                            credit_account="restricted_cash",
+                            debit_account=AccountName.CLAIM_LIABILITIES,
+                            credit_account=AccountName.RESTRICTED_CASH,
                             amount=actual_payment,
                             transaction_type=TransactionType.INSURANCE_CLAIM,
                             description=f"Insured claim payment from collateral",
+                            month=self.current_month,
+                        )
+                        # Also reduce collateral tracking via ledger
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=AccountName.RETAINED_EARNINGS,
+                            credit_account=AccountName.COLLATERAL,
+                            amount=actual_payment,
+                            transaction_type=TransactionType.INSURANCE_CLAIM,
+                            description=f"Collateral released after claim payment",
                             month=self.current_month,
                         )
 
@@ -2827,13 +3313,13 @@ class WidgetManufacturer:
                     if actual_payment > ZERO:
                         claim_item.make_payment(actual_payment)
                         total_paid += actual_payment
-                        self.cash -= actual_payment  # Reduce cash for uninsured claims
 
-                        # Record uninsured claim payment in ledger
+                        # Record uninsured claim payment via ledger only (Issue #275)
+                        # The ledger is the single source of truth for cash
                         self.ledger.record_double_entry(
                             date=self.current_year,
-                            debit_account="claim_liabilities",
-                            credit_account="cash",
+                            debit_account=AccountName.CLAIM_LIABILITIES,
+                            credit_account=AccountName.CASH,
                             amount=actual_payment,
                             transaction_type=TransactionType.INSURANCE_CLAIM,
                             description=f"Uninsured claim payment",
@@ -3015,10 +3501,15 @@ class WidgetManufacturer:
             :attr:`is_ruined`: Insolvency status flag.
         """
         # Ensure equity never goes below zero (limited liability)
-        if self.equity < 0:
+        if self.equity < ZERO:
             # Small negative equity due to rounding - adjust to exactly zero
+            # Record via ledger to maintain consistency (Issue #275)
             adjustment = -self.equity
-            self.cash += adjustment  # Add to cash to bring equity to 0
+            self._record_cash_adjustment(
+                amount=adjustment,
+                description="Limited liability floor adjustment - equity to zero",
+                transaction_type=TransactionType.ADJUSTMENT,
+            )
             logger.info(
                 f"Adjusted equity from ${self.equity - adjustment:,.2f} to $0 "
                 f"(limited liability floor)"
@@ -3045,9 +3536,13 @@ class WidgetManufacturer:
             insolvency_tolerance = to_decimal(self.config.insolvency_tolerance)
             if self.equity > insolvency_tolerance:
                 # Reduce cash to represent liquidation costs and asset haircuts
+                # Record via ledger to maintain consistency (Issue #275)
                 liquidation_loss = self.cash - insolvency_tolerance
                 if liquidation_loss > ZERO:
-                    self.cash = insolvency_tolerance
+                    self._record_liquidation(
+                        amount=liquidation_loss,
+                        description="Bankruptcy liquidation costs and asset haircuts",
+                    )
                     logger.info(
                         f"LIQUIDATION: Assets reduced from ${pre_liquidation_assets:,.2f} "
                         f"to ${self.total_assets:,.2f} due to bankruptcy liquidation costs"
@@ -3117,7 +3612,13 @@ class WidgetManufacturer:
             logger.warning(
                 f"Cash is negative (${self.cash:,.2f}). Adjusting to $0 to enforce limited liability."
             )
-            self.cash = ZERO
+            # Record via ledger to maintain consistency (Issue #275)
+            # Bring cash back to zero by recording the negative amount as an adjustment
+            self._record_cash_adjustment(
+                amount=-self.cash,  # Negative cash -> positive adjustment
+                description="Limited liability enforcement - cash floor at zero",
+                transaction_type=TransactionType.ADJUSTMENT,
+            )
 
         # Traditional balance sheet insolvency
         # Handle any case where equity <= 0, including negative equity from operations
@@ -3498,29 +3999,28 @@ class WidgetManufacturer:
                 # Process the payment (proportional share of what we can afford)
                 self.accrual_manager.process_payment(accrual_type, float(payable_amount), period)
 
-                # Reduce cash for payment
-                self.cash -= payable_amount
+                # Record accrued payment via ledger only (Issue #275)
+                # The ledger is the single source of truth for cash
                 total_paid += payable_amount
 
-                # Record accrued payment in ledger
-                # Determine transaction type based on accrual type
+                # Determine transaction type and account based on accrual type
                 if accrual_type == AccrualType.TAXES:
                     trans_type = TransactionType.TAX_PAYMENT
-                    debit_account = "accrued_taxes"
+                    debit_account = AccountName.ACCRUED_TAXES
                 elif accrual_type == AccrualType.WAGES:
                     trans_type = TransactionType.PAYMENT
-                    debit_account = "accrued_wages"
+                    debit_account = AccountName.ACCRUED_WAGES
                 elif accrual_type == AccrualType.INTEREST:
                     trans_type = TransactionType.PAYMENT
-                    debit_account = "accrued_interest"
+                    debit_account = AccountName.ACCRUED_INTEREST
                 else:
                     trans_type = TransactionType.PAYMENT
-                    debit_account = "accrued_expenses"
+                    debit_account = AccountName.ACCRUED_EXPENSES
 
                 self.ledger.record_double_entry(
                     date=self.current_year,
                     debit_account=debit_account,
-                    credit_account="cash",
+                    credit_account=AccountName.CASH,
                     amount=payable_amount,
                     transaction_type=trans_type,
                     description=f"Accrued {accrual_type.value} payment",
@@ -3957,10 +4457,6 @@ class WidgetManufacturer:
             :meth:`copy`: Create independent manufacturer instances.
             :attr:`config`: Original configuration parameters.
         """
-        # Reset collateral and restricted assets
-        self.collateral = ZERO
-        self.restricted_assets = ZERO
-
         # Reset operating parameters
         self.asset_turnover_ratio = self.config.asset_turnover_ratio
         self.claim_liabilities = []
@@ -3969,7 +4465,25 @@ class WidgetManufacturer:
         self.is_ruined = False
         self.metrics_history = []
 
-        # Reset enhanced balance sheet components
+        # Reset period insurance cost tracking
+        self.period_insurance_premiums = ZERO
+        self.period_insurance_losses = ZERO
+
+        # Reset dividend tracking
+        self._last_dividends_paid = ZERO
+
+        # Reset initial values (for exposure bases)
+        initial_assets = to_decimal(self.config.initial_assets)
+        self._initial_assets = initial_assets
+        self._initial_equity = initial_assets
+
+        # Reset accrual manager
+        self.accrual_manager = AccrualManager()
+
+        # Track original prepaid premium for amortization calculation
+        self._original_prepaid_premium = ZERO
+
+        # Compute initial balance sheet values for reset
         # PP&E allocation depends on operating margin
         if self.config.base_operating_margin < 0.10:
             ppe_ratio = to_decimal(
@@ -3980,33 +4494,31 @@ class WidgetManufacturer:
         else:
             ppe_ratio = to_decimal(0.7)  # High margin businesses can support more PP&E
 
-        initial_assets = to_decimal(self.config.initial_assets)
-        self.gross_ppe = initial_assets * ppe_ratio
-        self.accumulated_depreciation = ZERO
-        self.cash = initial_assets * (ONE - ppe_ratio)
-        self.accounts_receivable = ZERO
-        self.inventory = ZERO
-        self.prepaid_insurance = ZERO
-        self.accounts_payable = ZERO
-        self._original_prepaid_premium = ZERO
+        initial_gross_ppe: Decimal = initial_assets * ppe_ratio
+        initial_accumulated_depreciation: Decimal = ZERO
+        initial_cash: Decimal = initial_assets * (ONE - ppe_ratio)
+        initial_accounts_receivable: Decimal = ZERO
+        initial_inventory: Decimal = ZERO
+        initial_prepaid_insurance: Decimal = ZERO
+        initial_accounts_payable: Decimal = ZERO
+        initial_collateral: Decimal = ZERO
+        initial_restricted_assets: Decimal = ZERO
 
-        # Reset period insurance cost tracking
-        self.period_insurance_premiums = ZERO
-        self.period_insurance_losses = ZERO
-
-        # Reset dividend tracking
-        self._last_dividends_paid = ZERO
-
-        # Reset initial values (for exposure bases)
-        self._initial_assets = initial_assets
-        self._initial_equity = initial_assets
-
-        # Reset accrual manager
-        self.accrual_manager = AccrualManager()
-
-        # Reset ledger and record initial balances
+        # Reset ledger FIRST (single source of truth for all balance sheet accounts)
+        # Then record initial balances - this is the only way to set balance sheet values
+        # Direct assignment is not possible since properties read from ledger (Issue #275)
         self.ledger = Ledger()
-        self._record_initial_balances()
+        self._record_initial_balances(
+            cash=initial_cash,
+            accounts_receivable=initial_accounts_receivable,
+            inventory=initial_inventory,
+            prepaid_insurance=initial_prepaid_insurance,
+            gross_ppe=initial_gross_ppe,
+            accumulated_depreciation=initial_accumulated_depreciation,
+            accounts_payable=initial_accounts_payable,
+            collateral=initial_collateral,
+            restricted_assets=initial_restricted_assets,
+        )
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:

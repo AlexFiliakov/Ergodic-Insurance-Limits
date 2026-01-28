@@ -192,6 +192,10 @@ class TransactionType(Enum):
     # Non-cash
     ADJUSTMENT = "adjustment"
     ACCRUAL = "accrual"
+    WRITE_OFF = "write_off"  # Writing off bad debts or losses
+    REVALUATION = "revaluation"  # Asset value adjustments
+    LIQUIDATION = "liquidation"  # Bankruptcy/emergency liquidation
+    TRANSFER = "transfer"  # Internal asset transfers (e.g., cash to restricted)
 
 
 @dataclass
