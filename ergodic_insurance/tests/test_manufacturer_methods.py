@@ -399,8 +399,8 @@ class TestStepMethod:
         ), "Equity decrease should be partially offset by retained earnings"
 
         # Balance sheet should remain balanced (Assets = Liabilities + Equity)
-        assert manufacturer.total_assets == pytest.approx(
-            manufacturer.total_liabilities + manufacturer.equity, rel=1e-9
+        assert float(manufacturer.total_assets) == pytest.approx(
+            float(manufacturer.total_liabilities + manufacturer.equity), rel=1e-9
         )
 
     def test_with_collateral_costs(self, manufacturer):
@@ -538,14 +538,14 @@ class TestStepMethod:
             # Balance sheet equation: Assets = Liabilities + Equity
             # Therefore: Equity = Assets - Liabilities
             # The manufacturer.equity property correctly implements this
-            assert manufacturer.equity == pytest.approx(
-                manufacturer.total_assets - manufacturer.total_liabilities,
+            assert float(manufacturer.equity) == pytest.approx(
+                float(manufacturer.total_assets - manufacturer.total_liabilities),
                 rel=0.01,
             )
 
             # Alternative check: Assets should equal Liabilities + Equity
-            assert manufacturer.total_assets == pytest.approx(
-                manufacturer.total_liabilities + manufacturer.equity,
+            assert float(manufacturer.total_assets) == pytest.approx(
+                float(manufacturer.total_liabilities + manufacturer.equity),
                 rel=0.01,
             )
 
@@ -567,7 +567,7 @@ class TestStepMethod:
         assert metrics["revenue"] > 0
         # Revenue = Assets * Turnover Ratio
         expected_revenue = initial_assets * to_decimal(initial_turnover)
-        assert metrics["revenue"] == pytest.approx(expected_revenue, rel=0.01)
+        assert float(metrics["revenue"]) == pytest.approx(float(expected_revenue), rel=0.01)
 
     def test_claim_liability_payments(self, manufacturer):
         """Test that claim liabilities are paid according to schedule."""

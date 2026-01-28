@@ -46,7 +46,7 @@ class TestDepreciationTracking:
         expected_cash = (
             to_decimal(manufacturer.config.initial_assets) - expected_ppe - working_capital_assets
         )
-        assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
+        assert float(manufacturer.cash) == pytest.approx(float(expected_cash), rel=0.01)
 
     def test_custom_ppe_ratio(self):
         """Test that custom PPE ratio overrides the default."""
@@ -68,7 +68,7 @@ class TestDepreciationTracking:
         # Cash = remaining assets minus working capital (AR + inventory initialized to steady-state)
         working_capital_assets = manufacturer.accounts_receivable + manufacturer.inventory
         expected_cash = to_decimal(config.initial_assets * 0.4) - working_capital_assets
-        assert manufacturer.cash == pytest.approx(expected_cash, rel=0.01)
+        assert float(manufacturer.cash) == pytest.approx(float(expected_cash), rel=0.01)
 
     def test_default_ppe_ratio_based_on_margin(self):
         """Test that default PPE ratio is correctly set based on operating margin."""
@@ -110,12 +110,12 @@ class TestDepreciationTracking:
         # Record one year of depreciation
         depreciation = manufacturer.record_depreciation(useful_life_years=useful_life)
 
-        assert depreciation == pytest.approx(expected_annual_depreciation, rel=0.01)
-        assert manufacturer.accumulated_depreciation == pytest.approx(
-            expected_annual_depreciation, rel=0.01
+        assert float(depreciation) == pytest.approx(float(expected_annual_depreciation), rel=0.01)
+        assert float(manufacturer.accumulated_depreciation) == pytest.approx(
+            float(expected_annual_depreciation), rel=0.01
         )
-        assert manufacturer.net_ppe == pytest.approx(
-            manufacturer.gross_ppe - expected_annual_depreciation, rel=0.01
+        assert float(manufacturer.net_ppe) == pytest.approx(
+            float(manufacturer.gross_ppe - expected_annual_depreciation), rel=0.01
         )
 
     def test_depreciation_accumulation_over_time(self, manufacturer):
@@ -129,11 +129,11 @@ class TestDepreciationTracking:
             depreciation = manufacturer.record_depreciation(useful_life_years=useful_life)
             total_depreciation += depreciation
 
-        assert manufacturer.accumulated_depreciation == pytest.approx(
-            annual_depreciation * 5, rel=0.01
+        assert float(manufacturer.accumulated_depreciation) == pytest.approx(
+            float(annual_depreciation * 5), rel=0.01
         )
-        assert manufacturer.net_ppe == pytest.approx(
-            manufacturer.gross_ppe - (annual_depreciation * 5), rel=0.01
+        assert float(manufacturer.net_ppe) == pytest.approx(
+            float(manufacturer.gross_ppe - (annual_depreciation * 5)), rel=0.01
         )
 
     def test_depreciation_cannot_exceed_asset_value(self, manufacturer):
@@ -177,7 +177,9 @@ class TestDepreciationTracking:
         annual_depreciation = manufacturer.accumulated_depreciation
 
         # Total monthly depreciation should approximately equal annual
-        assert monthly_depreciation_total == pytest.approx(annual_depreciation, rel=0.01)
+        assert float(monthly_depreciation_total) == pytest.approx(
+            float(annual_depreciation), rel=0.01
+        )
 
     def test_prepaid_insurance_recording(self, manufacturer):
         """Test recording of prepaid insurance premiums."""
@@ -199,12 +201,12 @@ class TestDepreciationTracking:
         amortized = manufacturer.amortize_prepaid_insurance(months=1)
         expected_monthly_amortization = premium / 12
 
-        assert amortized == pytest.approx(expected_monthly_amortization, rel=0.01)
-        assert manufacturer.prepaid_insurance == pytest.approx(
-            premium - expected_monthly_amortization, rel=0.01
+        assert float(amortized) == pytest.approx(float(expected_monthly_amortization), rel=0.01)
+        assert float(manufacturer.prepaid_insurance) == pytest.approx(
+            float(premium - expected_monthly_amortization), rel=0.01
         )
-        assert manufacturer.period_insurance_premiums == pytest.approx(
-            expected_monthly_amortization, rel=0.01
+        assert float(manufacturer.period_insurance_premiums) == pytest.approx(
+            float(expected_monthly_amortization), rel=0.01
         )
 
     def test_prepaid_insurance_full_amortization(self, manufacturer):
@@ -218,8 +220,8 @@ class TestDepreciationTracking:
             amortized = manufacturer.amortize_prepaid_insurance(months=1)
             total_amortized += amortized
 
-        assert total_amortized == pytest.approx(premium, rel=0.01)
-        assert manufacturer.prepaid_insurance == pytest.approx(0, abs=0.01)
+        assert float(total_amortized) == pytest.approx(float(premium), rel=0.01)
+        assert float(manufacturer.prepaid_insurance) == pytest.approx(0, abs=0.01)
 
     def test_prepaid_insurance_cannot_over_amortize(self, manufacturer):
         """Test that prepaid insurance cannot be amortized below zero."""
@@ -229,8 +231,8 @@ class TestDepreciationTracking:
         # Try to amortize for 24 months at once (should stop at balance)
         total_amortized = manufacturer.amortize_prepaid_insurance(months=24)
 
-        assert total_amortized == pytest.approx(premium, rel=1e-9)
-        assert manufacturer.prepaid_insurance == pytest.approx(0, abs=1e-9)
+        assert float(total_amortized) == pytest.approx(float(premium), rel=1e-9)
+        assert float(manufacturer.prepaid_insurance) == pytest.approx(0, abs=1e-9)
 
         # Further amortization should return 0
         additional_amortization = manufacturer.amortize_prepaid_insurance(months=1)
@@ -246,7 +248,7 @@ class TestDepreciationTracking:
             metrics = manufacturer.step(time_resolution="monthly")
 
         # Half of the premium should be amortized
-        assert manufacturer.prepaid_insurance == pytest.approx(premium / 2, rel=0.01)
+        assert float(manufacturer.prepaid_insurance) == pytest.approx(float(premium / 2), rel=0.01)
 
     def test_depreciation_config_properties(self, depreciation_config):
         """Test DepreciationConfig calculated properties."""
@@ -304,7 +306,7 @@ class TestDepreciationTracking:
         for life, expected in zip(useful_lives, expected_depreciations):
             manufacturer.reset()
             depreciation = manufacturer.record_depreciation(useful_life_years=life)
-            assert depreciation == pytest.approx(expected, rel=0.01)
+            assert float(depreciation) == pytest.approx(float(expected), rel=0.01)
 
     def test_depreciation_reduces_equity(self):
         """Regression test: depreciation must reduce equity via total_assets.
@@ -344,8 +346,8 @@ class TestDepreciationTracking:
         )
 
         # Net PP&E must decrease by the depreciation amount
-        assert manufacturer.net_ppe == pytest.approx(
-            initial_net_ppe - depreciation_expense, rel=1e-9
+        assert float(manufacturer.net_ppe) == pytest.approx(
+            float(initial_net_ppe - depreciation_expense), rel=1e-9
         )
 
         # Total assets must decrease (depreciation reduces net PP&E)
@@ -361,7 +363,7 @@ class TestDepreciationTracking:
 
         # Equity decrease should equal the depreciation amount
         equity_change = manufacturer.equity - initial_equity
-        assert equity_change == pytest.approx(-depreciation_expense, rel=1e-9)
+        assert float(equity_change) == pytest.approx(float(-depreciation_expense), rel=1e-9)
 
     def test_depreciation_reduces_equity_through_step(self):
         """Test that step() produces equity decrease when depreciation dominates.
