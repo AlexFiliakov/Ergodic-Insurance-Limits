@@ -13,6 +13,7 @@ import pytest
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.financial_statements import CashFlowStatement
+from ergodic_insurance.ledger import AccountName, TransactionType
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -71,7 +72,12 @@ class TestDividendPhantomPayments:
 
         # Set up a scenario with low cash but positive income
         # This simulates timing differences (recognized revenue not yet collected)
-        manufacturer.cash = 10  # Very low cash
+        # Cash is read-only (derived from ledger), so adjust via ledger transaction
+        current_cash = manufacturer.cash
+        manufacturer._record_cash_adjustment(
+            amount=to_decimal(10) - current_cash,
+            description="Reduce cash for test scenario",
+        )
         initial_equity = manufacturer.equity
 
         # Positive net income but not enough cash to pay full dividends
@@ -91,7 +97,12 @@ class TestDividendPhantomPayments:
         manufacturer = WidgetManufacturer(self.config)
 
         # Set up extreme scenario: very negative cash
-        manufacturer.cash = -1000  # Negative cash (possible due to timing)
+        # Cash is read-only (derived from ledger), so adjust via ledger transaction
+        current_cash = manufacturer.cash
+        manufacturer._record_cash_adjustment(
+            amount=to_decimal(-1000) - current_cash,
+            description="Set cash to negative for test scenario",
+        )
 
         # Positive net income
         net_income = 500  # $500 net income
@@ -114,7 +125,12 @@ class TestDividendPhantomPayments:
         manufacturer = WidgetManufacturer(self.config)
 
         # Set up scenario where only partial dividends can be paid
-        manufacturer.cash = -500  # Negative cash
+        # Cash is read-only (derived from ledger), so adjust via ledger transaction
+        current_cash = manufacturer.cash
+        manufacturer._record_cash_adjustment(
+            amount=to_decimal(-500) - current_cash,
+            description="Set cash to negative for test scenario",
+        )
 
         net_income = 1000  # $1000 net income
         retained_earnings = net_income * manufacturer.retention_ratio  # $700
@@ -266,10 +282,26 @@ class TestDividendPhantomPayments:
         """Test that insolvency scenarios set dividends to zero."""
         manufacturer = WidgetManufacturer(self.config)
 
-        # Set up insolvency scenario
-        manufacturer.cash = 100
-        # Simulate very low equity situation
-        manufacturer.gross_ppe = 200  # Minimal assets
+        # Set up insolvency scenario using ledger transactions
+        # Write off all assets and set minimal values
+        manufacturer._write_off_all_assets("Write off assets for insolvency test")
+        # Add back minimal cash and PP&E via ledger
+        manufacturer.ledger.record_double_entry(
+            date=0,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.RETAINED_EARNINGS,
+            amount=to_decimal(100),
+            transaction_type=TransactionType.ADJUSTMENT,
+            description="Set minimal cash for insolvency test",
+        )
+        manufacturer.ledger.record_double_entry(
+            date=0,
+            debit_account=AccountName.GROSS_PPE,
+            credit_account=AccountName.RETAINED_EARNINGS,
+            amount=to_decimal(200),
+            transaction_type=TransactionType.ADJUSTMENT,
+            description="Set minimal PP&E for insolvency test",
+        )
 
         # Large loss that would trigger insolvency
         manufacturer.update_balance_sheet(-50000)
