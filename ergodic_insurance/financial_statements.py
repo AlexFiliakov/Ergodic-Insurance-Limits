@@ -760,14 +760,20 @@ class FinancialStatementGenerator:
         metrics["net_ppe"] = metrics["gross_ppe"] - metrics["accumulated_depreciation"]
 
         # Calculate total assets
-        current_assets = (
-            metrics["cash"]
-            + metrics["accounts_receivable"]
-            + metrics["inventory"]
-            + metrics["prepaid_insurance"]
-            + metrics["insurance_receivables"]
-        )
-        metrics["assets"] = current_assets + metrics["net_ppe"] + metrics["restricted_assets"]
+        # Use manufacturer's total_assets if available to ensure consistency with
+        # equity calculation (which is based on manufacturer's Assets - Liabilities)
+        # This ensures the accounting equation (Assets = Liabilities + Equity) balances
+        if mfr_metrics and "assets" in mfr_metrics:
+            metrics["assets"] = mfr_metrics["assets"]
+        else:
+            current_assets = (
+                metrics["cash"]
+                + metrics["accounts_receivable"]
+                + metrics["inventory"]
+                + metrics["prepaid_insurance"]
+                + metrics["insurance_receivables"]
+            )
+            metrics["assets"] = current_assets + metrics["net_ppe"] + metrics["restricted_assets"]
         metrics["available_assets"] = metrics["assets"] - metrics["restricted_assets"]
 
         # Liability accounts (credit-normal, positive balance expected)
@@ -1056,8 +1062,10 @@ class FinancialStatementGenerator:
         data.append(("  Total Restricted Assets", total_restricted, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Total Assets (recalculate from components for consistency)
-        total_assets = total_current + net_ppe + total_restricted
+        # Total Assets: Use manufacturer's ledger-based value for consistency
+        # with equity calculation (which is Assets - Liabilities from ledger)
+        # This ensures the accounting equation (Assets = Liabilities + Equity) balances
+        total_assets = total_assets_actual
         data.append(("TOTAL ASSETS", total_assets, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
@@ -1881,7 +1889,13 @@ class FinancialStatementGenerator:
                 elif item == "TOTAL EQUITY":
                     df.at[index, f"Year {comp_year}"] = comp_metrics.get("equity", 0)
                 elif item == "TOTAL LIABILITIES":
-                    df.at[index, f"Year {comp_year}"] = comp_metrics.get("claim_liabilities", 0)
+                    # Calculate total liabilities same as in _build_liabilities_section
+                    # Includes accounts_payable, accrued_expenses, and claim_liabilities
+                    accounts_payable = comp_metrics.get("accounts_payable", 0)
+                    accrued_expenses = comp_metrics.get("accrued_expenses", 0)
+                    claim_liabilities = comp_metrics.get("claim_liabilities", 0)
+                    total_liabilities = accounts_payable + accrued_expenses + claim_liabilities
+                    df.at[index, f"Year {comp_year}"] = total_liabilities
 
     def _add_comparison_year_income(self, df: pd.DataFrame, comp_year: int) -> None:
         """Add comparison year data to income statement DataFrame.
