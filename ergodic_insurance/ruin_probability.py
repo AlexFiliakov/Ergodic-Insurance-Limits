@@ -33,7 +33,20 @@ class RuinProbabilityConfig:
 
 @dataclass
 class RuinProbabilityResults:
-    """Results from ruin probability analysis."""
+    """Results from ruin probability analysis.
+
+    Attributes:
+        time_horizons: Array of time horizons analyzed (in years).
+        ruin_probabilities: Probability of ruin at each time horizon.
+        confidence_intervals: Bootstrap confidence intervals for probabilities.
+        bankruptcy_causes: Distribution of bankruptcy causes by horizon.
+        survival_curves: Survival probability curves over time.
+        execution_time: Total execution time in seconds.
+        n_simulations: Number of simulations run.
+        convergence_achieved: Whether convergence criteria were met.
+        mid_year_ruin_count: Number of simulations with mid-year ruin (Issue #279).
+        ruin_month_distribution: Distribution of ruin events by month (0-11).
+    """
 
     time_horizons: np.ndarray
     ruin_probabilities: np.ndarray
@@ -43,6 +56,9 @@ class RuinProbabilityResults:
     execution_time: float
     n_simulations: int
     convergence_achieved: bool
+    # Issue #279: Track mid-year ruin events
+    mid_year_ruin_count: int = 0
+    ruin_month_distribution: Optional[Dict[int, int]] = None
 
     def summary(self) -> str:
         """Generate summary report."""
@@ -70,6 +86,34 @@ class RuinProbabilityResults:
                 for cause, probs in self.bankruptcy_causes.items():
                     if idx < len(probs):
                         lines.append(f"  {cause:20s}: {probs[idx]:6.2%}")
+
+        # Issue #279: Add mid-year ruin statistics
+        if self.mid_year_ruin_count > 0:
+            lines.append("")
+            lines.append("Mid-Year Ruin Analysis:")
+            mid_year_pct = self.mid_year_ruin_count / self.n_simulations * 100
+            lines.append(
+                f"  Mid-year ruin events: {self.mid_year_ruin_count:,} ({mid_year_pct:.1f}%)"
+            )
+            if self.ruin_month_distribution:
+                lines.append("  Ruin by month:")
+                month_names = [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                ]
+                for month, count in sorted(self.ruin_month_distribution.items()):
+                    if count > 0:
+                        lines.append(f"    {month_names[month]}: {count:,}")
 
         return "\n".join(lines)
 
@@ -138,6 +182,9 @@ class RuinProbabilityAnalyzer:
             execution_time=time.time() - start_time,
             n_simulations=config.n_simulations,
             convergence_achieved=convergence_achieved,
+            # Issue #279: Include mid-year ruin statistics
+            mid_year_ruin_count=simulation_results.get("mid_year_ruin_count", 0),
+            ruin_month_distribution=simulation_results.get("ruin_month_distribution"),
         )
 
     def _analyze_horizons(self, simulation_results, config):
@@ -202,9 +249,7 @@ class RuinProbabilityAnalyzer:
             padded_curves[i, : len(curve)] = curve
         return padded_curves
 
-    def _run_ruin_simulations_sequential(
-        self, config: RuinProbabilityConfig
-    ) -> Dict[str, np.ndarray]:
+    def _run_ruin_simulations_sequential(self, config: RuinProbabilityConfig) -> Dict[str, Any]:
         """Run ruin probability simulations sequentially."""
         max_horizon = max(config.time_horizons)
         n_sims = config.n_simulations
@@ -217,6 +262,9 @@ class RuinProbabilityAnalyzer:
             "consecutive_negative": np.zeros((n_sims, max_horizon), dtype=bool),
             "debt_service": np.zeros((n_sims, max_horizon), dtype=bool),
         }
+        # Issue #279: Track mid-year ruin events
+        mid_year_ruin_count = 0
+        ruin_month_distribution: Dict[int, int] = {}
 
         iterator = range(n_sims)
         if self.config.progress_bar:
@@ -227,10 +275,20 @@ class RuinProbabilityAnalyzer:
             bankruptcy_years[sim_id] = result["bankruptcy_year"]
             for cause, cause_data in bankruptcy_causes.items():
                 cause_data[sim_id] = result["causes"][cause]
+            # Issue #279: Collect mid-year ruin statistics
+            if result.get("is_mid_year_ruin", False):
+                mid_year_ruin_count += 1
+                ruin_month = result.get("ruin_month")
+                if ruin_month is not None:
+                    ruin_month_distribution[ruin_month] = (
+                        ruin_month_distribution.get(ruin_month, 0) + 1
+                    )
 
         return {
             "bankruptcy_years": bankruptcy_years,
-            "bankruptcy_causes": bankruptcy_causes,  # type: ignore
+            "bankruptcy_causes": bankruptcy_causes,
+            "mid_year_ruin_count": mid_year_ruin_count,
+            "ruin_month_distribution": ruin_month_distribution,
         }
 
     def _create_simulation_chunks(
@@ -248,9 +306,7 @@ class RuinProbabilityAnalyzer:
             chunks.append((i, chunk_end, max_horizon, config, chunk_seed))
         return chunks
 
-    def _run_ruin_simulations_parallel(
-        self, config: RuinProbabilityConfig
-    ) -> Dict[str, np.ndarray]:
+    def _run_ruin_simulations_parallel(self, config: RuinProbabilityConfig) -> Dict[str, Any]:
         """Run ruin probability simulations in parallel."""
         max_horizon = max(config.time_horizons)
         chunks = self._create_simulation_chunks(config, max_horizon)
@@ -277,7 +333,7 @@ class RuinProbabilityAnalyzer:
     def _run_ruin_chunk(
         self,
         chunk: Tuple[int, int, int, RuinProbabilityConfig, Optional[int]],
-    ) -> Dict[str, np.ndarray]:
+    ) -> Dict[str, Any]:
         """Run a chunk of ruin simulations."""
         start_idx, end_idx, max_horizon, config, seed = chunk
         n_sims = end_idx - start_idx
@@ -294,16 +350,29 @@ class RuinProbabilityAnalyzer:
             "consecutive_negative": np.zeros((n_sims, max_horizon), dtype=bool),
             "debt_service": np.zeros((n_sims, max_horizon), dtype=bool),
         }
+        # Issue #279: Track mid-year ruin events
+        mid_year_ruin_count = 0
+        ruin_month_distribution: Dict[int, int] = {}
 
         for i in range(n_sims):
             result = self._run_single_ruin_simulation(start_idx + i, max_horizon, config)
             bankruptcy_years[i] = result["bankruptcy_year"]
             for cause, cause_data in bankruptcy_causes.items():
                 cause_data[i] = result["causes"][cause]
+            # Issue #279: Collect mid-year ruin statistics
+            if result.get("is_mid_year_ruin", False):
+                mid_year_ruin_count += 1
+                ruin_month = result.get("ruin_month")
+                if ruin_month is not None:
+                    ruin_month_distribution[ruin_month] = (
+                        ruin_month_distribution.get(ruin_month, 0) + 1
+                    )
 
         return {
             "bankruptcy_years": bankruptcy_years,
-            "bankruptcy_causes": bankruptcy_causes,  # type: ignore
+            "bankruptcy_causes": bankruptcy_causes,
+            "mid_year_ruin_count": mid_year_ruin_count,
+            "ruin_month_distribution": ruin_month_distribution,
         }
 
     def _check_bankruptcy_conditions(
@@ -401,6 +470,7 @@ class RuinProbabilityAnalyzer:
         """Run a single ruin probability simulation.
 
         Tracks multiple bankruptcy conditions with early stopping.
+        Also tracks mid-year ruin events (Issue #279).
         """
         manufacturer = self.manufacturer.copy()
         causes = {
@@ -413,9 +483,17 @@ class RuinProbabilityAnalyzer:
         consecutive_negative_count = 0
         bankruptcy_year = max_horizon + 1
         is_bankrupt = False
+        # Issue #279: Track mid-year ruin events
+        is_mid_year_ruin = False
+        ruin_month: Optional[int] = None
 
         for year in range(max_horizon):
             metrics = self._process_simulation_year(manufacturer, year)
+
+            # Issue #279: Check if this was a mid-year ruin event
+            if manufacturer.is_ruined and manufacturer.ruin_month is not None:
+                is_mid_year_ruin = True
+                ruin_month = manufacturer.ruin_month
 
             # Check bankruptcy
             is_bankrupt, consecutive_negative_count = self._check_bankruptcy_conditions(
@@ -432,11 +510,14 @@ class RuinProbabilityAnalyzer:
         if not is_bankrupt:
             bankruptcy_year = max_horizon + 1
 
-        return {"bankruptcy_year": bankruptcy_year, "causes": causes}
+        return {
+            "bankruptcy_year": bankruptcy_year,
+            "causes": causes,
+            "is_mid_year_ruin": is_mid_year_ruin,
+            "ruin_month": ruin_month,
+        }
 
-    def _combine_ruin_results(
-        self, chunk_results: List[Dict[str, np.ndarray]]
-    ) -> Dict[str, np.ndarray]:
+    def _combine_ruin_results(self, chunk_results: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Combine ruin simulation results from parallel chunks."""
         bankruptcy_years = np.concatenate([r["bankruptcy_years"] for r in chunk_results])
 
@@ -451,9 +532,19 @@ class RuinProbabilityAnalyzer:
             cause_arrays = [r["bankruptcy_causes"][cause] for r in chunk_results]
             all_causes[cause] = np.vstack(cause_arrays)
 
+        # Issue #279: Combine mid-year ruin statistics
+        total_mid_year_ruin = sum(r.get("mid_year_ruin_count", 0) for r in chunk_results)
+        combined_ruin_months: Dict[int, int] = {}
+        for r in chunk_results:
+            chunk_months = r.get("ruin_month_distribution", {})
+            for month, count in chunk_months.items():
+                combined_ruin_months[month] = combined_ruin_months.get(month, 0) + count
+
         return {
             "bankruptcy_years": bankruptcy_years,
-            "bankruptcy_causes": all_causes,  # type: ignore
+            "bankruptcy_causes": all_causes,
+            "mid_year_ruin_count": total_mid_year_ruin,
+            "ruin_month_distribution": combined_ruin_months,
         }
 
     def _calculate_bootstrap_ci(

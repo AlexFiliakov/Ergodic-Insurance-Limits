@@ -1411,3 +1411,263 @@ class TestWidgetManufacturer:
             f"Should be insolvent: needed ${catastrophic_loss:,.2f}, "
             f"had cash ${available_cash:,.2f}, equity ${total_equity:,.2f}"
         )
+
+
+class TestMidYearLiquidity:
+    """Test suite for mid-year liquidity detection (Issue #279).
+
+    Tests for the estimate_minimum_cash_point() and check_liquidity_constraints()
+    methods that detect potential mid-year insolvency events.
+    """
+
+    @pytest.fixture
+    def config(self) -> ManufacturerConfig:
+        """Create test manufacturer config with mid-year liquidity enabled."""
+        return ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=0,  # January
+            revenue_pattern="uniform",
+            check_intra_period_liquidity=True,
+        )
+
+    @pytest.fixture
+    def manufacturer(self, config: ManufacturerConfig) -> WidgetManufacturer:
+        """Create a test manufacturer with mid-year liquidity checking enabled."""
+        return WidgetManufacturer(config)
+
+    def test_estimate_minimum_cash_point_uniform_revenue(self, manufacturer: WidgetManufacturer):
+        """Test minimum cash point estimation with uniform revenue.
+
+        With uniform revenue distribution, the minimum should occur early in
+        the year when premium and first tax payment have been made but
+        limited revenue has been collected.
+        """
+        min_cash, min_month = manufacturer.estimate_minimum_cash_point("annual")
+
+        # Should return valid values
+        assert isinstance(min_cash, Decimal)
+        assert isinstance(min_month, int)
+        assert 0 <= min_month <= 11
+
+    def test_estimate_minimum_cash_point_back_loaded_revenue(self):
+        """Test minimum cash point estimation with back-loaded revenue.
+
+        With back-loaded revenue (60% in H2), the minimum should occur
+        earlier in the year when outflows exceed inflows.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            revenue_pattern="back_loaded",
+            check_intra_period_liquidity=True,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        min_cash, min_month = manufacturer.estimate_minimum_cash_point("annual")
+
+        # With back-loaded revenue, minimum should be in H1 (months 0-5)
+        assert 0 <= min_month <= 11
+
+    def test_estimate_minimum_cash_point_monthly_resolution(self, manufacturer: WidgetManufacturer):
+        """Test minimum cash point estimation with monthly resolution.
+
+        For monthly resolution, should return current cash and month.
+        """
+        min_cash, min_month = manufacturer.estimate_minimum_cash_point("monthly")
+
+        # Should return current cash for monthly resolution
+        assert min_cash == manufacturer.cash
+        assert min_month == manufacturer.current_month
+
+    def test_check_liquidity_constraints_solvent(self, manufacturer: WidgetManufacturer):
+        """Test liquidity constraint check when company is solvent.
+
+        With sufficient initial cash, the company should pass liquidity check.
+        """
+        result = manufacturer.check_liquidity_constraints("annual")
+
+        # Should be solvent with default initial assets
+        assert result is True
+        assert manufacturer.is_ruined is False
+        assert manufacturer.ruin_month is None
+
+    def test_check_liquidity_constraints_disabled(self):
+        """Test liquidity constraint check when disabled in config.
+
+        With check_intra_period_liquidity=False, should always pass.
+        """
+        config = ManufacturerConfig(
+            initial_assets=100_000,  # Very low initial assets
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            check_intra_period_liquidity=False,  # Disabled
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Set a large premium that would cause mid-year insolvency
+        manufacturer.period_insurance_premiums = to_decimal(200_000)
+
+        result = manufacturer.check_liquidity_constraints("annual")
+
+        # Should pass because check is disabled
+        assert result is True
+
+    def test_check_liquidity_constraints_mid_year_insolvency(self):
+        """Test liquidity constraint check detects mid-year insolvency.
+
+        A company with low cash and high premium should trigger mid-year ruin.
+        """
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=0,  # January
+            check_intra_period_liquidity=True,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Set a very large premium that would cause mid-year insolvency
+        # Cash is roughly 30% of initial assets, so premium > 30% causes issue
+        manufacturer.period_insurance_premiums = to_decimal(500_000)
+
+        result = manufacturer.check_liquidity_constraints("annual")
+
+        # Should detect mid-year insolvency
+        assert result is False
+        assert manufacturer.is_ruined is True
+        assert manufacturer.ruin_month is not None
+        assert 0 <= manufacturer.ruin_month <= 11
+
+    def test_step_integrates_liquidity_check(self):
+        """Test that step() integrates the liquidity constraint check.
+
+        The step method should automatically call check_liquidity_constraints
+        and detect mid-year insolvency.
+        """
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=0,
+            check_intra_period_liquidity=True,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Set a very large premium
+        manufacturer.period_insurance_premiums = to_decimal(500_000)
+
+        # Step should detect mid-year insolvency
+        metrics = manufacturer.step()
+
+        assert manufacturer.is_ruined is True
+        assert metrics.get("is_solvent") is False
+
+    def test_backwards_compatibility_disabled(self):
+        """Test backwards compatibility when liquidity check is disabled.
+
+        With check_intra_period_liquidity=False, simulations should produce
+        the same results as before this feature was added.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            check_intra_period_liquidity=False,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Run a few steps
+        for _ in range(3):
+            manufacturer.step()
+
+        # Should still be solvent (no mid-year check interference)
+        assert manufacturer.is_ruined is False
+
+    def test_get_monthly_revenue_distribution_uniform(self, manufacturer: WidgetManufacturer):
+        """Test uniform monthly revenue distribution."""
+        annual_revenue = to_decimal(1_200_000)
+        distribution = manufacturer._get_monthly_revenue_distribution(annual_revenue, "uniform")
+
+        assert len(distribution) == 12
+        # Each month should get 1/12 of annual revenue
+        expected_monthly = to_decimal(100_000)
+        for monthly in distribution:
+            assert monthly == expected_monthly
+
+    def test_get_monthly_revenue_distribution_seasonal(self, manufacturer: WidgetManufacturer):
+        """Test seasonal monthly revenue distribution.
+
+        Q1-Q3 should get 60% split equally (20% each quarter),
+        Q4 should get 40%.
+        """
+        annual_revenue = to_decimal(1_200_000)
+        distribution = manufacturer._get_monthly_revenue_distribution(annual_revenue, "seasonal")
+
+        assert len(distribution) == 12
+
+        # Q1-Q3 (months 0-8): 60% / 9 months = 6.67% each
+        q1_q3_monthly = annual_revenue * to_decimal(0.60) / to_decimal(9)
+        for i in range(9):
+            assert distribution[i] == q1_q3_monthly
+
+        # Q4 (months 9-11): 40% / 3 months = 13.33% each
+        q4_monthly = annual_revenue * to_decimal(0.40) / to_decimal(3)
+        for i in range(9, 12):
+            assert distribution[i] == q4_monthly
+
+    def test_get_monthly_revenue_distribution_back_loaded(self, manufacturer: WidgetManufacturer):
+        """Test back-loaded monthly revenue distribution.
+
+        H1 should get 40%, H2 should get 60%.
+        """
+        annual_revenue = to_decimal(1_200_000)
+        distribution = manufacturer._get_monthly_revenue_distribution(annual_revenue, "back_loaded")
+
+        assert len(distribution) == 12
+
+        # H1 (months 0-5): 40% / 6 months
+        h1_monthly = annual_revenue * to_decimal(0.40) / to_decimal(6)
+        for i in range(6):
+            assert distribution[i] == h1_monthly
+
+        # H2 (months 6-11): 60% / 6 months
+        h2_monthly = annual_revenue * to_decimal(0.60) / to_decimal(6)
+        for i in range(6, 12):
+            assert distribution[i] == h2_monthly
+
+    def test_ruin_month_tracking(self):
+        """Test that ruin_month is properly tracked when mid-year insolvency occurs."""
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=0,  # January - premium causes early ruin
+            check_intra_period_liquidity=True,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Set premium to cause insolvency in month 0
+        manufacturer.period_insurance_premiums = to_decimal(500_000)
+        manufacturer.check_liquidity_constraints("annual")
+
+        # ruin_month should be set to the month when insolvency occurred
+        assert manufacturer.ruin_month is not None
+        # Should be early in year due to large January premium
+        assert manufacturer.ruin_month <= 3

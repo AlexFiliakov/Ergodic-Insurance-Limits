@@ -150,6 +150,27 @@ class ManufacturerConfig(BaseModel):
         "(Issue #255: Enables explicit COGS/SG&A calculation in Manufacturer)",
     )
 
+    # Mid-year liquidity configuration (Issue #279)
+    premium_payment_month: int = Field(
+        default=0,
+        ge=0,
+        le=11,
+        description="Month when annual insurance premium is paid (0-11, where 0=January). "
+        "Used for intra-period liquidity estimation to detect mid-year insolvency.",
+    )
+    revenue_pattern: Literal["uniform", "seasonal", "back_loaded"] = Field(
+        default="uniform",
+        description="Revenue distribution pattern throughout the year. "
+        "'uniform': equal monthly revenue, 'seasonal': higher in Q4, "
+        "'back_loaded': 60% in H2. Used for mid-year liquidity estimation.",
+    )
+    check_intra_period_liquidity: bool = Field(
+        default=True,
+        description="Whether to check for potential mid-year insolvency by estimating "
+        "minimum cash point within each period. When True, the simulation estimates "
+        "the lowest cash point and triggers insolvency if it goes negative.",
+    )
+
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):
         """Set default PPE ratio based on operating margin if not provided."""
