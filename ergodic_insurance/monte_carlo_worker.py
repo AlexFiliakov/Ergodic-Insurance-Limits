@@ -90,11 +90,11 @@ def run_chunk_standalone(
             base_premium = to_decimal(insurance_program.calculate_annual_premium())
             annual_premium = base_premium * revenue_multiplier
 
-            # Set the period insurance premium for accounting purposes
+            # Record the insurance premium for accounting purposes
             # The premium will be deducted from operating income in calculate_operating_income
-            # Do NOT deduct from cash here to avoid double-counting
+            # Use public method to maintain encapsulation (Issue #276)
             if annual_premium > ZERO:
-                sim_manufacturer.period_insurance_premiums = annual_premium
+                sim_manufacturer.record_insurance_premium(annual_premium, is_annual=False)
 
             # Use ManufacturingLossGenerator to generate losses
             # Note: Loss generator interface requires float for numpy compatibility
@@ -123,8 +123,8 @@ def run_chunk_standalone(
 
                 # Record the insurance loss for proper accounting using Decimal
                 # The loss will be deducted from operating income in calculate_operating_income
-                # Use += in case there are multiple losses in a year
-                sim_manufacturer.period_insurance_losses += retained_decimal
+                # Use public method to maintain encapsulation (Issue #276)
+                sim_manufacturer.record_insurance_loss(retained_decimal)
             else:
                 recovery_decimal = ZERO
                 retained_decimal = ZERO
