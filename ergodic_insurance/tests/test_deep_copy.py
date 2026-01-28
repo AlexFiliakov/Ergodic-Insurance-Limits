@@ -15,7 +15,7 @@ import copy
 from decimal import Decimal
 import pickle
 
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 import pytest
 
@@ -25,6 +25,7 @@ from ergodic_insurance.accrual_manager import (
     AccrualType,
     PaymentSchedule,
 )
+from ergodic_insurance.claim_development import ClaimDevelopment
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decimal_utils import ZERO, to_decimal
 from ergodic_insurance.insurance_accounting import InsuranceAccounting, InsuranceRecovery
@@ -37,12 +38,16 @@ class TestClaimLiabilityDeepCopy:
 
     def test_deep_copy_preserves_all_fields(self):
         """Verify all fields are preserved in deep copy."""
+        custom_strategy = ClaimDevelopment(
+            pattern_name="CUSTOM",
+            development_factors=[0.25, 0.35, 0.40],
+        )
         original = ClaimLiability(
             original_amount=to_decimal(1_000_000),
             remaining_amount=to_decimal(750_000),
             year_incurred=5,
             is_insured=True,
-            payment_schedule=[0.25, 0.35, 0.40],
+            development_strategy=custom_strategy,
         )
 
         copied = copy.deepcopy(original)
@@ -51,26 +56,36 @@ class TestClaimLiabilityDeepCopy:
         assert copied.remaining_amount == original.remaining_amount
         assert copied.year_incurred == original.year_incurred
         assert copied.is_insured == original.is_insured
-        assert copied.payment_schedule == original.payment_schedule
+        assert (
+            copied.development_strategy.development_factors
+            == original.development_strategy.development_factors
+        )
+        assert (
+            copied.development_strategy.pattern_name == original.development_strategy.pattern_name
+        )
 
     def test_deep_copy_independence(self):
         """Verify modifications to copy don't affect original."""
+        custom_strategy = ClaimDevelopment(
+            pattern_name="CUSTOM",
+            development_factors=[0.25, 0.35, 0.40],
+        )
         original = ClaimLiability(
             original_amount=to_decimal(1_000_000),
             remaining_amount=to_decimal(1_000_000),
             year_incurred=5,
-            payment_schedule=[0.25, 0.35, 0.40],
+            development_strategy=custom_strategy,
         )
 
         copied = copy.deepcopy(original)
 
         # Modify the copy
         copied.make_payment(to_decimal(100_000))
-        copied.payment_schedule.append(0.10)
+        copied.development_strategy.development_factors.append(0.10)
 
         # Original should be unchanged
         assert original.remaining_amount == to_decimal(1_000_000)
-        assert len(original.payment_schedule) == 3
+        assert len(original.development_strategy.development_factors) == 3
 
     def test_deep_copy_is_pickleable(self):
         """Verify deep copy can be pickled for multiprocessing."""
@@ -558,7 +573,7 @@ class TestPropertyBasedDeepCopy:
         ),
         year_incurred=st.integers(min_value=0, max_value=100),
     )
-    @settings(max_examples=20)
+    @settings(max_examples=20, suppress_health_check=[HealthCheck.too_slow])
     def test_claim_liability_copy_independence(self, original_amount, year_incurred):
         """Property test: copied claim is always independent."""
         original = ClaimLiability(

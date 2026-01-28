@@ -59,12 +59,29 @@ classDiagram
     }
 
     class ClaimLiability {
-        +total_amount: float
-        +payment_schedule: List[float]
-        +years_remaining: int
-        +get_annual_payment() float
-        +advance_year()
+        +original_amount: Decimal
+        +remaining_amount: Decimal
+        +year_incurred: int
+        +is_insured: bool
+        +development_strategy: ClaimDevelopment
+        +payment_schedule: List[float]  <<property>>
+        +get_payment(years_since_incurred) Decimal
+        +make_payment(amount) Decimal
     }
+
+    class ClaimDevelopment {
+        +pattern_name: str
+        +development_factors: List[float]
+        +tail_factor: float
+        +calculate_payments(claim_amount, accident_year, payment_year) float
+        +get_cumulative_paid(years_since_accident) float
+        +create_immediate() ClaimDevelopment
+        +create_medium_tail_5yr() ClaimDevelopment
+        +create_long_tail_10yr() ClaimDevelopment
+        +create_very_long_tail_15yr() ClaimDevelopment
+    }
+
+    ClaimLiability --> ClaimDevelopment : uses
 
     %% Insurance Classes
     class InsurancePolicy {
