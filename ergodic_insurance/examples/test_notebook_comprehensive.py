@@ -171,32 +171,33 @@ print("  [PASS] Retention optimization using InsurancePricer correctly")
 print("\n3. TESTING SECTION 5 - Market Cycle Impact")
 print("-" * 60)
 
-# Create pricers for each market cycle
-pricers = {}
-for cycle in MarketCycle:
-    pricers[cycle] = InsurancePricer(
-        loss_generator=loss_generator,
-        market_cycle=cycle,
-        parameters=PricingParameters(
-            simulation_years=100,
-            confidence_level=0.95,
-            expense_ratio=0.25,
-            profit_margin=0.15,
-            risk_loading=0.10,
-        ),
-        seed=42,
-    )
+# Calculate pure premium ONCE to avoid random state drift from shared loss_generator
+# (Each calculate_pure_premium call advances the random state)
+cycle_pricer = InsurancePricer(
+    loss_generator=loss_generator,
+    market_cycle=MarketCycle.NORMAL,
+    parameters=PricingParameters(
+        simulation_years=100,
+        confidence_level=0.95,
+        expense_ratio=0.25,
+        profit_margin=0.15,
+        risk_loading=0.10,
+    ),
+    seed=42,
+)
 
-# Test that each pricer produces appropriate premiums
+# Calculate pure premium once, then apply different market cycle adjustments
+pure_premium, _ = cycle_pricer.calculate_pure_premium(
+    attachment_point=deductible,
+    limit=5_000_000 - deductible,
+    expected_revenue=COMPANY_PARAMS["annual_revenue"],
+)
+technical_premium = cycle_pricer.calculate_technical_premium(pure_premium, 5_000_000 - deductible)
+
+# Apply market cycle adjustments to the same base technical premium
 premiums = {}
-for cycle, pricer in pricers.items():
-    pure_premium, _ = pricer.calculate_pure_premium(
-        attachment_point=deductible,
-        limit=5_000_000 - deductible,
-        expected_revenue=COMPANY_PARAMS["annual_revenue"],
-    )
-    technical_premium = pricer.calculate_technical_premium(pure_premium, 5_000_000 - deductible)
-    market_premium = pricer.calculate_market_premium(technical_premium, cycle)
+for cycle in MarketCycle:
+    market_premium = cycle_pricer.calculate_market_premium(technical_premium, cycle)
     premiums[cycle] = market_premium
     print(f"  {cycle.name}: ${market_premium:,.0f}")
 
