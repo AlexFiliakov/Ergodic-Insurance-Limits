@@ -375,9 +375,14 @@ class TestStepMethod:
         # Assets should increase with retained earnings
         assert manufacturer.total_assets > initial_assets
 
-        # Equity change reflects depreciation, tax accruals, and retained earnings
-        # With depreciation (500K) + tax accruals (83K) > retained earnings (125K),
-        # equity will decrease even with positive net income
+        # Equity change reflects depreciation, tax accruals, and retained earnings.
+        # With PP&E ratio=0.5 → gross_ppe=5M → depreciation=500K/yr (10yr life).
+        # Revenue=10M, base margin=10% → base operating income=1M.
+        # Operating income = 1M - 500K depreciation = 500K.
+        # Tax = 500K * 25% = 125K → net income = 375K.
+        # Retained earnings = 375K * 50% = 187.5K (added to cash).
+        # Depreciation (500K) + tax accrual (~125K) > retained earnings (187.5K),
+        # so equity decreases even with positive net income.
         equity_change = manufacturer.equity - initial_equity
         retained_earnings = metrics["net_income"] * to_decimal(manufacturer.retention_ratio)
         # Equity should decrease but by less than depreciation alone
