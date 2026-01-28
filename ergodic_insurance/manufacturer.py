@@ -195,6 +195,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 try:
     # Try absolute import first (for installed package)
     from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
+    from ergodic_insurance.claim_development import ClaimDevelopment
     from ergodic_insurance.config import ManufacturerConfig
     from ergodic_insurance.decimal_utils import ONE, ZERO, quantize_currency, to_decimal
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
@@ -204,6 +205,7 @@ except ImportError:
     try:
         # Try relative import (for package context)
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
+        from .claim_development import ClaimDevelopment
         from .config import ManufacturerConfig
         from .decimal_utils import ONE, ZERO, quantize_currency, to_decimal
         from .insurance_accounting import InsuranceAccounting
@@ -216,6 +218,7 @@ except ImportError:
             AccrualType,
             PaymentSchedule,
         )
+        from claim_development import ClaimDevelopment  # type: ignore[no-redef]
         from config import ManufacturerConfig  # type: ignore[no-redef]
         from decimal_utils import ONE, ZERO, quantize_currency, to_decimal  # type: ignore[no-redef]
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
@@ -234,22 +237,22 @@ class ClaimLiability:
     """Represents an outstanding insurance claim liability with payment schedule.
 
     This class tracks insurance claims that require multi-year payment
-    schedules and manages the collateral required to support them. It follows
-    standard actuarial claim development patterns for realistic cash flow modeling.
+    schedules and manages the collateral required to support them. It uses
+    the Strategy Pattern with ClaimDevelopment to define payment timing.
 
-    The default payment schedule follows a typical long-tail liability pattern
+    The default development strategy follows a typical long-tail liability pattern
     where claims are paid over 10 years, with higher percentages in early years
     and gradually decreasing payments over time. This pattern is commonly observed
     in general liability and workers' compensation claims.
 
     Attributes:
-        original_amount (float): The original claim amount at inception.
-        remaining_amount (float): The unpaid balance of the claim.
+        original_amount (Decimal): The original claim amount at inception.
+        remaining_amount (Decimal): The unpaid balance of the claim.
         year_incurred (int): The year when the claim was first incurred.
         is_insured (bool): Whether this claim involves insurance coverage.
             True for insured claims (company deductible), False for uninsured claims.
-        payment_schedule (List[float]): Payment percentages by year since inception.
-            Default follows a standard long-tail pattern:
+        development_strategy (ClaimDevelopment): Strategy for payment development.
+            Default uses ClaimDevelopment.create_long_tail_10yr() which follows:
             - Years 1-3: Front-loaded payments (10%, 20%, 20%)
             - Years 4-6: Moderate payments (15%, 10%, 8%)
             - Years 7-10: Tail payments (7%, 5%, 3%, 2%)
@@ -257,7 +260,7 @@ class ClaimLiability:
     Examples:
         Create and track a claim liability::
 
-            # Create a $1M claim liability
+            # Create a $1M claim liability with default 10-year pattern
             claim = ClaimLiability(
                 original_amount=1_000_000,
                 remaining_amount=1_000_000,
@@ -271,23 +274,35 @@ class ClaimLiability:
             actual_payment = claim.make_payment(payment_due)
             print(f"Remaining: ${claim.remaining_amount:,.2f}")
 
-        Custom payment schedule::
+        Custom development pattern::
 
-            # Create claim with custom 3-year schedule
+            # Create claim with immediate payment pattern
+            immediate_claim = ClaimLiability(
+                original_amount=500_000,
+                remaining_amount=500_000,
+                year_incurred=2023,
+                development_strategy=ClaimDevelopment.create_immediate()
+            )
+
+            # Create claim with custom pattern
+            custom_pattern = ClaimDevelopment(
+                pattern_name="CUSTOM",
+                development_factors=[0.5, 0.3, 0.2]  # 50%, 30%, 20%
+            )
             custom_claim = ClaimLiability(
                 original_amount=500_000,
                 remaining_amount=500_000,
                 year_incurred=2023,
-                payment_schedule=[0.5, 0.3, 0.2]  # 50%, 30%, 20%
+                development_strategy=custom_pattern
             )
 
     Note:
-        The payment schedule percentages should sum to 1.0 for full claim payout.
-        Payments beyond the schedule length return 0.0.
+        The development factors should sum to 1.0 for full claim payout.
+        Payments beyond the schedule length return 0.0 (unless tail_factor is set).
 
     See Also:
         :class:`~ergodic_insurance.claim_development.ClaimDevelopment`: For more
-        sophisticated claim development patterns.
+        sophisticated claim development patterns including factory methods.
         :class:`~ergodic_insurance.claim_development.Claim`: For comprehensive
         claim tracking with reserving.
     """
@@ -296,27 +311,29 @@ class ClaimLiability:
     remaining_amount: Decimal
     year_incurred: int
     is_insured: bool = True  # Default to insured for backward compatibility
-    payment_schedule: List[float] = field(
-        default_factory=lambda: [
-            0.10,  # Year 1: 10%
-            0.20,  # Year 2: 20%
-            0.20,  # Year 3: 20%
-            0.15,  # Year 4: 15%
-            0.10,  # Year 5: 10%
-            0.08,  # Year 6: 8%
-            0.07,  # Year 7: 7%
-            0.05,  # Year 8: 5%
-            0.03,  # Year 9: 3%
-            0.02,  # Year 10: 2%
-        ]
+    development_strategy: ClaimDevelopment = field(
+        default_factory=ClaimDevelopment.create_long_tail_10yr
     )
+
+    @property
+    def payment_schedule(self) -> List[float]:
+        """Return development factors for backward compatibility.
+
+        This property provides access to the development factors from the
+        underlying ClaimDevelopment strategy, maintaining API compatibility
+        with code that expects a payment_schedule list.
+
+        Returns:
+            List[float]: The development factors from the strategy.
+        """
+        return self.development_strategy.development_factors
 
     def get_payment(self, years_since_incurred: int) -> Decimal:
         """Calculate payment due for a given year after claim incurred.
 
-        This method returns the scheduled payment amount based on the claim's
-        development pattern. It handles boundary conditions gracefully, returning
-        zero for negative years or years beyond the payment schedule.
+        This method delegates to the ClaimDevelopment strategy to calculate
+        the scheduled payment amount. It handles boundary conditions gracefully,
+        returning zero for negative years or years beyond the development pattern.
 
         Args:
             years_since_incurred (int): Number of years since the claim was first
@@ -341,12 +358,20 @@ class ClaimLiability:
                 payment_20 = claim.get_payment(20)  # $0 (beyond 10-year schedule)
 
         Note:
-            The method multiplies the original amount by the percentage from the
-            payment schedule. It does not check against remaining balance.
+            The method delegates to development_strategy.calculate_payments() and
+            does not check against remaining balance.
         """
-        if years_since_incurred < 0 or years_since_incurred >= len(self.payment_schedule):
+        if years_since_incurred < 0:
             return ZERO
-        return self.original_amount * to_decimal(self.payment_schedule[years_since_incurred])
+        # Delegate to ClaimDevelopment strategy
+        # calculate_payments uses (claim_amount, accident_year, payment_year)
+        payment_year = self.year_incurred + years_since_incurred
+        payment = self.development_strategy.calculate_payments(
+            claim_amount=float(self.original_amount),
+            accident_year=self.year_incurred,
+            payment_year=payment_year,
+        )
+        return to_decimal(payment)
 
     def make_payment(self, amount: Union[Decimal, float]) -> Decimal:
         """Make a payment against the liability and update remaining balance.
@@ -400,12 +425,19 @@ class ClaimLiability:
         """
         import copy
 
+        # Create a new ClaimDevelopment with copied development_factors
+        copied_strategy = ClaimDevelopment(
+            pattern_name=self.development_strategy.pattern_name,
+            development_factors=copy.deepcopy(self.development_strategy.development_factors, memo),
+            tail_factor=self.development_strategy.tail_factor,
+        )
+
         return ClaimLiability(
             original_amount=copy.deepcopy(self.original_amount, memo),
             remaining_amount=copy.deepcopy(self.remaining_amount, memo),
             year_incurred=self.year_incurred,
             is_insured=self.is_insured,
-            payment_schedule=copy.deepcopy(self.payment_schedule, memo),
+            development_strategy=copied_strategy,
         )
 
 
@@ -4057,7 +4089,9 @@ class WidgetManufacturer:
         )
 
     def record_claim_accrual(
-        self, claim_amount: Union[Decimal, float], development_pattern: Optional[List[float]] = None
+        self,
+        claim_amount: Union[Decimal, float],
+        development_pattern: Optional[ClaimDevelopment] = None,
     ) -> None:
         """Record insurance claim with multi-year payment schedule.
 
@@ -4076,8 +4110,28 @@ class WidgetManufacturer:
 
         Args:
             claim_amount: Total claim amount to be paid
-            development_pattern: Optional custom payment pattern over years.
-                Defaults to [0.4, 0.3, 0.2, 0.1] if None.
+            development_pattern: Optional ClaimDevelopment strategy for payment timing.
+                Defaults to ClaimDevelopment.create_long_tail_10yr() if None.
+
+        Examples:
+            Record claim with default pattern::
+
+                manufacturer.record_claim_accrual(1_000_000)
+
+            Record claim with immediate payment::
+
+                manufacturer.record_claim_accrual(
+                    500_000,
+                    development_pattern=ClaimDevelopment.create_immediate()
+                )
+
+            Record claim with custom pattern::
+
+                custom = ClaimDevelopment(
+                    pattern_name="CUSTOM",
+                    development_factors=[0.4, 0.3, 0.2, 0.1]
+                )
+                manufacturer.record_claim_accrual(750_000, development_pattern=custom)
         """
         amount = to_decimal(claim_amount)
         # Create a ClaimLiability as the single source of truth
@@ -4091,7 +4145,7 @@ class WidgetManufacturer:
                 remaining_amount=amount,
                 year_incurred=year_incurred,
                 is_insured=False,  # Standalone accrual without insurance coverage
-                payment_schedule=development_pattern,
+                development_strategy=development_pattern,
             )
         else:
             new_claim = ClaimLiability(
@@ -4099,13 +4153,14 @@ class WidgetManufacturer:
                 remaining_amount=amount,
                 year_incurred=year_incurred,
                 is_insured=False,  # Standalone accrual without insurance coverage
-                # Uses ClaimLiability default payment_schedule
+                # Uses ClaimLiability default development_strategy
             )
         self.claim_liabilities.append(new_claim)
 
+        pattern_name = development_pattern.pattern_name if development_pattern else "default"
         logger.info(
             f"Created claim liability via record_claim_accrual: ${amount:,.2f} "
-            f"with pattern {development_pattern or 'default'}"
+            f"with pattern {pattern_name}"
         )
 
     def _apply_growth(
