@@ -1,5 +1,6 @@
 """Standalone worker function for multiprocessing Monte Carlo simulations."""
 
+import copy
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -54,9 +55,10 @@ def run_chunk_standalone(
 
     # Run simulations in chunk
     for i in range(n_sims):
-        # Create a copy of the manufacturer for this simulation to avoid state pollution
-        sim_manufacturer = WidgetManufacturer(manufacturer.config)
-        sim_manufacturer.total_assets = manufacturer.total_assets
+        # Create a deep copy of the manufacturer for this simulation
+        # This preserves ALL state including year, history, claims, ledger, etc.
+        # See Issue #273 for details on why manual copy was insufficient
+        sim_manufacturer = copy.deepcopy(manufacturer)
 
         # Run single simulation
         sim_annual_losses = np.zeros(n_years, dtype=dtype)

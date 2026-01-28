@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .decimal_utils import ZERO, to_decimal
 
@@ -73,6 +73,27 @@ class AccrualItem:
         # With Decimal precision, we can use exact comparison
         return self.remaining_balance == ZERO
 
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "AccrualItem":
+        """Create a deep copy of this accrual item.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this AccrualItem
+        """
+        import copy
+
+        return AccrualItem(
+            item_type=self.item_type,
+            amount=copy.deepcopy(self.amount, memo),
+            period_incurred=self.period_incurred,
+            payment_schedule=self.payment_schedule,
+            payment_dates=copy.deepcopy(self.payment_dates, memo),
+            amounts_paid=copy.deepcopy(self.amounts_paid, memo),
+            description=self.description,
+        )
+
 
 class AccrualManager:
     """Manages accruals and timing differences for financial operations.
@@ -89,6 +110,34 @@ class AccrualManager:
         }
         self.accrued_revenues: List[AccrualItem] = []
         self.current_period: int = 0
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "AccrualManager":
+        """Create a deep copy of this accrual manager.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this AccrualManager with all accruals
+        """
+        import copy
+
+        result = AccrualManager()
+        memo[id(self)] = result
+
+        # Deep copy all accrued expenses
+        result.accrued_expenses = {
+            accrual_type: copy.deepcopy(items, memo)
+            for accrual_type, items in self.accrued_expenses.items()
+        }
+
+        # Deep copy accrued revenues
+        result.accrued_revenues = copy.deepcopy(self.accrued_revenues, memo)
+
+        # Copy current period
+        result.current_period = self.current_period
+
+        return result
 
     def record_expense_accrual(
         self,
@@ -157,9 +206,9 @@ class AccrualManager:
             item_type=AccrualType.REVENUE,
             amount=amount,
             period_incurred=self.current_period,
-            payment_schedule=PaymentSchedule.CUSTOM
-            if collection_dates
-            else PaymentSchedule.IMMEDIATE,
+            payment_schedule=(
+                PaymentSchedule.CUSTOM if collection_dates else PaymentSchedule.IMMEDIATE
+            ),
             payment_dates=collection_dates or [self.current_period],
             description=description,
         )

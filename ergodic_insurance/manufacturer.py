@@ -190,7 +190,7 @@ Note:
 from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 try:
     # Try absolute import first (for installed package)
@@ -388,6 +388,25 @@ class ClaimLiability:
         payment = min(amount_decimal, self.remaining_amount)
         self.remaining_amount -= payment
         return payment
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "ClaimLiability":
+        """Create a deep copy of this claim liability.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this ClaimLiability
+        """
+        import copy
+
+        return ClaimLiability(
+            original_amount=copy.deepcopy(self.original_amount, memo),
+            remaining_amount=copy.deepcopy(self.remaining_amount, memo),
+            year_incurred=self.year_incurred,
+            is_insured=self.is_insured,
+            payment_schedule=copy.deepcopy(self.payment_schedule, memo),
+        )
 
 
 @dataclass
@@ -887,6 +906,66 @@ class WidgetManufacturer:
                 transaction_type=TransactionType.EQUITY_ISSUANCE,
                 description="Initial accounts payable",
             )
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "WidgetManufacturer":
+        """Create a deep copy preserving all state for Monte Carlo forking.
+
+        This method enables proper state preservation when forking simulations
+        from a "warmed-up" state (e.g., Year 5 of a base trajectory). All
+        internal state including accruals, ledger entries, claim liabilities,
+        and metrics history are preserved.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this WidgetManufacturer with all state preserved
+
+        Example:
+            Fork a simulation from Year 5 state::
+
+                import copy
+
+                # Run to Year 5
+                for _ in range(5):
+                    manufacturer.step()
+
+                # Fork for Monte Carlo
+                forked = copy.deepcopy(manufacturer)
+                forked.step()  # Year 6 in forked copy
+
+                # Original still at Year 5
+                assert manufacturer.current_year == 5
+                assert forked.current_year == 6
+        """
+        import copy
+
+        # Create new instance without calling __init__
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+
+        # Deep copy all attributes
+        for key, value in self.__dict__.items():
+            setattr(result, key, copy.deepcopy(value, memo))
+
+        return result
+
+    def __getstate__(self) -> Dict[str, Any]:
+        """Get state for pickling (required for Windows multiprocessing).
+
+        Returns:
+            Dictionary of all instance attributes
+        """
+        return self.__dict__.copy()
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        """Restore state from pickle (required for Windows multiprocessing).
+
+        Args:
+            state: Dictionary of instance attributes to restore
+        """
+        self.__dict__.update(state)
 
     # Properties for FinancialStateProvider protocol
     @property
@@ -4003,9 +4082,9 @@ class WidgetManufacturer:
         # Create a new instance with the same config
         new_manufacturer = WidgetManufacturer(
             config=self.config,
-            stochastic_process=copy.deepcopy(self.stochastic_process)
-            if self.stochastic_process
-            else None,
+            stochastic_process=(
+                copy.deepcopy(self.stochastic_process) if self.stochastic_process else None
+            ),
         )
 
         # The new manufacturer starts fresh at initial state
