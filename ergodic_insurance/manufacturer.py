@@ -190,7 +190,7 @@ Note:
 from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 try:
     # Try absolute import first (for installed package)
@@ -823,6 +823,7 @@ class WidgetManufacturer:
 
         # Solvency tracking
         self.is_ruined = False
+        self.ruin_month: Optional[int] = None  # Month when ruin occurred (Issue #279)
 
         # Metrics tracking
         self.metrics_history: List[Dict[str, Union[Decimal, float, int, bool]]] = []
@@ -3696,6 +3697,184 @@ class WidgetManufacturer:
 
         return True
 
+    def estimate_minimum_cash_point(self, time_resolution: str = "annual") -> Tuple[Decimal, int]:
+        """Estimate the minimum cash point within the current period.
+
+        This method simulates monthly cash flows to find the lowest cash point
+        within a year. This helps detect potential mid-year insolvency that would
+        otherwise be masked when processing annual flows at year-end.
+
+        The estimation considers:
+        - Premium payments (typically at start of year)
+        - Quarterly tax payments (months 3, 5, 8, 11)
+        - Revenue distribution based on configured pattern
+
+        Args:
+            time_resolution: Time step resolution ("annual" or "monthly").
+                For monthly resolution, returns current month's cash as minimum.
+
+        Returns:
+            Tuple[Decimal, int]: A tuple containing:
+                - min_cash: The estimated minimum cash balance during the period
+                - min_month: The month (0-11) when the minimum occurs
+
+        Examples:
+            Check for potential mid-year insolvency::
+
+                min_cash, min_month = manufacturer.estimate_minimum_cash_point()
+                if min_cash < Decimal(0):
+                    print(f"Potential insolvency in month {min_month}")
+
+        Note:
+            For monthly time resolution, this returns current cash since intra-month
+            estimation is not supported. The estimation uses a simple linear model
+            assuming uniform distribution of revenue (unless configured otherwise).
+
+        See Also:
+            :meth:`check_liquidity_constraints`: Uses this method to trigger insolvency.
+            :attr:`~ManufacturerConfig.premium_payment_month`: Configures payment timing.
+            :attr:`~ManufacturerConfig.revenue_pattern`: Configures revenue distribution.
+        """
+        # For monthly resolution, we're already tracking month-by-month
+        if time_resolution == "monthly":
+            return self.cash, self.current_month
+
+        # Get configuration for timing
+        premium_payment_month = getattr(self.config, "premium_payment_month", 0)
+        revenue_pattern = getattr(self.config, "revenue_pattern", "uniform")
+
+        # Calculate annual values
+        annual_revenue = self.calculate_revenue()
+        annual_premium = getattr(self, "period_insurance_premiums", ZERO)
+
+        # Estimate quarterly tax (approximation based on prior year income)
+        # Use tax rate applied to estimated annual operating income
+        operating_margin = to_decimal(self.base_operating_margin)
+        estimated_annual_income = annual_revenue * operating_margin
+        annual_tax = estimated_annual_income * to_decimal(self.tax_rate)
+        quarterly_tax = annual_tax / to_decimal(4)
+
+        # Determine monthly revenue distribution based on pattern
+        monthly_revenues = self._get_monthly_revenue_distribution(annual_revenue, revenue_pattern)
+
+        # Simulate monthly cash flows
+        cash_balance = self.cash
+        min_cash = cash_balance
+        min_month = 0
+
+        # Tax payment months (0-indexed: March=3, May=5, August=8, November=11)
+        # These correspond to April 15, June 15, Sept 15, Dec 15 estimated payments
+        tax_months = [3, 5, 8, 11]
+
+        for month in range(12):
+            # Outflows first (conservative - assume outflows happen before inflows)
+            if month == premium_payment_month:
+                cash_balance -= annual_premium
+            if month in tax_months:
+                cash_balance -= quarterly_tax
+
+            # Inflows - monthly revenue
+            cash_balance += monthly_revenues[month]
+
+            # Track minimum
+            if cash_balance < min_cash:
+                min_cash = cash_balance
+                min_month = month
+
+        return min_cash, min_month
+
+    def _get_monthly_revenue_distribution(
+        self, annual_revenue: Decimal, pattern: str
+    ) -> List[Decimal]:
+        """Get monthly revenue distribution based on configured pattern.
+
+        Args:
+            annual_revenue: Total annual revenue to distribute.
+            pattern: Distribution pattern ("uniform", "seasonal", "back_loaded").
+
+        Returns:
+            List[Decimal]: Monthly revenues (12 elements, one per month).
+        """
+        if pattern == "uniform":
+            monthly = annual_revenue / to_decimal(12)
+            return [monthly] * 12
+        elif pattern == "seasonal":
+            # Q4 gets 40% of revenue (heavier holiday season)
+            # Q1-Q3 split remaining 60% equally (20% each)
+            q1_q3_monthly = (annual_revenue * to_decimal(0.60)) / to_decimal(9)
+            q4_monthly = (annual_revenue * to_decimal(0.40)) / to_decimal(3)
+            return [q1_q3_monthly] * 9 + [q4_monthly] * 3
+        elif pattern == "back_loaded":
+            # H1 gets 40%, H2 gets 60%
+            h1_monthly = (annual_revenue * to_decimal(0.40)) / to_decimal(6)
+            h2_monthly = (annual_revenue * to_decimal(0.60)) / to_decimal(6)
+            return [h1_monthly] * 6 + [h2_monthly] * 6
+        else:
+            # Default to uniform if unknown pattern
+            monthly = annual_revenue / to_decimal(12)
+            return [monthly] * 12
+
+    def check_liquidity_constraints(self, time_resolution: str = "annual") -> bool:
+        """Check if the company maintains positive liquidity throughout the period.
+
+        This method estimates the minimum cash point within the current period
+        and triggers insolvency if it goes negative. This helps detect mid-year
+        ruin events that would otherwise be masked by annual step processing.
+
+        The check can be disabled via `config.check_intra_period_liquidity = False`
+        for backwards compatibility with existing simulations.
+
+        Args:
+            time_resolution: Time step resolution ("annual" or "monthly").
+
+        Returns:
+            bool: True if liquidity constraints are met (solvent), False if
+                mid-year insolvency would occur.
+
+        Examples:
+            Check liquidity before processing annual step::
+
+                if not manufacturer.check_liquidity_constraints():
+                    print(f"Mid-year insolvency in month {manufacturer.ruin_month}")
+                    return  # Company is now ruined
+
+        Side Effects:
+            - Sets :attr:`is_ruined` to True if minimum cash goes negative
+            - Sets :attr:`ruin_month` to indicate when insolvency occurred
+            - Logs warning message when mid-year insolvency detected
+
+        Note:
+            This is automatically called within :meth:`step` when
+            `config.check_intra_period_liquidity` is True.
+
+        See Also:
+            :meth:`estimate_minimum_cash_point`: Calculates the cash low point.
+            :attr:`ruin_month`: Records the month of insolvency.
+        """
+        # Check if feature is enabled
+        if not getattr(self.config, "check_intra_period_liquidity", True):
+            return True
+
+        # Already ruined, no need to check
+        if self.is_ruined:
+            return False
+
+        # Estimate minimum cash point
+        min_cash, min_month = self.estimate_minimum_cash_point(time_resolution)
+
+        # If minimum cash goes negative, trigger insolvency
+        if min_cash < ZERO:
+            self.is_ruined = True
+            self.ruin_month = min_month
+            logger.warning(
+                f"MID-YEAR INSOLVENCY: Company would become insolvent in month {min_month} "
+                f"with estimated cash of ${min_cash:,.2f}. Year {self.current_year}, "
+                f"premium payment month: {getattr(self.config, 'premium_payment_month', 0)}"
+            )
+            return False
+
+        return True
+
     def calculate_metrics(
         self,
         period_revenue: Optional[Union[Decimal, float]] = None,
@@ -4299,6 +4478,12 @@ class WidgetManufacturer:
         """
         # Check if already ruined
         if self.is_ruined:
+            return self._handle_insolvent_step(time_resolution)
+
+        # Check for potential mid-year insolvency (Issue #279)
+        # This estimates minimum cash point within the period to detect
+        # liquidity crises that would occur before year-end
+        if not self.check_liquidity_constraints(time_resolution):
             return self._handle_insolvent_step(time_resolution)
 
         # Store initial revenue for working capital calculation in monthly mode
