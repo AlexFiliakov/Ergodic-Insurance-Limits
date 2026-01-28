@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 import uuid
 
 from .decimal_utils import ZERO, is_zero, quantize_currency, to_decimal
@@ -246,6 +246,29 @@ class LedgerEntry:
             return self.amount
         else:
             return -self.amount
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "LedgerEntry":
+        """Create a deep copy of this ledger entry.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this LedgerEntry
+        """
+        import copy
+
+        return LedgerEntry(
+            date=self.date,
+            account=self.account,
+            amount=copy.deepcopy(self.amount, memo),
+            entry_type=self.entry_type,
+            transaction_type=self.transaction_type,
+            description=self.description,
+            reference_id=self.reference_id,
+            timestamp=self.timestamp,
+            month=self.month,
+        )
 
 
 # Standard chart of accounts with their types
@@ -913,3 +936,34 @@ class Ledger:
     def __repr__(self) -> str:
         """Return string representation of the ledger."""
         return f"Ledger(entries={len(self.entries)})"
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "Ledger":
+        """Create a deep copy of this ledger.
+
+        Preserves all entries and the balance cache for O(1) balance queries.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this Ledger with all entries and cached balances
+        """
+        import copy
+
+        # Create new instance without calling __init__ to avoid reinitializing
+        result = Ledger.__new__(Ledger)
+        memo[id(self)] = result
+
+        # Deep copy entries
+        result.entries = copy.deepcopy(self.entries, memo)
+
+        # Copy chart of accounts (shallow copy is fine - values are enums)
+        result.chart_of_accounts = self.chart_of_accounts.copy()
+
+        # Copy validation setting
+        result._strict_validation = self._strict_validation
+
+        # Deep copy balance cache
+        result._balances = copy.deepcopy(self._balances, memo)
+
+        return result

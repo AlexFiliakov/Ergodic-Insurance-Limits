@@ -10,7 +10,7 @@ in iterative calculations.
 from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from .decimal_utils import ZERO, quantize_currency, to_decimal
 
@@ -44,6 +44,24 @@ class InsuranceRecovery:
     def outstanding(self) -> Decimal:
         """Calculate outstanding receivable amount."""
         return self.amount - self.amount_received
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "InsuranceRecovery":
+        """Create a deep copy of this insurance recovery.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this InsuranceRecovery
+        """
+        import copy
+
+        return InsuranceRecovery(
+            amount=copy.deepcopy(self.amount, memo),
+            claim_id=self.claim_id,
+            year_approved=self.year_approved,
+            amount_received=copy.deepcopy(self.amount_received, memo),
+        )
 
 
 @dataclass
@@ -81,6 +99,26 @@ class InsuranceAccounting:
             self.monthly_expense = to_decimal(self.monthly_expense)  # type: ignore[unreachable]
         if not isinstance(self.annual_premium, Decimal):
             self.annual_premium = to_decimal(self.annual_premium)  # type: ignore[unreachable]
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "InsuranceAccounting":
+        """Create a deep copy of this insurance accounting instance.
+
+        Args:
+            memo: Dictionary of already copied objects (for cycle detection)
+
+        Returns:
+            Independent copy of this InsuranceAccounting with all recoveries
+        """
+        import copy
+
+        return InsuranceAccounting(
+            prepaid_insurance=copy.deepcopy(self.prepaid_insurance, memo),
+            monthly_expense=copy.deepcopy(self.monthly_expense, memo),
+            annual_premium=copy.deepcopy(self.annual_premium, memo),
+            months_in_period=self.months_in_period,
+            current_month=self.current_month,
+            recoveries=copy.deepcopy(self.recoveries, memo),
+        )
 
     def pay_annual_premium(self, premium_amount: Union[Decimal, float, int]) -> Dict[str, Decimal]:
         """Record annual premium payment at start of coverage period.
