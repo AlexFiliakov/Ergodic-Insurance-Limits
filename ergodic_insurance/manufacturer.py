@@ -1068,10 +1068,14 @@ class WidgetManufacturer:
     def accumulated_depreciation(self) -> Decimal:
         """Accumulated depreciation balance derived from ledger (single source of truth).
 
+        Accumulated depreciation is a contra-asset account stored with credit-normal
+        balance (negative in the ledger). This property returns the absolute value
+        for intuitive usage - a positive value representing total depreciation.
+
         Returns:
-            Current accumulated depreciation balance from the ledger.
+            Current accumulated depreciation balance as a positive Decimal.
         """
-        return self.ledger.get_balance(AccountName.ACCUMULATED_DEPRECIATION)
+        return abs(self.ledger.get_balance(AccountName.ACCUMULATED_DEPRECIATION))
 
     @property
     def restricted_assets(self) -> Decimal:
