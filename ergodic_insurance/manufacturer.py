@@ -2766,7 +2766,21 @@ class WidgetManufacturer:
 
         Note:
             Depreciation is a non-cash expense that reduces taxable income
-            but does not affect cash flow directly.
+            but does not affect cash flow directly. However, it reduces equity
+            through two mechanisms:
+
+            1. **Asset reduction**: The credit to accumulated_depreciation (a
+               contra-asset account) reduces net PP&E, which reduces total_assets.
+               Since equity = total_assets - total_liabilities, lower assets
+               mean lower equity.
+
+            2. **Income reduction**: Depreciation expense reduces operating income,
+               which reduces net income and therefore retained earnings. Fewer
+               retained earnings are added back to cash, further limiting asset
+               growth.
+
+            When depreciation exceeds retained earnings for a period, equity
+            will decrease even if net income is positive. See Issue #286.
         """
         useful_life = to_decimal(useful_life_years)
         if self.gross_ppe > ZERO and useful_life > ZERO:

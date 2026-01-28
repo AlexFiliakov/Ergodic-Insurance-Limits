@@ -305,3 +305,91 @@ class TestDepreciationTracking:
             manufacturer.reset()
             depreciation = manufacturer.record_depreciation(useful_life_years=life)
             assert depreciation == pytest.approx(expected, rel=0.01)
+
+    def test_depreciation_reduces_equity(self):
+        """Regression test: depreciation must reduce equity via total_assets.
+
+        Depreciation is a non-cash expense recorded as a credit to
+        accumulated_depreciation (a contra-asset). This reduces net PP&E,
+        which reduces total_assets, which reduces equity (Assets - Liabilities).
+
+        Before the fix for Issue #285, accumulated_depreciation returned a
+        negative value (raw ledger balance), causing total_assets to
+        INCREASE instead of decrease when depreciation was recorded. This
+        made equity rise even when depreciation exceeded retained earnings.
+
+        Regression for GitHub Issue #286.
+        """
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.5,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        initial_equity = manufacturer.equity
+        initial_total_assets = manufacturer.total_assets
+        initial_net_ppe = manufacturer.net_ppe
+
+        # Record depreciation directly (outside step) to isolate its effect
+        depreciation_expense = manufacturer.record_depreciation(useful_life_years=10)
+        assert depreciation_expense > 0, "Should record positive depreciation"
+
+        # Accumulated depreciation must be positive (contra-asset convention)
+        assert manufacturer.accumulated_depreciation > 0, (
+            "accumulated_depreciation must return a positive value "
+            "(Issue #285 fix: contra-asset stored as negative in ledger)"
+        )
+
+        # Net PP&E must decrease by the depreciation amount
+        assert manufacturer.net_ppe == pytest.approx(
+            initial_net_ppe - depreciation_expense, rel=1e-9
+        )
+
+        # Total assets must decrease (depreciation reduces net PP&E)
+        assert (
+            manufacturer.total_assets < initial_total_assets
+        ), "Depreciation must reduce total_assets via accumulated_depreciation"
+
+        # Equity must decrease (Assets - Liabilities, liabilities unchanged)
+        assert manufacturer.equity < initial_equity, (
+            "Depreciation must reduce equity since it reduces total_assets "
+            "while liabilities remain unchanged"
+        )
+
+        # Equity decrease should equal the depreciation amount
+        equity_change = manufacturer.equity - initial_equity
+        assert equity_change == pytest.approx(-depreciation_expense, rel=1e-9)
+
+    def test_depreciation_reduces_equity_through_step(self):
+        """Test that step() produces equity decrease when depreciation dominates.
+
+        With a configuration where depreciation exceeds retained earnings,
+        equity should decrease even when net income is positive.
+
+        Regression for GitHub Issue #286.
+        """
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.1,
+            tax_rate=0.25,
+            retention_ratio=0.5,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        initial_equity = manufacturer.equity
+        metrics = manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.0)
+
+        # Net income should be positive (profitable operation)
+        assert metrics["net_income"] > 0
+
+        # But equity should decrease because depreciation (500K) + tax accrual
+        # exceed retained earnings
+        equity_change = manufacturer.equity - initial_equity
+        assert equity_change < 0, (
+            f"Equity should decrease when depreciation exceeds retained earnings, "
+            f"but equity_change={equity_change}"
+        )
