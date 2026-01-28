@@ -7,6 +7,7 @@ import pytest
 from scipy.optimize import OptimizeResult  # pylint: disable=no-name-in-module
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.decision_engine import (
     DecisionMetrics,
     InsuranceDecision,
@@ -648,7 +649,7 @@ class TestParameterModificationInSensitivity:
         original_state = engine._modify_parameter("capital_base", -0.1)
 
         # Check assets were modified
-        assert engine.manufacturer.total_assets == original_assets * 0.9
+        assert engine.manufacturer.total_assets == original_assets * to_decimal(0.9)
 
         # Check original state was saved
         assert original_state["total_assets"] == original_assets

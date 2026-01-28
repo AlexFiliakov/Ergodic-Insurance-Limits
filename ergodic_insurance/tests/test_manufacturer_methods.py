@@ -3,6 +3,7 @@
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -174,7 +175,7 @@ class TestProcessInsuranceClaim:
         # Test valid year within schedule
         payment_year_0 = claim.get_payment(0)
         assert payment_year_0 > 0
-        assert payment_year_0 == claim.original_amount * claim.payment_schedule[0]
+        assert payment_year_0 == claim.original_amount * to_decimal(claim.payment_schedule[0])
 
     def test_uninsured_claim_immediate_payment(self, manufacturer):
         """Test immediate payment of uninsured claim."""
@@ -378,7 +379,7 @@ class TestStepMethod:
         # With depreciation (500K) + tax accruals (83K) > retained earnings (125K),
         # equity will decrease even with positive net income
         equity_change = manufacturer.equity - initial_equity
-        retained_earnings = metrics["net_income"] * manufacturer.retention_ratio
+        retained_earnings = metrics["net_income"] * to_decimal(manufacturer.retention_ratio)
         # Equity should decrease but by less than depreciation alone
         assert (
             equity_change < 0
@@ -434,7 +435,9 @@ class TestStepMethod:
         assert metrics_with_rate["net_income"] < metrics_zero_rate["net_income"]
 
         # The income difference should reflect the LoC costs
-        income_difference = metrics_zero_rate["net_income"] - metrics_with_rate["net_income"]
+        income_difference = float(metrics_zero_rate["net_income"]) - float(
+            metrics_with_rate["net_income"]
+        )
         assert income_difference > 0  # Cost is applied
 
         # Test monthly calculation
@@ -565,7 +568,7 @@ class TestStepMethod:
         # Should generate revenue based on assets and turnover
         assert metrics["revenue"] > 0
         # Revenue = Assets * Turnover Ratio
-        expected_revenue = initial_assets * initial_turnover
+        expected_revenue = initial_assets * to_decimal(initial_turnover)
         assert metrics["revenue"] == pytest.approx(expected_revenue, rel=0.01)
 
     def test_claim_liability_payments(self, manufacturer):

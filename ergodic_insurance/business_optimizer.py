@@ -10,6 +10,7 @@ Date: 2025-01-25
 # pylint: disable=too-many-lines
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 import logging
 from typing import Dict, List, Literal, Optional, Tuple, Union
@@ -218,9 +219,13 @@ class BusinessOptimizer:
             f"Maximizing ROE over {time_horizon} years with {n_simulations} simulations"
         )
 
+        # Convert Decimal properties to float for scipy optimization
+        total_assets = float(self.manufacturer.total_assets)
+        revenue = float(self.manufacturer.calculate_revenue())
+
         # Define optimization bounds
         bounds = [
-            (1e6, min(self.manufacturer.total_assets * 2, 100e6)),  # Coverage limit
+            (1e6, min(total_assets * 2, 100e6)),  # Coverage limit
             (0, 1e6),  # Deductible
             (0.001, 0.10),  # Premium rate (0.1% to 10%)
         ]
@@ -249,7 +254,7 @@ class BusinessOptimizer:
             _, _, premium_rate = x
             coverage_limit = x[0]
             annual_premium = coverage_limit * premium_rate
-            max_premium = self.manufacturer.calculate_revenue() * constraints.max_premium_budget
+            max_premium = revenue * constraints.max_premium_budget
             return max_premium - annual_premium
 
         constraint_list.append({"type": "ineq", "fun": premium_constraint})
@@ -266,14 +271,14 @@ class BusinessOptimizer:
         # Coverage ratio constraint
         def coverage_constraint(x):
             coverage_limit = x[0]
-            min_coverage = self.manufacturer.total_assets * constraints.min_coverage_ratio
+            min_coverage = total_assets * constraints.min_coverage_ratio
             return coverage_limit - min_coverage
 
         constraint_list.append({"type": "ineq", "fun": coverage_constraint})
 
         # Initial guess
         x0 = [
-            self.manufacturer.total_assets * 0.8,  # 80% of assets
+            total_assets * 0.8,  # 80% of assets
             100000,  # $100k deductible
             0.02,  # 2% premium rate
         ]
@@ -341,8 +346,9 @@ class BusinessOptimizer:
         self.logger.info(f"Minimizing bankruptcy risk over {time_horizon} years")
 
         # Define optimization bounds
+        total_assets = float(self.manufacturer.total_assets)
         bounds = [
-            (1e6, min(self.manufacturer.total_assets * 3, 150e6)),  # Coverage limit
+            (1e6, min(total_assets * 3, 150e6)),  # Coverage limit
             (0, 500000),  # Deductible
             (0.001, 0.15),  # Premium rate (0.1% to 15%)
         ]
@@ -379,7 +385,7 @@ class BusinessOptimizer:
 
         # Initial guess
         x0 = [
-            self.manufacturer.total_assets * 1.5,  # 150% of assets
+            total_assets * 1.5,  # 150% of assets
             50000,  # $50k deductible
             0.03,  # 3% premium rate
         ]
@@ -540,7 +546,7 @@ class BusinessOptimizer:
         results = []
 
         for strategy in strategies:
-            coverage_limit = strategy.get("coverage_limit", self.manufacturer.total_assets)
+            coverage_limit = strategy.get("coverage_limit", float(self.manufacturer.total_assets))
             deductible = strategy.get("deductible", 100000)
             premium_rate = strategy.get("premium_rate", 0.02)
             strategy_name = strategy.get("name", "Strategy")
@@ -617,8 +623,10 @@ class BusinessOptimizer:
                 obj.weight /= total_weight
 
         # Define optimization bounds
+        # Convert Decimal to float for scipy optimization
+        total_assets = float(self.manufacturer.total_assets)
         bounds = [
-            (1e6, min(self.manufacturer.total_assets * 2.5, 100e6)),  # Coverage limit
+            (1e6, min(total_assets * 2.5, 100e6)),  # Coverage limit
             (0, 500000),  # Deductible
             (0.001, 0.10),  # Premium rate
         ]
@@ -648,7 +656,7 @@ class BusinessOptimizer:
         constraint_list = self._build_constraint_list(objectives, constraints, time_horizon)
 
         # Initial guess
-        x0 = [self.manufacturer.total_assets * 1.0, 100000, 0.025]
+        x0 = [total_assets * 1.0, 100000, 0.025]
 
         # Run optimization
         result = optimize.minimize(
@@ -725,14 +733,17 @@ class BusinessOptimizer:
     ) -> float:
         """Simulate ROE with given insurance parameters."""
         roe_values = []
+        # Convert Decimal properties to float for calculations
+        equity = float(self.manufacturer.equity)
+        total_assets = float(self.manufacturer.total_assets)
 
         for _ in range(min(n_simulations, 100)):  # Limit for performance
             # Simple ROE simulation
             base_roe = 0.15  # Base 15% ROE
 
             # Insurance impact
-            premium_cost = (coverage_limit * premium_rate) / self.manufacturer.equity
-            protection_benefit = 0.05 * (coverage_limit / self.manufacturer.total_assets)
+            premium_cost = (coverage_limit * premium_rate) / equity
+            protection_benefit = 0.05 * (coverage_limit / total_assets)
 
             # Adjust ROE
             adjusted_roe = base_roe - premium_cost + protection_benefit
@@ -747,15 +758,19 @@ class BusinessOptimizer:
         self, coverage_limit: float, deductible: float, premium_rate: float, time_horizon: int
     ) -> float:
         """Estimate probability of bankruptcy."""
+        # Convert Decimal properties to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+        revenue = float(self.manufacturer.calculate_revenue())
+
         # Simple bankruptcy risk model
         base_risk = 0.02  # 2% base risk
 
         # Insurance reduces risk
-        coverage_ratio = coverage_limit / self.manufacturer.total_assets
+        coverage_ratio = coverage_limit / total_assets
         risk_reduction = min(coverage_ratio * 0.015, 0.015)  # Max 1.5% reduction
 
         # Premium cost increases risk slightly
-        premium_burden = (coverage_limit * premium_rate) / self.manufacturer.calculate_revenue()
+        premium_burden = (coverage_limit * premium_rate) / revenue
         risk_increase = premium_burden * 0.5
 
         # Time horizon effect
@@ -773,15 +788,19 @@ class BusinessOptimizer:
         metric: str = "revenue",
     ) -> float:
         """Estimate growth rate for given metric."""
+        # Convert Decimal properties to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+        revenue = float(self.manufacturer.calculate_revenue())
+
         # Base growth rate
         base_growth = 0.10  # 10% base growth
 
         # Insurance enables more aggressive growth
-        coverage_ratio = coverage_limit / self.manufacturer.total_assets
+        coverage_ratio = coverage_limit / total_assets
         growth_boost = coverage_ratio * 0.03  # Up to 3% boost
 
         # Premium cost reduces growth
-        premium_drag = (coverage_limit * premium_rate) / self.manufacturer.calculate_revenue() * 0.5
+        premium_drag = (coverage_limit * premium_rate) / revenue * 0.5
 
         # Calculate adjusted growth
         adjusted_growth = base_growth + growth_boost - premium_drag
@@ -798,6 +817,9 @@ class BusinessOptimizer:
         self, coverage_limit: float, deductible: float, premium_rate: float
     ) -> float:
         """Calculate capital efficiency ratio."""
+        # Convert Decimal properties to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+
         # Capital tied up in insurance
         insurance_capital = coverage_limit * premium_rate
 
@@ -806,7 +828,7 @@ class BusinessOptimizer:
 
         # Net capital efficiency
         net_benefit = risk_transfer_benefit - insurance_capital
-        efficiency_ratio = 1 + (net_benefit / self.manufacturer.total_assets)
+        efficiency_ratio = 1 + (net_benefit / total_assets)
 
         return float(max(0, efficiency_ratio))
 
@@ -843,7 +865,9 @@ class BusinessOptimizer:
         ergodic_growth = ensemble_growth - 0.5 * volatility**2
 
         # Insurance reduces volatility
-        coverage_ratio = coverage_limit / self.manufacturer.total_assets
+        # Convert Decimal to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+        coverage_ratio = coverage_limit / total_assets
         volatility_reduction = coverage_ratio * 0.05
         adjusted_volatility = max(0.05, volatility - volatility_reduction)
 
@@ -911,7 +935,9 @@ class BusinessOptimizer:
 
         def premium_constraint(x):
             annual_premium = x[0] * x[2]
-            max_premium = self.manufacturer.calculate_revenue() * constraints.max_premium_budget
+            max_premium = (
+                float(self.manufacturer.calculate_revenue()) * constraints.max_premium_budget
+            )
             return max_premium - annual_premium
 
         constraint_list.append({"type": "ineq", "fun": premium_constraint})
@@ -944,6 +970,11 @@ class BusinessOptimizer:
         time_horizon: int,
     ) -> Dict[str, bool]:
         """Check if constraints are satisfied."""
+        # Convert Decimal properties to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+        equity = float(self.manufacturer.equity)
+        revenue = float(self.manufacturer.calculate_revenue())
+
         satisfaction = {}
 
         # ROE constraint
@@ -958,16 +989,16 @@ class BusinessOptimizer:
 
         # Premium budget constraint
         annual_premium = coverage_limit * premium_rate
-        max_premium = self.manufacturer.calculate_revenue() * constraints.max_premium_budget
+        max_premium = revenue * constraints.max_premium_budget
         satisfaction["premium_budget"] = annual_premium <= max_premium
 
         # Coverage ratio constraint
-        coverage_ratio = coverage_limit / self.manufacturer.total_assets
+        coverage_ratio = coverage_limit / total_assets
         satisfaction["min_coverage"] = coverage_ratio >= constraints.min_coverage_ratio
 
         # Leverage constraint (simplified)
-        liabilities = self.manufacturer.total_assets - self.manufacturer.equity
-        leverage = liabilities / (self.manufacturer.equity + 1e-6)
+        liabilities = total_assets - equity
+        leverage = liabilities / (equity + 1e-6)
         satisfaction["max_leverage"] = leverage <= constraints.max_leverage_ratio
 
         return satisfaction
@@ -1032,6 +1063,9 @@ class BusinessOptimizer:
         self, coverage_limit: float, deductible: float, premium_rate: float, expected_roe: float
     ) -> List[str]:
         """Generate ROE-focused recommendations."""
+        # Convert Decimal properties to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+
         recommendations = []
 
         if expected_roe > 0.20:
@@ -1059,7 +1093,7 @@ class BusinessOptimizer:
                 "High deductible exposes significant risk - evaluate coverage gap"
             )
 
-        coverage_ratio = coverage_limit / self.manufacturer.total_assets
+        coverage_ratio = coverage_limit / total_assets
         if coverage_ratio < 0.5:
             recommendations.append("Coverage may be insufficient for major losses")
         elif coverage_ratio > 1.5:
@@ -1071,6 +1105,10 @@ class BusinessOptimizer:
         self, coverage_limit: float, deductible: float, premium_rate: float, bankruptcy_risk: float
     ) -> List[str]:
         """Generate risk-focused recommendations."""
+        # Convert Decimal properties to float for calculations
+        total_assets = float(self.manufacturer.total_assets)
+        revenue = float(self.manufacturer.calculate_revenue())
+
         recommendations = []
 
         if bankruptcy_risk < 0.001:
@@ -1082,10 +1120,10 @@ class BusinessOptimizer:
                 "Elevated bankruptcy risk - increase coverage or reduce leverage"
             )
 
-        if coverage_limit < self.manufacturer.total_assets * 0.5:
+        if coverage_limit < total_assets * 0.5:
             recommendations.append("Coverage may be insufficient for tail risks")
 
-        if premium_rate * coverage_limit > self.manufacturer.calculate_revenue() * 0.03:
+        if premium_rate * coverage_limit > revenue * 0.03:
             recommendations.append("Insurance costs exceeding 3% of revenue - review cost-benefit")
 
         return recommendations
@@ -1123,9 +1161,11 @@ class BusinessOptimizer:
             recommendations.append("Low growth - consider strategic initiatives")
 
         # Insurance structure recommendations
+        # Convert Decimal properties to float for calculations
+        revenue = float(self.manufacturer.calculate_revenue())
+        total_assets = float(self.manufacturer.total_assets)
+
         annual_premium = coverage_limit * premium_rate
-        revenue = self.manufacturer.calculate_revenue()
-        premium_to_revenue = annual_premium / revenue if revenue > 0 else 0
         premium_to_revenue = annual_premium / revenue if revenue > 0 else 0
 
         if premium_to_revenue > 0.04:
@@ -1134,9 +1174,7 @@ class BusinessOptimizer:
             recommendations.append("Low insurance spend - verify adequate protection")
 
         # Deductible recommendations
-        deductible_to_assets = (
-            deductible / self.manufacturer.total_assets if self.manufacturer.total_assets > 0 else 0
-        )
+        deductible_to_assets = deductible / total_assets if total_assets > 0 else 0
         if deductible_to_assets > 0.05:
             recommendations.append(
                 "High deductible relative to assets - monitor retention capacity"

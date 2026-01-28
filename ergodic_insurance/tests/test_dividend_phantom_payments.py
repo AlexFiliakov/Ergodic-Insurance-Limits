@@ -11,6 +11,7 @@ Tests verify that:
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.financial_statements import CashFlowStatement
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
@@ -42,10 +43,10 @@ class TestDividendPhantomPayments:
         # With sufficient cash, dividends should be paid based on retention ratio
         net_income = metrics.get("net_income", 0)
         if net_income > 0:
-            expected_dividends = net_income * (1 - manufacturer.retention_ratio)
+            expected_dividends = net_income * (1 - to_decimal(manufacturer.retention_ratio))
             actual_dividends = metrics.get("dividends_paid", 0)
             # Should be close to expected (may be less if cash constrained)
-            assert actual_dividends <= expected_dividends + 0.01
+            assert actual_dividends <= expected_dividends + to_decimal("0.01")
             assert actual_dividends >= 0
 
     def test_no_dividends_when_net_loss(self):
@@ -307,8 +308,8 @@ class TestDividendPhantomPayments:
         for metrics in metrics_list:
             net_income = metrics.get("net_income", 0)
             if net_income > 0:
-                max_dividends = net_income * (1 - manufacturer.retention_ratio)
-                assert metrics["dividends_paid"] <= max_dividends + 0.01
+                max_dividends = net_income * (1 - to_decimal(manufacturer.retention_ratio))
+                assert metrics["dividends_paid"] <= max_dividends + to_decimal("0.01")
 
     def test_cash_flow_reconciliation_with_constrained_dividends(self):
         """Test that cash flow reconciles correctly with constrained dividends."""
@@ -379,7 +380,9 @@ class TestDividendEdgeCases:
         manufacturer.update_balance_sheet(0.01)
         # Dividends should be 0.003 (0.01 * 0.3) if cash is sufficient
         # Since the manufacturer has lots of cash, full dividends are paid
-        assert manufacturer._last_dividends_paid == pytest.approx(0.003, abs=0.001)
+        assert manufacturer._last_dividends_paid == pytest.approx(
+            to_decimal("0.003"), abs=to_decimal("0.001")
+        )
 
     def test_retention_ratio_100_percent(self):
         """Test with 100% retention ratio (no dividends)."""

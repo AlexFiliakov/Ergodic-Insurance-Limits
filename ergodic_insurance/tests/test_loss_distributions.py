@@ -838,3 +838,34 @@ class TestEdgeCases:
         """Test handling of negative revenue."""
         gen = FrequencyGenerator(base_frequency=5.0)
         assert gen.get_scaled_frequency(-1000) == 0.0
+
+    def test_decimal_revenue_inputs(self):
+        """Test that Decimal revenue inputs are handled correctly.
+
+        This tests the fix for Decimal/float type mismatch where
+        Decimal ** float raises TypeError.
+        """
+        from decimal import Decimal
+
+        gen = FrequencyGenerator(
+            base_frequency=5.0,
+            revenue_scaling_exponent=0.5,
+            reference_revenue=10_000_000,
+        )
+
+        # Test with Decimal revenue - should not raise TypeError
+        decimal_revenue = Decimal("10000000")
+        result = gen.get_scaled_frequency(decimal_revenue)
+        assert isinstance(result, float)
+        assert abs(result - 5.0) < 0.001
+
+        # Test with Decimal revenue that's different from reference
+        decimal_revenue_higher = Decimal("20000000")
+        result_higher = gen.get_scaled_frequency(decimal_revenue_higher)
+        assert isinstance(result_higher, float)
+        # With 0.5 exponent, doubling revenue should multiply by sqrt(2)
+        assert abs(result_higher - 5.0 * np.sqrt(2)) < 0.001
+
+        # Test generate_event_times with Decimal revenue
+        event_times = gen.generate_event_times(1.0, Decimal("10000000"))
+        assert isinstance(event_times, np.ndarray)

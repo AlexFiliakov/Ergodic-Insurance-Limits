@@ -141,7 +141,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
         # Check for ruin - use insolvency tolerance from shared config
         tolerance = shared.get("insolvency_tolerance", 10_000)
-        if manufacturer.equity <= tolerance:
+        if float(manufacturer.equity) <= tolerance:
             # Mark ruin for all future evaluation points
             if ruin_evaluation:
                 for eval_year in ruin_at_year:
@@ -149,7 +149,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
                         ruin_at_year[eval_year] = True
             break
 
-    result = {"final_assets": manufacturer.total_assets, **result_arrays}
+    result = {"final_assets": float(manufacturer.total_assets), **result_arrays}
     if ruin_evaluation:
         result["ruin_at_year"] = ruin_at_year
     return result
@@ -957,7 +957,9 @@ class MonteCarloEngine:
             revenue = manufacturer.calculate_revenue()
 
             if hasattr(self.loss_generator, "generate_losses"):
-                events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
+                events, _ = self.loss_generator.generate_losses(
+                    duration=1.0, revenue=float(revenue)
+                )
             else:
                 raise AttributeError(
                     f"Loss generator {type(self.loss_generator).__name__} has no generate_losses method"
@@ -1001,7 +1003,9 @@ class MonteCarloEngine:
                 self.manufacturer.config.initial_assets
                 * self.manufacturer.config.asset_turnover_ratio
             )
-            revenue_scaling_factor = current_revenue / base_revenue if base_revenue > 0 else 1.0
+            revenue_scaling_factor = (
+                float(current_revenue) / float(base_revenue) if base_revenue > 0 else 1.0
+            )
 
             # Calculate scaled annual premium
             base_annual_premium = self.insurance_program.calculate_annual_premium()
@@ -1025,7 +1029,10 @@ class MonteCarloEngine:
             )
 
             # Check for ruin using insolvency tolerance or is_ruined flag
-            if manufacturer.equity <= self.config.insolvency_tolerance or manufacturer.is_ruined:
+            if (
+                float(manufacturer.equity) <= self.config.insolvency_tolerance
+                or manufacturer.is_ruined
+            ):
                 # Mark ruin for all future evaluation points
                 if self.config.ruin_evaluation:
                     for eval_year in ruin_at_year:
@@ -1047,14 +1054,14 @@ class MonteCarloEngine:
                 if ruin_occurred
                 else insurance_recoveries,
                 retained_losses=retained_losses[: year + 1] if ruin_occurred else retained_losses,
-                final_assets=manufacturer.total_assets,
-                initial_assets=self.manufacturer.total_assets,
+                final_assets=float(manufacturer.total_assets),
+                initial_assets=float(self.manufacturer.total_assets),
                 ruin_occurred=ruin_occurred,
                 ruin_year=ruin_year,
             )
 
         return {
-            "final_assets": manufacturer.total_assets,
+            "final_assets": float(manufacturer.total_assets),
             "annual_losses": annual_losses,
             "insurance_recoveries": insurance_recoveries,
             "retained_losses": retained_losses,
@@ -1156,7 +1163,7 @@ class MonteCarloEngine:
         Returns:
             Array of growth rates
         """
-        initial_assets = self.manufacturer.total_assets
+        initial_assets = float(self.manufacturer.total_assets)
         n_years = self.config.n_years
 
         # Avoid division by zero and log of negative numbers

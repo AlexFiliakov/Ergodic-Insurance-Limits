@@ -75,7 +75,7 @@ def run_basic_simulation(
 
     ## Define Losses
 
-    cur_revenue = base_manufacturer.total_assets * base_manufacturer.asset_turnover_ratio
+    cur_revenue = float(base_manufacturer.total_assets) * base_manufacturer.asset_turnover_ratio
 
     generator_pricing = ManufacturingLossGenerator(
         attritional_params={

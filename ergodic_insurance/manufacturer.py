@@ -188,13 +188,15 @@ Note:
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 import logging
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 try:
     # Try absolute import first (for installed package)
     from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
     from ergodic_insurance.config import ManufacturerConfig
+    from ergodic_insurance.decimal_utils import ONE, ZERO, quantize_currency, to_decimal
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.ledger import Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
@@ -203,6 +205,7 @@ except ImportError:
         # Try relative import (for package context)
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
         from .config import ManufacturerConfig
+        from .decimal_utils import ONE, ZERO, quantize_currency, to_decimal
         from .insurance_accounting import InsuranceAccounting
         from .ledger import Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
@@ -214,6 +217,7 @@ except ImportError:
             PaymentSchedule,
         )
         from config import ManufacturerConfig  # type: ignore[no-redef]
+        from decimal_utils import ONE, ZERO, quantize_currency, to_decimal  # type: ignore[no-redef]
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from ledger import Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
@@ -288,8 +292,8 @@ class ClaimLiability:
         claim tracking with reserving.
     """
 
-    original_amount: float
-    remaining_amount: float
+    original_amount: Decimal
+    remaining_amount: Decimal
     year_incurred: int
     is_insured: bool = True  # Default to insured for backward compatibility
     payment_schedule: List[float] = field(
@@ -307,7 +311,7 @@ class ClaimLiability:
         ]
     )
 
-    def get_payment(self, years_since_incurred: int) -> float:
+    def get_payment(self, years_since_incurred: int) -> Decimal:
         """Calculate payment due for a given year after claim incurred.
 
         This method returns the scheduled payment amount based on the claim's
@@ -319,8 +323,8 @@ class ClaimLiability:
                 incurred. Must be >= 0. Year 0 represents the year of incurrence.
 
         Returns:
-            float: Payment amount due for this year in absolute dollars. Returns
-                0.0 if years_since_incurred is negative or beyond the schedule.
+            Decimal: Payment amount due for this year in absolute dollars. Returns
+                ZERO if years_since_incurred is negative or beyond the schedule.
 
         Examples:
             Calculate payments over time::
@@ -341,10 +345,10 @@ class ClaimLiability:
             payment schedule. It does not check against remaining balance.
         """
         if years_since_incurred < 0 or years_since_incurred >= len(self.payment_schedule):
-            return 0.0
-        return self.original_amount * self.payment_schedule[years_since_incurred]
+            return ZERO
+        return self.original_amount * to_decimal(self.payment_schedule[years_since_incurred])
 
-    def make_payment(self, amount: float) -> float:
+    def make_payment(self, amount: Union[Decimal, float]) -> Decimal:
         """Make a payment against the liability and update remaining balance.
 
         This method processes a payment against the claim liability, reducing
@@ -352,12 +356,12 @@ class ClaimLiability:
         balance, only the remaining amount is paid.
 
         Args:
-            amount (float): Requested payment amount in dollars. Should be >= 0.
+            amount: Requested payment amount in dollars. Should be >= 0.
                 Negative amounts are treated as zero payment.
 
         Returns:
-            float: Actual payment made in dollars. May be less than requested
-                if insufficient liability remains. Returns 0.0 if amount <= 0
+            Decimal: Actual payment made in dollars. May be less than requested
+                if insufficient liability remains. Returns ZERO if amount <= 0
                 or remaining_amount <= 0.
 
         Examples:
@@ -380,7 +384,8 @@ class ClaimLiability:
             This method modifies the claim's remaining_amount. Use with caution
             in concurrent scenarios.
         """
-        payment = min(amount, self.remaining_amount)
+        amount_decimal = to_decimal(amount)
+        payment = min(amount_decimal, self.remaining_amount)
         self.remaining_amount -= payment
         return payment
 
@@ -461,7 +466,7 @@ class TaxHandler:
     tax_rate: float
     accrual_manager: "AccrualManager"
 
-    def calculate_tax_liability(self, income_before_tax: float) -> float:
+    def calculate_tax_liability(self, income_before_tax: Union[Decimal, float]) -> Decimal:
         """Calculate theoretical tax liability from pre-tax income.
 
         This is a pure calculation with no side effects. Taxes are only
@@ -471,13 +476,14 @@ class TaxHandler:
             income_before_tax: Pre-tax income in dollars
 
         Returns:
-            Theoretical tax liability (>=0). Returns 0 for negative income.
+            Theoretical tax liability (>=0). Returns ZERO for negative income.
         """
-        return max(0.0, income_before_tax * self.tax_rate)
+        income = to_decimal(income_before_tax)
+        return max(ZERO, income * to_decimal(self.tax_rate))
 
     def apply_limited_liability_cap(
-        self, tax_amount: float, current_equity: float
-    ) -> tuple[float, bool]:
+        self, tax_amount: Union[Decimal, float], current_equity: Union[Decimal, float]
+    ) -> tuple[Decimal, bool]:
         """Apply limited liability protection to cap tax accrual at equity.
 
         Companies cannot accrue more liabilities than their equity can support.
@@ -492,17 +498,19 @@ class TaxHandler:
             - capped_amount: Tax amount after applying equity cap
             - was_capped: True if the cap was applied (original > capped)
         """
-        if current_equity <= 0:
-            return 0.0, tax_amount > 0
+        tax = to_decimal(tax_amount)
+        equity = to_decimal(current_equity)
+        if equity <= ZERO:
+            return ZERO, tax > ZERO
 
-        capped_amount = min(tax_amount, current_equity)
-        was_capped = capped_amount < tax_amount
+        capped_amount = min(tax, equity)
+        was_capped = capped_amount < tax
 
         return capped_amount, was_capped
 
     def record_tax_accrual(
         self,
-        amount: float,
+        amount: Union[Decimal, float],
         time_resolution: str,
         current_year: int,
         current_month: int,
@@ -522,7 +530,8 @@ class TaxHandler:
             current_month: Current simulation month (0-11)
             description: Optional description for the accrual
         """
-        if amount <= 0:
+        amount_decimal = to_decimal(amount)
+        if amount_decimal <= ZERO:
             return
 
         if time_resolution == "annual":
@@ -532,7 +541,7 @@ class TaxHandler:
 
             self.accrual_manager.record_expense_accrual(
                 item_type=AccrualType.TAXES,
-                amount=amount,
+                amount=amount_decimal,
                 payment_schedule=PaymentSchedule.CUSTOM,
                 payment_dates=payment_dates,
                 description=description or f"Year {current_year} tax liability",
@@ -541,20 +550,20 @@ class TaxHandler:
             # Monthly mode: use default quarterly schedule
             self.accrual_manager.record_expense_accrual(
                 item_type=AccrualType.TAXES,
-                amount=amount,
+                amount=amount_decimal,
                 payment_schedule=PaymentSchedule.QUARTERLY,
                 description=description,
             )
 
     def calculate_and_accrue_tax(
         self,
-        income_before_tax: float,
-        current_equity: float,
+        income_before_tax: Union[Decimal, float],
+        current_equity: Union[Decimal, float],
         use_accrual: bool,
         time_resolution: str,
         current_year: int,
         current_month: int,
-    ) -> tuple[float, bool]:
+    ) -> tuple[Decimal, bool]:
         """Calculate tax and optionally accrue it - the main entry point.
 
         This method orchestrates the complete tax calculation flow:
@@ -591,8 +600,8 @@ class TaxHandler:
         # Step 1: Calculate theoretical tax
         theoretical_tax = self.calculate_tax_liability(income_before_tax)
 
-        if theoretical_tax <= 0:
-            return 0.0, False
+        if theoretical_tax <= ZERO:
+            return ZERO, False
 
         # Step 2: Determine if this period should accrue taxes
         should_accrue = False
@@ -731,42 +740,42 @@ class WidgetManufacturer:
 
         # Balance sheet items - removed self.assets and self.equity
         # as they are now calculated properties
-        self.collateral = 0.0  # Letter of credit collateral for claims
-        self.restricted_assets = 0.0  # Assets restricted as collateral
+        self.collateral: Decimal = ZERO  # Letter of credit collateral for claims
+        self.restricted_assets: Decimal = ZERO  # Assets restricted as collateral
 
         # Enhanced balance sheet components for GAAP compliance
         # Fixed Assets (allocate first to determine cash)
         # Use PPE ratio from config (defaults based on operating margin if not specified)
         # Type ignore: ppe_ratio is guaranteed non-None after model_validator
-        self.gross_ppe = config.initial_assets * config.ppe_ratio  # type: ignore
-        self.accumulated_depreciation = 0.0  # Will accumulate over time
+        self.gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)  # type: ignore
+        self.accumulated_depreciation: Decimal = ZERO  # Will accumulate over time
 
         # Current Assets - initialize working capital to steady state
         # Calculate initial revenue based on asset turnover
-        initial_revenue = config.initial_assets * config.asset_turnover_ratio
+        initial_revenue = to_decimal(config.initial_assets * config.asset_turnover_ratio)
         # Calculate COGS for inventory
-        initial_cogs = initial_revenue * (1 - config.base_operating_margin)
+        initial_cogs = initial_revenue * to_decimal(1 - config.base_operating_margin)
 
         # Initialize AR and Inventory to steady state levels based on industry-standard ratios
         # DSO (Days Sales Outstanding) = 45, DIO (Days Inventory Outstanding) = 60
         # These match the defaults in calculate_working_capital_components()
         # This prevents Year 1 "warm-up" distortion where working capital builds from zero
-        self.accounts_receivable = initial_revenue * (45 / 365)  # Based on DSO
-        self.inventory = initial_cogs * (60 / 365)  # Based on DIO
-        self.prepaid_insurance = 0.0  # Annual premiums paid in advance
+        self.accounts_receivable: Decimal = initial_revenue * to_decimal(45 / 365)  # Based on DSO
+        self.inventory: Decimal = initial_cogs * to_decimal(60 / 365)  # Based on DIO
+        self.prepaid_insurance: Decimal = ZERO  # Annual premiums paid in advance
 
         # Adjust cash to fund the working capital assets (AR + Inventory)
         # This maintains total_assets = initial_assets while establishing steady-state working capital
         working_capital_assets = self.accounts_receivable + self.inventory
-        self.cash = config.initial_assets * (1 - config.ppe_ratio) - working_capital_assets  # type: ignore
+        self.cash: Decimal = to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets  # type: ignore
 
         # Current Liabilities - AP will build up on first step based on actual COGS
         # Starting with zero AP maintains total_assets = initial_assets at initialization
-        self.accounts_payable = 0.0  # Will be calculated on first step
+        self.accounts_payable: Decimal = ZERO  # Will be calculated on first step
         # Note: Accrued expenses are tracked solely via AccrualManager (see issue #238)
 
         # Track original prepaid premium for amortization calculation
-        self._original_prepaid_premium = 0.0
+        self._original_prepaid_premium: Decimal = ZERO
 
         # Insurance accounting module
         self.insurance_accounting = InsuranceAccounting()
@@ -786,22 +795,22 @@ class WidgetManufacturer:
         self.current_month = 0  # Track months for monthly LoC payments
 
         # Insurance cost tracking for tax purposes
-        self.period_insurance_premiums = 0.0  # Premiums paid this period
-        self.period_insurance_losses = 0.0  # Losses paid this period (deductibles)
+        self.period_insurance_premiums: Decimal = ZERO  # Premiums paid this period
+        self.period_insurance_losses: Decimal = ZERO  # Losses paid this period (deductibles)
 
         # Track actual dividends paid (for cash flow statement accuracy)
         # This tracks dividends that were actually paid considering cash constraints
-        self._last_dividends_paid = 0.0
+        self._last_dividends_paid: Decimal = ZERO
 
         # Solvency tracking
         self.is_ruined = False
 
         # Metrics tracking
-        self.metrics_history: List[Dict[str, float]] = []
+        self.metrics_history: List[Dict[str, Union[Decimal, float, int, bool]]] = []
 
         # Store initial values for base comparisons (for exposure bases)
-        self._initial_assets = config.initial_assets
-        self._initial_equity = config.initial_assets
+        self._initial_assets: Decimal = to_decimal(config.initial_assets)
+        self._initial_equity: Decimal = to_decimal(config.initial_assets)
 
         # Initialize the event-sourcing ledger for financial statements
         self.ledger = Ledger()
@@ -881,44 +890,44 @@ class WidgetManufacturer:
 
     # Properties for FinancialStateProvider protocol
     @property
-    def current_revenue(self) -> float:
+    def current_revenue(self) -> Decimal:
         """Get current revenue based on current assets and turnover ratio."""
         return self.calculate_revenue()
 
     @property
-    def current_assets(self) -> float:
+    def current_assets(self) -> Decimal:
         """Get current total assets."""
         return self.total_assets
 
     @property
-    def current_equity(self) -> float:
+    def current_equity(self) -> Decimal:
         """Get current equity value."""
         return self.equity
 
     @property
-    def base_revenue(self) -> float:
+    def base_revenue(self) -> Decimal:
         """Get base (initial) revenue for comparison."""
-        return self._initial_assets * self.config.asset_turnover_ratio
+        return self._initial_assets * to_decimal(self.config.asset_turnover_ratio)
 
     @property
-    def base_assets(self) -> float:
+    def base_assets(self) -> Decimal:
         """Get base (initial) assets for comparison."""
         return self._initial_assets
 
     @property
-    def base_equity(self) -> float:
+    def base_equity(self) -> Decimal:
         """Get base (initial) equity for comparison."""
         return self._initial_equity
 
     @property
-    def total_assets(self) -> float:
+    def total_assets(self) -> Decimal:
         """Calculate total assets from all asset components.
 
         Total assets include all current and non-current assets following
         the accounting equation: Assets = Liabilities + Equity.
 
         Returns:
-            float: Total assets in dollars, sum of all asset components.
+            Decimal: Total assets in dollars, sum of all asset components.
         """
         # Current assets
         current = self.cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
@@ -928,7 +937,7 @@ class WidgetManufacturer:
         return current + net_ppe + self.restricted_assets
 
     @total_assets.setter
-    def total_assets(self, value: float) -> None:
+    def total_assets(self, value: Union[Decimal, float]) -> None:
         """Set total assets by proportionally adjusting all asset components.
 
         This setter maintains the relative proportions of all asset components
@@ -938,30 +947,31 @@ class WidgetManufacturer:
         Args:
             value: New total asset value in dollars.
         """
+        value_decimal = to_decimal(value)
         current_total = self.total_assets
 
         # Handle zero or negative values
-        if value <= 0:
-            self.cash = 0
-            self.accounts_receivable = 0
-            self.inventory = 0
-            self.prepaid_insurance = 0
-            self.gross_ppe = 0
-            self.restricted_assets = 0
+        if value_decimal <= ZERO:
+            self.cash = ZERO
+            self.accounts_receivable = ZERO
+            self.inventory = ZERO
+            self.prepaid_insurance = ZERO
+            self.gross_ppe = ZERO
+            self.restricted_assets = ZERO
             return
 
         # If current total is zero, put everything in cash
-        if current_total <= 0:
-            self.cash = value
-            self.accounts_receivable = 0
-            self.inventory = 0
-            self.prepaid_insurance = 0
-            self.gross_ppe = 0
-            self.restricted_assets = 0
+        if current_total <= ZERO:
+            self.cash = value_decimal
+            self.accounts_receivable = ZERO
+            self.inventory = ZERO
+            self.prepaid_insurance = ZERO
+            self.gross_ppe = ZERO
+            self.restricted_assets = ZERO
             return
 
         # Calculate adjustment ratio
-        ratio = value / current_total
+        ratio = value_decimal / current_total
 
         # Adjust all asset components proportionally
         self.cash *= ratio
@@ -973,7 +983,7 @@ class WidgetManufacturer:
         self.restricted_assets *= ratio
 
     @property
-    def total_liabilities(self) -> float:
+    def total_liabilities(self) -> Decimal:
         """Calculate total liabilities from all liability components.
 
         Total liabilities include current liabilities and long-term claim liabilities.
@@ -984,19 +994,22 @@ class WidgetManufacturer:
             calculation to prevent double-counting. See GitHub issue #213.
 
         Returns:
-            float: Total liabilities in dollars, sum of all liability components.
+            Decimal: Total liabilities in dollars, sum of all liability components.
         """
         # Get accrued expenses from accrual manager (excludes INSURANCE_CLAIMS to avoid
         # double-counting with ClaimLiability objects which are the source of truth)
         accrual_items = self.accrual_manager.get_balance_sheet_items()
-        total_accrued_expenses = accrual_items.get("accrued_expenses", 0)
+        total_accrued_expenses = to_decimal(accrual_items.get("accrued_expenses", ZERO))
 
         # Subtract any insurance claims from accrual manager to prevent double-counting
         # ClaimLiability is the authoritative source for claim liabilities
         insurance_claims_in_accrual = sum(
-            a.remaining_balance
-            for a in self.accrual_manager.accrued_expenses.get(AccrualType.INSURANCE_CLAIMS, [])
-            if not a.is_fully_paid
+            (
+                to_decimal(a.remaining_balance)
+                for a in self.accrual_manager.accrued_expenses.get(AccrualType.INSURANCE_CLAIMS, [])
+                if not a.is_fully_paid
+            ),
+            ZERO,
         )
         adjusted_accrued_expenses = total_accrued_expenses - insurance_claims_in_accrual
 
@@ -1005,25 +1018,25 @@ class WidgetManufacturer:
 
         # Long-term liabilities (claim liabilities) - single source of truth
         claim_liability_total = sum(
-            liability.remaining_amount for liability in self.claim_liabilities
+            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
         )
 
         return current_liabilities + claim_liability_total
 
     @property
-    def equity(self) -> float:
+    def equity(self) -> Decimal:
         """Calculate equity using the accounting equation.
 
         Equity is derived as Assets - Liabilities, ensuring the accounting
         equation always balances: Assets = Liabilities + Equity.
 
         Returns:
-            float: Shareholder equity in dollars.
+            Decimal: Shareholder equity in dollars.
         """
         return self.total_assets - self.total_liabilities
 
     @property
-    def net_assets(self) -> float:
+    def net_assets(self) -> Decimal:
         """Calculate net assets (total assets minus restricted assets).
 
         Net assets represent the portion of total assets that are available
@@ -1031,7 +1044,7 @@ class WidgetManufacturer:
         for insurance claims and cannot be used for general business purposes.
 
         Returns:
-            float: Net assets in dollars. Always non-negative as restricted
+            Decimal: Net assets in dollars. Always non-negative as restricted
                 assets cannot exceed total assets.
 
         Examples:
@@ -1053,9 +1066,11 @@ class WidgetManufacturer:
             :attr:`available_assets`: Alias for this property.
             :attr:`restricted_assets`: Assets pledged as collateral.
         """
-        return float(self.total_assets - self.restricted_assets)
+        return self.total_assets - self.restricted_assets
 
-    def record_insurance_premium(self, premium_amount: float, is_annual: bool = False) -> None:
+    def record_insurance_premium(
+        self, premium_amount: Union[Decimal, float], is_annual: bool = False
+    ) -> None:
         """Record insurance premium payment with proper GAAP prepaid asset treatment.
 
         This method records insurance premium payments either as prepaid assets
@@ -1092,14 +1107,15 @@ class WidgetManufacturer:
             :meth:`calculate_net_income`: Uses tracked premiums for tax calculations.
             :class:`InsuranceAccounting`: Handles premium amortization logic.
         """
-        if premium_amount > 0:
+        premium_decimal = to_decimal(premium_amount)
+        if premium_decimal > ZERO:
             if is_annual:
                 # COMPULSORY INSURANCE CHECK: Company cannot operate without upfront insurance
                 # If unable to pay, company becomes insolvent
-                if self.cash < premium_amount:
+                if self.cash < premium_decimal:
                     logger.error(
                         f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
-                        f"Required: ${premium_amount:,.2f}, Available cash: ${self.cash:,.2f}. "
+                        f"Required: ${premium_decimal:,.2f}, Available cash: ${self.cash:,.2f}. "
                         f"Company cannot operate without insurance."
                     )
                     # Mark as insolvent - company cannot operate without insurance
@@ -1107,27 +1123,27 @@ class WidgetManufacturer:
                     return  # Exit - company is now insolvent and cannot proceed
 
                 # Record as prepaid asset using insurance accounting module
-                result = self.insurance_accounting.pay_annual_premium(premium_amount)
+                result = self.insurance_accounting.pay_annual_premium(premium_decimal)
 
                 # Update balance sheet
                 self.prepaid_insurance = result["prepaid_asset"]
                 self.cash -= result["cash_outflow"]
 
                 # Store for later amortization tracking
-                self._original_prepaid_premium = premium_amount
+                self._original_prepaid_premium = premium_decimal
 
-                logger.info(f"Paid annual insurance premium: ${premium_amount:,.2f}")
+                logger.info(f"Paid annual insurance premium: ${premium_decimal:,.2f}")
                 logger.info(f"Monthly expense will be: ${result['monthly_expense']:,.2f}")
             else:
                 # Record as direct expense for the period (backward compatibility)
-                self.period_insurance_premiums += premium_amount
+                self.period_insurance_premiums += premium_decimal
                 # Don't reduce cash here - expense is handled through net income calculation
                 # to avoid double-counting (premiums reduce operating income -> net income -> equity)
 
-                logger.info(f"Recorded insurance premium expense: ${premium_amount:,.2f}")
+                logger.info(f"Recorded insurance premium expense: ${premium_decimal:,.2f}")
                 logger.debug(f"Period premiums total: ${self.period_insurance_premiums:,.2f}")
 
-    def record_insurance_loss(self, loss_amount: float) -> None:
+    def record_insurance_loss(self, loss_amount: Union[Decimal, float]) -> None:
         """Record insurance loss (deductible/retention) for tax deduction tracking.
 
         This method tracks insurance losses paid by the company during the current
@@ -1135,7 +1151,7 @@ class WidgetManufacturer:
         excess over limits) are tax-deductible business expenses.
 
         Args:
-            loss_amount (float): Loss amount paid by company in the current period.
+            loss_amount: Loss amount paid by company in the current period.
                 Must be >= 0.
 
         Examples:
@@ -1160,9 +1176,10 @@ class WidgetManufacturer:
             :meth:`calculate_net_income`: Uses tracked losses for tax calculations.
             :meth:`process_insurance_claim`: Automatically records company losses.
         """
-        if loss_amount > 0:
-            self.period_insurance_losses += loss_amount
-            logger.debug(f"Recorded insurance loss: ${loss_amount:,.2f}")
+        loss_decimal = to_decimal(loss_amount)
+        if loss_decimal > ZERO:
+            self.period_insurance_losses += loss_decimal
+            logger.debug(f"Recorded insurance loss: ${loss_decimal:,.2f}")
             logger.debug(f"Period losses total: ${self.period_insurance_losses:,.2f}")
 
     def reset_period_insurance_costs(self) -> None:
@@ -1173,18 +1190,18 @@ class WidgetManufacturer:
         simulation step to prepare for the next period.
 
         Side Effects:
-            - Resets period_insurance_premiums to 0.0
-            - Resets period_insurance_losses to 0.0
+            - Resets period_insurance_premiums to ZERO
+            - Resets period_insurance_losses to ZERO
 
         Note:
             Called automatically at the end of each step() to ensure
             costs are only counted once per period.
         """
-        self.period_insurance_premiums = 0.0
-        self.period_insurance_losses = 0.0
+        self.period_insurance_premiums = ZERO
+        self.period_insurance_losses = ZERO
 
     @property
-    def available_assets(self) -> float:
+    def available_assets(self) -> Decimal:
         """Calculate available (unrestricted) assets for operations.
 
         This property is an alias for net_assets, providing semantic clarity
@@ -1209,10 +1226,10 @@ class WidgetManufacturer:
             :attr:`net_assets`: Identical calculation with different semantic meaning.
             :attr:`restricted_assets`: Assets not available for operations.
         """
-        return float(self.total_assets - self.restricted_assets)
+        return self.total_assets - self.restricted_assets
 
     @property
-    def total_claim_liabilities(self) -> float:
+    def total_claim_liabilities(self) -> Decimal:
         """Calculate total outstanding claim liabilities.
 
         Sums the remaining unpaid amounts across all active claim liabilities.
@@ -1220,7 +1237,7 @@ class WidgetManufacturer:
         claims that are being paid over time according to development schedules.
 
         Returns:
-            float: Total outstanding liability in dollars. Returns 0.0 if no
+            Decimal: Total outstanding liability in dollars. Returns ZERO if no
                 active claims exist.
 
         Examples:
@@ -1247,9 +1264,9 @@ class WidgetManufacturer:
             :attr:`collateral`: Should equal this amount for consistency.
             :meth:`pay_claim_liabilities`: Method that reduces these liabilities.
         """
-        return sum(claim.remaining_amount for claim in self.claim_liabilities)
+        return sum((claim.remaining_amount for claim in self.claim_liabilities), ZERO)
 
-    def calculate_revenue(self, apply_stochastic: bool = False) -> float:
+    def calculate_revenue(self, apply_stochastic: bool = False) -> Decimal:
         """Calculate revenue based on available assets and turnover ratio.
 
         Revenue is calculated using the asset turnover ratio, which represents
@@ -1305,21 +1322,21 @@ class WidgetManufacturer:
         """
         # Ensure assets are non-negative for revenue calculation
         # (negative assets would mean business has ceased operations)
-        available_assets = max(0, self.total_assets)
-        revenue = available_assets * self.asset_turnover_ratio
+        available_assets = max(ZERO, self.total_assets)
+        revenue = available_assets * to_decimal(self.asset_turnover_ratio)
 
         # Apply stochastic shock if requested and process is available
         if apply_stochastic and self.stochastic_process is not None:
-            shock = self.stochastic_process.generate_shock(revenue)
-            revenue *= shock
+            shock = self.stochastic_process.generate_shock(float(revenue))
+            revenue *= to_decimal(shock)
             logger.debug(f"Applied stochastic shock: {shock:.4f}")
 
         logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.total_assets:,.2f}")
-        return float(revenue)
+        return revenue
 
     def calculate_operating_income(
-        self, revenue: float, depreciation_expense: float = 0.0
-    ) -> float:
+        self, revenue: Union[Decimal, float], depreciation_expense: Union[Decimal, float] = ZERO
+    ) -> Decimal:
         """Calculate operating income including insurance and depreciation as operating expenses.
 
         Operating income represents earnings before interest and taxes (EBIT),
@@ -1328,12 +1345,12 @@ class WidgetManufacturer:
         This reflects the true operating profitability after all operating expenses.
 
         Args:
-            revenue (float): Annual revenue in dollars. Must be >= 0.
-            depreciation_expense (float): Depreciation expense for the period.
-                Defaults to 0.0 for backward compatibility.
+            revenue: Annual revenue in dollars. Must be >= 0.
+            depreciation_expense: Depreciation expense for the period.
+                Defaults to ZERO for backward compatibility.
 
         Returns:
-            float: Operating income in dollars after insurance costs and depreciation.
+            Decimal: Operating income in dollars after insurance costs and depreciation.
                 Equal to (revenue * base_operating_margin) - insurance costs - depreciation.
 
         Examples:
@@ -1355,28 +1372,31 @@ class WidgetManufacturer:
             :attr:`base_operating_margin`: The core margin percentage before expenses.
             :meth:`calculate_net_income`: Includes financing costs and taxes.
         """
+        revenue_decimal = to_decimal(revenue)
+        depreciation_decimal = to_decimal(depreciation_expense)
+
         # Calculate base operating income using base margin
-        base_operating_income = revenue * self.base_operating_margin
+        base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
 
         # Subtract insurance costs and depreciation to get actual operating income
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
-            - depreciation_expense
+            - depreciation_decimal
         )
 
         logger.debug(
             f"Operating income: ${actual_operating_income:,.2f} "
             f"(base: ${base_operating_income:,.2f}, insurance: "
             f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f}, "
-            f"depreciation: ${depreciation_expense:,.2f})"
+            f"depreciation: ${depreciation_decimal:,.2f})"
         )
-        return float(actual_operating_income)
+        return actual_operating_income
 
     def calculate_collateral_costs(
-        self, letter_of_credit_rate: float = 0.015, time_period: str = "annual"
-    ) -> float:
+        self, letter_of_credit_rate: Union[Decimal, float] = 0.015, time_period: str = "annual"
+    ) -> Decimal:
         """Calculate costs for letter of credit collateral.
 
         Letter of credit costs represent the financing expense for collateral
@@ -1391,8 +1411,8 @@ class WidgetManufacturer:
                 or "monthly". "monthly" scales rate by 1/12. Defaults to "annual".
 
         Returns:
-            float: Collateral costs for the specified period in dollars.
-                Returns 0.0 if no collateral is posted.
+            Decimal: Collateral costs for the specified period in dollars.
+                Returns ZERO if no collateral is posted.
 
         Examples:
             Calculate annual collateral costs::
@@ -1425,12 +1445,12 @@ class WidgetManufacturer:
             :meth:`calculate_net_income`: Includes these costs in profit calculation.
         """
         if time_period == "monthly":
-            period_rate = letter_of_credit_rate / 12
+            period_rate = to_decimal(letter_of_credit_rate / 12)
         else:
-            period_rate = letter_of_credit_rate
+            period_rate = to_decimal(letter_of_credit_rate)
 
         collateral_costs = self.collateral * period_rate
-        if collateral_costs > 0:
+        if collateral_costs > ZERO:
             logger.debug(
                 f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
             )
@@ -1438,13 +1458,13 @@ class WidgetManufacturer:
 
     def calculate_net_income(
         self,
-        operating_income: float,
-        collateral_costs: float,
-        insurance_premiums: float = 0.0,
-        insurance_losses: float = 0.0,
+        operating_income: Union[Decimal, float],
+        collateral_costs: Union[Decimal, float],
+        insurance_premiums: Union[Decimal, float] = ZERO,
+        insurance_losses: Union[Decimal, float] = ZERO,
         use_accrual: bool = True,
         time_resolution: str = "annual",
-    ) -> float:
+    ) -> Decimal:
         """Calculate net income after collateral costs and taxes.
 
         Net income represents the final profitability available to shareholders
@@ -1454,22 +1474,22 @@ class WidgetManufacturer:
         2. Legacy way: Passed as separate parameters to this method
 
         Args:
-            operating_income (float): Operating income (EBIT). May or may not include
+            operating_income: Operating income (EBIT). May or may not include
                 insurance costs depending on how it was calculated.
-            collateral_costs (float): Financing costs for letter of credit
+            collateral_costs: Financing costs for letter of credit
                 collateral. Must be >= 0.
-            insurance_premiums (float): Insurance premium costs to deduct. If operating_income
-                already includes these, pass 0. Defaults to 0.0.
-            insurance_losses (float): Insurance loss/deductible costs to deduct. If operating_income
-                already includes these, pass 0. Defaults to 0.0.
-            use_accrual (bool): Whether to use accrual accounting for taxes.
+            insurance_premiums: Insurance premium costs to deduct. If operating_income
+                already includes these, pass 0. Defaults to ZERO.
+            insurance_losses: Insurance loss/deductible costs to deduct. If operating_income
+                already includes these, pass 0. Defaults to ZERO.
+            use_accrual: Whether to use accrual accounting for taxes.
                 Defaults to True for quarterly tax payment schedule.
-            time_resolution (str): Time resolution for tax accrual calculation.
+            time_resolution: Time resolution for tax accrual calculation.
                 "annual" accrues full annual taxes, "monthly" accrues monthly portion.
                 Defaults to "annual".
 
         Returns:
-            float: Net income after all expenses and taxes. Can be negative
+            Decimal: Net income after all expenses and taxes. Can be negative
                 if the company operates at a loss after financing costs and taxes.
 
         Examples:
@@ -1514,10 +1534,18 @@ class WidgetManufacturer:
             :attr:`retention_ratio`: Portion of net income retained vs. distributed.
             :meth:`process_accrued_payments`: Pays accrued taxes.
         """
+        # Convert inputs to Decimal
+        operating_income_decimal = to_decimal(operating_income)
+        collateral_costs_decimal = to_decimal(collateral_costs)
+        insurance_premiums_decimal = to_decimal(insurance_premiums)
+        insurance_losses_decimal = to_decimal(insurance_losses)
+
         # Deduct all costs from operating income
         # For backward compatibility, also deduct insurance costs if provided as parameters
-        total_insurance_costs = insurance_premiums + insurance_losses
-        income_before_tax = operating_income - collateral_costs - total_insurance_costs
+        total_insurance_costs = insurance_premiums_decimal + insurance_losses_decimal
+        income_before_tax = (
+            operating_income_decimal - collateral_costs_decimal - total_insurance_costs
+        )
 
         # Use TaxHandler for consolidated tax calculation
         # See TaxHandler docstring for explanation of tax flow and why there's no circular dependency
@@ -1548,13 +1576,13 @@ class WidgetManufacturer:
 
         # Enhanced profit waterfall logging for complete transparency
         logger.info("===== PROFIT WATERFALL =====")
-        logger.info(f"Operating Income:        ${operating_income:,.2f}")
-        if insurance_premiums > 0:
-            logger.info(f"  - Insurance Premiums:  ${insurance_premiums:,.2f}")
-        if insurance_losses > 0:
-            logger.info(f"  - Insurance Losses:    ${insurance_losses:,.2f}")
-        if collateral_costs > 0:
-            logger.info(f"  - Collateral Costs:    ${collateral_costs:,.2f}")
+        logger.info(f"Operating Income:        ${operating_income_decimal:,.2f}")
+        if insurance_premiums_decimal > ZERO:
+            logger.info(f"  - Insurance Premiums:  ${insurance_premiums_decimal:,.2f}")
+        if insurance_losses_decimal > ZERO:
+            logger.info(f"  - Insurance Losses:    ${insurance_losses_decimal:,.2f}")
+        if collateral_costs_decimal > ZERO:
+            logger.info(f"  - Collateral Costs:    ${collateral_costs_decimal:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
         logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${actual_tax_expense:,.2f}")
         if was_capped:
@@ -1568,16 +1596,17 @@ class WidgetManufacturer:
         # when additional costs exist (beyond those already in operating income)
         # Note: Since insurance costs may already be included in operating_income,
         # we only check for meaningful differences
-        if (
-            total_insurance_costs + collateral_costs > 1e-9
-        ):  # Use small epsilon for float comparison
+        epsilon = to_decimal("0.000000001")  # Use small epsilon for Decimal comparison
+        if total_insurance_costs + collateral_costs_decimal > epsilon:
             assert (
-                net_income <= operating_income + 1e-9  # Allow for floating point precision
-            ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income}) when costs exist"
+                net_income <= operating_income_decimal + epsilon
+            ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income_decimal}) when costs exist"
 
-        return float(net_income)
+        return net_income
 
-    def update_balance_sheet(self, net_income: float, growth_rate: float = 0.0) -> None:
+    def update_balance_sheet(
+        self, net_income: Union[Decimal, float], growth_rate: Union[Decimal, float] = 0.0
+    ) -> None:
         """Update balance sheet with retained earnings and dividend distribution.
 
         This method processes the financial results of a period by allocating
@@ -1635,30 +1664,34 @@ class WidgetManufacturer:
             :attr:`assets`: Total assets updated by retained earnings.
             :attr:`equity`: Shareholder equity updated by retained earnings.
         """
+        # Convert input to Decimal
+        net_income_decimal = to_decimal(net_income)
+
         # Validation: retention ratio should be applied to net income (not revenue or operating income)
         # This is the profit after ALL costs including taxes
         assert 0 <= self.retention_ratio <= 1, f"Invalid retention ratio: {self.retention_ratio}"
 
         # Calculate retained earnings
-        retained_earnings = net_income * self.retention_ratio
-        dividends = net_income * (1 - self.retention_ratio)
+        retention_decimal = to_decimal(self.retention_ratio)
+        retained_earnings = net_income_decimal * retention_decimal
+        dividends = net_income_decimal * (to_decimal(1) - retention_decimal)
 
         # Log retention calculation details
         logger.info("===== RETENTION CALCULATION =====")
-        logger.info(f"Net Income:              ${net_income:,.2f}")
+        logger.info(f"Net Income:              ${net_income_decimal:,.2f}")
         logger.info(f"Retention Ratio:         {self.retention_ratio:.1%}")
         logger.info(f"Retained Earnings:       ${retained_earnings:,.2f}")
-        if net_income > 0:
+        if net_income_decimal > ZERO:
             logger.info(f"Dividends Distributed:   ${dividends:,.2f}")
         else:
             logger.info(f"Loss Absorption:         ${retained_earnings:,.2f}")
         logger.info("=================================")
 
         # LIMITED LIABILITY: Check liquidity and solvency before absorbing losses
-        if retained_earnings < 0:
+        if retained_earnings < ZERO:
             current_equity = self.equity
             available_cash = self.cash
-            tolerance = self.config.insolvency_tolerance
+            tolerance = to_decimal(self.config.insolvency_tolerance)
             loss_amount = abs(retained_earnings)
 
             # Check 1: Already insolvent by equity threshold
@@ -1670,7 +1703,7 @@ class WidgetManufacturer:
                 )
                 # Don't reduce cash - company is already insolvent
                 # Insolvency will be detected in check_solvency()
-                self._last_dividends_paid = 0.0  # No dividends when insolvent
+                self._last_dividends_paid = ZERO  # No dividends when insolvent
                 return
 
             # Check 2: LIQUIDITY CHECK - must have cash to pay loss
@@ -1681,7 +1714,7 @@ class WidgetManufacturer:
                     f"available cash ${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
                     f"Company cannot meet obligations despite positive book equity."
                 )
-                self._last_dividends_paid = 0.0  # No dividends when insolvent
+                self._last_dividends_paid = ZERO  # No dividends when insolvent
                 self.handle_insolvency()
                 return  # Exit - company is now insolvent
 
@@ -1695,7 +1728,7 @@ class WidgetManufacturer:
                 )
                 # Apply the loss to the balance sheet before handling insolvency
                 self.cash += retained_earnings  # retained_earnings is negative
-                self._last_dividends_paid = 0.0  # No dividends when insolvent
+                self._last_dividends_paid = ZERO  # No dividends when insolvent
                 self.handle_insolvency()
                 return  # Exit - company is now insolvent
 
@@ -1713,7 +1746,7 @@ class WidgetManufacturer:
                 month=self.current_month,
             )
 
-            self._last_dividends_paid = 0.0  # No dividends on losses
+            self._last_dividends_paid = ZERO  # No dividends on losses
             logger.info(
                 f"Absorbed loss: ${loss_amount:,.2f}. "
                 f"Remaining cash: ${self.cash:,.2f}, Remaining equity: ${self.equity:,.2f}"
@@ -1723,9 +1756,9 @@ class WidgetManufacturer:
             # Issue #239: Only pay dividends if there's actually cash to pay them
             projected_cash = self.cash + retained_earnings
 
-            if projected_cash <= 0:
+            if projected_cash <= ZERO:
                 # Can't pay any dividends - company has no cash after operations
-                actual_dividends = 0.0
+                actual_dividends = ZERO
                 additional_retained = dividends  # Keep all earnings
                 logger.warning(
                     f"DIVIDEND CONSTRAINT: Projected cash ${projected_cash:,.2f} <= 0. "
@@ -1743,7 +1776,7 @@ class WidgetManufacturer:
             else:
                 # Can pay full dividends
                 actual_dividends = dividends
-                additional_retained = 0.0
+                additional_retained = ZERO
 
             # Add retained earnings + any unpaid dividends to cash
             self.cash += retained_earnings + additional_retained
@@ -1751,7 +1784,7 @@ class WidgetManufacturer:
 
             # Record retained earnings in ledger (net income increases cash and retained earnings)
             total_retained = retained_earnings + additional_retained
-            if total_retained > 0:
+            if total_retained > ZERO:
                 self.ledger.record_double_entry(
                     date=self.current_year,
                     debit_account="cash",
@@ -1763,7 +1796,7 @@ class WidgetManufacturer:
                 )
 
             # Record dividends paid in ledger
-            if actual_dividends > 0:
+            if actual_dividends > ZERO:
                 self.ledger.record_double_entry(
                     date=self.current_year,
                     debit_account="dividends",
@@ -1777,12 +1810,12 @@ class WidgetManufacturer:
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
         )
-        if self._last_dividends_paid > 0:
+        if self._last_dividends_paid > ZERO:
             logger.info(f"Dividends paid: ${self._last_dividends_paid:,.2f}")
 
     def calculate_working_capital_components(
-        self, revenue: float, dso: float = 45, dio: float = 60, dpo: float = 30
-    ) -> Dict[str, float]:
+        self, revenue: Union[Decimal, float], dso: float = 45, dio: float = 60, dpo: float = 30
+    ) -> Dict[str, Decimal]:
         """Calculate individual working capital components based on revenue and ratios.
 
         Uses standard financial ratios to calculate accounts receivable, inventory,
@@ -1822,13 +1855,20 @@ class WidgetManufacturer:
                 # AP = 10M * 30/365 = ~$0.82M
                 # Net WC = $1.23M + $1.64M - $0.82M = ~$2.05M
         """
+        # Convert inputs to Decimal
+        revenue_decimal = to_decimal(revenue)
+        dso_decimal = to_decimal(dso)
+        dio_decimal = to_decimal(dio)
+        dpo_decimal = to_decimal(dpo)
+        days_per_year = to_decimal(365)
+
         # Calculate cost of goods sold (approximate as % of revenue)
-        cogs = revenue * (1 - self.base_operating_margin)
+        cogs = revenue_decimal * to_decimal(1 - self.base_operating_margin)
 
         # Calculate new working capital components
-        new_ar = revenue * (dso / 365)
-        new_inventory = cogs * (dio / 365)  # Inventory based on COGS not revenue
-        new_ap = cogs * (dpo / 365)  # AP based on COGS not revenue
+        new_ar = revenue_decimal * (dso_decimal / days_per_year)
+        new_inventory = cogs * (dio_decimal / days_per_year)  # Inventory based on COGS not revenue
+        new_ap = cogs * (dpo_decimal / days_per_year)  # AP based on COGS not revenue
 
         # Calculate the change in working capital components
         ar_change = new_ar - self.accounts_receivable
@@ -1913,10 +1953,10 @@ class WidgetManufacturer:
         cash_impact = -(ar_change + inventory_change) + ap_change
 
         # LIMITED LIABILITY: Don't let working capital changes make cash negative
-        if cash_impact < 0:
+        if cash_impact < ZERO:
             # Check if this would make cash negative
             new_cash = self.cash + cash_impact
-            if new_cash < 0:
+            if new_cash < ZERO:
                 # Cap the negative impact to bring cash to exactly $0
                 actual_impact = -self.cash
                 logger.warning(
@@ -1933,7 +1973,7 @@ class WidgetManufacturer:
 
         # Calculate net working capital and cash conversion cycle
         net_working_capital = self.accounts_receivable + self.inventory - self.accounts_payable
-        cash_conversion_cycle = dso + dio - dpo
+        cash_conversion_cycle_days = dso_decimal + dio_decimal - dpo_decimal
 
         logger.debug(
             f"Working capital components: AR=${self.accounts_receivable:,.0f}, "
@@ -1946,11 +1986,11 @@ class WidgetManufacturer:
             "inventory": self.inventory,
             "accounts_payable": self.accounts_payable,
             "net_working_capital": net_working_capital,
-            "cash_conversion_cycle": cash_conversion_cycle,
+            "cash_conversion_cycle": cash_conversion_cycle_days,
             "cash_impact": cash_impact,
         }
 
-    def record_prepaid_insurance(self, annual_premium: float) -> None:
+    def record_prepaid_insurance(self, annual_premium: Union[Decimal, float]) -> None:
         """Record annual insurance premium payment as prepaid expense.
 
         Records the payment of an annual insurance premium as a prepaid asset
@@ -1975,13 +2015,14 @@ class WidgetManufacturer:
             Annual insurance is considered compulsory for operation. If the
             company cannot afford the premium, it becomes insolvent.
         """
-        if annual_premium > 0:
+        annual_premium_decimal = to_decimal(annual_premium)
+        if annual_premium_decimal > ZERO:
             # COMPULSORY INSURANCE CHECK: Company cannot operate without upfront insurance
             # If unable to pay, company becomes insolvent
-            if self.cash < annual_premium:
+            if self.cash < annual_premium_decimal:
                 logger.error(
                     f"INSOLVENCY: Cannot afford compulsory annual insurance premium. "
-                    f"Required: ${annual_premium:,.2f}, Available cash: ${self.cash:,.2f}. "
+                    f"Required: ${annual_premium_decimal:,.2f}, Available cash: ${self.cash:,.2f}. "
                     f"Company cannot operate without insurance."
                 )
                 # Mark as insolvent - company cannot operate without insurance
@@ -1989,7 +2030,7 @@ class WidgetManufacturer:
                 return  # Exit - company is now insolvent and cannot proceed
 
             # Use insurance accounting module to properly track prepaid insurance
-            result = self.insurance_accounting.pay_annual_premium(annual_premium)
+            result = self.insurance_accounting.pay_annual_premium(annual_premium_decimal)
 
             # Update balance sheet
             self.prepaid_insurance = result["prepaid_asset"]
@@ -2006,9 +2047,9 @@ class WidgetManufacturer:
                 month=self.current_month,
             )
 
-            logger.info(f"Recorded prepaid insurance: ${annual_premium:,.2f}")
+            logger.info(f"Recorded prepaid insurance: ${annual_premium_decimal:,.2f}")
 
-    def amortize_prepaid_insurance(self, months: int = 1) -> float:
+    def amortize_prepaid_insurance(self, months: int = 1) -> Decimal:
         """Amortize prepaid insurance over time using GAAP straight-line method.
 
         Reduces prepaid insurance balance and records the expense for the period.
@@ -2019,7 +2060,7 @@ class WidgetManufacturer:
             months (int): Number of months to amortize. Defaults to 1.
 
         Returns:
-            float: Amount amortized (insurance expense for the period).
+            Decimal: Amount amortized (insurance expense for the period).
 
         Side Effects:
             - Decreases prepaid_insurance by amortization amount
@@ -2033,11 +2074,11 @@ class WidgetManufacturer:
                 monthly_expense = manufacturer.amortize_prepaid_insurance(1)
                 # Returns $100K, reduces prepaid by $100K
         """
-        total_amortized = 0.0
+        total_amortized = ZERO
 
         # Use insurance accounting module for proper amortization
         for _ in range(months):
-            if self.prepaid_insurance > 0:
+            if self.prepaid_insurance > ZERO:
                 result = self.insurance_accounting.record_monthly_expense()
 
                 # Update balance sheet and P&L
@@ -2046,7 +2087,7 @@ class WidgetManufacturer:
                 total_amortized += result["insurance_expense"]
 
                 # Record insurance expense amortization in ledger
-                if result["insurance_expense"] > 0:
+                if result["insurance_expense"] > ZERO:
                     self.ledger.record_double_entry(
                         date=self.current_year,
                         debit_account="insurance_expense",
@@ -2066,8 +2107,8 @@ class WidgetManufacturer:
         return total_amortized
 
     def receive_insurance_recovery(
-        self, amount: float, claim_id: Optional[str] = None
-    ) -> Dict[str, float]:
+        self, amount: Union[Decimal, float], claim_id: Optional[str] = None
+    ) -> Dict[str, Decimal]:
         """Receive payment from insurance for a claim recovery.
 
         Records cash receipt from insurance company for previously approved
@@ -2098,7 +2139,11 @@ class WidgetManufacturer:
             - Updates insurance accounting records
         """
         if amount <= 0:
-            return {"cash_received": 0, "receivable_reduction": 0, "remaining_receivables": 0}
+            return {
+                "cash_received": ZERO,
+                "receivable_reduction": ZERO,
+                "remaining_receivables": ZERO,
+            }
 
         # Record receipt through insurance accounting module
         result = self.insurance_accounting.receive_recovery_payment(amount, claim_id)
@@ -2111,18 +2156,18 @@ class WidgetManufacturer:
 
         return result
 
-    def record_depreciation(self, useful_life_years: float = 10) -> float:
+    def record_depreciation(self, useful_life_years: Union[Decimal, float, int] = 10) -> Decimal:
         """Record straight-line depreciation on PP&E.
 
         Calculates and records annual depreciation expense using the straight-line
         method. Depreciation reduces the net book value of fixed assets over time.
 
         Args:
-            useful_life_years (float): Average useful life of PP&E in years.
+            useful_life_years: Average useful life of PP&E in years.
                 Typical manufacturing equipment: 7-15 years. Defaults to 10.
 
         Returns:
-            float: Annual depreciation expense recorded.
+            Decimal: Annual depreciation expense recorded.
 
         Side Effects:
             - Increases accumulated_depreciation by depreciation amount
@@ -2139,12 +2184,13 @@ class WidgetManufacturer:
             Depreciation is a non-cash expense that reduces taxable income
             but does not affect cash flow directly.
         """
-        if self.gross_ppe > 0 and useful_life_years > 0:
-            annual_depreciation = self.gross_ppe / useful_life_years
+        useful_life = to_decimal(useful_life_years)
+        if self.gross_ppe > ZERO and useful_life > ZERO:
+            annual_depreciation = self.gross_ppe / useful_life
 
             # Don't depreciate below zero net book value
             net_ppe = self.gross_ppe - self.accumulated_depreciation
-            if net_ppe > 0:
+            if net_ppe > ZERO:
                 depreciation_expense = min(annual_depreciation, net_ppe)
                 self.accumulated_depreciation += depreciation_expense
 
@@ -2164,24 +2210,24 @@ class WidgetManufacturer:
                     f"Accumulated: ${self.accumulated_depreciation:,.2f}"
                 )
                 return depreciation_expense
-        return 0.0
+        return ZERO
 
     @property
-    def net_ppe(self) -> float:
+    def net_ppe(self) -> Decimal:
         """Calculate net property, plant & equipment after depreciation.
 
         Returns:
-            float: Net PP&E (gross PP&E minus accumulated depreciation).
+            Decimal: Net PP&E (gross PP&E minus accumulated depreciation).
         """
         return self.gross_ppe - self.accumulated_depreciation
 
     def process_insurance_claim(
         self,
-        claim_amount: float,
-        deductible_amount: float = 0.0,
-        insurance_limit: float = float("inf"),
-        insurance_recovery: Optional[float] = None,
-    ) -> tuple[float, float]:
+        claim_amount: Union[Decimal, float],
+        deductible_amount: Union[Decimal, float] = ZERO,
+        insurance_limit: Union[Decimal, float, None] = None,
+        insurance_recovery: Optional[Union[Decimal, float]] = None,
+    ) -> tuple[Decimal, Decimal]:
         """Process an insurance claim with deductible and limit, setting up collateral.
 
         This method handles the complete processing of an insurance claim,
@@ -2195,19 +2241,19 @@ class WidgetManufacturer:
         program calculations.
 
         Args:
-            claim_amount (float): Total amount of the loss/claim in dollars.
+            claim_amount: Total amount of the loss/claim in dollars.
                 Must be >= 0.
-            deductible_amount (float): Amount company must pay before insurance kicks in
+            deductible_amount: Amount company must pay before insurance kicks in
                 (legacy parameter). Defaults to 0.0.
-            insurance_limit (float): Maximum amount insurance will pay per claim
+            insurance_limit: Maximum amount insurance will pay per claim
                 (legacy parameter). Defaults to unlimited. Use insurance_recovery
                 instead for new code.
-            insurance_recovery (Optional[float]): Pre-calculated insurance recovery
+            insurance_recovery: Pre-calculated insurance recovery
                 amount (preferred). If provided, overrides deductible/limit
                 calculation. Should be the exact amount insurance will pay.
 
         Returns:
-            tuple[float, float]: Tuple of (company_payment, insurance_payment)
+            tuple[Decimal, Decimal]: Tuple of (company_payment, insurance_payment)
                 where:
                 - company_payment: Amount paid immediately by the company
                 - insurance_payment: Amount covered by insurance (creates liability)
@@ -2267,37 +2313,46 @@ class WidgetManufacturer:
             :class:`~ergodic_insurance.insurance_program.InsuranceProgram`:
             For complex multi-layer insurance calculations.
         """
+        # Convert all inputs to Decimal
+        claim = to_decimal(claim_amount)
+        deductible = to_decimal(deductible_amount)
+        limit = (
+            to_decimal(insurance_limit) if insurance_limit is not None else to_decimal(1e18)
+        )  # Practical "infinity"
+
         # Handle new style parameters if provided
         if insurance_recovery is not None:
             # Use pre-calculated recovery
-            insurance_payment = insurance_recovery
-            company_payment = claim_amount - insurance_payment
+            insurance_payment = to_decimal(insurance_recovery)
+            company_payment = claim - insurance_payment
         else:
             # Calculate insurance coverage
-            if claim_amount <= deductible_amount:
+            if claim <= deductible:
                 # Below deductible, company pays all
-                company_payment = claim_amount
-                insurance_payment = 0
+                company_payment = claim
+                insurance_payment = ZERO
             else:
                 # Above deductible
-                company_payment = deductible_amount
-                insurance_payment = int(min(claim_amount - deductible_amount, insurance_limit))
+                company_payment = deductible
+                insurance_payment = min(claim - deductible, limit)
                 # Company also pays any amount above the limit
-                if claim_amount > deductible_amount + insurance_limit:
-                    company_payment += claim_amount - deductible_amount - insurance_limit
+                if claim > deductible + limit:
+                    company_payment += claim - deductible - limit
 
         # Company payment is collateralized and paid over time
-        if company_payment > 0:
+        if company_payment > ZERO:
             # LIMITED LIABILITY: Cap company payment at available equity AND available cash
             current_equity = self.equity
             available_cash = self.cash
             # Can only post collateral up to the lesser of equity and cash
-            max_payable = (
-                min(company_payment, current_equity, available_cash) if current_equity > 0 else 0.0
+            max_payable: Decimal = (
+                min(company_payment, current_equity, available_cash)
+                if current_equity > ZERO
+                else ZERO
             )
             unpayable_amount = company_payment - max_payable
 
-            if max_payable > 0:
+            if max_payable > ZERO:
                 # Post letter of credit as collateral for the payable amount
                 # Transfer cash to restricted assets (no change in total assets)
                 self.collateral += max_payable
@@ -2309,13 +2364,13 @@ class WidgetManufacturer:
                 year_incurred = (
                     self.current_year - 1 if self.current_year > 0 else self.current_year
                 )
-                claim = ClaimLiability(
+                claim_liability = ClaimLiability(
                     original_amount=max_payable,
                     remaining_amount=max_payable,
                     year_incurred=year_incurred,  # Adjust for timing: claim occurred before step() incremented year
                     is_insured=True,  # This is the company portion of an insured claim
                 )
-                self.claim_liabilities.append(claim)
+                self.claim_liabilities.append(claim_liability)
 
                 logger.info(
                     f"Company portion: ${max_payable:,.2f} - collateralized with payment schedule"
@@ -2325,17 +2380,17 @@ class WidgetManufacturer:
                 )
 
             # Handle unpayable portion (exceeds equity/cash)
-            if unpayable_amount > 0:
+            if unpayable_amount > ZERO:
                 # LIMITED LIABILITY: Only create liability if we can afford it (won't make equity negative)
                 # Check current equity after posting collateral
                 current_equity_after_collateral = self.equity
-                max_liability = (
+                max_liability: Decimal = (
                     min(unpayable_amount, current_equity_after_collateral)
-                    if current_equity_after_collateral > 0
-                    else 0.0
+                    if current_equity_after_collateral > ZERO
+                    else ZERO
                 )
 
-                if max_liability > 0:
+                if max_liability > ZERO:
                     # Create liability for the amount we can afford
                     # Adjust year_incurred only if current_year > 0 (after step() has been called)
                     year_incurred = (
@@ -2356,14 +2411,14 @@ class WidgetManufacturer:
 
                 # Log the truly unpayable amount that can't even be recorded as liability
                 truly_unpayable = unpayable_amount - max_liability
-                if truly_unpayable > 0:
+                if truly_unpayable > ZERO:
                     logger.warning(
                         f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} as liability "
                         f"(would violate limited liability). Company is insolvent."
                     )
 
                 # Check if company is now insolvent
-                if self.equity <= 0:
+                if self.equity <= ZERO:
                     self.check_solvency()
 
             # Note: We don't record an insurance loss expense here because the liability
@@ -2372,7 +2427,7 @@ class WidgetManufacturer:
             # The tax deduction flows through naturally as the liability impacts equity.
 
         # Insurance payment creates a receivable
-        if insurance_payment > 0:
+        if insurance_payment > ZERO:
             # Record insurance recovery as receivable
             claim_id = f"CLAIM_{self.current_year}_{len(self.claim_liabilities)}"
             self.insurance_accounting.record_claim_recovery(
@@ -2387,8 +2442,8 @@ class WidgetManufacturer:
         return company_payment, insurance_payment
 
     def process_uninsured_claim(
-        self, claim_amount: float, immediate_payment: bool = False
-    ) -> float:
+        self, claim_amount: Union[Decimal, float], immediate_payment: bool = False
+    ) -> Decimal:
         """Process an uninsured claim paid by company over time without collateral.
 
         This method handles claims where the company has no insurance coverage
@@ -2396,12 +2451,12 @@ class WidgetManufacturer:
         is required since there's no insurance company to secure payment to.
 
         Args:
-            claim_amount (float): Total amount of the claim in dollars. Must be >= 0.
-            immediate_payment (bool): If True, pays entire amount immediately.
+            claim_amount: Total amount of the claim in dollars. Must be >= 0.
+            immediate_payment: If True, pays entire amount immediately.
                 If False, creates liability with payment schedule. Defaults to False.
 
         Returns:
-            float: The claim amount processed (for consistency with other methods).
+            Decimal: The claim amount processed (for consistency with other methods).
 
         Examples:
             Process claim with payment schedule::
@@ -2425,43 +2480,44 @@ class WidgetManufacturer:
             Unlike process_insurance_claim(), this method does not require collateral
             since there's no insurance company requiring security for payments.
         """
-        if claim_amount <= 0:
-            return 0.0
+        claim = to_decimal(claim_amount)
+        if claim <= ZERO:
+            return ZERO
 
         if immediate_payment:
             # LIMITED LIABILITY: Cap payment at available equity to prevent negative equity
             equity_before_payment = self.equity
-            max_payable = (
-                min(claim_amount, equity_before_payment) if equity_before_payment > 0 else 0.0
+            max_payable: Decimal = (
+                min(claim, equity_before_payment) if equity_before_payment > ZERO else ZERO
             )
 
             # Pay immediately - reduce cash, capped at equity
             # First, try to pay from cash
-            cash_payment = min(max_payable, self.cash)
-            remaining_to_pay = max_payable - cash_payment
+            cash_payment: Decimal = min(max_payable, self.cash)
+            remaining_to_pay: Decimal = max_payable - cash_payment
 
             # If cash isn't enough, liquidate other current assets proportionally
-            if remaining_to_pay > 0:
+            if remaining_to_pay > ZERO:
                 # Total liquid assets we can use (cash + AR + inventory)
                 liquid_assets = self.cash + self.accounts_receivable + self.inventory
-                if liquid_assets > 0:
+                if liquid_assets > ZERO:
                     # Pay what we can from liquid assets, but not more than max_payable
-                    actual_payment = min(max_payable, liquid_assets)
+                    actual_payment: Decimal = min(max_payable, liquid_assets)
 
                     # Reduce liquid assets proportionally
                     if liquid_assets > max_payable:
                         # We have enough liquid assets
                         reduction_ratio = max_payable / liquid_assets
-                        self.cash *= 1 - reduction_ratio
-                        self.accounts_receivable *= 1 - reduction_ratio
-                        self.inventory *= 1 - reduction_ratio
+                        self.cash *= ONE - reduction_ratio
+                        self.accounts_receivable *= ONE - reduction_ratio
+                        self.inventory *= ONE - reduction_ratio
                     else:
                         # Use all liquid assets (up to max_payable)
-                        self.cash = 0
-                        self.accounts_receivable = 0
-                        self.inventory = 0
+                        self.cash = ZERO
+                        self.accounts_receivable = ZERO
+                        self.inventory = ZERO
                 else:
-                    actual_payment = 0
+                    actual_payment = ZERO
             else:
                 # Cash was sufficient
                 actual_payment = cash_payment
@@ -2471,8 +2527,8 @@ class WidgetManufacturer:
             self.period_insurance_losses += actual_payment
 
             # Create a liability for the unpaid portion (shortfall)
-            shortfall = claim_amount - actual_payment
-            if shortfall > 0:
+            shortfall = claim - actual_payment
+            if shortfall > ZERO:
                 # LIMITED LIABILITY: After making payment, create liability up to available equity
                 # The payment already reduced equity. Creating additional liability reduces equity further.
                 # We can ONLY create liability up to remaining equity to prevent negative equity.
@@ -2481,75 +2537,77 @@ class WidgetManufacturer:
 
                 # Create liability up to available equity (prevents equity from going below zero)
                 # This properly accounts for the loss while enforcing limited liability
-                max_liability = (
+                max_liability: Decimal = (
                     min(shortfall, current_equity_after_payment)
-                    if current_equity_after_payment > 0
-                    else 0.0
+                    if current_equity_after_payment > ZERO
+                    else ZERO
                 )
 
-                if max_liability > 0:
+                if max_liability > ZERO:
                     # Create liability for the portion we can afford without going insolvent
-                    claim = ClaimLiability(
+                    claim_liability = ClaimLiability(
                         original_amount=max_liability,
                         remaining_amount=max_liability,
                         year_incurred=self.current_year,  # No adjustment: immediate payment occurs in current period
                         is_insured=False,  # This is an uninsured claim
                     )
-                    self.claim_liabilities.append(claim)
+                    self.claim_liabilities.append(claim_liability)
                     logger.info(
                         f"LIMITED LIABILITY: Immediate payment ${actual_payment:,.2f}, "
-                        f"created liability for ${max_liability:,.2f} (total claim: ${claim_amount:,.2f})"
+                        f"created liability for ${max_liability:,.2f} (total claim: ${claim:,.2f})"
                     )
 
                 # Log the truly unpayable amount (amount exceeding both liquid assets and equity)
                 truly_unpayable = shortfall - max_liability
-                if truly_unpayable > 0:
+                if truly_unpayable > ZERO:
                     logger.warning(
-                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} of ${claim_amount:,.2f} claim as liability "
+                        f"LIMITED LIABILITY: Cannot record ${truly_unpayable:,.2f} of ${claim:,.2f} claim as liability "
                         f"(would violate limited liability). "
                         f"Paid ${actual_payment:,.2f}, liability ${max_liability:,.2f}, shortfall ${truly_unpayable:,.2f}."
                     )
 
                 # Check if company is now insolvent
-                if self.equity <= 0:
+                if self.equity <= ZERO:
                     self.check_solvency()
             else:
                 logger.info(f"Paid uninsured claim immediately: ${actual_payment:,.2f}")
-            return float(claim_amount)  # Return the full claim amount processed
+            return claim  # Return the full claim amount processed
 
         # Create liability without collateral for payment over time
         # LIMITED LIABILITY: Only create liability up to available equity
         current_equity = self.equity
-        max_liability = min(claim_amount, current_equity) if current_equity > 0 else 0.0
+        deferred_max_liability: Decimal = (
+            min(claim, current_equity) if current_equity > ZERO else ZERO
+        )
 
-        if max_liability > 0:
+        if deferred_max_liability > ZERO:
             # Adjust year_incurred only if current_year > 0 (after step() has been called)
             year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
-            claim = ClaimLiability(
-                original_amount=max_liability,
-                remaining_amount=max_liability,
+            claim_liability = ClaimLiability(
+                original_amount=deferred_max_liability,
+                remaining_amount=deferred_max_liability,
                 year_incurred=year_incurred,  # Adjust for timing: claim occurred before step() incremented year
                 is_insured=False,  # This is an uninsured claim
             )
-            self.claim_liabilities.append(claim)
+            self.claim_liabilities.append(claim_liability)
             logger.info(
-                f"Created uninsured claim liability: ${max_liability:,.2f} (no collateral required)"
+                f"Created uninsured claim liability: ${deferred_max_liability:,.2f} (no collateral required)"
             )
 
         # Log truly unpayable amount
-        unpayable = claim_amount - max_liability
-        if unpayable > 0:
+        unpayable = claim - deferred_max_liability
+        if unpayable > ZERO:
             logger.warning(
                 f"LIMITED LIABILITY: Cannot record ${unpayable:,.2f} as liability "
                 f"(would violate limited liability). Company may become insolvent."
             )
             # Check solvency if we couldn't create the full liability
-            if self.equity <= 0:
+            if self.equity <= ZERO:
                 self.check_solvency()
 
-        return claim_amount
+        return claim
 
-    def pay_claim_liabilities(self, max_payable: Optional[float] = None) -> float:
+    def pay_claim_liabilities(self, max_payable: Optional[Union[Decimal, float]] = None) -> Decimal:
         """Pay scheduled claim liabilities for the current year.
 
         This method processes all scheduled claim payments based on each claim's
@@ -2565,7 +2623,7 @@ class WidgetManufacturer:
                 limited liability enforcement). If None, caps at current equity.
 
         Returns:
-            float: Total amount paid toward claims in dollars. May be less than
+            Decimal: Total amount paid toward claims in dollars. May be less than
                 scheduled if insufficient cash is available.
 
         Examples:
@@ -2615,50 +2673,51 @@ class WidgetManufacturer:
             :attr:`claim_liabilities`: List of active claims.
             :attr:`total_claim_liabilities`: Total outstanding amount.
         """
-        total_paid = 0.0
+        total_paid: Decimal = ZERO
+        min_cash_balance = to_decimal(100_000)
 
         # LIMITED LIABILITY: Calculate total scheduled payments and cap at equity or provided max
-        total_scheduled = 0.0
-        for claim in self.claim_liabilities:
-            years_since = self.current_year - claim.year_incurred
-            scheduled_payment = claim.get_payment(years_since)
+        total_scheduled: Decimal = ZERO
+        for claim_item in self.claim_liabilities:
+            years_since = self.current_year - claim_item.year_incurred
+            scheduled_payment = claim_item.get_payment(years_since)
             total_scheduled += scheduled_payment
 
         # Cap total payments at available liquid resources or provided max
         if max_payable is not None:
             # Use coordinated cap from step() method
-            max_total_payable = min(total_scheduled, max_payable)
+            max_total_payable: Decimal = min(total_scheduled, to_decimal(max_payable))
         else:
             # Fallback to liquidity-based cap if called standalone
             available_liquidity = self.cash + self.restricted_assets
             max_total_payable = (
-                min(total_scheduled, available_liquidity) if available_liquidity > 0 else 0.0
+                min(total_scheduled, available_liquidity) if available_liquidity > ZERO else ZERO
             )
 
         # If we need to cap payments, calculate reduction ratio
-        payment_ratio = 1.0
-        if total_scheduled > max_total_payable and total_scheduled > 0:
+        payment_ratio: Decimal = ONE
+        if total_scheduled > max_total_payable and total_scheduled > ZERO:
             payment_ratio = max_total_payable / total_scheduled
             logger.warning(
                 f"LIQUIDITY CONSTRAINT: Capping claim payments at ${max_total_payable:,.2f} "
                 f"(scheduled: ${total_scheduled:,.2f}, available liquidity: ${self.cash + self.restricted_assets:,.2f})"
             )
 
-        for claim in self.claim_liabilities:
-            years_since = self.current_year - claim.year_incurred
-            scheduled_payment = claim.get_payment(years_since)
+        for claim_item in self.claim_liabilities:
+            years_since = self.current_year - claim_item.year_incurred
+            scheduled_payment = claim_item.get_payment(years_since)
 
-            if scheduled_payment > 0:
+            if scheduled_payment > ZERO:
                 # Apply payment ratio to cap at available cash
                 capped_scheduled = scheduled_payment * payment_ratio
 
-                if claim.is_insured:
+                if claim_item.is_insured:
                     # For insured claims: Pay from restricted assets (collateral)
                     available_for_payment = min(capped_scheduled, self.restricted_assets)
                     actual_payment = available_for_payment
 
-                    if actual_payment > 0:
-                        claim.make_payment(actual_payment)
+                    if actual_payment > ZERO:
+                        claim_item.make_payment(actual_payment)
                         total_paid += actual_payment
                         # The collateral was set aside for this purpose
                         self.restricted_assets -= actual_payment
@@ -2681,11 +2740,13 @@ class WidgetManufacturer:
                         # Do NOT record as tax-deductible loss here - already recorded when claim incurred
                 else:
                     # For uninsured claims: Pay from available cash
-                    available_for_payment = max(0, self.cash - 100_000)  # Keep minimum cash
+                    available_for_payment = max(
+                        ZERO, self.cash - min_cash_balance
+                    )  # Keep minimum cash
                     actual_payment = min(capped_scheduled, available_for_payment)
 
-                    if actual_payment > 0:
-                        claim.make_payment(actual_payment)
+                    if actual_payment > ZERO:
+                        claim_item.make_payment(actual_payment)
                         total_paid += actual_payment
                         self.cash -= actual_payment  # Reduce cash for uninsured claims
 
@@ -2705,25 +2766,25 @@ class WidgetManufacturer:
                         )
 
         # Remove fully paid claims
-        self.claim_liabilities = [c for c in self.claim_liabilities if c.remaining_amount > 0]
+        self.claim_liabilities = [c for c in self.claim_liabilities if c.remaining_amount > ZERO]
 
-        if total_paid > 0:
+        if total_paid > ZERO:
             logger.info(f"Paid ${total_paid:,.2f} toward claim liabilities")
 
         # Check solvency after making payments
-        if payment_ratio < 1.0 or self.equity <= 0:
+        if payment_ratio < ONE or self.equity <= ZERO:
             self.check_solvency()
 
         return total_paid
 
     def process_insurance_claim_with_development(
         self,
-        claim_amount: float,
-        deductible: float = 0.0,
-        insurance_limit: float = float("inf"),
+        claim_amount: Union[Decimal, float],
+        deductible: Union[Decimal, float] = ZERO,
+        insurance_limit: Union[Decimal, float, None] = None,
         development_pattern: Optional["ClaimDevelopment"] = None,
         claim_type: str = "general_liability",
-    ) -> tuple[float, float, Optional["Claim"]]:
+    ) -> tuple[Decimal, Decimal, Optional["Claim"]]:
         """Process an insurance claim with custom development pattern integration.
 
         This enhanced method extends basic claim processing to support custom
@@ -2736,25 +2797,25 @@ class WidgetManufacturer:
         development patterns for advanced cash flow modeling.
 
         Args:
-            claim_amount (float): Total amount of the loss/claim in dollars.
+            claim_amount: Total amount of the loss/claim in dollars.
                 Must be >= 0.
-            deductible (float): Amount company must pay before insurance coverage
+            deductible: Amount company must pay before insurance coverage
                 begins. Defaults to 0.0 for full coverage.
-            insurance_limit (float): Maximum amount insurance will pay per claim.
+            insurance_limit: Maximum amount insurance will pay per claim.
                 Defaults to unlimited coverage.
-            development_pattern (Optional[ClaimDevelopment]): Custom actuarial
+            development_pattern: Custom actuarial
                 development pattern for the claim. If None, uses default
                 ClaimLiability schedule. Enables sophisticated reserving and
                 payment modeling.
-            claim_type (str): Classification of claim type for actuarial analysis.
+            claim_type: Classification of claim type for actuarial analysis.
                 Common types: "general_liability", "product_liability",
                 "workers_compensation", "property". Defaults to "general_liability".
 
         Returns:
-            tuple[float, float, Optional[Claim]]: Three-element tuple containing:
-                - company_payment (float): Amount paid immediately by company
-                - insurance_payment (float): Amount covered by insurance
-                - claim_object (Optional[Claim]): Detailed claim tracking object
+            tuple[Decimal, Decimal, Optional[Claim]]: Three-element tuple containing:
+                - company_payment: Amount paid immediately by company
+                - insurance_payment: Amount covered by insurance
+                - claim_object: Detailed claim tracking object
                   with development pattern. None if no development_pattern provided
                   or insurance_payment is 0.
 
@@ -2822,7 +2883,7 @@ class WidgetManufacturer:
 
         # If a development pattern is provided, create a Claim object
         claim_object = None
-        if development_pattern is not None and insurance_payment > 0:
+        if development_pattern is not None and insurance_payment > ZERO:
             # Import here to avoid circular dependency
             from .claim_development import Claim
 
@@ -2830,7 +2891,7 @@ class WidgetManufacturer:
                 claim_id=f"CL_{self.current_year}_{len(self.claim_liabilities):04d}",
                 accident_year=self.current_year,
                 reported_year=self.current_year,
-                initial_estimate=insurance_payment,
+                initial_estimate=float(insurance_payment),  # Claim class expects float
                 claim_type=claim_type,
                 development_pattern=development_pattern,
             )
@@ -2902,11 +2963,12 @@ class WidgetManufacturer:
             # Apply bankruptcy/liquidation: Company's assets are liquidated
             # In bankruptcy, assets are sold at a discount and costs are incurred
             # Set remaining value to insolvency_tolerance (near-zero value after liquidation)
-            if self.equity > self.config.insolvency_tolerance:
+            insolvency_tolerance = to_decimal(self.config.insolvency_tolerance)
+            if self.equity > insolvency_tolerance:
                 # Reduce cash to represent liquidation costs and asset haircuts
-                liquidation_loss = self.cash - self.config.insolvency_tolerance
-                if liquidation_loss > 0:
-                    self.cash = self.config.insolvency_tolerance
+                liquidation_loss = self.cash - insolvency_tolerance
+                if liquidation_loss > ZERO:
+                    self.cash = insolvency_tolerance
                     logger.info(
                         f"LIQUIDATION: Assets reduced from ${pre_liquidation_assets:,.2f} "
                         f"to ${self.total_assets:,.2f} due to bankruptcy liquidation costs"
@@ -2972,16 +3034,16 @@ class WidgetManufacturer:
             :meth:`step`: Automatically includes solvency checking.
         """
         # LIMITED LIABILITY ENFORCEMENT: Cash should never be negative
-        if self.cash < 0:
+        if self.cash < ZERO:
             logger.warning(
                 f"Cash is negative (${self.cash:,.2f}). Adjusting to $0 to enforce limited liability."
             )
-            self.cash = 0
+            self.cash = ZERO
 
         # Traditional balance sheet insolvency
         # Handle any case where equity <= 0, including negative equity from operations
         # The handle_insolvency() method will adjust cash to enforce equity floor at $0
-        if self.equity <= 0:
+        if self.equity <= ZERO:
             # Call handle_insolvency to enforce limited liability and freeze operations
             self.handle_insolvency()
             return False
@@ -2989,22 +3051,24 @@ class WidgetManufacturer:
         # Payment insolvency - check if claim payment obligations are unsustainable
         if self.claim_liabilities:
             # Calculate scheduled payments for the current year
-            current_year_payments = 0.0
-            for claim in self.claim_liabilities:
-                years_since = self.current_year - claim.year_incurred
-                scheduled_payment = claim.get_payment(years_since)
+            current_year_payments: Decimal = ZERO
+            for claim_item in self.claim_liabilities:
+                years_since = self.current_year - claim_item.year_incurred
+                scheduled_payment = claim_item.get_payment(years_since)
                 current_year_payments += scheduled_payment
 
             # Check if payments are sustainable relative to revenue capacity
-            if current_year_payments > 0:
+            if current_year_payments > ZERO:
                 current_revenue = self.calculate_revenue()
                 payment_burden_ratio = (
-                    current_year_payments / current_revenue if current_revenue > 0 else float("inf")
+                    current_year_payments / current_revenue
+                    if current_revenue > ZERO
+                    else to_decimal(float("inf"))
                 )
 
                 # Company is insolvent if claim payments exceed 80% of revenue
                 # This threshold represents realistic maximum debt service capacity
-                if payment_burden_ratio > 0.80:
+                if payment_burden_ratio > to_decimal(0.80):
                     if not self.is_ruined:  # Only log once
                         self.is_ruined = True
                         logger.warning(
@@ -3018,9 +3082,9 @@ class WidgetManufacturer:
 
     def calculate_metrics(
         self,
-        period_revenue: Optional[float] = None,
-        letter_of_credit_rate: float = 0.015,
-    ) -> Dict[str, float]:
+        period_revenue: Optional[Union[Decimal, float]] = None,
+        letter_of_credit_rate: Union[Decimal, float] = 0.015,
+    ) -> Dict[str, Union[Decimal, float, int, bool]]:
         """Calculate comprehensive financial metrics for analysis.
 
         This method computes a complete set of financial metrics including
@@ -3104,7 +3168,7 @@ class WidgetManufacturer:
             :meth:`step`: Updates metrics automatically during simulation.
             :attr:`metrics_history`: Historical metrics storage.
         """
-        metrics = {}
+        metrics: Dict[str, Union[Decimal, float, int, bool]] = {}
 
         # Basic balance sheet metrics
         metrics["assets"] = self.total_assets
@@ -3125,24 +3189,26 @@ class WidgetManufacturer:
 
         # Get detailed accrual breakdown from AccrualManager (single source of truth - issue #238)
         accrual_items = self.accrual_manager.get_balance_sheet_items()
-        metrics["accrued_expenses"] = accrual_items.get("accrued_expenses", 0)
+        metrics["accrued_expenses"] = accrual_items.get("accrued_expenses", ZERO)
 
         metrics["gross_ppe"] = self.gross_ppe
         metrics["accumulated_depreciation"] = self.accumulated_depreciation
         metrics["net_ppe"] = self.net_ppe
 
         # Add detailed accrual breakdown
-        metrics["accrued_wages"] = accrual_items.get("accrued_wages", 0)
-        metrics["accrued_taxes"] = accrual_items.get("accrued_taxes", 0)
-        metrics["accrued_interest"] = accrual_items.get("accrued_interest", 0)
-        metrics["accrued_revenues"] = accrual_items.get("accrued_revenues", 0)
+        metrics["accrued_wages"] = accrual_items.get("accrued_wages", ZERO)
+        metrics["accrued_taxes"] = accrual_items.get("accrued_taxes", ZERO)
+        metrics["accrued_interest"] = accrual_items.get("accrued_interest", ZERO)
+        metrics["accrued_revenues"] = accrual_items.get("accrued_revenues", ZERO)
 
         # Calculate operating metrics for current state
         # Use period revenue if provided (actual revenue earned during the period)
         # Otherwise calculate based on current assets (for standalone metrics)
-        revenue = period_revenue if period_revenue is not None else self.calculate_revenue()
+        revenue = (
+            to_decimal(period_revenue) if period_revenue is not None else self.calculate_revenue()
+        )
         # Calculate depreciation for metrics (annual basis)
-        annual_depreciation = self.gross_ppe / 10 if self.gross_ppe > 0 else 0.0
+        annual_depreciation = self.gross_ppe / to_decimal(10) if self.gross_ppe > ZERO else ZERO
         operating_income = self.calculate_operating_income(revenue, annual_depreciation)
         collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
         # Insurance costs already deducted in calculate_operating_income
@@ -3181,29 +3247,31 @@ class WidgetManufacturer:
 
         # Get expense ratios from config or use defaults
         if expense_ratios is not None:
-            gross_margin_ratio = expense_ratios.gross_margin_ratio
-            sga_expense_ratio = expense_ratios.sga_expense_ratio
-            mfg_depreciation_alloc = expense_ratios.manufacturing_depreciation_allocation
-            admin_depreciation_alloc = expense_ratios.admin_depreciation_allocation
-            direct_materials_ratio = expense_ratios.direct_materials_ratio
-            direct_labor_ratio = expense_ratios.direct_labor_ratio
-            manufacturing_overhead_ratio = expense_ratios.manufacturing_overhead_ratio
-            selling_expense_ratio = expense_ratios.selling_expense_ratio
-            general_admin_ratio = expense_ratios.general_admin_ratio
+            gross_margin_ratio = to_decimal(expense_ratios.gross_margin_ratio)
+            sga_expense_ratio = to_decimal(expense_ratios.sga_expense_ratio)
+            mfg_depreciation_alloc = to_decimal(
+                expense_ratios.manufacturing_depreciation_allocation
+            )
+            admin_depreciation_alloc = to_decimal(expense_ratios.admin_depreciation_allocation)
+            direct_materials_ratio = to_decimal(expense_ratios.direct_materials_ratio)
+            direct_labor_ratio = to_decimal(expense_ratios.direct_labor_ratio)
+            manufacturing_overhead_ratio = to_decimal(expense_ratios.manufacturing_overhead_ratio)
+            selling_expense_ratio = to_decimal(expense_ratios.selling_expense_ratio)
+            general_admin_ratio = to_decimal(expense_ratios.general_admin_ratio)
         else:
             # Default ratios (matching former hardcoded values in financial_statements.py)
-            gross_margin_ratio = 0.15
-            sga_expense_ratio = 0.07
-            mfg_depreciation_alloc = 0.7
-            admin_depreciation_alloc = 0.3
-            direct_materials_ratio = 0.4
-            direct_labor_ratio = 0.3
-            manufacturing_overhead_ratio = 0.3
-            selling_expense_ratio = 0.4
-            general_admin_ratio = 0.6
+            gross_margin_ratio = to_decimal(0.15)
+            sga_expense_ratio = to_decimal(0.07)
+            mfg_depreciation_alloc = to_decimal(0.7)
+            admin_depreciation_alloc = to_decimal(0.3)
+            direct_materials_ratio = to_decimal(0.4)
+            direct_labor_ratio = to_decimal(0.3)
+            manufacturing_overhead_ratio = to_decimal(0.3)
+            selling_expense_ratio = to_decimal(0.4)
+            general_admin_ratio = to_decimal(0.6)
 
         # Calculate COGS breakdown
-        cogs_ratio = 1.0 - gross_margin_ratio
+        cogs_ratio = ONE - gross_margin_ratio
         base_cogs = revenue * cogs_ratio
         mfg_depreciation = annual_depreciation * mfg_depreciation_alloc
         cogs_before_depreciation = base_cogs - mfg_depreciation
@@ -3229,33 +3297,39 @@ class WidgetManufacturer:
         metrics["sga_expense_ratio"] = sga_expense_ratio
 
         # Financial ratios - ROE now includes all expenses
-        metrics["asset_turnover"] = revenue / self.total_assets if self.total_assets > 0 else 0
+        metrics["asset_turnover"] = (
+            revenue / self.total_assets if self.total_assets > ZERO else ZERO
+        )
 
         # Report both base and actual operating margins for transparency
-        metrics["base_operating_margin"] = self.base_operating_margin
-        metrics["actual_operating_margin"] = operating_income / revenue if revenue > 0 else 0
-        metrics["insurance_impact_on_margin"] = (
-            metrics["base_operating_margin"] - metrics["actual_operating_margin"]
-        )
+        base_margin = to_decimal(self.base_operating_margin)
+        actual_margin = operating_income / revenue if revenue > ZERO else ZERO
+        metrics["base_operating_margin"] = base_margin
+        metrics["actual_operating_margin"] = actual_margin
+        metrics["insurance_impact_on_margin"] = base_margin - actual_margin
 
         # Define minimum equity threshold for meaningful ROE calculation
         # When equity is <= 100, ROE becomes meaningless (approaches infinity)
-        MIN_EQUITY_THRESHOLD = 100
+        MIN_EQUITY_THRESHOLD = to_decimal(100)
 
         metrics["roe"] = (
-            net_income / self.equity if self.equity > MIN_EQUITY_THRESHOLD else 0
+            net_income / self.equity if self.equity > MIN_EQUITY_THRESHOLD else ZERO
         )  # Return 0 for very small or negative equity to avoid extreme values
-        metrics["roa"] = net_income / self.total_assets if self.total_assets > 0 else 0
+        metrics["roa"] = net_income / self.total_assets if self.total_assets > ZERO else ZERO
 
         # Leverage metrics (collateral-based instead of debt)
-        metrics["collateral_to_equity"] = self.collateral / self.equity if self.equity > 0 else 0
+        metrics["collateral_to_equity"] = (
+            self.collateral / self.equity if self.equity > ZERO else ZERO
+        )
         metrics["collateral_to_assets"] = (
-            self.collateral / self.total_assets if self.total_assets > 0 else 0
+            self.collateral / self.total_assets if self.total_assets > ZERO else ZERO
         )
 
         return metrics
 
-    def _handle_insolvent_step(self, time_resolution: str) -> Dict[str, float]:
+    def _handle_insolvent_step(
+        self, time_resolution: str
+    ) -> Dict[str, Union[Decimal, float, int, bool]]:
         """Handle a simulation step when the company is already insolvent.
 
         Args:
@@ -3267,7 +3341,7 @@ class WidgetManufacturer:
         logger.warning("Company is already insolvent, skipping step")
         metrics = self.calculate_metrics()
         metrics["year"] = self.current_year
-        metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
+        metrics["month"] = self.current_month if time_resolution == "monthly" else 0
         self._increment_time(time_resolution)
         return metrics
 
@@ -3286,8 +3360,8 @@ class WidgetManufacturer:
             self.current_year += 1
 
     def process_accrued_payments(
-        self, time_resolution: str = "annual", max_payable: Optional[float] = None
-    ) -> float:
+        self, time_resolution: str = "annual", max_payable: Optional[Union[Decimal, float]] = None
+    ) -> Decimal:
         """Process due accrual payments for the current period.
 
         Checks for accrual payments due in the current period and processes
@@ -3317,14 +3391,14 @@ class WidgetManufacturer:
         payments_due = self.accrual_manager.get_payments_due(period)
 
         # LIMITED LIABILITY: Cap TOTAL payments at available equity or provided max
-        total_due = sum(payments_due.values())
+        total_due = sum((to_decimal(v) for v in payments_due.values()), ZERO)
         if max_payable is not None:
             # Use coordinated cap from step() method
-            max_total_payable = min(total_due, max_payable)
+            max_total_payable: Decimal = min(total_due, to_decimal(max_payable))
         else:
             # Fallback to equity-based cap if called standalone
             current_equity = self.equity
-            max_total_payable = min(total_due, current_equity) if current_equity > 0 else 0.0
+            max_total_payable = min(total_due, current_equity) if current_equity > ZERO else ZERO
 
         if total_due > max_total_payable:
             logger.warning(
@@ -3333,17 +3407,17 @@ class WidgetManufacturer:
             )
 
         # Calculate payment ratio to proportionally reduce each accrual
-        payment_ratio = max_total_payable / total_due if total_due > 0 else 0.0
+        payment_ratio: Decimal = max_total_payable / total_due if total_due > ZERO else ZERO
 
-        total_paid = 0.0
+        total_paid: Decimal = ZERO
         for accrual_type, amount_due in payments_due.items():
             # Apply payment ratio to this accrual
-            payable_amount = amount_due * payment_ratio
-            unpayable_amount = amount_due - payable_amount
+            payable_amount: Decimal = to_decimal(amount_due) * payment_ratio
+            unpayable_amount = to_decimal(amount_due) - payable_amount
 
-            if payable_amount > 0:
+            if payable_amount > ZERO:
                 # Process the payment (proportional share of what we can afford)
-                self.accrual_manager.process_payment(accrual_type, payable_amount, period)
+                self.accrual_manager.process_payment(accrual_type, float(payable_amount), period)
 
                 # Reduce cash for payment
                 self.cash -= payable_amount
@@ -3377,12 +3451,12 @@ class WidgetManufacturer:
                 logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
 
             # LIMITED LIABILITY: Discharge unpayable accrued expenses from liabilities
-            if unpayable_amount > 0:
+            if unpayable_amount > ZERO:
                 logger.warning(
                     f"LIMITED LIABILITY: Discharged ${unpayable_amount:,.2f} of unpayable {accrual_type.value} from liabilities"
                 )
 
-        if total_paid > 0:
+        if total_paid > ZERO:
             logger.info(f"Total accrual payments this period: ${total_paid:,.2f}")
 
         return total_paid
@@ -3404,7 +3478,7 @@ class WidgetManufacturer:
         )
 
     def record_claim_accrual(
-        self, claim_amount: float, development_pattern: Optional[List[float]] = None
+        self, claim_amount: Union[Decimal, float], development_pattern: Optional[List[float]] = None
     ) -> None:
         """Record insurance claim with multi-year payment schedule.
 
@@ -3426,36 +3500,37 @@ class WidgetManufacturer:
             development_pattern: Optional custom payment pattern over years.
                 Defaults to [0.4, 0.3, 0.2, 0.1] if None.
         """
+        amount = to_decimal(claim_amount)
         # Create a ClaimLiability as the single source of truth
         # Use year_incurred - 1 if current_year > 0 to match timing convention
         year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
 
         # Create claim with custom pattern if provided, otherwise use ClaimLiability default
         if development_pattern is not None:
-            claim = ClaimLiability(
-                original_amount=claim_amount,
-                remaining_amount=claim_amount,
+            new_claim = ClaimLiability(
+                original_amount=amount,
+                remaining_amount=amount,
                 year_incurred=year_incurred,
                 is_insured=False,  # Standalone accrual without insurance coverage
                 payment_schedule=development_pattern,
             )
         else:
-            claim = ClaimLiability(
-                original_amount=claim_amount,
-                remaining_amount=claim_amount,
+            new_claim = ClaimLiability(
+                original_amount=amount,
+                remaining_amount=amount,
                 year_incurred=year_incurred,
                 is_insured=False,  # Standalone accrual without insurance coverage
                 # Uses ClaimLiability default payment_schedule
             )
-        self.claim_liabilities.append(claim)
+        self.claim_liabilities.append(new_claim)
 
         logger.info(
-            f"Created claim liability via record_claim_accrual: ${claim_amount:,.2f} "
+            f"Created claim liability via record_claim_accrual: ${amount:,.2f} "
             f"with pattern {development_pattern or 'default'}"
         )
 
     def _apply_growth(
-        self, growth_rate: float, time_resolution: str, apply_stochastic: bool
+        self, growth_rate: Union[Decimal, float], time_resolution: str, apply_stochastic: bool
     ) -> None:
         """Apply revenue growth by adjusting asset turnover ratio.
 
@@ -3464,10 +3539,11 @@ class WidgetManufacturer:
             time_resolution: "annual" or "monthly" for simulation step.
             apply_stochastic: Whether to apply stochastic shocks.
         """
-        if growth_rate == 0 or not (time_resolution == "annual" or self.current_month == 11):
+        rate = to_decimal(growth_rate) if not isinstance(growth_rate, Decimal) else growth_rate
+        if rate == ZERO or not (time_resolution == "annual" or self.current_month == 11):
             return
 
-        base_growth = 1 + growth_rate
+        base_growth = float(ONE + rate)  # Use float for compatibility with stochastic process
 
         # Add stochastic component to growth if enabled
         if apply_stochastic and self.stochastic_process is not None:
@@ -3484,11 +3560,11 @@ class WidgetManufacturer:
 
     def step(
         self,
-        letter_of_credit_rate: float = 0.015,
-        growth_rate: float = 0.0,
+        letter_of_credit_rate: Union[Decimal, float] = 0.015,
+        growth_rate: Union[Decimal, float] = 0.0,
         time_resolution: str = "annual",
         apply_stochastic: bool = False,
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Union[Decimal, float, int, bool]]:
         """Execute one time step of the financial model simulation.
 
         This is the main simulation method that advances the manufacturer's
@@ -3612,7 +3688,7 @@ class WidgetManufacturer:
                 self.calculate_working_capital_components(self._annual_revenue_for_wc)
             else:
                 # Fallback: use current assets (should not happen normally)
-                annual_revenue = self.total_assets * self.asset_turnover_ratio
+                annual_revenue = self.total_assets * to_decimal(self.asset_turnover_ratio)
                 self.calculate_working_capital_components(annual_revenue)
 
         # COORDINATED LIMITED LIABILITY ENFORCEMENT
@@ -3628,31 +3704,33 @@ class WidgetManufacturer:
         # Calculate total accrual payments due
         self.accrual_manager.current_period = period
         accrual_payments_due = self.accrual_manager.get_payments_due(period)
-        total_accrual_due = sum(accrual_payments_due.values())
+        total_accrual_due: Decimal = sum(
+            (to_decimal(v) for v in accrual_payments_due.values()), ZERO
+        )
 
         # Calculate total claim payments scheduled (if applicable)
-        total_claim_due = 0.0
+        total_claim_due: Decimal = ZERO
         if time_resolution == "annual" or self.current_month == 0:
-            for claim in self.claim_liabilities:
-                years_since = self.current_year - claim.year_incurred
-                scheduled_payment = claim.get_payment(years_since)
+            for claim_item in self.claim_liabilities:
+                years_since = self.current_year - claim_item.year_incurred
+                scheduled_payment = claim_item.get_payment(years_since)
                 total_claim_due += scheduled_payment
 
         # Cap TOTAL payments at available liquid resources (cash + restricted assets for claims)
         total_payments_due = total_accrual_due + total_claim_due
         available_liquidity = self.cash + self.restricted_assets
-        max_total_payable = (
-            min(total_payments_due, available_liquidity) if available_liquidity > 0 else 0.0
+        max_total_payable: Decimal = (
+            min(total_payments_due, available_liquidity) if available_liquidity > ZERO else ZERO
         )
 
         # Allocate the capped amount proportionally between accruals and claims
-        if total_payments_due > 0:
+        if total_payments_due > ZERO:
             allocation_ratio = max_total_payable / total_payments_due
-            max_accrual_payable = total_accrual_due * allocation_ratio
-            max_claim_payable = total_claim_due * allocation_ratio
+            max_accrual_payable: Decimal = total_accrual_due * allocation_ratio
+            max_claim_payable: Decimal = total_claim_due * allocation_ratio
         else:
-            max_accrual_payable = 0.0
-            max_claim_payable = 0.0
+            max_accrual_payable = ZERO
+            max_claim_payable = ZERO
 
         # Log coordination if payments are capped
         if total_payments_due > max_total_payable:
@@ -3678,7 +3756,7 @@ class WidgetManufacturer:
             # For monthly, record 1/12 of annual depreciation
             depreciation_expense = self.record_depreciation(useful_life_years=10 * 12)
         else:
-            depreciation_expense = 0.0
+            depreciation_expense = ZERO
 
         # Calculate operating income including depreciation
         operating_income = self.calculate_operating_income(revenue, depreciation_expense)
@@ -3801,8 +3879,8 @@ class WidgetManufacturer:
             :attr:`config`: Original configuration parameters.
         """
         # Reset collateral and restricted assets
-        self.collateral = 0.0
-        self.restricted_assets = 0.0
+        self.collateral = ZERO
+        self.restricted_assets = ZERO
 
         # Reset operating parameters
         self.asset_turnover_ratio = self.config.asset_turnover_ratio
@@ -3815,31 +3893,34 @@ class WidgetManufacturer:
         # Reset enhanced balance sheet components
         # PP&E allocation depends on operating margin
         if self.config.base_operating_margin < 0.10:
-            ppe_ratio = 0.3  # Low margin businesses need more working capital, less PP&E
+            ppe_ratio = to_decimal(
+                0.3
+            )  # Low margin businesses need more working capital, less PP&E
         elif self.config.base_operating_margin < 0.15:
-            ppe_ratio = 0.5  # Medium margin can support moderate PP&E
+            ppe_ratio = to_decimal(0.5)  # Medium margin can support moderate PP&E
         else:
-            ppe_ratio = 0.7  # High margin businesses can support more PP&E
+            ppe_ratio = to_decimal(0.7)  # High margin businesses can support more PP&E
 
-        self.gross_ppe = self.config.initial_assets * ppe_ratio
-        self.accumulated_depreciation = 0.0
-        self.cash = self.config.initial_assets * (1 - ppe_ratio)
-        self.accounts_receivable = 0.0
-        self.inventory = 0.0
-        self.prepaid_insurance = 0.0
-        self.accounts_payable = 0.0
-        self._original_prepaid_premium = 0.0
+        initial_assets = to_decimal(self.config.initial_assets)
+        self.gross_ppe = initial_assets * ppe_ratio
+        self.accumulated_depreciation = ZERO
+        self.cash = initial_assets * (ONE - ppe_ratio)
+        self.accounts_receivable = ZERO
+        self.inventory = ZERO
+        self.prepaid_insurance = ZERO
+        self.accounts_payable = ZERO
+        self._original_prepaid_premium = ZERO
 
         # Reset period insurance cost tracking
-        self.period_insurance_premiums = 0.0
-        self.period_insurance_losses = 0.0
+        self.period_insurance_premiums = ZERO
+        self.period_insurance_losses = ZERO
 
         # Reset dividend tracking
-        self._last_dividends_paid = 0.0
+        self._last_dividends_paid = ZERO
 
         # Reset initial values (for exposure bases)
-        self._initial_assets = self.config.initial_assets
-        self._initial_equity = self.config.initial_assets
+        self._initial_assets = initial_assets
+        self._initial_equity = initial_assets
 
         # Reset accrual manager
         self.accrual_manager = AccrualManager()

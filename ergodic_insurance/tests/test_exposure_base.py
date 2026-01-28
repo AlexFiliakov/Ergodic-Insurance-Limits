@@ -40,15 +40,15 @@ class TestRevenueExposure:
         exposure = RevenueExposure(state_provider=manufacturer)
 
         # THEN: Initial exposure equals initial revenue
-        assert exposure.get_exposure(1.0) == 10_000_000
-        assert exposure.get_frequency_multiplier(1.0) == 1.0
+        assert float(exposure.get_exposure(1.0)) == 10_000_000
+        assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
         # WHEN: Manufacturer revenue doubles through business growth
         manufacturer.total_assets = 20_000_000  # Revenue will be $20M
 
         # THEN: Frequency multiplier should reflect actual 2x revenue
-        assert exposure.get_exposure(1.0) == 20_000_000
-        assert exposure.get_frequency_multiplier(1.0) == 2.0
+        assert float(exposure.get_exposure(1.0)) == 20_000_000
+        assert float(exposure.get_frequency_multiplier(1.0)) == 2.0
 
     def test_revenue_exposure_with_zero_base(self):
         """Handle zero base revenue gracefully."""
@@ -65,8 +65,8 @@ class TestRevenueExposure:
         manufacturer._initial_assets = 0
         exposure = RevenueExposure(state_provider=manufacturer)
 
-        assert exposure.get_exposure(1.0) == 0  # Zero turnover means zero revenue
-        assert exposure.get_frequency_multiplier(1.0) == 0
+        assert float(exposure.get_exposure(1.0)) == 0  # Zero turnover means zero revenue
+        assert float(exposure.get_frequency_multiplier(1.0)) == 0
 
     def test_revenue_exposure_reflects_business_changes(self):
         """Exposure should track actual business performance."""
@@ -108,15 +108,15 @@ class TestAssetExposure:
         exposure = AssetExposure(state_provider=manufacturer)
 
         # THEN: Initial exposure equals initial assets
-        assert exposure.get_exposure(1.0) == 50_000_000
-        assert exposure.get_frequency_multiplier(1.0) == 1.0
+        assert float(exposure.get_exposure(1.0)) == 50_000_000
+        assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
         # WHEN: Large claim reduces assets to $30M
         manufacturer.total_assets = 30_000_000
 
         # THEN: Frequency multiplier should be 0.6 (30M/50M)
-        assert exposure.get_exposure(1.0) == 30_000_000
-        assert exposure.get_frequency_multiplier(1.0) == 0.6
+        assert float(exposure.get_exposure(1.0)) == 30_000_000
+        assert float(exposure.get_frequency_multiplier(1.0)) == 0.6
 
     def test_asset_exposure_reflects_operations(self):
         """Asset exposure tracks real operational changes."""
@@ -137,8 +137,11 @@ class TestAssetExposure:
 
         # Assets will be affected by the claim processing
         # Frequency should scale with actual asset ratio
-        assert exposure.get_exposure(1.0) == manufacturer.total_assets
-        assert exposure.get_frequency_multiplier(1.0) == manufacturer.total_assets / 50_000_000
+        assert float(exposure.get_exposure(1.0)) == float(manufacturer.total_assets)
+        assert (
+            float(exposure.get_frequency_multiplier(1.0))
+            == float(manufacturer.total_assets) / 50_000_000
+        )
 
     def test_zero_base_assets(self):
         """Test handling of zero base assets."""
@@ -162,8 +165,8 @@ class TestAssetExposure:
         manufacturer._initial_assets = 0
         exposure = AssetExposure(state_provider=manufacturer)
 
-        assert exposure.get_exposure(1.0) == 0
-        assert exposure.get_frequency_multiplier(1.0) == 0
+        assert float(exposure.get_exposure(1.0)) == 0
+        assert float(exposure.get_frequency_multiplier(1.0)) == 0
 
 
 class TestEquityExposure:
@@ -183,8 +186,8 @@ class TestEquityExposure:
         exposure = EquityExposure(state_provider=manufacturer)
 
         # THEN: Initial exposure equals initial equity
-        assert exposure.get_exposure(1.0) == 20_000_000
-        assert exposure.get_frequency_multiplier(1.0) == 1.0
+        assert float(exposure.get_exposure(1.0)) == 20_000_000
+        assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
         # WHEN: Profitable operations increase equity
         # To set equity to 25M, adjust cash (equity = assets - liabilities)
@@ -193,10 +196,10 @@ class TestEquityExposure:
         manufacturer.cash += equity_adjustment
 
         # THEN: Frequency scales with cube root of equity ratio
-        assert exposure.get_exposure(1.0) == 25_000_000
+        assert float(exposure.get_exposure(1.0)) == 25_000_000
         # Multiplier = (25M/20M)^(1/3) = 1.25^0.333 ≈ 1.077
         expected_multiplier = 25_000_000 / 20_000_000
-        assert np.isclose(exposure.get_frequency_multiplier(1.0), expected_multiplier)
+        assert np.isclose(float(exposure.get_frequency_multiplier(1.0)), expected_multiplier)
 
     def test_equity_exposure_handles_bankruptcy(self):
         """Equity exposure should handle zero equity correctly (limited liability)."""
@@ -240,7 +243,7 @@ class TestEquityExposure:
 
         # Multiplier should be 2^(1/3) ≈ 1.26, not 2.0
         expected = 2.0
-        assert np.isclose(exposure.get_frequency_multiplier(1.0), expected)
+        assert np.isclose(float(exposure.get_frequency_multiplier(1.0)), expected)
 
 
 class TestEmployeeExposure:
@@ -274,8 +277,8 @@ class TestEmployeeExposure:
     def test_zero_employees(self):
         """Test handling of zero employees."""
         exposure = EmployeeExposure(base_employees=0)
-        assert exposure.get_exposure(1) == 0
-        assert exposure.get_frequency_multiplier(1) == 0
+        assert float(exposure.get_exposure(1)) == 0
+        assert float(exposure.get_frequency_multiplier(1)) == 0
 
     def test_invalid_automation_factor(self):
         """Test that invalid automation factor raises error."""
@@ -364,11 +367,11 @@ class TestCompositeExposure:
         )
 
         # Weighted multiplier at t=1
-        rev_mult = revenue_exp.get_frequency_multiplier(1)
-        asset_mult = asset_exp.get_frequency_multiplier(1)
+        rev_mult = float(revenue_exp.get_frequency_multiplier(1))
+        asset_mult = float(asset_exp.get_frequency_multiplier(1))
         expected = 0.7 * rev_mult + 0.3 * asset_mult
 
-        assert np.isclose(composite.get_frequency_multiplier(1), expected)
+        assert np.isclose(float(composite.get_frequency_multiplier(1)), expected)
 
     def test_weight_normalization(self):
         """Verify weights are normalized to sum to 1."""
@@ -415,7 +418,7 @@ class TestCompositeExposure:
         )
 
         # Verify it produces reasonable results
-        mult = composite.get_frequency_multiplier(1)
+        mult = float(composite.get_frequency_multiplier(1))
         # Since state-driven exposures start at 1.0, employee exposure drives growth
         assert mult >= 0.8  # Should be reasonable
         assert mult <= 1.5  # But not excessive
@@ -461,10 +464,10 @@ class TestScenarioExposure:
         exposure = ScenarioExposure(scenarios=scenarios, selected_scenario="recession")
 
         # At year 2, exposure should be 90
-        assert exposure.get_exposure(2) == 90
+        assert float(exposure.get_exposure(2)) == 90
 
         # Frequency multiplier = 90/100 = 0.9
-        assert np.isclose(exposure.get_frequency_multiplier(2), 0.9)
+        assert np.isclose(float(exposure.get_frequency_multiplier(2)), 0.9)
 
     def test_linear_interpolation(self):
         """Verify linear interpolation between years."""
@@ -489,10 +492,10 @@ class TestScenarioExposure:
         )
 
         # At time 0.4, should round to 0 -> 100
-        assert exposure.get_exposure(0.4) == 100
+        assert float(exposure.get_exposure(0.4)) == 100
 
         # At time 0.6, should round to 1 -> 110
-        assert exposure.get_exposure(0.6) == 110
+        assert float(exposure.get_exposure(0.6)) == 110
 
     def test_boundary_conditions(self):
         """Test exposure at and beyond scenario boundaries."""
@@ -501,10 +504,10 @@ class TestScenarioExposure:
         exposure = ScenarioExposure(scenarios=scenarios, selected_scenario="test")
 
         # Before start
-        assert exposure.get_exposure(0) == 100
+        assert float(exposure.get_exposure(0)) == 100
 
         # After end
-        assert exposure.get_exposure(10) == 120
+        assert float(exposure.get_exposure(10)) == 120
 
     def test_scenario_switching(self):
         """Test switching between scenarios."""
@@ -512,11 +515,11 @@ class TestScenarioExposure:
 
         exposure = ScenarioExposure(scenarios=scenarios, selected_scenario="optimistic")
 
-        assert exposure.get_exposure(1) == 110
+        assert float(exposure.get_exposure(1)) == 110
 
         # Create new exposure with different scenario
         exposure2 = ScenarioExposure(scenarios=scenarios, selected_scenario="pessimistic")
-        assert exposure2.get_exposure(1) == 90
+        assert float(exposure2.get_exposure(1)) == 90
 
     def test_invalid_scenario_raises_error(self):
         """Test that invalid scenario selection raises error."""
@@ -631,7 +634,7 @@ class TestStochasticExposure:
             base_value=100, process_type="gbm", parameters={"drift": 0.05, "volatility": 0.20}
         )
 
-        assert exposure.get_exposure(0) == 100
+        assert float(exposure.get_exposure(0)) == 100
 
 
 class TestPerformance:

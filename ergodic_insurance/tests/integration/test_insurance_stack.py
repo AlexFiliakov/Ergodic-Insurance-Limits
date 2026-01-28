@@ -8,6 +8,7 @@ insurance programs, and manufacturer components.
 import numpy as np
 import pytest
 
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
@@ -185,7 +186,7 @@ class TestInsuranceStack:
             }
 
             # Pay premium at start of year
-            manufacturer.cash -= total_premium
+            manufacturer.cash -= to_decimal(total_premium)
 
             year_data["premium_paid"] = total_premium
 
@@ -310,8 +311,8 @@ class TestInsuranceStack:
 
                 # Pay reinstatement premium if required
                 if reinstatement > 0:
-                    mfg.cash -= reinstatement
-                    mfg.equity -= reinstatement
+                    mfg.cash -= to_decimal(reinstatement)
+                    mfg.equity -= to_decimal(reinstatement)
 
                 assert_financial_consistency(mfg)
 
@@ -355,7 +356,7 @@ class TestInsuranceStack:
         # Reserve collateral from cash
         initial_cash = manufacturer.cash
         if required_collateral <= manufacturer.cash:
-            manufacturer.cash -= required_collateral
+            manufacturer.cash -= to_decimal(required_collateral)
         else:
             # Collateral exceeds available cash, use what's available
             required_collateral = manufacturer.cash
@@ -522,7 +523,7 @@ class TestInsuranceStack:
 
             for year in range(10):
                 # Pay premium
-                sim_mfg.cash -= structure["annual_premium"]
+                sim_mfg.cash -= to_decimal(structure["annual_premium"])
                 total_premiums += structure["annual_premium"]
 
                 # Generate and process losses
@@ -706,7 +707,7 @@ class TestInsuranceStack:
 
                 # Calculate and pay premium
                 annual_premium = sum(layer.limit * layer.rate for layer in policy.layers)
-                manufacturer.cash -= annual_premium
+                manufacturer.cash -= to_decimal(annual_premium)
 
                 # Generate and process losses
                 losses, _ = loss_gen.generate_losses(duration=1, revenue=10_000_000)

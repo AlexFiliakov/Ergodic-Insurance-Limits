@@ -551,15 +551,15 @@ def assert_financial_consistency(manufacturer: WidgetManufacturer) -> None:
     """
     # Check the fundamental accounting equation: Assets = Liabilities + Equity
     assert np.isclose(
-        manufacturer.total_assets,
-        manufacturer.total_liabilities + manufacturer.equity,
+        float(manufacturer.total_assets),
+        float(manufacturer.total_liabilities + manufacturer.equity),
         rtol=1e-10,
     ), "Balance sheet equation violated (Assets != Liabilities + Equity)"
 
     # Non-negative constraints
-    assert manufacturer.total_assets >= 0, "Negative assets"
+    assert float(manufacturer.total_assets) >= 0, "Negative assets"
     assert (
-        manufacturer.equity >= -1e-10
+        float(manufacturer.equity) >= -1e-10
     ), "Significantly negative equity"  # Allow small numerical errors
 
 

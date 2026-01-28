@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.financial_statements import FinancialStatementGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
@@ -182,7 +183,10 @@ class TestBalanceSheetClassification:
 
         # Check initial recording
         assert manufacturer.prepaid_insurance == annual_premium
-        assert manufacturer.cash < manufacturer.config.initial_assets - manufacturer.gross_ppe
+        assert (
+            manufacturer.cash
+            < to_decimal(manufacturer.config.initial_assets) - manufacturer.gross_ppe
+        )
 
         # Amortize over several months
         total_amortized = 0

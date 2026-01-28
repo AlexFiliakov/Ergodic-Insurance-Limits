@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from .config import ManufacturerConfig
+from .decimal_utils import to_decimal
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
@@ -78,37 +79,45 @@ def run_chunk_standalone(
             initial_revenue = (
                 manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
             )
-            revenue_multiplier = revenue / initial_revenue if initial_revenue > 0 else 1.0
-            annual_premium = insurance_program.calculate_annual_premium() * revenue_multiplier
+            # Convert revenue to float to avoid Decimal/float mismatch
+            revenue_multiplier = float(revenue) / initial_revenue if initial_revenue > 0 else 1.0
+            annual_premium = (
+                float(insurance_program.calculate_annual_premium()) * revenue_multiplier
+            )
 
             # Set the period insurance premium for accounting purposes
             # The premium will be deducted from operating income in calculate_operating_income
             # Do NOT deduct from cash here to avoid double-counting
             if annual_premium > 0:
-                sim_manufacturer.period_insurance_premiums = annual_premium
+                sim_manufacturer.period_insurance_premiums = to_decimal(annual_premium)
 
             # Use ManufacturingLossGenerator to generate losses
+            # Convert revenue to float for loss generator compatibility
             if hasattr(loss_generator, "generate_losses"):
-                year_losses, _ = loss_generator.generate_losses(duration=1.0, revenue=revenue)
+                year_losses, _ = loss_generator.generate_losses(
+                    duration=1.0, revenue=float(revenue)
+                )
             else:
                 raise AttributeError(
                     f"Loss generator {type(loss_generator).__name__} has no generate_losses method"
                 )
 
-            total_year_loss = sum(loss.amount for loss in year_losses)
+            # Convert to float in case loss amounts are Decimal
+            total_year_loss = float(sum(loss.amount for loss in year_losses))
             sim_annual_losses[year] = total_year_loss
 
             # Apply insurance
             if total_year_loss > 0:
                 claim_result = insurance_program.process_claim(total_year_loss)
-                recovery = claim_result["insurance_recovery"]
+                # Convert to float in case insurance values are Decimal
+                recovery = float(claim_result["insurance_recovery"])
                 # Calculate retained loss as company's payment (deductible + uncovered)
-                retained = claim_result["deductible_paid"]
+                retained = float(claim_result["deductible_paid"])
 
                 # Record the insurance loss for proper accounting
                 # The loss will be deducted from operating income in calculate_operating_income
                 # Use += in case there are multiple losses in a year
-                sim_manufacturer.period_insurance_losses += retained
+                sim_manufacturer.period_insurance_losses += to_decimal(retained)
             else:
                 recovery = 0.0
                 retained = 0.0
@@ -129,7 +138,8 @@ def run_chunk_standalone(
                             ruin_at_year[eval_year] = True
                 break
 
-        final_assets[i] = sim_manufacturer.total_assets
+        # Convert to float in case total_assets is Decimal
+        final_assets[i] = float(sim_manufacturer.total_assets)
         annual_losses[i] = sim_annual_losses
         insurance_recoveries[i] = sim_insurance_recoveries
         retained_losses[i] = sim_retained_losses

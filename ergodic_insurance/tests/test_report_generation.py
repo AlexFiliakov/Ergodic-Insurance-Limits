@@ -370,6 +370,7 @@ class TestReportBuilder:
 
     def test_save_html(self):
         """Test saving report as HTML."""
+        pytest.importorskip("markdown2", reason="markdown2 not installed")
         with tempfile.TemporaryDirectory() as tmpdir:
             config = ReportConfig(
                 metadata=ReportMetadata(title="Test Report"),
@@ -597,6 +598,7 @@ class TestIntegration:
 
     def test_end_to_end_executive_report(self):
         """Test complete executive report generation."""
+        pytest.importorskip("markdown2", reason="markdown2 not installed")
         # Create sample data
         np.random.seed(42)
         results = {
