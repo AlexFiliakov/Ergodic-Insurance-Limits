@@ -358,6 +358,36 @@ class Ledger:
         self.entries: List[LedgerEntry] = []
         self.chart_of_accounts: Dict[str, AccountType] = _CHART_OF_ACCOUNTS_BY_STRING.copy()
         self._strict_validation = strict_validation
+        # Running balance cache for O(1) current balance queries (Issue #259)
+        self._balances: Dict[str, Decimal] = {}
+
+    def _update_balance_cache(self, entry: LedgerEntry) -> None:
+        """Update running balance cache after recording an entry.
+
+        This maintains O(1) balance lookups for current balances (Issue #259).
+
+        Args:
+            entry: The LedgerEntry that was just recorded
+        """
+        account = entry.account
+        account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
+
+        if account not in self._balances:
+            self._balances[account] = ZERO
+
+        # Apply entry based on account type and entry type
+        if account_type in (AccountType.ASSET, AccountType.EXPENSE):
+            # Debit-normal accounts: debit increases, credit decreases
+            if entry.entry_type == EntryType.DEBIT:
+                self._balances[account] += entry.amount
+            else:
+                self._balances[account] -= entry.amount
+        else:
+            # Credit-normal accounts: credit increases, debit decreases
+            if entry.entry_type == EntryType.CREDIT:
+                self._balances[account] += entry.amount
+            else:
+                self._balances[account] -= entry.amount
 
     def record(self, entry: LedgerEntry) -> None:
         """Record a single ledger entry.
@@ -392,6 +422,7 @@ class Ledger:
                 self.chart_of_accounts[entry.account] = AccountType.ASSET
 
         self.entries.append(entry)
+        self._update_balance_cache(entry)
 
     def record_double_entry(
         self,
@@ -530,7 +561,9 @@ class Ledger:
 
         Args:
             account: Name of the account (AccountName enum recommended, string accepted)
-            as_of_date: Optional period to calculate balance as of (inclusive)
+            as_of_date: Optional period to calculate balance as of (inclusive).
+                When None, returns from cache in O(1). When specified, iterates
+                through entries (O(N) for historical queries).
 
         Returns:
             Current balance of the account as Decimal, properly signed based on
@@ -548,13 +581,19 @@ class Ledger:
                 cash = ledger.get_balance("cash")
         """
         account_str = _resolve_account_name(account)
+
+        # O(1) lookup for current balance (Issue #259)
+        if as_of_date is None:
+            return self._balances.get(account_str, ZERO)
+
+        # Historical query: iterate through entries (less frequent use case)
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
         total = ZERO
         for entry in self.entries:
             if entry.account != account_str:
                 continue
-            if as_of_date is not None and entry.date > as_of_date:
+            if entry.date > as_of_date:
                 continue
 
             # Calculate based on normal balance
@@ -862,8 +901,10 @@ class Ledger:
         """Clear all entries from the ledger.
 
         Useful for resetting the ledger during simulation reset.
+        Also resets the balance cache (Issue #259).
         """
         self.entries.clear()
+        self._balances.clear()
 
     def __len__(self) -> int:
         """Return the number of entries in the ledger."""
