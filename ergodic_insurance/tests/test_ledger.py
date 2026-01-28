@@ -9,6 +9,8 @@ Tests cover:
 - Ledger verification
 """
 
+from decimal import Decimal
+
 import pytest
 
 from ergodic_insurance.ledger import (
@@ -30,7 +32,7 @@ class TestLedgerEntry:
         entry = LedgerEntry(
             date=5,
             account="cash",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             entry_type=EntryType.DEBIT,
             transaction_type=TransactionType.COLLECTION,
             description="Customer payment",
@@ -38,7 +40,7 @@ class TestLedgerEntry:
 
         assert entry.date == 5
         assert entry.account == "cash"
-        assert entry.amount == 1000.0
+        assert entry.amount == Decimal("1000.0")
         assert entry.entry_type == EntryType.DEBIT
         assert entry.description == "Customer payment"
         assert entry.reference_id is not None
@@ -48,7 +50,7 @@ class TestLedgerEntry:
         entry = LedgerEntry(
             date=5,
             account="revenue",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             entry_type=EntryType.CREDIT,
             transaction_type=TransactionType.REVENUE,
             description="Sales revenue",
@@ -62,24 +64,24 @@ class TestLedgerEntry:
         entry = LedgerEntry(
             date=5,
             account="cash",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             entry_type=EntryType.DEBIT,
             transaction_type=TransactionType.COLLECTION,
         )
 
-        assert entry.signed_amount == 1000.0
+        assert entry.signed_amount == Decimal("1000.0")
 
     def test_signed_amount_credit(self):
         """Test signed amount for credit entry."""
         entry = LedgerEntry(
             date=5,
             account="revenue",
-            amount=1000.0,
+            amount=Decimal("1000.0"),
             entry_type=EntryType.CREDIT,
             transaction_type=TransactionType.REVENUE,
         )
 
-        assert entry.signed_amount == -1000.0
+        assert entry.signed_amount == Decimal("-1000.0")
 
     def test_negative_amount_raises(self):
         """Test that negative amounts raise an error."""
@@ -87,7 +89,7 @@ class TestLedgerEntry:
             LedgerEntry(
                 date=5,
                 account="cash",
-                amount=-1000.0,
+                amount=Decimal("-1000.0"),
                 entry_type=EntryType.DEBIT,
                 transaction_type=TransactionType.COLLECTION,
             )
@@ -158,7 +160,7 @@ class TestLedger:
         entry = LedgerEntry(
             date=1,
             account="cash",
-            amount=1000,
+            amount=Decimal("1000"),
             entry_type=EntryType.DEBIT,
             transaction_type=TransactionType.COLLECTION,
         )
@@ -380,7 +382,7 @@ class TestLedger:
         entry = LedgerEntry(
             date=1,
             account="cash",
-            amount=1000,
+            amount=Decimal("1000"),
             entry_type=EntryType.DEBIT,
             transaction_type=TransactionType.COLLECTION,
         )
@@ -388,7 +390,7 @@ class TestLedger:
 
         is_balanced, diff = ledger.verify_balance()
         assert is_balanced is False
-        assert diff == 1000
+        assert diff == Decimal("1000")
 
     def test_get_trial_balance(self, ledger_with_entries):
         """Test trial balance generation."""
@@ -681,3 +683,239 @@ class TestCashFlowIntegration:
         is_balanced, diff = full_year_ledger.verify_balance()
         assert is_balanced is True
         assert abs(diff) < 0.01
+
+
+class TestBalanceCache:
+    """Tests for the balance cache optimization (Issue #259)."""
+
+    @pytest.fixture
+    def ledger(self):
+        """Create empty ledger for testing."""
+        return Ledger()
+
+    def test_cache_initialized_empty(self, ledger):
+        """Test that cache starts empty."""
+        assert ledger._balances == {}
+
+    def test_cache_matches_iteration_for_assets(self, ledger):
+        """Test cache matches iteration-based calculation for asset accounts."""
+        # Record multiple transactions
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=10000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        ledger.record_double_entry(
+            date=1,
+            debit_account="operating_expenses",
+            credit_account="cash",
+            amount=3000,
+            transaction_type=TransactionType.PAYMENT,
+        )
+
+        # Get cached balance (as_of_date=None)
+        cached_balance = ledger.get_balance("cash")
+
+        # Get iteration-based balance (as_of_date specified)
+        iteration_balance = ledger.get_balance("cash", as_of_date=999)
+
+        assert cached_balance == iteration_balance == 7000
+
+    def test_cache_matches_iteration_for_liabilities(self, ledger):
+        """Test cache matches iteration-based calculation for liability accounts."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account="inventory",
+            credit_account="accounts_payable",
+            amount=5000,
+            transaction_type=TransactionType.INVENTORY_PURCHASE,
+        )
+        ledger.record_double_entry(
+            date=1,
+            debit_account="accounts_payable",
+            credit_account="cash",
+            amount=2000,
+            transaction_type=TransactionType.PAYMENT,
+        )
+
+        cached_balance = ledger.get_balance("accounts_payable")
+        iteration_balance = ledger.get_balance("accounts_payable", as_of_date=999)
+
+        assert cached_balance == iteration_balance == 3000
+
+    def test_cache_matches_iteration_for_revenue(self, ledger):
+        """Test cache matches iteration-based calculation for revenue accounts."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account="accounts_receivable",
+            credit_account="revenue",
+            amount=8000,
+            transaction_type=TransactionType.REVENUE,
+        )
+
+        cached_balance = ledger.get_balance("revenue")
+        iteration_balance = ledger.get_balance("revenue", as_of_date=999)
+
+        assert cached_balance == iteration_balance == 8000
+
+    def test_cache_matches_iteration_for_expenses(self, ledger):
+        """Test cache matches iteration-based calculation for expense accounts."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account="operating_expenses",
+            credit_account="cash",
+            amount=4000,
+            transaction_type=TransactionType.PAYMENT,
+        )
+
+        cached_balance = ledger.get_balance("operating_expenses")
+        iteration_balance = ledger.get_balance("operating_expenses", as_of_date=999)
+
+        assert cached_balance == iteration_balance == 4000
+
+    def test_cache_matches_iteration_for_equity(self, ledger):
+        """Test cache matches iteration-based calculation for equity accounts."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="retained_earnings",
+            amount=10000,
+            transaction_type=TransactionType.EQUITY_ISSUANCE,
+        )
+
+        cached_balance = ledger.get_balance("retained_earnings")
+        iteration_balance = ledger.get_balance("retained_earnings", as_of_date=999)
+
+        assert cached_balance == iteration_balance == 10000
+
+    def test_cache_reset_on_clear(self, ledger):
+        """Test that cache is properly reset when ledger is cleared."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=5000,
+            transaction_type=TransactionType.REVENUE,
+        )
+
+        assert ledger.get_balance("cash") == 5000
+        assert len(ledger._balances) > 0
+
+        ledger.clear()
+
+        assert ledger.get_balance("cash") == 0
+        assert ledger._balances == {}
+
+    def test_cache_with_record_double_entry(self, ledger):
+        """Test cache consistency through multiple double-entry transactions."""
+        # Series of transactions
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="retained_earnings",
+            amount=100000,
+            transaction_type=TransactionType.EQUITY_ISSUANCE,
+        )
+        ledger.record_double_entry(
+            date=1,
+            debit_account="accounts_receivable",
+            credit_account="revenue",
+            amount=50000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="accounts_receivable",
+            amount=40000,
+            transaction_type=TransactionType.COLLECTION,
+        )
+        ledger.record_double_entry(
+            date=1,
+            debit_account="operating_expenses",
+            credit_account="cash",
+            amount=20000,
+            transaction_type=TransactionType.PAYMENT,
+        )
+
+        # Verify all accounts match cache vs iteration
+        accounts = [
+            "cash",
+            "retained_earnings",
+            "accounts_receivable",
+            "revenue",
+            "operating_expenses",
+        ]
+        for account in accounts:
+            cached = ledger.get_balance(account)
+            iteration = ledger.get_balance(account, as_of_date=999)
+            assert (
+                cached == iteration
+            ), f"Mismatch for {account}: cache={cached}, iteration={iteration}"
+
+        # Verify expected values
+        assert ledger.get_balance("cash") == 120000  # 100k + 40k - 20k
+        assert ledger.get_balance("accounts_receivable") == 10000  # 50k - 40k
+        assert ledger.get_balance("revenue") == 50000
+        assert ledger.get_balance("operating_expenses") == 20000
+        assert ledger.get_balance("retained_earnings") == 100000
+
+    def test_cache_with_single_record(self, ledger):
+        """Test cache updates correctly with single entry record."""
+        entry = LedgerEntry(
+            date=1,
+            account="cash",
+            amount=Decimal("1000"),
+            entry_type=EntryType.DEBIT,
+            transaction_type=TransactionType.COLLECTION,
+        )
+        ledger.record(entry)
+
+        assert ledger.get_balance("cash") == Decimal("1000")
+        assert ledger._balances.get("cash") == Decimal("1000")
+
+    def test_historical_query_still_works(self, ledger):
+        """Test that as_of_date queries work correctly for historical balances."""
+        # Year 1 transaction
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=10000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        # Year 2 transaction
+        ledger.record_double_entry(
+            date=2,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=5000,
+            transaction_type=TransactionType.REVENUE,
+        )
+
+        # Current balance should be 15000
+        assert ledger.get_balance("cash") == 15000
+
+        # Historical balance as of year 1 should be 10000
+        assert ledger.get_balance("cash", as_of_date=1) == 10000
+
+        # Historical balance as of year 0 should be 0
+        assert ledger.get_balance("cash", as_of_date=0) == 0
+
+    def test_cache_with_account_name_enum(self, ledger):
+        """Test cache works correctly with AccountName enum."""
+        ledger.record_double_entry(
+            date=1,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.REVENUE,
+            amount=7500,
+            transaction_type=TransactionType.REVENUE,
+        )
+
+        # Both enum and string should return same value
+        assert ledger.get_balance(AccountName.CASH) == 7500
+        assert ledger.get_balance("cash") == 7500
+        assert ledger.get_balance(AccountName.REVENUE) == 7500
+        assert ledger.get_balance("revenue") == 7500
