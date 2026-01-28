@@ -4,6 +4,7 @@ import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decimal_utils import to_decimal
+from ergodic_insurance.ledger import AccountName, TransactionType
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -126,14 +127,16 @@ class TestProcessInsuranceClaim:
 
     def test_claim_exceeds_assets(self, manufacturer):
         """Test claim when company doesn't have enough assets (limited liability)."""
-        # Set all assets to achieve low total assets of 50_000
-        manufacturer.cash = 50_000
-        manufacturer.accounts_receivable = 0
-        manufacturer.inventory = 0
-        manufacturer.prepaid_insurance = 0
-        manufacturer.gross_ppe = 0
-        manufacturer.accumulated_depreciation = 0
-        manufacturer.restricted_assets = 0
+        # Set all assets to achieve low total assets of 50_000 via ledger
+        manufacturer._write_off_all_assets("Write off assets for test")
+        manufacturer.ledger.record_double_entry(
+            date=0,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.RETAINED_EARNINGS,
+            amount=to_decimal(50_000),
+            transaction_type=TransactionType.ADJUSTMENT,
+            description="Set cash to 50K for limited liability test",
+        )
 
         claim_amount = 200_000
         deductible = 100_000
@@ -197,14 +200,16 @@ class TestProcessInsuranceClaim:
 
     def test_uninsured_claim_immediate_payment_exceeds_assets(self, manufacturer):
         """Test immediate payment when claim exceeds available assets."""
-        # Set all assets to achieve total assets of 100_000
-        manufacturer.cash = 100_000
-        manufacturer.accounts_receivable = 0
-        manufacturer.inventory = 0
-        manufacturer.prepaid_insurance = 0
-        manufacturer.gross_ppe = 0
-        manufacturer.accumulated_depreciation = 0
-        manufacturer.restricted_assets = 0
+        # Set all assets to achieve total assets of 100_000 via ledger
+        manufacturer._write_off_all_assets("Write off assets for test")
+        manufacturer.ledger.record_double_entry(
+            date=0,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.RETAINED_EARNINGS,
+            amount=to_decimal(100_000),
+            transaction_type=TransactionType.ADJUSTMENT,
+            description="Set cash to 100K for limited liability test",
+        )
         claim_amount = 500_000
 
         processed_amount = manufacturer.process_uninsured_claim(
@@ -483,14 +488,8 @@ class TestStepMethod:
         # Force insolvency by creating negative equity
         # First create a large liability, then reduce assets
         manufacturer.process_uninsured_claim(20_000_000, immediate_payment=False)
-        # Now reduce assets to near zero
-        manufacturer.cash = 0
-        manufacturer.accounts_receivable = 0
-        manufacturer.inventory = 0
-        manufacturer.prepaid_insurance = 0
-        manufacturer.gross_ppe = 0
-        manufacturer.accumulated_depreciation = 0
-        manufacturer.restricted_assets = 0
+        # Now reduce assets to near zero via ledger
+        manufacturer._write_off_all_assets("Write off assets for insolvency test")
 
         manufacturer.step()
 
@@ -504,14 +503,8 @@ class TestStepMethod:
         """Test monthly steps when company is insolvent."""
         # Force insolvency by creating negative equity
         manufacturer.process_uninsured_claim(20_000_000, immediate_payment=False)
-        # Reduce assets to near zero
-        manufacturer.cash = 0
-        manufacturer.accounts_receivable = 0
-        manufacturer.inventory = 0
-        manufacturer.prepaid_insurance = 0
-        manufacturer.gross_ppe = 0
-        manufacturer.accumulated_depreciation = 0
-        manufacturer.restricted_assets = 0
+        # Reduce assets to near zero via ledger
+        manufacturer._write_off_all_assets("Write off assets for insolvency test")
         manufacturer.is_ruined = True
         manufacturer.current_month = 10
         manufacturer.current_year = 5

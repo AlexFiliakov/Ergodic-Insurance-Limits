@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.exposure_base import (
     AssetExposure,
     CompositeExposure,
@@ -146,22 +147,15 @@ class TestAssetExposure:
     def test_zero_base_assets(self):
         """Test handling of zero base assets."""
         config = ManufacturerConfig(
-            initial_assets=1,  # Will manually set to 0 after
+            initial_assets=1,  # Will write off to 0 after
             asset_turnover_ratio=1.0,
             base_operating_margin=0.12,
             tax_rate=0.25,
             retention_ratio=0.7,
         )
         manufacturer = WidgetManufacturer(config)
-        # Manually set to zero for testing edge case
-        # Set all asset components to zero
-        manufacturer.cash = 0
-        manufacturer.accounts_receivable = 0
-        manufacturer.inventory = 0
-        manufacturer.prepaid_insurance = 0
-        manufacturer.gross_ppe = 0
-        manufacturer.accumulated_depreciation = 0
-        manufacturer.restricted_assets = 0
+        # Write off all assets to zero via ledger (single source of truth)
+        manufacturer._write_off_all_assets("Zero out assets for test")
         manufacturer._initial_assets = 0
         exposure = AssetExposure(state_provider=manufacturer)
 
@@ -190,10 +184,13 @@ class TestEquityExposure:
         assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
         # WHEN: Profitable operations increase equity
-        # To set equity to 25M, adjust cash (equity = assets - liabilities)
+        # To set equity to 25M, adjust cash via ledger (equity = assets - liabilities)
         current_equity = manufacturer.equity
-        equity_adjustment = 25_000_000 - current_equity
-        manufacturer.cash += equity_adjustment
+        equity_adjustment = to_decimal(25_000_000) - current_equity
+        manufacturer._record_cash_adjustment(
+            amount=equity_adjustment,
+            description="Increase equity via cash for test scenario",
+        )
 
         # THEN: Frequency scales with cube root of equity ratio
         assert float(exposure.get_exposure(1.0)) == 25_000_000
@@ -216,7 +213,11 @@ class TestEquityExposure:
         # WHEN: Claims cause zero equity (bankruptcy with limited liability)
         # LIMITED LIABILITY: Equity is floored at 0, not negative
         current_equity = manufacturer.equity
-        manufacturer.cash -= current_equity  # Set equity to exactly 0
+        # Reduce cash by equity amount via ledger to set equity to 0
+        manufacturer._record_cash_adjustment(
+            amount=-current_equity,
+            description="Reduce cash to zero equity for bankruptcy test",
+        )
 
         # THEN: Frequency multiplier should be 0 (no exposure when bankrupt)
         # Use approx for floating point comparison (may have tiny rounding errors)
@@ -236,10 +237,13 @@ class TestEquityExposure:
         exposure = EquityExposure(state_provider=manufacturer)
 
         # Double the equity
-        # To set equity to 40M, adjust cash
+        # To set equity to 40M, adjust cash via ledger
         current_equity = manufacturer.equity
-        equity_adjustment = 40_000_000 - current_equity
-        manufacturer.cash += equity_adjustment
+        equity_adjustment = to_decimal(40_000_000) - current_equity
+        manufacturer._record_cash_adjustment(
+            amount=equity_adjustment,
+            description="Double equity via cash for test scenario",
+        )
 
         # Multiplier should be 2^(1/3) ≈ 1.26, not 2.0
         expected = 2.0
