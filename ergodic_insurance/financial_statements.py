@@ -1167,7 +1167,7 @@ class FinancialStatementGenerator:
 
         # TOTAL LIABILITIES + EQUITY should equal TOTAL ASSETS
         # Calculate the actual sum of liabilities and equity
-        total_liabilities_and_equity = total_liabilities + equity
+        total_liabilities_and_equity = total_liabilities + to_decimal(equity)
 
         # Add the total liabilities + equity line
         data.append(
