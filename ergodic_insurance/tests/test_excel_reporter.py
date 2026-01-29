@@ -273,11 +273,9 @@ class TestExcelReporter:
         assert output_path.exists()
         assert output_path.is_dir()
 
-    @pytest.mark.skipif(not XLSXWRITER_AVAILABLE, reason="XlsxWriter not available")
     def test_categorize_metric(self):
         """Test metric categorization for pivot tables."""
-        config = ExcelReportConfig(engine="xlsxwriter")
-        reporter = ExcelReporter(config)
+        reporter = ExcelReporter()
 
         # Test various metric categorizations
         assert reporter._categorize_metric("revenue") == "Income"
