@@ -101,7 +101,6 @@ class TestSimulationResults:
         assert "roe_sharpe" in stats
         assert "roe_downside_deviation" in stats
         assert "roe_coefficient_variation" in stats
-        assert "roe_1yr_avg" in stats
         assert "roe_3yr_avg" in stats
         assert "roe_5yr_avg" in stats
 

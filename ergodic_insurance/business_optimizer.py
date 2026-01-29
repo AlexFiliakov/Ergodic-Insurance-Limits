@@ -21,7 +21,7 @@ import pandas as pd
 from scipy import optimize
 from scipy.stats import norm
 
-from .config import GrowthConfig, ManufacturerConfig
+from .config import BusinessOptimizerConfig, GrowthConfig, ManufacturerConfig
 from .decision_engine import InsuranceDecisionEngine, OptimizationConstraints
 from .ergodic_analyzer import ErgodicAnalyzer
 from .insurance_program import InsuranceProgram
@@ -176,6 +176,7 @@ class BusinessOptimizer:
         decision_engine: Optional[InsuranceDecisionEngine] = None,
         ergodic_analyzer: Optional[ErgodicAnalyzer] = None,
         loss_distribution: Optional[LossDistribution] = None,
+        optimizer_config: Optional[BusinessOptimizerConfig] = None,
     ):
         """Initialize business optimizer.
 
@@ -184,8 +185,11 @@ class BusinessOptimizer:
             decision_engine: Insurance decision engine (optional)
             ergodic_analyzer: Ergodic analysis tools (optional)
             loss_distribution: Loss distribution model (optional)
+            optimizer_config: Configuration for optimizer heuristic parameters (optional).
+                If None, uses default BusinessOptimizerConfig values.
         """
         self.manufacturer = manufacturer
+        self.optimizer_config = optimizer_config or BusinessOptimizerConfig()
 
         # Create default loss distribution if not provided
         if loss_distribution is None:
@@ -739,20 +743,23 @@ class BusinessOptimizer:
         # Boundary: float for scipy.optimize
         equity = float(self.manufacturer.equity)
         total_assets = float(self.manufacturer.total_assets)
+        annual_premium = coverage_limit * premium_rate
 
         for _ in range(min(n_simulations, 100)):  # Limit for performance
             # Simple ROE simulation
-            base_roe = 0.15  # Base 15% ROE
+            base_roe = self.optimizer_config.base_roe
 
             # Insurance impact
-            premium_cost = (coverage_limit * premium_rate) / equity
-            protection_benefit = 0.05 * (coverage_limit / total_assets)
+            premium_cost = annual_premium / equity
+            protection_benefit = self.optimizer_config.protection_benefit_factor * (
+                coverage_limit / total_assets
+            )
 
             # Adjust ROE
             adjusted_roe = base_roe - premium_cost + protection_benefit
 
             # Add randomness
-            adjusted_roe *= rng.normal(1.0, 0.1)
+            adjusted_roe *= rng.normal(1.0, self.optimizer_config.roe_noise_std)
             roe_values.append(adjusted_roe)
 
         return float(np.mean(roe_values))
@@ -764,20 +771,26 @@ class BusinessOptimizer:
         # Convert Decimal properties to float for calculations
         total_assets = float(self.manufacturer.total_assets)
         revenue = float(self.manufacturer.calculate_revenue())
+        annual_premium = coverage_limit * premium_rate
 
         # Simple bankruptcy risk model
-        base_risk = 0.02  # 2% base risk
+        base_risk = self.optimizer_config.base_bankruptcy_risk
 
         # Insurance reduces risk
         coverage_ratio = coverage_limit / total_assets
-        risk_reduction = min(coverage_ratio * 0.015, 0.015)  # Max 1.5% reduction
+        risk_reduction = min(
+            coverage_ratio * self.optimizer_config.max_risk_reduction,
+            self.optimizer_config.max_risk_reduction,
+        )
 
         # Premium cost increases risk slightly
-        premium_burden = (coverage_limit * premium_rate) / revenue
-        risk_increase = premium_burden * 0.5
+        premium_burden = annual_premium / revenue
+        risk_increase = premium_burden * self.optimizer_config.premium_burden_risk_factor
 
         # Time horizon effect
-        time_factor = 1 - np.exp(-time_horizon / 20)  # Risk increases with time
+        time_factor = 1 - np.exp(
+            -time_horizon / self.optimizer_config.time_risk_constant
+        )  # Risk increases with time
 
         bankruptcy_risk = (base_risk - risk_reduction + risk_increase) * time_factor
         return float(max(0, min(1, bankruptcy_risk)))
@@ -794,25 +807,26 @@ class BusinessOptimizer:
         # Convert Decimal properties to float for calculations
         total_assets = float(self.manufacturer.total_assets)
         revenue = float(self.manufacturer.calculate_revenue())
+        annual_premium = coverage_limit * premium_rate
 
         # Base growth rate
-        base_growth = 0.10  # 10% base growth
+        base_growth = self.optimizer_config.base_growth_rate
 
         # Insurance enables more aggressive growth
         coverage_ratio = coverage_limit / total_assets
-        growth_boost = coverage_ratio * 0.03  # Up to 3% boost
+        growth_boost = coverage_ratio * self.optimizer_config.growth_boost_factor
 
         # Premium cost reduces growth
-        premium_drag = (coverage_limit * premium_rate) / revenue * 0.5
+        premium_drag = annual_premium / revenue * self.optimizer_config.premium_drag_factor
 
         # Calculate adjusted growth
         adjusted_growth = base_growth + growth_boost - premium_drag
 
         # Adjust for different metrics
         if metric == "assets":
-            adjusted_growth *= 0.8  # Assets grow slower
+            adjusted_growth *= self.optimizer_config.asset_growth_factor
         elif metric == "equity":
-            adjusted_growth *= 1.1  # Equity can grow faster with good ROE
+            adjusted_growth *= self.optimizer_config.equity_growth_factor
 
         return float(max(0, adjusted_growth))
 
@@ -822,15 +836,13 @@ class BusinessOptimizer:
         """Calculate capital efficiency ratio."""
         # Convert Decimal properties to float for calculations
         total_assets = float(self.manufacturer.total_assets)
-
-        # Capital tied up in insurance
-        insurance_capital = coverage_limit * premium_rate
+        annual_premium = coverage_limit * premium_rate
 
         # Capital freed by risk transfer
-        risk_transfer_benefit = coverage_limit * 0.05  # 5% of coverage freed up
+        risk_transfer_benefit = coverage_limit * self.optimizer_config.risk_transfer_benefit_rate
 
         # Net capital efficiency
-        net_benefit = risk_transfer_benefit - insurance_capital
+        net_benefit = risk_transfer_benefit - annual_premium
         efficiency_ratio = 1 + (net_benefit / total_assets)
 
         return float(max(0, efficiency_ratio))
@@ -842,9 +854,9 @@ class BusinessOptimizer:
         # 2. Stability (better credit terms)
         # 3. Growth enablement (take more risks)
 
-        risk_reduction_value = 0.03  # 3% from risk reduction
-        stability_value = 0.02  # 2% from stability
-        growth_enablement = 0.03  # 3% from growth enablement
+        risk_reduction_value = self.optimizer_config.risk_reduction_value
+        stability_value = self.optimizer_config.stability_value
+        growth_enablement = self.optimizer_config.growth_enablement_value
 
         return risk_reduction_value + stability_value + growth_enablement
 
@@ -862,19 +874,18 @@ class BusinessOptimizer:
         ensemble_growth = self._estimate_growth_rate(
             coverage_limit, deductible, premium_rate, time_horizon
         )
-        volatility = 0.20  # Assumed volatility
-
-        # Ergodic correction for multiplicative process
-        ergodic_growth = ensemble_growth - 0.5 * volatility**2
+        volatility = self.optimizer_config.assumed_volatility
 
         # Insurance reduces volatility
         # Convert Decimal to float for calculations
         total_assets = float(self.manufacturer.total_assets)
         coverage_ratio = coverage_limit / total_assets
-        volatility_reduction = coverage_ratio * 0.05
-        adjusted_volatility = max(0.05, volatility - volatility_reduction)
+        volatility_reduction = coverage_ratio * self.optimizer_config.volatility_reduction_factor
+        adjusted_volatility = max(
+            self.optimizer_config.min_volatility, volatility - volatility_reduction
+        )
 
-        # Recalculate with reduced volatility
+        # Ergodic correction for multiplicative process with reduced volatility
         ergodic_growth = ensemble_growth - 0.5 * adjusted_volatility**2
 
         return float(ergodic_growth)

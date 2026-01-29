@@ -14,6 +14,7 @@ import numpy as np
 from scipy import optimize
 from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
 
+from .config import DEFAULT_RISK_FREE_RATE, DecisionEngineConfig
 from .config_loader import ConfigLoader
 from .ergodic_analyzer import ErgodicAnalyzer
 from .insurance_program import EnhancedInsuranceLayer as Layer
@@ -28,6 +29,7 @@ from .optimization import (
     TrustRegionOptimizer,
     create_optimizer,
 )
+from .risk_metrics import RiskMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +182,7 @@ class InsuranceDecisionEngine:
         loss_distribution: LossDistribution,
         pricing_scenario: str = "baseline",
         config_loader: Optional[ConfigLoader] = None,
+        engine_config: Optional[DecisionEngineConfig] = None,
     ):
         """Initialize decision engine with company context.
 
@@ -188,11 +191,13 @@ class InsuranceDecisionEngine:
             loss_distribution: Loss model for the company
             pricing_scenario: Market pricing scenario to use
             config_loader: Configuration loader (creates default if None)
+            engine_config: Decision engine calibration parameters (creates default if None)
         """
         self.manufacturer = manufacturer
         self.loss_distribution = loss_distribution
         self.pricing_scenario = pricing_scenario
         self.config_loader = config_loader or ConfigLoader()
+        self.engine_config = engine_config or DecisionEngineConfig()
 
         # Load pricing scenarios
         self.pricing_config = self.config_loader.load_pricing_scenarios()
@@ -788,7 +793,7 @@ class InsuranceDecisionEngine:
     def _estimate_growth_rate(self, retained_limit: float, layer_limits: List[float]) -> float:
         """Estimate ergodic growth rate for given insurance structure."""
         # Simplified estimation - in practice would run full simulation
-        base_growth = 0.08  # 8% base growth
+        base_growth = self.engine_config.base_growth_rate
 
         # Insurance benefit increases growth by reducing volatility drag
         coverage = sum(layer_limits)
@@ -797,15 +802,23 @@ class InsuranceDecisionEngine:
         )  # Boundary: float for scipy.optimize
 
         # Estimate volatility reduction
-        volatility_reduction = min(coverage_ratio * 0.3, 0.15)  # Max 15% reduction
+        volatility_reduction = min(
+            coverage_ratio * self.engine_config.volatility_reduction_factor,
+            self.engine_config.max_volatility_reduction,
+        )
 
         # Ergodic growth benefit
-        growth_benefit = volatility_reduction * 0.5  # Simplified
+        growth_benefit = volatility_reduction * self.engine_config.growth_benefit_factor
 
         return float(base_growth + growth_benefit)  # Boundary: float for scipy.optimize
 
     def _calculate_cvar(self, losses: np.ndarray, percentile: float) -> float:
         """Calculate Conditional Value at Risk (CVaR).
+
+        .. deprecated::
+            Use ``RiskMetrics(losses).tvar(confidence)`` instead for new code.
+            This method is retained only for backward compatibility and
+            will be removed in a future release.
 
         Args:
             losses: Array of loss values
@@ -821,7 +834,7 @@ class InsuranceDecisionEngine:
         tail_losses = losses[losses > threshold]
 
         if len(tail_losses) == 0:
-            return float(threshold)  # If no losses exceed threshold, return the threshold itself
+            return float(threshold)
 
         return float(np.mean(tail_losses))
 
@@ -996,6 +1009,13 @@ class InsuranceDecisionEngine:
         if cache_key in self._metrics_cache:
             return self._metrics_cache[cache_key]
 
+        # Compute equity ratio from actual manufacturer financials
+        equity_ratio = (
+            float(self.manufacturer.equity) / float(self.manufacturer.total_assets)
+            if float(self.manufacturer.total_assets) > 0
+            else 0.3
+        )
+
         # Run simulations to calculate metrics
         n_simulations = 1000
         time_horizon = 10  # years
@@ -1034,10 +1054,14 @@ class InsuranceDecisionEngine:
             rolling_stats_5yr = roe_analyzer.rolling_statistics(5) if len(roe_data) >= 5 else {}
 
             # Calculate component breakdown (simplified version)
-            base_operating_roe = 0.08 / 0.3  # Assuming 8% margin and 30% equity ratio
-            insurance_cost_impact = -decision.total_premium / (
-                float(self.manufacturer.total_assets) * 0.3
+            _base_margin = (
+                self.manufacturer.config.base_operating_margin
+                if hasattr(self.manufacturer, "config")
+                and hasattr(self.manufacturer.config, "base_operating_margin")
+                else getattr(self.manufacturer, "base_operating_margin", 0.08)
             )
+            base_operating_roe = _base_margin / equity_ratio
+            insurance_cost_impact = -decision.total_premium / (float(self.manufacturer.equity))
 
             time_weighted_roe = roe_analyzer.time_weighted_average()
             roe_volatility = volatility_metrics.get("standard_deviation", 0.0)
@@ -1050,17 +1074,23 @@ class InsuranceDecisionEngine:
             # Fallback to simple calculations
             time_weighted_roe = np.mean(with_insurance_results["roe"])
             roe_volatility = np.std(with_insurance_results["roe"])
-            roe_sharpe = (np.mean(with_insurance_results["roe"]) - 0.02) / max(
+            roe_sharpe = (np.mean(with_insurance_results["roe"]) - DEFAULT_RISK_FREE_RATE) / max(
                 roe_volatility, 0.001
             )
-            roe_downside_dev = roe_volatility * 0.7  # Rough approximation
+            roe_data_arr = np.array(with_insurance_results["roe"])
+            below_mean = roe_data_arr[roe_data_arr < np.mean(roe_data_arr)]
+            roe_downside_dev = float(np.std(below_mean)) if len(below_mean) > 0 else 0.0
             roe_1yr = np.mean(with_insurance_results["roe"])
             roe_3yr = np.mean(with_insurance_results["roe"])
             roe_5yr = np.mean(with_insurance_results["roe"])
-            base_operating_roe = 0.08 / 0.3
-            insurance_cost_impact = -decision.total_premium / (
-                float(self.manufacturer.total_assets) * 0.3
+            _base_margin = (
+                self.manufacturer.config.base_operating_margin
+                if hasattr(self.manufacturer, "config")
+                and hasattr(self.manufacturer.config, "base_operating_margin")
+                else getattr(self.manufacturer, "base_operating_margin", 0.08)
             )
+            base_operating_roe = _base_margin / equity_ratio
+            insurance_cost_impact = -decision.total_premium / (float(self.manufacturer.equity))
 
         # Calculate metrics
         metrics = DecisionMetrics(
@@ -1091,7 +1121,7 @@ class InsuranceDecisionEngine:
                 else 0.0
             ),
             conditional_value_at_risk=(
-                self._calculate_cvar(with_insurance_results["losses"], 95)
+                RiskMetrics(with_insurance_results["losses"]).tvar(0.95)
                 if len(with_insurance_results["losses"]) > 0
                 else 0.0
             ),
@@ -1106,7 +1136,13 @@ class InsuranceDecisionEngine:
             # ROE component breakdown
             operating_roe=base_operating_roe,
             insurance_impact_roe=insurance_cost_impact,
-            tax_effect_roe=-0.25 * np.mean(with_insurance_results["roe"]),  # 25% tax rate impact
+            tax_effect_roe=-(
+                self.manufacturer.config.tax_rate
+                if hasattr(self.manufacturer, "config")
+                and hasattr(self.manufacturer.config, "tax_rate")
+                else 0.25
+            )
+            * np.mean(with_insurance_results["roe"]),
         )
 
         # Calculate overall score
@@ -1121,6 +1157,11 @@ class InsuranceDecisionEngine:
         self, decision: InsuranceDecision, n_simulations: int, time_horizon: int
     ) -> Dict[str, np.ndarray]:
         """Run Monte Carlo simulation for given decision."""
+        equity_ratio = (
+            float(self.manufacturer.equity) / float(self.manufacturer.total_assets)
+            if float(self.manufacturer.total_assets) > 0
+            else 0.3
+        )
         rng = np.random.default_rng()
         results = {
             "growth_rates": np.zeros(n_simulations),
@@ -1139,7 +1180,7 @@ class InsuranceDecisionEngine:
         for i in range(n_simulations):
             # Initialize company state
             assets = float(self.manufacturer.total_assets)
-            equity = assets * 0.3  # Assume 30% equity ratio
+            equity = assets * equity_ratio
 
             bankrupt = False
             annual_returns = []
@@ -1195,7 +1236,7 @@ class InsuranceDecisionEngine:
                     break
 
                 # Update assets for next period
-                assets = equity / 0.3
+                assets = equity / equity_ratio
 
             # Store results
             results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
