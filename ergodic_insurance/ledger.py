@@ -112,7 +112,7 @@ class AccountName(Enum):
     GROSS_PPE = "gross_ppe"
     ACCUMULATED_DEPRECIATION = "accumulated_depreciation"
     RESTRICTED_CASH = "restricted_cash"
-    COLLATERAL = "collateral"
+    COLLATERAL = "collateral"  # Deprecated: tracked via RESTRICTED_CASH (Issue #302/#319)
 
     # Liabilities (credit normal balance)
     ACCOUNTS_PAYABLE = "accounts_payable"
@@ -289,7 +289,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.GROSS_PPE: AccountType.ASSET,
     AccountName.ACCUMULATED_DEPRECIATION: AccountType.ASSET,  # Contra-asset
     AccountName.RESTRICTED_CASH: AccountType.ASSET,
-    AccountName.COLLATERAL: AccountType.ASSET,
+    AccountName.COLLATERAL: AccountType.ASSET,  # Deprecated: tracked via RESTRICTED_CASH (#302/#319)
     # Liabilities (credit normal balance)
     AccountName.ACCOUNTS_PAYABLE: AccountType.LIABILITY,
     AccountName.ACCRUED_EXPENSES: AccountType.LIABILITY,
@@ -789,6 +789,7 @@ class Ledger:
             - cash_for_insurance: Premium payments
             - cash_for_taxes: Tax payments
             - cash_for_wages: Wage payments
+            - cash_for_interest: Interest payments
             - capital_expenditures: PP&E purchases
             - dividends_paid: Dividend payments
             - net_operating: Total operating cash flow
@@ -833,6 +834,10 @@ class Ledger:
             TransactionType.WAGE_PAYMENT, period, "cash", EntryType.CREDIT
         )
 
+        flows["cash_for_interest"] = self.sum_by_transaction_type(
+            TransactionType.INTEREST_PAYMENT, period, "cash", EntryType.CREDIT
+        )
+
         # Investing activities
         flows["capital_expenditures"] = self.sum_by_transaction_type(
             TransactionType.CAPEX, period, "cash", EntryType.CREDIT
@@ -851,13 +856,15 @@ class Ledger:
             TransactionType.EQUITY_ISSUANCE, period, "cash", EntryType.DEBIT
         )
 
-        # Calculate totals
+        # Calculate totals (Issue #319: include wages and interest in operating)
         flows["net_operating"] = (
             flows["cash_from_customers"]
             + flows["cash_from_insurance"]
             - flows["cash_to_suppliers"]
             - flows["cash_for_insurance"]
             - flows["cash_for_taxes"]
+            - flows["cash_for_wages"]
+            - flows["cash_for_interest"]
         )
 
         flows["net_investing"] = flows["asset_sales"] - flows["capital_expenditures"]
