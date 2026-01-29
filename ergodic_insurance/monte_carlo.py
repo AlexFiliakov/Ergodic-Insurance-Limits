@@ -1328,7 +1328,7 @@ class MonteCarloEngine:
                     metadata={
                         "Simulations": self.config.n_simulations,
                         "Years": self.config.n_years,
-                        "Ruin Probability": f"{results.ruin_probability:.2%}",
+                        "Ruin Probability": f"{results.ruin_probability.get(str(self.config.n_years), 0.0):.2%}",
                         "Mean Growth Rate": f"{np.mean(results.growth_rates):.4f}",
                     },
                 )
