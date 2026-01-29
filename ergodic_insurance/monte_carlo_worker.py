@@ -72,6 +72,12 @@ def run_chunk_standalone(
                 if eval_year <= n_years:
                     ruin_at_year[eval_year] = False
 
+        # Extract settings from config_dict
+        letter_of_credit_rate = config_dict.get("letter_of_credit_rate", 0.015)
+        growth_rate = config_dict.get("growth_rate", 0)
+        time_resolution = config_dict.get("time_resolution", "annual")
+        apply_stochastic = config_dict.get("apply_stochastic", False)
+
         for year in range(n_years):
             # Generate losses for the year
             revenue = sim_manufacturer.calculate_revenue()
@@ -135,7 +141,9 @@ def run_chunk_standalone(
 
             # Run business operations (growth, etc.)
             # Note: insurance premiums were already paid above, so pass 0 to avoid double-counting
-            sim_manufacturer.step()
+            sim_manufacturer.step(
+                letter_of_credit_rate, growth_rate, time_resolution, apply_stochastic
+            )
 
             # Check for ruin
             if sim_manufacturer.total_assets <= 0:

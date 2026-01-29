@@ -175,6 +175,10 @@ class SimulationConfig:
         monitor_performance: Track detailed performance metrics
         adaptive_chunking: Enable adaptive chunk sizing
         shared_memory: Enable shared memory for read-only data
+        letter_of_credit_rate: Annual LoC rate for collateral costs (default 1.5%)
+        growth_rate: Revenue growth rate per period (default 0.0)
+        time_resolution: Time step resolution, "annual" or "monthly" (default "annual")
+        apply_stochastic: Whether to apply stochastic shocks (default False)
     """
 
     n_simulations: int = 100_000
@@ -209,6 +213,11 @@ class SimulationConfig:
     ruin_evaluation: Optional[List[int]] = None
     # Insolvency tolerance
     insolvency_tolerance: float = 10_000  # Company is insolvent when equity <= this threshold
+    # Simulation step parameters (passed to manufacturer.step())
+    letter_of_credit_rate: float = 0.015  # Annual LoC rate for collateral costs
+    growth_rate: float = 0.0  # Revenue growth rate per period
+    time_resolution: str = "annual"  # "annual" or "monthly"
+    apply_stochastic: bool = False  # Whether to apply stochastic shocks
 
 
 @dataclass
@@ -677,6 +686,10 @@ class MonteCarloEngine:
             "n_years": self.config.n_years,
             "use_float32": self.config.use_float32,
             "ruin_evaluation": self.config.ruin_evaluation,
+            "letter_of_credit_rate": self.config.letter_of_credit_rate,
+            "growth_rate": self.config.growth_rate,
+            "time_resolution": self.config.time_resolution,
+            "apply_stochastic": self.config.apply_stochastic,
         }
 
         # Run chunks in parallel using standalone function
