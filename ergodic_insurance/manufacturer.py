@@ -197,7 +197,13 @@ try:
     from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
     from ergodic_insurance.claim_development import ClaimDevelopment
     from ergodic_insurance.config import ManufacturerConfig
-    from ergodic_insurance.decimal_utils import ONE, ZERO, quantize_currency, to_decimal
+    from ergodic_insurance.decimal_utils import (
+        ONE,
+        ZERO,
+        MetricsDict,
+        quantize_currency,
+        to_decimal,
+    )
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.ledger import AccountName, Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
@@ -207,7 +213,7 @@ except ImportError:
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
         from .claim_development import ClaimDevelopment
         from .config import ManufacturerConfig
-        from .decimal_utils import ONE, ZERO, quantize_currency, to_decimal
+        from .decimal_utils import ONE, ZERO, MetricsDict, quantize_currency, to_decimal
         from .insurance_accounting import InsuranceAccounting
         from .ledger import AccountName, Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
@@ -220,7 +226,13 @@ except ImportError:
         )
         from claim_development import ClaimDevelopment  # type: ignore[no-redef]
         from config import ManufacturerConfig  # type: ignore[no-redef]
-        from decimal_utils import ONE, ZERO, quantize_currency, to_decimal  # type: ignore[no-redef]
+        from decimal_utils import (  # type: ignore[no-redef]
+            ONE,
+            ZERO,
+            MetricsDict,
+            quantize_currency,
+            to_decimal,
+        )
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from ledger import AccountName, Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
@@ -367,7 +379,7 @@ class ClaimLiability:
         # calculate_payments uses (claim_amount, accident_year, payment_year)
         payment_year = self.year_incurred + years_since_incurred
         payment = self.development_strategy.calculate_payments(
-            claim_amount=float(self.original_amount),
+            claim_amount=float(self.original_amount),  # Boundary: float for ClaimDevelopment
             accident_year=self.year_incurred,
             payment_year=payment_year,
         )
@@ -826,7 +838,7 @@ class WidgetManufacturer:
         self.ruin_month: Optional[int] = None  # Month when ruin occurred (Issue #279)
 
         # Metrics tracking
-        self.metrics_history: List[Dict[str, Union[Decimal, float, int, bool]]] = []
+        self.metrics_history: List[MetricsDict] = []
 
         # Store initial values for base comparisons (for exposure bases)
         self._initial_assets: Decimal = to_decimal(config.initial_assets)
@@ -1902,7 +1914,9 @@ class WidgetManufacturer:
 
         # Apply stochastic shock if requested and process is available
         if apply_stochastic and self.stochastic_process is not None:
-            shock = self.stochastic_process.generate_shock(float(revenue))
+            shock = self.stochastic_process.generate_shock(
+                float(revenue)
+            )  # Boundary: float for StochasticProcess
             revenue *= to_decimal(shock)
             logger.debug(f"Applied stochastic shock: {shock:.4f}")
 
@@ -3538,7 +3552,7 @@ class WidgetManufacturer:
                 claim_id=f"CL_{self.current_year}_{len(self.claim_liabilities):04d}",
                 accident_year=self.current_year,
                 reported_year=self.current_year,
-                initial_estimate=float(insurance_payment),  # Claim class expects float
+                initial_estimate=float(insurance_payment),  # Boundary: float for Claim class
                 claim_type=claim_type,
                 development_pattern=development_pattern,
             )
@@ -3915,7 +3929,7 @@ class WidgetManufacturer:
         self,
         period_revenue: Optional[Union[Decimal, float]] = None,
         letter_of_credit_rate: Union[Decimal, float] = 0.015,
-    ) -> Dict[str, Union[Decimal, float, int, bool]]:
+    ) -> MetricsDict:
         """Calculate comprehensive financial metrics for analysis.
 
         This method computes a complete set of financial metrics including
@@ -3999,7 +4013,7 @@ class WidgetManufacturer:
             :meth:`step`: Updates metrics automatically during simulation.
             :attr:`metrics_history`: Historical metrics storage.
         """
-        metrics: Dict[str, Union[Decimal, float, int, bool]] = {}
+        metrics: MetricsDict = {}
 
         # Basic balance sheet metrics
         metrics["assets"] = self.total_assets
@@ -4158,9 +4172,7 @@ class WidgetManufacturer:
 
         return metrics
 
-    def _handle_insolvent_step(
-        self, time_resolution: str
-    ) -> Dict[str, Union[Decimal, float, int, bool]]:
+    def _handle_insolvent_step(self, time_resolution: str) -> MetricsDict:
         """Handle a simulation step when the company is already insolvent.
 
         Args:
@@ -4248,7 +4260,7 @@ class WidgetManufacturer:
 
             if payable_amount > ZERO:
                 # Process the payment (proportional share of what we can afford)
-                self.accrual_manager.process_payment(accrual_type, float(payable_amount), period)
+                self.accrual_manager.process_payment(accrual_type, payable_amount, period)
 
                 # Record accrued payment via ledger only (Issue #275)
                 # The ledger is the single source of truth for cash
@@ -4406,7 +4418,7 @@ class WidgetManufacturer:
         if rate == ZERO or not (time_resolution == "annual" or self.current_month == 11):
             return
 
-        base_growth = float(ONE + rate)  # Use float for compatibility with stochastic process
+        base_growth = float(ONE + rate)  # Boundary: float for StochasticProcess
 
         # Add stochastic component to growth if enabled
         if apply_stochastic and self.stochastic_process is not None:
@@ -4427,7 +4439,7 @@ class WidgetManufacturer:
         growth_rate: Union[Decimal, float] = 0.0,
         time_resolution: str = "annual",
         apply_stochastic: bool = False,
-    ) -> Dict[str, Union[Decimal, float, int, bool]]:
+    ) -> MetricsDict:
         """Execute one time step of the financial model simulation.
 
         This is the main simulation method that advances the manufacturer's
@@ -4680,7 +4692,7 @@ class WidgetManufacturer:
             period_revenue=revenue, letter_of_credit_rate=letter_of_credit_rate
         )
         metrics["year"] = self.current_year
-        metrics["month"] = float(self.current_month) if time_resolution == "monthly" else 0.0
+        metrics["month"] = self.current_month if time_resolution == "monthly" else 0
         self.metrics_history.append(metrics)
 
         # Increment time

@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
-from .decimal_utils import ZERO, is_zero, to_decimal
+from .decimal_utils import ZERO, MetricsDict, is_zero, to_decimal
 
 if TYPE_CHECKING:
     from .ledger import Ledger
@@ -82,7 +82,7 @@ class CashFlowStatement:
 
     def __init__(
         self,
-        metrics_history: List[Dict[str, Union[int, float]]],
+        metrics_history: List[MetricsDict],
         config: Optional[Any] = None,
         ledger: Optional["Ledger"] = None,
     ):
@@ -159,8 +159,8 @@ class CashFlowStatement:
         )
 
     def _calculate_operating_cash_flow(
-        self, current: Dict[str, float], prior: Dict[str, float], period: str
-    ) -> Dict[str, float]:
+        self, current: MetricsDict, prior: MetricsDict, period: str
+    ) -> MetricsDict:
         """Calculate operating cash flow using indirect method.
 
         Args:
@@ -172,7 +172,7 @@ class CashFlowStatement:
             Dictionary with operating cash flow components
         """
         # Start with net income
-        net_income = current.get("net_income", 0)
+        net_income = to_decimal(current.get("net_income", ZERO))
         if period == "monthly":
             net_income = net_income / 12
 
@@ -183,37 +183,38 @@ class CashFlowStatement:
                 "depreciation_expense missing from metrics. "
                 "The Manufacturer class must calculate and provide depreciation_expense explicitly."
             )
-        depreciation = current["depreciation_expense"]
+        depreciation = to_decimal(current["depreciation_expense"])
         if period == "monthly":
             depreciation = depreciation / 12
 
         # Calculate working capital changes
         wc_changes = self._calculate_working_capital_change(current, prior)
         if period == "monthly":
-            wc_changes = {k: v / 12 for k, v in wc_changes.items()}
+            wc_changes = {k: to_decimal(v) / 12 for k, v in wc_changes.items()}
 
         # Build operating section dictionary
-        operating_items = {
+        operating_items: MetricsDict = {
             "net_income": net_income,
             "depreciation": depreciation,
-            "accounts_receivable_change": -wc_changes.get("accounts_receivable", 0),
-            "inventory_change": -wc_changes.get("inventory", 0),
-            "prepaid_insurance_change": -wc_changes.get("prepaid_insurance", 0),
-            "accounts_payable_change": wc_changes.get("accounts_payable", 0),
-            "accrued_expenses_change": wc_changes.get("accrued_expenses", 0),
-            "claim_liabilities_change": wc_changes.get("claim_liabilities", 0),
+            "accounts_receivable_change": -to_decimal(wc_changes.get("accounts_receivable", ZERO)),
+            "inventory_change": -to_decimal(wc_changes.get("inventory", ZERO)),
+            "prepaid_insurance_change": -to_decimal(wc_changes.get("prepaid_insurance", ZERO)),
+            "accounts_payable_change": to_decimal(wc_changes.get("accounts_payable", ZERO)),
+            "accrued_expenses_change": to_decimal(wc_changes.get("accrued_expenses", ZERO)),
+            "claim_liabilities_change": to_decimal(wc_changes.get("claim_liabilities", ZERO)),
         }
 
         # Calculate total operating cash flow
         operating_items["total"] = (
-            sum(v for k, v in operating_items.items() if k != "net_income") + net_income
+            sum((to_decimal(v) for k, v in operating_items.items() if k != "net_income"), ZERO)
+            + net_income
         )
 
         return operating_items
 
     def _calculate_working_capital_change(
-        self, current: Dict[str, float], prior: Dict[str, float]
-    ) -> Dict[str, float]:
+        self, current: MetricsDict, prior: MetricsDict
+    ) -> MetricsDict:
         """Calculate changes in working capital components.
 
         Args:
@@ -223,33 +224,35 @@ class CashFlowStatement:
         Returns:
             Dictionary with working capital changes
         """
-        wc_changes = {}
+        wc_changes: MetricsDict = {}
 
         # Current assets changes (increases are uses of cash)
-        wc_changes["accounts_receivable"] = current.get("accounts_receivable", 0) - prior.get(
-            "accounts_receivable", 0
+        wc_changes["accounts_receivable"] = to_decimal(
+            current.get("accounts_receivable", ZERO)
+        ) - to_decimal(prior.get("accounts_receivable", ZERO))
+        wc_changes["inventory"] = to_decimal(current.get("inventory", ZERO)) - to_decimal(
+            prior.get("inventory", ZERO)
         )
-        wc_changes["inventory"] = current.get("inventory", 0) - prior.get("inventory", 0)
-        wc_changes["prepaid_insurance"] = current.get("prepaid_insurance", 0) - prior.get(
-            "prepaid_insurance", 0
-        )
+        wc_changes["prepaid_insurance"] = to_decimal(
+            current.get("prepaid_insurance", ZERO)
+        ) - to_decimal(prior.get("prepaid_insurance", ZERO))
 
         # Current liabilities changes (increases are sources of cash)
-        wc_changes["accounts_payable"] = current.get("accounts_payable", 0) - prior.get(
-            "accounts_payable", 0
-        )
-        wc_changes["accrued_expenses"] = current.get("accrued_expenses", 0) - prior.get(
-            "accrued_expenses", 0
-        )
-        wc_changes["claim_liabilities"] = current.get("claim_liabilities", 0) - prior.get(
-            "claim_liabilities", 0
-        )
+        wc_changes["accounts_payable"] = to_decimal(
+            current.get("accounts_payable", ZERO)
+        ) - to_decimal(prior.get("accounts_payable", ZERO))
+        wc_changes["accrued_expenses"] = to_decimal(
+            current.get("accrued_expenses", ZERO)
+        ) - to_decimal(prior.get("accrued_expenses", ZERO))
+        wc_changes["claim_liabilities"] = to_decimal(
+            current.get("claim_liabilities", ZERO)
+        ) - to_decimal(prior.get("claim_liabilities", ZERO))
 
         return wc_changes
 
     def _calculate_investing_cash_flow(
-        self, current: Dict[str, float], prior: Dict[str, float], period: str
-    ) -> Dict[str, float]:
+        self, current: MetricsDict, prior: MetricsDict, period: str
+    ) -> MetricsDict:
         """Calculate investing cash flow (primarily capex).
 
         Args:
@@ -272,7 +275,7 @@ class CashFlowStatement:
 
         return investing_items
 
-    def _calculate_capex(self, current: Dict[str, float], prior: Dict[str, float]) -> float:
+    def _calculate_capex(self, current: MetricsDict, prior: MetricsDict) -> Decimal:
         """Calculate capital expenditures from PP&E changes.
 
         Capex = Ending PP&E - Beginning PP&E + Depreciation
@@ -284,8 +287,8 @@ class CashFlowStatement:
         Returns:
             Capital expenditures amount
         """
-        current_ppe = current.get("gross_ppe", 0)
-        prior_ppe = prior.get("gross_ppe", 0) if prior else 0
+        current_ppe = to_decimal(current.get("gross_ppe", ZERO))
+        prior_ppe = to_decimal(prior.get("gross_ppe", ZERO)) if prior else ZERO
 
         # Get depreciation for the period
         # Depreciation expense MUST be provided by the Manufacturer class
@@ -294,18 +297,18 @@ class CashFlowStatement:
                 "depreciation_expense missing from metrics. "
                 "The Manufacturer class must calculate and provide depreciation_expense explicitly."
             )
-        depreciation = current["depreciation_expense"]
+        depreciation = to_decimal(current["depreciation_expense"])
 
         # Capex = Change in PP&E + Depreciation
         # (Since depreciation reduces net PP&E, we add it back)
         capex = (current_ppe - prior_ppe) + depreciation
 
         # Capex should not be negative in normal operations
-        return max(0, capex)
+        return max(ZERO, capex)
 
     def _calculate_financing_cash_flow(
-        self, current: Dict[str, float], prior: Dict[str, float], period: str
-    ) -> Dict[str, float]:
+        self, current: MetricsDict, prior: MetricsDict, period: str
+    ) -> MetricsDict:
         """Calculate financing cash flow (dividends and equity changes).
 
         Note: Insurance premiums are NOT included here because they are already
@@ -333,7 +336,7 @@ class CashFlowStatement:
 
         return financing_items
 
-    def _calculate_dividends(self, current: Dict[str, float]) -> float:
+    def _calculate_dividends(self, current: MetricsDict) -> Decimal:
         """Get dividends paid from metrics or calculate as fallback.
 
         Issue #239: The WidgetManufacturer now tracks actual dividends_paid
@@ -356,19 +359,21 @@ class CashFlowStatement:
         """
         # Prefer actual dividends_paid from metrics (tracks cash constraints)
         if "dividends_paid" in current:
-            return current["dividends_paid"]
+            return to_decimal(current["dividends_paid"])
 
         # Fallback: Calculate from net income (backward compatibility)
         # This path is used when metrics don't have dividends_paid
-        net_income = current.get("net_income", 0)
+        net_income = to_decimal(current.get("net_income", ZERO))
 
         # Only pay dividends on positive income
-        if net_income <= 0:
-            return 0
+        if net_income <= ZERO:
+            return ZERO
 
         # Get retention ratio from config - no hardcoded default (Issue #243)
         if self.config and hasattr(self.config, "retention_ratio"):
-            retention_ratio: float = float(self.config.retention_ratio)
+            from .decimal_utils import ONE
+
+            retention_ratio = to_decimal(self.config.retention_ratio)
         else:
             raise ValueError(
                 "Cannot calculate dividends: config must have 'retention_ratio' attribute "
@@ -376,12 +381,10 @@ class CashFlowStatement:
                 "ensure metrics include 'dividends_paid' from the simulation."
             )
 
-        dividends: float = net_income * (1 - retention_ratio)
+        dividends = net_income * (ONE - retention_ratio)
         return dividends
 
-    def _calculate_operating_cash_flow_direct(
-        self, year: int, period: str
-    ) -> Dict[str, Union[float, Decimal]]:
+    def _calculate_operating_cash_flow_direct(self, year: int, period: str) -> MetricsDict:
         """Calculate operating cash flow using direct method from ledger.
 
         The direct method sums actual cash transactions from the ledger,
@@ -399,7 +402,7 @@ class CashFlowStatement:
 
         flows = self.ledger.get_cash_flows(period=year)
 
-        operating_items: Dict[str, Union[float, Decimal]] = {
+        operating_items: MetricsDict = {
             "cash_from_customers": flows.get("cash_from_customers", ZERO),
             "cash_from_insurance": flows.get("cash_from_insurance", ZERO),
             "cash_to_suppliers": -flows.get("cash_to_suppliers", ZERO),
@@ -417,9 +420,7 @@ class CashFlowStatement:
 
         return operating_items
 
-    def _calculate_investing_cash_flow_direct(
-        self, year: int, period: str
-    ) -> Dict[str, Union[float, Decimal]]:
+    def _calculate_investing_cash_flow_direct(self, year: int, period: str) -> MetricsDict:
         """Calculate investing cash flow using direct method from ledger.
 
         Args:
@@ -434,7 +435,7 @@ class CashFlowStatement:
 
         flows = self.ledger.get_cash_flows(period=year)
 
-        investing_items: Dict[str, Union[float, Decimal]] = {
+        investing_items: MetricsDict = {
             "capital_expenditures": -flows.get("capital_expenditures", ZERO),
             "asset_sales": flows.get("asset_sales", ZERO),
         }
@@ -446,9 +447,7 @@ class CashFlowStatement:
 
         return investing_items
 
-    def _calculate_financing_cash_flow_direct(
-        self, year: int, period: str
-    ) -> Dict[str, Union[float, Decimal]]:
+    def _calculate_financing_cash_flow_direct(self, year: int, period: str) -> MetricsDict:
         """Calculate financing cash flow using direct method from ledger.
 
         Args:
@@ -463,7 +462,7 @@ class CashFlowStatement:
 
         flows = self.ledger.get_cash_flows(period=year)
 
-        financing_items: Dict[str, Union[float, Decimal]] = {
+        financing_items: MetricsDict = {
             "dividends_paid": -flows.get("dividends_paid", ZERO),
             "equity_issuance": flows.get("equity_issuance", ZERO),
         }
@@ -477,11 +476,11 @@ class CashFlowStatement:
 
     def _format_statement(
         self,
-        operating: Dict[str, float],
-        investing: Dict[str, float],
-        financing: Dict[str, float],
-        current_metrics: Dict[str, float],
-        prior_metrics: Dict[str, float],
+        operating: MetricsDict,
+        investing: MetricsDict,
+        financing: MetricsDict,
+        current_metrics: MetricsDict,
+        prior_metrics: MetricsDict,
         year: int,
         period: str,
         method: str = "indirect",
@@ -594,15 +593,19 @@ class CashFlowStatement:
         cash_flow_data.append(("", "", ""))
 
         # NET CHANGE IN CASH
-        net_cash_flow = operating["total"] + investing["total"] + financing["total"]
+        net_cash_flow = (
+            to_decimal(operating["total"])
+            + to_decimal(investing["total"])
+            + to_decimal(financing["total"])
+        )
         cash_flow_data.append(("NET INCREASE (DECREASE) IN CASH", net_cash_flow, "total"))
         cash_flow_data.append(("", "", ""))
 
         # CASH RECONCILIATION
         # Get actual cash balances
-        ending_cash = current_metrics.get("cash", 0)
+        ending_cash = to_decimal(current_metrics.get("cash", ZERO))
         if year > 0:
-            beginning_cash = prior_metrics.get("cash", 0)
+            beginning_cash = to_decimal(prior_metrics.get("cash", ZERO))
         else:
             # First year - calculate implied beginning cash
             beginning_cash = ending_cash - net_cash_flow
@@ -698,10 +701,10 @@ class FinancialStatementGenerator:
             self.manufacturer_data["metrics_history"] = self.manufacturer.metrics_history
 
         metrics = self.manufacturer_data.get("metrics_history", [])
-        self.metrics_history: List[Dict[str, float]] = metrics if isinstance(metrics, list) else []
+        self.metrics_history: List[MetricsDict] = metrics if isinstance(metrics, list) else []
         self.years_available = len(self.metrics_history)
 
-    def _get_metrics_from_ledger(self, year: int) -> Dict[str, Union[float, Decimal]]:
+    def _get_metrics_from_ledger(self, year: int) -> MetricsDict:
         """Derive metrics dictionary from ledger balances.
 
         This method constructs a metrics-like dictionary from ledger account
@@ -723,7 +726,7 @@ class FinancialStatementGenerator:
         if self.ledger is None:
             raise ValueError("Ledger is required for ledger-based metrics")
 
-        metrics: Dict[str, Union[float, Decimal]] = {}
+        metrics: MetricsDict = {}
 
         # For some accounts, the ledger may be incomplete. Fall back to manufacturer state
         # or metrics_history when ledger data is inconsistent.
@@ -911,7 +914,7 @@ class FinancialStatementGenerator:
 
         return metrics
 
-    def _get_year_metrics(self, year: int) -> Dict[str, float]:
+    def _get_year_metrics(self, year: int) -> MetricsDict:
         """Get metrics for a year, preferring ledger-derived metrics when available.
 
         This method provides the single entry point for getting financial metrics,
@@ -993,8 +996,8 @@ class FinancialStatementGenerator:
         return df
 
     def _build_assets_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
-    ) -> float:
+        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+    ) -> Decimal:
         """Build assets section of balance sheet with GAAP structure.
 
         Returns:
@@ -1079,8 +1082,8 @@ class FinancialStatementGenerator:
         return total_assets
 
     def _build_liabilities_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
-    ) -> float:
+        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+    ) -> Decimal:
         """Build liabilities section of balance sheet with GAAP structure.
 
         Returns:
@@ -1148,9 +1151,9 @@ class FinancialStatementGenerator:
     def _build_equity_section(
         self,
         data: List[Tuple[str, Union[str, float, int], str, str]],
-        metrics: Dict[str, float],
-        total_assets: float,
-        total_liabilities: float,
+        metrics: MetricsDict,
+        total_assets: Decimal,
+        total_liabilities: Decimal,
     ) -> None:
         """Build equity section of balance sheet.
 
@@ -1174,7 +1177,9 @@ class FinancialStatementGenerator:
 
         # TOTAL LIABILITIES + EQUITY should equal TOTAL ASSETS
         # Calculate the actual sum of liabilities and equity
-        total_liabilities_and_equity = total_liabilities + to_decimal(equity)
+        total_liabilities_and_equity = total_liabilities + to_decimal(
+            equity
+        )  # equity from metrics may still need conversion
 
         # Add the total liabilities + equity line
         data.append(
@@ -1254,9 +1259,9 @@ class FinancialStatementGenerator:
     def _build_revenue_section(
         self,
         data: List[Tuple[str, Union[str, float, int], str, str]],
-        metrics: Dict[str, float],
+        metrics: MetricsDict,
         monthly: bool = False,
-    ) -> float:
+    ) -> Decimal:
         """Build revenue section of income statement and return total revenue.
 
         Args:
@@ -1269,7 +1274,7 @@ class FinancialStatementGenerator:
         """
         # Revenue Section
         data.append(("REVENUE", "", "", ""))
-        revenue = metrics.get("revenue", 0)
+        revenue = to_decimal(metrics.get("revenue", ZERO))
         if monthly:
             revenue = revenue / 12
         data.append(("  Sales Revenue", revenue, "", ""))
@@ -1280,10 +1285,10 @@ class FinancialStatementGenerator:
     def _build_gaap_expenses_section(
         self,
         data: List[Tuple[str, Union[str, float, int], str, str]],
-        metrics: Dict[str, float],
-        revenue: float,
+        metrics: MetricsDict,
+        revenue: Decimal,
         monthly: bool = False,
-    ) -> Tuple[float, float]:
+    ) -> Tuple[Decimal, Decimal]:
         """Build expenses section with proper GAAP categorization.
 
         Separates COGS from operating expenses, allocates depreciation appropriately,
@@ -1343,15 +1348,15 @@ class FinancialStatementGenerator:
             )
 
         # Read COGS breakdown from metrics (Issue #255)
-        direct_materials = metrics["direct_materials"]
-        direct_labor = metrics["direct_labor"]
-        manufacturing_overhead = metrics["manufacturing_overhead"]
-        mfg_depreciation = metrics["mfg_depreciation"]
+        direct_materials = to_decimal(metrics["direct_materials"])
+        direct_labor = to_decimal(metrics["direct_labor"])
+        manufacturing_overhead = to_decimal(metrics["manufacturing_overhead"])
+        mfg_depreciation = to_decimal(metrics["mfg_depreciation"])
 
         # Read SG&A breakdown from metrics (Issue #255)
-        selling_expenses = metrics["selling_expenses"]
-        general_admin = metrics["general_admin_expenses"]
-        admin_depreciation = metrics["admin_depreciation"]
+        selling_expenses = to_decimal(metrics["selling_expenses"])
+        general_admin = to_decimal(metrics["general_admin_expenses"])
+        admin_depreciation = to_decimal(metrics["admin_depreciation"])
 
         # Apply monthly scaling if needed
         if monthly:
@@ -1388,7 +1393,7 @@ class FinancialStatementGenerator:
         data.append(("  Administrative Depreciation", admin_depreciation, "", ""))
 
         # Include insurance premiums in operating expenses if significant
-        insurance_premium = metrics.get("insurance_premiums", 0)
+        insurance_premium = to_decimal(metrics.get("insurance_premiums", ZERO))
         if monthly:
             insurance_premium = insurance_premium / 12
         if insurance_premium > 0:
@@ -1410,10 +1415,10 @@ class FinancialStatementGenerator:
     def _build_gaap_bottom_section(
         self,
         data: List[Tuple[str, Union[str, float, int], str, str]],
-        metrics: Dict[str, float],
-        operating_income: float,
-        gross_profit: float,
-        revenue: float,
+        metrics: MetricsDict,
+        operating_income: Decimal,
+        gross_profit: Decimal,
+        revenue: Decimal,
         monthly: bool = False,
         year: int = 0,
     ) -> None:
@@ -1443,16 +1448,16 @@ class FinancialStatementGenerator:
         # Interest income/expense: read from metrics (Issue #301)
         # The reporting layer must not fabricate financial data with hardcoded rates.
         # Interest income and expense should be computed by the Manufacturer or Ledger.
-        interest_income = metrics.get("interest_income", 0)
+        interest_income = to_decimal(metrics.get("interest_income", ZERO))
         if monthly:
             interest_income = interest_income / 12
 
-        interest_expense = metrics.get("interest_expense", 0)
+        interest_expense = to_decimal(metrics.get("interest_expense", ZERO))
         if monthly:
             interest_expense = interest_expense / 12
 
         # Insurance claim losses (non-operating)
-        insurance_claims = metrics.get("insurance_losses", 0)
+        insurance_claims = to_decimal(metrics.get("insurance_losses", ZERO))
         if monthly:
             insurance_claims = insurance_claims / 12
 
@@ -1467,7 +1472,7 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
         # INCOME BEFORE TAXES
-        pretax_income = operating_income + total_non_operating
+        pretax_income = to_decimal(operating_income) + total_non_operating
         data.append(("INCOME BEFORE TAXES", pretax_income, "", "subtotal"))
         data.append(("", "", "", ""))
 
@@ -1475,28 +1480,30 @@ class FinancialStatementGenerator:
         # Issue #257: Read tax expense from Ledger (preferred) or metrics (fallback)
         # The Reporting layer should report what happened, not recalculate it.
         # Priority: 1) Ledger TAX_ACCRUAL entries, 2) metrics["tax_expense"], 3) flat rate
-        tax_provision: Optional[float] = None
+        tax_provision: Optional[Decimal] = None
 
         # Priority 1: Get tax expense from Ledger if available
         if self.ledger is not None:
             ledger_tax = self.ledger.get_period_change("tax_expense", year)
             if ledger_tax > ZERO:
-                tax_provision = float(ledger_tax)
+                tax_provision = to_decimal(ledger_tax)
                 if monthly:
                     tax_provision = tax_provision / 12
 
         # Priority 2: Get tax expense from metrics if provided by Manufacturer
         if tax_provision is None and "tax_expense" in metrics:
-            tax_provision = float(metrics["tax_expense"])
+            tax_provision = to_decimal(metrics["tax_expense"])
             if monthly:
                 tax_provision = tax_provision / 12
 
         # Priority 3: Fall back to flat rate calculation (backward compatibility)
         if tax_provision is None:
             config = self.manufacturer_data.get("config")
-            tax_rate = config.tax_rate if config and hasattr(config, "tax_rate") else 0.25
+            tax_rate = to_decimal(
+                config.tax_rate if config and hasattr(config, "tax_rate") else Decimal("0.25")
+            )
             # Calculate tax provision on positive income only
-            tax_provision = max(0, pretax_income * tax_rate)
+            tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
@@ -1509,7 +1516,7 @@ class FinancialStatementGenerator:
         # between income statement and balance sheet (which uses manufacturer's equity).
         # The income statement presentation above may compute a different operating_income
         # due to GAAP categorization differences, but the bottom line must match.
-        net_income = metrics.get("net_income", float(pretax_income) - float(tax_provision))
+        net_income = metrics.get("net_income", to_decimal(pretax_income) - tax_provision)
         data.append(("NET INCOME", net_income, "", "total"))
         data.append(("", "", "", ""))
 
@@ -1517,18 +1524,24 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
         data.append(("KEY FINANCIAL METRICS", "", "", ""))
 
-        # Calculate key margins
-        gross_margin = gross_profit / revenue if revenue > 0 else 0
-        operating_margin = operating_income / revenue if revenue > 0 else 0
-        net_margin = net_income / revenue if revenue > 0 else 0
-        effective_tax_rate = tax_provision / pretax_income if pretax_income > 0 else 0
+        # Calculate key margins (ensure Decimal consistency)
+        d_revenue = to_decimal(revenue)
+        d_gross_profit = to_decimal(gross_profit)
+        d_operating_income = to_decimal(operating_income)
+        d_net_income = to_decimal(net_income)
+        d_pretax_income = to_decimal(pretax_income)
+
+        gross_margin = d_gross_profit / d_revenue if d_revenue > ZERO else ZERO
+        operating_margin = d_operating_income / d_revenue if d_revenue > ZERO else ZERO
+        net_margin = d_net_income / d_revenue if d_revenue > ZERO else ZERO
+        effective_tax_rate = tax_provision / d_pretax_income if d_pretax_income > ZERO else ZERO
 
         data.append(("  Gross Margin %", gross_margin * 100, "%", ""))
         data.append(("  Operating Margin %", operating_margin * 100, "%", ""))
         data.append(("  Net Margin %", net_margin * 100, "%", ""))
         data.append(("  Effective Tax Rate %", effective_tax_rate * 100, "%", ""))
-        data.append(("  ROE %", metrics.get("roe", 0) * 100, "%", ""))
-        data.append(("  ROA %", metrics.get("roa", 0) * 100, "%", ""))
+        data.append(("  ROE %", to_decimal(metrics.get("roe", ZERO)) * 100, "%", ""))
+        data.append(("  ROA %", to_decimal(metrics.get("roa", ZERO)) * 100, "%", ""))
 
     def generate_cash_flow_statement(
         self, year: int, period: str = "annual", method: str = "indirect"
@@ -1611,7 +1624,7 @@ class FinancialStatementGenerator:
         return df
 
     def _check_balance_sheet_equation(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
+        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
     ) -> None:
         """Check if balance sheet equation balances.
 
@@ -1637,14 +1650,16 @@ class FinancialStatementGenerator:
         difference = assets - (liabilities + equity)
         # Using is_zero() for precise comparison after quantization
         balance_check = is_zero(difference)
-        data.append(("  Assets", float(assets), "", ""))
-        data.append(("  Liabilities + Equity", float(liabilities + equity), "", ""))
-        data.append(("  Difference", float(difference), "", ""))
+        data.append(("  Assets", float(assets), "", ""))  # Boundary: float for display
+        data.append(
+            ("  Liabilities + Equity", float(liabilities + equity), "", "")
+        )  # Boundary: float for display
+        data.append(("  Difference", float(difference), "", ""))  # Boundary: float for display
         data.append(("  Status", "BALANCED" if balance_check else "IMBALANCED", "", "status"))
         data.append(("", "", "", ""))
 
     def _check_net_assets(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
+        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
     ) -> None:
         """Check net assets reconciliation.
 
@@ -1667,7 +1682,7 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_collateral(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
+        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
     ) -> None:
         """Check collateral reconciliation."""
         data.append(("COLLATERAL RECONCILIATION", "", "", ""))
@@ -1681,7 +1696,7 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_solvency(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
+        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
     ) -> None:
         """Check solvency status."""
         data.append(("SOLVENCY CHECK", "", "", ""))

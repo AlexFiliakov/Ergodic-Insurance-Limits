@@ -76,7 +76,7 @@ class NumberFormatter:
 
         decimals = decimals if decimals is not None else self.decimal_places
 
-        # Convert to float for comparison and calculations
+        # Boundary: float for display formatting
         float_value = float(value)
         abs_value = abs(float_value)
 

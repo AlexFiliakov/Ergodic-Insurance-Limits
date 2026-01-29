@@ -165,8 +165,11 @@ class InsuranceAccounting:
                 - prepaid_reduction: Reduction in prepaid asset
                 - remaining_prepaid: Remaining prepaid balance
         """
-        # Calculate expense for this month (handle partial months at end)
-        expense = min(self.monthly_expense, self.prepaid_insurance)
+        # Final month: absorb rounding residual to ensure zero prepaid balance
+        if self.current_month >= self.months_in_period - 1:
+            expense = self.prepaid_insurance
+        else:
+            expense = min(self.monthly_expense, self.prepaid_insurance)
 
         # Reduce prepaid asset
         self.prepaid_insurance -= expense

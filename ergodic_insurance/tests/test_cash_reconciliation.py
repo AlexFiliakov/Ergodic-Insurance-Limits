@@ -1,14 +1,16 @@
 """Tests for cash flow reconciliation."""
 
-from typing import Union
+from decimal import Decimal
+from typing import List, Union
 
 import numpy as np
 import pytest
 
+from ergodic_insurance.decimal_utils import MetricsDict
 from ergodic_insurance.financial_statements import CashFlowStatement
 
-# Type alias for metrics dictionaries
-MetricsDict = list[dict[str, Union[int, float]]]
+# Type alias for metrics lists
+MetricsList = List[MetricsDict]
 
 
 class TestCashReconciliation:
@@ -22,7 +24,7 @@ class TestCashReconciliation:
         #   Financing: -180k dividends
         #   Net: 660k - 160k - 180k = 320k
         #   Ending cash: 1,000k + 320k = 1,320k
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 1000000,
                 "net_income": 500000,
@@ -68,7 +70,7 @@ class TestCashReconciliation:
     def test_reconciliation_with_operating_activities(self):
         """Test reconciliation with detailed operating activities."""
         # Issue #243: Include dividends_paid in metrics (preferred path since Issue #239)
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 500000,
                 "net_income": 200000,
@@ -111,7 +113,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_negative_cash_flow(self):
         """Test reconciliation when cash decreases."""
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 1000000,
                 "net_income": 100000,
@@ -143,7 +145,7 @@ class TestCashReconciliation:
 
     def test_reconciliation_first_year(self):
         """Test cash reconciliation for year 0 (no prior period)."""
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 500000,
                 "net_income": 100000,
@@ -183,7 +185,7 @@ class TestCashReconciliation:
         #   Financing: -180k dividends
         #   Net: 700k - 410k - 180k = 110k
         #   Ending cash: 1,000k + 110k = 1,110k
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 1000000,
                 "net_income": 500000,
@@ -234,7 +236,7 @@ class TestCashReconciliation:
 
     def test_monthly_reconciliation(self):
         """Test cash reconciliation for monthly periods."""
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 100000,
                 "net_income": 120000,  # Annual
@@ -258,10 +260,10 @@ class TestCashReconciliation:
 
         # Monthly values
         monthly_net_income = values.get("Net Income")
-        assert monthly_net_income == pytest.approx(144000 / 12)
+        assert float(monthly_net_income) == pytest.approx(144000 / 12)
 
         monthly_depreciation = values.get("Depreciation and Amortization")
-        assert monthly_depreciation == pytest.approx(12000 / 12)
+        assert float(monthly_depreciation) == pytest.approx(12000 / 12)
 
         # Reconciliation should still work
         beginning = values.get("Cash - Beginning of Period")
@@ -280,7 +282,7 @@ class TestCashReconciliation:
         #   Financing: -45k dividends
         #   Net: 160k - 20k - 45k = 95k
         #   Ending cash: 0 + 95k = 95k
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 0,
                 "net_income": 100000,
@@ -316,7 +318,7 @@ class TestCashReconciliation:
         #   Financing: -360k dividends
         #   Net: 1450k - 2250k - 360k = -1160k
         #   Ending cash: 5000k - 1160k = 3840k
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 5000000,
                 "net_income": 1000000,
@@ -367,7 +369,7 @@ class TestCashReconciliation:
         """
         # Create metrics where cash flow components are explicitly calculated
         # to verify the statement shows calculated values, not plugged values
-        metrics: MetricsDict = [
+        metrics: MetricsList = [
             {
                 "cash": 1000000,
                 "net_income": 400000,
@@ -428,6 +430,6 @@ class TestCashReconciliation:
         for _, row in df.iterrows():
             item = row["Item"].strip()
             value = row[column]
-            if value != "" and isinstance(value, (int, float)):
+            if value != "" and isinstance(value, (int, float, Decimal)):
                 values[item] = value
         return values

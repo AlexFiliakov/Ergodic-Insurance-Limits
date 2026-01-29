@@ -219,7 +219,7 @@ class BusinessOptimizer:
             f"Maximizing ROE over {time_horizon} years with {n_simulations} simulations"
         )
 
-        # Convert Decimal properties to float for scipy optimization
+        # Boundary: float for scipy.optimize
         total_assets = float(self.manufacturer.total_assets)
         revenue = float(self.manufacturer.calculate_revenue())
 
@@ -546,7 +546,9 @@ class BusinessOptimizer:
         results = []
 
         for strategy in strategies:
-            coverage_limit = strategy.get("coverage_limit", float(self.manufacturer.total_assets))
+            coverage_limit = strategy.get(
+                "coverage_limit", float(self.manufacturer.total_assets)
+            )  # Boundary: float for scipy.optimize
             deductible = strategy.get("deductible", 100000)
             premium_rate = strategy.get("premium_rate", 0.02)
             strategy_name = strategy.get("name", "Strategy")
@@ -623,7 +625,7 @@ class BusinessOptimizer:
                 obj.weight /= total_weight
 
         # Define optimization bounds
-        # Convert Decimal to float for scipy optimization
+        # Boundary: float for scipy.optimize
         total_assets = float(self.manufacturer.total_assets)
         bounds = [
             (1e6, min(total_assets * 2.5, 100e6)),  # Coverage limit
@@ -733,7 +735,7 @@ class BusinessOptimizer:
     ) -> float:
         """Simulate ROE with given insurance parameters."""
         roe_values = []
-        # Convert Decimal properties to float for calculations
+        # Boundary: float for scipy.optimize
         equity = float(self.manufacturer.equity)
         total_assets = float(self.manufacturer.total_assets)
 

@@ -15,7 +15,7 @@ Example:
 """
 
 from decimal import ROUND_HALF_UP, Decimal, localcontext
-from typing import Union
+from typing import Dict, Union
 
 # Standard precision for financial calculations (2 decimal places = cents)
 CURRENCY_PLACES = Decimal("0.01")
@@ -24,6 +24,11 @@ CURRENCY_PLACES = Decimal("0.01")
 ZERO = Decimal("0.00")
 ONE = Decimal("1.00")
 PENNY = Decimal("0.01")
+
+# Type alias for metrics dictionaries used across the codebase.
+# Prefer Decimal for monetary values; float is accepted for backward
+# compatibility and is converted to Decimal at calculation boundaries.
+MetricsDict = Dict[str, Union[Decimal, float, int, bool]]
 
 
 def to_decimal(value: Union[float, int, str, Decimal, None]) -> Decimal:
