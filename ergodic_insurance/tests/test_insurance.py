@@ -299,3 +299,127 @@ class TestIntegrationScenarios:
 
         assert 0.005 <= base_premium_rate <= 0.01  # Between 0.5% and 1%
         assert premium == 327_500  # Exact calculation
+
+
+class TestOverRecoveryGuard:
+    """Tests for the over-recovery guard (issue #310).
+
+    Ensures total insurance recovery never exceeds (claim - deductible),
+    especially when deductible != first layer attachment point.
+    """
+
+    def test_deductible_below_first_attachment(self):
+        """Test that over-recovery is prevented when deductible < first layer attachment."""
+        # Deductible is 200K but first layer attaches at 500K
+        # Without guard: company pays 200K deductible, layer pays from 500K up
+        # → gap of 300K is double-counted
+        layers = [
+            InsuranceLayer(attachment_point=500_000, limit=4_500_000, rate=0.015),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=200_000)
+
+        # 3M claim: deductible=200K, layer recovery=min(3M-500K, 4.5M)=2.5M
+        # Without guard: total = 200K + 2.5M = 2.7M (< 3M, no over-recovery here)
+        company, insurance = policy.process_claim(3_000_000)
+        assert company + insurance == 3_000_000
+
+        # 1M claim: deductible=200K, max_recoverable=800K
+        # layer recovery=min(1M-500K, 4.5M)=500K, cap at 800K → 500K (within cap)
+        company, insurance = policy.process_claim(1_000_000)
+        assert insurance <= 1_000_000 - 200_000  # Never exceeds claim - deductible
+        assert company + insurance == 1_000_000
+
+    def test_deductible_above_first_attachment(self):
+        """Test over-recovery when deductible > first layer attachment."""
+        # Deductible 1M but first layer attaches at 500K
+        # Layer would pay from 500K-5.5M for a claim, but deductible already covers to 1M
+        layers = [
+            InsuranceLayer(attachment_point=500_000, limit=5_000_000, rate=0.015),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+
+        # 3M claim: deductible=1M, max_recoverable=2M
+        # Layer: min(3M-500K, 5M) = 2.5M, but cap at 2M
+        company, insurance = policy.process_claim(3_000_000)
+        assert insurance <= 2_000_000  # Capped at claim - deductible
+        assert company + insurance == 3_000_000
+
+    def test_overlapping_layers_capped(self):
+        """Test that overlapping layer configurations don't cause over-recovery."""
+        # Two layers that overlap in coverage region
+        layers = [
+            InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
+            InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=0)
+
+        # 3M claim: each layer would pay 3M, total 6M > 3M claim
+        company, insurance = policy.process_claim(3_000_000)
+        assert insurance <= 3_000_000  # Capped at claim amount
+        assert company + insurance == 3_000_000
+
+    def test_recovery_never_exceeds_claim(self):
+        """Test that recovery <= claim for various configurations."""
+        layers = [
+            InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.01),
+            InsuranceLayer(attachment_point=200_000, limit=10_000_000, rate=0.01),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=500_000)
+
+        for claim in [100_000, 500_000, 1_000_000, 5_000_000, 15_000_000]:
+            company, insurance = policy.process_claim(claim)
+            assert insurance <= claim, f"Over-recovery for claim {claim}"
+            assert insurance <= claim - min(
+                claim, 500_000
+            ), f"Recovery exceeds (claim - deductible) for claim {claim}"
+            assert company + insurance == claim
+
+    def test_calculate_recovery_capped(self):
+        """Test calculate_recovery also respects the cap."""
+        layers = [
+            InsuranceLayer(attachment_point=500_000, limit=5_000_000, rate=0.015),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+
+        # 3M claim: max_recoverable = 3M - 1M = 2M
+        # Layer: min(3M - 500K, 5M) = 2.5M → capped to 2M
+        recovery = policy.calculate_recovery(3_000_000)
+        assert recovery <= 2_000_000
+
+    def test_zero_claim_returns_zero(self):
+        """Test zero and negative claims produce zero recovery."""
+        layers = [InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.01)]
+        policy = InsurancePolicy(layers=layers, deductible=0)
+
+        company, insurance = policy.process_claim(0)
+        assert company == 0 and insurance == 0
+
+        company, insurance = policy.process_claim(-100)
+        assert company == 0 and insurance == 0
+
+    def test_claim_exactly_at_deductible(self):
+        """Test claim exactly equal to deductible."""
+        layers = [InsuranceLayer(attachment_point=500_000, limit=5_000_000, rate=0.01)]
+        policy = InsurancePolicy(layers=layers, deductible=500_000)
+
+        company, insurance = policy.process_claim(500_000)
+        assert company == 500_000
+        assert insurance == 0
+
+    def test_claim_exactly_at_layer_boundary(self):
+        """Test claims at exact layer boundaries."""
+        layers = [
+            InsuranceLayer(attachment_point=1_000_000, limit=4_000_000, rate=0.015),
+            InsuranceLayer(attachment_point=5_000_000, limit=10_000_000, rate=0.008),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+
+        # Claim exactly at first layer exhaust point (5M)
+        company, insurance = policy.process_claim(5_000_000)
+        assert insurance == 4_000_000  # Full first layer
+        assert company == 1_000_000  # Deductible only
+
+        # Claim exactly at second layer attachment (5M)
+        # Same as above — second layer attaches at 5M, claim=5M doesn't penetrate
+        company2, insurance2 = policy.process_claim(5_000_000)
+        assert insurance2 == 4_000_000

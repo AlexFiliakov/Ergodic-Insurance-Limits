@@ -1011,3 +1011,142 @@ class TestCatastrophicScenarios:
 
         # Should process in reasonable time (relaxed from 100ms for safety)
         assert elapsed < 1.0  # 1 second max
+
+
+class TestOverRecoveryGuard:
+    """Tests for the over-recovery guard in InsuranceProgram (issue #310).
+
+    Ensures total insurance recovery never exceeds (claim - deductible).
+    """
+
+    def test_recovery_capped_at_claim_minus_deductible(self):
+        """Test that total recovery is capped at claim minus deductible."""
+        # Overlapping layers that would over-recover without a guard
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01),
+        ]
+        program = InsuranceProgram(layers, deductible=1_000_000)
+
+        result = program.process_claim(3_000_000)
+
+        # Max recovery = 3M - 1M = 2M, not 6M from overlapping layers
+        assert result["insurance_recovery"] <= 2_000_000
+        total = result["deductible_paid"] + result["insurance_recovery"] - result["uncovered_loss"]
+        assert abs(total - 3_000_000) < 0.01
+
+    def test_deductible_not_equal_to_attachment(self):
+        """Test with deductible != first layer attachment point (issue #310 specific)."""
+        # Deductible is 1M but layer attaches at 500K
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=500_000, limit=5_000_000, base_premium_rate=0.015
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=1_000_000)
+
+        result = program.process_claim(3_000_000)
+
+        # Max recovery = 3M - 1M = 2M
+        # Layer would cover min(3M - 500K, 5M) = 2.5M, but must be capped at 2M
+        assert result["insurance_recovery"] <= 2_000_000
+        assert result["deductible_paid"] >= 1_000_000
+
+    def test_zero_claim_produces_zero_recovery(self):
+        """Test zero-loss events produce zero recovery."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+
+        result = program.process_claim(0)
+        assert result["insurance_recovery"] == 0
+        assert result["deductible_paid"] == 0
+
+    def test_claim_below_deductible_no_recovery(self):
+        """Test that claims below deductible get no insurance recovery."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=100_000, limit=5_000_000, base_premium_rate=0.01
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=500_000)
+
+        result = program.process_claim(300_000)
+
+        # Below deductible, all paid by company
+        assert result["insurance_recovery"] == 0
+        assert result["deductible_paid"] == 300_000
+
+    def test_recovery_never_exceeds_claim_various_amounts(self):
+        """Test over-recovery guard across a range of claim sizes."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=4_750_000, base_premium_rate=0.015
+            ),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.008
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+
+        for claim in [0, 100_000, 250_000, 1_000_000, 5_000_000, 10_000_000, 30_000_000]:
+            program.reset_annual()
+            result = program.process_claim(claim)
+
+            assert result["insurance_recovery"] <= claim, f"Over-recovery for claim {claim}"
+            assert result["insurance_recovery"] <= max(
+                0, claim - 250_000
+            ), f"Recovery exceeds (claim - deductible) for claim {claim}"
+
+    def test_aggregate_limit_across_multiple_claims(self):
+        """Test aggregate limit tracking across multiple claims in same period.
+
+        For aggregate limit_type, the 'limit' field is per-reinstatement capacity
+        and 'aggregate_limit' is the overall cap. With limit=aggregate_limit and
+        reinstatements=0, the aggregate controls total payouts.
+        """
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=0,
+                limit=3_000_000,
+                base_premium_rate=0.01,
+                reinstatements=0,
+                aggregate_limit=3_000_000,
+                limit_type="aggregate",
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=0)
+
+        # First claim: uses 2M of 3M aggregate
+        r1 = program.process_claim(2_000_000)
+        assert r1["insurance_recovery"] == 2_000_000
+
+        # Second claim: only 1M aggregate remaining
+        r2 = program.process_claim(2_000_000)
+        assert r2["insurance_recovery"] == 1_000_000
+
+        # Third claim: aggregate exhausted
+        r3 = program.process_claim(2_000_000)
+        assert r3["insurance_recovery"] == 0
+
+    def test_claim_at_exact_layer_boundary(self):
+        """Test claims exactly at layer boundary values."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=1_000_000, limit=4_000_000, base_premium_rate=0.015
+            ),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=10_000_000, base_premium_rate=0.008
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=1_000_000)
+
+        # Claim exactly at first layer exhaust = attachment + limit = 5M
+        result = program.process_claim(5_000_000)
+        assert result["insurance_recovery"] == 4_000_000  # Full first layer
+        assert result["deductible_paid"] == 1_000_000
+
+        program.reset_annual()
+
+        # Claim exactly at second layer attachment (5M)
+        result = program.process_claim(5_000_001)
+        # First layer pays 4M, second layer pays min(5M+1 - 5M, 10M) = 1
+        assert result["insurance_recovery"] == 4_000_001

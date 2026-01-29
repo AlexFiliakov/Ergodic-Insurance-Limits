@@ -189,13 +189,22 @@ class TestInsurancePricer:
             )
 
     def test_calculate_technical_premium(self, pricer):
-        """Test technical premium calculation."""
+        """Test technical premium calculation.
+
+        Technical premium = pure_premium * (1 + risk_loading).
+        Expense/profit loading is applied separately via loss ratio
+        in calculate_market_premium() to avoid double-counting.
+        """
         pure_premium = 100_000
         limit = 5_000_000
 
         technical = pricer.calculate_technical_premium(pure_premium, limit)
 
-        # Should be higher than pure premium due to loadings
+        # Should equal pure * (1 + risk_loading) = 100K * 1.10 = 110K
+        expected = pure_premium * (1 + pricer.parameters.risk_loading)
+        assert technical == expected
+
+        # Should be higher than pure premium due to risk loading
         assert technical > pure_premium
 
         # Should respect minimum premium

@@ -269,6 +269,9 @@ class InsurancePolicy:
 
         Allocates a loss across the deductible and insurance layers,
         calculating how much is paid by the company versus insurance.
+        Total insurance recovery is capped at (claim_amount - deductible)
+        to prevent over-recovery when layer configurations overlap with
+        the deductible region.
 
         Args:
             claim_amount: Total claim amount.
@@ -292,6 +295,11 @@ class InsurancePolicy:
             # Calculate recovery from this layer
             layer_recovery = layer.calculate_recovery(claim_amount)
             insurance_recovery += layer_recovery
+            remaining_loss -= layer_recovery
+
+        # Guard: total insurance recovery cannot exceed (claim - deductible)
+        max_recoverable = claim_amount - min(claim_amount, self.deductible)
+        insurance_recovery = min(insurance_recovery, max_recoverable)
 
         # If insurance doesn't cover everything, company pays the excess
         total_covered = company_payment + insurance_recovery
@@ -303,6 +311,10 @@ class InsurancePolicy:
 
     def calculate_recovery(self, claim_amount: float) -> float:
         """Calculate total insurance recovery for a claim.
+
+        Recovery is capped at (claim_amount - deductible) to prevent
+        over-recovery when layer configurations overlap with the
+        deductible region.
 
         Args:
             claim_amount: Total claim amount.
@@ -323,6 +335,10 @@ class InsurancePolicy:
             # Calculate recovery from this layer
             layer_recovery = layer.calculate_recovery(claim_amount)
             insurance_recovery += layer_recovery
+
+        # Guard: total recovery cannot exceed (claim - deductible)
+        max_recoverable = claim_amount - self.deductible
+        insurance_recovery = min(insurance_recovery, max_recoverable)
 
         return insurance_recovery
 

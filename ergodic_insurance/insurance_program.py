@@ -573,6 +573,9 @@ class InsuranceProgram:
             "layers_triggered": [],
         }
 
+        # Maximum recoverable is claim minus deductible
+        max_recoverable = claim_amount - result["deductible_paid"]
+
         # Process through each layer
         for i, state in enumerate(self.layer_states):
             if not state.layer.can_respond(claim_amount):
@@ -596,6 +599,10 @@ class InsuranceProgram:
                         "exhausted": state.is_exhausted,
                     }
                 )
+
+        # Guard: total insurance recovery cannot exceed (claim - deductible)
+        if result["insurance_recovery"] > max_recoverable:
+            result["insurance_recovery"] = max_recoverable
 
         # Calculate uncovered loss
         total_covered = result["deductible_paid"] + result["insurance_recovery"]
