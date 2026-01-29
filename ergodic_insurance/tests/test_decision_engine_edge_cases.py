@@ -594,8 +594,10 @@ class TestBankruptcyAndNegativeEquityScenarios:
             optimization_method="none",
         )
 
-        # Set up for guaranteed negative equity
-        engine.manufacturer.base_operating_margin = -0.1  # Negative margin
+        # Set up for guaranteed negative equity.
+        # With the actual equity ratio (equity/total_assets ≈ 1.0 for a new manufacturer),
+        # the margin must be sufficiently negative to drain equity within 3 years.
+        engine.manufacturer.base_operating_margin = -1.0  # Deeply negative margin
 
         results = engine._run_simulation(decision, n_simulations=5, time_horizon=3)
 

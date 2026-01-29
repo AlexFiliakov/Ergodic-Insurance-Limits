@@ -56,7 +56,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from .config import Config
+from .config import DEFAULT_RISK_FREE_RATE, Config
 from .decimal_utils import ZERO, to_decimal
 from .insurance import InsurancePolicy
 from .insurance_program import InsuranceProgram
@@ -221,12 +221,21 @@ class SimulationResults:
 
         return rolling_roe
 
-    def calculate_roe_components(self) -> Dict[str, np.ndarray]:
+    def calculate_roe_components(
+        self, base_operating_margin: float = 0.08, tax_rate: float = 0.25
+    ) -> Dict[str, np.ndarray]:
         """Calculate ROE component breakdown.
 
         Decomposes ROE into operating, insurance, and tax components
         using DuPont-style analysis. This helps identify the drivers
         of ROE performance and the impact of insurance decisions.
+
+        Args:
+            base_operating_margin: Baseline operating margin for the business.
+                Defaults to 0.08 (8%). Can be sourced from
+                manufacturer.config.base_operating_margin.
+            tax_rate: Corporate tax rate. Defaults to 0.25 (25%). Can be
+                sourced from manufacturer.config.tax_rate.
 
         Returns:
             Dict[str, np.ndarray]: Dictionary containing:
@@ -247,6 +256,13 @@ class SimulationResults:
                 insurance_drag = np.mean(components['insurance_impact'])
                 print(f"Operating ROE: {operating_avg:.2%}")
                 print(f"Insurance drag: {insurance_drag:.2%}")
+
+            Using manufacturer config values::
+
+                components = results.calculate_roe_components(
+                    base_operating_margin=manufacturer.config.base_operating_margin,
+                    tax_rate=manufacturer.config.tax_rate,
+                )
         """
         components = {
             "operating_roe": np.zeros(len(self.years)),
@@ -261,7 +277,7 @@ class SimulationResults:
                 # Operating ROE = (Revenue - Operating Costs) / Equity
                 # This is a simplified calculation; actual implementation
                 # would need more detailed financial data
-                base_margin = 0.08  # Baseline operating margin
+                base_margin = base_operating_margin
                 components["operating_roe"][i] = (self.revenue[i] * base_margin) / self.equity[i]
 
                 # Insurance impact = reduction in ROE due to premiums and retained losses
@@ -269,7 +285,6 @@ class SimulationResults:
                     components["insurance_impact"][i] = -self.claim_amounts[i] / self.equity[i]
 
                 # Tax effect (simplified)
-                tax_rate = 0.25
                 components["tax_effect"][i] = self.roe[i] * (1 - tax_rate) - self.roe[i]
 
         return components
@@ -318,8 +333,8 @@ class SimulationResults:
             np.sqrt(np.mean(negative_deviations**2)) if len(negative_deviations) > 0 else 0.0
         )
 
-        # Sharpe ratio equivalent for ROE (using risk-free rate of 2%)
-        risk_free_rate = 0.02
+        # Sharpe ratio equivalent for ROE
+        risk_free_rate = DEFAULT_RISK_FREE_RATE
         sharpe = (mean_roe - risk_free_rate) / std_roe if std_roe > 0 else 0.0
 
         # Coefficient of variation
@@ -365,7 +380,6 @@ class SimulationResults:
         valid_roe = self.roe[~np.isnan(self.roe)]
 
         # Calculate rolling ROE for different windows
-        rolling_1yr = self.calculate_rolling_roe(1) if len(self.years) >= 1 else np.array([])
         rolling_3yr = self.calculate_rolling_roe(3) if len(self.years) >= 3 else np.array([])
         rolling_5yr = self.calculate_rolling_roe(5) if len(self.years) >= 5 else np.array([])
 
@@ -377,7 +391,6 @@ class SimulationResults:
             "std_roe": np.std(valid_roe, ddof=1) if len(valid_roe) > 1 else 0.0,
             "median_roe": np.median(valid_roe) if len(valid_roe) > 0 else 0.0,
             "time_weighted_roe": self.calculate_time_weighted_roe(),
-            "roe_1yr_avg": np.nanmean(rolling_1yr) if len(rolling_1yr) > 0 else 0.0,
             "roe_3yr_avg": np.nanmean(rolling_3yr) if len(rolling_3yr) > 0 else 0.0,
             "roe_5yr_avg": np.nanmean(rolling_5yr) if len(rolling_5yr) > 0 else 0.0,
             "final_assets": self.assets[-1],

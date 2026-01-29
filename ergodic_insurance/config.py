@@ -53,13 +53,102 @@ Since:
     Version 0.1.0
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 import yaml
+
+# --- Module-level financial constants ---
+# Issue #314: Centralized constants to eliminate hardcoded values across modules
+
+DEFAULT_RISK_FREE_RATE: float = 0.02
+"""Default risk-free rate (2%) used for Sharpe ratio and risk-adjusted calculations."""
+
+
+@dataclass
+class BusinessOptimizerConfig:
+    """Calibration parameters for BusinessOptimizer financial heuristics.
+
+    Issue #314 (C1): Consolidates all hardcoded financial multipliers from
+    BusinessOptimizer into a single, documentable configuration object.
+
+    These are simplified model parameters used by the optimizer's heuristic
+    methods (_estimate_roe, _estimate_bankruptcy_risk, _estimate_growth_rate,
+    etc.). They are NOT derived from manufacturer data—they are tuning knobs
+    for the optimizer's internal scoring functions.
+    """
+
+    # _estimate_roe parameters
+    base_roe: float = 0.15
+    """Base return on equity (15%) before insurance adjustments."""
+    protection_benefit_factor: float = 0.05
+    """Coverage-to-assets ratio multiplier for protection benefit."""
+    roe_noise_std: float = 0.1
+    """Standard deviation of multiplicative noise applied to ROE."""
+
+    # _estimate_bankruptcy_risk parameters
+    base_bankruptcy_risk: float = 0.02
+    """Base annual bankruptcy probability (2%)."""
+    max_risk_reduction: float = 0.015
+    """Maximum risk reduction from insurance coverage (1.5%)."""
+    premium_burden_risk_factor: float = 0.5
+    """Multiplier converting premium burden ratio to risk increase."""
+    time_risk_constant: float = 20.0
+    """Time constant (years) for exponential risk accumulation."""
+
+    # _estimate_growth_rate parameters
+    base_growth_rate: float = 0.10
+    """Base growth rate (10%) before insurance adjustments."""
+    growth_boost_factor: float = 0.03
+    """Coverage ratio multiplier for growth boost (up to 3%)."""
+    premium_drag_factor: float = 0.5
+    """Multiplier for premium-to-revenue drag on growth."""
+    asset_growth_factor: float = 0.8
+    """Growth adjustment factor for asset metric."""
+    equity_growth_factor: float = 1.1
+    """Growth adjustment factor for equity metric."""
+
+    # _calculate_capital_efficiency parameters
+    risk_transfer_benefit_rate: float = 0.05
+    """Fraction of coverage limit freed up by risk transfer (5%)."""
+
+    # _estimate_insurance_return parameters
+    risk_reduction_value: float = 0.03
+    """Return contribution from risk reduction (3%)."""
+    stability_value: float = 0.02
+    """Return contribution from stability improvement (2%)."""
+    growth_enablement_value: float = 0.03
+    """Return contribution from growth enablement (3%)."""
+
+    # _calculate_ergodic_growth parameters
+    assumed_volatility: float = 0.20
+    """Assumed base volatility for ergodic correction."""
+    volatility_reduction_factor: float = 0.05
+    """Coverage ratio multiplier for volatility reduction."""
+    min_volatility: float = 0.05
+    """Floor for adjusted volatility."""
+
+
+@dataclass
+class DecisionEngineConfig:
+    """Calibration parameters for InsuranceDecisionEngine heuristics.
+
+    Issue #314 (C2): Consolidates hardcoded values from the decision engine's
+    growth estimation and simulation methods.
+    """
+
+    # _estimate_growth_rate parameters
+    base_growth_rate: float = 0.08
+    """Base growth rate (8%) for decision engine growth estimation."""
+    volatility_reduction_factor: float = 0.3
+    """Coverage ratio multiplier for volatility reduction."""
+    max_volatility_reduction: float = 0.15
+    """Maximum volatility reduction (15%)."""
+    growth_benefit_factor: float = 0.5
+    """Simplified growth benefit multiplier."""
 
 
 class ManufacturerConfig(BaseModel):

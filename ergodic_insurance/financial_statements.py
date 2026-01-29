@@ -1499,9 +1499,17 @@ class FinancialStatementGenerator:
         # Priority 3: Fall back to flat rate calculation (backward compatibility)
         if tax_provision is None:
             config = self.manufacturer_data.get("config")
-            tax_rate = to_decimal(
-                config.tax_rate if config and hasattr(config, "tax_rate") else Decimal("0.25")
-            )
+            if config and hasattr(config, "tax_rate"):
+                tax_rate = to_decimal(config.tax_rate)
+            else:
+                import warnings
+
+                warnings.warn(
+                    "Tax rate not available from manufacturer config; "
+                    "falling back to default 25% rate. Set config.tax_rate explicitly.",
+                    stacklevel=2,
+                )
+                tax_rate = Decimal("0.25")
             # Calculate tax provision on positive income only
             tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 

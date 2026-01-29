@@ -14,6 +14,8 @@ import pandas as pd
 from scipy import stats
 import seaborn as sns
 
+from .config import DEFAULT_RISK_FREE_RATE
+
 
 @dataclass
 class RiskMetricsResult:
@@ -217,24 +219,25 @@ class RiskMetrics:
         """Calculate Expected Shortfall (ES) above a threshold.
 
         ES is the average of all losses that exceed a given threshold.
+        Delegates to tvar() with a pre-computed VaR value.
 
         Args:
             threshold: Loss threshold.
 
         Returns:
-            Expected shortfall value.
+            Expected shortfall value, or 0.0 if no losses exceed threshold.
         """
+        # Check if any losses exceed the threshold first
         if self.weights is None:
             tail_losses = self.losses[self.losses >= threshold]
             if len(tail_losses) == 0:
                 return 0.0
-            return float(np.mean(tail_losses))
-        mask = self.losses >= threshold
-        if not np.any(mask):
-            return 0.0
-        tail_losses = self.losses[mask]
-        tail_weights = self.weights[mask]
-        return float(np.average(tail_losses, weights=tail_weights))
+        else:
+            mask = self.losses >= threshold
+            if not np.any(mask):
+                return 0.0
+        # Delegate to tvar with pre-computed threshold as the VaR value
+        return self.tvar(var_value=threshold)
 
     def pml(self, return_period: int) -> float:
         """Calculate Probable Maximum Loss (PML) for a given return period.
@@ -389,7 +392,7 @@ class RiskMetrics:
     def risk_adjusted_metrics(
         self,
         returns: Optional[np.ndarray] = None,
-        risk_free_rate: float = 0.02,
+        risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     ) -> Dict[str, float]:
         """Calculate risk-adjusted return metrics.
 
@@ -759,7 +762,7 @@ class ROEAnalyzer:
             "sharpe": np.full(n, np.nan),
         }
 
-        risk_free_rate = 0.02  # 2% risk-free rate
+        risk_free_rate = DEFAULT_RISK_FREE_RATE
 
         for i in range(window - 1, n):
             window_data = self.roe_series[i - window + 1 : i + 1]
@@ -826,7 +829,7 @@ class ROEAnalyzer:
         }
 
     def performance_ratios(
-        self, risk_free_rate: float = 0.02
+        self, risk_free_rate: float = DEFAULT_RISK_FREE_RATE
     ) -> Dict[str, float]:  # pylint: disable=too-many-locals
         """Calculate performance ratios for ROE.
 
