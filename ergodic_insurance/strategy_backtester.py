@@ -25,6 +25,7 @@ Example:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+import hashlib
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -628,7 +629,7 @@ class StrategyBacktester:
             BacktestResult with performance metrics.
         """
         # Check cache
-        cache_key = f"{strategy.name}_{hash(str(config))}"
+        cache_key = f"{strategy.name}_{hashlib.sha256(str(config).encode()).hexdigest()[:16]}"
         if use_cache and cache_key in self.results_cache:
             logger.info(f"Using cached results for {strategy.name}")
             return self.results_cache[cache_key]

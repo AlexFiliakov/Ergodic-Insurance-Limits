@@ -24,6 +24,7 @@ from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.monte_carlo import SimulationConfig, SimulationResults
+from ergodic_insurance.safe_pickle import safe_dump, safe_load
 from ergodic_insurance.scenario_manager import ScenarioConfig
 
 
@@ -554,7 +555,7 @@ class TestBatchProcessor:
 
         # Load and verify checkpoint
         with open(checkpoints[0], "rb") as f:
-            checkpoint = pickle.load(f)
+            checkpoint = safe_load(f)
         assert "id1" in checkpoint.completed_scenarios
         assert "id2" in checkpoint.failed_scenarios
         assert len(checkpoint.batch_results) == 1
@@ -570,7 +571,7 @@ class TestBatchProcessor:
         )
         checkpoint_path = temp_checkpoint_dir / "checkpoint_20240101_120000.pkl"
         with open(checkpoint_path, "wb") as f:
-            pickle.dump(checkpoint, f)
+            safe_dump(checkpoint, f)
 
         # Load checkpoint
         processor = BatchProcessor(checkpoint_dir=temp_checkpoint_dir)

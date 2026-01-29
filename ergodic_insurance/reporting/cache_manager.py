@@ -44,6 +44,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from ..safe_pickle import safe_dump, safe_load
+
 
 class StorageBackend(Enum):
     """Supported storage backend types."""
@@ -215,7 +217,7 @@ class LocalStorageBackend(BaseStorageBackend):
 
         if file_format == "pickle":
             with open(full_path, "wb") as f:
-                pickle.dump(data, f)
+                safe_dump(data, f)
         elif file_format == "json":
             with open(full_path, "w") as f:
                 json.dump(data, f)
@@ -235,7 +237,7 @@ class LocalStorageBackend(BaseStorageBackend):
 
         if file_format == "pickle":
             with open(full_path, "rb") as f:
-                return pickle.load(f)
+                return safe_load(f)
         elif file_format == "json":
             with open(full_path, "r") as f:
                 return json.load(f)
@@ -708,7 +710,7 @@ class CacheManager:
         # Save figure
         if file_format == "pickle":
             with open(full_path, "wb") as f:
-                pickle.dump(figure, f)
+                safe_dump(figure, f)
         elif file_format == "json":
             # For Plotly figures
             import plotly.io as pio
@@ -923,7 +925,7 @@ class CacheManager:
         try:
             if key.startswith("fig_"):
                 with open(file_path, "rb") as f:
-                    pickle.load(f)
+                    safe_load(f)
             elif "_" in key and not key.startswith("fig_"):
                 pd.read_parquet(file_path)
             else:

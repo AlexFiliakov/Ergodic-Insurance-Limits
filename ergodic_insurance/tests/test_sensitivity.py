@@ -9,6 +9,7 @@ Date: 2025-01-29
 """
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import tempfile
 from typing import Any, Dict
@@ -41,7 +42,11 @@ class MockOptimizationResult:
     def __init__(self, config: Dict[str, Any]):
         """Create mock result based on config."""
         # Create deterministic but varying results based on config
-        base_value = sum(hash(str(k)) * v for k, v in config.items() if isinstance(v, (int, float)))
+        base_value = sum(
+            int(hashlib.sha256(str(k).encode()).hexdigest(), 16) % (10**9) * v
+            for k, v in config.items()
+            if isinstance(v, (int, float))
+        )
         base_value = abs(base_value) % 100
 
         self.optimal_strategy = self.Strategy(

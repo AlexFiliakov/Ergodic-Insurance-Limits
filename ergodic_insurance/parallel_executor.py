@@ -39,6 +39,7 @@ import platform
 import sys
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import uuid
 import warnings
 
 import numpy as np
@@ -188,7 +189,7 @@ class SharedMemoryManager:
 
         # Create shared memory
         shm = shared_memory.SharedMemory(
-            create=True, size=array.nbytes, name=f"ergodic_array_{name}_{id(self)}"
+            create=True, size=array.nbytes, name=f"ergodic_array_{name}_{uuid.uuid4().hex[:12]}"
         )
 
         # Copy array to shared memory
@@ -238,7 +239,7 @@ class SharedMemoryManager:
 
         # Create shared memory
         shm = shared_memory.SharedMemory(
-            create=True, size=len(serialized), name=f"ergodic_obj_{name}_{id(self)}"
+            create=True, size=len(serialized), name=f"ergodic_obj_{name}_{uuid.uuid4().hex[:12]}"
         )
 
         # Copy to shared memory

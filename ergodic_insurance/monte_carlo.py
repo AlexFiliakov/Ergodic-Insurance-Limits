@@ -2,6 +2,7 @@
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
+import hashlib
 import os
 from pathlib import Path
 import pickle
@@ -33,6 +34,7 @@ from .result_aggregator import (
 )
 from .risk_metrics import RiskMetrics
 from .ruin_probability import RuinProbabilityAnalyzer, RuinProbabilityConfig, RuinProbabilityResults
+from .safe_pickle import safe_dump, safe_load
 from .summary_statistics import SummaryReportGenerator, SummaryStatistics
 from .trajectory_storage import StorageConfig, TrajectoryStorage
 
@@ -1497,8 +1499,8 @@ class MonteCarloEngine:
             f"n_sims_{self.config.n_simulations}",
             f"n_years_{self.config.n_years}",
             f"seed_{self.config.seed}",
-            f"ins_{hash(str(self.insurance_program))}",
-            f"mfg_{hash(str(self.manufacturer))}",
+            f"ins_{hashlib.sha256(str(self.insurance_program).encode()).hexdigest()[:16]}",
+            f"mfg_{hashlib.sha256(str(self.manufacturer).encode()).hexdigest()[:16]}",
         ]
         return "_".join(key_parts)
 
@@ -1512,7 +1514,7 @@ class MonteCarloEngine:
         cache_file = self.cache_dir / f"{cache_key}.pkl"
         try:
             with open(cache_file, "wb") as f:
-                pickle.dump(results, f)
+                safe_dump(results, f)
         except (IOError, OSError, pickle.PickleError) as e:
             warnings.warn(f"Failed to save cache: {e}")
 
@@ -1529,9 +1531,9 @@ class MonteCarloEngine:
         if cache_file.exists():
             try:
                 with open(cache_file, "rb") as f:
-                    loaded_data = pickle.load(f)
+                    loaded_data = safe_load(f)
                     return loaded_data  # type: ignore
-            except (IOError, OSError, pickle.PickleError, EOFError) as e:
+            except (IOError, OSError, pickle.PickleError, EOFError, ValueError) as e:
                 warnings.warn(f"Failed to load cache: {e}")
         return None
 
