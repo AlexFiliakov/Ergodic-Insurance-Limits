@@ -62,7 +62,7 @@ class RiskMetrics:
 
         self.losses = np.asarray(losses)
         self.weights = weights
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
         # Pre-calculate sorted losses for percentile-based metrics
         if weights is None:

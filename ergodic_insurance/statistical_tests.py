@@ -65,7 +65,7 @@ def _bootstrap_confidence_interval(
     statistic: Callable[[np.ndarray], float],
     n_bootstrap: int,
     alpha: float,
-    rng: np.random.RandomState,
+    rng: np.random.Generator,
 ) -> Tuple[float, float]:
     """Calculate bootstrap confidence interval.
 
@@ -96,7 +96,7 @@ def _bootstrap_ratio_distribution(
     sample2: np.ndarray,
     statistic: Callable[[np.ndarray], float],
     n_bootstrap: int,
-    rng: np.random.RandomState,
+    rng: np.random.Generator,
 ) -> np.ndarray:
     """Generate bootstrap distribution of ratios.
 
@@ -130,7 +130,7 @@ def _permutation_bootstrap(
     combined: np.ndarray,
     n1: int,
     n_bootstrap: int,
-    rng: np.random.RandomState,
+    rng: np.random.Generator,
 ) -> np.ndarray:
     """Generate bootstrap distribution via permutation.
 
@@ -244,7 +244,7 @@ def difference_in_means_test(
     # Calculate observed difference and setup
     observed_diff = np.mean(sample1) - np.mean(sample2)
     n1, n2 = len(sample1), len(sample2)
-    rng = np.random.RandomState(seed)
+    rng = np.random.default_rng(seed)
 
     # Bootstrap under null hypothesis (permutation)
     combined = np.concatenate([sample1, sample2])
@@ -347,7 +347,7 @@ def ratio_of_metrics_test(
     observed_ratio = stat1 / stat2
 
     # Bootstrap distribution of ratio
-    rng = np.random.RandomState(seed)
+    rng = np.random.default_rng(seed)
     bootstrap_ratios_array = _bootstrap_ratio_distribution(
         sample1, sample2, statistic, n_bootstrap, rng
     )
@@ -422,7 +422,7 @@ def paired_comparison_test(
     centered_diffs = paired_differences - observed_mean + null_value
 
     # Bootstrap distribution under null
-    rng = np.random.RandomState(seed)
+    rng = np.random.default_rng(seed)
     bootstrap_means = np.zeros(n_bootstrap)
 
     for i in range(n_bootstrap):
@@ -463,7 +463,7 @@ def _bootstrap_null_distribution(
     data: np.ndarray,
     test_statistic: Callable[[np.ndarray], float],
     n_bootstrap: int,
-    rng: np.random.RandomState,
+    rng: np.random.Generator,
 ) -> np.ndarray:
     """Generate bootstrap distribution under null.
 
@@ -533,7 +533,7 @@ def bootstrap_hypothesis_test(
     # The null_hypothesis function always returns an ndarray
 
     # Bootstrap distribution under null
-    rng = np.random.RandomState(seed)
+    rng = np.random.default_rng(seed)
     bootstrap_stats = _bootstrap_null_distribution(null_data, test_statistic, n_bootstrap, rng)
 
     # Calculate p-value

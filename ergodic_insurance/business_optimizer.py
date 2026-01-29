@@ -734,6 +734,7 @@ class BusinessOptimizer:
         n_simulations: int = 100,
     ) -> float:
         """Simulate ROE with given insurance parameters."""
+        rng = np.random.default_rng()
         roe_values = []
         # Boundary: float for scipy.optimize
         equity = float(self.manufacturer.equity)
@@ -751,7 +752,7 @@ class BusinessOptimizer:
             adjusted_roe = base_roe - premium_cost + protection_benefit
 
             # Add randomness
-            adjusted_roe *= np.random.normal(1.0, 0.1)
+            adjusted_roe *= rng.normal(1.0, 0.1)
             roe_values.append(adjusted_roe)
 
         return float(np.mean(roe_values))

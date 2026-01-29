@@ -863,7 +863,7 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements,too-
         base_curve = 1 / (1 + np.exp(cliff_steepness * (log_ret_norm - cliff_center)))
 
         # Add some noise and ensure realistic bounds
-        noise = np.random.RandomState(42).normal(0, 0.01, len(retentions))
+        noise = np.random.default_rng(42).normal(0, 0.01, len(retentions))
         ruin_probs = np.clip(base_curve + noise, 0.001, 0.99)
 
     # Find cliff edge (steepest point)
@@ -1342,7 +1342,7 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
         paths_long = simulation_data.get("paths_long", None)
     else:
         # Generate synthetic demonstration paths
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
 
         # Short horizon paths
         time_short = np.linspace(0, short_horizon, 100)
@@ -1350,16 +1350,16 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
 
         for i in range(n_paths):
             # Generate path with random walk and drift
-            drift = np.random.normal(0.08, 0.02)  # Annual growth
-            volatility = np.random.uniform(0.15, 0.25)
-            shocks = np.random.normal(0, volatility, len(time_short))
+            drift = rng.normal(0.08, 0.02)  # Annual growth
+            volatility = rng.uniform(0.15, 0.25)
+            shocks = rng.normal(0, volatility, len(time_short))
             cumulative = np.cumsum(drift / len(time_short) + shocks / np.sqrt(len(time_short)))
             path = company_size * np.exp(cumulative)
 
             # Randomly determine if path fails
-            fails = np.random.random() < 0.2  # 20% failure rate
+            fails = rng.random() < 0.2  # 20% failure rate
             if fails and show_failures:
-                fail_time = np.random.uniform(short_horizon * 0.3, short_horizon * 0.9)
+                fail_time = rng.uniform(short_horizon * 0.3, short_horizon * 0.9)
                 fail_idx = int(fail_time / short_horizon * len(time_short))
                 path[fail_idx:] = path[fail_idx] * np.exp(-np.arange(len(path) - fail_idx) * 0.1)
 
@@ -1370,15 +1370,15 @@ def plot_sample_paths(  # pylint: disable=too-many-locals,too-many-branches,too-
         paths_long = []
 
         for i in range(n_paths):
-            drift = np.random.normal(0.08, 0.02)
-            volatility = np.random.uniform(0.15, 0.30)
-            shocks = np.random.normal(0, volatility, len(time_long))
+            drift = rng.normal(0.08, 0.02)
+            volatility = rng.uniform(0.15, 0.30)
+            shocks = rng.normal(0, volatility, len(time_long))
             cumulative = np.cumsum(drift / len(time_long) + shocks / np.sqrt(len(time_long)))
             path = company_size * np.exp(cumulative)
 
-            fails = np.random.random() < 0.3  # 30% failure rate long-term
+            fails = rng.random() < 0.3  # 30% failure rate long-term
             if fails and show_failures:
-                fail_time = np.random.uniform(long_horizon * 0.2, long_horizon * 0.8)
+                fail_time = rng.uniform(long_horizon * 0.2, long_horizon * 0.8)
                 fail_idx = int(fail_time / long_horizon * len(time_long))
                 path[fail_idx:] = path[fail_idx] * np.exp(-np.arange(len(path) - fail_idx) * 0.05)
 
@@ -1563,7 +1563,7 @@ def plot_optimal_coverage_heatmap(  # pylint: disable=too-many-locals
             )
 
             # Add some noise
-            growth_rates += np.random.RandomState(42 + idx).normal(0, 0.005, growth_rates.shape)
+            growth_rates += np.random.default_rng(42 + idx).normal(0, 0.005, growth_rates.shape)
 
         # Convert to percentages
         retention_pcts = retention_values / company_size * 100  # As percentage
@@ -2362,7 +2362,7 @@ def plot_breakeven_timeline(  # pylint: disable=too-many-locals,too-many-stateme
     if simulation_results is None:
         # Generate synthetic demonstration data
         simulation_results = {}
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
 
         for size in company_sizes:
             years = np.arange(time_horizon)
@@ -2386,7 +2386,7 @@ def plot_breakeven_timeline(  # pylint: disable=too-many-locals,too-many-stateme
             )
 
             # Add some realistic noise
-            noise = np.random.normal(0, size * 0.0005, len(years))
+            noise = rng.normal(0, size * 0.0005, len(years))
             cumulative_benefit += np.cumsum(noise)
 
             # Calculate percentiles

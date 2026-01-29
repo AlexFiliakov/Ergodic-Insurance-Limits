@@ -357,8 +357,8 @@ class TestAttritionalLossGenerator:
         losses_ref = gen.generate_losses(duration=100, revenue=10_000_000)
 
         # Reset seed and generate at double revenue
-        gen.frequency_generator.rng = np.random.RandomState(42)
-        gen.severity_distribution.rng = np.random.RandomState(42)
+        gen.frequency_generator.rng = np.random.default_rng(42)
+        gen.severity_distribution.rng = np.random.default_rng(42)
         losses_double = gen.generate_losses(duration=100, revenue=20_000_000)
 
         # Should have approximately sqrt(2) times more losses
@@ -470,9 +470,9 @@ class TestManufacturingLossGenerator:
 
         # Verify sub-generators have different internal states (independence)
         # They should not all have the same random state
-        state_att = gen1.attritional.frequency_generator.rng.get_state()[1][0]  # type: ignore[index]
-        state_large = gen1.large.frequency_generator.rng.get_state()[1][0]  # type: ignore[index]
-        state_cat = gen1.catastrophic.frequency_generator.rng.get_state()[1][0]  # type: ignore[index]
+        state_att = gen1.attritional.frequency_generator.rng.bit_generator.state
+        state_large = gen1.large.frequency_generator.rng.bit_generator.state
+        state_cat = gen1.catastrophic.frequency_generator.rng.bit_generator.state
 
         # All three should be different (statistical independence)
         assert state_att != state_large

@@ -1121,6 +1121,7 @@ class InsuranceDecisionEngine:
         self, decision: InsuranceDecision, n_simulations: int, time_horizon: int
     ) -> Dict[str, np.ndarray]:
         """Run Monte Carlo simulation for given decision."""
+        rng = np.random.default_rng()
         results = {
             "growth_rates": np.zeros(n_simulations),
             "bankruptcies": np.zeros(n_simulations),
@@ -1152,7 +1153,7 @@ class InsuranceDecisionEngine:
                 # Generate losses
                 if hasattr(self.loss_distribution, "expected_value"):
                     # Simple lognormal approximation for losses
-                    annual_losses = np.random.lognormal(
+                    annual_losses = rng.lognormal(
                         np.log(max(self.loss_distribution.expected_value(), 1)), 0.5
                     )
                 else:

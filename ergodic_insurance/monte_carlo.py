@@ -57,13 +57,13 @@ def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
         loss generator passed via shared data. Retained only for backward
         compatibility with any external callers.
     """
-    np.random.seed(sim_id * 1000 + year)
-    n_events = np.random.poisson(3)
+    rng = np.random.default_rng(sim_id * 1000 + year)
+    n_events = rng.poisson(3)
 
     if n_events == 0:
         total_loss = 0.0
     else:
-        event_amounts = np.random.lognormal(10, 2, n_events)
+        event_amounts = rng.lognormal(10, 2, n_events)
         total_loss = float(np.sum(event_amounts))
 
     recovery = min(total_loss, 1_000_000) * 0.9

@@ -41,11 +41,11 @@ def test_annotation_improvements():
 
     # Test 1: Dense annotations with overlap avoidance
     ax1 = axes[0, 0]
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     x = np.linspace(0, 10, 100)
-    y1 = np.sin(x) + np.random.normal(0, 0.1, 100)
-    y2 = np.cos(x) + np.random.normal(0, 0.1, 100)
-    y3 = np.sin(x + np.pi / 4) + np.random.normal(0, 0.1, 100)
+    y1 = np.sin(x) + rng.normal(0, 0.1, 100)
+    y2 = np.cos(x) + rng.normal(0, 0.1, 100)
+    y3 = np.sin(x + np.pi / 4) + rng.normal(0, 0.1, 100)
 
     ax1.plot(x, y1, label="Signal 1", color="#1f77b4")
     ax1.plot(x, y2, label="Signal 2", color="#ff7f0e")
@@ -76,7 +76,7 @@ def test_annotation_improvements():
     ax2 = axes[0, 1]
     x2 = np.linspace(0, 20, 200)
     y_smooth = 5 * np.sin(x2 / 2) * np.exp(-x2 / 20) + 10
-    y_noisy = y_smooth + np.random.normal(0, 0.3, 200)
+    y_noisy = y_smooth + rng.normal(0, 0.3, 200)
 
     ax2.plot(x2, y_noisy, label="Noisy Signal", color="#1f77b4", alpha=0.7)
     ax2.plot(x2, y_smooth, label="Trend", color="#ff7f0e", linewidth=2)
@@ -108,7 +108,7 @@ def test_annotation_improvements():
     # Test 3: Boundary checking and edge cases
     ax3 = axes[1, 0]
     x3 = np.linspace(0, 100, 100)
-    y_edge = np.cumsum(np.random.randn(100)) + 50
+    y_edge = np.cumsum(rng.standard_normal(100)) + 50
 
     ax3.plot(x3, y_edge, color="#2ca02c", linewidth=2)
 
@@ -136,9 +136,9 @@ def test_annotation_improvements():
     # Test 4: Complex scenario with all features
     ax4 = axes[1, 1]
     x4 = np.linspace(0, 50, 150)
-    y4_1 = 20 + 5 * np.sin(x4 / 3) + np.cumsum(np.random.randn(150) * 0.2)
-    y4_2 = 18 + 3 * np.cos(x4 / 2.5) + np.cumsum(np.random.randn(150) * 0.15)
-    y4_3 = 16 + 4 * np.sin(x4 / 3.5 + np.pi / 3) + np.cumsum(np.random.randn(150) * 0.18)
+    y4_1 = 20 + 5 * np.sin(x4 / 3) + np.cumsum(rng.standard_normal(150) * 0.2)
+    y4_2 = 18 + 3 * np.cos(x4 / 2.5) + np.cumsum(rng.standard_normal(150) * 0.15)
+    y4_3 = 16 + 4 * np.sin(x4 / 3.5 + np.pi / 3) + np.cumsum(rng.standard_normal(150) * 0.18)
 
     ax4.plot(x4, y4_1, label="Strategy A", color="#e74c3c", linewidth=2)
     ax4.plot(x4, y4_2, label="Strategy B", color="#3498db", linewidth=2)

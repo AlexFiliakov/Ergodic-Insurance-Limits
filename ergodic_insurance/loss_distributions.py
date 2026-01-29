@@ -25,13 +25,13 @@ class LossDistribution(ABC):
     statistical properties of the distribution.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: Optional[Union[int, np.random.SeedSequence]] = None):
         """Initialize the loss distribution.
 
         Args:
             seed: Random seed for reproducibility.
         """
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
     @abstractmethod
     def generate_severity(self, n_samples: int) -> np.ndarray:
@@ -52,13 +52,13 @@ class LossDistribution(ABC):
             Expected value when analytically available, otherwise estimated.
         """
 
-    def reset_seed(self, seed: int) -> None:
+    def reset_seed(self, seed) -> None:
         """Reset the random seed for reproducibility.
 
         Args:
-            seed: New random seed to use.
+            seed: New random seed to use (int or SeedSequence).
         """
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
 
 class LognormalLoss(LossDistribution):
@@ -214,7 +214,7 @@ class GeneralizedParetoLoss(LossDistribution):
         self,
         severity_shape: float,
         severity_scale: float,
-        seed: Optional[int] = None,
+        seed: Optional[Union[int, np.random.SeedSequence]] = None,
     ):
         """Initialize Generalized Pareto distribution.
 
@@ -540,15 +540,15 @@ class FrequencyGenerator:
         self.base_frequency = base_frequency
         self.revenue_scaling_exponent = revenue_scaling_exponent
         self.reference_revenue = reference_revenue
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
-    def reseed(self, seed: int) -> None:
+    def reseed(self, seed) -> None:
         """Re-seed the random state.
 
         Args:
-            seed: New random seed.
+            seed: New random seed (int or SeedSequence).
         """
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
     def get_scaled_frequency(self, revenue: float) -> float:
         """Calculate revenue-scaled frequency.
@@ -635,17 +635,18 @@ class AttritionalLossGenerator:
 
         self.loss_type = "attritional"
 
-    def reseed(self, seed: int) -> None:
+    def reseed(self, seed) -> None:
         """Re-seed all internal random states.
 
         Args:
-            seed: New random seed. A SeedSequence is used internally to
-                derive independent child seeds for frequency and severity.
+            seed: New random seed (int or SeedSequence). A SeedSequence is
+                used internally to derive independent child seeds for
+                frequency and severity.
         """
-        ss = np.random.SeedSequence(seed)
+        ss = seed if isinstance(seed, np.random.SeedSequence) else np.random.SeedSequence(seed)
         child_seeds = ss.spawn(2)
-        self.frequency_generator.reseed(int(child_seeds[0].generate_state(1)[0]))
-        self.severity_distribution.reset_seed(int(child_seeds[1].generate_state(1)[0]))
+        self.frequency_generator.reseed(child_seeds[0])
+        self.severity_distribution.reset_seed(child_seeds[1])
 
     def generate_losses(self, duration: float, revenue: float) -> List[LossEvent]:
         """Generate attritional loss events.
@@ -710,17 +711,18 @@ class LargeLossGenerator:
 
         self.loss_type = "large"
 
-    def reseed(self, seed: int) -> None:
+    def reseed(self, seed) -> None:
         """Re-seed all internal random states.
 
         Args:
-            seed: New random seed. A SeedSequence is used internally to
-                derive independent child seeds for frequency and severity.
+            seed: New random seed (int or SeedSequence). A SeedSequence is
+                used internally to derive independent child seeds for
+                frequency and severity.
         """
-        ss = np.random.SeedSequence(seed)
+        ss = seed if isinstance(seed, np.random.SeedSequence) else np.random.SeedSequence(seed)
         child_seeds = ss.spawn(2)
-        self.frequency_generator.reseed(int(child_seeds[0].generate_state(1)[0]))
-        self.severity_distribution.reset_seed(int(child_seeds[1].generate_state(1)[0]))
+        self.frequency_generator.reseed(child_seeds[0])
+        self.severity_distribution.reset_seed(child_seeds[1])
 
     def generate_losses(self, duration: float, revenue: float) -> List[LossEvent]:
         """Generate large loss events.
@@ -785,17 +787,18 @@ class CatastrophicLossGenerator:
 
         self.loss_type = "catastrophic"
 
-    def reseed(self, seed: int) -> None:
+    def reseed(self, seed) -> None:
         """Re-seed all internal random states.
 
         Args:
-            seed: New random seed. A SeedSequence is used internally to
-                derive independent child seeds for frequency and severity.
+            seed: New random seed (int or SeedSequence). A SeedSequence is
+                used internally to derive independent child seeds for
+                frequency and severity.
         """
-        ss = np.random.SeedSequence(seed)
+        ss = seed if isinstance(seed, np.random.SeedSequence) else np.random.SeedSequence(seed)
         child_seeds = ss.spawn(2)
-        self.frequency_generator.reseed(int(child_seeds[0].generate_state(1)[0]))
-        self.severity_distribution.reset_seed(int(child_seeds[1].generate_state(1)[0]))
+        self.frequency_generator.reseed(child_seeds[0])
+        self.severity_distribution.reset_seed(child_seeds[1])
 
     def generate_losses(self, duration: float, revenue: float = 10_000_000) -> List[LossEvent]:
         """Generate catastrophic loss events.
@@ -870,11 +873,11 @@ class ManufacturingLossGenerator:
             ss = np.random.SeedSequence(seed)
             child_seeds = ss.spawn(4)  # 4 generators: attritional, large, catastrophic, gpd
 
-            # Extract integer seeds from child sequences for RandomState compatibility
-            attritional_params["seed"] = int(child_seeds[0].generate_state(1)[0])
-            large_params["seed"] = int(child_seeds[1].generate_state(1)[0])
-            catastrophic_params["seed"] = int(child_seeds[2].generate_state(1)[0])
-            gpd_child_seed = int(child_seeds[3].generate_state(1)[0])
+            # Pass child SeedSequences directly to default_rng via sub-generators
+            attritional_params["seed"] = child_seeds[0]
+            large_params["seed"] = child_seeds[1]
+            catastrophic_params["seed"] = child_seeds[2]
+            gpd_child_seed = child_seeds[3]
         else:
             gpd_child_seed = None
 
@@ -911,12 +914,12 @@ class ManufacturingLossGenerator:
         n_children = 4 if self.gpd_generator is not None else 3
         child_seeds = ss.spawn(n_children)
 
-        self.attritional.reseed(int(child_seeds[0].generate_state(1)[0]))
-        self.large.reseed(int(child_seeds[1].generate_state(1)[0]))
-        self.catastrophic.reseed(int(child_seeds[2].generate_state(1)[0]))
+        self.attritional.reseed(child_seeds[0])
+        self.large.reseed(child_seeds[1])
+        self.catastrophic.reseed(child_seeds[2])
 
         if self.gpd_generator is not None:
-            self.gpd_generator.reset_seed(int(child_seeds[3].generate_state(1)[0]))
+            self.gpd_generator.reset_seed(child_seeds[3])
 
     @classmethod
     def create_simple(

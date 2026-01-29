@@ -486,8 +486,8 @@ class AccuracyValidator:
         """
         if test_cases is None:
             # Generate default test cases
-            np.random.seed(42)
-            test_cases = [(np.random.uniform(5e6, 20e6), 10e6, 10) for _ in range(1000)]
+            rng = np.random.default_rng(42)
+            test_cases = [(rng.uniform(5e6, 20e6), 10e6, 10) for _ in range(1000)]
 
         optimized_results = []
         reference_results = []
@@ -517,8 +517,8 @@ class AccuracyValidator:
         """
         if test_cases is None:
             # Generate test cases
-            np.random.seed(42)
-            test_cases = [(np.random.exponential(100000), 50000, 500000) for _ in range(1000)]
+            rng = np.random.default_rng(42)
+            test_cases = [(rng.exponential(100000), 50000, 500000) for _ in range(1000)]
 
         optimized_retained = []
         reference_retained = []
@@ -551,8 +551,8 @@ class AccuracyValidator:
             ValidationResult for risk metrics.
         """
         if test_data is None:
-            np.random.seed(42)
-            test_data = np.random.lognormal(12, 1.5, 10000)
+            rng = np.random.default_rng(42)
+            test_data = rng.lognormal(12, 1.5, 10000)
 
         confidence_levels = [0.9, 0.95, 0.99]
         passed_tests = []
@@ -670,14 +670,14 @@ class AccuracyValidator:
 
 if __name__ == "__main__":
     # Example usage
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
 
     # Create validator
     validator = AccuracyValidator(tolerance=0.01)
 
     # Generate test data
-    optimized = np.random.normal(0.08, 0.02, 10000)
-    reference = optimized + np.random.normal(0, 0.0001, 10000)  # Small perturbation
+    optimized = rng.normal(0.08, 0.02, 10000)
+    reference = optimized + rng.normal(0, 0.0001, 10000)  # Small perturbation
 
     # Run validation
     result = validator.compare_implementations(optimized, reference)

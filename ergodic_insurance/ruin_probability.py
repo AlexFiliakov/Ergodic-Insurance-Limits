@@ -338,9 +338,8 @@ class RuinProbabilityAnalyzer:
         start_idx, end_idx, max_horizon, config, seed = chunk
         n_sims = end_idx - start_idx
 
-        # Set seed for this chunk
-        if seed is not None:
-            np.random.seed(seed)
+        # Create local RNG for this chunk (loss generator has its own internal RNG)
+        _rng = np.random.default_rng(seed)
 
         # Pre-allocate arrays
         bankruptcy_years = np.full(n_sims, max_horizon + 1, dtype=np.int32)
@@ -555,6 +554,7 @@ class RuinProbabilityAnalyzer:
         confidence_level: float,
     ) -> np.ndarray:
         """Calculate bootstrap confidence intervals for ruin probabilities."""
+        rng = np.random.default_rng()
         n_sims = len(bankruptcy_years)
         confidence_intervals = np.zeros((len(time_horizons), 2))
 
@@ -562,7 +562,7 @@ class RuinProbabilityAnalyzer:
             bootstrap_probs = []
             for _ in range(n_bootstrap):
                 # Resample with replacement
-                bootstrap_sample = np.random.choice(bankruptcy_years, size=n_sims, replace=True)
+                bootstrap_sample = rng.choice(bankruptcy_years, size=n_sims, replace=True)
                 prob = np.mean(bootstrap_sample <= horizon)
                 bootstrap_probs.append(prob)
 

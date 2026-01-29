@@ -360,18 +360,22 @@ class PercentileTracker:
     on large datasets.
     """
 
-    def __init__(self, percentiles: List[float], max_samples: int = 100_000):
+    def __init__(
+        self, percentiles: List[float], max_samples: int = 100_000, seed: Optional[int] = None
+    ):
         """Initialize percentile tracker.
 
         Args:
             percentiles: List of percentiles to track
             max_samples: Maximum samples to keep in memory
+            seed: Optional random seed for reproducibility
         """
         self.percentiles = sorted(percentiles)
         self.max_samples = max_samples
         self.samples: List[float] = []
         self.total_count = 0
         self.reservoir_full = False
+        self._rng = np.random.default_rng(seed)
 
     def update(self, values: np.ndarray) -> None:
         """Update tracker with new values.
@@ -391,7 +395,7 @@ class PercentileTracker:
                     self.reservoir_full = True
 
                 # Randomly replace samples
-                idx = np.random.randint(self.total_count)
+                idx = self._rng.integers(self.total_count)
                 if idx < self.max_samples:
                     self.samples[idx] = value
 

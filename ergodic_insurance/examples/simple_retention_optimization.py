@@ -47,7 +47,7 @@ def simulate_wealth_with_insurance(
     """
     Simulate wealth evolution with insurance.
     """
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     wealth = initial_wealth
     history = [wealth]
 
@@ -70,7 +70,7 @@ def simulate_wealth_with_insurance(
         wealth -= premium
 
         # Generate losses
-        n_losses = np.random.poisson(loss_frequency)
+        n_losses = rng.poisson(loss_frequency)
         for _ in range(n_losses):
             loss = loss_dist.rvs()
             retained_loss = min(loss, retention)

@@ -376,7 +376,7 @@ class TestCacheManager:
 
         def compute_func(params):
             """Mock computation function."""
-            return np.random.RandomState(params["seed"]).randn(params["n_sims"], 10)
+            return np.random.default_rng(params["seed"]).standard_normal((params["n_sims"], 10))
 
         # Warm the cache
         n_cached = cache_manager.warm_cache(

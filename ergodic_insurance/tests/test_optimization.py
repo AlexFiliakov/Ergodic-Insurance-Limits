@@ -386,7 +386,8 @@ class TestMultiStartOptimizer:
         bounds = Bounds([0.0, -1.0], [1.0, 1.0])
 
         optimizer = MultiStartOptimizer(objective, bounds)
-        starts = optimizer._generate_starting_points(5, None)
+        rng = np.random.default_rng(42)
+        starts = optimizer._generate_starting_points(5, None, rng)
 
         assert len(starts) == 5
         for point in starts:
