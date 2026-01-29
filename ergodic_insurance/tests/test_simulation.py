@@ -87,7 +87,7 @@ class TestSimulationResults:
         stats = results.summary_stats()
 
         assert stats["mean_roe"] == pytest.approx(0.11, rel=0.01)
-        assert stats["std_roe"] == pytest.approx(0.00816, rel=0.1)
+        assert stats["std_roe"] == pytest.approx(0.01, rel=0.1)  # sample std (ddof=1)
         assert stats["median_roe"] == pytest.approx(0.11, rel=0.01)
         assert stats["final_assets"] == 130
         assert stats["final_equity"] == 65

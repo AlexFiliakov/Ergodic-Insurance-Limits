@@ -310,7 +310,7 @@ class SimulationResults:
             }
 
         mean_roe = np.mean(valid_roe)
-        std_roe = np.std(valid_roe)
+        std_roe = np.std(valid_roe, ddof=1)
 
         # Downside deviation (only negative deviations from mean)
         negative_deviations = valid_roe[valid_roe < mean_roe] - mean_roe
@@ -374,7 +374,7 @@ class SimulationResults:
 
         base_stats = {
             "mean_roe": np.mean(valid_roe) if len(valid_roe) > 0 else 0.0,
-            "std_roe": np.std(valid_roe) if len(valid_roe) > 0 else 0.0,
+            "std_roe": np.std(valid_roe, ddof=1) if len(valid_roe) > 1 else 0.0,
             "median_roe": np.median(valid_roe) if len(valid_roe) > 0 else 0.0,
             "time_weighted_roe": self.calculate_time_weighted_roe(),
             "roe_1yr_avg": np.nanmean(rolling_1yr) if len(rolling_1yr) > 0 else 0.0,
@@ -679,6 +679,16 @@ class Simulation:
         """
         start_time = time.time()
 
+        # Reset mutable state so the simulation is re-entrant
+        self.insolvency_year = None
+        self.assets = np.zeros(self.time_horizon)
+        self.equity = np.zeros(self.time_horizon)
+        self.roe = np.zeros(self.time_horizon)
+        self.revenue = np.zeros(self.time_horizon)
+        self.net_income = np.zeros(self.time_horizon)
+        self.claim_counts = np.zeros(self.time_horizon)
+        self.claim_amounts = np.zeros(self.time_horizon)
+
         logger.info(f"Starting {self.time_horizon}-year simulation with dynamic loss generation")
 
         # Run simulation
@@ -727,7 +737,7 @@ class Simulation:
                 self.roe[year + 1 :] = np.nan
                 self.revenue[year + 1 :] = 0
                 self.net_income[year + 1 :] = 0
-                # Continue simulation to maintain full array length
+                break  # Stop simulation — manufacturer is insolvent
 
         # Calculate total time
         total_time = time.time() - start_time
@@ -776,6 +786,16 @@ class Simulation:
             if 0 <= year < self.time_horizon:
                 losses_by_year[year].append(loss)
 
+        # Reset mutable state so the simulation is re-entrant
+        self.insolvency_year = None
+        self.assets = np.zeros(self.time_horizon)
+        self.equity = np.zeros(self.time_horizon)
+        self.roe = np.zeros(self.time_horizon)
+        self.revenue = np.zeros(self.time_horizon)
+        self.net_income = np.zeros(self.time_horizon)
+        self.claim_counts = np.zeros(self.time_horizon)
+        self.claim_amounts = np.zeros(self.time_horizon)
+
         logger.info(
             f"Starting {self.time_horizon}-year simulation with {len(losses)} losses from LossData"
         )
@@ -821,7 +841,7 @@ class Simulation:
                 self.roe[year + 1 :] = np.nan
                 self.revenue[year + 1 :] = 0
                 self.net_income[year + 1 :] = 0
-                # Continue simulation to maintain full array length
+                break  # Stop simulation — manufacturer is insolvent
 
         # Log completion
         total_time = time.time() - start_time
@@ -1050,20 +1070,35 @@ class Simulation:
                 resume=False,
             )
 
-            # Extract key metrics
-            stats = mc_results["statistics"]
+            # Extract key metrics from the SimulationResults object
+            sim_results = mc_results["results_with_insurance"]
+            final_assets = sim_results.final_assets
+            growth_rates = sim_results.growth_rates
+
+            survival_rate = float(np.mean(final_assets > 0)) if len(final_assets) > 0 else 0.0
+            mean_final = float(np.mean(final_assets)) if len(final_assets) > 0 else 0.0
+            std_final = float(np.std(final_assets, ddof=1)) if len(final_assets) > 1 else 0.0
+            positive_rates = growth_rates[growth_rates > 0]
+            geo_mean = (
+                float(np.exp(np.mean(np.log(positive_rates))) - 1)
+                if len(positive_rates) > 0
+                else 0.0
+            )
+            arith_mean = float(np.mean(growth_rates)) if len(growth_rates) > 0 else 0.0
+            p95 = float(np.percentile(final_assets, 95)) if len(final_assets) > 0 else 0.0
+            p99 = float(np.percentile(final_assets, 99)) if len(final_assets) > 0 else 0.0
 
             result_row = {
                 "policy": policy_name,
                 "annual_premium": policy.calculate_premium(),
                 "total_coverage": policy.get_total_coverage(),
-                "survival_rate": stats["final_equity"]["survival_rate"],
-                "mean_final_equity": stats["final_equity"]["mean"],
-                "std_final_equity": stats["final_equity"]["std"],
-                "geometric_return": stats["geometric_return"]["geometric_mean"],
-                "arithmetic_return": stats["arithmetic_return"]["mean"],
-                "p95_final_equity": stats["final_equity"]["p95"],
-                "p99_final_equity": stats["final_equity"]["p99"],
+                "survival_rate": survival_rate,
+                "mean_final_equity": mean_final,
+                "std_final_equity": std_final,
+                "geometric_return": geo_mean,
+                "arithmetic_return": arith_mean,
+                "p95_final_equity": p95,
+                "p99_final_equity": p99,
             }
 
             results.append(result_row)
