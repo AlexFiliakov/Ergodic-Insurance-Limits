@@ -49,6 +49,9 @@ class FinancialStatementConfig:
             the central Config.simulation.fiscal_year_end setting. Defaults to 12
             (December) if neither is set, for calendar year alignment.
         consolidate_monthly: Whether to consolidate monthly data into annual
+        current_claims_ratio: Fraction of claim liabilities classified as current
+            (due within one year). Defaults to 0.1 (10%). Should be derived from
+            actual claim payment schedules when available.
     """
 
     currency_symbol: str = "$"
@@ -57,6 +60,7 @@ class FinancialStatementConfig:
     include_percentages: bool = True
     fiscal_year_end: Optional[int] = None
     consolidate_monthly: bool = True
+    current_claims_ratio: float = 0.1
 
 
 class CashFlowStatement:
@@ -827,14 +831,11 @@ class FinancialStatementGenerator:
                 - dividends
             )
 
-        # Net assets = Assets - Liabilities (or just equity since Assets = Liabilities + Equity)
-        total_liabilities = (
-            metrics["accounts_payable"]
-            + metrics["accrued_expenses"]
-            + metrics["claim_liabilities"]
-            + metrics["unearned_revenue"]
-        )
-        metrics["net_assets"] = metrics["assets"] - total_liabilities
+        # Net assets = Assets - Restricted Assets (available for operations)
+        # This matches the Manufacturer's net_assets property definition.
+        # Issue #301: Previously used assets - total_liabilities (equity), which
+        # is a different concept and caused reconciliation mismatches.
+        metrics["net_assets"] = metrics["assets"] - metrics["restricted_assets"]
 
         # Income statement items (period flows, not cumulative balances)
         # The ledger doesn't record P&L transactions, so fall back to metrics_history
@@ -1096,9 +1097,10 @@ class FinancialStatementGenerator:
         accrued_taxes = metrics.get("accrued_taxes", 0)
         accrued_interest = metrics.get("accrued_interest", 0)
 
-        # Estimate current portion of claims (first year of payment schedule)
+        # Current portion of claims (configurable via FinancialStatementConfig)
         claim_liabilities = metrics.get("claim_liabilities", 0)
-        current_claims = claim_liabilities * to_decimal(0.1) if claim_liabilities > 0 else ZERO
+        claims_ratio = to_decimal(self.config.current_claims_ratio)
+        current_claims = claim_liabilities * claims_ratio if claim_liabilities > 0 else ZERO
 
         data.append(("  Accounts Payable", accounts_payable, "", ""))
 
@@ -1433,24 +1435,14 @@ class FinancialStatementGenerator:
         # NON-OPERATING INCOME (EXPENSES)
         data.append(("NON-OPERATING INCOME (EXPENSES)", "", "", ""))
 
-        # Interest income on cash balances
-        # Issue #256: cash must be provided by Manufacturer (validated in _build_assets_section)
-        if "cash" not in metrics:
-            raise ValueError(
-                "cash missing from metrics. "
-                "The Manufacturer class must calculate and provide cash balance explicitly. "
-                "(Issue #256: Removed unsafe data estimation from reporting layer)"
-            )
-        cash = metrics["cash"]
-        interest_rate = 0.02  # 2% annual interest rate on cash
-        interest_income = cash * interest_rate
+        # Interest income/expense: read from metrics (Issue #301)
+        # The reporting layer must not fabricate financial data with hardcoded rates.
+        # Interest income and expense should be computed by the Manufacturer or Ledger.
+        interest_income = metrics.get("interest_income", 0)
         if monthly:
             interest_income = interest_income / 12
 
-        # Interest expense on any debt
-        debt_balance = metrics.get("debt_balance", 0)
-        debt_interest_rate = 0.05  # 5% annual interest on debt
-        interest_expense = debt_balance * debt_interest_rate
+        interest_expense = metrics.get("interest_expense", 0)
         if monthly:
             interest_expense = interest_expense / 12
 
@@ -1508,7 +1500,11 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
         # NET INCOME
-        net_income = float(pretax_income) - float(tax_provision)
+        # Issue #301: Use manufacturer's net_income directly to ensure consistency
+        # between income statement and balance sheet (which uses manufacturer's equity).
+        # The income statement presentation above may compute a different operating_income
+        # due to GAAP categorization differences, but the bottom line must match.
+        net_income = metrics.get("net_income", float(pretax_income) - float(tax_provision))
         data.append(("NET INCOME", net_income, "", "total"))
         data.append(("", "", "", ""))
 
@@ -1577,140 +1573,6 @@ class FinancialStatementGenerator:
         # Generate and return the statement with specified method
         return cash_flow_generator.generate_statement(year, period=period, method=method)
 
-    def _build_operating_activities(
-        self,
-        data: List[Tuple[str, Union[str, float, int], str]],
-        metrics: Dict[str, float],
-        prev_metrics: Dict[str, float],
-        year: int,
-        **kwargs,
-    ) -> float:
-        """Build operating activities section and return operating cash flow."""
-        method = kwargs.get("method", "indirect")
-        data.append(("OPERATING ACTIVITIES", "", ""))
-
-        if method == "indirect":
-            operating_cash = self._build_indirect_operating(data, metrics, prev_metrics, year)
-        else:
-            operating_cash = self._build_direct_operating(data, metrics)
-
-        data.append(("  Net Cash from Operating Activities", operating_cash, "subtotal"))
-        data.append(("", "", ""))
-        return operating_cash
-
-    def _build_indirect_operating(
-        self,
-        data: List[Tuple[str, Union[str, float, int], str]],
-        metrics: Dict[str, float],
-        prev_metrics: Dict[str, float],
-        year: int,
-    ) -> float:
-        """Build indirect method operating section."""
-        # Start with net income
-        net_income = metrics.get("net_income", 0)
-        data.append(("  Net Income", net_income, ""))
-        data.append(("  Adjustments to reconcile:", "", ""))
-
-        # Add back non-cash items (simplified)
-        depreciation = to_decimal(metrics.get("assets", 0)) * to_decimal(
-            0.05
-        )  # Estimate 5% depreciation
-        data.append(("    Depreciation", depreciation, ""))
-
-        # Changes in working capital
-        if year > 0:
-            wc_change = (
-                to_decimal(metrics.get("assets", 0)) - to_decimal(prev_metrics.get("assets", 0))
-            ) * to_decimal(0.2)
-            data.append(("    Change in Working Capital", -wc_change, ""))
-
-            # Change in claim liabilities
-            claim_change = metrics.get("claim_liabilities", 0) - prev_metrics.get(
-                "claim_liabilities", 0
-            )
-            data.append(("    Change in Claim Liabilities", claim_change, ""))
-        else:
-            wc_change = 0
-            claim_change = 0
-
-        return net_income + depreciation - wc_change + claim_change
-
-    def _build_direct_operating(
-        self, data: List[Tuple[str, Union[str, float, int], str]], metrics: Dict[str, float]
-    ) -> float:
-        """Build direct method operating section."""
-        revenue = metrics.get("revenue", 0)
-        data.append(("  Cash from Customers", revenue, ""))
-
-        # Cash payments
-        operating_income = metrics.get("operating_income", 0)
-        operating_expenses = revenue - operating_income
-        data.append(("  Cash to Suppliers/Employees", -operating_expenses, ""))
-
-        # Other operating cash flows
-        taxes_paid = to_decimal(operating_income) * to_decimal(0.25)  # Estimate
-        data.append(("  Taxes Paid", -taxes_paid, ""))
-
-        return revenue - operating_expenses - taxes_paid
-
-    def _build_investing_activities(
-        self,
-        data: List[Tuple[str, Union[str, float, int], str]],
-        metrics: Dict[str, float],
-        prev_metrics: Dict[str, float],
-        year: int,
-    ) -> float:
-        """Build investing activities section and return capex."""
-        data.append(("INVESTING ACTIVITIES", "", ""))
-
-        # Capital expenditures (simplified)
-        if year > 0:
-            asset_change = to_decimal(metrics.get("assets", 0)) - to_decimal(
-                prev_metrics.get("assets", 0)
-            )
-            capex = max(
-                ZERO, asset_change * to_decimal(0.3)
-            )  # Estimate 30% of asset growth as capex
-        else:
-            capex = 0
-
-        data.append(("  Capital Expenditures", -capex, ""))
-        data.append(("  Net Cash from Investing Activities", -capex, "subtotal"))
-        data.append(("", "", ""))
-        return capex
-
-    def _build_financing_activities(
-        self, data: List[Tuple[str, Union[str, float, int], str]]
-    ) -> float:
-        """Build financing activities section and return financing cash."""
-        data.append(("FINANCING ACTIVITIES", "", ""))
-
-        # Simplified - no debt or equity transactions in base model
-        financing_cash = 0
-        data.append(("  Net Cash from Financing Activities", financing_cash, "subtotal"))
-        data.append(("", "", ""))
-        return financing_cash
-
-    def _add_cash_reconciliation(
-        self,
-        data: List[Tuple[str, Union[str, float, int], str]],
-        metrics: Dict[str, float],
-        prev_metrics: Dict[str, float],
-        year: int,
-    ) -> None:
-        """Add cash reconciliation section."""
-        if year > 0:
-            beginning_cash = prev_metrics.get("available_assets", 0)
-        else:
-            initial_val = self.manufacturer_data.get("initial_assets", 0.0)
-            beginning_cash = float(initial_val) if isinstance(initial_val, (int, float)) else 0.0
-
-        ending_cash = metrics.get("available_assets", 0)
-
-        data.append(("", "", ""))
-        data.append(("Cash - Beginning of Period", beginning_cash, ""))
-        data.append(("Cash - End of Period", ending_cash, ""))
-
     def generate_reconciliation_report(self, year: int) -> pd.DataFrame:
         """Generate reconciliation report for financial statements.
 
@@ -1746,10 +1608,25 @@ class FinancialStatementGenerator:
     def _check_balance_sheet_equation(
         self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
     ) -> None:
-        """Check if balance sheet equation balances."""
+        """Check if balance sheet equation balances.
+
+        Uses full total liabilities (accounts_payable + accrued_expenses +
+        claim_liabilities) rather than just claim_liabilities, matching
+        the liabilities section of the balance sheet (Issue #301).
+        """
         data.append(("BALANCE SHEET RECONCILIATION", "", "", ""))
         assets = to_decimal(metrics.get("assets", 0))
-        liabilities = to_decimal(metrics.get("claim_liabilities", 0))
+        # Issue #301: Use full total liabilities matching _build_liabilities_section
+        claims_ratio = to_decimal(self.config.current_claims_ratio)
+        claim_liabilities = to_decimal(metrics.get("claim_liabilities", 0))
+        current_claims = claim_liabilities * claims_ratio if claim_liabilities > 0 else ZERO
+        long_term_claims = claim_liabilities - current_claims
+        total_current = (
+            to_decimal(metrics.get("accounts_payable", 0))
+            + to_decimal(metrics.get("accrued_expenses", 0))
+            + current_claims
+        )
+        liabilities = total_current + long_term_claims
         equity = to_decimal(metrics.get("equity", 0))
 
         difference = assets - (liabilities + equity)
@@ -1764,7 +1641,11 @@ class FinancialStatementGenerator:
     def _check_net_assets(
         self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: Dict[str, float]
     ) -> None:
-        """Check net assets reconciliation."""
+        """Check net assets reconciliation.
+
+        Net assets = Total Assets - Restricted Assets (available for operations).
+        This matches the Manufacturer's net_assets property definition (Issue #301).
+        """
         data.append(("NET ASSETS RECONCILIATION", "", "", ""))
         net_assets = to_decimal(metrics.get("net_assets", 0))
         calc_net_assets = to_decimal(metrics.get("assets", 0)) - to_decimal(
