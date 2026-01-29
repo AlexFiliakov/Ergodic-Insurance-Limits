@@ -187,7 +187,7 @@ class TestLedger:
         assert debit.amount == credit.amount == 1000
 
     def test_double_entry_zero_amount(self, ledger):
-        """Test that zero-amount transactions are skipped."""
+        """Test that zero-amount transactions return None sentinel (Issue #315)."""
         debit, credit = ledger.record_double_entry(
             date=1,
             debit_account="cash",
@@ -197,7 +197,8 @@ class TestLedger:
         )
 
         assert len(ledger) == 0  # Zero-amount entries not recorded
-        assert debit.amount == 0
+        assert debit is None
+        assert credit is None
 
     def test_double_entry_negative_raises(self, ledger):
         """Test that negative amounts raise an error."""
@@ -919,3 +920,214 @@ class TestBalanceCache:
         assert ledger.get_balance("cash") == 7500
         assert ledger.get_balance(AccountName.REVENUE) == 7500
         assert ledger.get_balance("revenue") == 7500
+
+
+class TestMonthValidation:
+    """Tests for LedgerEntry month range validation (Issue #315)."""
+
+    def test_valid_month_zero(self):
+        """Month 0 is valid."""
+        entry = LedgerEntry(
+            date=1,
+            account="cash",
+            amount=Decimal("100"),
+            entry_type=EntryType.DEBIT,
+            transaction_type=TransactionType.COLLECTION,
+            month=0,
+        )
+        assert entry.month == 0
+
+    def test_valid_month_eleven(self):
+        """Month 11 is valid."""
+        entry = LedgerEntry(
+            date=1,
+            account="cash",
+            amount=Decimal("100"),
+            entry_type=EntryType.DEBIT,
+            transaction_type=TransactionType.COLLECTION,
+            month=11,
+        )
+        assert entry.month == 11
+
+    def test_invalid_month_negative(self):
+        """Negative month raises ValueError."""
+        with pytest.raises(ValueError, match="Month must be 0-11"):
+            LedgerEntry(
+                date=1,
+                account="cash",
+                amount=Decimal("100"),
+                entry_type=EntryType.DEBIT,
+                transaction_type=TransactionType.COLLECTION,
+                month=-1,
+            )
+
+    def test_invalid_month_twelve(self):
+        """Month 12 raises ValueError."""
+        with pytest.raises(ValueError, match="Month must be 0-11"):
+            LedgerEntry(
+                date=1,
+                account="cash",
+                amount=Decimal("100"),
+                entry_type=EntryType.DEBIT,
+                transaction_type=TransactionType.COLLECTION,
+                month=12,
+            )
+
+
+class TestEntryPruning:
+    """Tests for ledger entry pruning (Issue #315)."""
+
+    @pytest.fixture
+    def multi_year_ledger(self):
+        """Ledger with entries across years 1-5."""
+        ledger = Ledger()
+        for year in range(1, 6):
+            ledger.record_double_entry(
+                date=year,
+                debit_account="cash",
+                credit_account="revenue",
+                amount=1000 * year,
+                transaction_type=TransactionType.REVENUE,
+                description=f"Year {year} revenue",
+            )
+        return ledger
+
+    def test_prune_removes_old_entries(self, multi_year_ledger):
+        """Pruning removes entries before the cutoff date."""
+        original_count = len(multi_year_ledger)
+        removed = multi_year_ledger.prune_entries(before_date=3)
+        # Years 1 and 2 removed: 2 transactions * 2 entries = 4
+        assert removed == 4
+        assert len(multi_year_ledger) == original_count - 4
+
+    def test_prune_preserves_current_balances(self, multi_year_ledger):
+        """Current balance cache is unaffected by pruning."""
+        balance_before = multi_year_ledger.get_balance("cash")
+        multi_year_ledger.prune_entries(before_date=3)
+        assert multi_year_ledger.get_balance("cash") == balance_before
+
+    def test_prune_preserves_trial_balance_current(self, multi_year_ledger):
+        """Current trial balance is unchanged after pruning."""
+        trial_before = multi_year_ledger.get_trial_balance()
+        multi_year_ledger.prune_entries(before_date=3)
+        trial_after = multi_year_ledger.get_trial_balance()
+        assert trial_before == trial_after
+
+    def test_prune_historical_balance_at_cutoff(self, multi_year_ledger):
+        """Historical balance at or after prune date is correct."""
+        bal_at_3_before = multi_year_ledger.get_balance("cash", as_of_date=3)
+        multi_year_ledger.prune_entries(before_date=3)
+        bal_at_3_after = multi_year_ledger.get_balance("cash", as_of_date=3)
+        assert bal_at_3_after == bal_at_3_before
+
+    def test_prune_historical_trial_balance_at_cutoff(self, multi_year_ledger):
+        """Historical trial balance at or after prune date is correct."""
+        trial_at_5_before = multi_year_ledger.get_trial_balance(as_of_date=5)
+        multi_year_ledger.prune_entries(before_date=3)
+        trial_at_5_after = multi_year_ledger.get_trial_balance(as_of_date=5)
+        assert trial_at_5_after == trial_at_5_before
+
+    def test_prune_nothing_to_remove(self, multi_year_ledger):
+        """Pruning with cutoff before all entries removes nothing."""
+        removed = multi_year_ledger.prune_entries(before_date=0)
+        assert removed == 0
+        assert len(multi_year_ledger) == 10  # 5 years * 2 entries
+
+    def test_prune_all_entries(self, multi_year_ledger):
+        """Pruning with cutoff after all entries removes everything."""
+        balance_before = multi_year_ledger.get_balance("cash")
+        removed = multi_year_ledger.prune_entries(before_date=100)
+        assert removed == 10
+        assert len(multi_year_ledger) == 0
+        # Current balance still correct
+        assert multi_year_ledger.get_balance("cash") == balance_before
+
+    def test_prune_cleared_on_reset(self, multi_year_ledger):
+        """Clear resets pruning state."""
+        multi_year_ledger.prune_entries(before_date=3)
+        multi_year_ledger.clear()
+        assert multi_year_ledger._pruned_balances == {}
+        assert multi_year_ledger._prune_cutoff is None
+
+    def test_prune_multiple_times(self, multi_year_ledger):
+        """Multiple prune calls accumulate correctly."""
+        multi_year_ledger.prune_entries(before_date=2)
+        multi_year_ledger.prune_entries(before_date=4)
+        # Only years 4 and 5 remain
+        assert len(multi_year_ledger) == 4  # 2 years * 2 entries
+        # Total balance: 1000+2000+3000+4000+5000 = 15000
+        assert multi_year_ledger.get_balance("cash") == 15000
+
+
+class TestSinglePassTrialBalance:
+    """Tests for O(N) single-pass trial balance (Issue #315)."""
+
+    def test_trial_balance_current_uses_cache(self):
+        """Current trial balance reads from cache, not entries."""
+        ledger = Ledger()
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=5000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        # Should return non-zero accounts from cache
+        trial = ledger.get_trial_balance()
+        assert trial["cash"] == 5000
+        assert trial["revenue"] == 5000
+
+    def test_trial_balance_historical_single_pass(self):
+        """Historical trial balance matches per-account query results."""
+        ledger = Ledger()
+        for year in range(1, 4):
+            ledger.record_double_entry(
+                date=year,
+                debit_account="cash",
+                credit_account="revenue",
+                amount=1000 * year,
+                transaction_type=TransactionType.REVENUE,
+            )
+            ledger.record_double_entry(
+                date=year,
+                debit_account="operating_expenses",
+                credit_account="cash",
+                amount=500 * year,
+                transaction_type=TransactionType.PAYMENT,
+            )
+
+        # Compare single-pass trial balance vs per-account queries
+        trial = ledger.get_trial_balance(as_of_date=2)
+        assert trial["cash"] == ledger.get_balance("cash", as_of_date=2)
+        assert trial["revenue"] == ledger.get_balance("revenue", as_of_date=2)
+        assert trial["operating_expenses"] == ledger.get_balance("operating_expenses", as_of_date=2)
+
+    def test_trial_balance_after_prune(self):
+        """Trial balance with as_of_date works after pruning."""
+        ledger = Ledger()
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=1000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        ledger.record_double_entry(
+            date=2,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=2000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        ledger.record_double_entry(
+            date=3,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=3000,
+            transaction_type=TransactionType.REVENUE,
+        )
+
+        trial_full = ledger.get_trial_balance(as_of_date=3)
+        ledger.prune_entries(before_date=2)
+        trial_pruned = ledger.get_trial_balance(as_of_date=3)
+        assert trial_full == trial_pruned
