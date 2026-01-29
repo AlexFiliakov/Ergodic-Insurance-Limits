@@ -24,6 +24,7 @@ from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
 from .parallel_executor import ParallelExecutor
+from .safe_pickle import safe_dump, safe_load
 from .scenario_manager import ScenarioConfig, ScenarioManager
 
 
@@ -626,7 +627,7 @@ class BatchProcessor:
 
         checkpoint_path = self.checkpoint_dir / f"checkpoint_{datetime.now():%Y%m%d_%H%M%S}.pkl"
         with open(checkpoint_path, "wb") as f:
-            pickle.dump(checkpoint, f)
+            safe_dump(checkpoint, f)
 
         # Keep only the latest checkpoint
         checkpoints = sorted(self.checkpoint_dir.glob("checkpoint_*.pkl"))
@@ -648,7 +649,7 @@ class BatchProcessor:
         print(f"Loading checkpoint from {latest_checkpoint}")
 
         with open(latest_checkpoint, "rb") as f:
-            checkpoint: CheckpointData = pickle.load(f)
+            checkpoint: CheckpointData = safe_load(f)
 
         self.completed_scenarios = checkpoint.completed_scenarios
         self.failed_scenarios = checkpoint.failed_scenarios

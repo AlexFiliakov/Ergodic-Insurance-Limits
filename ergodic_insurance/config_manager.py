@@ -39,6 +39,8 @@ Note:
 """
 
 from functools import lru_cache
+import hashlib
+import json
 import logging
 import os
 from pathlib import Path
@@ -201,7 +203,7 @@ class ConfigManager:
                 return tuple(make_hashable(item) for item in obj)
             return obj
 
-        cache_key = f"{profile_name}_{hash(make_hashable(overrides))}"
+        cache_key = f"{profile_name}_{hashlib.sha256(json.dumps(overrides, sort_keys=True, default=str).encode()).hexdigest()[:16]}"
         if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
 

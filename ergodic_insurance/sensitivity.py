@@ -44,6 +44,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .safe_pickle import safe_dump, safe_load
+
 
 @dataclass
 class SensitivityResult:
@@ -248,7 +250,7 @@ class SensitivityAnalyzer:
             if cache_file.exists():
                 try:
                     with open(cache_file, "rb") as f:
-                        result = pickle.load(f)
+                        result = safe_load(f)
                         self.results_cache[cache_key] = result
                         return result
                 except Exception:  # pylint: disable=broad-exception-caught
@@ -272,7 +274,7 @@ class SensitivityAnalyzer:
             cache_file = self.cache_dir / f"{cache_key}.pkl"
             try:
                 with open(cache_file, "wb") as f:
-                    pickle.dump(result, f)
+                    safe_dump(result, f)
             except Exception:  # pylint: disable=broad-exception-caught
                 # If caching fails, continue without it
                 pass
