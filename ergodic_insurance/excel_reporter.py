@@ -29,7 +29,7 @@ Example:
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
 import warnings
 
 import numpy as np
@@ -144,6 +144,26 @@ class ExcelReporter:
                 warnings.warn("No Excel library available. Using pandas default writer.")
         else:
             self.engine = "pandas"
+
+    def _get_pandas_engine(self) -> Optional[Literal["openpyxl", "xlsxwriter"]]:
+        """Return the engine string for ``pd.ExcelWriter`` based on ``self.engine``.
+
+        Maps the internal engine name to the value accepted by
+        ``pd.ExcelWriter(engine=...)``.  When the selected engine is
+        ``"pandas"`` we pick the best available library, preferring
+        openpyxl over xlsxwriter.  Returns ``None`` only when no
+        library is installed (lets pandas raise its own error).
+        """
+        if self.engine == "xlsxwriter":
+            return "xlsxwriter"
+        if self.engine == "openpyxl":
+            return "openpyxl"
+        # "pandas" fallback – use whatever is available
+        if OPENPYXL_AVAILABLE:
+            return "openpyxl"
+        if XLSXWRITER_AVAILABLE:
+            return "xlsxwriter"
+        return None
 
     def generate_trajectory_report(
         self, manufacturer: "WidgetManufacturer", output_file: str, title: Optional[str] = None
@@ -1035,9 +1055,7 @@ class ExcelReporter:
             generator: Financial statement generator
             output_path: Output file path
         """
-        with pd.ExcelWriter(
-            str(output_path), engine="openpyxl" if OPENPYXL_AVAILABLE else None
-        ) as writer:
+        with pd.ExcelWriter(str(output_path), engine=self._get_pandas_engine()) as writer:
             # Write balance sheet
             if self.config.include_balance_sheet:
                 year = generator.years_available - 1
@@ -1107,9 +1125,7 @@ class ExcelReporter:
 
         # Create a placeholder Excel file for now
         # Full implementation will come when MonteCarloResults is available
-        with pd.ExcelWriter(
-            str(output_path), engine="openpyxl" if OPENPYXL_AVAILABLE else None
-        ) as writer:
+        with pd.ExcelWriter(str(output_path), engine=self._get_pandas_engine()) as writer:
             # Create a placeholder summary sheet
             placeholder_df = pd.DataFrame(
                 {
