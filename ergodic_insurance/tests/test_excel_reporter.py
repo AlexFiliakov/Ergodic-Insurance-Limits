@@ -423,3 +423,66 @@ class TestExcelReporter:
 
         assert output_file.exists()
         assert output_file.suffix == ".xlsx"
+
+    @pytest.mark.skipif(not XLSXWRITER_AVAILABLE, reason="XlsxWriter not available")
+    def test_monte_carlo_report_xlsxwriter(self, reporter_config):
+        """Test Monte Carlo report uses xlsxwriter engine when selected."""
+        reporter_config.engine = "xlsxwriter"
+        reporter = ExcelReporter(reporter_config)
+        assert reporter.engine == "xlsxwriter"
+
+        mock_results = Mock()
+        output_file = reporter.generate_monte_carlo_report(mock_results, "mc_xlsxwriter.xlsx")
+
+        assert output_file.exists()
+        assert output_file.suffix == ".xlsx"
+
+    @pytest.mark.skipif(not OPENPYXL_AVAILABLE, reason="openpyxl not available")
+    def test_monte_carlo_report_openpyxl(self, reporter_config):
+        """Test Monte Carlo report uses openpyxl engine when selected."""
+        reporter_config.engine = "openpyxl"
+        reporter = ExcelReporter(reporter_config)
+        assert reporter.engine == "openpyxl"
+
+        mock_results = Mock()
+        output_file = reporter.generate_monte_carlo_report(mock_results, "mc_openpyxl.xlsx")
+
+        assert output_file.exists()
+        assert output_file.suffix == ".xlsx"
+
+    @pytest.mark.skipif(
+        not OPENPYXL_AVAILABLE, reason="openpyxl not available (required by pandas Excel writer)"
+    )
+    def test_monte_carlo_report_pandas_fallback(self, reporter_config):
+        """Test Monte Carlo report works with pandas fallback engine."""
+        reporter_config.engine = "pandas"
+        reporter = ExcelReporter(reporter_config)
+        assert reporter.engine == "pandas"
+
+        mock_results = Mock()
+        output_file = reporter.generate_monte_carlo_report(mock_results, "mc_pandas.xlsx")
+
+        assert output_file.exists()
+        assert output_file.suffix == ".xlsx"
+
+    def test_get_pandas_engine_consistency(self, reporter_config):
+        """Test _get_pandas_engine returns correct engine for each setting."""
+        if XLSXWRITER_AVAILABLE:
+            reporter_config.engine = "xlsxwriter"
+            reporter = ExcelReporter(reporter_config)
+            assert reporter._get_pandas_engine() == "xlsxwriter"
+
+        if OPENPYXL_AVAILABLE:
+            reporter_config.engine = "openpyxl"
+            reporter = ExcelReporter(reporter_config)
+            assert reporter._get_pandas_engine() == "openpyxl"
+
+        reporter_config.engine = "pandas"
+        reporter = ExcelReporter(reporter_config)
+        engine = reporter._get_pandas_engine()
+        if OPENPYXL_AVAILABLE:
+            assert engine == "openpyxl"
+        elif XLSXWRITER_AVAILABLE:
+            assert engine == "xlsxwriter"
+        else:
+            assert engine is None
