@@ -50,18 +50,23 @@ def _create_manufacturer(config_dict: Dict[str, Any]) -> Any:
 
 
 def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
-    """Simulate losses for a single year."""
-    np.random.seed(sim_id * 1000 + year)  # Ensure reproducibility
-    n_events = np.random.poisson(3)  # Average 3 events per year
+    """Simulate losses for a single year.
+
+    .. deprecated::
+        This stub is unused. Enhanced parallel paths now use the configured
+        loss generator passed via shared data. Retained only for backward
+        compatibility with any external callers.
+    """
+    np.random.seed(sim_id * 1000 + year)
+    n_events = np.random.poisson(3)
 
     if n_events == 0:
         total_loss = 0.0
     else:
-        event_amounts = np.random.lognormal(10, 2, n_events)  # Log-normal losses
+        event_amounts = np.random.lognormal(10, 2, n_events)
         total_loss = float(np.sum(event_amounts))
 
-    # Apply insurance (simplified)
-    recovery = min(total_loss, 1_000_000) * 0.9  # Simplified recovery
+    recovery = min(total_loss, 1_000_000) * 0.9
     retained = total_loss - recovery
 
     return total_loss, recovery, retained
@@ -89,6 +94,8 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     """Enhanced simulation function for parallel execution.
 
     Module-level function for pickle compatibility in multiprocessing.
+    Uses the configured loss generator and insurance program passed via
+    shared data instead of a hardcoded stub (see issue #299).
 
     Args:
         sim_id: Simulation ID for seeding
@@ -97,7 +104,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     Returns:
         Dict with simulation results
     """
-    # Add parent directory to path for imports in worker processes
+    import copy
     import sys
 
     module_path = Path(__file__).parent.parent.parent
@@ -106,6 +113,15 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
     # Create manufacturer instance
     manufacturer = _create_manufacturer(shared["manufacturer_config"])
+
+    # Get the configured loss generator and insurance program
+    loss_generator = shared["loss_generator"]
+    insurance_program = shared["insurance_program"]
+
+    # Re-seed the loss generator for this simulation to ensure independence
+    base_seed = shared.get("base_seed")
+    if base_seed is not None:
+        loss_generator.reseed(base_seed + sim_id)
 
     # Initialize simulation arrays
     n_years = shared["n_years"]
@@ -125,19 +141,39 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
             if eval_year <= n_years:
                 ruin_at_year[eval_year] = False
 
-    # Simulate years
+    # Simulate years using the configured loss generator
     for year in range(n_years):
-        # Generate and process losses
-        total_loss, recovery, retained = _simulate_year_losses(sim_id, year)
+        revenue = manufacturer.calculate_revenue()
 
+        # Generate losses using configured loss generator
+        if hasattr(loss_generator, "generate_losses"):
+            year_losses, _ = loss_generator.generate_losses(duration=1.0, revenue=float(revenue))
+        else:
+            raise AttributeError(
+                f"Loss generator {type(loss_generator).__name__} has no generate_losses method"
+            )
+
+        total_loss = sum(loss.amount for loss in year_losses)
         result_arrays["annual_losses"][year] = total_loss
+
+        # Apply insurance using configured insurance program
+        if total_loss > 0:
+            claim_result = insurance_program.process_claim(total_loss)
+            recovery = claim_result.get("insurance_recovery", 0)
+            retained = total_loss - recovery
+        else:
+            recovery = 0.0
+            retained = 0.0
+
         result_arrays["insurance_recoveries"][year] = recovery
         result_arrays["retained_losses"][year] = retained
 
-        # NOTE: DO NOT directly manipulate cash here to avoid double-counting
-        # The retained losses impact cash through the income statement when
-        # manufacturer.step() is called, which properly accounts for tax benefits
-        # and reinvestment of retained earnings.
+        # Record retained loss for income statement calculation
+        if retained > 0:
+            manufacturer.record_insurance_loss(retained)
+
+        # Step the manufacturer (growth, etc.)
+        manufacturer.step()
 
         # Check for ruin - use insolvency tolerance from shared config
         tolerance = shared.get("insolvency_tolerance", 10_000)
@@ -430,9 +466,10 @@ class MonteCarloEngine:
         if self.config.cache_results:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Set random seed
-        if self.config.seed is not None:
-            np.random.seed(self.config.seed)
+        # NOTE: Global np.random.seed() was removed here (issue #299).
+        # Setting the global seed leaks side effects to other code and does not
+        # affect the loss generator's per-instance RandomState objects.
+        # Per-chunk / per-simulation seeding is handled in the worker functions.
 
         # Determine number of workers
         if self.config.n_workers is None and self.config.parallel:
@@ -686,6 +723,7 @@ class MonteCarloEngine:
             "n_years": self.config.n_years,
             "use_float32": self.config.use_float32,
             "ruin_evaluation": self.config.ruin_evaluation,
+            "insolvency_tolerance": self.config.insolvency_tolerance,
             "letter_of_credit_rate": self.config.letter_of_credit_rate,
             "growth_rate": self.config.growth_rate,
             "time_resolution": self.config.time_resolution,
@@ -765,18 +803,17 @@ class MonteCarloEngine:
             )
             return self._run_parallel()
 
-        # Prepare shared data (configuration that doesn't change)
+        # Prepare shared data including the actual loss generator and insurance
+        # program so _simulate_path_enhanced uses the configured model (issue #299).
         shared_data = {
             "n_years": self.config.n_years,
             "use_float32": self.config.use_float32,
             "ruin_evaluation": self.config.ruin_evaluation,
             "insolvency_tolerance": self.config.insolvency_tolerance,
             "manufacturer_config": self.manufacturer.__dict__.copy(),
-            "insurance_layers": [layer.__dict__ for layer in self.insurance_program.layers],
-            "loss_generator_params": {
-                "frequency_params": getattr(self.loss_generator, "frequency_params", {}),
-                "severity_params": getattr(self.loss_generator, "severity_params", {}),
-            },
+            "loss_generator": self.loss_generator,
+            "insurance_program": self.insurance_program,
+            "base_seed": self.config.seed,
         }
 
         # Define reduce function
@@ -895,45 +932,6 @@ class MonteCarloEngine:
             results.performance_metrics = self.parallel_executor.performance_metrics
 
         return results  # type: ignore[no-any-return]
-
-    def _run_chunk(self, chunk: Tuple[int, int, Optional[int]]) -> Dict[str, np.ndarray]:
-        """Run a chunk of simulations.
-
-        Args:
-            chunk: Tuple of (start_idx, end_idx, seed)
-
-        Returns:
-            Dictionary with simulation results for the chunk
-        """
-        start_idx, end_idx, seed = chunk
-        n_sims = end_idx - start_idx
-        n_years = self.config.n_years
-        dtype = np.float32 if self.config.use_float32 else np.float64
-
-        # Set seed for this chunk
-        if seed is not None:
-            np.random.seed(seed)
-
-        # Pre-allocate arrays
-        final_assets = np.zeros(n_sims, dtype=dtype)
-        annual_losses = np.zeros((n_sims, n_years), dtype=dtype)
-        insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
-        retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
-
-        # Run simulations in chunk
-        for i in range(n_sims):
-            sim_results = self._run_single_simulation(start_idx + i)
-            final_assets[i] = sim_results["final_assets"]
-            annual_losses[i] = sim_results["annual_losses"]
-            insurance_recoveries[i] = sim_results["insurance_recoveries"]
-            retained_losses[i] = sim_results["retained_losses"]
-
-        return {
-            "final_assets": final_assets,
-            "annual_losses": annual_losses,
-            "insurance_recoveries": insurance_recoveries,
-            "retained_losses": retained_losses,
-        }
 
     def _run_single_simulation(self, sim_id: int) -> Dict[str, Any]:
         """Run a single simulation path.
@@ -1676,8 +1674,13 @@ class MonteCarloEngine:
         # Create results
         growth_rates = self._calculate_growth_rates(arrays["final_assets"])
 
-        # Calculate ruin probability as dict (to match new API)
-        ruin_probability = {str(self.config.n_years): float(np.mean(arrays["final_assets"] <= 0))}
+        # Calculate ruin probability using insolvency_tolerance for consistency
+        # (issue #299: unify threshold across all execution paths)
+        ruin_probability = {
+            str(self.config.n_years): float(
+                np.mean(arrays["final_assets"] <= self.config.insolvency_tolerance)
+            )
+        }
 
         results = SimulationResults(
             final_assets=arrays["final_assets"],
@@ -1734,42 +1737,52 @@ class MonteCarloEngine:
         if max_iterations is None:
             max_iterations = self.config.n_simulations * 10
 
-        # Start with smaller batch
+        # Save original config values that will be temporarily modified
         original_n_sims = self.config.n_simulations
+        original_seed = self.config.seed
         self.config.n_simulations = check_interval
+
+        # Use a local variable for seed advancement so config.seed is not
+        # permanently mutated (issue #299).
+        batch_seed = self.config.seed
 
         all_results = []
         total_iterations = 0
         converged = False
 
-        while not converged and total_iterations < max_iterations:
-            # Run batch
-            batch_results = self.run()
-            all_results.append(batch_results)
-            total_iterations += check_interval
+        try:
+            while not converged and total_iterations < max_iterations:
+                # Set seed for this batch
+                self.config.seed = batch_seed
 
-            # Combine all results so far
-            if len(all_results) > 1:
-                combined = self._combine_multiple_results(all_results)
-            else:
-                combined = batch_results
+                # Run batch
+                batch_results = self.run()
+                all_results.append(batch_results)
+                total_iterations += check_interval
 
-            # Check convergence
-            convergence = self._check_convergence(combined)
+                # Combine all results so far
+                if len(all_results) > 1:
+                    combined = self._combine_multiple_results(all_results)
+                else:
+                    combined = batch_results
 
-            if convergence:
-                max_r_hat = max(stat.r_hat for stat in convergence.values())
-                converged = max_r_hat < target_r_hat
+                # Check convergence
+                convergence = self._check_convergence(combined)
 
-                if self.config.progress_bar:
-                    print(f"Iteration {total_iterations}: R-hat = {max_r_hat:.3f}")
+                if convergence:
+                    max_r_hat = max(stat.r_hat for stat in convergence.values())
+                    converged = max_r_hat < target_r_hat
 
-            # Update seed for next batch
-            if self.config.seed is not None:
-                self.config.seed += check_interval
+                    if self.config.progress_bar:
+                        print(f"Iteration {total_iterations}: R-hat = {max_r_hat:.3f}")
 
-        # Restore original config
-        self.config.n_simulations = original_n_sims
+                # Advance seed for next batch
+                if batch_seed is not None:
+                    batch_seed += check_interval
+        finally:
+            # Restore original config regardless of how we exit
+            self.config.n_simulations = original_n_sims
+            self.config.seed = original_seed
 
         return combined
 

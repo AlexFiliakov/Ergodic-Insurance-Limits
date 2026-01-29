@@ -39,9 +39,13 @@ def run_chunk_standalone(
     n_years = config_dict["n_years"]
     dtype = np.float32 if config_dict.get("use_float32", False) else np.float64
 
-    # Set seed for this chunk
+    # Re-seed the loss generator's internal RandomState objects for this chunk.
+    # np.random.seed() only affects the global numpy state and has no effect on
+    # the loss generator's per-instance RandomState objects that were pickled
+    # from the parent process. Without this, every chunk produces identical
+    # loss sequences. See issue #299.
     if seed is not None:
-        np.random.seed(seed)
+        loss_generator.reseed(seed)
 
     # Pre-allocate arrays
     final_assets = np.zeros(n_sims, dtype=dtype)
@@ -145,8 +149,10 @@ def run_chunk_standalone(
                 letter_of_credit_rate, growth_rate, time_resolution, apply_stochastic
             )
 
-            # Check for ruin
-            if sim_manufacturer.total_assets <= 0:
+            # Check for ruin using insolvency tolerance consistent with engine
+            # (issue #299: unify threshold between worker and engine)
+            insolvency_tolerance = config_dict.get("insolvency_tolerance", 10_000)
+            if float(sim_manufacturer.equity) <= insolvency_tolerance:
                 # Mark ruin for all future evaluation points
                 if ruin_evaluation:
                     for eval_year in ruin_at_year:
