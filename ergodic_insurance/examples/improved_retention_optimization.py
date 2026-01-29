@@ -293,7 +293,8 @@ def main():
     print()
 
     # Set random seed for reproducibility
-    np.random.seed(42)
+    # Note: loss_dist.rvs() uses scipy's own RNG; np.random.seed is no longer needed
+    # The DP solver uses loss_dist.rvs() which is seeded separately
 
     # Define wealth states (from $1M to $100M)
     wealth_states = np.linspace(1e6, 100e6, 30)

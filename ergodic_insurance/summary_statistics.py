@@ -68,15 +68,22 @@ class StatisticalSummary:
 class SummaryStatistics:
     """Calculate comprehensive summary statistics for simulation results."""
 
-    def __init__(self, confidence_level: float = 0.95, bootstrap_iterations: int = 1000):
+    def __init__(
+        self,
+        confidence_level: float = 0.95,
+        bootstrap_iterations: int = 1000,
+        seed: Optional[int] = None,
+    ):
         """Initialize summary statistics calculator.
 
         Args:
             confidence_level: Confidence level for intervals
             bootstrap_iterations: Number of bootstrap iterations
+            seed: Optional random seed for reproducibility
         """
         self.confidence_level = confidence_level
         self.bootstrap_iterations = bootstrap_iterations
+        self._rng = np.random.default_rng(seed)
 
     def calculate_summary(
         self, data: np.ndarray, weights: Optional[np.ndarray] = None
@@ -348,7 +355,7 @@ class SummaryStatistics:
         stds = []
 
         for _ in range(self.bootstrap_iterations):
-            sample = np.random.choice(data, size=n_samples, replace=True)
+            sample = self._rng.choice(data, size=n_samples, replace=True)
             means.append(np.mean(sample))
             medians.append(np.median(sample))
             stds.append(np.std(sample))
@@ -465,15 +472,17 @@ class SummaryStatistics:
 class QuantileCalculator:
     """Efficient quantile calculation for large datasets."""
 
-    def __init__(self, quantiles: Optional[List[float]] = None):
+    def __init__(self, quantiles: Optional[List[float]] = None, seed: Optional[int] = None):
         """Initialize quantile calculator.
 
         Args:
             quantiles: List of quantiles to calculate (0-1 range)
+            seed: Optional random seed for reproducibility
         """
         if quantiles is None:
             quantiles = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]
         self.quantiles = sorted(quantiles)
+        self._rng = np.random.default_rng(seed)
 
     @lru_cache(maxsize=128)
     def calculate_quantiles(self, data_hash: int, method: str = "linear") -> Dict[str, float]:
@@ -532,7 +541,7 @@ class QuantileCalculator:
         reservoir = data_stream[:buffer_size].copy()
 
         for i in range(buffer_size, len(data_stream)):
-            j = np.random.randint(0, i + 1)
+            j = self._rng.integers(0, i + 1)
             if j < buffer_size:
                 reservoir[j] = data_stream[i]
 

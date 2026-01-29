@@ -177,7 +177,7 @@ class TestRandomWalkTrend:
 
     def test_volatility_only(self):
         """Test with volatility but no drift."""
-        np.random.seed(42)
+        rng = np.random.default_rng(42)
         trend = RandomWalkTrend(drift=0.0, volatility=0.15, seed=42)
 
         # Should have expected value around 1.0 but with variance
@@ -185,7 +185,7 @@ class TestRandomWalkTrend:
 
         # Reset and regenerate
         for _ in range(100):
-            trend.reset_seed(np.random.randint(10000))
+            trend.reset_seed(int(rng.integers(10000)))
             values.append(trend.get_multiplier(1.0))
 
         # Mean should be close to exp(-0.5 * volatility^2 * t) ≈ 0.989
@@ -599,7 +599,6 @@ class TestStatisticalProperties:
     def test_random_walk_non_stationarity(self):
         """Test RandomWalkTrend exhibits non-stationarity (simplified ADF test)."""
         # Generate multiple random walk paths
-        np.random.seed(42)
         n_paths = 50
         n_steps = 100
 

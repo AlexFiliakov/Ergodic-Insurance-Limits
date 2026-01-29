@@ -25,12 +25,12 @@ output_dir.mkdir(exist_ok=True)
 def plot_ensemble_vs_time_average():
     """Create visualization of ensemble vs time average divergence."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_paths = 100
     n_steps = 100
 
     # Simulate multiplicative process
-    returns = np.random.choice([1.5, 0.6], size=(n_paths, n_steps), p=[0.5, 0.5])
+    returns = rng.choice([1.5, 0.6], size=(n_paths, n_steps), p=[0.5, 0.5])
     wealth = np.zeros((n_paths, n_steps + 1))
     wealth[:, 0] = 100
 
@@ -200,7 +200,7 @@ def plot_kelly_criterion():
 def plot_insurance_impact():
     """Show impact of insurance on wealth trajectories - demonstrating ergodic theory."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_years = 100
     n_sims = 1000
 
@@ -236,10 +236,10 @@ def plot_insurance_impact():
                 wealth_no_insurance[sim, year + 1] = 0
             else:
                 # Growth factor (same for both)
-                growth = np.exp(np.random.normal(base_growth - volatility**2 / 2, volatility))
+                growth = np.exp(rng.normal(base_growth - volatility**2 / 2, volatility))
 
                 # Loss event (same for both)
-                has_loss = np.random.rand() < loss_prob
+                has_loss = rng.random() < loss_prob
 
                 # Without insurance
                 if has_loss:
@@ -258,7 +258,7 @@ def plot_insurance_impact():
             if bankrupt_with_insurance[sim]:
                 wealth_with_insurance[sim, year + 1] = 0
             else:
-                growth = np.exp(np.random.normal(base_growth - volatility**2 / 2, volatility))
+                growth = np.exp(rng.normal(base_growth - volatility**2 / 2, volatility))
 
                 if has_loss:
                     # Insurance covers losses above deductible
@@ -433,7 +433,7 @@ def plot_insurance_impact():
 def plot_pareto_frontier():
     """Create Pareto frontier visualization."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
 
     # Generate sample Pareto frontier
     n_points = 50
@@ -445,8 +445,8 @@ def plot_pareto_frontier():
 
     for w in weights:
         # Simulate optimization with different weightings
-        cost = 0.5 + 0.5 * (1 - w) + np.random.normal(0, 0.02)
-        risk = 0.3 + 0.7 * w + np.random.normal(0, 0.02)
+        cost = 0.5 + 0.5 * (1 - w) + rng.normal(0, 0.02)
+        risk = 0.3 + 0.7 * w + rng.normal(0, 0.02)
         costs.append(cost)
         risks.append(risk)
 
@@ -457,8 +457,8 @@ def plot_pareto_frontier():
 
     # Generate dominated points
     n_dominated = 100
-    dominated_costs = np.random.uniform(0.6, 1.2, n_dominated)
-    dominated_risks = np.random.uniform(0.4, 1.2, n_dominated)
+    dominated_costs = rng.uniform(0.6, 1.2, n_dominated)
+    dominated_risks = rng.uniform(0.4, 1.2, n_dominated)
 
     # Filter to keep only dominated
     dominated_points = []
@@ -582,17 +582,17 @@ def plot_pareto_frontier():
 def plot_monte_carlo_convergence():
     """Visualize Monte Carlo convergence and variance reduction techniques."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_simulations = 10000
 
     # Standard Monte Carlo
-    standard_samples = np.random.normal(0.08, 0.15, n_simulations)
+    standard_samples = rng.normal(0.08, 0.15, n_simulations)
     cumulative_mean = np.cumsum(standard_samples) / np.arange(1, n_simulations + 1)
 
     # Antithetic variates
     antithetic_samples = np.zeros(n_simulations)
     for i in range(0, n_simulations, 2):
-        u = np.random.uniform()
+        u = rng.uniform()
         antithetic_samples[i] = np.quantile(standard_samples, u)
         if i + 1 < n_simulations:
             antithetic_samples[i + 1] = np.quantile(standard_samples, 1 - u)
@@ -600,7 +600,7 @@ def plot_monte_carlo_convergence():
     antithetic_mean = np.cumsum(antithetic_samples) / np.arange(1, n_simulations + 1)
 
     # Control variates (using correlated control)
-    control = np.random.normal(0.08, 0.10, n_simulations)  # Known mean
+    control = rng.normal(0.08, 0.10, n_simulations)  # Known mean
     c = -0.5  # Optimal coefficient
     control_samples = standard_samples - c * (control - 0.08)
     control_mean = np.cumsum(control_samples) / np.arange(1, n_simulations + 1)
@@ -691,7 +691,7 @@ def plot_monte_carlo_convergence():
 def plot_convergence_diagnostics():
     """Visualize convergence diagnostics including Gelman-Rubin statistic."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_chains = 4
     n_iterations = 5000
 
@@ -699,9 +699,9 @@ def plot_convergence_diagnostics():
     chains_list = []
     for i in range(n_chains):
         # Add burn-in period with different starting points
-        burn_in = np.random.normal(5 + i * 2, 2, 500)
+        burn_in = rng.normal(5 + i * 2, 2, 500)
         # Converged portion
-        converged = np.random.normal(0, 1, n_iterations - 500)
+        converged = rng.normal(0, 1, n_iterations - 500)
         chain = np.concatenate([burn_in, converged])
         chains_list.append(chain)
 
@@ -833,13 +833,13 @@ def plot_convergence_diagnostics():
 def plot_bootstrap_analysis():
     """Visualize bootstrap confidence intervals and distributions."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
 
     # Generate sample data (insurance claims)
     true_mean = 50000
     true_std = 30000
     sample_size = 100
-    original_sample = np.random.lognormal(np.log(true_mean), 0.5, sample_size)
+    original_sample = rng.lognormal(np.log(true_mean), 0.5, sample_size)
 
     # Bootstrap resampling
     n_bootstrap = 5000
@@ -848,7 +848,7 @@ def plot_bootstrap_analysis():
     bootstrap_stds_list = []
 
     for _ in range(n_bootstrap):
-        resample = np.random.choice(original_sample, size=sample_size, replace=True)
+        resample = rng.choice(original_sample, size=sample_size, replace=True)
         bootstrap_means_list.append(np.mean(resample))
         bootstrap_medians_list.append(np.median(resample))
         bootstrap_stds_list.append(np.std(resample))
@@ -986,13 +986,13 @@ def plot_bootstrap_analysis():
 def plot_validation_methods():
     """Visualize walk-forward validation and backtesting results."""
 
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
 
     # Generate synthetic time series data (e.g., claims frequency)
     n_periods = 120  # 10 years monthly
     trend = np.linspace(100, 150, n_periods)
     seasonal = 10 * np.sin(2 * np.pi * np.arange(n_periods) / 12)
-    noise = np.random.normal(0, 5, n_periods)
+    noise = rng.normal(0, 5, n_periods)
     data = trend + seasonal + noise
 
     # Walk-forward validation setup
@@ -1107,7 +1107,7 @@ def plot_validation_methods():
         # Premium based on prediction
         predicted_claims = np.mean(data[max(0, i - 12) : i]) * 1000  # Scale up
         premium = predicted_claims * 1.2  # 20% loading
-        actual_claims = data[i] * 1000 + np.random.normal(0, 5000)
+        actual_claims = data[i] * 1000 + rng.normal(0, 5000)
 
         new_capital = capital[-1] + premium - actual_claims
         capital.append(new_capital)

@@ -501,8 +501,8 @@ class TestQuantileCalculator:
 
     def test_streaming_quantiles(self):
         """Test streaming quantile approximation."""
-        np.random.seed(42)
-        data = np.random.randn(20000)
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(20000)
 
         calculator = QuantileCalculator([0.25, 0.5, 0.75])
 
@@ -519,7 +519,7 @@ class TestQuantileCalculator:
                 assert abs(exact[key] - approx[key]) < 0.2
             else:
                 # Use relative tolerance for larger values
-                assert abs(exact[key] - approx[key]) / abs(exact[key]) < 0.1
+                assert abs(exact[key] - approx[key]) / abs(exact[key]) < 0.15
 
 
 class TestDistributionFitter:

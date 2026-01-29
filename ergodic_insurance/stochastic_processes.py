@@ -46,7 +46,7 @@ class StochasticProcess(ABC):
             config: Configuration for the stochastic process
         """
         self.config = config
-        self.rng = np.random.RandomState(config.random_seed)
+        self.rng = np.random.default_rng(config.random_seed)
         logger.debug(f"Initialized {self.__class__.__name__} with seed={config.random_seed}")
 
     @abstractmethod
@@ -69,7 +69,7 @@ class StochasticProcess(ABC):
         """
         if seed is not None:
             self.config.random_seed = seed
-        self.rng = np.random.RandomState(self.config.random_seed)
+        self.rng = np.random.default_rng(self.config.random_seed)
         logger.debug(f"Reset RNG with seed={self.config.random_seed}")
 
 
@@ -103,7 +103,7 @@ class GeometricBrownianMotion(StochasticProcess):
         mu = self.config.drift
 
         # Generate standard normal random variable
-        z = self.rng.randn()
+        z = self.rng.standard_normal()
 
         # Calculate multiplicative shock
         # Using exact solution for lognormal
@@ -138,7 +138,7 @@ class LognormalVolatility(StochasticProcess):
         sigma = self.config.volatility
 
         # Generate standard normal random variable
-        z = self.rng.randn()
+        z = self.rng.standard_normal()
 
         # Simple lognormal shock
         # Mean-reverting around 1.0 with specified volatility
@@ -180,7 +180,7 @@ class MeanRevertingProcess(StochasticProcess):
             current_value: Current value of the process
 
         Returns:
-            Additive shock (not multiplicative)
+            Multiplicative shock
         """
         dt = self.config.time_step
         sigma = self.config.volatility
@@ -188,7 +188,7 @@ class MeanRevertingProcess(StochasticProcess):
         mu = self.mean_level
 
         # Generate standard normal random variable
-        z = self.rng.randn()
+        z = self.rng.standard_normal()
 
         # Calculate new value using OU process
         mean_component = current_value + theta * (mu - current_value) * dt
@@ -196,7 +196,10 @@ class MeanRevertingProcess(StochasticProcess):
         new_value = mean_component + random_component
 
         # Return as multiplicative shock
-        shock = new_value / current_value if current_value != 0 else 1.0
+        if abs(current_value) < 1e-10:
+            shock = 1.0
+        else:
+            shock = new_value / current_value
 
         logger.debug(
             f"Mean-reverting shock: {shock:.4f} (current={current_value:.3f}, "

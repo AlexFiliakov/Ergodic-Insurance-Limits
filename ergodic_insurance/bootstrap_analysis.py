@@ -65,7 +65,7 @@ def _bootstrap_worker(args: Tuple[np.ndarray, Any, int, int, Optional[int]]) -> 
     else:
         statistic_func = statistic
 
-    worker_rng = np.random.RandomState(seed)
+    worker_rng = np.random.default_rng(seed)
     n = len(data)
     results = []
 
@@ -167,7 +167,7 @@ class BootstrapAnalyzer:
         self.seed = seed
         self.n_workers = n_workers
         self.show_progress = show_progress
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
     def bootstrap_sample(
         self,

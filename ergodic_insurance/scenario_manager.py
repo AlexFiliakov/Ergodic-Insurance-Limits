@@ -61,25 +61,30 @@ class ParameterSpec(BaseModel):
             raise ValueError("Parameter name cannot be empty")
         return v
 
-    def generate_values(self, method: ScenarioType) -> List[Any]:
+    def generate_values(
+        self, method: ScenarioType, rng: Optional[np.random.Generator] = None
+    ) -> List[Any]:
         """Generate parameter values based on method.
 
         Args:
             method: Scenario generation method
+            rng: Random number generator instance (created if None)
 
         Returns:
             List of parameter values
         """
+        if rng is None:
+            rng = np.random.default_rng()
         if method == ScenarioType.GRID_SEARCH and self.values:
             return self.values
         if method == ScenarioType.RANDOM_SEARCH:
             if self.min_value is not None and self.max_value is not None:
                 if self.distribution == "uniform":
-                    return list(np.random.uniform(self.min_value, self.max_value, self.n_samples))
+                    return list(rng.uniform(self.min_value, self.max_value, self.n_samples))
                 if self.distribution == "log":
                     return list(
                         np.exp(
-                            np.random.uniform(
+                            rng.uniform(
                                 np.log(self.min_value), np.log(self.max_value), self.n_samples
                             )
                         )
@@ -313,17 +318,16 @@ class ScenarioManager:
         Returns:
             List of created scenarios
         """
-        if seed is not None:
-            np.random.seed(seed)
+        rng = np.random.default_rng(seed)
 
         scenarios = []
 
         for i in range(n_scenarios):
             overrides = {}
             for spec in parameter_specs:
-                values = spec.generate_values(ScenarioType.RANDOM_SEARCH)
+                values = spec.generate_values(ScenarioType.RANDOM_SEARCH, rng=rng)
                 if values:
-                    overrides[spec.name] = np.random.choice(values)
+                    overrides[spec.name] = rng.choice(values)
 
             name = name_template.format(index=i)
 

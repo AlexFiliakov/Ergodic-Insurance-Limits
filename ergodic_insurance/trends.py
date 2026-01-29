@@ -73,9 +73,9 @@ class Trend(ABC):
         """
         self.seed = seed
         if seed is not None:
-            self.rng = np.random.RandomState(seed)
+            self.rng = np.random.default_rng(seed)
         else:
-            self.rng = np.random.RandomState()
+            self.rng = np.random.default_rng()
 
     @abstractmethod
     def get_multiplier(self, time: float) -> float:
@@ -106,7 +106,7 @@ class Trend(ABC):
             outcomes while maintaining reproducibility.
         """
         self.seed = seed
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
 
 class NoTrend(Trend):
@@ -324,7 +324,7 @@ class RandomWalkTrend(Trend):
 
         # Generate Brownian motion increments
         if self.volatility > 0:
-            dW = self.rng.randn(num_steps - 1) * np.sqrt(dt)
+            dW = self.rng.standard_normal(num_steps - 1) * np.sqrt(dt)
             W = np.concatenate([[0], np.cumsum(dW)])
         else:
             W = np.zeros(num_steps)
@@ -512,7 +512,7 @@ class MeanRevertingTrend(Trend):
 
         if self.volatility > 0 or self.reversion_speed > 0:
             for i in range(1, num_steps):
-                dW = self.rng.randn() * np.sqrt(dt)
+                dW = self.rng.standard_normal() * np.sqrt(dt)
                 X[i] = (
                     X[i - 1]
                     + self.reversion_speed * (log_mean - X[i - 1]) * dt

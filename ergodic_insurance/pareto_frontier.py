@@ -104,6 +104,7 @@ class ParetoFrontier:
         objective_function: Callable,
         bounds: List[Tuple[float, float]],
         constraints: Optional[List[Dict[str, Any]]] = None,
+        seed: Optional[int] = None,
     ):
         """Initialize Pareto frontier generator.
 
@@ -112,12 +113,14 @@ class ParetoFrontier:
             objective_function: Function that returns objective values given decision variables
             bounds: Bounds for decision variables
             constraints: Optional constraints for optimization
+            seed: Optional random seed for reproducibility
         """
         self.objectives = objectives
         self.objective_function = objective_function
         self.bounds = bounds
         self.constraints = constraints or []
         self.frontier_points: List[ParetoPoint] = []
+        self._rng = np.random.default_rng(seed)
         self._validate_objectives()
 
     def _validate_objectives(self) -> None:
@@ -156,7 +159,7 @@ class ParetoFrontier:
         else:
             # For many objectives, use random weights
             for _ in range(n_points):
-                weights = np.random.dirichlet(np.ones(len(self.objectives)))
+                weights = self._rng.dirichlet(np.ones(len(self.objectives)))
                 point = self._optimize_weighted_sum(weights.tolist(), method)
                 if point is not None:
                     points.append(point)
@@ -216,7 +219,7 @@ class ParetoFrontier:
             for _ in range(n_points):
                 epsilon_dict = {}
                 for i, obj in enumerate(constraint_objs):
-                    epsilon_dict[obj.name] = np.random.uniform(
+                    epsilon_dict[obj.name] = self._rng.uniform(
                         epsilon_ranges[i][0], epsilon_ranges[i][1]
                     )
                 point = self._optimize_epsilon_constraint(primary_obj, epsilon_dict, method)
@@ -259,7 +262,7 @@ class ParetoFrontier:
         points = []
         for _ in range(population_size):
             # Random weights for this run
-            weights = np.random.dirichlet(np.ones(len(self.objectives)))
+            weights = self._rng.dirichlet(np.ones(len(self.objectives)))
 
             def weighted_objective(x, w=weights):
                 obj_vals = multi_objective_wrapper(x)
@@ -270,7 +273,7 @@ class ParetoFrontier:
                 self.bounds,
                 maxiter=n_generations,
                 popsize=15,
-                seed=np.random.randint(0, 10000),
+                seed=int(self._rng.integers(0, 10000)),
             )
 
             if result.success:
@@ -575,7 +578,7 @@ class ParetoFrontier:
         for _ in range(n_samples):
             sample = {}
             for obj in self.objectives:
-                sample[obj.name] = np.random.uniform(bounds[obj.name][0], bounds[obj.name][1])
+                sample[obj.name] = self._rng.uniform(bounds[obj.name][0], bounds[obj.name][1])
 
             # Check if sample is dominated by any frontier point
             for point in self.frontier_points:

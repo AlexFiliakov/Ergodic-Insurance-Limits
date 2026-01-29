@@ -590,7 +590,7 @@ class StochasticExposure(ExposureBase):
     process_type: str
     parameters: Dict[str, float]
     seed: Optional[int] = None
-    _rng: Optional[np.random.RandomState] = field(default=None, init=False, repr=False)
+    _rng: Optional[np.random.Generator] = field(default=None, init=False, repr=False)
     _path_cache: Dict[float, float] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self):
@@ -599,13 +599,13 @@ class StochasticExposure(ExposureBase):
             raise ValueError(f"Base value must be non-negative, got {self.base_value}")
         if self.process_type not in ["gbm", "mean_reverting", "jump_diffusion"]:
             raise ValueError(f"Unknown process type: {self.process_type}")
-        self._rng = np.random.RandomState(self.seed)
+        self._rng = np.random.default_rng(self.seed)
         self.reset()
 
     def reset(self):
         """Reset stochastic paths."""
         self._path_cache = {}
-        self._rng = np.random.RandomState(self.seed)
+        self._rng = np.random.default_rng(self.seed)
 
     def get_exposure(self, time: float) -> float:
         """Generate or retrieve stochastic path."""

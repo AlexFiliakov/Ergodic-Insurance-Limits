@@ -39,8 +39,8 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
     Returns:
         WidgetManufacturer with simulation results
     """
-    # Set random seed
-    np.random.seed(seed)
+    # Note: seed is passed directly to ManufacturingLossGenerator below
+    # No module-level np.random.seed() needed
 
     # Configure manufacturer
     manufacturer_config = ManufacturerConfig(

@@ -642,11 +642,10 @@ class MultiStartOptimizer:
         """
         logger.info(f"Starting multi-start optimization with {n_starts} starts")
 
-        if seed is not None:
-            np.random.seed(seed)
+        rng = np.random.default_rng(seed)
 
         # Generate starting points
-        starting_points = self._generate_starting_points(n_starts, x0)
+        starting_points = self._generate_starting_points(n_starts, x0, rng)
 
         # Run optimization from each starting point
         results = []
@@ -722,7 +721,7 @@ class MultiStartOptimizer:
         return best_result
 
     def _generate_starting_points(
-        self, n_starts: int, x0: Optional[np.ndarray]
+        self, n_starts: int, x0: Optional[np.ndarray], rng: np.random.Generator
     ) -> List[np.ndarray]:
         """Generate diverse starting points within bounds."""
         n_vars = len(self.bounds.lb)
@@ -744,7 +743,7 @@ class MultiStartOptimizer:
                     lb = -1e6
                 if np.isinf(ub):
                     ub = 1e6
-                point[i] = np.random.uniform(lb, ub)
+                point[i] = rng.uniform(lb, ub)
             starting_points.append(point)
 
         return starting_points

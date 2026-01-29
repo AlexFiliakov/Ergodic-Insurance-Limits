@@ -172,7 +172,7 @@ class InsurancePricer:
         self.loss_generator = loss_generator
         self.exposure = exposure
         self.parameters = parameters or PricingParameters()
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.default_rng(seed)
 
         # Set loss ratio based on market cycle or explicit value
         if market_cycle is not None:
