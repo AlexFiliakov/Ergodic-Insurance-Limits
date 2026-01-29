@@ -247,11 +247,11 @@ class TestWidgetManufacturer:
         costs = manufacturer.calculate_collateral_costs()
         assert costs == 0
 
-        # Add collateral via ledger (Issue #275: ledger is single source of truth)
+        # Add collateral via restricted assets (Issue #302: collateral tracked via RESTRICTED_CASH)
         manufacturer.ledger.record_double_entry(
             date=0,
-            debit_account=AccountName.COLLATERAL,
-            credit_account=AccountName.RETAINED_EARNINGS,
+            debit_account=AccountName.RESTRICTED_CASH,
+            credit_account=AccountName.CASH,
             amount=1_000_000,
             transaction_type=TransactionType.TRANSFER,
             description="Post collateral for testing",

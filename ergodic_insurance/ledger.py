@@ -170,6 +170,8 @@ class TransactionType(Enum):
     COLLECTION = "collection"  # Cash collection from AR
     EXPENSE = "expense"
     PAYMENT = "payment"  # Cash payment for expenses/AP
+    WAGE_PAYMENT = "wage_payment"  # Cash payment for wages
+    INTEREST_PAYMENT = "interest_payment"  # Cash payment for interest
     INVENTORY_PURCHASE = "inventory_purchase"
     INVENTORY_SALE = "inventory_sale"  # COGS recognition
     INSURANCE_PREMIUM = "insurance_premium"
@@ -828,7 +830,7 @@ class Ledger:
         )
 
         flows["cash_for_wages"] = self.sum_by_transaction_type(
-            TransactionType.PAYMENT, period, "cash", EntryType.CREDIT
+            TransactionType.WAGE_PAYMENT, period, "cash", EntryType.CREDIT
         )
 
         # Investing activities
