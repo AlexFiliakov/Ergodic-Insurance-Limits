@@ -1114,7 +1114,12 @@ class WidgetManufacturer:
     ) -> None:
         """Record a cash adjustment through the ledger.
 
-        Used for insolvency adjustments, limited liability enforcement, etc.
+        .. warning::
+            This method creates phantom assets (Debit CASH, Credit RETAINED_EARNINGS)
+            which inflates total_assets and equity. It should only be used in tests
+            to set up specific cash/equity states. Production code should use proper
+            accounting entries through specific expense or liability accounts.
+            See Issue #319 for details.
 
         Args:
             amount: Positive to increase cash, negative to decrease
@@ -1314,6 +1319,8 @@ class WidgetManufacturer:
         """Record liquidation loss through the ledger.
 
         Used during bankruptcy to record asset liquidation costs.
+        Routes the loss through INSURANCE_LOSS expense so it appears on the
+        income statement before closing to retained earnings (Issue #319).
 
         Args:
             amount: Amount of liquidation loss
@@ -1323,11 +1330,28 @@ class WidgetManufacturer:
             return
         self.ledger.record_double_entry(
             date=self.current_year,
-            debit_account=AccountName.RETAINED_EARNINGS,
+            debit_account=AccountName.INSURANCE_LOSS,
             credit_account=AccountName.CASH,
             amount=amount,
             transaction_type=TransactionType.LIQUIDATION,
             description=description,
+        )
+
+    def _verify_accounting_equation(self) -> None:
+        """Verify that the ledger's debits equal credits after each period.
+
+        Asserts that the double-entry bookkeeping invariant holds: total debits
+        must equal total credits across all ledger entries. This ensures no
+        phantom assets or liabilities have been created (Issue #319).
+
+        Raises:
+            AssertionError: If total debits != total credits.
+        """
+        is_balanced, difference = self.ledger.verify_balance()
+        assert is_balanced, (
+            f"Accounting equation violation: ledger debits - credits = ${difference:,.2f} "
+            f"at year {self.current_year}. This indicates phantom assets or "
+            f"unbalanced entries were created."
         )
 
     def _record_liquid_asset_reduction(
@@ -2961,6 +2985,16 @@ class WidgetManufacturer:
                     is_insured=True,  # This is the company portion of an insured claim
                 )
                 self.claim_liabilities.append(claim_liability)
+                # Record liability in ledger to keep it synchronized with ClaimLiability
+                # objects (Issue #319). Debit expense, credit liability.
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.INSURANCE_LOSS,
+                    credit_account=AccountName.CLAIM_LIABILITIES,
+                    amount=max_payable,
+                    transaction_type=TransactionType.INSURANCE_CLAIM,
+                    description=f"Recognize insured claim liability (company portion)",
+                )
 
                 logger.info(
                     f"Company portion: ${max_payable:,.2f} - collateralized with payment schedule"
@@ -2993,6 +3027,15 @@ class WidgetManufacturer:
                         is_insured=False,  # No insurance coverage for this portion
                     )
                     self.claim_liabilities.append(unpayable_claim)
+                    # Record liability in ledger (Issue #319)
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.INSURANCE_LOSS,
+                        credit_account=AccountName.CLAIM_LIABILITIES,
+                        amount=max_liability,
+                        transaction_type=TransactionType.INSURANCE_CLAIM,
+                        description=f"Recognize unpayable claim liability",
+                    )
 
                     logger.warning(
                         f"LIMITED LIABILITY: Company payment capped at ${max_payable:,.2f} (cash/equity). "
@@ -3011,10 +3054,9 @@ class WidgetManufacturer:
                 if self.equity <= ZERO:
                     self.check_solvency()
 
-            # Note: We don't record an insurance loss expense here because the liability
-            # creation already reduces equity via the accounting equation (Assets - Liabilities = Equity).
-            # Recording it as both a liability AND an expense would double-count the impact.
-            # The tax deduction flows through naturally as the liability impacts equity.
+            # Note: Ledger entries for claim liabilities are recorded above at each
+            # creation site (Debit INSURANCE_LOSS, Credit CLAIM_LIABILITIES) to keep
+            # the ledger synchronized with ClaimLiability objects (Issue #319).
 
         # Insurance payment creates a receivable
         if insurance_payment > ZERO:
@@ -3139,6 +3181,15 @@ class WidgetManufacturer:
                         is_insured=False,  # This is an uninsured claim
                     )
                     self.claim_liabilities.append(claim_liability)
+                    # Record liability in ledger (Issue #319)
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.INSURANCE_LOSS,
+                        credit_account=AccountName.CLAIM_LIABILITIES,
+                        amount=max_liability,
+                        transaction_type=TransactionType.INSURANCE_CLAIM,
+                        description=f"Recognize uninsured claim liability (shortfall)",
+                    )
                     logger.info(
                         f"LIMITED LIABILITY: Immediate payment ${actual_payment:,.2f}, "
                         f"created liability for ${max_liability:,.2f} (total claim: ${claim:,.2f})"
@@ -3177,6 +3228,15 @@ class WidgetManufacturer:
                 is_insured=False,  # This is an uninsured claim
             )
             self.claim_liabilities.append(claim_liability)
+            # Record liability in ledger (Issue #319)
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.INSURANCE_LOSS,
+                credit_account=AccountName.CLAIM_LIABILITIES,
+                amount=deferred_max_liability,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
+                description=f"Recognize uninsured deferred claim liability",
+            )
             logger.info(
                 f"Created uninsured claim liability: ${deferred_max_liability:,.2f} (no collateral required)"
             )
@@ -3522,19 +3582,14 @@ class WidgetManufacturer:
             :meth:`check_solvency`: Detects insolvency and calls this method.
             :attr:`is_ruined`: Insolvency status flag.
         """
-        # Ensure equity never goes below zero (limited liability)
+        # Limited liability: negative equity means liabilities exceed assets.
+        # Do NOT inject phantom cash to floor equity at zero (Issue #319).
+        # Negative equity correctly represents the insolvent state — creditors
+        # absorb losses beyond shareholder investment.
         if self.equity < ZERO:
-            # Small negative equity due to rounding - adjust to exactly zero
-            # Record via ledger to maintain consistency (Issue #275)
-            adjustment = -self.equity
-            self._record_cash_adjustment(
-                amount=adjustment,
-                description="Limited liability floor adjustment - equity to zero",
-                transaction_type=TransactionType.ADJUSTMENT,
-            )
             logger.info(
-                f"Adjusted equity from ${self.equity - adjustment:,.2f} to $0 "
-                f"(limited liability floor)"
+                f"Equity is negative (${self.equity:,.2f}) — limited liability applies. "
+                f"Creditors absorb ${-self.equity:,.2f} in losses."
             )
 
         # Mark as insolvent
@@ -3629,17 +3684,13 @@ class WidgetManufacturer:
             :attr:`equity`: Financial equity determining solvency.
             :meth:`step`: Automatically includes solvency checking.
         """
-        # LIMITED LIABILITY ENFORCEMENT: Cash should never be negative
+        # LIMITED LIABILITY: Negative cash indicates insolvency.
+        # Do NOT inject phantom cash to floor at zero (Issue #319).
+        # Let negative cash flow through to the equity check below.
         if self.cash < ZERO:
             logger.warning(
-                f"Cash is negative (${self.cash:,.2f}). Adjusting to $0 to enforce limited liability."
-            )
-            # Record via ledger to maintain consistency (Issue #275)
-            # Bring cash back to zero by recording the negative amount as an adjustment
-            self._record_cash_adjustment(
-                amount=-self.cash,  # Negative cash -> positive adjustment
-                description="Limited liability enforcement - cash floor at zero",
-                transaction_type=TransactionType.ADJUSTMENT,
+                f"Cash is negative (${self.cash:,.2f}). "
+                f"Company is insolvent — limited liability applies."
             )
 
         # Traditional balance sheet insolvency
@@ -4619,6 +4670,9 @@ class WidgetManufacturer:
 
         # Check solvency
         self.check_solvency()
+
+        # Verify accounting equation: debits == credits (Issue #319)
+        self._verify_accounting_equation()
 
         # Calculate and store metrics
         # Pass the actual period revenue and LoC rate to get accurate metrics

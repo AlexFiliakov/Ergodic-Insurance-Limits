@@ -406,6 +406,7 @@ class CashFlowStatement:
             "cash_for_insurance": -flows.get("cash_for_insurance", ZERO),
             "cash_for_taxes": -flows.get("cash_for_taxes", ZERO),
             "cash_for_wages": -flows.get("cash_for_wages", ZERO),
+            "cash_for_interest": -flows.get("cash_for_interest", ZERO),
         }
 
         # Calculate total
@@ -527,6 +528,10 @@ class CashFlowStatement:
                 cash_flow_data.append(("  Cash Paid for Taxes", operating["cash_for_taxes"], ""))
             if operating.get("cash_for_wages", 0) != 0:
                 cash_flow_data.append(("  Cash Paid for Wages", operating["cash_for_wages"], ""))
+            if operating.get("cash_for_interest", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Paid for Interest", operating["cash_for_interest"], "")
+                )
         else:
             cash_flow_data.append(("CASH FLOWS FROM OPERATING ACTIVITIES", "", ""))
             cash_flow_data.append(("  Net Income", operating["net_income"], ""))
