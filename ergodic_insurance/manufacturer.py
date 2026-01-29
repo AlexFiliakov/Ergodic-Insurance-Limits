@@ -4337,6 +4337,12 @@ class WidgetManufacturer:
 
         # Create claim with custom pattern if provided, otherwise use ClaimLiability default
         if development_pattern is not None:
+            # Convert a plain list of factors to a ClaimDevelopment object
+            if isinstance(development_pattern, list):
+                development_pattern = ClaimDevelopment(
+                    pattern_name="custom",
+                    development_factors=development_pattern,
+                )
             new_claim = ClaimLiability(
                 original_amount=amount,
                 remaining_amount=amount,
@@ -4354,7 +4360,11 @@ class WidgetManufacturer:
             )
         self.claim_liabilities.append(new_claim)
 
-        pattern_name = development_pattern.pattern_name if development_pattern else "default"
+        pattern_name = (
+            getattr(development_pattern, "pattern_name", "custom")
+            if development_pattern
+            else "default"
+        )
         logger.info(
             f"Created claim liability via record_claim_accrual: ${amount:,.2f} "
             f"with pattern {pattern_name}"
