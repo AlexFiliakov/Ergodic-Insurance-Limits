@@ -88,16 +88,18 @@ class TestExcelReporter:
         # Create sample metrics history
         manufacturer.metrics_history = []
         for year in range(5):
+            growth = 1.03**year
             metrics = {
                 "year": year,
-                "assets": 10_000_000 * (1.03**year),
-                "equity": 10_000_000 * (1.03**year),
-                "revenue": 5_000_000 * (1.03**year),
-                "operating_income": 400_000 * (1.03**year),
-                "net_income": 300_000 * (1.03**year),
+                "assets": 10_000_000 * growth,
+                "equity": 10_000_000 * growth,
+                "revenue": 5_000_000 * growth,
+                "operating_income": 400_000 * growth,
+                "net_income": 300_000 * growth,
                 "collateral": 100_000 * year,
                 "restricted_assets": 100_000 * year,
-                "available_assets": 10_000_000 * (1.03**year) - 100_000 * year,
+                "available_assets": 10_000_000 * growth - 100_000 * year,
+                "cash": 1_000_000 * growth,
                 "claim_liabilities": 50_000 * year if year > 0 else 0,
                 "is_solvent": True,
                 "base_operating_margin": 0.08,
@@ -106,9 +108,17 @@ class TestExcelReporter:
                 "asset_turnover": 0.5,
                 "collateral_to_equity": 0.01 * year,
                 "collateral_to_assets": 0.01 * year,
-                "depreciation_expense": 200_000
-                * (1.03**year),  # Required for financial statements
-                "gross_ppe": 2_000_000 * (1.03**year),  # Required for cash flow statement
+                "depreciation_expense": 200_000 * growth,
+                "gross_ppe": 2_000_000 * growth,
+                # COGS breakdown (Issue #255)
+                "direct_materials": 1_500_000 * growth,
+                "direct_labor": 900_000 * growth,
+                "manufacturing_overhead": 480_000 * growth,
+                "mfg_depreciation": 120_000 * growth,
+                # SG&A breakdown (Issue #255)
+                "selling_expenses": 800_000 * growth,
+                "general_admin_expenses": 720_000 * growth,
+                "admin_depreciation": 80_000 * growth,
             }
             manufacturer.metrics_history.append(metrics)
 
