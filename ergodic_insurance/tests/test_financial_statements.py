@@ -998,9 +998,9 @@ class TestFinancialStatementGenerator:
 
         # If pretax income is positive, tax should be ~25% (default rate)
         if pretax_income_value > 0:
-            expected_tax = pretax_income_value * 0.25
+            expected_tax = float(pretax_income_value) * 0.25
             assert (
-                abs(tax_expense_value - expected_tax) < 1
+                abs(float(tax_expense_value) - expected_tax) < 1
             ), f"Tax expense should be ~25% of pretax income ({expected_tax}), got {tax_expense_value}"
 
     def test_monthly_income_statement(self, generator):
@@ -1091,7 +1091,7 @@ class TestFinancialStatementGenerator:
 
         # Verify gross margin is approximately 20%
         if revenue_val and gross_profit_val:
-            actual_margin = gross_profit_val / revenue_val
+            actual_margin = float(gross_profit_val) / float(revenue_val)
             assert (
                 abs(actual_margin - 0.20) < 0.05
             ), f"Gross margin should be ~20%, got {actual_margin*100:.1f}%"
@@ -1154,7 +1154,7 @@ class TestFinancialStatementGenerator:
 
         # Gross margin should be approximately 25% (the configured gross_margin_ratio)
         # The value is stored as percentage (e.g., 25.0 for 25%)
-        actual_margin = df["Year 0"].values[gross_margin_row]
+        actual_margin = float(df["Year 0"].values[gross_margin_row])
         assert (
             abs(actual_margin - 25.0) < 1.0
         ), f"Gross margin should be ~25% (configured), got {actual_margin:.1f}%"

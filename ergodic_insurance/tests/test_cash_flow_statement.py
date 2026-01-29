@@ -1,21 +1,25 @@
 """Unit tests for CashFlowStatement class."""
 
+from decimal import Decimal
+from typing import List
+
 import pandas as pd
 import pytest
 
+from ergodic_insurance.decimal_utils import MetricsDict
 from ergodic_insurance.financial_statements import CashFlowStatement
 
 
 class TestCashFlowStatement:
     """Test suite for cash flow statement generation."""
 
-    metrics_history: list[dict[str, float]]
+    metrics_history: List[MetricsDict]
     cash_flow: CashFlowStatement
 
     def setup_method(self):
         """Set up test fixtures."""
         # Create sample metrics history
-        self.metrics_history: list[dict[str, float]] = [
+        self.metrics_history: List[MetricsDict] = [
             {
                 # Year 0 metrics
                 "net_income": 1000000.0,
@@ -88,7 +92,7 @@ class TestCashFlowStatement:
         # Extract values from DataFrame
         values_dict = {}
         for _, row in df.iterrows():
-            if row["Year 1"] != "" and isinstance(row["Year 1"], (int, float)):
+            if row["Year 1"] != "" and isinstance(row["Year 1"], (int, float, Decimal)):
                 values_dict[row["Item"].strip()] = row["Year 1"]
 
         # Verify net income
@@ -179,17 +183,17 @@ class TestCashFlowStatement:
         # Extract values
         values_dict = {}
         for _, row in df.iterrows():
-            if row["Month 1"] != "" and isinstance(row["Month 1"], (int, float)):
+            if row["Month 1"] != "" and isinstance(row["Month 1"], (int, float, Decimal)):
                 values_dict[row["Item"].strip()] = row["Month 1"]
 
         # Monthly values should be annual / 12
-        assert values_dict.get("Net Income") == pytest.approx(1200000 / 12)
-        assert values_dict.get("Depreciation and Amortization") == pytest.approx(110000 / 12)
+        assert float(values_dict["Net Income"]) == pytest.approx(1200000 / 12)
+        assert float(values_dict["Depreciation and Amortization"]) == pytest.approx(110000 / 12)
 
     def test_no_dividends_on_loss(self):
         """Test that no dividends are paid when there's a loss."""
         # Create metrics with a loss
-        loss_metrics: list[dict[str, float]] = [
+        loss_metrics: List[MetricsDict] = [
             {"net_income": -500000.0, "cash": 100000.0, "dividends_paid": 0.0},
         ]
 
@@ -228,7 +232,7 @@ class TestCashFlowStatement:
     def test_capex_with_no_prior_period(self):
         """Test capex calculation for first period."""
         current = self.metrics_history[0]
-        prior: dict[str, float] = {}
+        prior: MetricsDict = {}
 
         capex = self.cash_flow._calculate_capex(current, prior)
 
@@ -282,7 +286,7 @@ class TestCashFlowStatement:
         # Create metrics that include insurance_premiums_paid
         # Issue #243: Include dividends_paid in metrics (preferred path since Issue #239)
         expected_dividends = 800000.0 * 0.3  # 30% payout on 800k net income = 240,000
-        metrics_with_insurance: list[dict[str, float]] = [
+        metrics_with_insurance: List[MetricsDict] = [
             {
                 "net_income": 800000.0,  # Already has insurance premiums deducted
                 "depreciation_expense": 100000.0,

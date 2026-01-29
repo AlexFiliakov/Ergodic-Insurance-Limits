@@ -698,7 +698,9 @@ class InsuranceDecisionEngine:
         # Insurance cost ceiling constraint
         def insurance_cost_constraint(x):
             premium = self._calculate_premium(x)
-            revenue = float(self.manufacturer.total_assets) * self.manufacturer.asset_turnover_ratio
+            revenue = (
+                float(self.manufacturer.total_assets) * self.manufacturer.asset_turnover_ratio
+            )  # Boundary: float for scipy.optimize
             cost_ratio = premium / revenue if revenue > 0 else 0
             return constraints.max_insurance_cost_ratio - cost_ratio
 
@@ -749,11 +751,11 @@ class InsuranceDecisionEngine:
 
             # Cost component (minimize premium as % of assets)
             premium = self._calculate_premium(x)
-            assets = float(self.manufacturer.total_assets)
+            assets = float(self.manufacturer.total_assets)  # Boundary: float for scipy.optimize
             cost_obj = weights["cost"] * (premium / assets) * 10  # Scale
 
             total = growth_obj + risk_obj + cost_obj
-            return float(total)
+            return float(total)  # Boundary: float for scipy.optimize
 
         except Exception as e:
             logger.error(f"Error calculating objective: {e}")
@@ -790,7 +792,9 @@ class InsuranceDecisionEngine:
 
         # Insurance benefit increases growth by reducing volatility drag
         coverage = sum(layer_limits)
-        coverage_ratio = coverage / float(self.manufacturer.total_assets)
+        coverage_ratio = coverage / float(
+            self.manufacturer.total_assets
+        )  # Boundary: float for scipy.optimize
 
         # Estimate volatility reduction
         volatility_reduction = min(coverage_ratio * 0.3, 0.15)  # Max 15% reduction
@@ -798,7 +802,7 @@ class InsuranceDecisionEngine:
         # Ergodic growth benefit
         growth_benefit = volatility_reduction * 0.5  # Simplified
 
-        return float(base_growth + growth_benefit)
+        return float(base_growth + growth_benefit)  # Boundary: float for scipy.optimize
 
     def _calculate_cvar(self, losses: np.ndarray, percentile: float) -> float:
         """Calculate Conditional Value at Risk (CVaR).

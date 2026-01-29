@@ -497,14 +497,14 @@ class LossData:
 
         return {
             "count": len(self.loss_amounts),
-            "total": float(np.sum(self.loss_amounts)),
-            "mean": float(np.mean(self.loss_amounts)),
-            "std": float(np.std(self.loss_amounts)),
-            "min": float(np.min(self.loss_amounts)),
-            "max": float(np.max(self.loss_amounts)),
-            "p50": float(np.percentile(self.loss_amounts, 50)),
-            "p95": float(np.percentile(self.loss_amounts, 95)),
-            "p99": float(np.percentile(self.loss_amounts, 99)),
+            "total": float(np.sum(self.loss_amounts)),  # Boundary: float for NumPy
+            "mean": float(np.mean(self.loss_amounts)),  # Boundary: float for NumPy
+            "std": float(np.std(self.loss_amounts)),  # Boundary: float for NumPy
+            "min": float(np.min(self.loss_amounts)),  # Boundary: float for NumPy
+            "max": float(np.max(self.loss_amounts)),  # Boundary: float for NumPy
+            "p50": float(np.percentile(self.loss_amounts, 50)),  # Boundary: float for NumPy
+            "p95": float(np.percentile(self.loss_amounts, 95)),  # Boundary: float for NumPy
+            "p99": float(np.percentile(self.loss_amounts, 99)),  # Boundary: float for NumPy
         }
 
 
@@ -562,7 +562,7 @@ class FrequencyGenerator:
         if revenue <= 0:
             return 0.0
 
-        # Convert to float to handle Decimal inputs - power operation requires float
+        # Boundary: float for NumPy - power operation requires float
         revenue_float = float(revenue)
         scaling_factor = (revenue_float / self.reference_revenue) ** self.revenue_scaling_exponent
         return float(self.base_frequency * scaling_factor)

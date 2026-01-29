@@ -38,6 +38,7 @@ Since:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Callable, Dict, List, Optional, Protocol, runtime_checkable
 
 import numpy as np
@@ -53,32 +54,32 @@ class FinancialStateProvider(Protocol):
     """
 
     @property
-    def current_revenue(self) -> float:
+    def current_revenue(self) -> Decimal:
         """Get current revenue."""
         ...
 
     @property
-    def current_assets(self) -> float:
+    def current_assets(self) -> Decimal:
         """Get current total assets."""
         ...
 
     @property
-    def current_equity(self) -> float:
+    def current_equity(self) -> Decimal:
         """Get current equity value."""
         ...
 
     @property
-    def base_revenue(self) -> float:
+    def base_revenue(self) -> Decimal:
         """Get base (initial) revenue for comparison."""
         ...
 
     @property
-    def base_assets(self) -> float:
+    def base_assets(self) -> Decimal:
         """Get base (initial) assets for comparison."""
         ...
 
     @property
-    def base_equity(self) -> float:
+    def base_equity(self) -> Decimal:
         """Get base (initial) equity for comparison."""
         ...
 
@@ -167,7 +168,7 @@ class RevenueExposure(ExposureBase):
 
     def get_exposure(self, time: float) -> float:
         """Return current actual revenue from manufacturer."""
-        return self.state_provider.current_revenue
+        return float(self.state_provider.current_revenue)  # Boundary: float for NumPy
 
     def get_frequency_multiplier(self, time: float) -> float:
         """Calculate multiplier from actual revenue ratio."""
@@ -176,7 +177,9 @@ class RevenueExposure(ExposureBase):
         # Handle negative or zero revenue (insolvency) by returning 0
         if self.state_provider.current_revenue <= 0:
             return 0.0
-        return self.state_provider.current_revenue / self.state_provider.base_revenue
+        return float(
+            self.state_provider.current_revenue / self.state_provider.base_revenue
+        )  # Boundary: float for NumPy
 
     def reset(self) -> None:
         """No internal state to reset for state-driven exposure."""
@@ -215,7 +218,7 @@ class AssetExposure(ExposureBase):
 
     def get_exposure(self, time: float) -> float:
         """Return current actual assets from manufacturer."""
-        return self.state_provider.current_assets
+        return float(self.state_provider.current_assets)  # Boundary: float for NumPy
 
     def get_frequency_multiplier(self, time: float) -> float:
         """Calculate multiplier from actual asset ratio."""
@@ -224,7 +227,9 @@ class AssetExposure(ExposureBase):
         # Handle negative or zero assets (insolvency) by returning 0
         if self.state_provider.current_assets <= 0:
             return 0.0
-        return self.state_provider.current_assets / self.state_provider.base_assets
+        return float(
+            self.state_provider.current_assets / self.state_provider.base_assets
+        )  # Boundary: float for NumPy
 
     def reset(self) -> None:
         """No internal state to reset for state-driven exposure."""
@@ -260,7 +265,7 @@ class EquityExposure(ExposureBase):
 
     def get_exposure(self, time: float) -> float:
         """Return current actual equity from manufacturer."""
-        return self.state_provider.current_equity
+        return float(self.state_provider.current_equity)  # Boundary: float for NumPy
 
     def get_frequency_multiplier(self, time: float) -> float:
         """Higher equity implies larger operations."""

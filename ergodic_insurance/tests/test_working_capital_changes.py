@@ -1,7 +1,11 @@
 """Tests for working capital change calculations in cash flow statements."""
 
+from decimal import Decimal
+from typing import List
+
 import pytest
 
+from ergodic_insurance.decimal_utils import MetricsDict
 from ergodic_insurance.financial_statements import CashFlowStatement
 
 
@@ -10,7 +14,7 @@ class TestWorkingCapitalChanges:
 
     def test_basic_working_capital_increase(self):
         """Test that increases in working capital assets reduce cash flow."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "accounts_receivable": 100000.0,
                 "inventory": 50000.0,
@@ -41,7 +45,7 @@ class TestWorkingCapitalChanges:
 
     def test_working_capital_decrease(self):
         """Test that decreases in working capital assets increase cash flow."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "accounts_receivable": 200000.0,
                 "inventory": 100000.0,
@@ -66,7 +70,7 @@ class TestWorkingCapitalChanges:
 
     def test_operating_cash_flow_with_working_capital(self):
         """Test that working capital changes affect operating cash flow correctly."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "net_income": 500000.0,
                 "depreciation_expense": 50000.0,
@@ -93,7 +97,7 @@ class TestWorkingCapitalChanges:
 
     def test_claim_liabilities_change(self):
         """Test that claim liability changes are handled correctly."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {"claim_liabilities": 0.0, "net_income": 100000.0},
             {"claim_liabilities": 500000.0, "net_income": 200000.0},  # New claims
         ]
@@ -106,7 +110,7 @@ class TestWorkingCapitalChanges:
 
     def test_zero_starting_working_capital(self):
         """Test working capital changes when starting from zero."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "accounts_receivable": 0.0,
                 "inventory": 0.0,
@@ -128,7 +132,7 @@ class TestWorkingCapitalChanges:
 
     def test_mixed_working_capital_changes(self):
         """Test mixed increases and decreases in working capital."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "net_income": 100000.0,
                 "depreciation_expense": 10000.0,
@@ -168,7 +172,7 @@ class TestWorkingCapitalChanges:
     def test_statement_shows_working_capital_changes(self):
         """Test that working capital changes appear correctly in statement."""
         # Issue #243: Include dividends_paid in metrics (preferred path since Issue #239)
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "cash": 500000.0,
                 "net_income": 300000.0,
@@ -205,7 +209,7 @@ class TestWorkingCapitalChanges:
         for _, row in df.iterrows():
             item = row["Item"].strip()
             value = row["Year 1"]
-            if value != "" and isinstance(value, (int, float)):
+            if value != "" and isinstance(value, (int, float, Decimal)):
                 if "Accounts Receivable" in item:
                     wc_items["AR"] = value
                 elif "Inventory" in item:
@@ -229,7 +233,7 @@ class TestWorkingCapitalChanges:
 
     def test_no_working_capital_changes(self):
         """Test when there are no working capital changes."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {
                 "accounts_receivable": 100000.0,
                 "inventory": 50000.0,
@@ -251,7 +255,7 @@ class TestWorkingCapitalChanges:
 
     def test_missing_working_capital_fields(self):
         """Test handling of missing working capital fields."""
-        metrics: list[dict[str, float]] = [
+        metrics: List[MetricsDict] = [
             {"net_income": 100000.0},
             {"net_income": 150000.0, "accounts_receivable": 50000.0},
         ]
@@ -266,7 +270,7 @@ class TestWorkingCapitalChanges:
 
     def test_monthly_working_capital_changes(self):
         """Test that monthly periods scale working capital changes correctly."""
-        annual_metrics: list[dict[str, float]] = [
+        annual_metrics: List[MetricsDict] = [
             {
                 "net_income": 200000.0,
                 "depreciation_expense": 20000.0,
