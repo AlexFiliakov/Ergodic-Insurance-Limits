@@ -991,16 +991,8 @@ class WidgetManufacturer:
                 description="Initial accounts payable",
             )
 
-        # Record initial collateral (if any)
-        if collateral > ZERO:
-            self.ledger.record_double_entry(
-                date=0,
-                debit_account=AccountName.COLLATERAL,
-                credit_account=AccountName.RETAINED_EARNINGS,
-                amount=collateral,
-                transaction_type=TransactionType.EQUITY_ISSUANCE,
-                description="Initial collateral",
-            )
+        # Note: COLLATERAL is tracked via RESTRICTED_CASH (issue #302).
+        # No separate COLLATERAL ledger entry is needed.
 
         # Record initial restricted assets (if any)
         if restricted_assets > ZERO:
@@ -1098,12 +1090,15 @@ class WidgetManufacturer:
 
     @property
     def collateral(self) -> Decimal:
-        """Letter of credit collateral balance derived from ledger (single source of truth).
+        """Letter of credit collateral balance derived from restricted assets.
+
+        Collateral is tracked via RESTRICTED_CASH since restricted assets
+        represent cash pledged as collateral for insurance claims (issue #302).
 
         Returns:
-            Current collateral balance from the ledger.
+            Current collateral balance (equals restricted assets).
         """
-        return self.ledger.get_balance(AccountName.COLLATERAL)
+        return self.restricted_assets
 
     # ========================================================================
     # Ledger Helper Methods for Balance Sheet Modifications (Issue #275)
@@ -1286,7 +1281,6 @@ class WidgetManufacturer:
             (AccountName.PREPAID_INSURANCE, self.prepaid_insurance),
             (AccountName.GROSS_PPE, self.gross_ppe),
             (AccountName.RESTRICTED_CASH, self.restricted_assets),
-            (AccountName.COLLATERAL, self.collateral),
         ]
 
         for account, balance in asset_accounts:
@@ -2365,24 +2359,11 @@ class WidgetManufacturer:
                     month=self.current_month,
                 )
 
-            # Note: Dividends are NOT recorded as a separate cash outflow here because
-            # the net_income already excludes them. The total_retained calculation
-            # (retained_earnings + additional_retained) gives us the net cash impact.
-            # Recording dividends as cash outflow would double-count.
-            # However, we do record the dividend declaration for financial statement purposes.
-            if actual_dividends > ZERO:
-                # Record dividends declared (affects equity, not cash again)
-                # This entry: Debit Retained Earnings, Credit Dividends Payable (or direct to equity)
-                # But since we're on a cash basis here, we just track it for reporting
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=AccountName.RETAINED_EARNINGS,
-                    credit_account=AccountName.DIVIDENDS,
-                    amount=actual_dividends,
-                    transaction_type=TransactionType.DIVIDEND,
-                    description=f"Year {self.current_year} dividends declared",
-                    month=self.current_month,
-                )
+            # Note: Dividends are NOT recorded as a separate ledger entry (issue #302).
+            # The total_retained calculation already accounts for dividends:
+            # total_retained = net_income - actual_dividends.
+            # A separate RE → DIVIDENDS entry would double-reduce equity in the ledger.
+            # Dividend amounts are tracked via self._last_dividends_paid for reporting.
 
         logger.info(
             f"Balance sheet updated: Assets=${self.total_assets:,.2f}, Equity=${self.equity:,.2f}"
@@ -2531,19 +2512,24 @@ class WidgetManufacturer:
         # The ledger entries above have already been recorded, so we need to handle
         # the case where cash went negative by recording an adjustment
         if self.cash < ZERO:
-            # Cash went negative from working capital changes - record adjustment
-            adjustment = -self.cash
+            # Cash went negative from working capital changes - record as vendor financing
+            # instead of phantom equity injection (issue #302).
+            shortfall = -self.cash
             logger.warning(
-                f"LIMITED LIABILITY: Working capital changes pushed cash to ${self.cash:,.2f}. "
-                f"Adjusting to floor at $0."
+                f"WORKING CAPITAL FACILITY: Working capital changes pushed cash to ${self.cash:,.2f}. "
+                f"Recording ${shortfall:,.2f} as accounts payable (vendor financing)."
             )
-            self._record_cash_adjustment(
-                amount=adjustment,
-                description="Limited liability floor - working capital cash constraint",
-                transaction_type=TransactionType.ADJUSTMENT,
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.CASH,
+                credit_account=AccountName.ACCOUNTS_PAYABLE,
+                amount=shortfall,
+                transaction_type=TransactionType.WORKING_CAPITAL,
+                description="Working capital facility - vendor financing for cash shortfall",
+                month=self.current_month,
             )
             # Recalculate effective cash impact
-            cash_impact = cash_impact + adjustment
+            cash_impact = cash_impact + shortfall
 
         # Now total assets remain constant - we've just reallocated between components
         # This prevents artificial asset creation that was causing growth distortions
@@ -2960,15 +2946,8 @@ class WidgetManufacturer:
                     amount=max_payable,
                     description=f"Cash to restricted for insurance claim collateral",
                 )
-                # Also record the collateral posting
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=AccountName.COLLATERAL,
-                    credit_account=AccountName.RETAINED_EARNINGS,
-                    amount=max_payable,
-                    transaction_type=TransactionType.TRANSFER,
-                    description=f"Letter of credit collateral posted for insurance claim",
-                )
+                # Note: Collateral tracked via RESTRICTED_CASH (issue #302).
+                # No separate COLLATERAL → RETAINED_EARNINGS entry needed.
 
                 # Create claim liability with payment schedule for payable portion
                 # Adjust year_incurred only if current_year > 0 (after step() has been called)
@@ -3339,16 +3318,8 @@ class WidgetManufacturer:
                             description=f"Insured claim payment from collateral",
                             month=self.current_month,
                         )
-                        # Also reduce collateral tracking via ledger
-                        self.ledger.record_double_entry(
-                            date=self.current_year,
-                            debit_account=AccountName.RETAINED_EARNINGS,
-                            credit_account=AccountName.COLLATERAL,
-                            amount=actual_payment,
-                            transaction_type=TransactionType.INSURANCE_CLAIM,
-                            description=f"Collateral released after claim payment",
-                            month=self.current_month,
-                        )
+                        # Note: Collateral tracked via RESTRICTED_CASH (issue #302).
+                        # No separate RETAINED_EARNINGS → COLLATERAL entry needed.
 
                         logger.debug(
                             f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
@@ -4237,10 +4208,10 @@ class WidgetManufacturer:
                     trans_type = TransactionType.TAX_PAYMENT
                     debit_account = AccountName.ACCRUED_TAXES
                 elif accrual_type == AccrualType.WAGES:
-                    trans_type = TransactionType.PAYMENT
+                    trans_type = TransactionType.WAGE_PAYMENT
                     debit_account = AccountName.ACCRUED_WAGES
                 elif accrual_type == AccrualType.INTEREST:
-                    trans_type = TransactionType.PAYMENT
+                    trans_type = TransactionType.INTEREST_PAYMENT
                     debit_account = AccountName.ACCRUED_INTEREST
                 else:
                     trans_type = TransactionType.PAYMENT
