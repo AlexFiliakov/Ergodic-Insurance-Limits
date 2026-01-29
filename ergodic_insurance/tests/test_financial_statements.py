@@ -700,11 +700,14 @@ class TestFinancialStatementGenerator:
         with pytest.raises(ValueError, match="gross_ppe missing from metrics"):
             generator.generate_balance_sheet(year=0)
 
-    def test_missing_cash_in_income_statement_raises_error(self):
-        """Test that missing cash raises ValueError in income statement.
+    def test_income_statement_works_without_cash(self):
+        """Test that income statement works without cash in metrics.
 
-        Issue #256: The reporting layer no longer estimates cash balance
-        for interest income calculation.
+        Issue #301: The income statement no longer uses cash to fabricate
+        interest income with hardcoded rates. Interest income/expense are
+        now read from metrics directly (defaulting to 0).
+        Previously (Issue #256), missing cash raised ValueError because
+        interest_income was computed as cash * 0.02.
         """
         manufacturer = Mock(spec=WidgetManufacturer)
         manufacturer.config = ManufacturerConfig(
@@ -716,21 +719,22 @@ class TestFinancialStatementGenerator:
         )
 
         # Build metrics with COGS/SG&A breakdown but WITHOUT cash
-        # The helper function doesn't add cash, so we just don't include it
         base_metrics = {
             "year": 0,
             "assets": 10_000_000,
             "equity": 10_000_000,
             "revenue": 5_000_000,
             "depreciation_expense": 700_000,
-            # cash is MISSING - this should raise an error
+            # cash is NOT needed for income statement since Issue #301
         }
         manufacturer.metrics_history = [_add_cogs_sga_breakdown(base_metrics)]
 
         generator = FinancialStatementGenerator(manufacturer=manufacturer)
 
-        with pytest.raises(ValueError, match="cash missing from metrics"):
-            generator.generate_income_statement(year=0)
+        # Should NOT raise - income statement no longer needs cash
+        df = generator.generate_income_statement(year=0)
+        assert isinstance(df, pd.DataFrame)
+        assert "Item" in df.columns
 
     def test_operating_expenses_components(self, generator):
         """Test that operating expenses include proper SG&A components."""
@@ -749,20 +753,84 @@ class TestFinancialStatementGenerator:
             assert any(component in item for item in items), f"Missing SG&A component: {component}"
 
     def test_non_operating_section(self, generator):
-        """Test non-operating income and expenses section."""
-        # Add some debt to generate interest expense
-        generator.metrics_history[2]["debt_balance"] = 2_000_000
-        generator.metrics_history[2]["cash"] = 3_000_000
+        """Test non-operating income and expenses section.
+
+        Issue #301: Interest income/expense are now read from metrics
+        instead of being fabricated with hardcoded rates.
+        """
+        # Add interest income/expense to metrics
+        generator.metrics_history[2]["interest_income"] = 50_000
+        generator.metrics_history[2]["interest_expense"] = 100_000
 
         df = generator.generate_income_statement(year=2)
 
         items = df["Item"].str.strip().values
+        values = df["Year 2"].values
 
         # Check non-operating items
         assert any("Interest Income" in item for item in items), "Missing Interest Income"
-        # Interest expense only appears if there's debt
-        if generator.metrics_history[2]["debt_balance"] > 0:
-            assert any("Interest Expense" in item for item in items), "Missing Interest Expense"
+        assert any("Interest Expense" in item for item in items), "Missing Interest Expense"
+
+        # Verify interest values come from metrics, not hardcoded rates
+        for i, item in enumerate(items):
+            if "Interest Income" in item and "Total" not in item:
+                assert (
+                    values[i] == 50_000
+                ), f"Interest income should be 50,000 from metrics, got {values[i]}"
+            elif "Interest Expense" in item:
+                assert (
+                    values[i] == -100_000
+                ), f"Interest expense should be -100,000 from metrics, got {values[i]}"
+
+    def test_no_fabricated_interest_rates(self, generator):
+        """Test that interest income/expense default to 0 when not in metrics.
+
+        Issue #301: Previously, the income statement fabricated interest income
+        using cash * 0.02 and interest expense using debt * 0.05. Now they
+        must come from metrics and default to 0.
+        """
+        # Ensure no interest fields in metrics
+        for key in ["interest_income", "interest_expense"]:
+            generator.metrics_history[2].pop(key, None)
+
+        # Add cash and debt that would have generated fabricated values
+        generator.metrics_history[2]["cash"] = 3_000_000
+        generator.metrics_history[2]["debt_balance"] = 2_000_000
+
+        df = generator.generate_income_statement(year=2)
+        items = df["Item"].str.strip().values
+        values = df["Year 2"].values
+
+        # Interest Income should be 0, NOT cash * 0.02 = 60,000
+        for i, item in enumerate(items):
+            if "Interest Income" in item and "Total" not in item:
+                assert (
+                    values[i] == 0
+                ), f"Interest income should be 0 (not fabricated), got {values[i]}"
+
+    def test_net_income_matches_manufacturer(self, generator):
+        """Test that income statement NET INCOME matches manufacturer's computed value.
+
+        Issue #301: The income statement must report the manufacturer's net_income
+        directly rather than recomputing it, which could diverge due to GAAP
+        categorization differences.
+        """
+        df = generator.generate_income_statement(year=2)
+
+        # Find NET INCOME row
+        net_income_value = None
+        for i, item in enumerate(df["Item"].values):
+            if str(item).strip() == "NET INCOME":
+                net_income_value = df["Year 2"].values[i]
+                break
+
+        assert net_income_value is not None, "NET INCOME row not found"
+
+        # Should match manufacturer's net_income exactly
+        expected = generator.metrics_history[2]["net_income"]
+        assert (
+            net_income_value == expected
+        ), f"NET INCOME should be {expected} (from manufacturer), got {net_income_value}"
 
     def test_tax_provision_structure(self, generator):
         """Test that tax provision follows flat rate structure."""
@@ -1090,6 +1158,139 @@ class TestFinancialStatementGenerator:
         assert (
             abs(actual_margin - 25.0) < 1.0
         ), f"Gross margin should be ~25% (configured), got {actual_margin:.1f}%"
+
+    def test_balance_sheet_reconciliation_full_liabilities(self):
+        """Test that balance sheet reconciliation uses full total liabilities.
+
+        Issue #301: Previously only used claim_liabilities, but should include
+        accounts_payable + accrued_expenses + claim_liabilities to match the
+        actual balance sheet liabilities section.
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        # Set up metrics where A = L + E only with FULL liabilities
+        # accounts_payable=200K, accrued_expenses=100K, claim_liabilities=500K
+        # current_claims = 500K * 0.1 = 50K
+        # total_current = 200K + 100K + 50K = 350K
+        # long_term = 500K - 50K = 450K
+        # total_liabilities = 350K + 450K = 800K
+        # equity = 10M - 800K = 9.2M
+        manufacturer.metrics_history = [
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 0,
+                    "assets": 10_000_000,
+                    "equity": 9_200_000,
+                    "revenue": 5_000_000,
+                    "operating_income": 400_000,
+                    "net_income": 300_000,
+                    "collateral": 0,
+                    "restricted_assets": 0,
+                    "available_assets": 10_000_000,
+                    "net_assets": 10_000_000,  # assets - restricted_assets
+                    "claim_liabilities": 500_000,
+                    "accounts_payable": 200_000,
+                    "accrued_expenses": 100_000,
+                    "is_solvent": True,
+                    "base_operating_margin": 0.08,
+                    "roe": 0.03,
+                    "roa": 0.03,
+                    "asset_turnover": 0.5,
+                    "gross_ppe": 7_000_000,
+                    "accumulated_depreciation": 0,
+                    "depreciation_expense": 700_000,
+                    "cash": 3_000_000,
+                }
+            ),
+        ]
+
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
+        df = generator.generate_reconciliation_report(year=0)
+
+        # Find the balance sheet reconciliation status
+        checks = df["Check"].values
+        values = df["Value"].values
+        types = df["Type"].values
+
+        # Find all status rows and verify the balance sheet one
+        balance_sheet_section = False
+        for i, check in enumerate(checks):
+            check_str = str(check).strip()
+            if "BALANCE SHEET RECONCILIATION" in check_str:
+                balance_sheet_section = True
+            elif check_str == "Status" and types[i] == "status" and balance_sheet_section:
+                assert values[i] == "BALANCED", (
+                    f"Balance sheet should be BALANCED with full liabilities, " f"got {values[i]}"
+                )
+                break  # Found and checked the balance sheet status
+
+    def test_configurable_current_claims_ratio(self):
+        """Test that current claims ratio is configurable.
+
+        Issue #301: current_claims was hardcoded as claim_liabilities * 0.1.
+        Now configurable via FinancialStatementConfig.current_claims_ratio.
+        """
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.5,
+            retention_ratio=0.6,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+        )
+
+        manufacturer.metrics_history = [
+            _add_cogs_sga_breakdown(
+                {
+                    "year": 0,
+                    "assets": 10_000_000,
+                    "equity": 9_500_000,
+                    "revenue": 5_000_000,
+                    "operating_income": 400_000,
+                    "net_income": 300_000,
+                    "collateral": 0,
+                    "restricted_assets": 0,
+                    "available_assets": 10_000_000,
+                    "claim_liabilities": 1_000_000,
+                    "is_solvent": True,
+                    "base_operating_margin": 0.08,
+                    "roe": 0.03,
+                    "roa": 0.03,
+                    "asset_turnover": 0.5,
+                    "gross_ppe": 7_000_000,
+                    "accumulated_depreciation": 0,
+                    "depreciation_expense": 700_000,
+                    "cash": 3_000_000,
+                }
+            ),
+        ]
+
+        # Use custom current_claims_ratio of 0.25 (25% current)
+        config = FinancialStatementConfig(current_claims_ratio=0.25)
+        generator = FinancialStatementGenerator(manufacturer=manufacturer, config=config)
+
+        df = generator.generate_balance_sheet(year=0)
+
+        # Find the current portion of claim liabilities
+        items = df["Item"].values
+        values = df["Year 0"].values
+
+        for i, item in enumerate(items):
+            if "Current Portion of Claim Liabilities" in str(item):
+                # With 1M claim liabilities and 0.25 ratio, current should be 250K
+                assert (
+                    abs(float(values[i]) - 250_000) < 1
+                ), f"Current claims should be 250,000 (25% of 1M), got {values[i]}"
+                break
+        else:
+            pytest.fail("Current Portion of Claim Liabilities row not found")
 
 
 class TestMonteCarloStatementAggregator:
