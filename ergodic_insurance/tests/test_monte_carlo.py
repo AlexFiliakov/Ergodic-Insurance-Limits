@@ -331,23 +331,41 @@ class TestMonteCarloEngine:
         assert len(sim_results["annual_losses"]) == engine.config.n_years
 
     def test_chunk_processing(self, setup_engine):
-        """Test chunk processing for parallel execution."""
-        engine, loss_generator, _, _ = setup_engine
+        """Test chunk processing via standalone worker function.
 
-        # Mock loss events
+        The _run_chunk method was removed as dead code (issue #299).
+        Parallel chunks are now processed by run_chunk_standalone.
+        """
+        from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
 
-        loss_generator.generate_losses.return_value = (
-            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
-            {"total_amount": 50_000},
+        engine, _, _, _ = setup_engine
+
+        # Use a real loss generator so reseed() works
+        real_loss_gen = ManufacturingLossGenerator(seed=42)
+
+        config_dict = {
+            "n_years": engine.config.n_years,
+            "use_float32": engine.config.use_float32,
+            "ruin_evaluation": engine.config.ruin_evaluation,
+            "insolvency_tolerance": engine.config.insolvency_tolerance,
+            "letter_of_credit_rate": engine.config.letter_of_credit_rate,
+            "growth_rate": engine.config.growth_rate,
+            "time_resolution": engine.config.time_resolution,
+            "apply_stochastic": engine.config.apply_stochastic,
+        }
+
+        chunk = (0, 10, 42)
+        chunk_results = run_chunk_standalone(
+            chunk,
+            real_loss_gen,
+            engine.insurance_program,
+            engine.manufacturer,
+            config_dict,
         )
-
-        # Process a chunk
-        chunk = (0, 10, 42)  # start, end, seed
-        chunk_results = engine._run_chunk(chunk)
 
         assert "final_assets" in chunk_results
         assert len(chunk_results["final_assets"]) == 10
-        assert chunk_results["annual_losses"].shape == (10, engine.config.n_years)
+        assert np.asarray(chunk_results["annual_losses"]).shape == (10, engine.config.n_years)
 
     def test_combine_results(self, setup_engine):
         """Test combining multiple simulation results."""
