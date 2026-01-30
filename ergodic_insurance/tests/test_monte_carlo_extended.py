@@ -336,12 +336,34 @@ class TestMonteCarloExtended:
         assert growth_rates[2] != 0  # Positive should give non-zero
 
     def test_parallel_chunk_processing(self, setup_simple_engine):
-        """Test the _run_chunk method directly."""
+        """Test chunk processing via standalone worker function.
+
+        The _run_chunk method was removed as dead code (issue #299).
+        Parallel chunks are now processed by run_chunk_standalone.
+        """
+        from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
+
         engine = setup_simple_engine
 
-        # Test chunk processing
+        config_dict = {
+            "n_years": engine.config.n_years,
+            "use_float32": engine.config.use_float32,
+            "ruin_evaluation": engine.config.ruin_evaluation,
+            "insolvency_tolerance": engine.config.insolvency_tolerance,
+            "letter_of_credit_rate": engine.config.letter_of_credit_rate,
+            "growth_rate": engine.config.growth_rate,
+            "time_resolution": engine.config.time_resolution,
+            "apply_stochastic": engine.config.apply_stochastic,
+        }
+
         chunk = (0, 5, 42)  # start, end, seed
-        results = engine._run_chunk(chunk)
+        results = run_chunk_standalone(
+            chunk,
+            engine.loss_generator,
+            engine.insurance_program,
+            engine.manufacturer,
+            config_dict,
+        )
 
         assert "final_assets" in results
         assert "annual_losses" in results
