@@ -156,9 +156,7 @@ def run_vol_sim(
     retained_loss_list = []
 
     for yr in range(pricing_simulation_years):
-        loss_events, loss_meta = generator_pricing.generate_losses(
-            duration=1, revenue=base_manufacturer.base_revenue
-        )
+        loss_events, loss_meta = generator_pricing.generate_losses(duration=1, revenue=cur_revenue)
         for loss_event in loss_events:
             insured_loss = max(min(loss_event.amount, policy_limit) - deductible, 0)
 
@@ -188,23 +186,18 @@ def run_vol_sim(
     total_cost_of_risk = annual_premium + average_annual_retained_loss
     print(f"Total Annual Cost of Risk: ${total_cost_of_risk:,.0f}")
 
-    cur_operating_income = base_manufacturer.calculate_operating_income(cur_revenue)
+    cur_operating_income = float(base_manufacturer.calculate_operating_income(cur_revenue))
 
-    cur_net_income = base_manufacturer.calculate_net_income(
-        operating_income=cur_operating_income,
-        collateral_costs=0.0,
-        insurance_premiums=annual_premium,
-        insurance_losses=average_annual_retained_loss,
-        use_accrual=True,
-        time_resolution="annual",
+    cur_net_income = float(
+        base_manufacturer.calculate_net_income(
+            operating_income=cur_operating_income,
+            collateral_costs=0.0,
+            insurance_premiums=annual_premium,
+            insurance_losses=average_annual_retained_loss,
+            use_accrual=True,
+            time_resolution="annual",
+        )
     )
-
-    # target_net_income = base_manufacturer.base_revenue * target_ebita_margin * (1 - base_manufacturer.tax_rate)
-    # target_net_income
-
-    # net_margin_diff = abs(cur_net_income - target_net_income) / cur_revenue
-
-    # assert net_margin_diff < 0.0005, f"Net income not within 0.05% of target ({net_margin_diff:.2%} difference)"
 
     net_margin = cur_net_income / cur_revenue
     print(f"Net Margin after insurance: {net_margin:.2%}")
@@ -354,7 +347,4 @@ def run_vol_sim(
         with open(filename_no_ins, "wb") as f:
             pickle.dump(results_no_ins, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    all_converged = (
-        all(s.converged for s in results.convergence.values()) if results.convergence else False
-    )
-    print(f"\nConvergence achieved: {'Yes' if all_converged else 'No'}")
+    print(f"\n{results.summary()}")
