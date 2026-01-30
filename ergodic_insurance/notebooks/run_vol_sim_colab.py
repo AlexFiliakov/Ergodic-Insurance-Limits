@@ -114,7 +114,7 @@ def run_vol_sim(
 
     ## Define Losses
 
-    cur_revenue = base_manufacturer.total_assets * base_manufacturer.asset_turnover_ratio
+    cur_revenue = float(base_manufacturer.base_revenue)
 
     generator_pricing = ManufacturingLossGenerator(
         attritional_params={
@@ -271,7 +271,7 @@ def run_vol_sim(
             cache_results=False,
             progress_bar=True,
             ruin_evaluation=[5, 10, 15, 20, 25, 30, 35, 40, 45, 50],
-            working_capital_pct=0.0,  # Set working capital to 0% for full asset revenue generation
+            enable_ledger_pruning=True,
             seed=sim_seed,
             apply_stochastic=(volatility > 0),
         )
@@ -354,4 +354,7 @@ def run_vol_sim(
         with open(filename_no_ins, "wb") as f:
             pickle.dump(results_no_ins, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    print(f"\nConvergence achieved: {'Yes' if results.convergence else 'No'}")
+    all_converged = (
+        all(s.converged for s in results.convergence.values()) if results.convergence else False
+    )
+    print(f"\nConvergence achieved: {'Yes' if all_converged else 'No'}")
