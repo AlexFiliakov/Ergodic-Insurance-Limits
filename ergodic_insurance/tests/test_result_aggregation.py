@@ -500,6 +500,40 @@ class TestSummaryStatistics:
         assert len(df) > 0
 
 
+class TestFormatQuantileKey:
+    """Test format_quantile_key helper (issue #334)."""
+
+    def test_integer_percentiles(self):
+        """Standard integer-percentile values produce 4-digit per-mille keys."""
+        from ergodic_insurance.summary_statistics import format_quantile_key
+
+        assert format_quantile_key(0.01) == "q0010"
+        assert format_quantile_key(0.25) == "q0250"
+        assert format_quantile_key(0.5) == "q0500"
+        assert format_quantile_key(0.75) == "q0750"
+        assert format_quantile_key(0.99) == "q0990"
+
+    def test_subpercentile_no_collision(self):
+        """Sub-percentile quantiles that previously collided are now distinct."""
+        from ergodic_insurance.summary_statistics import format_quantile_key
+
+        # These pairs collided under int(q*100) formatting
+        assert format_quantile_key(0.001) != format_quantile_key(0.005)
+        assert format_quantile_key(0.001) == "q0001"
+        assert format_quantile_key(0.005) == "q0005"
+
+        assert format_quantile_key(0.99) != format_quantile_key(0.995)
+        assert format_quantile_key(0.99) == "q0990"
+        assert format_quantile_key(0.995) == "q0995"
+
+    def test_boundary_values(self):
+        """Boundary quantile values format correctly."""
+        from ergodic_insurance.summary_statistics import format_quantile_key
+
+        assert format_quantile_key(0.0) == "q0000"
+        assert format_quantile_key(1.0) == "q1000"
+
+
 class TestQuantileCalculator:
     """Test QuantileCalculator class."""
 
@@ -510,11 +544,11 @@ class TestQuantileCalculator:
 
         quantiles = calculator.calculate(data)
 
-        assert "q025" in quantiles
-        assert "q050" in quantiles
-        assert "q075" in quantiles
+        assert "q0250" in quantiles
+        assert "q0500" in quantiles
+        assert "q0750" in quantiles
 
-        assert abs(quantiles["q050"] - 49.5) < 1
+        assert abs(quantiles["q0500"] - 49.5) < 1
 
     def test_interpolation_methods(self):
         """Test different interpolation methods."""
@@ -526,11 +560,11 @@ class TestQuantileCalculator:
         lower = calculator.calculate(data, method="lower")
         higher = calculator.calculate(data, method="higher")
 
-        assert linear["q050"] == 3.0
-        assert nearest["q050"] == 3.0
+        assert linear["q0500"] == 3.0
+        assert nearest["q0500"] == 3.0
         # Note: behavior varies between numpy versions
-        assert lower["q050"] in [2.0, 3.0]
-        assert higher["q050"] == 3.0
+        assert lower["q0500"] in [2.0, 3.0]
+        assert higher["q0500"] == 3.0
 
     def test_streaming_quantiles(self):
         """Test streaming quantile approximation using t-digest."""
@@ -725,10 +759,28 @@ class TestTDigest:
         digest.update_batch(data)
 
         result = digest.quantiles([0.25, 0.5, 0.75])
-        assert "q025" in result
-        assert "q050" in result
-        assert "q075" in result
-        assert result["q025"] < result["q050"] < result["q075"]
+        assert "q0250" in result
+        assert "q0500" in result
+        assert "q0750" in result
+        assert result["q0250"] < result["q0500"] < result["q0750"]
+
+    def test_quantiles_no_subpercentile_collision(self):
+        """Test that sub-percentile quantiles produce distinct keys (issue #334)."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(10000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        # These pairs previously collided under int(q*100) formatting
+        result = digest.quantiles([0.001, 0.005, 0.99, 0.995])
+        assert (
+            len(result) == 4
+        ), f"Expected 4 distinct keys, got {len(result)}: {list(result.keys())}"
+        assert "q0001" in result  # 0.1th percentile
+        assert "q0005" in result  # 0.5th percentile
+        assert "q0990" in result  # 99th percentile
+        assert "q0995" in result  # 99.5th percentile
 
     def test_large_dataset_streaming(self):
         """Integration test: 1M points streaming matches np.percentile within 1%."""

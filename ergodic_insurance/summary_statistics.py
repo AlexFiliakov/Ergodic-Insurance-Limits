@@ -18,6 +18,22 @@ from scipy import stats
 from scipy.optimize import minimize
 
 
+def format_quantile_key(q: float) -> str:
+    """Format a quantile value as a dictionary key using per-mille resolution.
+
+    Uses per-mille (parts per thousand) to avoid key collisions for
+    sub-percentile quantiles that are critical for insurance risk metrics.
+
+    Args:
+        q: Quantile value in range [0, 1].
+
+    Returns:
+        Formatted key string, e.g. ``q0250`` for the 25th percentile,
+        ``q0005`` for the 0.5th percentile, ``q0001`` for the 0.1th percentile.
+    """
+    return f"q{round(q * 1000):04d}"
+
+
 @dataclass
 class StatisticalSummary:
     """Complete statistical summary of simulation results."""
@@ -638,11 +654,12 @@ class TDigest:
             qs: List of quantiles to estimate, each in range [0, 1].
 
         Returns:
-            Dictionary mapping formatted quantile keys (e.g. 'q025') to values.
+            Dictionary mapping per-mille quantile keys (e.g. ``q0250``
+            for the 25th percentile) to estimated values.
         """
         results = {}
         for q in sorted(qs):
-            key = f"q{int(q * 100):03d}"
+            key = format_quantile_key(q)
             results[key] = self.quantile(q)
         return results
 
@@ -850,7 +867,7 @@ class QuantileCalculator:
         quantile_values = np.percentile(data, [q * 100 for q in self.quantiles])
 
         for q, value in zip(self.quantiles, quantile_values):
-            results[f"q{int(q*100):03d}"] = float(value)
+            results[format_quantile_key(q)] = float(value)
 
         return results
 

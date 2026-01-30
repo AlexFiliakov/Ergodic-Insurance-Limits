@@ -260,10 +260,10 @@ class TestStatisticalValidation:
         data2 = np.random.normal(0, 2, 1000)
         results = val.compare_distributions(data1, data2)
         assert "quantile_errors" in results
-        assert "q1" in results["quantile_errors"]
-        assert "q99" in results["quantile_errors"]
+        assert "q0010" in results["quantile_errors"]
+        assert "q0990" in results["quantile_errors"]
         # Higher quantiles should have larger errors due to different std
-        assert results["quantile_errors"]["q99"] > results["quantile_errors"]["q50"]
+        assert results["quantile_errors"]["q0990"] > results["quantile_errors"]["q0500"]
 
     def test_validate_statistical_properties_valid(self):
         """Test statistical property validation with valid data."""
