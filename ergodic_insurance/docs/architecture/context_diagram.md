@@ -48,9 +48,18 @@ graph TB
        %% Core Simulation
        subgraph Core["⚙️ Core Simulation Engine"]
            MANU["WidgetManufacturer<br/>(Business Model)"]
-           CLAIM["ClaimGenerator<br/>(Loss Events)"]
+           LOSSG["ManufacturingLossGenerator<br/>(Loss Events)"]
            INS["InsuranceProgram<br/>(Coverage Tower)"]
            SIM["Simulation Engine<br/>(Time Evolution)"]
+       end
+
+       %% Financial Core
+       subgraph Financial["💰 Financial Core"]
+           LEDGER["Ledger<br/>(Double-Entry Accounting)"]
+           ACCRUAL["AccrualManager<br/>(Accrual Timing)"]
+           INSACCT["InsuranceAccounting<br/>(Premium Amortization)"]
+           TAXH["TaxHandler<br/>(Tax Calculations)"]
+           DECUTIL["decimal_utils<br/>(Decimal Precision)"]
        end
 
        %% Analysis Layer
@@ -77,19 +86,30 @@ graph TB
 
        %% Key Connections
        MANU -.-> INS
-       CLAIM -.-> INS
+       LOSSG -.-> INS
        INS -.-> SIM
        SIM -.-> MONTE
        ERGODIC -.-> OPT
        OPT -.-> SENS
 
+       %% Financial Core Connections
+       MANU --> LEDGER
+       MANU --> ACCRUAL
+       MANU --> INSACCT
+       TAXH --> ACCRUAL
+       LEDGER --> DECUTIL
+       ACCRUAL --> DECUTIL
+       INSACCT --> DECUTIL
+
        classDef inputClass fill:#e3f2fd,stroke:#1565c0
        classDef coreClass fill:#fff3e0,stroke:#ef6c00
+       classDef financialClass fill:#fff9c4,stroke:#f9a825
        classDef analysisClass fill:#f3e5f5,stroke:#7b1fa2
        classDef outputClass fill:#e8f5e9,stroke:#2e7d32
 
        class CONF,HIST,PARAMS inputClass
-       class MANU,CLAIM,INS,SIM coreClass
+       class MANU,LOSSG,INS,SIM coreClass
+       class LEDGER,ACCRUAL,INSACCT,TAXH,DECUTIL financialClass
        class MONTE,ERGODIC,OPT,SENS analysisClass
        class EXCEL,VIZ,METRICS,STRATEGY outputClass
 ```
@@ -117,8 +137,33 @@ flowchart TB
        subgraph Core["Core Simulation Engine"]
            SIM["Simulation<br/>Engine"]
            MANU["Widget<br/>Manufacturer<br/>Model"]
-           CLAIM["Claim<br/>Generator"]
+           LOSSG["Manufacturing<br/>Loss Generator"]
            INS["Insurance<br/>Program"]
+       end
+
+       %% Financial Accounting Subsystem
+       subgraph FinAcct["Financial Accounting Subsystem"]
+           LEDGER["Ledger<br/>(Double-Entry)"]
+           ACCRUAL["AccrualManager<br/>(GAAP Timing)"]
+           INSACCT["InsuranceAccounting<br/>(Premium & Recovery)"]
+           TAXH["TaxHandler<br/>(Tax Accruals)"]
+           DECUTIL["decimal_utils<br/>(Precision)"]
+       end
+
+       %% Insurance Subsystem
+       subgraph InsuranceSub["Insurance Subsystem"]
+           INSPOL["InsurancePolicy<br/>(Basic Path)"]
+           INSLAY["InsuranceLayer<br/>(Basic Layers)"]
+           INSPROG["InsuranceProgram<br/>(Enhanced Path)"]
+           ENHLAY["EnhancedInsuranceLayer<br/>(Enhanced Layers)"]
+           PRICER["InsurancePricer<br/>(Market Cycles)"]
+       end
+
+       %% Exposure & Trend System
+       subgraph ExposureSub["Exposure & Trend System"]
+           EXPBASE["ExposureBase<br/>(Dynamic Frequency)"]
+           FSPROV["FinancialStateProvider<br/>(Protocol)"]
+           TRENDS["trends.py<br/>(Trend Analysis)"]
        end
 
        %% Analysis and Optimization
@@ -153,18 +198,42 @@ flowchart TB
            METRICS["Risk<br/>Metrics"]
        end
 
-       %% Data Flow
+       %% Data Flow - Input to Core
        CONFIG --> SIM
-       MARKET --> CLAIM
+       MARKET --> LOSSG
        PARAMS --> MANU
 
+       %% Core orchestration
        SIM --> MANU
-       SIM --> CLAIM
+       SIM --> LOSSG
        SIM --> INS
 
        MANU <--> INS
-       CLAIM --> INS
+       LOSSG --> INS
 
+       %% Manufacturer to Financial Accounting
+       MANU --> LEDGER
+       MANU --> ACCRUAL
+       MANU --> INSACCT
+       TAXH --> ACCRUAL
+       LEDGER --> DECUTIL
+       ACCRUAL --> DECUTIL
+       INSACCT --> DECUTIL
+
+       %% Insurance subsystem relationships
+       INSPOL --> INSLAY
+       INSPROG --> ENHLAY
+       PRICER --> INSPROG
+       PRICER --> INSPOL
+       INS -.-> INSPROG
+       INS -.-> INSPOL
+
+       %% Exposure system
+       EXPBASE --> FSPROV
+       MANU -.-> FSPROV
+       TRENDS --> LOSSG
+
+       %% Core to Analysis
        SIM --> MONTE
        MONTE --> ERGODIC
        MONTE --> OPT
@@ -172,6 +241,7 @@ flowchart TB
        ERGODIC --> SENS
        OPT --> SENS
 
+       %% Validation
        MONTE --> ACC
        MONTE --> BACK
        BACK --> WALK
@@ -179,10 +249,12 @@ flowchart TB
        MONTE --> CONV
        CONV --> BATCH
 
+       %% Infrastructure
        BATCH --> PARALLEL
        PARALLEL --> CACHE
        CACHE --> STORAGE
 
+       %% Output
        ERGODIC --> VIZ
        OPT --> VIZ
        SENS --> VIZ
@@ -196,13 +268,19 @@ flowchart TB
        %% Styling
        classDef external fill:#e1f5fe,stroke:#01579b,stroke-width:2px
        classDef core fill:#fff3e0,stroke:#e65100,stroke-width:2px
+       classDef financial fill:#fff9c4,stroke:#f9a825,stroke-width:2px
+       classDef insurance fill:#ffe0b2,stroke:#e65100,stroke-width:2px
+       classDef exposure fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
        classDef analysis fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
        classDef validation fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
        classDef infra fill:#fce4ec,stroke:#880e4f,stroke-width:2px
        classDef output fill:#e0f2f1,stroke:#004d40,stroke-width:2px
 
        class CONFIG,MARKET,PARAMS external
-       class SIM,MANU,CLAIM,INS core
+       class SIM,MANU,LOSSG,INS core
+       class LEDGER,ACCRUAL,INSACCT,TAXH,DECUTIL financial
+       class INSPOL,INSLAY,INSPROG,ENHLAY,PRICER insurance
+       class EXPBASE,FSPROV,TRENDS exposure
        class ERGODIC,OPT,MONTE,SENS analysis
        class ACC,BACK,WALK,CONV validation
        class BATCH,PARALLEL,CACHE,STORAGE infra
@@ -215,6 +293,9 @@ The Ergodic Insurance Limits framework is designed as a modular, high-performanc
 
 ### 1. **Separation of Concerns**
 - **Core Simulation**: Handles the fundamental business and insurance mechanics
+- **Financial Accounting**: Provides double-entry ledger, accrual accounting, insurance accounting, and tax handling -- all using Python's `Decimal` type for precision
+- **Insurance Subsystem**: Offers both a basic path (`InsurancePolicy` with `InsuranceLayer`) and an enhanced path (`InsuranceProgram` with `EnhancedInsuranceLayer`), with market-cycle-aware pricing via `InsurancePricer`
+- **Exposure & Trends**: Dynamically adjusts claim frequencies using actual financial state (via the `FinancialStateProvider` protocol) and applies trend multipliers over time
 - **Analysis Layer**: Provides ergodic and optimization capabilities
 - **Infrastructure**: Manages computational efficiency and data handling
 - **Validation**: Ensures accuracy and robustness of results
@@ -222,21 +303,121 @@ The Ergodic Insurance Limits framework is designed as a modular, high-performanc
 
 ### 2. **Data Flow Architecture**
 - Configuration and market data flow into the simulation engine
+- The `WidgetManufacturer` internally uses `Ledger`, `AccrualManager`, `InsuranceAccounting`, and `TaxHandler` for precise financial tracking
+- All financial amounts use Python's `Decimal` type (via `decimal_utils`) to prevent floating-point drift across long simulations
+- The `Ledger` maintains an O(1) current balance cache with pruning support for performance
 - Simulations generate trajectories processed by analysis modules
 - Infrastructure layers provide caching and parallelization
 - Results flow to visualization and reporting components
 
 ### 3. **Key Interactions**
 - The **Simulation Engine** orchestrates the time evolution of the business model
-- The **Manufacturer Model** interacts with the **Insurance Program** for claim processing
+- The **Manufacturer Model** interacts with the **Insurance Program** for claim processing and uses the **Ledger** for all balance sheet operations
+- **AccrualManager** tracks timing differences between cash movements and accounting recognition (wages, interest, taxes, insurance claims)
+- **InsuranceAccounting** handles premium amortization as a prepaid asset and tracks insurance claim recoveries
+- **TaxHandler** consolidates tax calculation, accrual, and payment logic, delegating accrual tracking to the **AccrualManager**
+- **InsurancePricer** supports market cycles (Soft / Normal / Hard) to generate realistic premiums for both basic and enhanced insurance paths
+- The **Exposure System** uses a `FinancialStateProvider` protocol so that `ExposureBase` subclasses query live financial state from the manufacturer for state-driven claim generation
+- **Trend classes** (in `trends.py`) provide multiplicative adjustments to claim frequencies and severities over time, supporting linear, scenario-based, and stochastic trends
 - **Monte Carlo Engine** generates multiple scenarios for statistical analysis
 - **Ergodic Analyzer** compares time-average vs ensemble-average growth
 - **Batch Processor** and **Parallel Executor** enable high-performance computing
 
-### 4. **External Dependencies**
+### 4. **Financial Accounting Subsystem**
+
+The financial accounting subsystem was introduced to provide GAAP-compliant financial tracking within the simulation. This subsystem is internal to the `WidgetManufacturer` and consists of four tightly integrated components:
+
+```{mermaid}
+flowchart LR
+       MANU["WidgetManufacturer"] --> LEDGER["Ledger"]
+       MANU --> ACCRUAL["AccrualManager"]
+       MANU --> INSACCT["InsuranceAccounting"]
+       MANU --> TAXH["TaxHandler"]
+
+       TAXH --> ACCRUAL
+       LEDGER --> DECUTIL["decimal_utils"]
+       ACCRUAL --> DECUTIL
+       INSACCT --> DECUTIL
+
+       classDef manuClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
+       classDef finClass fill:#fff9c4,stroke:#f9a825,stroke-width:2px
+       classDef utilClass fill:#e0f2f1,stroke:#004d40,stroke-width:2px
+
+       class MANU manuClass
+       class LEDGER,ACCRUAL,INSACCT,TAXH finClass
+       class DECUTIL utilClass
+```
+
+- **Ledger**: Event-sourcing double-entry ledger with a typed `AccountName` enum (preventing typo bugs), `AccountType` classification, O(1) balance lookups via an internal cache, and support for pruning old transactions
+- **AccrualManager**: Tracks accrual items (wages, interest, taxes, insurance claims, revenue) with configurable payment schedules (immediate, quarterly, annual, custom)
+- **InsuranceAccounting**: Manages premium payments as prepaid assets with straight-line monthly amortization, and tracks insurance claim recoveries separately from claim liabilities
+- **TaxHandler**: Centralizes tax calculation and accrual management, explicitly designed to avoid circular dependencies in the tax flow; delegates accrual tracking to `AccrualManager`
+- **decimal_utils**: Foundation module providing `to_decimal()`, `quantize_currency()`, and standard constants (`ZERO`, `ONE`, `PENNY`) used by all financial modules
+
+### 5. **Insurance Subsystem**
+
+The insurance subsystem provides two complementary paths for modeling coverage:
+
+```{mermaid}
+flowchart TB
+       subgraph Basic["Basic Path"]
+           INSPOL["InsurancePolicy"]
+           INSLAY["InsuranceLayer"]
+           INSPOL --> INSLAY
+       end
+
+       subgraph Enhanced["Enhanced Path"]
+           INSPROG["InsuranceProgram"]
+           ENHLAY["EnhancedInsuranceLayer"]
+           INSPROG --> ENHLAY
+       end
+
+       PRICER["InsurancePricer<br/>(Soft / Normal / Hard)"]
+       PRICER --> INSPOL
+       PRICER --> INSPROG
+
+       classDef basicClass fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+       classDef enhancedClass fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+       classDef pricerClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+
+       class INSPOL,INSLAY basicClass
+       class INSPROG,ENHLAY enhancedClass
+       class PRICER pricerClass
+```
+
+- **Basic Path**: `InsurancePolicy` (in `insurance.py`) composes one or more `InsuranceLayer` objects for straightforward coverage modeling
+- **Enhanced Path**: `InsuranceProgram` (in `insurance_program.py`) uses `EnhancedInsuranceLayer` objects for richer features including market-cycle-aware pricing
+- **InsurancePricer** (in `insurance_pricing.py`) supports three `MarketCycle` states -- `HARD` (60% loss ratio), `NORMAL` (70%), and `SOFT` (80%) -- and can price both basic and enhanced insurance structures
+
+### 6. **Exposure & Trend System**
+
+The exposure and trend system models how insurance risks evolve dynamically during simulation:
+
+```{mermaid}
+flowchart LR
+       MANU["WidgetManufacturer<br/>(implements protocol)"] -.-> FSPROV["FinancialStateProvider<br/>(Protocol)"]
+       FSPROV --> EXPBASE["ExposureBase<br/>(Dynamic Frequency)"]
+       TRENDS["trends.py<br/>(Trend Multipliers)"] --> LOSSG["ManufacturingLossGenerator"]
+       EXPBASE --> LOSSG
+
+       classDef coreClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
+       classDef protoClass fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+       classDef trendClass fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+
+       class MANU coreClass
+       class FSPROV,EXPBASE protoClass
+       class TRENDS,LOSSG trendClass
+```
+
+- **FinancialStateProvider**: A `Protocol` (in `exposure_base.py`) defining properties like `current_revenue`, `current_assets`, `current_equity` and their base counterparts. `WidgetManufacturer` implements this protocol.
+- **ExposureBase**: Abstract base for exposure classes that query live financial state to compute frequency multipliers (e.g., `RevenueExposure` scales claim frequency based on actual revenue vs. base revenue)
+- **trends.py**: Provides a hierarchy of trend classes (`Trend` ABC, `LinearTrend`, `ScenarioTrend`, and stochastic variants) that apply multiplicative adjustments to claim frequencies and severities over time, supporting both annual and sub-annual time steps with optional seeded reproducibility
+
+### 7. **External Dependencies**
 The system integrates with:
 - NumPy/SciPy for numerical computations
 - Pandas for data manipulation
 - Matplotlib/Plotly for visualizations
 - OpenPyXL for Excel reporting
 - Multiprocessing for parallel execution
+- Python's `decimal` module for precise financial arithmetic

@@ -16,13 +16,17 @@ graph LR
 
        %% Core Business Logic
        subgraph Business["Business Logic"]
-           MANUFACTURER["manufacturer.py<br/>Widget Manufacturer"]
+           MANUFACTURER["manufacturer.py<br/>ClaimLiability, TaxHandler,<br/>WidgetManufacturer"]
            INSURANCE["insurance.py<br/>Insurance Policy"]
            INS_PROGRAM["insurance_program.py<br/>Insurance Program"]
            INS_PRICING["insurance_pricing.py<br/>Pricing Models"]
-           CLAIM_GEN["claim_generator.py<br/>Claim Events"]
            CLAIM_DEV["claim_development.py<br/>Claim Development"]
-           EXPOSURE["exposure_base.py<br/>Exposure Models"]
+           EXPOSURE["exposure_base.py<br/>Exposure Models &amp;<br/>FinancialStateProvider Protocol"]
+           LEDGER["ledger.py<br/>Double-Entry Ledger"]
+           ACCRUAL["accrual_manager.py<br/>Accrual Accounting"]
+           INS_ACCT["insurance_accounting.py<br/>Insurance Accounting"]
+           DECIMAL_UTILS["decimal_utils.py<br/>Decimal Precision"]
+           TRENDS["trends.py<br/>Trend Analysis"]
        end
 
        %% Simulation Engine
@@ -120,43 +124,61 @@ graph LR
            BENCHMARKING["benchmarking.py<br/>Benchmarks"]
        end
 
-       %% Key Dependencies
+       %% Configuration dependencies
        CONFIG_BASE --> MANUFACTURER
        CONFIG_V2 --> CONFIG_MGR
        CONFIG_MGR --> CONFIG_LOADER
        CONFIG_COMPAT --> CONFIG_MGR
 
-       MANUFACTURER --> SIM_CORE
+       %% Business Logic: Decimal utilities feed into accounting modules
+       DECIMAL_UTILS --> LEDGER
+       DECIMAL_UTILS --> ACCRUAL
+       DECIMAL_UTILS --> INS_ACCT
+       DECIMAL_UTILS --> MANUFACTURER
+
+       %% Business Logic: Accounting modules feed into manufacturer
+       LEDGER --> MANUFACTURER
+       ACCRUAL --> MANUFACTURER
+       INS_ACCT --> MANUFACTURER
+
+       %% Business Logic: Insurance and exposure relationships
        INSURANCE --> INS_PROGRAM
        INS_PRICING --> INS_PROGRAM
-       CLAIM_GEN --> SIM_CORE
-       CLAIM_DEV --> CLAIM_GEN
        EXPOSURE --> MANUFACTURER
 
+       %% Simulation dependencies
+       MANUFACTURER --> SIM_CORE
+       INS_PROGRAM --> SIM_CORE
+       LOSS_DIST --> SIM_CORE
        SIM_CORE --> MONTE_CARLO
        MONTE_CARLO --> MONTE_WORKER
        STOCHASTIC --> MONTE_CARLO
-       LOSS_DIST --> CLAIM_GEN
 
+       %% Analysis dependencies
        MONTE_CARLO --> ERGODIC_ANALYZER
        ERGODIC_ANALYZER --> BUSINESS_OPT
        BUSINESS_OPT --> DECISION_ENGINE
 
+       %% Validation dependencies
        MONTE_CARLO --> ACCURACY_VAL
        STRATEGY_BACK --> WALK_FORWARD
 
+       %% Risk dependencies
        ERGODIC_ANALYZER --> RISK_METRICS
        RISK_METRICS --> RUIN_PROB
        SENSITIVITY --> PARETO
        SENSITIVITY --> SENS_VIZ
 
+       %% Infrastructure dependencies
        BATCH_PROC --> PARALLEL_EXEC
        PARALLEL_EXEC --> MONTE_CARLO
 
+       %% Reporting dependencies
        RESULT_AGG --> SUMMARY_STATS
        SUMMARY_STATS --> EXCEL_REPORT
        FINANCIAL_STMT --> EXCEL_REPORT
 
+       %% Visualization dependencies
        VIZ_CORE --> VIZ_FACTORY
        VIZ_STYLE --> VIZ_EXEC
        VIZ_STYLE --> VIZ_TECH
@@ -165,6 +187,7 @@ graph LR
        VIZ_INTERACT --> VIZ_CORE
        VIZ_TOWER --> VIZ_STYLE
 
+       %% Reporting module dependencies
        REP_BUILDER --> REP_EXEC
        REP_BUILDER --> REP_TECH
        REP_SCENARIO --> REP_TABLE
@@ -187,7 +210,7 @@ graph LR
        classDef advanced fill:#fafafa,stroke:#424242,stroke-width:2px
 
        class CONFIG_BASE,CONFIG_V2,CONFIG_MGR,CONFIG_LOADER,CONFIG_COMPAT,CONFIG_MIG config
-       class MANUFACTURER,INSURANCE,INS_PROGRAM,INS_PRICING,CLAIM_GEN,CLAIM_DEV,EXPOSURE business
+       class MANUFACTURER,INSURANCE,INS_PROGRAM,INS_PRICING,CLAIM_DEV,EXPOSURE,LEDGER,ACCRUAL,INS_ACCT,DECIMAL_UTILS,TRENDS business
        class SIM_CORE,MONTE_CARLO,MONTE_WORKER,STOCHASTIC,LOSS_DIST simulation
        class ERGODIC_ANALYZER,BUSINESS_OPT,DECISION_ENGINE,OPTIMIZATION,HJB_SOLVER,OPTIMAL_CTRL analysis
        class ACCURACY_VAL,STRATEGY_BACK,WALK_FORWARD,VALIDATION_METRICS,STATISTICAL_TESTS validation
@@ -205,7 +228,15 @@ graph LR
 Handles all configuration aspects including loading, validation, migration, and compatibility between different configuration versions.
 
 ### Business Logic
-Core business domain models including the manufacturer, insurance policies, pricing, and claim processing.
+Core business domain models including the manufacturer, insurance policies, pricing, claim processing, and financial accounting infrastructure.
+
+- **ledger.py** - Double-entry financial ledger implementing event-sourced transaction tracking. Provides `AccountType`, `AccountName`, `EntryType`, and `TransactionType` enums along with `LedgerEntry` and `Ledger` classes for GAAP-compliant accounting with full audit trails.
+- **accrual_manager.py** - Accrual accounting management following GAAP timing principles. Contains `AccrualType` and `PaymentSchedule` enums, plus `AccrualItem` and `AccrualManager` classes for tracking timing differences between cash movements and accounting recognition.
+- **insurance_accounting.py** - Insurance premium accounting with prepaid asset tracking and systematic amortization. Provides `InsuranceRecovery` and `InsuranceAccounting` classes for claim recovery receivables and premium expense management.
+- **decimal_utils.py** - Decimal precision utilities for financial calculations. Provides `to_decimal`, `quantize_currency`, and related helpers along with constants (`ZERO`, `ONE`, `PENNY`) to prevent floating-point accumulation errors in iterative simulations.
+- **trends.py** - Trend analysis for insurance claim frequency and severity adjustments. Implements a hierarchy of trend classes (`Trend`, `NoTrend`, `LinearTrend`, `RandomWalkTrend`, `MeanRevertingTrend`, `RegimeSwitchingTrend`, `ScenarioTrend`) that apply multiplicative adjustments over time.
+- **manufacturer.py** - Core financial model containing `ClaimLiability` (actuarial claim payment tracking), `TaxHandler` (tax computation logic), and `WidgetManufacturer` (main business simulation class). `WidgetManufacturer` integrates with `Ledger`, `AccrualManager`, and `InsuranceAccounting` for full double-entry financial modeling.
+- **exposure_base.py** - Exposure models and the `FinancialStateProvider` protocol. The protocol defines the interface for providing real-time financial state to exposure bases; `WidgetManufacturer` implements this protocol.
 
 ### Simulation Core
 The main simulation engine that orchestrates time evolution, Monte Carlo runs, and stochastic processes.
