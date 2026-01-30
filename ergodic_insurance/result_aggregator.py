@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .summary_statistics import TDigest
+
 # Make h5py import optional - it can hang on Windows
 # We'll try to import it but skip if it fails or hangs
 HAS_H5PY = False
@@ -356,8 +358,10 @@ class TimeSeriesAggregator(BaseAggregator):
 class PercentileTracker:
     """Efficient percentile tracking for streaming data.
 
-    Uses approximate algorithms for memory-efficient percentile calculation
-    on large datasets.
+    Uses the t-digest algorithm (Dunning & Ertl, 2019) for memory-efficient
+    percentile calculation on large datasets. The t-digest provides bounded
+    memory usage and high accuracy, especially at tail percentiles relevant
+    to insurance risk metrics (VaR, TVaR).
     """
 
     def __init__(
@@ -366,16 +370,16 @@ class PercentileTracker:
         """Initialize percentile tracker.
 
         Args:
-            percentiles: List of percentiles to track
-            max_samples: Maximum samples to keep in memory
-            seed: Optional random seed for reproducibility
+            percentiles: List of percentiles to track (0-100 scale)
+            max_samples: Retained for API compatibility. The t-digest compression
+                parameter is derived as min(max_samples / 100, 500).
+            seed: Retained for API compatibility (t-digest is deterministic).
         """
         self.percentiles = sorted(percentiles)
         self.max_samples = max_samples
-        self.samples: List[float] = []
         self.total_count = 0
-        self.reservoir_full = False
-        self._rng = np.random.default_rng(seed)
+        compression = min(max_samples / 100, 500)
+        self._digest = TDigest(compression=compression)
 
     def update(self, values: np.ndarray) -> None:
         """Update tracker with new values.
@@ -383,46 +387,41 @@ class PercentileTracker:
         Args:
             values: New values to add
         """
-        for value in values:
-            self.total_count += 1
-
-            if len(self.samples) < self.max_samples:
-                self.samples.append(value)
-            else:
-                # Reservoir sampling for memory efficiency
-                if not self.reservoir_full:
-                    self.samples = sorted(self.samples)
-                    self.reservoir_full = True
-
-                # Randomly replace samples
-                idx = self._rng.integers(self.total_count)
-                if idx < self.max_samples:
-                    self.samples[idx] = value
+        arr = np.asarray(values, dtype=np.float64)
+        self._digest.update_batch(arr)
+        self.total_count += len(arr)
 
     def get_percentiles(self) -> Dict[str, float]:
         """Get current percentile estimates.
 
         Returns:
-            Dictionary of percentile values
+            Dictionary of percentile values keyed as 'pNN'.
         """
-        if not self.samples:
+        if self.total_count == 0:
             return {}
 
-        sorted_samples = np.sort(self.samples)
         result = {}
-
         for p in self.percentiles:
-            idx = int(len(sorted_samples) * p / 100)
-            idx = min(idx, len(sorted_samples) - 1)
-            result[f"p{int(p)}"] = float(sorted_samples[idx])
-
+            result[f"p{int(p)}"] = self._digest.quantile(p / 100.0)
         return result
+
+    def merge(self, other: "PercentileTracker") -> None:
+        """Merge another tracker into this one.
+
+        Combines t-digest sketches from parallel simulation chunks
+        without loss of accuracy.
+
+        Args:
+            other: Another PercentileTracker to merge into this one.
+        """
+        self._digest.merge(other._digest)
+        self.total_count += other.total_count
 
     def reset(self) -> None:
         """Reset tracker state."""
-        self.samples.clear()
+        compression = self._digest.compression
+        self._digest = TDigest(compression=compression)
         self.total_count = 0
-        self.reservoir_full = False
 
 
 class ResultExporter:

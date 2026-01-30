@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 import io
+import math
 from typing import Any, Dict, List, Optional, Tuple
 import warnings
 
@@ -469,6 +470,340 @@ class SummaryStatistics:
         return extreme_stats
 
 
+class TDigest:
+    """T-digest data structure for streaming quantile estimation.
+
+    Implements the merging digest variant from Dunning & Ertl (2019).
+    Provides accurate quantile estimates, especially at the tails,
+    with bounded memory usage proportional to the compression parameter.
+
+    The t-digest maintains a sorted set of centroids (mean, weight) that
+    adaptively cluster data points. Clusters near the tails (q->0 or q->1)
+    are kept small for precision, while clusters near the median can be larger.
+
+    Args:
+        compression: Controls accuracy vs memory tradeoff. Higher values
+            give more accuracy but use more memory. Typical range: 100-300.
+            Default 200 gives ~0.2-1% error at median, ~0.005-0.05% at q01/q99.
+
+    References:
+        Dunning, T. & Ertl, O. (2019). "Computing Extremely Accurate Quantiles
+        Using t-Digests." arXiv:1902.04023.
+    """
+
+    def __init__(self, compression: float = 200):
+        self.compression = compression
+        self._means: np.ndarray = np.array([], dtype=np.float64)
+        self._weights: np.ndarray = np.array([], dtype=np.float64)
+        self._buffer: List[float] = []
+        self._buffer_capacity = max(int(compression * 5), 500)
+        self._total_weight = 0.0
+        self._min_val = float("inf")
+        self._max_val = float("-inf")
+        self._count = 0
+        self._merge_direction = True  # Alternate merge direction for better accuracy
+
+    def update(self, value: float) -> None:
+        """Add a single observation to the digest.
+
+        Args:
+            value: The value to add.
+        """
+        self._buffer.append(value)
+        if value < self._min_val:
+            self._min_val = value
+        if value > self._max_val:
+            self._max_val = value
+        self._count += 1
+        if len(self._buffer) >= self._buffer_capacity:
+            self._flush()
+
+    def update_batch(self, values: np.ndarray) -> None:
+        """Add an array of observations to the digest.
+
+        Args:
+            values: Array of values to add.
+        """
+        if len(values) == 0:
+            return
+        flat = values.ravel()
+        self._buffer.extend(flat.tolist())
+        min_v = float(np.min(flat))
+        max_v = float(np.max(flat))
+        if min_v < self._min_val:
+            self._min_val = min_v
+        if max_v > self._max_val:
+            self._max_val = max_v
+        self._count += len(flat)
+        if len(self._buffer) >= self._buffer_capacity:
+            self._flush()
+
+    def merge(self, other: "TDigest") -> None:
+        """Merge another t-digest into this one.
+
+        After merging, this digest contains the combined information from both
+        digests. The other digest is not modified.
+
+        Args:
+            other: Another TDigest to merge into this one.
+        """
+        other._flush()
+        if len(other._means) == 0 and other._count == 0:
+            return
+
+        self._flush()
+
+        if len(self._means) == 0 and self._count == 0:
+            self._means = other._means.copy()
+            self._weights = other._weights.copy()
+            self._total_weight = other._total_weight
+            self._min_val = other._min_val
+            self._max_val = other._max_val
+            self._count = other._count
+            return
+
+        all_means = np.concatenate([self._means, other._means])
+        all_weights = np.concatenate([self._weights, other._weights])
+        self._count += other._count
+        if other._min_val < self._min_val:
+            self._min_val = other._min_val
+        if other._max_val > self._max_val:
+            self._max_val = other._max_val
+        self._merge_centroids(all_means, all_weights)
+
+    def quantile(self, q: float) -> float:
+        """Estimate a single quantile.
+
+        Args:
+            q: Quantile to estimate, in range [0, 1].
+
+        Returns:
+            Estimated value at the given quantile.
+
+        Raises:
+            ValueError: If the digest is empty.
+        """
+        self._flush()
+
+        if len(self._means) == 0:
+            raise ValueError("Cannot compute quantile of empty digest")
+
+        if q <= 0:
+            return self._min_val
+        if q >= 1:
+            return self._max_val
+
+        if len(self._means) == 1:
+            return float(self._means[0])
+
+        total = self._total_weight
+        target = q * total
+
+        # Compute centroid weight centers (cumulative weight at center of each centroid)
+        cum = np.cumsum(self._weights)
+        centers = cum - self._weights / 2.0
+
+        # Left tail: target before center of first centroid
+        if target <= centers[0]:
+            if centers[0] > 0:
+                return float(self._min_val + (self._means[0] - self._min_val) * target / centers[0])
+            return float(self._min_val)
+
+        # Right tail: target after center of last centroid
+        if target >= centers[-1]:
+            remaining = total - centers[-1]
+            if remaining > 0:
+                return float(
+                    self._means[-1]
+                    + (self._max_val - self._means[-1]) * (target - centers[-1]) / remaining
+                )
+            return float(self._max_val)
+
+        # Interior: interpolate between adjacent centroid centers
+        idx = int(np.searchsorted(centers, target, side="right")) - 1
+        idx = max(0, min(idx, len(centers) - 2))
+
+        left_center = centers[idx]
+        right_center = centers[idx + 1]
+
+        if right_center > left_center:
+            t = (target - left_center) / (right_center - left_center)
+            return float(self._means[idx] + t * (self._means[idx + 1] - self._means[idx]))
+        return float(self._means[idx])
+
+    def quantiles(self, qs: List[float]) -> Dict[str, float]:
+        """Estimate multiple quantiles.
+
+        Args:
+            qs: List of quantiles to estimate, each in range [0, 1].
+
+        Returns:
+            Dictionary mapping formatted quantile keys (e.g. 'q025') to values.
+        """
+        results = {}
+        for q in sorted(qs):
+            key = f"q{int(q * 100):03d}"
+            results[key] = self.quantile(q)
+        return results
+
+    def cdf(self, value: float) -> float:
+        """Estimate the cumulative distribution function at a value.
+
+        Args:
+            value: The value at which to estimate the CDF.
+
+        Returns:
+            Estimated probability P(X <= value).
+
+        Raises:
+            ValueError: If the digest is empty.
+        """
+        self._flush()
+
+        if len(self._means) == 0:
+            raise ValueError("Cannot compute CDF of empty digest")
+
+        if value <= self._min_val:
+            return 0.0
+        if value >= self._max_val:
+            return 1.0
+
+        if len(self._means) == 1:
+            # Single centroid: linear interpolation between min and max
+            if self._max_val > self._min_val:
+                return (value - self._min_val) / (self._max_val - self._min_val)
+            return 0.5
+
+        total = self._total_weight
+        cum = np.cumsum(self._weights)
+        centers = cum - self._weights / 2.0
+
+        # Before first centroid mean
+        if value <= self._means[0]:
+            if self._means[0] > self._min_val:
+                t = (value - self._min_val) / (self._means[0] - self._min_val)
+                return float(t * centers[0] / total)
+            return float(centers[0] / total)
+
+        # After last centroid mean
+        if value >= self._means[-1]:
+            if self._max_val > self._means[-1]:
+                t = (value - self._means[-1]) / (self._max_val - self._means[-1])
+                return float((centers[-1] + t * (total - centers[-1])) / total)
+            return float(centers[-1] / total)
+
+        # Interior: find bracketing centroids
+        idx = int(np.searchsorted(self._means, value, side="right")) - 1
+        idx = max(0, min(idx, len(self._means) - 2))
+
+        left_mean = self._means[idx]
+        right_mean = self._means[idx + 1]
+
+        if right_mean > left_mean:
+            t = (value - left_mean) / (right_mean - left_mean)
+            weight_pos = centers[idx] + t * (centers[idx + 1] - centers[idx])
+            return float(weight_pos / total)
+        return float(centers[idx] / total)
+
+    @property
+    def centroid_count(self) -> int:
+        """Return the number of centroids currently stored."""
+        self._flush()
+        return len(self._means)
+
+    def __len__(self) -> int:
+        """Return the total count of observations added."""
+        return self._count
+
+    def _flush(self) -> None:
+        """Merge buffered values into centroids."""
+        if not self._buffer:
+            return
+
+        buf = np.array(self._buffer, dtype=np.float64)
+        self._buffer = []
+
+        if len(self._means) > 0:
+            all_means = np.concatenate([self._means, buf])
+            all_weights = np.concatenate([self._weights, np.ones(len(buf), dtype=np.float64)])
+        else:
+            all_means = buf
+            all_weights = np.ones(len(buf), dtype=np.float64)
+
+        self._merge_centroids(all_means, all_weights)
+
+    def _merge_centroids(self, means: np.ndarray, weights: np.ndarray) -> None:
+        """Core merge step: sort centroids and merge under scale function constraints.
+
+        Alternates merge direction (left-to-right / right-to-left) for balanced accuracy.
+        """
+        total = float(np.sum(weights))
+
+        # Sort by mean
+        order = np.argsort(means, kind="mergesort")
+        means = means[order]
+        weights = weights[order]
+
+        # Alternate merge direction for better accuracy at both tails
+        if not self._merge_direction:
+            means = means[::-1]
+            weights = weights[::-1]
+        self._merge_direction = not self._merge_direction
+
+        result_m: List[float] = []
+        result_w: List[float] = []
+
+        cum_weight = 0.0
+        cur_m = float(means[0])
+        cur_w = float(weights[0])
+
+        for i in range(1, len(means)):
+            proposed_w = cur_w + float(weights[i])
+            q_left = cum_weight / total
+            q_right = (cum_weight + proposed_w) / total
+
+            # Scale function constraint: k(q_right) - k(q_left) <= 1
+            if self._k(q_right) - self._k(q_left) <= 1.0:
+                # Merge into current centroid
+                cur_m = (cur_m * cur_w + float(means[i]) * float(weights[i])) / proposed_w
+                cur_w = proposed_w
+            else:
+                # Emit current centroid, start new one
+                result_m.append(cur_m)
+                result_w.append(cur_w)
+                cum_weight += cur_w
+                cur_m = float(means[i])
+                cur_w = float(weights[i])
+
+        # Emit last centroid
+        result_m.append(cur_m)
+        result_w.append(cur_w)
+
+        new_means = np.array(result_m, dtype=np.float64)
+        new_weights = np.array(result_w, dtype=np.float64)
+
+        # If we merged right-to-left, reverse back to sorted order
+        if self._merge_direction:  # We already flipped the flag, so check current state
+            new_order = np.argsort(new_means, kind="mergesort")
+            new_means = new_means[new_order]
+            new_weights = new_weights[new_order]
+
+        self._means = new_means
+        self._weights = new_weights
+        self._total_weight = total
+
+    def _k(self, q: float) -> float:
+        """Scale function k1 from Dunning & Ertl (2019).
+
+        k1(q) = (delta / (2*pi)) * arcsin(2*q - 1)
+
+        This scale function provides highest precision at the tails
+        (q near 0 or 1) where insurance risk metrics (VaR, TVaR) are computed.
+        """
+        q = max(1e-15, min(q, 1 - 1e-15))
+        return (self.compression / (2.0 * math.pi)) * math.asin(2.0 * q - 1.0)
+
+
 class QuantileCalculator:
     """Efficient quantile calculation for large datasets."""
 
@@ -522,30 +857,28 @@ class QuantileCalculator:
     def streaming_quantiles(
         self, data_stream: np.ndarray, buffer_size: int = 10000
     ) -> Dict[str, float]:
-        """Calculate quantiles for streaming data.
+        """Calculate quantiles for streaming data using the t-digest algorithm.
 
-        Uses P-square algorithm for online quantile estimation.
+        Uses the t-digest merging digest algorithm (Dunning & Ertl, 2019) for
+        streaming quantile estimation with bounded memory and high accuracy,
+        especially at tail quantiles relevant to insurance risk metrics.
 
         Args:
             data_stream: Streaming data array
-            buffer_size: Size of buffer for approximation
+            buffer_size: Controls t-digest compression parameter. Higher values
+                give more accuracy but use more memory. Mapped to compression
+                parameter as min(buffer_size / 5, 500).
 
         Returns:
             Dictionary of approximate quantile values
         """
-        # Simplified reservoir sampling for quantile approximation
         if len(data_stream) <= buffer_size:
             return self.calculate(data_stream)
 
-        # Reservoir sampling
-        reservoir = data_stream[:buffer_size].copy()
-
-        for i in range(buffer_size, len(data_stream)):
-            j = self._rng.integers(0, i + 1)
-            if j < buffer_size:
-                reservoir[j] = data_stream[i]
-
-        return self.calculate(reservoir)
+        compression = min(buffer_size / 5, 500)
+        digest = TDigest(compression=compression)
+        digest.update_batch(data_stream)
+        return digest.quantiles(self.quantiles)
 
 
 class DistributionFitter:

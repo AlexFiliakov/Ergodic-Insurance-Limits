@@ -26,6 +26,7 @@ from ergodic_insurance.summary_statistics import (
     StatisticalSummary,
     SummaryReportGenerator,
     SummaryStatistics,
+    TDigest,
 )
 
 
@@ -217,8 +218,9 @@ class TestPercentileTracker:
         tracker = PercentileTracker([25, 50, 75])
 
         # Add data in batches
+        rng = np.random.default_rng(42)
         for _ in range(10):
-            data = np.random.randn(100)
+            data = rng.standard_normal(100)
             tracker.update(data)
 
         percentiles = tracker.get_percentiles()
@@ -227,20 +229,25 @@ class TestPercentileTracker:
         assert "p50" in percentiles
         assert "p75" in percentiles
 
-    def test_reservoir_sampling(self):
-        """Test reservoir sampling for large datasets."""
+    def test_streaming_accuracy(self):
+        """Test t-digest streaming accuracy for large datasets."""
         tracker = PercentileTracker([50], max_samples=1000)
 
-        # Add more data than max_samples
+        rng = np.random.default_rng(42)
+        all_data = []
         for _ in range(20):
-            data = np.random.randn(100)
+            data = rng.standard_normal(100)
             tracker.update(data)
+            all_data.append(data)
 
         assert tracker.total_count == 2000
-        assert len(tracker.samples) == 1000
 
         percentiles = tracker.get_percentiles()
         assert "p50" in percentiles
+
+        # Verify accuracy against exact calculation
+        exact_median = float(np.median(np.concatenate(all_data)))
+        assert abs(percentiles["p50"] - exact_median) < 0.1
 
     def test_reset_functionality(self):
         """Test reset functionality."""
@@ -252,8 +259,34 @@ class TestPercentileTracker:
         tracker.reset()
 
         assert tracker.total_count == 0
-        assert len(tracker.samples) == 0
         assert tracker.get_percentiles() == {}
+
+    def test_merge(self):
+        """Test merging two PercentileTrackers produces accurate results."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(10000)
+
+        # Single tracker on all data
+        single = PercentileTracker([1, 5, 25, 50, 75, 95, 99])
+        single.update(data)
+
+        # Two trackers on halves, then merged
+        left = PercentileTracker([1, 5, 25, 50, 75, 95, 99])
+        right = PercentileTracker([1, 5, 25, 50, 75, 95, 99])
+        left.update(data[:5000])
+        right.update(data[5000:])
+        left.merge(right)
+
+        single_p = single.get_percentiles()
+        merged_p = left.get_percentiles()
+
+        for key, single_val in single_p.items():
+            # Merged result should be very close to single-pass result
+            merged_val = merged_p[key]
+            if abs(single_val) < 0.1:
+                assert abs(single_val - merged_val) < 0.15
+            else:
+                assert abs(single_val - merged_val) / abs(single_val) < 0.05
 
 
 class TestResultExporter:
@@ -500,26 +533,225 @@ class TestQuantileCalculator:
         assert higher["q050"] == 3.0
 
     def test_streaming_quantiles(self):
-        """Test streaming quantile approximation."""
+        """Test streaming quantile approximation using t-digest."""
         rng = np.random.default_rng(42)
         data = rng.standard_normal(20000)
 
-        calculator = QuantileCalculator([0.25, 0.5, 0.75])
+        calculator = QuantileCalculator([0.25, 0.5, 0.75], seed=42)
 
         # Calculate exact quantiles
         exact = calculator.calculate(data)
 
-        # Calculate streaming approximation
+        # Calculate streaming approximation (t-digest)
         approx = calculator.streaming_quantiles(data, buffer_size=1000)
 
-        # Check approximation quality
+        # t-digest should achieve much tighter accuracy than reservoir sampling
         for key in exact:  # pylint: disable=consider-using-dict-items
             # Use absolute tolerance for values close to zero
             if abs(exact[key]) < 0.1:
-                assert abs(exact[key] - approx[key]) < 0.2
+                assert abs(exact[key] - approx[key]) < 0.1
             else:
-                # Use relative tolerance for larger values
-                assert abs(exact[key] - approx[key]) / abs(exact[key]) < 0.15
+                # t-digest achieves <5% relative error easily
+                assert abs(exact[key] - approx[key]) / abs(exact[key]) < 0.05
+
+
+class TestTDigest:
+    """Test TDigest streaming quantile estimation."""
+
+    def test_basic_quantiles_uniform(self):
+        """Test quantile accuracy on uniform distribution."""
+        rng = np.random.default_rng(42)
+        data = rng.uniform(0, 1, 50000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        for q in [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]:
+            exact = float(np.percentile(data, q * 100))
+            approx = digest.quantile(q)
+            if abs(exact) > 0.01:
+                assert (
+                    abs(exact - approx) / abs(exact) < 0.02
+                ), f"q={q}: exact={exact:.4f}, approx={approx:.4f}"
+            else:
+                assert abs(exact - approx) < 0.02
+
+    def test_basic_quantiles_normal(self):
+        """Test quantile accuracy on normal distribution."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(50000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        for q in [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]:
+            exact = float(np.percentile(data, q * 100))
+            approx = digest.quantile(q)
+            if abs(exact) > 0.1:
+                assert (
+                    abs(exact - approx) / abs(exact) < 0.02
+                ), f"q={q}: exact={exact:.4f}, approx={approx:.4f}"
+            else:
+                assert abs(exact - approx) < 0.05
+
+    def test_basic_quantiles_exponential(self):
+        """Test quantile accuracy on exponential distribution."""
+        rng = np.random.default_rng(42)
+        data = rng.exponential(scale=5.0, size=50000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        for q in [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]:
+            exact = float(np.percentile(data, q * 100))
+            approx = digest.quantile(q)
+            assert (
+                abs(exact - approx) / abs(exact) < 0.02
+            ), f"q={q}: exact={exact:.4f}, approx={approx:.4f}"
+
+    def test_tail_quantile_accuracy(self):
+        """Test that tail quantiles (q01, q05, q95, q99) are within 1% error."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(100000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        for q in [0.01, 0.05, 0.95, 0.99]:
+            exact = float(np.percentile(data, q * 100))
+            approx = digest.quantile(q)
+            rel_error = abs(exact - approx) / abs(exact)
+            assert (
+                rel_error < 0.01
+            ), f"Tail q={q}: exact={exact:.4f}, approx={approx:.4f}, error={rel_error:.4f}"
+
+    def test_merge_correctness(self):
+        """Test that merging two digests equals one digest on all data."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(20000)
+
+        # Single digest on all data
+        single = TDigest(compression=200)
+        single.update_batch(data)
+
+        # Two digests on halves, merged
+        left = TDigest(compression=200)
+        right = TDigest(compression=200)
+        left.update_batch(data[:10000])
+        right.update_batch(data[10000:])
+        left.merge(right)
+
+        for q in [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99]:
+            single_val = single.quantile(q)
+            merged_val = left.quantile(q)
+            exact = float(np.percentile(data, q * 100))
+            # Both should be close to exact
+            if abs(exact) > 0.1:
+                assert abs(single_val - exact) / abs(exact) < 0.02
+                assert abs(merged_val - exact) / abs(exact) < 0.02
+            else:
+                assert abs(single_val - exact) < 0.05
+                assert abs(merged_val - exact) < 0.05
+
+    def test_empty_digest(self):
+        """Test behavior of empty digest."""
+        digest = TDigest()
+
+        with pytest.raises(ValueError, match="empty"):
+            digest.quantile(0.5)
+
+        with pytest.raises(ValueError, match="empty"):
+            digest.cdf(0.0)
+
+        assert len(digest) == 0
+        assert digest.centroid_count == 0
+
+    def test_single_value(self):
+        """Test digest with a single value."""
+        digest = TDigest()
+        digest.update(42.0)
+
+        assert digest.quantile(0.0) == 42.0
+        assert digest.quantile(0.5) == 42.0
+        assert digest.quantile(1.0) == 42.0
+        assert len(digest) == 1
+
+    def test_duplicate_values(self):
+        """Test digest with many duplicate values."""
+        digest = TDigest()
+        digest.update_batch(np.full(10000, 7.0))
+
+        assert digest.quantile(0.5) == 7.0
+        assert digest.quantile(0.01) == 7.0
+        assert digest.quantile(0.99) == 7.0
+
+    def test_memory_efficiency(self):
+        """Test that centroid count stays within bounds."""
+        digest = TDigest(compression=100)
+        rng = np.random.default_rng(42)
+
+        # Add a large amount of data
+        for _ in range(100):
+            digest.update_batch(rng.standard_normal(10000))
+
+        assert len(digest) == 1_000_000
+        # Centroid count should be O(compression), much less than data size
+        assert digest.centroid_count < 1000
+
+    def test_cdf(self):
+        """Test CDF estimation."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(50000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        # CDF at median should be close to 0.5
+        median = float(np.median(data))
+        assert abs(digest.cdf(median) - 0.5) < 0.02
+
+        # CDF at min should be close to 0
+        assert digest.cdf(float(np.min(data)) - 1) == 0.0
+
+        # CDF at max should be close to 1
+        assert digest.cdf(float(np.max(data)) + 1) == 1.0
+
+    def test_quantiles_dict(self):
+        """Test quantiles() method returns properly formatted dict."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(10000)
+
+        digest = TDigest(compression=200)
+        digest.update_batch(data)
+
+        result = digest.quantiles([0.25, 0.5, 0.75])
+        assert "q025" in result
+        assert "q050" in result
+        assert "q075" in result
+        assert result["q025"] < result["q050"] < result["q075"]
+
+    def test_large_dataset_streaming(self):
+        """Integration test: 1M points streaming matches np.percentile within 1%."""
+        rng = np.random.default_rng(42)
+
+        digest = TDigest(compression=200)
+        all_data = []
+        for _ in range(100):
+            chunk = rng.standard_normal(10000)
+            digest.update_batch(chunk)
+            all_data.append(chunk)
+
+        full_data = np.concatenate(all_data)
+
+        for q in [0.01, 0.05, 0.5, 0.95, 0.99]:
+            exact = float(np.percentile(full_data, q * 100))
+            approx = digest.quantile(q)
+            if abs(exact) > 0.1:
+                assert (
+                    abs(exact - approx) / abs(exact) < 0.01
+                ), f"q={q}: exact={exact:.4f}, approx={approx:.4f}"
+            else:
+                assert abs(exact - approx) < 0.02
 
 
 class TestDistributionFitter:
@@ -670,7 +902,7 @@ class TestIntegration:
         n_simulations = 1_000_000
         data = np.random.randn(n_simulations)
 
-        # Test percentile tracking with streaming
+        # Test percentile tracking with streaming (t-digest)
         tracker = PercentileTracker([25, 50, 75], max_samples=10_000)
 
         # Process in chunks
@@ -685,13 +917,13 @@ class TestIntegration:
         assert "p50" in percentiles
         assert "p75" in percentiles
 
-        # Verify reasonable approximation
+        # t-digest should produce very accurate approximations
         exact_median = np.median(data)
         approx_median = percentiles["p50"]
-        assert abs(exact_median - approx_median) < 0.1
+        assert abs(exact_median - approx_median) < 0.05
 
     def test_memory_efficiency(self):
-        """Test memory-efficient aggregation."""
+        """Test memory-efficient aggregation with t-digest."""
 
         # Create generator for large dataset
         def data_generator(n_chunks=100, chunk_size=10_000):
@@ -706,7 +938,8 @@ class TestIntegration:
             tracker.update(chunk)
 
         assert tracker.total_count == 1_000_000
-        assert len(tracker.samples) <= tracker.max_samples
+        # t-digest uses bounded memory (centroid count << data size)
+        assert tracker._digest.centroid_count < 2000
 
         percentiles = tracker.get_percentiles()
         assert "p50" in percentiles
