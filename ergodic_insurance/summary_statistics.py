@@ -202,22 +202,6 @@ class SummaryStatistics:
                 "stderr": float(np.std(data) / np.sqrt(len(data))),
             }
 
-        # Handle weighted statistics for non-empty data
-        if len(data) == 0:
-            return {
-                "count": 0,
-                "mean": 0.0,
-                "median": 0.0,
-                "std": 0.0,
-                "variance": 0.0,
-                "min": 0.0,
-                "max": 0.0,
-                "range": 0.0,
-                "iqr": 0.0,
-                "cv": 0.0,
-                "effective_sample_size": 0.0,
-            }
-
         mean = np.average(data, weights=weights)
         variance = np.average((data - mean) ** 2, weights=weights)
         std = np.sqrt(variance)
@@ -872,7 +856,7 @@ class QuantileCalculator:
         return results
 
     def streaming_quantiles(
-        self, data_stream: np.ndarray, buffer_size: int = 10000
+        self, data_stream: np.ndarray, compression: float = 200
     ) -> Dict[str, float]:
         """Calculate quantiles for streaming data using the t-digest algorithm.
 
@@ -882,17 +866,17 @@ class QuantileCalculator:
 
         Args:
             data_stream: Streaming data array
-            buffer_size: Controls t-digest compression parameter. Higher values
-                give more accuracy but use more memory. Mapped to compression
-                parameter as min(buffer_size / 5, 500).
+            compression: Controls accuracy vs memory tradeoff. Higher values
+                give more accuracy but use more memory. Typical range: 100-300.
+                Default 200 gives ~0.2-1% error at median, ~0.005-0.05% at
+                q01/q99. Passed directly to TDigest.
 
         Returns:
             Dictionary of approximate quantile values
         """
-        if len(data_stream) <= buffer_size:
+        if len(data_stream) <= int(compression * 5):
             return self.calculate(data_stream)
 
-        compression = min(buffer_size / 5, 500)
         digest = TDigest(compression=compression)
         digest.update_batch(data_stream)
         return digest.quantiles(self.quantiles)

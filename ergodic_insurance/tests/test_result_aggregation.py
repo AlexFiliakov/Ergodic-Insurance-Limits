@@ -577,7 +577,7 @@ class TestQuantileCalculator:
         exact = calculator.calculate(data)
 
         # Calculate streaming approximation (t-digest)
-        approx = calculator.streaming_quantiles(data, buffer_size=1000)
+        approx = calculator.streaming_quantiles(data, compression=200)
 
         # t-digest should achieve much tighter accuracy than reservoir sampling
         for key in exact:  # pylint: disable=consider-using-dict-items
