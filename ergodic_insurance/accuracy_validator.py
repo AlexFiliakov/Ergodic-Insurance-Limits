@@ -36,6 +36,8 @@ import numpy as np
 from scipy import stats
 from scipy.stats import kstwobign
 
+from ergodic_insurance.summary_statistics import format_quantile_key
+
 
 @dataclass
 class ValidationResult:
@@ -275,7 +277,7 @@ class StatisticalValidation:
         q1 = np.percentile(data1, [q * 100 for q in quantiles])
         q2 = np.percentile(data2, [q * 100 for q in quantiles])
         results["quantile_errors"] = {
-            f"q{int(q*100)}": abs(q1[i] - q2[i]) for i, q in enumerate(quantiles)
+            format_quantile_key(q): abs(q1[i] - q2[i]) for i, q in enumerate(quantiles)
         }
 
         return results
