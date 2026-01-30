@@ -57,7 +57,14 @@ Quick Navigation
    class_diagrams/core_classes
    class_diagrams/data_models
    class_diagrams/service_layer
+   class_diagrams/accounting
    configuration_v2
+   configuration_flow
+   claim_lifecycle
+   monte_carlo_architecture
+   exposure_system
+   reporting_architecture
+   visualization_architecture
 
 High-Level System Context
 -------------------------
