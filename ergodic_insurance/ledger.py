@@ -236,6 +236,8 @@ class LedgerEntry:
             object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
         if self.amount < ZERO:
             raise ValueError(f"Ledger entry amount must be non-negative, got {self.amount}")
+        if not (0 <= self.month <= 11):
+            raise ValueError(f"Month must be 0-11, got {self.month}")
 
     @property
     def signed_amount(self) -> Decimal:
@@ -373,6 +375,13 @@ class Ledger:
     Attributes:
         entries: List of all ledger entries
         chart_of_accounts: Mapping of account names to their types
+
+    Thread Safety:
+        This class is **not** thread-safe.  Concurrent reads are safe, but
+        concurrent writes (``record``, ``record_double_entry``,
+        ``prune_entries``, ``clear``) or a mix of reads and writes require
+        external synchronisation (e.g. a ``threading.Lock``).  Each
+        simulation trial should use its own ``Ledger`` instance.
     """
 
     def __init__(self, strict_validation: bool = True) -> None:
@@ -389,6 +398,9 @@ class Ledger:
         self._strict_validation = strict_validation
         # Running balance cache for O(1) current balance queries (Issue #259)
         self._balances: Dict[str, Decimal] = {}
+        # Snapshot of balances at the prune point (Issue #315)
+        self._pruned_balances: Dict[str, Decimal] = {}
+        self._prune_cutoff: Optional[int] = None
 
     def _update_balance_cache(self, entry: LedgerEntry) -> None:
         """Update running balance cache after recording an entry.
@@ -462,7 +474,7 @@ class Ledger:
         transaction_type: TransactionType,
         description: str = "",
         month: int = 0,
-    ) -> Tuple[LedgerEntry, LedgerEntry]:
+    ) -> Tuple[Optional[LedgerEntry], Optional[LedgerEntry]]:
         """Record a complete double-entry transaction.
 
         Creates matching debit and credit entries with the same reference_id.
@@ -479,7 +491,8 @@ class Ledger:
             month: Optional month within the year (0-11)
 
         Returns:
-            Tuple of (debit_entry, credit_entry)
+            Tuple of (debit_entry, credit_entry), or (None, None) for
+            zero-amount transactions (Issue #315).
 
         Raises:
             ValueError: If amount is negative, or if account names are invalid
@@ -528,27 +541,8 @@ class Ledger:
             raise ValueError(f"Transaction amount must be non-negative, got {amount}")
 
         if amount == ZERO:
-            # Skip zero-amount transactions
-            return (
-                LedgerEntry(
-                    date=date,
-                    account=debit_account_str,
-                    amount=ZERO,
-                    entry_type=EntryType.DEBIT,
-                    transaction_type=transaction_type,
-                    description=description,
-                    month=month,
-                ),
-                LedgerEntry(
-                    date=date,
-                    account=credit_account_str,
-                    amount=ZERO,
-                    entry_type=EntryType.CREDIT,
-                    transaction_type=transaction_type,
-                    description=description,
-                    month=month,
-                ),
-            )
+            # Return None sentinel for zero-amount transactions (Issue #315)
+            return (None, None)
 
         # Generate shared reference ID
         ref_id = str(uuid.uuid4())
@@ -618,7 +612,8 @@ class Ledger:
         # Historical query: iterate through entries (less frequent use case)
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
-        total = ZERO
+        # Start from pruned snapshot if entries have been pruned (Issue #315)
+        total = self._pruned_balances.get(account_str, ZERO)
         for entry in self.entries:
             if entry.account != account_str:
                 continue
@@ -910,6 +905,10 @@ class Ledger:
     def get_trial_balance(self, as_of_date: Optional[int] = None) -> Dict[str, Decimal]:
         """Generate a trial balance showing all account balances.
 
+        When ``as_of_date`` is None, reads directly from the O(1) balance
+        cache.  When a date is specified, performs a single O(N) pass over
+        all entries instead of the previous O(N*M) approach (Issue #315).
+
         Args:
             as_of_date: Optional period to generate balance as of
 
@@ -923,24 +922,109 @@ class Ledger:
                 for account, balance in trial.items():
                     print(f"{account}: ${balance:,.0f}")
         """
-        accounts = set(e.account for e in self.entries)
+        if as_of_date is None:
+            # O(1): read directly from cached balances
+            return {
+                account: balance
+                for account, balance in sorted(self._balances.items())
+                if balance != ZERO
+            }
 
-        trial_balance = {}
-        for account in sorted(accounts):
-            balance = self.get_balance(account, as_of_date)
-            if balance != ZERO:  # Skip zero balances (exact comparison with Decimal)
-                trial_balance[account] = balance
+        # O(N) single-pass: accumulate per-account balances in one iteration
+        # Include any pruned snapshot balances as starting points
+        totals: Dict[str, Decimal] = {}
+        if self._pruned_balances:
+            for account, snap_balance in self._pruned_balances.items():
+                totals[account] = snap_balance
 
-        return trial_balance
+        for entry in self.entries:
+            if entry.date > as_of_date:
+                continue
+
+            account = entry.account
+            if account not in totals:
+                totals[account] = ZERO
+
+            account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
+            if account_type in (AccountType.ASSET, AccountType.EXPENSE):
+                if entry.entry_type == EntryType.DEBIT:
+                    totals[account] += entry.amount
+                else:
+                    totals[account] -= entry.amount
+            else:
+                if entry.entry_type == EntryType.CREDIT:
+                    totals[account] += entry.amount
+                else:
+                    totals[account] -= entry.amount
+
+        return {account: balance for account, balance in sorted(totals.items()) if balance != ZERO}
+
+    def prune_entries(self, before_date: int) -> int:
+        """Discard entries older than *before_date* to bound memory (Issue #315).
+
+        Before discarding, a per-account balance snapshot is computed so
+        that ``get_balance(account, as_of_date)`` and ``get_trial_balance``
+        still return correct values for dates >= the prune point.
+
+        Entries with ``date < before_date`` are removed.  The current
+        balance cache (``_balances``) is unaffected because it already
+        holds the cumulative totals.
+
+        Args:
+            before_date: Entries with ``date`` strictly less than this
+                value are pruned.
+
+        Returns:
+            Number of entries removed.
+
+        Note:
+            After pruning, historical queries for dates prior to
+            ``before_date`` will reflect the snapshot balance at the prune
+            boundary, not the true historical balance at that earlier date.
+        """
+        # Build snapshot of balances for entries that will be removed
+        snapshot: Dict[str, Decimal] = {}
+        if self._pruned_balances:
+            snapshot = dict(self._pruned_balances)
+
+        kept: List[LedgerEntry] = []
+        removed = 0
+        for entry in self.entries:
+            if entry.date < before_date:
+                # Accumulate into snapshot
+                account = entry.account
+                if account not in snapshot:
+                    snapshot[account] = ZERO
+                account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
+                if account_type in (AccountType.ASSET, AccountType.EXPENSE):
+                    if entry.entry_type == EntryType.DEBIT:
+                        snapshot[account] += entry.amount
+                    else:
+                        snapshot[account] -= entry.amount
+                else:
+                    if entry.entry_type == EntryType.CREDIT:
+                        snapshot[account] += entry.amount
+                    else:
+                        snapshot[account] -= entry.amount
+                removed += 1
+            else:
+                kept.append(entry)
+
+        self.entries = kept
+        self._pruned_balances = snapshot
+        self._prune_cutoff = before_date
+        return removed
 
     def clear(self) -> None:
         """Clear all entries from the ledger.
 
         Useful for resetting the ledger during simulation reset.
-        Also resets the balance cache (Issue #259).
+        Also resets the balance cache (Issue #259) and pruning state (Issue #315).
         """
         self.entries.clear()
         self._balances.clear()
+        self._pruned_balances.clear()
+        self._prune_cutoff = None
 
     def __len__(self) -> int:
         """Return the number of entries in the ledger."""
@@ -978,5 +1062,9 @@ class Ledger:
 
         # Deep copy balance cache
         result._balances = copy.deepcopy(self._balances, memo)
+
+        # Deep copy pruning state (Issue #315)
+        result._pruned_balances = copy.deepcopy(self._pruned_balances, memo)
+        result._prune_cutoff = self._prune_cutoff
 
         return result
