@@ -177,6 +177,10 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         # Step the manufacturer (growth, etc.)
         manufacturer.step()
 
+        # Prune old ledger entries to bound memory (Issue #315)
+        if shared.get("enable_ledger_pruning", False) and year > 0:
+            manufacturer.ledger.prune_entries(before_date=year)
+
         # Check for ruin - use insolvency tolerance from shared config
         tolerance = shared.get("insolvency_tolerance", 10_000)
         if float(manufacturer.equity) <= tolerance:
@@ -217,6 +221,7 @@ class SimulationConfig:
         growth_rate: Revenue growth rate per period (default 0.0)
         time_resolution: Time step resolution, "annual" or "monthly" (default "annual")
         apply_stochastic: Whether to apply stochastic shocks (default False)
+        enable_ledger_pruning: Prune old ledger entries each year to bound memory (default False)
     """
 
     n_simulations: int = 100_000
@@ -256,6 +261,7 @@ class SimulationConfig:
     growth_rate: float = 0.0  # Revenue growth rate per period
     time_resolution: str = "annual"  # "annual" or "monthly"
     apply_stochastic: bool = False  # Whether to apply stochastic shocks
+    enable_ledger_pruning: bool = False  # Prune old ledger entries to bound memory (Issue #315)
 
 
 @dataclass
@@ -812,6 +818,7 @@ class MonteCarloEngine:
             "use_float32": self.config.use_float32,
             "ruin_evaluation": self.config.ruin_evaluation,
             "insolvency_tolerance": self.config.insolvency_tolerance,
+            "enable_ledger_pruning": self.config.enable_ledger_pruning,
             "manufacturer_config": self.manufacturer.__dict__.copy(),
             "loss_generator": self.loss_generator,
             "insurance_program": self.insurance_program,
@@ -1040,6 +1047,10 @@ class MonteCarloEngine:
                 growth_rate=growth_rate,  # Only endogenous growth from retained earnings
                 apply_stochastic=apply_stochastic,
             )
+
+            # Prune old ledger entries to bound memory (Issue #315)
+            if self.config.enable_ledger_pruning and year > 0:
+                manufacturer.ledger.prune_entries(before_date=year)
 
             # Check for ruin using insolvency tolerance or is_ruined flag
             if (
