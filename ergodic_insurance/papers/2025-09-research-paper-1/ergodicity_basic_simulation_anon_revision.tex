@@ -279,7 +279,7 @@ This absorbing barrier creates fundamental asymmetry: while gains are unbounded,
 
 These non-ergodic features explain why insurance appears valuable even when premiums substantially exceed expected losses. The relevant metric is not the ensemble average (expected value) but the time average (growth rate) \citep{peters2011time}.
 
-\subsection{Mathematical Framework}
+\subsection{Mathematical Framework}\label{sec:MathematicalFramework}
 
 Consider a company with wealth $W_t$ evolving under stochastic dynamics. In the absence of insurance, wealth follows:
 \begin{equation}
@@ -312,6 +312,8 @@ The optimal insurance strategy maximizes time-average growth, not expected wealt
 \end{equation}
 
 The gap widens with loss severity variance and the ratio $L/W$. This is the ergodic value of insurance: each unit of catastrophic loss destroys more growth than its expected value suggests, and this disparity grows precisely when ruin risk is most acute.
+
+The simulation that follows explores this inequality numerically under simplified assumptions.
 }
 
 \section{Simulation Framework Overview}
@@ -330,7 +332,7 @@ The framework employs Monte Carlo simulation to generate thousands of independen
 
 At the framework's core lies an illustrative manufacturing company with realistic financial dynamics. The model tracks complete corporate accounting relationships while maintaining computational efficiency for large-scale simulations.
 
-Revenue generation follows an asset turnover model where annual revenues equal total assets multiplied by an asset turnover ratio (typically 0.8 to 1.2). This approach naturally scales business activity with company size while allowing exploration of capital efficiency effects. Operating income derives from revenues through configurable operating margins, capturing the fundamental profitability before considering loss events.
+Revenue generation follows an asset turnover model where annual revenues equal total assets multiplied by an asset turnover ratio (typically 0.8 to 1.2). This approach naturally scales business activity with company size while allowing exploration of capital efficiency effects. {\color{red}Operational volatility is introduced as a multiplicative lognormal shock to annual revenues, parameterized by $\sigma$, representing the year-to-year uncertainty in business performance from market conditions, demand fluctuations, and operational variability. This corresponds to the $\sigma Z_t$ term in the wealth dynamics of Section \ref{sec:MathematicalFramework}, and produces the familiar volatility drag ($\sigma^2/2$) on long-term growth that is characteristic of multiplicative processes.} Operating income derives from revenues through configurable operating margins, capturing the fundamental profitability before considering loss events.
 
 The income statement dynamics incorporate operating revenues, margins, claim losses, insurance premiums, and corporate taxes. Critically, revenues serve as the exposure base for loss generation, creating a direct link between business scale and risk exposure. Premiums are calibrated at the outset, assuming accurate matching to the expected loss distribution, and loaded for costs to a realistic target loss ratio. Premiums are subsequently scaled with revenues, in line with the underlying loss exposure base. After-tax earnings flow to retained earnings, driving balance sheet growth absent external capital raises.
 
@@ -381,11 +383,7 @@ The simulation explores a multidimensional parameter space that captures key dri
 
 \textbf{Asset turnover ratios} (0.8 to 1.2) capture capital efficiency, with higher ratios generating more revenue (and thus more loss exposure) per dollar of assets.
 
-\textbf{Operating margins} determine profitability buffers against losses. Higher-margin businesses can absorb losses more easily, potentially supporting higher deductibles, while low-margin operations may require more insurance protection to maintain growth.
-
-\textbf{Loss ratios} scale the overall loss burden, allowing sensitivity analysis across different risk environments. As loss ratios increase, and thus insurance costs decrease, the divergence between time and ensemble averages typically widens, amplifying insurance benefits.
-
-These parameters interact in complex ways. For instance, a small company with high asset turnover and low margins faces compounded vulnerabilities that may make lower deductibles optimal despite higher premium costs. The framework systematically explores these interactions to identify shifts in optimal insurance strategies.
+\textbf{Per-occurrence deductibles} (\$0 to \$500K, plus self-insurance) represent the primary insurance decision variable in this simulation.
 
 \subsection{Input Parameters and Data Requirements}
 
@@ -401,10 +399,12 @@ These parameters interact in complex ways. For instance, a small company with hi
 
 \textbf{Key Input Parameters:}
 \begin{itemize}
-    \item Initial capital levels (\$5M, \$10M, \$25M)
-    \item Asset turnover ratios (0.8, 0.9, 1.0, 1.1, 1.2)
-    \item Operating margins (10\%, 12.5\%, 15\%)
-    \item Target loss ratios (60\%, 70\%, 80\%)
+    \item Initial capital levels vary across [\$5M, \$10M, \$25M]
+    \item Asset turnover ratios vary across [0.8, 0.9, 1.0, 1.1, 1.2]
+    \item Deductible levels vary across [\$0, \$50K, \$100K, \$250K, \$500K, and no insurance]
+    \item {\color{red}Operating margins are set to 12.5\%}
+    \item {\color{red}Operational volatility is set to 15\% of revenue}
+    \item {\color{red}Target loss ratios are set to 70\%}
     \item Loss distribution parameters
         \begin{itemize}[label=$\circ$]
             \item Attritional losses:
@@ -423,14 +423,13 @@ These parameters interact in complex ways. For instance, a small company with hi
                     \item Severity: Pareto with minimum value=\$5M and $\alpha$=1.5
                 \end{itemize}
         \end{itemize}
-    \item Deductible levels (\$0, \$50K, \$100K, \$250K, \$500K, and no insurance)
 \end{itemize}
 
 \textbf{Simplifying Assumptions:}
 \begin{itemize}
     \item Working capital is set to 0\% of revenue to maximize cash generation
     \item Steady growth rate parameter is set to 0\%; all growth derives from retained earnings
-    \item No stochastic revenue or margin fluctuations; operating margins are deterministic
+    \item {\color{red}Asset turnover ratios and operating margins are fixed}
     \item Loss events are independent across time and types
     \item No correlation between losses and business performance (other than through revenue exposure)
     \item Taxes are applied at a flat rate of 25\%
@@ -438,7 +437,7 @@ These parameters interact in complex ways. For instance, a small company with hi
     \item No external capital raises
     \item Retention ratio is set at 70\% of net income (30\% dividend payout)
     \item Insurance premiums are fixed at inception using the underlying loss distribution and subsequently scale with revenue
-    \item Insurance pricing uses a fixed target loss ratio (60\%, 70\%, or 80\%) without risk loadings or market cycle dynamics
+    \item Insurance pricing uses a fixed target loss ratio without risk loadings or market cycle dynamics
     \item Insurance recoveries above the deductible have no balance sheet impact; insurer credit risk is not modeled
     \item No inflation, discounting, or time value of money considerations
     \item No regulatory capital requirements
@@ -448,11 +447,11 @@ These parameters interact in complex ways. For instance, a small company with hi
         \begin{itemize}[label=$\circ$]
             \item When losses occur, the company's deductible portion requires immediate collateral via LoC, which has a 1.5\% annual interest rate charge on outstanding total collateral
             \item Collateral is posted immediately upon claim occurrence
-            \item Collateral is released gradually as claims are paid according to the payment pattern
+            \item Collateral is released gradually as claims are paid according to the payment pattern below
             \item Creates restricted assets on the balance sheet that cannot be used for operations
             \item The relatively low LoC rate of 1.5\% is intended to mimic net present value without explicitly implementing inflation and discounting factors.
         \end{itemize}
-    \item Claim payment patterns follow a fixed 10-year schedule:
+    \item Claim payment patterns follow a fixed 10-year schedule independent of claim size:
         \begin{table}[H]
             \centering
             \begin{tabular}{lcccccccccc}
@@ -468,7 +467,9 @@ These parameters interact in complex ways. For instance, a small company with hi
 
 \subsection{Model Validation and Calibration}
 
-The parameters were calibrated to achieve realistic loss burdens: a company with \$10 million initial capital, 1.0 asset turnover ratio, and 10\% operating margin experiences approximately 5\% EBITDA after a \$100,000 deductible. This is substantial enough to matter strategically but not so punitive as to overwhelm business fundamentals. Importantly, the calibration targets reasonableness rather than industry-specific accuracy, maintaining generality for cross-sector insights. The framework allows tailoring to specific industries and company adjustments as needed, although other industries may require additional features to be built out. In particular, stochastic revenue or complex risk management in investment firms and banks will require further development.
+{\color{red}The parameters were calibrated to achieve realistic loss burdens: a company with \$10 million initial capital, 1.0 asset turnover ratio, and a \$100,000 per-occurrence deductible experiences approximately ~5\% EBITDA. This is substantial enough to matter strategically but not so punitive as to overwhelm business fundamentals.
+
+The calibration targets reasonableness rather than industry-specific accuracy, maintaining generality for cross-sector insights. Several features present in real businesses are excluded: the model assumes a fixed capital structure with no external financing, deterministic operating margins, a single line of business, and no management responses to adverse experience such as cost reduction or capital raises. Industries with significant mark-to-market asset exposures or complex hedging programs, particularly financial institutions, would require substantial extension of the framework.}
 
 \subsection{Computational Considerations}
 
@@ -479,7 +480,7 @@ The simulation employs Monte Carlo methods with:
     \item Annual decision points
 \end{itemize}
 
-Parallel processing and efficient data structures ensure tractability despite the high dimensionality of the parameter space. Each full scenario run takes approximately 30-60 minutes on a standard workstation, allowing exploration of multiple parameter combinations within reasonable timeframes. The experiment described in this paper was performed in a cloud computing environment (Google Colab) in a few hours and at a cost of approximately \$10, so it can be easily replicated by anybody looking to validate or extend the findings.
+Parallel processing and efficient data structures ensure tractability despite the high dimensionality of the parameter space. Each full scenario run takes approximately {\color{red}a day on a standard workstation, allowing exploration of multiple parameter combinations within reasonable timeframes. The experiment described in this paper was performed in a cloud computing environment (Google Colab) in a couple of days and at a cost of approximately \$25}, so it can be easily replicated by anybody looking to validate or extend the findings.
 
 Static parameters, such as tailoring the model to a specific industry or company, or incorporating discounting, will not significantly affect run times. However, adding stochastic revenue or margin fluctuations, more complex insurance structures, or regulatory capital requirements will increase computational demands and may require further optimization.
 \section{Case Study: Deductible Appetite vs. Company Size and Margins}
