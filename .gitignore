@@ -458,3 +458,4 @@ api/
 *.bcf
 *.run.xml
 *.dvi
+*.synctex
