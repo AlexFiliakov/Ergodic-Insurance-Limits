@@ -440,3 +440,21 @@ vendor/
 
 # Generated API documentation (built by GitHub Actions)
 api/
+
+# LaTeX intermediate files
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
+*.bbl
+*.blg
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+*.dvi
