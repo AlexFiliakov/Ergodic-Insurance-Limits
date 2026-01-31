@@ -39,6 +39,7 @@
 \usepackage{xcolor}
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
+\usepackage[normalem]{ulem}
 
 % Configure code listings for Python
 \lstset{
@@ -80,7 +81,7 @@ A Simulation Framework for Understanding Risk Appetite}}
 \maketitle
 
 \begin{abstract}
-This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using 100,000 Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, reveals optimal strategies invisible to traditional analysis. Moderate retention consistently dominates both guaranteed cost and self-insurance extremes. Small companies rationally pay substantial premium loadings because insurance alters multiplicative wealth dynamics. Capitalization, operating margins, and asset turnover drive optimal deductibles far more than industry benchmarks or peer conventions.
+This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using {\color{red}500,000} Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, reveals optimal strategies invisible to traditional analysis. Moderate retention consistently dominates both guaranteed cost and self-insurance extremes. Small companies rationally pay substantial premium loadings because insurance alters multiplicative wealth dynamics. Capitalization, operating margins, and asset turnover drive optimal deductibles far more than industry benchmarks or peer conventions.
 \\\\
 \textbf{Keywords:} ergodicity economics, insurance purchasing, corporate risk management, time-average growth, deductible optimization, Monte Carlo simulation, multiplicative dynamics, risk modeling, property \& casualty insurance, Kelly Criterion, balance sheet modeling, retention strategy
 \end{abstract}
@@ -186,7 +187,7 @@ The Kelly Criterion, developed for gambling and investment allocation, provides 
 
 \subsection{What This Paper Demonstrates}
 
-We develop a comprehensive simulation framework that models corporate balance sheet dynamics under realistic loss distributions, insurance programs, and financial accounting relationships. The model tracks 100,000 Monte Carlo paths over 50-year horizons, computing time-average growth rates for companies across different capitalization levels, operating margins, asset turnover ratios, and insurance strategies.
+We develop a comprehensive simulation framework that models corporate balance sheet dynamics under realistic loss distributions, insurance programs, and financial accounting relationships. The model tracks {\color{red}500,000} Monte Carlo paths over 50-year horizons, computing time-average growth rates for companies across different capitalization levels, operating margins, asset turnover ratios, and insurance strategies.
 
 The analysis produces several counterintuitive findings that challenge conventional wisdom:
 
@@ -206,7 +207,7 @@ These findings emerge naturally from the ergodic framework but remain invisible 
 
 This paper provides a \emph{simulation framework} for studying time-average performance of insurance programs under flexible corporate dynamics, not a prescriptive formula for optimal deductibles. The specific numerical results depend heavily on loss distribution parameters, financial assumptions, and modeling choices, none of which perfectly reflect any particular company's reality.
 
-The goal is not to recommend "all \$10M companies should buy \$250K deductibles" but rather to demonstrate \emph{how} ergodic analysis changes insurance valuation and to provide tools for company-specific optimization. We develop a rigorous mathematical foundation with 100,000-path Monte Carlo simulations, a fully specified corporate balance sheet model, and actuarially realistic loss distributions, and then use this machinery to explore the parameter space systematically.
+The goal is not to recommend "all \$10M companies should buy \$250K deductibles" but rather to demonstrate \emph{how} ergodic analysis changes insurance valuation and to provide tools for company-specific optimization. We develop a rigorous mathematical foundation with {\color{red}500,000}-path Monte Carlo simulations, a fully specified corporate balance sheet model, and actuarially realistic loss distributions, and then use this machinery to explore the parameter space systematically.
 
 The primary contribution is methodological: showing \emph{that} time-average growth optimization can be implemented for corporate insurance decisions, \emph{how} it produces qualitatively different recommendations than expected value analysis, and \emph{why} these differences matter for long-term shareholder value. Practitioners can adapt the framework to their specific circumstances, calibrating loss distributions to company data and incorporating constraints invisible to the baseline model.
 
@@ -248,13 +249,13 @@ In contrast, the time average captures what a single entity experiences over its
 g_{\text{time}} = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)
 \end{equation}
 
-For multiplicative processes with uncertainty, Jensen's inequality ensures these two averages diverge systematically, with profound implications for insurance and risk management \citep{peters2016evaluating}. Jensen's inequality states that for a random variable $W$ and a convex function $f$:
+For multiplicative processes with uncertainty, Jensen's inequality ensures these two averages diverge systematically, with profound implications for insurance and risk management \citep{peters2016evaluating}. Jensen's inequality states that for random variable $W$ and convex function $f$:
 
 \begin{equation}
 f(\E[W]) \leq \E[f(W)]
 \end{equation}
 
-In the context of multiplicative wealth dynamics, this means that the expected growth rate (ensemble average) can be misleadingly optimistic compared to the actual growth experienced over time (time average).
+In the context of multiplicative wealth dynamics, this means that the expected growth rate (ensemble average{\color{red}, right side of the inequality}) can be misleadingly optimistic compared to the actual growth experienced over time (time average{\color{red}, left side of the inequality}).
 
 \subsection{Insurance Markets as Non-Ergodic Systems}
 
@@ -289,52 +290,29 @@ where:
 \begin{itemize}
     \item $\mu$ is the drift (expected return from operations)
     \item $\sigma Z_t$ represents operational volatility with $Z_t \sim \mathcal{N}(0,1)$
-    \item $L_t$ represents catastrophic losses occurring with frequency $\lambda$ and severity distribution $F_L$
+    \item $L_t$ represents catastrophic losses occurring with frequency $\lambda$ and severity distribution $F_L${\color{red}, with $L_t < W_t$ (i.e., the firm survives each event)}
 \end{itemize}
 
-The time-average growth rate without insurance is:
+{\color{red}The time-average growth rate without insurance is:
 \begin{equation}
-g_{\text{uninsured}} = \mu - \frac{\sigma^2}{2} - \lambda \cdot \E\left[\ln\left(1 - \frac{L}{W}\right)\right]
+g_{\text{uninsured}} = \mu - \frac{\sigma^2}{2} + \lambda \cdot \E\left[\ln\left(1 - \frac{L}{W}\right)\right]
 \end{equation}
 
-The first two terms represent the familiar geometric Brownian motion result, while the third term captures the impact of jump losses. Note the appearance of $\E[\ln(1 - L/W)]$ rather than $\E[L/W]$—this logarithmic transformation is crucial and explains why losses have a disproportionate impact on growth.
+The first two terms represent the familiar geometric Brownian motion result, while the third term captures the impact of jump losses. Note the appearance of $\E[\ln(1 - L/W)]$ rather than $\E[L/W]$. This logarithmic transformation is crucial and explains why losses have a disproportionate impact on growth.
 
-With insurance featuring deductible $D$ and premium rate $\pi$, the growth rate becomes:
+With insurance featuring per-occurrence deductible $D$ and premium rate $\pi$, the growth rate becomes:\footnote{{\color{red}This decomposition treats operational volatility and catastrophic losses as additively separable in the log domain, which is valid to first order when $\sigma$ and $L/W$ are small relative to $1 + \mu$.}}
 \begin{equation}
-g_{\text{insured}} = \mu - \frac{\sigma^2}{2} - \pi - \lambda \cdot \E\left[\ln\left(1 - \frac{\min(L, D)}{W}\right)\right]
+g_{\text{insured}} = \mu - \frac{\sigma^2}{2} - \pi + \lambda \cdot \E\left[\ln\left(1 - \frac{\min(L, D)}{W}\right)\right]
 \end{equation}
 
-The insurance creates value when:
+The optimal insurance strategy maximizes time-average growth, not expected wealth. This is the same principle underlying the Kelly criterion \citep{kelly1956new}. Setting $g_{\text{insured}} > g_{\text{uninsured}}$ and noting that $\mu$ and $\sigma^2/2$ cancel, insurance creates value even when premiums exceed expected losses ($\pi > \lambda \cdot \E[L]$) whenever:
+
 \begin{equation}
-g_{\text{insured}} > g_{\text{uninsured}}
+\lambda \cdot \E\left[\ln\left(\frac{W - \min(L,D)}{W - L} \right)\right] > \pi
 \end{equation}
 
-This inequality can hold even when $\pi > \lambda \cdot \E[L]$ (premium exceeds expected losses), particularly for companies with:
-\begin{itemize}
-    \item Lower capital levels (higher $L/W$ ratios)
-    \item Higher operational leverage (larger $\mu$ potential)
-    \item Greater loss severity risk (heavy-tailed $F_L$)
-\end{itemize}
-
-The optimal insurance strategy maximizes time-average growth, not expected wealth. This leads naturally to the Kelly criterion \citep{kelly1956new}, which in the insurance context becomes:
-\begin{equation}
-D^* = \arg\max_D \E\left[\ln\left(\frac{W_{t+1}}{W_t}\right)\right]
-\end{equation}
-
-This optimization framework explains the simulation results showing that smaller companies optimally choose lower deductibles despite higher relative premium costs: they face greater proportional impact from losses and thus benefit more from variance reduction.
-
-\textbf{Special Case: Deterministic Operations.} The framework simplifies elegantly when operational volatility is zero ($\sigma = 0$), as in this simulation. The growth rates become:
-\begin{align}
-g_{\text{uninsured}} &= \mu - \lambda \cdot \E\left[\ln\left(1 - \frac{L}{W}\right)\right] \\
-g_{\text{insured}} &= \mu - \pi - \lambda \cdot \E\left[\ln\left(1 - \frac{\min(L,D)}{W}\right)\right]
-\end{align}
-
-Even without operational volatility, insurance creates value because losses themselves introduce multiplicative volatility. The insurance value condition becomes:
-\begin{equation}
-\lambda \cdot \E\left[\ln\left(\frac{1 - \min(L,D)/W}{1 - L/W}\right)\right] > \pi
-\end{equation}
-
-This expression is positive whenever losses exceed the deductible, demonstrating that insurance enhances growth by capping catastrophic losses—converting unpredictable large losses into predictable premium costs. The absence of operational volatility actually clarifies the pure insurance value proposition: reducing the multiplicative impact of tail risks on long-term growth rates.
+The gap widens with loss severity variance and the ratio $L/W$. This is the ergodic value of insurance: each unit of catastrophic loss destroys more growth than its expected value suggests, and this disparity grows precisely when ruin risk is most acute.
+}
 
 \section{Simulation Framework Overview}
 
@@ -413,7 +391,7 @@ These parameters interact in complex ways. For instance, a small company with hi
 
 \textbf{Simulation Hyperparameters:}
 \begin{itemize}
-    \item Number of simulation paths (100,000)
+    \item Number of simulation paths ({\color{red}500,000})
     \item Projection horizon (50 years)
     \item Pricing simulation runs (500,000)
         \begin{itemize}[label=$\circ$]
@@ -496,7 +474,7 @@ The parameters were calibrated to achieve realistic loss burdens: a company with
 
 The simulation employs Monte Carlo methods with:
 \begin{itemize}
-    \item 10,000 simulation paths per scenario
+    \item {\color{red}500,000} simulation paths per scenario
     \item 50-year projection horizons
     \item Annual decision points
 \end{itemize}
@@ -508,7 +486,7 @@ Static parameters, such as tailoring the model to a specific industry or company
 
 \subsection{Overview of Results}
 
-The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across 100,000 Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, operating margins, asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
+The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across {\color{red}500,000} Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, operating margins, asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
 
 The findings challenge conventional insurance wisdom in several ways: guaranteed cost programs systematically underperform at higher capitalizations, moderate deductibles frequently dominate both extremes, and insurance creates substantial value even when premiums significantly exceed actuarially fair rates. These patterns suggest that traditional expected value frameworks may systematically misprice insurance value for growth-focused enterprises.
 
