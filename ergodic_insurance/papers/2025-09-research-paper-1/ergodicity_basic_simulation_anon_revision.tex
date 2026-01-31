@@ -36,10 +36,13 @@
 
 % Code listings and algorithms
 \usepackage{listings}
-\usepackage{xcolor}
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
+
+% Formatting
+\usepackage{xcolor}
 \usepackage[normalem]{ulem}
+\usepackage{placeins}
 
 % Configure code listings for Python
 \lstset{
@@ -487,13 +490,13 @@ Static parameters, such as tailoring the model to a specific industry or company
 
 \subsection{Overview of Results}
 
-The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across {\color{red}500,000} Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, operating margins, asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
+The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across {\color{red}500,000} Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, {\color{red}\sout{operating margins, }}asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
 
-The findings challenge conventional insurance wisdom in several ways: guaranteed cost programs systematically underperform at higher capitalizations, moderate deductibles frequently dominate both extremes, and insurance creates substantial value even when premiums significantly exceed actuarially fair rates. These patterns suggest that traditional expected value frameworks may systematically misprice insurance value for growth-focused enterprises.
+The findings challenge conventional insurance wisdom in several ways: guaranteed cost programs systematically underperform at higher capitalizations, moderate deductibles frequently dominate both extremes, and insurance creates substantial value even when premiums exceed actuarially fair rates. These patterns suggest that traditional expected value frameworks may systematically misprice insurance value for growth-focused enterprises.
 
 \subsection{The Size Effect: Capitalization and Insurance Value}
 
-The simulation demonstrates that capitalization level is the dominant driver of optimal insurance strategy, with smaller companies deriving substantially greater value from insurance protection. Figure~\ref{fig:growth_lift_by_cap} illustrates this relationship across three capitalization levels (\$5M, \$10M, \$25M) holding other parameters constant at their baseline values (70\% Loss Ratio, 1.0 Asset Turnover, and 10\%~Operating Margin).
+The simulation demonstrates that capitalization level is the dominant driver of optimal insurance strategy, with smaller companies deriving substantially greater value from insurance protection. Figure~\ref{fig:growth_lift_by_cap} illustrates this relationship across three capitalization levels (\$5M, \$10M, \$25M) {\color{red}holding the Asset Turnover parameter constant at 1.0.}
 
 \begin{figure}[htbp]
     \centering
@@ -502,7 +505,8 @@ The simulation demonstrates that capitalization level is the dominant driver of 
     \label{fig:growth_lift_by_cap}
 \end{figure}
 
-\textbf{Key Observations from Figure~\ref{fig:growth_lift_by_cap}:}
+\FloatBarrier
+\subsubsection{Key Observations from Figure~\ref{fig:growth_lift_by_cap}:}
 
 \textbf{Declining Insurance Value with Size:} Growth lift decreases systematically as capitalization increases. At \$5M capitalization, even a \$500K deductible provides approximately 0.70\% annual growth lift, while at \$25M, the same deductible yields only 0.38\% lift. This \emph{scale effect} reflects the diminishing proportional impact of fixed-severity losses as the capital base expands. A \$5M catastrophic loss represents 100\% of equity for the smallest company but only 20\% for the largest, fundamentally altering the multiplicative growth dynamics.
 
@@ -550,8 +554,8 @@ When a company with 1.2 asset turnover generates 50\% more revenue than an other
 
 \textbf{Practical Implications:} Efficient capital users generating substantial revenues relative to their balance sheet (i.e., companies with high asset turnover ratios) should recognize that they face disproportionately greater insurance value than low-turnover peers with similar capitalization. This suggests that focus should shift from absolute exposure size towards \emph{turnover-adjusted exposure intensity} that drives time-average growth dynamics.
 
-\subsection{Operating Margin Interactions: The Profitability Buffer}
-
+\subsection{{\color{red}\sout{Operating Margin Interactions: The Profitability Buffer}}}
+{\color{red}\sout{
 Comparing growth lift patterns across the three margin levels (Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150}) reveals that higher operating margins systematically \emph{flatten} the response curves, reducing sensitivity to both asset turnover and insurance pricing variations.
 
 \vspace{\baselineskip}
@@ -563,9 +567,9 @@ Both asset turnover and operating margin contribute to earnings growth, but thro
 \vspace{\baselineskip}
 
 \textbf{Practical Implications:} Low-margin businesses (10\% or below before losses in this simulation, translating to about 5\% ensemble-average after losses) should pay particularly close attention to insurance optimization, as suboptimal strategies impose larger relative growth penalties. High-margin enterprises enjoy greater strategic flexibility: while optimal deductibles still exist, the growth differential between good and poor insurance decisions is smaller, potentially justifying simpler risk management approaches or greater emphasis on non-financial considerations (administrative burden, credit concerns, etc.).
-
-\subsection{Sensitivity to Insurance Pricing: Loss Ratio Effects}
-
+}}
+\subsection{{\color{red}\sout{Sensitivity to Insurance Pricing: Loss Ratio Effects}}}
+{\color{red}\sout{
 The row structure in Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150} isolates the impact of target loss ratios (60\%, 70\%, 80\%), representing the insurer's pricing efficiency. Lower loss ratios indicate higher expense loadings and profit margins, making insurance more expensive for the buyer.
 
 \vspace{\baselineskip}
@@ -583,6 +587,7 @@ The row structure in Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_
 \vspace{\baselineskip}
 
 \textbf{Practical Implications:} Corporate buyers should actively estimate loss costs and negotiate loss ratios, as pricing efficiency directly determines optimal retention strategies and realized growth lift. The substantial variation in growth outcomes across loss ratio scenarios suggests that \emph{insurance market cycles} (not modeled here) may create significant timing opportunities: companies purchasing programs during soft markets (high loss ratios) can justify lower deductibles, while hard markets (low loss ratios) favor higher retentions.
+}}
 
 \subsection{Limitations and Boundary Conditions}
 
@@ -632,23 +637,9 @@ The simulation framework provides the analytical foundation for such company-spe
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.100.png}
-    \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 10\%.}
-    \label{fig:multiples_ebit_0.100}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
     \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.125.png}
     \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 12.5\%.}
     \label{fig:multiples_ebit_0.125}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.150.png}
-    \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 15\%.}
-    \label{fig:multiples_ebit_0.150}
 \end{figure}
 
 \section{Implications for Insurance Decision-Making}
