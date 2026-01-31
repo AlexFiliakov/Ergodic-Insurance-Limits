@@ -143,8 +143,19 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
             if eval_year <= n_years:
                 ruin_at_year[eval_year] = False
 
+    # CRN: look up once before the loop
+    crn_base_seed = shared.get("crn_base_seed")
+
     # Simulate years using the configured loss generator
     for year in range(n_years):
+        # CRN: reseed per (sim_id, year) for reproducible cross-scenario comparison
+        if crn_base_seed is not None:
+            year_ss = np.random.SeedSequence([crn_base_seed, sim_id, year])
+            children = year_ss.spawn(2)
+            loss_generator.reseed(int(children[0].generate_state(1)[0]))
+            if manufacturer.stochastic_process is not None:
+                manufacturer.stochastic_process.reset(int(children[1].generate_state(1)[0]))
+
         revenue = manufacturer.calculate_revenue()
 
         # Generate losses using configured loss generator
@@ -222,6 +233,12 @@ class SimulationConfig:
         time_resolution: Time step resolution, "annual" or "monthly" (default "annual")
         apply_stochastic: Whether to apply stochastic shocks (default False)
         enable_ledger_pruning: Prune old ledger entries each year to bound memory (default False)
+        crn_base_seed: Common Random Numbers base seed for cross-scenario comparison.
+            When set, the loss generator and stochastic process are reseeded at each
+            (sim_id, year) boundary using SeedSequence([crn_base_seed, sim_id, year]).
+            This ensures that compared scenarios (e.g. different deductibles) experience
+            the same underlying random draws each year, dramatically reducing estimator
+            variance for growth-lift metrics. (default None, disabled)
     """
 
     n_simulations: int = 100_000
@@ -262,6 +279,7 @@ class SimulationConfig:
     time_resolution: str = "annual"  # "annual" or "monthly"
     apply_stochastic: bool = False  # Whether to apply stochastic shocks
     enable_ledger_pruning: bool = False  # Prune old ledger entries to bound memory (Issue #315)
+    crn_base_seed: Optional[int] = None  # Common Random Numbers seed for cross-scenario comparison
 
 
 @dataclass
@@ -823,6 +841,7 @@ class MonteCarloEngine:
             "loss_generator": self.loss_generator,
             "insurance_program": self.insurance_program,
             "base_seed": self.config.seed,
+            "crn_base_seed": self.config.crn_base_seed,
         }
 
         # Define reduce function
@@ -973,6 +992,14 @@ class MonteCarloEngine:
 
         # Run simulation for each year
         for year in range(n_years):
+            # CRN: reseed per (sim_id, year) for reproducible cross-scenario comparison
+            if self.config.crn_base_seed is not None:
+                year_ss = np.random.SeedSequence([self.config.crn_base_seed, sim_id, year])
+                children = year_ss.spawn(2)
+                self.loss_generator.reseed(int(children[0].generate_state(1)[0]))
+                if manufacturer.stochastic_process is not None:
+                    manufacturer.stochastic_process.reset(int(children[1].generate_state(1)[0]))
+
             # Generate losses using ManufacturingLossGenerator
             revenue = manufacturer.calculate_revenue()
 

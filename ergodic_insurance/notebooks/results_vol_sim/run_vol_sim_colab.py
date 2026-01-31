@@ -36,6 +36,7 @@ def run_vol_sim(
     filepath="results",
     volatility=0.0,
     drift=0.0,
+    crn_base_seed=20260130,
 ):
     """Run a single simulation with specified parameters.
 
@@ -52,6 +53,9 @@ def run_vol_sim(
     - filepath: Output directory for result pickle files
     - volatility: Revenue volatility for GBM stochastic process (default 0.0, no stochastic shocks)
     - drift: Drift rate for GBM stochastic process (default 0.0)
+    - crn_base_seed: Common Random Numbers base seed (default 20260130).
+        Ensures insured and uninsured scenarios experience the same underlying
+        random draws at each (sim_id, year) boundary for variance reduction.
     """
     print(
         f"\nRunning simulation for Initial Assets: ${ia:,.0f}, ATR: {atr}, EBITABL: {ebitabl:.3f}, "
@@ -63,24 +67,27 @@ def run_vol_sim(
     DEDUCTIBLE = ded
     LOSS_RATIO = lr
 
-    # Set random seed for reproducibility using SeedSequence for statistical independence
-    base_seed = 42 + index * 1000
-    ss = np.random.SeedSequence(base_seed)
-    # Spawn independent child seeds for each consumer:
-    #   [0] pricing loss generator
-    #   [1] insured engine loss generator
-    #   [2] insured engine SimulationConfig
-    #   [3] no-insurance engine loss generator
-    #   [4] no-insurance engine SimulationConfig
-    #   [5] stochastic process (GBM)
-    child_seeds = ss.spawn(6)
+    # Set random seeds for reproducibility using SeedSequence.
+    #
+    # CRN strategy: the MC engine reseeds loss generator and GBM at every
+    # (sim_id, year) boundary using SeedSequence([crn_base_seed, sim_id, year]).
+    # This guarantees that insured and uninsured scenarios experience the same
+    # underlying random draws each year regardless of path divergence.
+    #
+    # Pricing uses an index-dependent seed (pricing is scenario-specific and
+    # runs outside the MC engine).  Engine seeds are shared between insured and
+    # uninsured because CRN reseeding overrides them per-year anyway.
 
-    pricing_seed = int(child_seeds[0].generate_state(1)[0])
-    engine_loss_seed = int(child_seeds[1].generate_state(1)[0])
-    engine_sim_seed = int(child_seeds[2].generate_state(1)[0])
-    no_ins_loss_seed = int(child_seeds[3].generate_state(1)[0])
-    no_ins_sim_seed = int(child_seeds[4].generate_state(1)[0])
-    gbm_seed = int(child_seeds[5].generate_state(1)[0])
+    # Pricing seed: index-dependent so each (Cap, ATR, ...) combo gets its own
+    pricing_ss = np.random.SeedSequence(crn_base_seed + index * 1000)
+    pricing_seed = int(pricing_ss.generate_state(1)[0])
+
+    # Engine seeds: shared between insured and uninsured (CRN overrides per-year)
+    engine_ss = np.random.SeedSequence(crn_base_seed)
+    engine_children = engine_ss.spawn(3)
+    engine_loss_seed = int(engine_children[0].generate_state(1)[0])
+    engine_sim_seed = int(engine_children[1].generate_state(1)[0])
+    gbm_seed = int(engine_children[2].generate_state(1)[0])
 
     # Create stochastic process for revenue volatility if enabled
     if volatility > 0:
@@ -225,6 +232,7 @@ def run_vol_sim(
         insurance_program=None,
         loss_seed=engine_loss_seed,
         sim_seed=engine_sim_seed,
+        crn_seed=crn_base_seed,
     ):
         """Set up Monte Carlo simulation engine."""
         generator = ManufacturingLossGenerator(
@@ -267,6 +275,7 @@ def run_vol_sim(
             enable_ledger_pruning=True,
             seed=sim_seed,
             apply_stochastic=(volatility > 0),
+            crn_base_seed=crn_seed,
         )
 
         if insurance_program is None:
@@ -301,14 +310,16 @@ def run_vol_sim(
     ### Set Up the Simulation Without Insurance #######
 
     # Create engine without insurance
+    # Uses same seeds as insured engine - CRN reseeding ensures identical
+    # underlying random draws at each (sim_id, year) for paired comparison
     print("Setting up Monte Carlo engine without Insurance...")
     engine_no_ins = setup_simulation_engine(
         n_simulations=NUM_SIMULATIONS,
         n_years=SIM_YEARS,
         parallel=False,
         insurance_program=None,
-        loss_seed=no_ins_loss_seed,
-        sim_seed=no_ins_sim_seed,
+        loss_seed=engine_loss_seed,
+        sim_seed=engine_sim_seed,
     )
 
     ## Run the Simulation
