@@ -2849,6 +2849,7 @@ class WidgetManufacturer:
         deductible_amount: Union[Decimal, float] = ZERO,
         insurance_limit: Union[Decimal, float, None] = None,
         insurance_recovery: Optional[Union[Decimal, float]] = None,
+        record_period_loss: bool = False,
     ) -> tuple[Decimal, Decimal]:
         """Process an insurance claim with deductible and limit, setting up collateral.
 
@@ -2873,6 +2874,12 @@ class WidgetManufacturer:
             insurance_recovery: Pre-calculated insurance recovery
                 amount (preferred). If provided, overrides deductible/limit
                 calculation. Should be the exact amount insurance will pay.
+            record_period_loss: If True, also call record_insurance_loss()
+                for the company payment portion so the loss appears in the
+                income statement (EBIT). Use with caution: when equity is
+                computed as Assets - Liabilities, the claim liability already
+                reduces equity, so also reducing operating income can cause
+                double-counting. Defaults to False.
 
         Returns:
             tuple[Decimal, Decimal]: Tuple of (company_payment, insurance_payment)
@@ -3080,6 +3087,10 @@ class WidgetManufacturer:
                 recovery_amount=insurance_payment, claim_id=claim_id, year=self.current_year
             )
             logger.info(f"Insurance covering ${insurance_payment:,.2f} - recorded as receivable")
+
+        # Optionally record the loss in the income statement (Issue #342)
+        if record_period_loss and company_payment > ZERO:
+            self.record_insurance_loss(company_payment)
 
         logger.info(
             f"Total claim: ${claim_amount:,.2f} (Company: ${company_payment:,.2f}, Insurance: ${insurance_payment:,.2f})"
