@@ -63,9 +63,9 @@ The stochastic penalty grows **monotonically** with retained risk exposure. For 
 
 The deterministic ranking favors higher deductibles ($500K > $250K > $100K > $0K) because they have lower expected total cost. But the stochastic penalty **more than reverses** this:
 
-- Deterministic advantage of $500K over $0K: **23.4 bps**
+- Deterministic advantage of \$500K over \$0K: **23.4 bps**
 - Stochastic penalty swing: **111.9 bps** (from -22 to +90)
-- Net result: $0K beats $500K by **88.5 bps**
+- Net result: \$0K beats \$500K by **88.5 bps**
 - The penalty overwhelms the cost savings by **4.8x**
 
 ---
@@ -106,7 +106,7 @@ The simple `σ²/2` formula dramatically underestimates the penalty for fat-tail
 | No Insurance | 19.93% | **1,429%** |
 
 The catastrophic loss distribution (Pareto with xm=$5M, alpha=2.5) creates extreme tail events:
-- **Mean cat loss: $8.3M** (167% of $5M company's assets)
+- **Mean cat loss: \$8.3M** (167% of \$5M company's assets)
 - Annual probability of any cat event: ~1%
 - At the 99th percentile, No Insurance faces retained losses of **103% of assets** in a single year
 
@@ -146,7 +146,7 @@ This is precisely the ergodic theory argument: the ensemble average (arithmetic 
 3. **Premium Loading (Loss Ratio = 0.70)**
    - 43% markup over expected loss
    - *Assessment*: Standard for commercial insurance. Makes insurance affordable
-   - At LR=0.30 (233% loading), $500K ded would finally beat $0K ded
+   - At LR=0.30 (233% loading), \$500K ded would finally beat \$0K ded
 
 4. **Loss Frequency Scaling with Revenue**
    - Larger companies face proportionally more claims
@@ -155,9 +155,9 @@ This is precisely the ergodic theory argument: the ensemble average (arithmetic 
 
 ### 4.2 Why the Ranking Doesn't Differentiate by Company Size
 
-The growth rates at $5M and $10M capitalization are nearly identical:
+The growth rates at \$5M and \$10M capitalization are nearly identical:
 
-| Config | $5M Cap | $10M Cap |
+| Config | \$5M Cap | \$10M Cap |
 |---|---|---|
 | $0K Ded, ATR=1.0 | 235.0 bps | 235.7 bps |
 | $500K Ded, ATR=1.0 | 146.5 bps | 145.5 bps |
@@ -219,8 +219,8 @@ This is the purest possible demonstration of the ergodic argument:
 - The breakeven loading is ~233% (LR ≈ 0.30), suggesting that insurance is rational at loadings far exceeding industry norms
 
 ### Recommendations for Future Work:
-1. **Add deductible granularity**: Test $10K, $25K, $50K deductibles to find the optimal retention
-2. **Increase company sizes**: Test $25M, $50M, $100M with sub-linear cat frequency scaling
+1. **Add deductible granularity**: Test \$10K, \$25K, \$50K deductibles to find the optimal retention
+2. **Increase company sizes**: Test \$25M, \$50M, \$100M with sub-linear cat frequency scaling
 3. **Reduce revenue volatility**: Test σ = 0.05, 0.08, 0.10 to find the crossover point
 4. **Excess layer pricing**: Model different pricing for primary vs excess layers
 5. **Separate the tax timing**: Consider computing growth from equity rather than total assets, or use cash-basis tax treatment for cleaner growth rate comparison
