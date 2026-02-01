@@ -757,37 +757,39 @@ This appendix provides algorithmic details for the core simulation engine, with 
 
 \subsubsection{Annual Simulation Loop}
 
-The simulation executes a discrete-time loop over the specified horizon $T$ (50 years in this case), generating loss events and updating financial state at annual intervals. Each insured and uninsured scenario pair shares identical random draws through a Common Random Numbers (CRN) strategy described in Section~\ref{sec:crn}. The high-level algorithm proceeds as follows:
+The simulation executes a discrete-time loop over the specified horizon $T$ (50 years in this case), generating loss events and updating financial state at annual intervals. {\color{red}Each insured and uninsured scenario pair shares identical random draws through a Common Random Numbers (CRN) strategy described in Section~\ref{sec:crn}.} The high-level algorithm proceeds as follows:
 
 \begin{algorithmic}[1]
 \State \textbf{Initialize:} $t \gets 0$, Assets$_0 \gets$ initial capital, Equity$_0 \gets$ Assets$_0$
 \State \textbf{Initialize:} Outstanding claims $\mathcal{C} \gets \emptyset$
+{\color{red}
 \While{$t < T$ \textbf{and} Equity$_t > 0$}
     \State Reseed random generators using CRN key $(\text{seed}_{\text{base}}, \text{sim\_id}, t)$
     \State Apply operational volatility shock: $\xi_t \gets \exp\bigl((\mu_\xi - \tfrac{\sigma^2}{2})\Delta t + \sigma\sqrt{\Delta t}\,Z_t\bigr)$
     \State Calculate revenue: $R_t \gets \text{Assets}_t \times \text{TurnoverRatio} \times \xi_t$
     \State Generate loss events $\{L_t^{(i)}\}$ from three-tier loss distribution (see Section~\ref{sec:loss-gen})
     \State $\text{TotalRetained}_t \gets 0$
-    \For{each loss $\ell \in \{L_t^{(i)}\}$} \Comment{Per-occurrence insurance}
+    \For{each loss $\ell \in \{L_t^{(i)}\}$} \Comment{Apply per-occurrence insurance}
         \State Company retention: $r(\ell) \gets \min(\ell, D)$ where $D$ is the per-occurrence deductible
         \State Insurance recovery: $\ell - r(\ell)$ (not modeled on balance sheet)
         \State Create claim liability for $r(\ell)$ with 10-year payment schedule
-        \State Post collateral: Restricted$_t \gets$ Restricted$_t + r(\ell)$
+        \State Post collateral: RestrictedAssets$_t \gets$ RestrictedAssets$_t + r(\ell)$
         \State $\text{TotalRetained}_t \gets \text{TotalRetained}_t + r(\ell)$
     \EndFor
     \State Scale premiums: $\text{Premiums}_t \gets \text{Premiums}_0 \times R_t / R_0$
-    \State Calculate EBIT: $\text{EBIT}_t \gets R_t \times m - \text{Premiums}_t - \text{TotalRetained}_t$
+    \State Calculate EBIT: $\text{EBIT}_t \gets R_t \times m - \text{Premiums}_t - \text{TotalRetained}_t$ ($m$ is operating margin)
     \State Process scheduled claim payments from $\mathcal{C}$; release collateral (Section~\ref{alg:claim-payments})
     \State Calculate LoC cost: $\text{LoC}_t \gets \text{Collateral}_t \times r_{\text{LoC}}$
-    \State Calculate net income: $\text{NI}_t \gets (\text{EBIT}_t - \text{LoC}_t) \times (1 - \tau)$
-    \State Update equity: Equity$_{t+1} \gets$ Equity$_t +$ NI$_t \times \rho$ (where $\rho$ is the retention ratio)
+    \State Calculate net income: $\text{NetIncome}_t \gets (\text{EBIT}_t - \text{LoC}_t) \times (1 - \tau)$ (where $\tau$ is the tax rate)
+    \State Update equity: Equity$_{t+1} \gets$ Equity$_t +$ NetIncome$_t \times \rho$ (where $\rho$ is the retention ratio)
     \State Update assets: Assets$_{t+1} \gets$ Equity$_{t+1} +$ Liabilities$_{t+1}$
     \State $t \gets t + 1$
 \EndWhile
+}
 \State \textbf{Return:} Time series $\{\text{Assets}_t, \text{Equity}_t, \text{Revenue}_t, \text{ROE}_t\}_{t=0}^{T}$
 \end{algorithmic}
 
-Loss events are processed individually through the insurance structure (per-occurrence basis), so each event incurs its own deductible. The retained loss amount is recognized as an expense in the period of incurrence (accrual basis), reducing EBIT, while the corresponding claim liability is added to the balance sheet and paid over a 10-year schedule (Section~\ref{alg:claim-payments}). The operational volatility shock $\xi_t$ is a multiplicative lognormal factor described in Section~\ref{sec:op-vol}.
+{\color{red}Loss events are processed individually through the insurance structure (per-occurrence basis), so each event incurs its own deductible. The retained loss amount is recognized as an expense in the period of incurrence (accrual basis), reducing EBIT, while the corresponding claim liability is added to the balance sheet and paid over a 10-year schedule (Section~\ref{alg:claim-payments}). The operational volatility shock $\xi_t$ is a multiplicative lognormal factor described in Section~\ref{sec:op-vol}.}
 
 The simulation terminates upon insolvency (Equity$_t \leq 0$) or completion of the time horizon. The time-average growth rate for each trajectory is calculated as:
 \begin{equation}
@@ -800,6 +802,7 @@ This logarithmic formulation captures the multiplicative nature of wealth evolut
 
 The annual \texttt{step()} method orchestrates financial statement updates with careful attention to the sequence of operations. The order is critical because each calculation affects subsequent balance sheet items. The method follows this sequence:
 
+{\color{red}
 \begin{algorithmic}[1]
 \State \textbf{Input:} Current balance sheet state, working capital percentage $w$, LoC rate $r_{\text{LoC}}$
 \State \textbf{Step 1: Revenue Calculation}
@@ -813,14 +816,15 @@ The annual \texttt{step()} method orchestrates financial statement updates with 
 \State Process scheduled payments: \{payments, collateral released\} $\gets$ \texttt{pay\_claim\_liabilities()}
 \State Accrue letter of credit charges: $\text{LoC\_cost} \gets \text{Collateral} \times r_{\text{LoC}}$
 \State \textbf{Step 4: Net Income}
-\State Taxable income: $\text{TI} \gets \text{EBIT} - \text{LoC\_cost}$
-\State Net income: $\text{NI} \gets \text{TI} \times (1 - \tau)$
+\State Taxable income: $\text{TaxableIncome} \gets \text{EBIT} - \text{LoC\_cost}$
+\State Net income: $\text{NetIncome} \gets \text{TaxableIncome} \times (1 - \tau)$
 \State \textbf{Step 5: Balance Sheet Update}
-\State Retained earnings: $\text{RE} \gets \text{NI} \times \rho$
-\State Update equity: Equity$_{\text{new}} \gets$ Equity$_{\text{old}} + \text{RE}$
+\State Retained earnings: $\text{RetainedEarnings} \gets \text{NetIncome} \times \rho$
+\State Update equity: Equity$_{\text{new}} \gets$ Equity$_{\text{old}} + \text{RetainedEarnings}$
 \State Update assets: Assets$_{\text{new}} \gets$ Equity$_{\text{new}} + $ Liabilities
 \State \textbf{Return:} Metrics dictionary \{assets, equity, roe, revenue, net\_income, ...\}
 \end{algorithmic}
+}
 
 Retained losses are recognized as operating expenses when incurred (accrual basis), consistent with the journal entry that simultaneously creates the corresponding claim liability on the balance sheet. Scheduled claim payments in Step~3 affect only the balance sheet: reducing both the claim liability and restricted assets (collateral) without further income statement impact.
 
