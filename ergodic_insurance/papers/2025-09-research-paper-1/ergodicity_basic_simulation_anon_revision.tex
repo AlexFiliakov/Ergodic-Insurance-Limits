@@ -928,12 +928,14 @@ Claims follow a standardized 10-year development pattern representing typical lo
 \mathbf{d} = [0.10, 0.20, 0.20, 0.15, 0.10, 0.08, 0.07, 0.05, 0.03, 0.02]
 \end{equation}
 
+{\color{red}
 where $d_k$ is the percentage of the original claim paid in year $k$ (zero-indexed from year of incurrence). This pattern reflects several actuarial features:
 \begin{itemize}
     \item \textbf{Front-loaded payments} (30\% in first two years): Initial payments for clear-cut liability
     \item \textbf{Peak in years 2--3} (20\% each): Settlement of straightforward cases
     \item \textbf{Gradual tail} (years 4--10): Complex litigation, structured settlements, late-developing injuries
 \end{itemize}
+}
 
 The implementation uses a Strategy Pattern where \texttt{ClaimLiability} delegates to a \texttt{ClaimDevelopment} object that defines the payment schedule. The default 10-year long-tail pattern is created via a factory method:
 
@@ -1014,11 +1016,13 @@ This reflects the reality that insurance pricing adjusts to changing exposure ba
 
 \vspace{\baselineskip}
 
+{\color{red}
 \textbf{Expense Recognition:} Premiums are recorded as operating expenses in the year incurred, directly reducing EBIT alongside depreciation:
 \begin{equation}
 \text{EBIT}_t = \text{Revenue}_t \times \text{Margin} - \text{Premium}_t - \text{Depreciation}_t
 \end{equation}
 Retained losses are not deducted from EBIT; their equity impact flows through the balance sheet via claim liabilities (Section~\ref{sec:claim-incurrence}).
+}
 
 This treatment is consistent with the simulation's annual time resolution. More sophisticated implementations could incorporate:
 \begin{itemize}
@@ -1068,6 +1072,7 @@ X_{\text{large}} &\sim \text{Lognormal}(\mu = \$500\text{K}, \text{CV} = 1.5)
 
 \textbf{Tier 3: Catastrophic Losses}
 
+{\color{red}
 Low-probability, high-impact events that threaten business continuity, such as natural disasters, major litigation, or systemic failures. Parameters:
 \begin{align}
 N_{\text{cat}} &\sim \text{Poisson}(\lambda_{\text{cat}}) \quad \text{where } \lambda_{\text{cat}} = 0.02 \times \frac{R_t}{R_0} \\
@@ -1075,6 +1080,7 @@ X_{\text{cat}} &\sim \text{Pareto}(x_{\text{min}} = \$5\text{M}, \alpha = 2.5)
 \end{align}
 
 The Pareto distribution with $\alpha = 2.5$ for catastrophic losses creates heavy-tailed risk: losses can be arbitrarily large, though with declining probability. At this shape parameter the variance is finite (requiring $\alpha > 2$), but the distribution remains sufficiently heavy-tailed to generate occasional losses that materially impair capital. This captures the fundamental uncertainty in extreme events that drives much of the insurance value proposition.
+}
 
 \vspace{\baselineskip}
 
@@ -1083,7 +1089,8 @@ The Pareto distribution with $\alpha = 2.5$ for catastrophic losses creates heav
 L_t = \sum_{i=1}^{N_{\text{att}}(t)} X_{\text{att}}^{(i)} + \sum_{j=1}^{N_{\text{large}}(t)} X_{\text{large}}^{(j)} + \sum_{k=1}^{N_{\text{cat}}(t)} X_{\text{cat}}^{(k)}
 \end{equation}
 
-All loss counts are independent across tiers and years. Claim amounts are drawn independently, and no correlation is modeled between loss types or between losses and business performance (beyond the revenue exposure scaling). These simplifications enhance computational efficiency while maintaining the essential features of manufacturing risk profiles. See Section~3.2 for complete parameter specifications and calibration rationale.
+{\color{red}
+All loss counts are independent across tiers and years. Claim amounts are drawn independently, and no correlation is modeled between loss types or between losses and business performance (other than the revenue exposure scaling). These simplifications enhance computational efficiency while maintaining the essential features of manufacturing risk profiles. See Section~3.2 for complete parameter specifications and calibration rationale.
 
 Note that loss frequencies are scaled by deterministic revenue ($\text{Assets}_t \times \text{TurnoverRatio}$), not the stochastically shocked revenue used in the income statement. This separation ensures that operational volatility affects profitability without artificially inflating or deflating loss counts.
 
@@ -1101,14 +1108,14 @@ where $\sigma$ is the annualized volatility parameter (set to 15\% in this exper
 R_t = \text{Assets}_t \times \text{TurnoverRatio} \times \xi_t
 \end{equation}
 
-The $-\sigma^2/2$ correction in the exponent ensures that $\E[\xi_t] = e^{\mu_\xi \Delta t}$, so the shock is centered around unity in expectation when $\mu_\xi = 0$. This is the standard It\^{o} correction for lognormal processes and produces the familiar \emph{volatility drag} on the time-average growth rate: even when the expected (ensemble-average) growth is zero, the median and geometric-mean outcomes are reduced by $\sigma^2/2$. At $\sigma = 0.15$, this drag is approximately 1.1\% per year, a meaningful penalty that interacts with the insurance decision.
+The $-\sigma^2/2$ correction in the exponent ensures that $\E[\xi_t] = e^{\mu_\xi \Delta t}$, so the shock is centered around unity in expectation when drift $\mu_\xi = 0$. This is the standard It\^{o} correction for lognormal processes and produces the familiar \emph{volatility drag} on the time-average growth rate: even when the expected (ensemble-average) growth is zero, the median and geometric-mean outcomes are reduced by $\sigma^2/2$. At $\sigma = 0.15$, this drag is approximately 1.1\% per year, a meaningful penalty that interacts with the insurance decision.
 
 The stochastic revenue affects the income statement (EBIT and downstream), premium scaling, and balance sheet growth. It does \emph{not} affect loss generation, which uses deterministic revenue to avoid confounding operational volatility with insurance loss dynamics.
 
 \subsubsection{Common Random Numbers (CRN)}
 \label{sec:crn}
 
-To reduce estimator variance when comparing insured and uninsured scenarios, the simulation employs a Common Random Numbers (CRN) strategy. The key insight is that growth lift (the difference between insured and uninsured growth rates) can be estimated much more precisely when both scenarios experience the same underlying random draws.
+To reduce estimator variance when comparing insured and uninsured scenarios, the simulation employs a Common Random Numbers (CRN) strategy. Using CRN, the growth lift (the difference between insured and uninsured growth rates) can be estimated much more precisely because both scenarios experience the same underlying random draws, requiring less simulations to converge.
 
 At each $({\text{sim\_id}}, \text{year})$ boundary, the loss generator and stochastic process are reseeded using a deterministic function of a shared base seed:
 \begin{equation}
@@ -1116,19 +1123,96 @@ At each $({\text{sim\_id}}, \text{year})$ boundary, the loss generator and stoch
 \end{equation}
 where $s$ is the simulation index and $t$ is the year. From each seed, two independent child streams are spawned: one for the loss generator and one for the GBM stochastic process.
 
-This guarantees that simulation path $s$ in year $t$ draws from the same underlying random numbers regardless of whether insurance is present, the deductible level, or any prior path divergence. Consequently, the paired difference $g^{\text{insured}}_{s} - g^{\text{uninsured}}_{s}$ has much lower variance than the unpaired estimator, enabling precise estimation of growth lift even when the individual growth rate distributions are wide. The CRN base seed for this experiment is 20260130.
+This guarantees that simulation path $s$ in year $t$ draws from the same underlying random numbers regardless of whether insurance is present, the deductible level, or any prior path divergence. Consequently, the paired difference $g^{\text{insured}}_{s} - g^{\text{uninsured}}_{s}$ has much lower variance than the unpaired estimator, enabling more precise estimation of growth lift even when the individual growth rate distributions are wide. The CRN base seed for this experiment is 20260130.
+}
 
 \subsection{Code Repository}\label{sec:code-repo}
 
-The GitHub repository at \url{https://mostlyoptimal.com/GitHub}\\
-contains the complete implementation, including features beyond those exercised in this experiment:
-\begin{itemize}
-    \item Stochastic revenue processes via Geometric Brownian Motion (used in this experiment at $\sigma = 0.15$)
-    \item Multi-layer insurance tower structures with reinstatement provisions
-    \item Common Random Numbers (CRN) variance reduction for paired scenario comparison
-    \item Parallel Monte Carlo execution with ledger-based double-entry accounting
-    \item Configurable claim development patterns (immediate, 5-year, 10-year, 15-year, custom)
-    \item The starter guide is available at: \url{https://mostlyoptimal.com/tutorial}
+The GitHub repository at \url{https://mostlyoptimal.com/GitHub#reproducible-research}
+contains the complete framework implementation, as well as the code to run the experiment described here. A starter guide is available at: \url{https://mostlyoptimal.com/tutorial}.
+
+The framework includes the following capabilities beyond those exercised in this experiment:
+
+{\color{red}
+\textbf{Insurance Program Structure:}
+\begin{itemize}[nosep]
+    \item Multi-layer insurance tower structures with per-occurrence, aggregate, and hybrid limit types
+    \item Reinstatement provisions (pro-rata, full, free) with automatic reactivation tracking
+    \item Variable participation rates per layer
+    \item Layer width optimization and automated multi-layer program design
 \end{itemize}
+
+\textbf{Insurance Pricing:}
+\begin{itemize}[nosep]
+    \item Market cycle modeling (hard, normal, soft markets) with cycle transition simulation
+    \item Pure premium, technical premium, and market premium calculation with loadings
+    \item Dynamic premium scaling tied to exposure base metrics
+\end{itemize}
+
+\textbf{Financial Accounting:}
+\begin{itemize}[nosep]
+    \item Full double-entry accounting ledger with 40+ accounts
+    \item Monthly time resolution with intra-period liquidity checking
+    \item Working capital management (accounts receivable, inventory, accounts payable) with DSO/DIO/DPO ratios
+    \item Property, plant \& equipment with depreciation expense tracking
+    \item Prepaid insurance asset recognition with monthly amortization
+    \item GAAP-compliant income statements, balance sheets, and cash flow statements
+\end{itemize}
+
+\textbf{Loss Modeling:}
+\begin{itemize}[nosep]
+    \item Inflation and trend adjustments: linear, random walk, and mean-reverting severity trends
+    \item Alternative claim development patterns: immediate (property), 5-year (workers compensation), 15-year (product liability), and custom user-defined schedules
+    \item IBNR (incurred but not reported) estimation and case reserve calculation
+\end{itemize}
+
+\textbf{Stochastic Processes:}
+\begin{itemize}[nosep]
+    \item Mean-reverting (Ornstein--Uhlenbeck) process as alternative to GBM
+    \item Lognormal volatility model
+    \item Factory pattern for flexible process instantiation from configuration
+\end{itemize}
+
+\textbf{Monte Carlo Engine:}
+\begin{itemize}[nosep]
+    \item Parallel execution with shared-memory optimization and load-balanced chunking
+    \item Adaptive stopping criteria with formal convergence diagnostics (Geweke test, Heidelberger--Welch test, $\hat{R}$ potential scale reduction factor, effective sample size)
+    \item Trajectory storage backends (HDF5, memory-mapped arrays) for full path retention
+\end{itemize}
+
+\textbf{Risk Metrics:}
+\begin{itemize}[nosep]
+    \item Value at Risk (VaR) and Tail Value at Risk (TVaR) with bootstrap confidence intervals
+    \item Probable Maximum Loss (PML) at specified return periods
+    \item Economic capital calculation, tail index estimation (Hill's estimator)
+    \item Risk-adjusted performance ratios (Sharpe, Sortino, Calmar) and maximum drawdown
+\end{itemize}
+
+\textbf{Optimization:}
+\begin{itemize}[nosep]
+    \item Insurance decision engine with multiple constraint types (capital, liquidity, regulatory)
+    \item Multi-objective Pareto frontier generation (weighted sum, $\varepsilon$-constraint, evolutionary) with hypervolume calculation and knee-point detection
+    \item Hamilton--Jacobi--Bellman optimal control solver with log-utility, power-utility, and expected-wealth objective functions
+    \item Multiple optimization algorithms: trust region, penalty method, augmented Lagrangian, differential evolution, multi-start global search
+\end{itemize}
+
+\textbf{Sensitivity, Scenario Analysis, and Validation:}
+\begin{itemize}[nosep]
+    \item One-way and two-way sensitivity analysis with tornado diagram generation
+    \item Parameter sweep framework with adaptive refinement of promising regions
+    \item Scenario management with grid search, random search, and comparison tools
+    \item Walk-forward out-of-sample validation with overfitting detection
+    \item Strategy backtesting with pre-built insurance strategies (conservative, aggressive, optimized, adaptive)
+    \item Bootstrap confidence intervals and statistical significance testing
+\end{itemize}
+
+\textbf{Configuration and Reporting:}
+\begin{itemize}[nosep]
+    \item Industry-specific configuration profiles for different manufacturing sectors
+    \item Seasonal revenue patterns and fiscal year flexibility
+    \item Excel export with formatted multi-sheet workbooks
+    \item Comprehensive visualization suite for executive and technical audiences
+\end{itemize}
+}
 
 \end{document}

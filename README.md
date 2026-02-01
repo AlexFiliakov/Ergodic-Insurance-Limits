@@ -93,6 +93,10 @@ flowchart LR
 
 - [Ergodic Insurance Part 1: From Cost Center to Growth Engine: When N=1](https://medium.com/@alexfiliakov/ergodic-insurance-part-1-from-cost-center-to-growth-engine-when-n-1-52c17b048a94)
 
+## Reproducible Research
+
+This section will contain notebooks to reproduce research findings.
+
 ## Installation
 
 ### Prerequisites
