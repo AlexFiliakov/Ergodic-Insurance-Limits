@@ -169,21 +169,32 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         total_loss = sum(loss.amount for loss in year_losses)
         result_arrays["annual_losses"][year] = total_loss
 
-        # Apply insurance using configured insurance program
-        if total_loss > 0:
-            claim_result = insurance_program.process_claim(total_loss)
-            recovery = claim_result.get("insurance_recovery", 0)
-            retained = total_loss - recovery
-        else:
-            recovery = 0.0
-            retained = 0.0
+        # Apply insurance PER OCCURRENCE (not aggregate) and create
+        # ClaimLiability objects with LoC collateral (Issue #342).
+        # Previously this path applied insurance to the aggregate total_loss,
+        # which mis-applied per-occurrence deductibles.
+        total_recovery = 0.0
+        total_retained = 0.0
 
-        result_arrays["insurance_recoveries"][year] = recovery
-        result_arrays["retained_losses"][year] = retained
+        for loss_event in year_losses:
+            if loss_event.amount > 0:
+                claim_result = insurance_program.process_claim(loss_event.amount)
+                event_recovery = claim_result.get("insurance_recovery", 0)
+                event_retained = loss_event.amount - event_recovery
 
-        # Record retained loss for income statement calculation
-        if retained > 0:
-            manufacturer.record_insurance_loss(retained)
+                total_recovery += event_recovery
+                total_retained += event_retained
+
+                # Create ClaimLiability and post collateral for the retained
+                # portion. See Issue #342 for double-counting rationale.
+                if event_retained > 0:
+                    manufacturer.process_insurance_claim(
+                        claim_amount=loss_event.amount,
+                        insurance_recovery=event_recovery,
+                    )
+
+        result_arrays["insurance_recoveries"][year] = total_recovery
+        result_arrays["retained_losses"][year] = total_retained
 
         # Step the manufacturer (growth, etc.)
         manufacturer.step()
@@ -1016,7 +1027,8 @@ class MonteCarloEngine:
             total_loss = sum(event.amount for event in events)
             annual_losses[year] = total_loss
 
-            # Apply insurance PER OCCURRENCE (not aggregate)
+            # Apply insurance PER OCCURRENCE (not aggregate) and create
+            # ClaimLiability objects with LoC collateral (Issue #342).
             total_recovery = 0
             total_retained = 0
 
@@ -1029,19 +1041,20 @@ class MonteCarloEngine:
                 total_recovery += event_recovery
                 total_retained += event_retained
 
+                # Create ClaimLiability and post collateral for the retained
+                # portion. The liability reduces equity via the balance sheet
+                # (equity = assets - liabilities). We do NOT also call
+                # record_insurance_loss() to avoid double-counting: the
+                # liability already reduces equity, so reducing operating
+                # income would penalise equity a second time.
+                if event_retained > 0:
+                    manufacturer.process_insurance_claim(
+                        claim_amount=event.amount,
+                        insurance_recovery=event_recovery,
+                    )
+
             insurance_recoveries[year] = total_recovery
             retained_losses[year] = total_retained
-            retained = total_retained
-
-            # Record retained loss for income statement calculation
-            # The loss will reduce operating income, which reduces net income,
-            # which reduces retained earnings added to cash in the step() method
-            # DO NOT directly manipulate cash here to avoid double-counting
-            if retained > 0:
-                # Record the loss for tax deduction and income calculation
-                manufacturer.record_insurance_loss(retained)
-                # Note: The actual cash impact happens through the income statement
-                # in manufacturer.step() when retained earnings are calculated
 
             # Calculate insurance premium scaled by revenue
             # Premium should scale with exposure (revenue)
