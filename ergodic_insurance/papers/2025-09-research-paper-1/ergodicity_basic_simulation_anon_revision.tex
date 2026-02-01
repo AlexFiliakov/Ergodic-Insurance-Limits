@@ -622,6 +622,7 @@ These frictions would increase the value of insurance beyond the modeled growth 
     \item \textbf{Tax asymmetries} beyond the basic corporate rate modeled (e.g., loss carryforward limitations, alternative minimum tax)
     \item \textbf{Stakeholder preferences} from boards, shareholders, or management with non-growth objectives (e.g., earnings stability, dividend consistency)
     \item \textbf{Competitive and strategic considerations} where financial distress creates market share losses or acquisition vulnerability
+    \item {\color{red}\textbf{Reserve development uncertainty}: the model assumes ultimate claim amounts are known at inception, whereas real reserves are estimates subject to adverse or favorable development over the payment period (see Technical Appendix, Section~\ref{sec:claim-incurrence})}
 \end{itemize}
 
 \vspace{\baselineskip}
@@ -915,6 +916,8 @@ Equity & Decreases (A $-$ L identity) & Affected by LoC costs \\
 }
 
 This temporal structure is fundamental to the model's realism. It captures the actuarial reality that claim liabilities are recognized immediately when the insured event occurs (accrual accounting), but cash settlements follow a protracted schedule driven by investigation, negotiation, litigation, and payment processing.
+
+{\color{red}\textbf{Reserve estimation simplification.} The model assumes that ultimate claim amounts are known exactly at inception: the full retained loss $L_{\text{company}}$ is booked as a liability immediately, and all subsequent payments follow the predetermined development pattern without revision. In practice, initial reserves are estimates subject to considerable uncertainty, and actuarial reserve development, whether adverse or favorable, can materially alter a company's financial trajectory over the payment period. Incorporating stochastic reserve development (e.g., via a Bornhuetter--Ferguson or chain-ladder model with parameter uncertainty) would add realism but also substantial complexity. This is a natural extension for future work.}
 
 \subsubsection{Multi-Year Claim Payment Schedule}
 \label{alg:claim-payments}
