@@ -446,6 +446,7 @@ The simulation explores a multidimensional parameter space that captures key dri
     \item No regulatory capital requirements
     \item No investment income
     \item Timing resolution is annual (not monthly)
+    \item {\color{red}Retained losses reduce equity through the balance sheet (claim liabilities) rather than through the income statement (EBIT). This avoids double-counting in the ledger-based equity computation but foregoes the tax deduction on losses in the year of incurrence. The effect is symmetric across insured and uninsured scenarios.}
     \item Letter of Credit (LoC) mechanism for claim collateral:
         \begin{itemize}[label=$\circ$]
             \item When losses occur, the company's deductible portion requires immediate collateral via LoC, which has a 1.5\% annual interest rate charge on outstanding total collateral
@@ -768,16 +769,14 @@ The simulation executes a discrete-time loop over the specified horizon $T$ (50 
     \State Apply operational volatility shock: $\xi_t \gets \exp\bigl((\mu_\xi - \tfrac{\sigma^2}{2})\Delta t + \sigma\sqrt{\Delta t}\,Z_t\bigr)$
     \State Calculate revenue: $R_t \gets \text{Assets}_t \times \text{TurnoverRatio} \times \xi_t$
     \State Generate loss events $\{L_t^{(i)}\}$ from three-tier loss distribution (see Section~\ref{sec:loss-gen})
-    \State $\text{TotalRetained}_t \gets 0$
     \For{each loss $\ell \in \{L_t^{(i)}\}$} \Comment{Apply per-occurrence insurance}
         \State Company retention: $r(\ell) \gets \min(\ell, D)$ where $D$ is the per-occurrence deductible
         \State Insurance recovery: $\ell - r(\ell)$ (not modeled on balance sheet)
-        \State Create claim liability for $r(\ell)$ with 10-year payment schedule
+        \State Create claim liability for $r(\ell)$ with 10-year payment schedule \Comment{Equity $\downarrow$ via A$-$L}
         \State Post collateral: RestrictedAssets$_t \gets$ RestrictedAssets$_t + r(\ell)$
-        \State $\text{TotalRetained}_t \gets \text{TotalRetained}_t + r(\ell)$
     \EndFor
     \State Scale premiums: $\text{Premiums}_t \gets \text{Premiums}_0 \times R_t / R_0$
-    \State Calculate EBIT: $\text{EBIT}_t \gets R_t \times m - \text{Premiums}_t - \text{TotalRetained}_t$ ($m$ is operating margin)
+    \State Calculate EBIT: $\text{EBIT}_t \gets R_t \times m - \text{Premiums}_t$ ($m$ is operating margin; retained losses bypass EBIT)
     \State Process scheduled claim payments from $\mathcal{C}$; release collateral (Section~\ref{alg:claim-payments})
     \State Calculate LoC cost: $\text{LoC}_t \gets \text{Collateral}_t \times r_{\text{LoC}}$
     \State Calculate net income: $\text{NetIncome}_t \gets (\text{EBIT}_t - \text{LoC}_t) \times (1 - \tau)$ (where $\tau$ is the tax rate)
@@ -789,7 +788,7 @@ The simulation executes a discrete-time loop over the specified horizon $T$ (50 
 \State \textbf{Return:} Time series $\{\text{Assets}_t, \text{Equity}_t, \text{Revenue}_t, \text{ROE}_t\}_{t=0}^{T}$
 \end{algorithmic}
 
-{\color{red}Loss events are processed individually through the insurance structure (per-occurrence basis), so each event incurs its own deductible. The retained loss amount is recognized as an expense in the period of incurrence (accrual basis), reducing EBIT, while the corresponding claim liability is added to the balance sheet and paid over a 10-year schedule (Section~\ref{alg:claim-payments}). The operational volatility shock $\xi_t$ is a multiplicative lognormal factor described in Section~\ref{sec:op-vol}.}
+{\color{red}Loss events are processed individually through the insurance structure (per-occurrence basis), so each event incurs its own deductible. Each retained loss creates a claim liability on the balance sheet, reducing equity directly through the accounting identity (Equity $=$ Assets $-$ Liabilities). The claim liability is paid over a 10-year schedule (Section~\ref{alg:claim-payments}). Retained losses do not appear as a separate line in EBIT; their equity impact flows entirely through the balance sheet rather than the income statement. This avoids double-counting in the ledger-based equity computation but foregoes the tax deduction on losses in the year of incurrence---a simplification whose effect is symmetric across insured and uninsured scenarios and therefore does not affect the relative comparisons that are the focus of this paper. The operational volatility shock $\xi_t$ is a multiplicative lognormal factor described in Section~\ref{sec:op-vol}.}
 
 The simulation terminates upon insolvency (Equity$_t \leq 0$) or completion of the time horizon. The time-average growth rate for each trajectory is calculated as:
 \begin{equation}
@@ -809,9 +808,9 @@ The annual \texttt{step()} method orchestrates financial statement updates with 
 \State Adjust for working capital: $A_{\text{eff}} \gets \frac{\text{Assets}}{1 + \text{Turnover} \times w}$ \text{ (}$w$ \text{is 0\% in this experiment)}
 \State Apply operational volatility: $R \gets A_{\text{eff}} \times \text{TurnoverRatio} \times \xi_t$ (see Section~\ref{sec:op-vol})
 \State \textbf{Step 2: Operating Income}
-\State Calculate operating income including all period costs:
-\State $\text{EBIT} \gets R \times m - \text{Premiums} - \text{RetainedLosses} - \text{Depreciation}$
-\State where RetainedLosses is the sum of company-retained portions of all losses incurred this period
+\State Calculate operating income from recurring period costs:
+\State $\text{EBIT} \gets R \times m - \text{Premiums} - \text{Depreciation}$
+\State Retained losses reduce equity via the balance sheet (claim liabilities), not via EBIT
 \State \textbf{Step 3: Claim Payments and Collateral}
 \State Process scheduled payments: \{payments, collateral released\} $\gets$ \texttt{pay\_claim\_liabilities()}
 \State Accrue letter of credit charges: $\text{LoC\_cost} \gets \text{Collateral} \times r_{\text{LoC}}$
@@ -826,7 +825,7 @@ The annual \texttt{step()} method orchestrates financial statement updates with 
 \end{algorithmic}
 }
 
-Retained losses are recognized as operating expenses when incurred (accrual basis), consistent with the journal entry that simultaneously creates the corresponding claim liability on the balance sheet. Scheduled claim payments in Step~3 affect only the balance sheet: reducing both the claim liability and restricted assets (collateral) without further income statement impact.
+Retained losses reduce equity through the balance sheet: each loss creates a claim liability (increasing total liabilities) which reduces equity via the accounting identity Equity $=$ Assets $-$ Liabilities. Losses do not appear as a separate deduction in EBIT. This balance-sheet-only treatment avoids double-counting between the income statement and ledger-based equity computation (see Section~\ref{sec:claim-incurrence} for details). Scheduled claim payments in Step~3 also affect only the balance sheet: reducing both the claim liability and restricted assets (collateral) without income statement impact.
 
 \vspace{\baselineskip}
 
@@ -836,9 +835,9 @@ Key equations implemented in this sequence:
 
 \textbf{Operating Income:}
 \begin{equation}
-\text{EBIT} = R \times m - \text{Premiums} - \text{RetainedLosses} - \text{Depreciation}
+\text{EBIT} = R \times m - \text{Premiums} - \text{Depreciation}
 \end{equation}
-where $m$ is the base operating margin. Insurance premiums and company-retained losses are both treated as operating expenses. Depreciation is zero in this experiment (PP\&E ratio $= 0$).
+where $m$ is the base operating margin. Insurance premiums are treated as operating expenses. Depreciation is zero in this experiment (PP\&E ratio $= 0$). Company-retained losses are \emph{not} deducted from EBIT; instead, they reduce equity directly through the balance sheet via claim liabilities (see Section~\ref{sec:claim-incurrence}).
 
 \vspace{\baselineskip}
 
@@ -846,9 +845,10 @@ where $m$ is the base operating margin. Insurance premiums and company-retained 
 \begin{equation}
 \text{Equity}_{t+1} = \text{Equity}_t + (\text{EBIT}_t - \text{LoC\_cost}_t) \times (1-\tau) \times \rho
 \end{equation}
-where $\tau$ is the corporate tax rate and $\rho$ is the earnings retention ratio. Because retained losses are already included in EBIT, the only additional below-the-line deduction is the letter of credit financing cost. Growth is funded entirely through retained earnings (no external capital).
+where $\tau$ is the corporate tax rate and $\rho$ is the earnings retention ratio. EBIT reflects premiums but not retained losses; those reduce equity separately through claim liabilities on the balance sheet. The letter of credit financing cost is a below-the-line deduction. Growth is funded entirely through retained earnings (no external capital). Because retained losses bypass the income statement, they are not tax-deductible in the year of incurrence---a conservative simplification that applies symmetrically to both insured and uninsured scenarios.
 
 \subsubsection{Claim Incurrence versus Payment Timing}
+\label{sec:claim-incurrence}
 
 A critical feature of the simulation is the temporal separation between claim incurrence and claim payment. This distinction creates realistic cash flow dynamics and collateral requirements that fundamentally affect company liquidity and growth trajectories.
 
@@ -862,13 +862,13 @@ When a loss event occurs, the simulation immediately:
 
         $L_{\text{company}} = \min(\text{Deductible}, \text{ClaimAmount})$
 
-    \item Recognizes the retained loss as an operating expense, reducing EBIT for the period
-    \item Creates a corresponding claim liability on the balance sheet: Liabilities$_t \gets$ Liabilities$_{t-1} + L_{\text{company}}$
+    \item Creates a claim liability on the balance sheet: Liabilities$_t \gets$ Liabilities$_{t-1} + L_{\text{company}}$
+    \item This liability increase reduces equity via the accounting identity: Equity $=$ Assets $-$ Liabilities
     \item Posts collateral via Letter of Credit: Collateral$_t \gets$ Collateral$_{t-1} + L_{\text{company}}$
     \item Reclassifies cash to restricted assets: RestrictedAssets$_t \gets$ Collateral$_t$
 \end{enumerate}
 
-Under accrual accounting, the loss expense and the claim liability are two sides of the same journal entry: the expense reduces equity through the income statement while the liability increases the obligations side of the balance sheet, maintaining the accounting equation. \textbf{No cash leaves the company} at claim incurrence. Instead, assets are reclassified from unrestricted to restricted and begin accruing Letter of Credit charges at rate $r_{\text{LoC}}$ (here, 1.5\% annually):
+The claim liability reduces equity through the balance sheet identity (Equity $=$ Assets $-$ Liabilities). In a full GAAP implementation, the loss would also appear as an expense in the income statement; however, because the simulation computes equity directly from ledger balances rather than accumulating retained earnings, routing the loss through both the income statement and the balance sheet would double-count its impact on equity. The simulation therefore recognizes losses solely through the liability mechanism. \textbf{No cash leaves the company} at claim incurrence. Instead, assets are reclassified from unrestricted to restricted and begin accruing Letter of Credit charges at rate $r_{\text{LoC}}$ (here, 1.5\% annually):
 \begin{equation}
 \text{LoC Cost}_t = \text{Collateral}_t \times r_{\text{LoC}}
 \end{equation}
@@ -901,10 +901,10 @@ Cash & Reclassified to Restricted & No change (payments from Restricted) \\
 Restricted Assets & Increases (collateral posted) & Decreases as payments made \\
 Total Assets & No change* & Decreases as payments made \\
 Claim Liabilities & Increases & Decreases as payments made \\
-Equity & Decreases (loss in EBIT) & Affected by LoC costs \\
+Equity & Decreases (A $-$ L identity) & Affected by LoC costs \\
 \bottomrule
 \multicolumn{3}{l}{\small *Asset composition changes (Cash $\to$ Restricted) but total unchanged at incurrence.}\\
-\multicolumn{3}{l}{\small Equity decreases through the income statement when period NI flows to retained earnings.}
+\multicolumn{3}{l}{\small Equity decreases because liabilities increase while assets are unchanged (Equity $=$ Assets $-$ Liabilities).}
 \end{tabular}
 \end{center}
 
@@ -1005,10 +1005,11 @@ This reflects the reality that insurance pricing adjusts to changing exposure ba
 
 \vspace{\baselineskip}
 
-\textbf{Expense Recognition:} Premiums are recorded as operating expenses in the year incurred, directly reducing EBIT alongside retained losses and depreciation:
+\textbf{Expense Recognition:} Premiums are recorded as operating expenses in the year incurred, directly reducing EBIT alongside depreciation:
 \begin{equation}
-\text{EBIT}_t = \text{Revenue}_t \times \text{Margin} - \text{Premium}_t - \text{RetainedLosses}_t - \text{Depreciation}_t
+\text{EBIT}_t = \text{Revenue}_t \times \text{Margin} - \text{Premium}_t - \text{Depreciation}_t
 \end{equation}
+Retained losses are not deducted from EBIT; their equity impact flows through the balance sheet via claim liabilities (Section~\ref{sec:claim-incurrence}).
 
 This treatment is consistent with the simulation's annual time resolution. More sophisticated implementations could incorporate:
 \begin{itemize}
