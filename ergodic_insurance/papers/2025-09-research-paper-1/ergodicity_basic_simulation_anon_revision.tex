@@ -400,7 +400,7 @@ The simulation explores a multidimensional parameter space that captures key dri
         \end{itemize}
 \end{itemize}
 
-\textbf{Key Input Parameters:}
+\noindent \textbf{Key Input Parameters:}
 \begin{itemize}
     \item Initial capital levels vary across [\$5M, \$10M, \$25M]
     \item Asset turnover ratios vary across [0.8, 0.9, 1.0, 1.1, 1.2]
@@ -428,7 +428,7 @@ The simulation explores a multidimensional parameter space that captures key dri
         \end{itemize}
 \end{itemize}
 
-\textbf{Simplifying Assumptions:}
+\noindent \textbf{Simplifying Assumptions:}
 \begin{itemize}
     \item Working capital is set to 0\% of revenue to maximize cash generation
     \item Steady growth rate parameter is set to 0\%; all growth derives from retained earnings
@@ -1126,15 +1126,23 @@ where $s$ is the simulation index and $t$ is the year. From each seed, two indep
 This guarantees that simulation path $s$ in year $t$ draws from the same underlying random numbers regardless of whether insurance is present, the deductible level, or any prior path divergence. Consequently, the paired difference $g^{\text{insured}}_{s} - g^{\text{uninsured}}_{s}$ has much lower variance than the unpaired estimator, enabling more precise estimation of growth lift even when the individual growth rate distributions are wide. The CRN base seed for this experiment is 20260130.
 }
 
+\pagebreak
 \subsection{Code Repository and Reproducible Research}\label{sec:code-repo}
 
 {\color{red}
 The GitHub repository at \url{https://mostlyoptimal.com/GitHub#reproducible-research}
-contains the complete framework implementation, as well as the code to run the experiment described here. A starter guide is available at: \url{https://mostlyoptimal.com/tutorial}.
+contains the complete framework implementation, as well as the code to run the experiment described here.
 
-The framework includes the following capabilities beyond those exercised in this experiment:
+\vspace{\baselineskip}
+
+\noindent A starter guide is available at: \url{https://mostlyoptimal.com/tutorial}.
+
+\vspace{\baselineskip}
+
+\noindent The framework includes the following capabilities beyond those exercised in this experiment:
 
 \textbf{Comprehensive Insurance Program Structure:}
+
 \begin{itemize}[nosep]
     \item Multi-layer insurance tower structures with per-occurrence, aggregate, and hybrid limit types
     \item Reinstatement provisions (pro-rata, full, free) with automatic reactivation tracking
@@ -1188,7 +1196,9 @@ The framework includes the following capabilities beyond those exercised in this
     \item Risk-adjusted performance ratios (Sharpe, Sortino, Calmar) and maximum drawdown
 \end{itemize}
 
+\pagebreak
 \textbf{Management Decision Optimization:}
+\FloatBarrier
 \begin{itemize}[nosep]
     \item Insurance decision engine with multiple constraint types (capital, liquidity, regulatory)
     \item Multi-objective Pareto frontier generation (weighted sum, $\varepsilon$-constraint, evolutionary) with hypervolume calculation and knee-point detection
