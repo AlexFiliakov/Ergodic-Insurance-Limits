@@ -825,7 +825,7 @@ The annual \texttt{step()} method orchestrates financial statement updates with 
 \end{algorithmic}
 }
 
-Retained losses reduce equity through the balance sheet: each loss creates a claim liability (increasing total liabilities) which reduces equity via the accounting identity Equity $=$ Assets $-$ Liabilities. Losses do not appear as a separate deduction in EBIT. This balance-sheet-only treatment avoids double-counting between the income statement and ledger-based equity computation (see Section~\ref{sec:claim-incurrence} for details). Scheduled claim payments in Step~3 also affect only the balance sheet: reducing both the claim liability and restricted assets (collateral) without income statement impact.
+{\color{red}Retained losses reduce equity through the balance sheet: each loss creates a claim liability (increasing total liabilities) which reduces equity via the accounting identity $\text{Equity} = \text{Assets} - \text{Liabilities}$. Losses do not appear as a separate deduction in EBIT. This balance-sheet-only treatment avoids double-counting between the income statement and ledger-based equity computation (see Section~\ref{sec:claim-incurrence} for details). Scheduled claim payments in Step~3 also affect only the balance sheet: reducing both the claim liability and restricted assets (collateral) without income statement impact.}
 
 \vspace{\baselineskip}
 
@@ -837,7 +837,7 @@ Key equations implemented in this sequence:
 \begin{equation}
 \text{EBIT} = R \times m - \text{Premiums} - \text{Depreciation}
 \end{equation}
-where $m$ is the base operating margin. Insurance premiums are treated as operating expenses. Depreciation is zero in this experiment (PP\&E ratio $= 0$). Company-retained losses are \emph{not} deducted from EBIT; instead, they reduce equity directly through the balance sheet via claim liabilities (see Section~\ref{sec:claim-incurrence}).
+where $m$ is the base operating margin. {\color{red}Insurance premiums are treated as operating expenses. Depreciation is zero in this experiment (PP\&E ratio $= 0$). Company-retained losses are \emph{not} deducted from EBIT; instead, they reduce equity directly through the balance sheet via claim liabilities (see Section~\ref{sec:claim-incurrence}).}
 
 \vspace{\baselineskip}
 
@@ -845,7 +845,7 @@ where $m$ is the base operating margin. Insurance premiums are treated as operat
 \begin{equation}
 \text{Equity}_{t+1} = \text{Equity}_t + (\text{EBIT}_t - \text{LoC\_cost}_t) \times (1-\tau) \times \rho
 \end{equation}
-where $\tau$ is the corporate tax rate and $\rho$ is the earnings retention ratio. EBIT reflects premiums but not retained losses; those reduce equity separately through claim liabilities on the balance sheet. The letter of credit financing cost is a below-the-line deduction. Growth is funded entirely through retained earnings (no external capital). Because retained losses bypass the income statement, they are not tax-deductible in the year of incurrence---a conservative simplification that applies symmetrically to both insured and uninsured scenarios.
+where $\tau$ is the corporate tax rate and $\rho$ is the earnings retention ratio. {\color{red}EBIT reflects premiums but not retained losses; those reduce equity separately through claim liabilities on the balance sheet. The letter of credit financing cost is a below-the-line deduction. Growth is funded entirely through retained earnings (no external capital). Because retained losses bypass the income statement, they are not tax-deductible in the year of incurrence (this is a conservative simplification that applies symmetrically to both insured and uninsured scenarios).}
 
 \subsubsection{Claim Incurrence versus Payment Timing}
 \label{sec:claim-incurrence}
@@ -858,6 +858,7 @@ A critical feature of the simulation is the temporal separation between claim in
 
 When a loss event occurs, the simulation immediately:
 \begin{enumerate}
+    {\color{red}
     \item Determines the company's retained portion (per-occurrence deductible):
 
         $L_{\text{company}} = \min(\text{Deductible}, \text{ClaimAmount})$
@@ -866,9 +867,10 @@ When a loss event occurs, the simulation immediately:
     \item This liability increase reduces equity via the accounting identity: Equity $=$ Assets $-$ Liabilities
     \item Posts collateral via Letter of Credit: Collateral$_t \gets$ Collateral$_{t-1} + L_{\text{company}}$
     \item Reclassifies cash to restricted assets: RestrictedAssets$_t \gets$ Collateral$_t$
+    }
 \end{enumerate}
 
-The claim liability reduces equity through the balance sheet identity (Equity $=$ Assets $-$ Liabilities). In a full GAAP implementation, the loss would also appear as an expense in the income statement; however, because the simulation computes equity directly from ledger balances rather than accumulating retained earnings, routing the loss through both the income statement and the balance sheet would double-count its impact on equity. The simulation therefore recognizes losses solely through the liability mechanism. \textbf{No cash leaves the company} at claim incurrence. Instead, assets are reclassified from unrestricted to restricted and begin accruing Letter of Credit charges at rate $r_{\text{LoC}}$ (here, 1.5\% annually):
+{\color{red}The claim liability reduces equity through the balance sheet identity ($\text{Equity} = \text{Assets} - \text{Liabilities}$). In a full GAAP implementation, the loss would also appear as an expense in the income statement; however, because the simulation computes equity directly from ledger balances rather than accumulating retained earnings, routing the loss through both the income statement and the balance sheet would double-count its impact on equity. The simulation therefore recognizes losses solely through the liability mechanism. \textbf{No cash leaves the company at claim incurrence.} Instead, assets are reclassified from unrestricted to restricted and begin accruing Letter of Credit charges at rate $r_{\text{LoC}}$ (here, 1.5\% annually):}
 \begin{equation}
 \text{LoC Cost}_t = \text{Collateral}_t \times r_{\text{LoC}}
 \end{equation}
@@ -876,12 +878,14 @@ The claim liability reduces equity through the balance sheet identity (Equity $=
 \textbf{During Payment Period (Years $t$ through $t+9$):}
 
 Each year, the simulation processes scheduled payments according to the claim development pattern:
+{\color{red}
 \begin{enumerate}
     \item Calculate payment due: $\text{Payment}_{\tau} = L_{\text{company}} \times d_{\tau-t}$ where $d_k$ is the development factor for year $k$
     \item Reduce restricted assets: RestrictedAssets $\gets$ RestrictedAssets $-$ Payment$_{\tau}$
     \item Reduce liability: Liability $\gets$ Liability $-$ Payment$_{\tau}$
     \item Both sides of the balance sheet decrease equally; equity is unaffected
 \end{enumerate}
+}
 
 This creates an asymmetric cash flow profile: \textbf{immediate collateral requirement and ongoing LoC costs, but gradual release of restricted assets}. The restricted assets cannot be used for operations, reducing available capital for revenue generation:
 \begin{equation}
@@ -892,6 +896,7 @@ This creates an asymmetric cash flow profile: \textbf{immediate collateral requi
 
 The accounting identity Assets $=$ Liabilities $+$ Equity is maintained throughout, but the composition changes over the payment period:
 
+{\color{red}
 \begin{center}
 \begin{tabular}{lcc}
 \toprule
@@ -904,9 +909,10 @@ Claim Liabilities & Increases & Decreases as payments made \\
 Equity & Decreases (A $-$ L identity) & Affected by LoC costs \\
 \bottomrule
 \multicolumn{3}{l}{\small *Asset composition changes (Cash $\to$ Restricted) but total unchanged at incurrence.}\\
-\multicolumn{3}{l}{\small Equity decreases because liabilities increase while assets are unchanged (Equity $=$ Assets $-$ Liabilities).}
+\multicolumn{3}{l}{\small Equity decreases because liabilities increase while assets are unchanged.}
 \end{tabular}
 \end{center}
+}
 
 This temporal structure is fundamental to the model's realism. It captures the actuarial reality that claim liabilities are recognized immediately when the insured event occurs (accrual accounting), but cash settlements follow a protracted schedule driven by investigation, negotiation, litigation, and payment processing.
 
