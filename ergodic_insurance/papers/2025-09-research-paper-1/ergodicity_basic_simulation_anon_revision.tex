@@ -84,7 +84,7 @@ A Simulation Framework for Understanding Risk Appetite}}
 \maketitle
 
 \begin{abstract}
-This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using {\color{red}500,000} Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, reveals optimal strategies invisible to traditional analysis. Moderate retention consistently dominates both guaranteed cost and self-insurance extremes. Small companies rationally pay substantial premium loadings because insurance alters multiplicative wealth dynamics. Capitalization, operating margins, and asset turnover drive optimal deductibles far more than industry benchmarks or peer conventions.
+This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using {\color{red}250,000} Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, reveals optimal strategies invisible to traditional analysis. Moderate retention consistently dominates both guaranteed cost and self-insurance extremes. Small companies rationally pay substantial premium loadings because insurance alters multiplicative wealth dynamics. Capitalization, operating margins, and asset turnover drive optimal deductibles far more than industry benchmarks or peer conventions.
 \\\\
 \textbf{Keywords:} ergodicity economics, insurance purchasing, corporate risk management, time-average growth, deductible optimization, Monte Carlo simulation, multiplicative dynamics, risk modeling, property \& casualty insurance, Kelly Criterion, balance sheet modeling, retention strategy
 \end{abstract}
@@ -190,7 +190,7 @@ The Kelly Criterion, developed for gambling and investment allocation, provides 
 
 \subsection{What This Paper Demonstrates}
 
-We develop a comprehensive simulation framework that models corporate balance sheet dynamics under realistic loss distributions, insurance programs, and financial accounting relationships. The model tracks {\color{red}500,000} Monte Carlo paths over 50-year horizons, computing time-average growth rates for companies across different capitalization levels, operating margins, asset turnover ratios, and insurance strategies.
+We develop a comprehensive simulation framework that models corporate balance sheet dynamics under realistic loss distributions, insurance programs, and financial accounting relationships. The model tracks {\color{red}250,000} Monte Carlo paths over 50-year horizons, computing time-average growth rates for companies across different capitalization levels, operating margins, asset turnover ratios, and insurance strategies.
 
 The analysis produces several counterintuitive findings that challenge conventional wisdom:
 
@@ -210,7 +210,7 @@ These findings emerge naturally from the ergodic framework but remain invisible 
 
 This paper provides a \emph{simulation framework} for studying time-average performance of insurance programs under flexible corporate dynamics, not a prescriptive formula for optimal deductibles. The specific numerical results depend heavily on loss distribution parameters, financial assumptions, and modeling choices, none of which perfectly reflect any particular company's reality.
 
-The goal is not to recommend "all \$10M companies should buy \$250K deductibles" but rather to demonstrate \emph{how} ergodic analysis changes insurance valuation and to provide tools for company-specific optimization. We develop a rigorous mathematical foundation with {\color{red}500,000}-path Monte Carlo simulations, a fully specified corporate balance sheet model, and actuarially realistic loss distributions, and then use this machinery to explore the parameter space systematically.
+The goal is not to recommend "all \$10M companies should buy \$250K deductibles" but rather to demonstrate \emph{how} ergodic analysis changes insurance valuation and to provide tools for company-specific optimization. We develop a rigorous mathematical foundation with {\color{red}250,000}-path Monte Carlo simulations, a fully specified corporate balance sheet model, and actuarially realistic loss distributions, and then use this machinery to explore the parameter space systematically.
 
 The primary contribution is methodological: showing \emph{that} time-average growth optimization can be implemented for corporate insurance decisions, \emph{how} it produces qualitatively different recommendations than expected value analysis, and \emph{why} these differences matter for long-term shareholder value. Practitioners can adapt the framework to their specific circumstances, calibrating loss distributions to company data and incorporating constraints invisible to the baseline model.
 
@@ -392,9 +392,9 @@ The simulation explores a multidimensional parameter space that captures key dri
 
 \textbf{Simulation Hyperparameters:}
 \begin{itemize}
-    \item Number of simulation paths ({\color{red}500,000})
+    \item Number of simulation paths ({\color{red}250,000})
     \item Projection horizon (50 years)
-    \item Pricing simulation runs (500,000)
+    \item Pricing simulation runs (1,000,000)
         \begin{itemize}[label=$\circ$]
             \item These runs are used to estimate the starting expected loss for pricing purposes
         \end{itemize}
@@ -479,7 +479,7 @@ The calibration targets reasonableness rather than industry-specific accuracy, m
 
 The simulation employs Monte Carlo methods with:
 \begin{itemize}
-    \item {\color{red}500,000} simulation paths per scenario
+    \item {\color{red}250,000} simulation paths per scenario
     \item 50-year projection horizons
     \item Annual decision points
 \end{itemize}
@@ -491,7 +491,7 @@ Static parameters, such as tailoring the model to a specific industry or company
 
 \subsection{Overview of Results}
 
-The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across {\color{red}500,000} Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, {\color{red}\sout{operating margins, }}asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
+The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across {\color{red}250,000} Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, {\color{red}\sout{operating margins, }}asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
 
 The findings challenge conventional insurance wisdom in several ways: guaranteed cost programs systematically underperform at higher capitalizations, moderate deductibles frequently dominate both extremes, and insurance creates substantial value even when premiums exceed actuarially fair rates. These patterns suggest that traditional expected value frameworks may systematically misprice insurance value for growth-focused enterprises.
 
@@ -1003,7 +1003,7 @@ Insurance premiums follow a simplified timing structure that balances realism wi
 \text{Premium}_0 = \frac{\E[L]_0}{\text{LossRatio}_{\text{target}}}
 \end{equation}
 
-where $\E[L]_0$ is the expected annual loss at initial revenue level, estimated via a separate Monte Carlo simulation with 500,000 pricing runs. Typical target loss ratios are 60\%, 70\%, or 80\%, representing varying degrees of insurer expense loading and profit margin.
+where $\E[L]_0$ is the expected annual loss at initial revenue level, estimated via a separate Monte Carlo simulation with {\color{red}1,000,000 pricing runs. Target loss ratio was set to 70\%.}
 
 \vspace{\baselineskip}
 
@@ -1126,15 +1126,15 @@ where $s$ is the simulation index and $t$ is the year. From each seed, two indep
 This guarantees that simulation path $s$ in year $t$ draws from the same underlying random numbers regardless of whether insurance is present, the deductible level, or any prior path divergence. Consequently, the paired difference $g^{\text{insured}}_{s} - g^{\text{uninsured}}_{s}$ has much lower variance than the unpaired estimator, enabling more precise estimation of growth lift even when the individual growth rate distributions are wide. The CRN base seed for this experiment is 20260130.
 }
 
-\subsection{Code Repository}\label{sec:code-repo}
+\subsection{Code Repository and Reproducible Research}\label{sec:code-repo}
 
+{\color{red}
 The GitHub repository at \url{https://mostlyoptimal.com/GitHub#reproducible-research}
 contains the complete framework implementation, as well as the code to run the experiment described here. A starter guide is available at: \url{https://mostlyoptimal.com/tutorial}.
 
 The framework includes the following capabilities beyond those exercised in this experiment:
 
-{\color{red}
-\textbf{Insurance Program Structure:}
+\textbf{Comprehensive Insurance Program Structure:}
 \begin{itemize}[nosep]
     \item Multi-layer insurance tower structures with per-occurrence, aggregate, and hybrid limit types
     \item Reinstatement provisions (pro-rata, full, free) with automatic reactivation tracking
@@ -1142,21 +1142,21 @@ The framework includes the following capabilities beyond those exercised in this
     \item Layer width optimization and automated multi-layer program design
 \end{itemize}
 
-\textbf{Insurance Pricing:}
+\textbf{Dynamic Insurance Pricing:}
 \begin{itemize}[nosep]
-    \item Market cycle modeling (hard, normal, soft markets) with cycle transition simulation
+    \item Market cycle modeling (hard, normal, soft markets) with regime transition simulation
     \item Pure premium, technical premium, and market premium calculation with loadings
     \item Dynamic premium scaling tied to exposure base metrics
 \end{itemize}
 
-\textbf{Financial Accounting:}
+\textbf{Financial Accounting Following GAAP:}
 \begin{itemize}[nosep]
     \item Full double-entry accounting ledger with 40+ accounts
     \item Monthly time resolution with intra-period liquidity checking
-    \item Working capital management (accounts receivable, inventory, accounts payable) with DSO/DIO/DPO ratios
-    \item Property, plant \& equipment with depreciation expense tracking
+    \item Working capital management (accounts receivable, inventory, accounts payable) including DSO/DIO/DPO ratios
+    \item PP\&E (property, plant \& equipment) with depreciation expense tracking
     \item Prepaid insurance asset recognition with monthly amortization
-    \item GAAP-compliant income statements, balance sheets, and cash flow statements
+    \item GAAP-based income statements, balance sheets, and cash flow statements
 \end{itemize}
 
 \textbf{Loss Modeling:}
@@ -1188,7 +1188,7 @@ The framework includes the following capabilities beyond those exercised in this
     \item Risk-adjusted performance ratios (Sharpe, Sortino, Calmar) and maximum drawdown
 \end{itemize}
 
-\textbf{Optimization:}
+\textbf{Management Decision Optimization:}
 \begin{itemize}[nosep]
     \item Insurance decision engine with multiple constraint types (capital, liquidity, regulatory)
     \item Multi-objective Pareto frontier generation (weighted sum, $\varepsilon$-constraint, evolutionary) with hypervolume calculation and knee-point detection
