@@ -1,0 +1,1216 @@
+\documentclass[11pt,letterpaper]{article}
+
+% Essential packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{float}
+
+% Math packages
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% Table packages
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+
+% List packages
+\usepackage{enumitem}
+\usepackage{float}
+
+% Graphics and plotting
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{subcaption}
+
+% Citation and references
+\usepackage[round,authoryear]{natbib}
+\usepackage{url}
+
+% Code listings and algorithms
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+
+% Formatting
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{placeins}
+
+% Configure code listings for Python
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    captionpos=b
+}
+
+% Hyperlinks (load last)
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+% Custom commands for common actuarial notation
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\text{Var}}
+\newcommand{\Cov}{\text{Cov}}
+\newcommand{\Prob}{\mathbb{P}}
+
+% Header and footer setup
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Ergodicity Simulation Framework for Insurance}
+\fancyhead[R]{}
+\fancyfoot[C]{\thepage}
+
+% Title page information
+\title{\Large \textbf{Ergodicity Economics in Property \& Casualty Insurance: \\
+A Simulation Framework for Understanding Risk Appetite}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using 250,000 Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions and operational volatility. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, reverses optimal strategies due to the Volatility Tax effect.
+\\\\
+\textbf{Keywords:} ergodicity economics, insurance purchasing, corporate risk management, time-average growth, deductible optimization, Monte Carlo simulation, multiplicative dynamics, risk modeling, property \& casualty insurance, Kelly Criterion, balance sheet modeling, retention strategy
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Executive Summary}
+
+\subsection{The Challenge}
+
+Corporate insurance purchasing decisions typically rely on peer benchmarking, broker recommendations, or rules of thumb that may bear little relation to a company's specific financial circumstances. When evaluating whether to select a \$100K or \$500K deductible, most organizations lack rigorous analytical frameworks to quantify how different retention strategies affect long-term shareholder value. Traditional cost-benefit analysis focuses on minimizing expected costs, but this approach systematically undervalues insurance for companies where balance sheet dynamics and growth trajectories depend critically on avoiding capital impairment.
+
+The fundamental question facing corporate decision-makers is not "What deductible do similar companies choose?" but rather "What retention strategy maximizes our long-term growth given our specific capitalization, operating margins, and loss exposures?" Answering this question requires moving beyond expected value calculations to consider how insurance programs alter the time path of corporate wealth accumulation under uncertainty.
+
+\subsection{A New Framework for Risk Transfer Optimization}
+
+This paper introduces an open-source simulation framework that models complete corporate balance sheet dynamics under realistic loss distributions and insurance programs. Rather than treating insurance as a simple cost minimization problem, the framework optimizes time-average growth rates, the metric that determines actual shareholder value creation over multi-year horizons. Using rigorous Monte Carlo simulation with customizable paths and time periods, the model tracks how different deductible strategies affect equity accumulation, retained earnings, cash flow, and ultimately long-term enterprise value.
+
+The framework accounts for critical financial realities often ignored in traditional analysis: losses compound through balance sheet effects, claim payments follow multi-year schedules requiring collateral, operating margins buffer loss impacts, and asset turnover determines exposure intensity. By modeling these dynamics explicitly, the simulation reveals optimization opportunities invisible to conventional expected value frameworks.
+
+\subsection{Key Findings}
+
+The analysis produces several insights relevant to corporate risk transfer decisions:
+
+\vspace{\baselineskip}
+
+\textbf{Insurance Value Compounds Over Time.} Insurance programs that reduce loss volatility create a persistent growth-rate premium that compounds multiplicatively over time. Even modest annual growth advantages (e.g., 50-100 basis points) translate into substantial differences in terminal wealth over multi-decade horizons. This effect is particularly pronounced for smaller companies where individual catastrophic losses represent a significant fraction of equity. This underscores that insurance decisions must be evaluated as part of long-term strategic planning rather than annually at policy renewal.
+
+\vspace{\baselineskip}
+
+\textbf{Volatility Tax Inverts Expected Value Analysis.} Traditional expected value analysis suggests that companies should self-insure or select high deductibles to minimize premium costs. However, the simulation demonstrates that reducing loss volatility through insurance can enhance time-average growth rates even when premiums exceed expected losses. This "Volatility Tax" effect means that insurance creates value by mitigating the multiplicative erosion of wealth from large losses, a dynamic invisible to expected value calculations.
+
+\vspace{\baselineskip}
+
+\textbf{Premium Loadings and Rational Insurance.} Small to mid-market companies can rationally purchase insurance even when premiums substantially exceed expected losses. This finding contradicts traditional expected value logic, which views such programs as "too expensive." The framework demonstrates that insurance creates value by reducing the multiplicative impact of large losses on balance sheet growth, particularly for companies where individual catastrophic events would meaningfully erode equity. The relevant question is not whether premiums exceed expected claims but whether insurance enhances time-average growth rates net of all costs.
+
+\vspace{\baselineskip}
+
+\textbf{Understanding the Business Context is Paramount.} Optimal retention strategies depend critically on company-specific factors: capitalization relative to potential loss severity, operating margins that buffer loss impacts, and asset turnover that determines exposure intensity. Two companies with identical loss distributions but different financial profiles may arrive at radically different optimal insurance strategies. This finding challenges industry conventions that rely on peer benchmarking or one-size-fits-all recommendations.
+
+\subsection{Practical Implications and Value Creation}
+
+Organizations that optimize retention strategies based on their specific financial characteristics rather than peer benchmarking or conventional wisdom can potentially create substantial shareholder value. The framework provides tools to quantify this impact for individual companies, translating abstract insurance decisions into concrete projections of equity accumulation under different scenarios. Companies implementing first-principles optimization can redirect these inefficiencies toward enhanced long-term growth.
+
+The framework is particularly relevant for organizations experiencing significant changes in capitalization, business model, or risk profile; situations where historical practices or peer comparisons provide limited guidance. It enables systematic evaluation of insurance programs as capital allocation decisions rather than cost centers, shifting the conversation from "How do we minimize insurance spending?" to "What retention strategy maximizes enterprise value?"
+
+\subsection{Implementation Path}
+
+The simulation framework is open-source and available for implementation by corporate risk management teams working with actuarial professionals. Organizations interested in applying this approach to their specific circumstances should:
+
+\begin{itemize}
+    \item \textbf{Download the framework} and review the technical documentation, starting with this guide:
+
+        \url{https://mostlyoptimal.com/tutorial}
+
+    \item \textbf{Form an internal task force} including finance, risk management, and actuarial expertise to evaluate the methodology and identify company-specific calibration requirements
+    \item \textbf{Calibrate loss distributions} using historical claims data, industry benchmarks, and company-specific exposure analysis rather than relying solely on insurer estimates
+    \item \textbf{Run company-specific simulations} incorporating actual balance sheet parameters, operating margins, capital structure, and growth projections
+    \item \textbf{Evaluate current insurance programs} against optimized retention strategies to identify value creation opportunities
+\end{itemize}
+
+Important caveats: The specific numerical results presented in this paper depend on modeled assumptions and loss distributions that do not reflect individual company circumstances. The framework provides directional guidance and analytical tools, not prescriptive formulas. Optimal strategies require company-specific calibration incorporating industry dynamics, regulatory constraints, and other factors not fully modeled in the baseline analysis. Organizations should view the framework as enabling rigorous internal analysis rather than offering one-size-fits-all recommendations.
+
+\subsection{Methodological Foundation}
+
+The simulation framework models corporate balance sheet evolution under stochastic loss processes, tracking assets, liabilities, equity, revenues, operating income, insurance premiums, claim payments, collateral requirements, and retained earnings through annual or monthly time steps. Loss distributions incorporate three tiers (attritional, large, and catastrophic events) calibrated to realistic manufacturing company exposures. Insurance programs feature varying deductible and limit levels with premiums scaled to exposure base and loaded for insurer expenses. The model maintains complete accounting relationships and implements realistic claim payment schedules requiring multi-year collateral posting.
+
+Time-average growth rate optimization provides the analytical lens, recognizing that companies experience temporal sequences of outcomes rather than statistical ensemble averages. This approach reveals insurance value that remains invisible when evaluating programs solely through expected cost minimization one year at a time. The framework is transparent and open-source, enabling peer review and adaptation to industry-specific requirements.
+
+The analysis demonstrates that rigorous, company-specific optimization of corporate risk transfer programs is both feasible and valuable. Organizations willing to move beyond conventional practices toward first-principles evaluation can enhance long-term shareholder value while maintaining appropriate protection against catastrophic losses.
+
+\section{Introduction}
+
+When a \$10M company selects a \$100K deductible for its property and casualty insurance program, is that decision based on rigorous analysis or industry convention? When a CFO approves premiums that exceed expected losses by 50\%, is that rational or wasteful? These questions matter: as the global insurance market reaches \$10 trillion annually, most companies lack analytical frameworks to optimize retention strategies or quantify insurance value beyond vague notions of "risk transfer" and "protection."
+
+This paper develops a new simulation framework for analyzing \emph{corporate insurance purchasing decisions} through the lens of ergodicity economics. Unlike traditional expected value analysis, which treats insurance as a cost to be minimized and appeals to psychological utility curves to justify risk aversion, our approach recognizes that insurance fundamentally alters the \emph{time-average growth rate} of companies facing multiplicative risks. We demonstrate that this shift in perspective reveals substantial insurance value invisible to conventional analysis and produces counterintuitive results that challenge standard industry practices.
+
+\subsection{The Problem with Expected Value Analysis}
+
+Traditional approaches to corporate insurance decisions rely on ensemble averages and expected value calculations. Under this framework, insurance appears economically irrational whenever premiums exceed expected losses: why pay \$150K annually to cover losses averaging \$100K? The standard answer invokes risk aversion, behavioral biases, or non-economic factors like regulatory requirements and stakeholder preferences.
+
+But this framing misses something fundamental. Real companies don't experience ensemble averages, they experience \emph{temporal sequences of outcomes} that compound multiplicatively over time. A company suffering a \$5M uninsured loss doesn't care that the ensemble average across thousands of parallel universes would have been \$2M. What matters is the actual path its balance sheet follows: equity eroded, credit constrained, growth opportunities eliminated.
+
+Traditional expected value analysis faces several critical limitations when applied to corporate insurance decisions:
+\begin{itemize}
+    \item \textbf{Ignores path dependence:} Losses compound through balance sheet effects, making the \emph{sequence} of outcomes as important as their statistical distribution
+    \item \textbf{Misses multiplicative dynamics:} Wealth evolves through percentage changes that compound, not additive changes that average
+    \item \textbf{Overlooks company-specific factors:} Optimal strategies depend on capitalization, margins, and exposure intensity, not on industry benchmarks
+    \item \textbf{Encourages peer benchmarking:} "What deductible do similar companies choose?" often substitutes for first-principles analysis, potentially creating systemic antipatterns
+\end{itemize}
+
+These limitations matter most for growth-focused companies, where the question isn't "How do we minimize costs?" but rather "How do we maximize long-term shareholder value under uncertainty?"
+
+\subsection{The Ergodicity Economics Approach}
+
+Ergodicity economics, pioneered by \citet{peters2019ergodicity} and building on \citet{kelly1956new}, offers a fundamentally different lens for decision-making under uncertainty. The key insight: distinguish between \emph{ensemble averages} (expectations across many parallel scenarios) and \emph{time averages} (what individual entities experience over their actual lifetime). When these diverge, as they do for any system with multiplicative wealth dynamics and absorbing barriers like bankruptcy, optimizing ensemble averages leads to systematically poor long-term outcomes.
+
+The Kelly Criterion, developed for gambling and investment allocation, provides the mathematical foundation: maximize the expected logarithm of wealth rather than expected wealth itself. This seemingly subtle shift from $\mathbb{E}[W]$ to $\mathbb{E}[\ln W]$ produces dramatically different optimal strategies because the logarithm penalizes downside outcomes multiplicatively. Applied to insurance, this framework reveals that variance reduction can enhance growth even when premiums substantially exceed actuarially fair rates. Precisely the situation corporate buyers face in competitive insurance markets.
+
+\subsection{What This Paper Demonstrates}
+
+We develop a comprehensive simulation framework that models corporate balance sheet dynamics under realistic loss distributions, insurance programs, and financial accounting relationships. The model tracks 250,000 Monte Carlo paths over 50-year horizons, computing time-average growth rates for companies across different capitalization levels, operating margins, asset turnover ratios, and insurance strategies.
+
+The analysis produces several counterintuitive findings that challenge conventional wisdom:
+
+\begin{itemize}
+    \item \textbf{Guaranteed cost programs often destroy value.} Full coverage with zero deductible consistently underperforms moderate retention strategies, even though it eliminates all retained loss volatility. For larger companies, guaranteed cost can even underperform \emph{complete self-insurance}.
+
+    \item \textbf{Moderate retention strategies dominate both extremes.} The optimal deductible typically falls in the middle of the feasible range—neither guaranteed cost nor self-insurance maximizes growth. This "retention sweet spot" emerges from balancing premium costs against catastrophic loss protection.
+
+    \item \textbf{Capitalization is the dominant driver.} Company size relative to potential loss severity matters far more than industry sector, revenue scale, or absolute premium dollars. A \$5M company derives fundamentally different insurance value than a \$25M company facing similar loss severities.
+
+    \item \textbf{Asset turnover amplifies insurance value.} Capital-efficient companies generating high revenues relative to their balance sheet derive disproportionately greater insurance value because they experience more frequent loss exposures per dollar of equity.
+\end{itemize}
+
+These findings emerge naturally from the ergodic framework but remain invisible to traditional expected value analysis. They suggest that many corporate insurance programs are suboptimally structured, leaving substantial value on the table through either excessive coverage (guaranteed cost) or insufficient protection (overly aggressive retention).
+
+\subsection{A Framework, Not a Formula}
+
+This paper provides a \emph{simulation framework} for studying time-average performance of insurance programs under flexible corporate dynamics, not a prescriptive formula for optimal deductibles. The specific numerical results depend heavily on loss distribution parameters, financial assumptions, and modeling choices, none of which perfectly reflect any particular company's reality.
+
+The goal is not to recommend "all \$10M companies should buy \$250K deductibles" but rather to demonstrate \emph{how} ergodic analysis changes insurance valuation and to provide tools for company-specific optimization. We develop a rigorous mathematical foundation with 250,000-path Monte Carlo simulations, a fully specified corporate balance sheet model, and actuarially realistic loss distributions, and then use this machinery to explore the parameter space systematically.
+
+The primary contribution is methodological: showing \emph{that} time-average growth optimization can be implemented for corporate insurance decisions, \emph{how} it produces qualitatively different recommendations than expected value analysis, and \emph{why} these differences matter for long-term shareholder value. Practitioners can adapt the framework to their specific circumstances, calibrating loss distributions to company data and incorporating constraints invisible to the baseline model.
+
+\subsection{Implications}
+
+The simulation results suggest that corporate insurance markets may be systematically mispricing insurance value. More precisely, \emph{correctly} pricing expected losses while \emph{undervaluing} the time-average growth benefits for certain buyer segments. Companies with low capitalization relative to potential losses should be willing to pay substantial premiums over actuarially fair rates, yet many pursue aggressive retention strategies driven by expected value logic or peer benchmarking.
+
+We encourage corporate risk practitioners to:
+\begin{itemize}
+    \item \textbf{Study company-specific loss costs} using historical claims data, industry benchmarks, and exposure analysis rather than relying solely on insurer-provided estimates
+    \item \textbf{Model corporate balance sheet dynamics} under stochastic loss scenarios to quantify growth impacts beyond point estimates of expected losses
+    \item \textbf{Challenge guaranteed cost conventions} that may persist due to institutional inertia rather than economic optimization
+    \item \textbf{Request time-average analytics} from insurance brokers and actuarial consultants, pushing the industry toward ergodic frameworks
+\end{itemize}
+
+Insurance should not be viewed merely as a cost center subject to minimization but as a \emph{strategic capital allocation decision} that fundamentally affects long-term growth trajectories. The simulation framework developed here provides the analytical foundation for making such decisions rigorously rather than conventionally.
+
+\section{Theoretical Foundation}
+
+\subsection{Ergodicity vs. Non-Ergodicity in Financial Systems}
+
+The distinction between time averages and ensemble averages lies at the heart of ergodic economics, a framework pioneered by \citet{peters2019ergodicity} that challenges fundamental assumptions in economic theory. A stochastic process is ergodic if its time average equals its ensemble average:
+
+\begin{equation}
+\lim_{T \to \infty} \frac{1}{T} \int_0^T f(X_t) dt = \E[f(X)]
+\end{equation}
+
+For ergodic systems, what happens to an individual over time matches the average across many individuals at a single point in time. However, most economic processes violate this equality, creating a fundamental divergence between individual experience and statistical expectations.
+
+The ensemble average represents the expected value across many parallel scenarios:
+\begin{equation}
+\langle W \rangle = \E[W_t] = \frac{1}{N} \sum_{i=1}^{N} W_i(t)
+\end{equation}
+
+where $W_i(t)$ represents the wealth of entity $i$ at time $t$. This is the traditional expected value used in most economic and actuarial analysis.
+
+In contrast, the time average captures what a single entity experiences over its lifetime:
+\begin{equation}
+g_{\text{time}} = \lim_{T \to \infty} \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)
+\end{equation}
+
+For multiplicative processes with uncertainty, Jensen's inequality ensures these two averages diverge systematically, with profound implications for insurance and risk management \citep{peters2016evaluating}. Jensen's inequality states that for random variable $W$ and convex function $f$:
+
+\begin{equation}
+f(\E[W]) \leq \E[f(W)]
+\end{equation}
+
+In the context of multiplicative wealth dynamics, this means that the expected growth rate (ensemble average, right side of the inequality) can be misleadingly optimistic compared to the actual growth experienced over time (time average, left side of the inequality).
+
+\subsection{Insurance Markets as Non-Ergodic Systems}
+
+Insurance markets exhibit fundamentally non-ergodic properties that invalidate traditional expected value analysis. The non-ergodicity arises from several structural features:
+
+\textbf{Multiplicative Wealth Dynamics:} Corporate wealth evolves through multiplicative processes where returns compound on existing capital:
+\begin{equation}
+W_{t+1} = W_t \cdot (1 + r_t - l_t)
+\end{equation}
+where $r_t$ represents returns and $l_t$ represents proportional losses. This multiplicative structure means that the order and magnitude of losses matter critically. For example, a 50\% loss followed by a 50\%~gain leaves wealth at 75\% of its original value, not 100\%.
+
+\textbf{Absorbing Bankruptcy Barrier:} Once a company reaches zero equity (bankruptcy), it cannot recover:
+\begin{equation}
+W_t = 0 \Rightarrow W_{t+k} = 0 \quad \forall k > 0
+\end{equation}
+This absorbing barrier creates fundamental asymmetry: while gains are unbounded, losses are limited to -100\%. The existence of this barrier means that time averages systematically underperform ensemble averages.
+
+\textbf{Path-Dependent Capital Requirements:} Regulatory and market constraints depend on the entire history of losses and capital positions, not just current values. A company that experienced large losses faces higher capital costs and restricted growth opportunities, even after recovering to its original capital level.
+
+\textbf{Finite Decision Horizons:} While ensemble averages assume infinite repeated trials, real companies operate with finite time horizons constrained by management tenure, regulatory cycles, and strategic planning periods. Over finite horizons, the divergence between time and ensemble averages can be substantial.
+
+These non-ergodic features explain why insurance appears valuable even when premiums substantially exceed expected losses. The relevant metric is not the ensemble average (expected value) but the time average (growth rate) \citep{peters2011time}.
+
+\subsection{Mathematical Framework}\label{sec:MathematicalFramework}
+
+Consider a company with wealth $W_t$ evolving under stochastic dynamics. In the absence of insurance, wealth follows:
+\begin{equation}
+W_{t+1} = W_t \cdot \left(1 + \mu - \sigma Z_t - L_t\right)
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\mu$ is the drift (expected return from operations)
+    \item $\sigma Z_t$ represents operational volatility with $Z_t \sim \mathcal{N}(0,1)$
+    \item $L_t$ represents catastrophic losses occurring with frequency $\lambda$ and severity distribution $F_L$, with $L_t < W_t$ (i.e., the firm survives each event)
+\end{itemize}
+
+The time-average growth rate without insurance is:
+\begin{equation}
+g_{\text{uninsured}} = \mu - \frac{\sigma^2}{2} + \lambda \cdot \E\left[\ln\left(1 - \frac{L}{W}\right)\right]
+\end{equation}
+
+The first two terms represent the familiar geometric Brownian motion result, while the third term captures the impact of jump losses. Note the appearance of $\E[\ln(1 - L/W)]$ rather than $\E[L/W]$. This logarithmic transformation is crucial and explains why losses have a disproportionate impact on growth.
+
+With insurance featuring per-occurrence deductible $D$ and premium rate $\pi$, the growth rate becomes:\footnote{This decomposition treats operational volatility and catastrophic losses as additively separable in the log domain, which is valid to first order when $\sigma$ and $L/W$ are small relative to $1 + \mu$.}
+\begin{equation}
+g_{\text{insured}} = \mu - \frac{\sigma^2}{2} - \pi + \lambda \cdot \E\left[\ln\left(1 - \frac{\min(L, D)}{W}\right)\right]
+\end{equation}
+
+The optimal insurance strategy maximizes time-average growth, not expected wealth. This is the same principle underlying the Kelly criterion \citep{kelly1956new}. Setting $g_{\text{insured}} > g_{\text{uninsured}}$ and noting that $\mu$ and $\sigma^2/2$ cancel, insurance creates value even when premiums exceed expected losses ($\pi > \lambda \cdot \E[L]$) whenever:
+
+\begin{equation}
+\lambda \cdot \E\left[\ln\left(\frac{W - \min(L,D)}{W - L} \right)\right] > \pi
+\end{equation}
+
+The gap widens with loss severity variance and the ratio $L/W$. This is the ergodic value of insurance: each unit of catastrophic loss destroys more growth than its expected value suggests, and this disparity grows precisely when ruin risk is most acute.
+
+The simulation that follows explores this inequality numerically under simplified assumptions.
+
+\section{Simulation Framework Overview}
+
+\subsection{Architecture and Key Components}
+
+The simulation framework implements a comprehensive ergodic analysis system that bridges corporate finance, insurance economics, and stochastic modeling. Rather than treating insurance as a simple expected value calculation, the framework captures the fundamental non-ergodicity of business growth under uncertainty.
+
+\subsubsection{Framework Design Philosophy}
+
+The architecture centers on a critical distinction from traditional actuarial models: it compares time-average growth rates (what a single company experiences over its lifetime) with ensemble-average growth rates (statistical expectations across many parallel scenarios). This ergodic economics approach, pioneered by \citet{peters2019ergodicity}, reveals that insurance can enhance growth even when premiums substantially exceed expected losses, a result invisible to traditional expected value analysis.
+
+The framework employs Monte Carlo simulation to generate thousands of independent business trajectories, each experiencing unique sequences of loss events. By tracking individual path dynamics, the system quantifies the lift in time-average growth rate offered by insurance in certain business scenarios.
+
+\subsubsection{Corporate Business Model}
+
+At the framework's core lies an illustrative manufacturing company with realistic financial dynamics. The model tracks complete corporate accounting relationships while maintaining computational efficiency for large-scale simulations.
+
+Revenue generation follows an asset turnover model where annual revenues equal total assets multiplied by an asset turnover ratio (typically 0.8 to 1.2). This approach naturally scales business activity with company size while allowing exploration of capital efficiency effects. Operational volatility is introduced as a multiplicative lognormal shock to annual revenues, parameterized by $\sigma$, representing the year-to-year uncertainty in business performance from market conditions, demand fluctuations, and operational variability. This corresponds to the $\sigma Z_t$ term in the wealth dynamics of Section \ref{sec:MathematicalFramework}, and produces the familiar volatility drag ($\sigma^2/2$) on long-term growth that is characteristic of multiplicative processes. Operating income derives from revenues through configurable operating margins, capturing the fundamental profitability before considering loss events.
+
+The income statement dynamics incorporate operating revenues, margins, claim losses, insurance premiums, and corporate taxes. Critically, revenues serve as the exposure base for loss generation, creating a direct link between business scale and risk exposure. Premiums are calibrated at the outset, assuming accurate matching to the expected loss distribution, and loaded for costs to a realistic target loss ratio. Premiums are subsequently scaled with revenues, in line with the underlying loss exposure base. After-tax earnings flow to retained earnings, driving balance sheet growth absent external capital raises.
+
+Balance sheet evolution tracks assets, liabilities, and equity through time, maintaining the fundamental accounting equation. When losses are incurred, they follow a 10-year payment schedule, reflecting typical commercial insurance claim settlement patterns. The company's portion (deductible amount) requires immediate collateral via letter of credit. The collateral accrues at market rates and is gradually released as claim payments are made over the years. Insurance recoveries are tracked as receivables, but have no practical effect on the company as insurer defaults are not modeled.
+
+\subsubsection{Loss Generation Module}
+
+The framework implements a three-tier loss structure that captures the full spectrum of business risks:
+
+\textbf{Attritional losses} represent high-frequency, low-severity events such as minor operational disruptions, small liability claims, or routine equipment failures. These follow a compound Poisson process with lognormal severities, creating a steady baseline loss burden.
+
+\textbf{Large losses} capture moderate-frequency events with more substantial impact, such as significant liability claims, major equipment breakdowns, or supply chain disruptions. These also follow a compound Poisson-lognormal structure but with parameters shifted toward less frequent, more severe events.
+
+\textbf{Catastrophic losses} model low-probability, high-impact events that can threaten business continuity, such as natural disasters, major litigation, or systemic failures. These events, while rare, fundamentally alter growth trajectories, erode capital, and drive much of the insurance value proposition. Poisson-Pareto distributions capture the heavy-tailed nature of these risks.
+
+Each loss type draws from distinct frequency and severity distributions, with all claim counts scaled by revenue exposure. Claim correlations are not modeled.
+
+\subsubsection{Insurance Mechanism}
+
+The insurance module focuses on deductible optimization, the primary decision variable for most corporate insurance programs. While the framework supports complex insurance towers with multiple attachment points, coverage types and limits, for this first experiment, the configuration was simplified with virtually unlimited coverage. These high coverage limits effectively eliminate ruin risk, isolating the deductible's impact on growth dynamics.
+
+For each loss event, the model determines payment allocation between the company (up to the deductible) and insurers (excess of deductible). Premium calculations incorporate expected losses, expense loadings, and risk charges, with pricing that reflects realistic market conditions rather than actuarially fair rates. Again, for this first experiment, the pricing was simplified to a single target loss ratio, with no risk loadings or insurance cycle dynamics. Future work will explore more sophisticated pricing models.
+
+\subsubsection{Ergodic Analysis Engine}
+
+The framework's analytical core computes and compares growth metrics across insured and uninsured scenarios, revealing the ergodic effects of insurance.
+
+The time-average growth rate for each trajectory is calculated as:
+\begin{equation}
+g_{\text{time}} = \frac{1}{T} \ln\left(\frac{W_T}{W_0}\right)
+\end{equation}
+where $W_T$ represents terminal wealth (equity) and $W_0$ initial wealth. This logarithmic formulation captures the multiplicative nature of business growth, where percentage changes compound over time.
+
+Growth lift quantifies insurance value as the difference between insured and uninsured time-average growth rates:
+\begin{equation}
+\text{Growth Lift} = g_{\text{time}}^{\text{insured}} - g_{\text{time}}^{\text{uninsured}}
+\end{equation}
+
+Positive growth lift indicates that insurance enhances long-term wealth accumulation despite premium costs.
+
+The framework distinguishes between survival optimization (avoiding ruin) and growth optimization (maximizing wealth accumulation). While high coverage limits virtually eliminate bankruptcy risk in the modeled scenarios, different deductible levels create a trade-off between premium costs and retained volatility that affects growth rates. The optimal deductible maximizes time-average growth rather than merely ensuring survival.
+
+\subsubsection{Parameter Interactions}
+
+The simulation explores a multidimensional parameter space that captures key drivers of insurance appetite:
+
+\textbf{Capitalization levels} (\$5M, \$10M, \$25M) represent different company sizes, with smaller firms facing proportionally larger impacts from individual losses. This size effect proves central to understanding why optimal deductibles vary across companies. At retentions beyond \$25M and with the loss distribution unaltered, full retention becomes optimal (i.e., no insurance) as loss volatility relative to capital diminishes, so these higher capitalization levels were removed from consideration.
+
+\textbf{Asset turnover ratios} (0.8 to 1.2) capture capital efficiency, with higher ratios generating more revenue (and thus more loss exposure) per dollar of assets.
+
+\textbf{Per-occurrence deductibles} (\$0 to \$500K, plus self-insurance) represent the primary insurance decision variable in this simulation.
+
+\subsection{Input Parameters and Data Requirements}
+
+\textbf{Simulation Hyperparameters:}
+\begin{itemize}
+    \item Number of simulation paths (250,000)
+    \item Projection horizon (50 years)
+    \item Pricing simulation runs (1,000,000)
+        \begin{itemize}[label=$\circ$]
+            \item These runs are used to estimate the starting expected loss for pricing purposes
+        \end{itemize}
+\end{itemize}
+
+\noindent \textbf{Key Input Parameters:}
+\begin{itemize}
+    \item Initial capital levels vary across [\$5M, \$10M, \$25M]
+    \item Asset turnover ratios vary across [0.8, 0.9, 1.0, 1.1, 1.2]
+    \item Deductible levels vary across [\$0 (guaranteed cost), \$100K, \$250K, \$500K, and no insurance]
+    \item Operating margins are set to 12.5\%
+    \item Operational volatility is set to 15\% of revenue
+    \item Target loss ratios are set to 70\%
+    \item Loss distribution parameters
+        \begin{itemize}[label=$\circ$]
+            \item Attritional losses:
+                \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
+                    \item Frequency: Poisson with mean=2.85 at \$10M revenue
+                    \item Severity: Lognormal with mean=\$40K and CV=0.8
+                \end{itemize}
+            \item Large losses:
+                \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
+                    \item Frequency: Poisson with mean=0.20 at \$10M revenue
+                    \item Severity: Lognormal with mean=\$500K and CV=1.5
+                \end{itemize}
+            \item Catastrophic losses:
+                \begin{itemize}[label=$\raisebox{.45ex}{\rule{.6ex}{.6ex}}$]
+                    \item Frequency: Poisson with mean=0.02 at \$10M revenue
+                    \item Severity: Pareto with minimum value=\$5M and $\alpha$=2.5
+                \end{itemize}
+        \end{itemize}
+\end{itemize}
+
+\noindent \textbf{Simplifying Assumptions:}
+\begin{itemize}
+    \item Working capital is set to 0\% of revenue to maximize cash generation
+    \item Steady growth rate parameter is set to 0\%; all growth derives from retained earnings
+    \item Asset turnover ratios and operating margins are fixed
+    \item Loss events are independent across time and types
+    \item No correlation between losses and business performance (other than through revenue exposure)
+    \item Taxes are applied at a flat rate of 25\%
+    \item PP\&E ratio is set to 0\%; no property, plant, equipment or depreciation expense
+    \item No external capital raises
+    \item Retention ratio is set at 70\% of net income (30\% dividend payout)
+    \item Insurance premiums are fixed at inception using the underlying loss distribution and subsequently scale with revenue
+    \item Insurance pricing uses a fixed target loss ratio without risk loadings or market cycle dynamics
+    \item Insurance recoveries above the deductible have no balance sheet impact; insurer credit risk is not modeled
+    \item No inflation, discounting, or time value of money considerations
+    \item No regulatory capital requirements
+    \item No investment income
+    \item Timing resolution is annual (not monthly)
+    \item Retained losses reduce equity through the balance sheet (claim liabilities) rather than through the income statement (EBIT). This avoids double-counting in the ledger-based equity computation but foregoes the tax deduction on losses in the year of incurrence. The effect is symmetric across insured and uninsured scenarios.
+    \item Letter of Credit (LoC) mechanism for claim collateral:
+        \begin{itemize}[label=$\circ$]
+            \item When losses occur, the company's deductible portion requires immediate collateral via LoC, which has a 1.5\% annual interest rate charge on outstanding total collateral
+            \item Collateral is posted immediately upon claim occurrence
+            \item Collateral is released gradually as claims are paid according to the payment pattern below
+            \item Creates restricted assets on the balance sheet that cannot be used for operations
+            \item The relatively low LoC rate of 1.5\% is intended to mimic net present value without explicitly implementing inflation and discounting factors.
+        \end{itemize}
+    \item Claim payment patterns follow a fixed 10-year schedule independent of claim size:
+        \begin{table}[H]
+            \centering
+            \begin{tabular}{lcccccccccc}
+                \toprule
+                Year & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+                % \midrule
+                Payment \% & 10\% & 20\% & 20\% & 15\% & 10\% & 8\% & 7\% & 5\% & 3\% & 2\% \\
+                \bottomrule
+            \end{tabular}
+            \label{tab:payment_pattern}
+        \end{table}
+\end{itemize}
+
+\subsection{Model Validation and Calibration}
+
+The parameters were calibrated to achieve realistic loss burdens: a company with \$10 million initial capital, 1.0 asset turnover ratio, and a \$100,000 per-occurrence deductible experiences approximately ~7.5\% EBITDA. This is substantial enough to matter strategically but not so punitive as to overwhelm business fundamentals.
+
+The calibration targets reasonableness rather than industry-specific accuracy, maintaining generality for cross-sector insights. Several features present in real businesses are excluded: the model assumes a fixed capital structure with no external financing, deterministic operating margins, a single line of business, and no management responses to adverse experience such as cost reduction or capital raises. Industries with significant mark-to-market asset exposures or complex hedging programs, particularly financial institutions, would require substantial extension of the framework.
+
+\subsection{Computational Considerations}
+
+The simulation employs Monte Carlo methods with:
+\begin{itemize}
+    \item 250,000 simulation paths per scenario
+    \item 50-year projection horizons
+    \item Annual decision points
+\end{itemize}
+
+Parallel processing and efficient data structures ensure tractability despite the high dimensionality of the parameter space. Each full scenario run takes approximately a day on a standard workstation, allowing exploration of multiple parameter combinations within reasonable timeframes. The experiment described in this paper was performed in a cloud computing environment (Google Colab) in a couple of days and at a cost of approximately \$25, so it can be easily replicated by anybody looking to validate or extend the findings.
+
+Static parameters, such as tailoring the model to a specific industry or company, or incorporating discounting, will not significantly affect run times. However, adding stochastic revenue or margin fluctuations, more complex insurance structures, or regulatory capital requirements will increase computational demands and may require further optimization.
+
+\section{Case Study: Ergodic Insurance Under Volatility}
+
+\subsection{Insurance Value Compounds Over Time}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/year_by_year_growth_lift_facets.png}
+    \caption{Every insured configuration outperforms the uninsured baseline. The growth-rate advantage compounds multiplicatively over the firm's lifetime.}
+    \label{fig:year_by_year_growth_lift_facets}
+\end{figure}
+
+As shown in Figure \ref{fig:year_by_year_growth_lift_facets}, across all capitalizations tested (\$5M, \$10M, \$25M) and all asset turnover ratios (0.8, 1.0, 1.2), every insured configuration outperforms the uninsured baseline, and the advantage grows exponentially with time (linear on log-wealth scale). This growth-rate advantage compounds multiplicatively over the firm's lifetime. It demonstrates the core ergodic thesis: when analyzed through time-averages rather than ensemble expectations, insurance transforms from a cost center (negative expected value in the single-period ensemble view) into a growth engine (positive compounding advantage in the multi-period time-average view).
+
+Guaranteed Cost (GC) option dominates all configurations, and the effects scale with capitalization in the modeled region. Lower deductibles produce larger growth advantages at every time horizon and every capitalization level. The ranking \$0 > \$100K > \$250K > \$500K never reverses in the modeled region. This is a direct consequence of the Volatility Tax mechanism detailed in Figure \ref{fig:volatility_tax_vs_premium_savings}. We expect the effect to reverse at higher capitalizations, however, and for some level of retention to become optimal.
+
+Results that follow focus on the \$5M capitalization with Asset Turnover Ratio (ATR) of 1.0 for detailed analysis, though the qualitative conclusions hold directionally across the full parameter grid (\$5M--\$25M capitalization and ATR 0.8--1.2).
+
+\subsection{Volatility Tax Overwhelms Premium Savings}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/volatility_tax_vs_premium_savings.png}
+    \caption{This chart decomposes the growth rate into two components for each insurance configuration: the \textbf{Expected-Value Growth} (the growth rate one would predict from a deterministic, expected-loss analysis) and the \textbf{Volatility Tax} (the additional penalty or bonus arising from stochastic fluctuations). The Actual Growth (blue bars) is the net of these two effects.}
+    \label{fig:volatility_tax_vs_premium_savings}
+\end{figure}
+
+\subsubsection{What is the Volatility Tax?}
+
+In any multiplicative growth process (a firm's year-over-year asset accumulation is inherently multiplicative), variance directly erodes the compound growth rate. This is a fundamental result from stochastic calculus: for a process with expected return $\mu$ and variance $\sigma^2$, the time-average (geometric) growth rate is approximately $\mu - \sigma^2/2$. The $\sigma^2/2$ term is the \textbf{Volatility Tax}.
+
+Consider a simple example: a firm earning +50\% one year and -50\% the next does \textit{not} break even. Starting at \$100, it grows to \$150, then falls to \$75, a cumulative loss of 25\% despite a 0\% average arithmetic return. The difference between the arithmetic average (0\%) and the geometric outcome (-13.4\% annualized) is the volatility tax.
+
+For a business carrying insurance risk, the relevant variance includes both operational revenue volatility (here modeled at $\sigma = 0.15$ via GBM) and the variance of retained losses. Insurance reduces retained-loss variance, thereby reducing the volatility tax.
+
+\subsubsection{Value Reversal}
+
+The expected-value analysis (shown in Figure \ref{fig:volatility_tax_vs_premium_savings} as green bars) tells one story: No Insurance has the highest expected growth (255 bps) because it avoids paying any premium, and higher deductibles save premium relative to GC. A traditional ensemble-average analysis would therefore recommend \textit{against} insurance, or augmented with a notion of risk aversion, at minimum recommend high deductibles to minimize premium expenditure.
+
+The time-average analysis tells the opposite story: GC achieves the highest \textit{actual} compound growth (235 bps) despite having the lowest expected growth (208 bps). The volatility tax of -132 bps for the uninsured path wipes out its 47-bps premium-savings advantage over GC, leaving it 111 bps behind in actual growth.
+
+Uniquely, GC shows a positive volatility effect (+27 bps). This means the actual stochastic growth exceeds the deterministic estimate. This occurs for two reasons:
+
+1. \textbf{Complete loss transfer.} With a \$0 deductible, all losses above zero are covered. The firm pays a fixed, deterministic premium each year. This eliminates retained-loss variance entirely, leaving only the uninsurable revenue volatility from the GBM process.
+
+2. \textbf{Volatility Tax shield efficiency.} Under accrual-basis tax accounting, a constant premium expense is fully deductible every year with no timing mismatch. In contrast, variable retained losses can create years where deductions exceed income (generating net operating losses with limited carryforward utility) followed by years of full taxation on profits. This asymmetric tax treatment penalizes variance, an effect that GC insurance eliminates.
+
+Figure \ref{fig:volatility_tax_vs_premium_savings} makes the case that traditional insurance purchasing decisions based on expected-cost minimization are not just slightly wrong but \textit{directionally} wrong. The rational time-average optimizer buys more insurance, not less, because the volatility tax on retained risk overwhelms any premium savings. We anticipate this conclusion may weaken for larger firms (where the loss-to-asset ratio is smaller, reducing relative variance) and for firms with lower operational volatility. These extensions are left for future work.
+
+\subsection{Survival and Median Outperformance}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/wealth_fan_chart.png}
+    \caption{Side-by-side fan chart comparing the distribution of 50-year wealth trajectories for GC-insured (\$0 deductible) versus uninsured firms, both on a log scale. Two identically-parameterized sets of firms, facing the same loss events and revenue shocks across 250K scenarios, end up in dramatically different places depending on whether they purchased insurance.}
+    \label{fig:wealth_fan_chart}
+\end{figure}
+
+\subsubsection{Survival}
+
+\textbf{Without insurance: 37.8\% insolvency by year 50, with a median time-to-ruin of 20 years.} More than one in three uninsured firms fail during the simulation horizon. The insolvency dots appear evenly across time, indicating that ruin is not primarily a late-life phenomenon, but can occur in any year due to an unforeseen catastrophe.
+
+\textbf{With GC insurance: 0.01\% insolvency.} Virtually every insured path survives the full 50 years. This is mechanically expected because coverage is unlimited, so there is no scenario in which a single loss (or sequence of losses) can overwhelm the insurance protection. The rare insolvencies that do occur are attributable to extreme revenue declines under the GBM process rather than uninsured losses.
+
+The high uninsured ruin rate (38\%) is consistent with the heavy-tailed catastrophic loss model (Pareto $\alpha = 2.5$, $x_m = \$5M$). For a firm with only \$5M in assets, even a single catastrophic event can be terminal. Insurance absorbs these tail events completely, converting a survival gamble into a near-certainty.
+
+\subsubsection{Median Outperformance}
+
+The more surprising result is visible in the median lines. The \textbf{GC-insured median path} (dark blue line, left panel) reaches approximately \$25M by year 50. The \textbf{uninsured median path} (dark orange line, right panel, survivors only) reaches approximately \$14M--\$15M by year 50.
+
+The insured median is roughly \textbf{1.7x the uninsured median}, and this comparison is biased in favor of the uninsured because it's conditioned on survival. The uninsured median excludes the 37.8\% of paths that went bankrupt. If we included those failed paths (at zero terminal wealth), the uninsured median would be near zero.
+
+The fan width also tells a story: the insured fan (5th--95th percentile) is remarkably tight, while the uninsured fan is wide and includes many paths that drop below \$1M before recovering. This reduced dispersion is the manifestation of volatility tax reduction. Insurance compresses the distribution of outcomes, and under multiplicative dynamics, compression benefits the geometric mean.
+
+\subsection{Outcome Distribution}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/insurance_outcome_distribution_basic.png}
+    \caption{Histogram showing the distribution of log-wealth advantage (insured minus uninsured) across the subset of paths where \textbf{both} the insured and uninsured firms survived all 50 years. The x-axis is the difference in log-assets at year 50; positive values mean the insured firm ended wealthier in terms of assets.}
+    \label{fig:insurance_outcome_distribution_basic}
+\end{figure}
+
+Figure \ref{fig:insurance_outcome_distribution_basic} shows that for the \$5M capitalization and 1.0 ATR, the median log-wealth advantage is 0.30 (corresponding to 1.4x wealth). This means the typical insured firm has 40\% more assets than its uninsured counterpart.
+
+\begin{table}[]
+\centering
+\caption{The following table summarizes the histogram results from Figure \ref{fig:insurance_outcome_distribution_basic}.}
+\label{tab:histogram_summary}
+\begin{tabular}{lcl}
+    \multicolumn{1}{c}{Metric} & \multicolumn{1}{c}{Value} & \\
+    \hline
+    Saved from ruin & 37.8\% & (94,607 of 250,000 paths) \\
+    Wealthier at year 50 (all paths) & 86.2\% & (215,538 of 250,000 paths) \\
+    Avg gain when insurance helps & +\$7M & (across 215,538 paths) \\
+    Avg loss when insurance hurts & -\$2M & (across 34,462 paths) \\
+    Gain/Loss asymmetry & 3.4x &
+\end{tabular}
+\end{table}
+
+The 3.4x gain/loss ratio in Table \ref{tab:histogram_summary} means that the expected dollar benefit when insurance helps is more than three times the expected dollar cost when it hurts.
+
+\subsection{Limitations and Boundary Conditions}
+
+Real insurance programs have policy limits and aggregates. Introducing finite limits would reduce but not eliminate the GC advantage, as the most catastrophic tail events would revert to uninsured status.
+
+In practice, premium loading varies across the insurance tower and premiums adjust year-to-year based on loss experience, market conditions, and the insurer's own capital constraints. Dynamic premium modeling could attenuate the growth advantage by introducing premium volatility.
+
+The analysis anticipates that the GC advantage will diminish for larger firms (\$50M+ capitalization) where the loss-to-asset ratio decreases and operational volatility has a proportionally smaller impact on growth rates. This is supported by the observation that even within the tested range, the per-year growth lift for GC decreases as capitalization increases (on a relative, bps basis), though it remains positive and economically significant.
+
+While the simulation results provide valuable directional insights, several important limitations constrain their generalizability. Corporate decision-makers should carefully consider whether their specific circumstances violate key modeling assumptions:
+
+\vspace{\baselineskip}
+
+\textbf{Frequency Tail Correlations:} The Poisson loss frequency assumption implies that high volumes of attritional losses below the deductible are extremely rare and statistically independent. In reality, many operational risks exhibit clustering, as adverse years produce multiple related losses (e.g., supply chain disruptions, product liability waves, regulatory actions). Such correlation would increase the volatility of retained losses, potentially shifting optimal deductibles lower than the simulation suggests and making guaranteed cost strategies more attractive. Companies with known loss correlation patterns should adjust their expectations accordingly.
+
+\vspace{\baselineskip}
+
+\textbf{Regulatory Capital Requirements:} The model does not incorporate regulatory capital requirements, rating agency capital adequacy standards, or debt covenant restrictions that may impose binding constraints on retention decisions. For publicly traded companies, regulated entities, or leveraged businesses, these external constraints may override growth optimization considerations, forcing lower retentions than the ergodic analysis would recommend. The \emph{shadow price} of regulatory capital can be substantial, potentially reversing the guaranteed cost penalty observed here.
+
+\vspace{\baselineskip}
+
+\textbf{Credit and Liquidity Constraints:} The Letter of Credit mechanism assumes companies can costlessly post collateral at 1.5\% annually and face no liquidity constraints. Real companies face:
+\begin{itemize}
+    \item Higher collateral costs or limited credit facility capacity, increasing the effective retention cost
+    \item Cash flow constraints that make large retained losses operationally disruptive, even if balance sheet equity remains positive
+    \item Credit rating impacts from reserve increases, raising borrowing costs and limiting growth opportunities
+\end{itemize}
+
+These frictions would increase the value of insurance beyond the modeled growth lift, particularly for companies with tight credit conditions or those relying on external financing for growth.
+
+\vspace{\baselineskip}
+
+\textbf{Other Unmodeled Factors:} Additional considerations that may affect real-world insurance decisions include:
+\begin{itemize}
+    \item \textbf{Loss control and risk engineering services} provided by insurers, which may reduce expected losses beyond the pure financial transfer
+    \item \textbf{Claims handling expertise} that insurers provide, particularly for complex liability or litigation-intensive exposures
+    \item \textbf{Tax asymmetries} beyond the basic corporate rate modeled (e.g., loss carryforward limitations, alternative minimum tax)
+    \item \textbf{Stakeholder preferences} from boards, shareholders, or management with non-growth objectives (e.g., earnings stability, dividend consistency)
+    \item \textbf{Competitive and strategic considerations} where financial distress creates market share losses or acquisition vulnerability
+    \item \textbf{Reserve development uncertainty}: the model assumes ultimate claim amounts are known at inception, whereas real reserves are estimates subject to adverse or favorable development over the payment period (see Technical Appendix, Section~\ref{sec:claim-incurrence})
+\end{itemize}
+
+\vspace{\baselineskip}
+
+\textbf{Recommendations for Application:} Given these limitations, practitioners should view the simulation results as \emph{directional guidance} rather than prescriptive recommendations. The optimal strategy for any specific company requires:
+\begin{enumerate}
+    \item \textbf{Custom loss distribution calibration} using company-specific historical data, industry benchmarks, and exposure analysis
+    \item \textbf{Incorporation of company-specific constraints} including regulatory capital, credit facilities, and stakeholder requirements
+    \item \textbf{Sensitivity analysis} across parameter uncertainty ranges, particularly for catastrophic loss tail parameters
+    \item \textbf{Scenario testing} for correlated loss events, market cycle dynamics, and business strategy changes
+\end{enumerate}
+
+The simulation framework provides the analytical foundation for such company-specific analyses. CFOs, risk managers, and actuaries are encouraged to adapt the methodology to their particular circumstances rather than applying the illustrated results directly.
+
+\section{Implications for Insurance Decision-Making}
+
+\subsection{Reframing Insurance Value Through Time Averages}
+
+The ergodic perspective fundamentally changes how corporate decision-makers should evaluate insurance. Rather than focusing on expected values and traditional cost-benefit analyses, risk managers must consider the time-average growth rate experienced by their specific company over its operational horizon. This shift reveals that insurance premiums substantially exceeding expected losses can still enhance long-term value creation by reducing the multiplicative impact of catastrophic events.
+
+\subsection{The Ergodic Perspective on Risk Retention}
+
+The simulation demonstrates that some level of risk retention is consistently optimal, challenging both full insurance and complete self-insurance strategies. This finding emerges from the ergodic framework's recognition that predictable attritional losses should be retained while catastrophic tail risks require transfer. The optimal retention level balances premium savings against the growth-destroying potential of large losses.
+
+\subsection{Company Profile Considerations}
+
+\textbf{Important Note:} The specific results presented in this paper are illustrative and depend heavily on the modeled loss distributions, business parameters, and simplifying assumptions. Corporate decision-makers should not apply these findings directly but rather use them as motivation to conduct company-specific ergodic analysis.
+
+Key considerations emerging from the simulation include the critical role of capitalization levels, operating margin buffers, and loss severity distributions in determining optimal insurance strategies. Companies with lower capitalizations relative to potential losses derive substantially more value from insurance, even at higher premium rates.
+
+\subsection{Engaging Actuarial Expertise for Ergodic Analysis}
+
+CFOs and risk managers should engage experienced actuaries to model time-dependent paths specific to their industry and company characteristics. Traditional actuarial analysis focusing on expected values and ensemble statistics may systematically undervalue insurance for growth-focused companies. The actuarial profession must evolve to incorporate ergodic considerations into standard practice, developing new tools and methodologies for time-average optimization.
+
+\subsection{Challenging Traditional Risk Management Metrics}
+
+Standard risk metrics such as Value at Risk (VaR) and Expected Shortfall fail to capture the multiplicative nature of wealth dynamics and the critical distinction between time and ensemble averages. Risk management frameworks must evolve to incorporate ergodic considerations, particularly for long-term strategic decisions where path dependence and growth optimization matter more than short-term volatility measures.
+
+\section{Future Research Directions}
+
+This initial exploration of ergodic insurance optimization reveals numerous opportunities for extending the framework to address current model limitations and enhance practical applicability.
+
+\subsection{Optimizing Complex Insurance Structures}
+
+The current model's simplification to deductible-only structures masks important optimization opportunities in real-world insurance programs. Future research should incorporate:
+\begin{itemize}
+    \item Multi-layer tower structures with different attachment points and limits
+    \item Aggregate deductibles and limits that recognize claim correlation
+    \item Reinstatement provisions and their impact on tail risk protection
+    \item Coverage sub-limits by peril or location
+\end{itemize}
+
+These extensions would enable practitioners to optimize complete insurance programs rather than single-parameter deductibles.
+
+\subsection{Dynamic and Adaptive Insurance Strategies}
+
+Static insurance decisions fail to capture the dynamic nature of business growth and market evolution. Future work should develop:
+\begin{itemize}
+    \item Adaptive strategies that adjust coverage as companies grow
+    \item Market-responsive approaches that capitalize on insurance pricing cycles
+    \item Path-dependent optimization recognizing that insurance decisions affect future growth trajectories
+    \item Switching costs and multi-year contract considerations
+\end{itemize}
+
+\subsection{Incorporating Loss Correlations and Portfolio Effects}
+
+The independence assumption for losses oversimplifies real risk landscapes. Extensions should model:
+\begin{itemize}
+    \item Correlation between different loss types and business lines
+    \item Diversification benefits in multi-line enterprises
+    \item Systemic risks and contagion effects
+    \item Natural hedging opportunities within business portfolios
+\end{itemize}
+
+\subsection{Stochastic Business and Market Dynamics}
+
+Deterministic assumptions limit the model's realism. Future research should incorporate:
+\begin{itemize}
+    \item Inflation, discounting, and time value of money
+    \item Economic cycles affecting both business performance and loss frequencies
+    \item Insurance market cycles and their impact on optimal retention
+    \item Competitive dynamics and market share considerations
+\end{itemize}
+
+\subsection{Industry-Specific Applications and Regulatory Considerations}
+
+The generic manufacturing model requires specialization for practical implementation:
+\begin{itemize}
+    \item Industry-specific loss distributions and exposure bases
+    \item Regulatory capital requirements and their optimization
+    \item Rating agency considerations and cost of capital impacts
+    \item Sector-specific risk factors (e.g., cyber for technology, liability for healthcare)
+\end{itemize}
+
+These extensions would transform the framework from an illustrative model to a practical decision support tool for corporate risk management.
+
+\section{Conclusion}
+
+Under ergodic (time-average) analysis with realistic stochastic volatility ($\sigma = 0.15$), Guaranteed Cost insurance delivers a persistent compound growth advantage of approximately 111 basis points per year over the uninsured baseline for small manufacturers (\$5M capitalization). This advantage compounds over time in the form of growth-rate premium that widens multiplicatively over the firm's horizon. The main driver of this is volatility reduction via the elimination of Volatility Tax, not expected claim recoveries.
+
+While traditional expected-value analysis recommends high deductibles or self-insurance, time-average analysis recommends Guaranteed Cost (lowest possible deductible). This finding scales with vulnerability and is strongest for firms where loss-to-asset variance is highest (small capitalization, high asset turnover, high operational volatility).
+
+\subsection{Reframing Insurance as a Growth Catalyst, Not a Cost}
+
+For small-to-medium manufacturers operating in volatile markets, these results suggest that the conventional wisdom of "retain more risk to save premium" is not just suboptimal but wealth-destroying in the long run. The Volatility Tax on retained risk compounds silently, year after year, eroding the very premium savings that motivated the higher retention. CFOs evaluating insurance purchasing decisions should:
+
+1. Reframe insurance as a growth investment, not a cost. Insurance is not "money lost to premiums," it is money invested in volatility reduction that pays compound dividends.
+
+2. Evaluate insurance decisions over the firm's full strategic planning horizon, not a single policy period.
+
+3. Recognize that survival probability is a critical input to long-run growth. The 37.8\% ruin rate for the uninsured baseline in our example is not an abstract tail risk; it represents a realistic probability of business failure over a multi-decade horizon. Insurance doesn't just improve expected outcomes; it keeps the firm alive to experience those outcomes.
+
+\subsection{Towards Enterprise Applications}
+
+Although the experiment findings are directionally insightful, the main aim of this paper is to introduce the simulation framework and illustrate its application to insurance decision-making. The specific numerical results depend heavily on the modeled loss distributions, business parameters, and simplifying assumptions. Corporate decision-makers should not apply these findings directly but rather use them as motivation to conduct company-specific ergodic analysis. The simulation framework provides a powerful tool for:
+\begin{itemize}
+    \item Understanding temporal risk dynamics
+    \item Optimizing policy decisions
+    \item Informing strategic planning
+\end{itemize}
+
+Viewing strategic planning through the lens of ergodicity will provide new insights for companies making insurance decisions, and this framework is intended to answer questions such as "what is the ROI of our insurance program?", "how much insurance do we need?" and considerations of optimal insurance deductibles and limits.
+
+We encourage industry practitioners to explore these concepts further and welcome collaboration on extending this research and the framework itself.
+
+% Bibliography
+% \bibliographystyle{apalike}
+\bibliographystyle{chicago}
+\bibliography{references}
+
+\pagebreak
+
+% Appendices
+\appendix
+\section{Technical Appendix}
+
+\subsection{Simulation Algorithm Details}
+
+This appendix provides algorithmic details for the core simulation engine, with emphasis on the timing of financial statement updates, insurance claim payments, and premium recognition. Readers interested in full implementation details should consult the GitHub repository referenced in Section~\ref{sec:code-repo}.
+
+\subsubsection{Annual Simulation Loop}
+
+The simulation executes a discrete-time loop over the specified horizon $T$ (50 years in this case), generating loss events and updating financial state at annual intervals. Each insured and uninsured scenario pair shares identical random draws through a Common Random Numbers (CRN) strategy described in Section~\ref{sec:crn}. The high-level algorithm proceeds as follows:
+
+\begin{algorithmic}[1]
+\State \textbf{Initialize:} $t \gets 0$, Assets$_0 \gets$ initial capital, Equity$_0 \gets$ Assets$_0$
+\State \textbf{Initialize:} Outstanding claims $\mathcal{C} \gets \emptyset$
+\While{$t < T$ \textbf{and} Equity$_t > 0$}
+    \State Reseed random generators using CRN key $(\text{seed}_{\text{base}}, \text{sim\_id}, t)$
+    \State Apply operational volatility shock: $\xi_t \gets \exp\bigl((\mu_\xi - \tfrac{\sigma^2}{2})\Delta t + \sigma\sqrt{\Delta t}\,Z_t\bigr)$
+    \State Calculate revenue: $R_t \gets \text{Assets}_t \times \text{TurnoverRatio} \times \xi_t$
+    \State Generate loss events $\{L_t^{(i)}\}$ from three-tier loss distribution (see Section~\ref{sec:loss-gen})
+    \For{each loss $\ell \in \{L_t^{(i)}\}$} \Comment{Apply per-occurrence insurance}
+        \State Company retention: $r(\ell) \gets \min(\ell, D)$ where $D$ is the per-occurrence deductible
+        \State Insurance recovery: $\ell - r(\ell)$ (not modeled on balance sheet)
+        \State Create claim liability for $r(\ell)$ with 10-year payment schedule \Comment{Equity $\downarrow$ via A$-$L}
+        \State Post collateral: RestrictedAssets$_t \gets$ RestrictedAssets$_t + r(\ell)$
+    \EndFor
+    \State Scale premiums: $\text{Premiums}_t \gets \text{Premiums}_0 \times R_t / R_0$
+    \State Calculate EBIT: $\text{EBIT}_t \gets R_t \times m - \text{Premiums}_t$ ($m$ is operating margin; retained losses bypass EBIT)
+    \State Process scheduled claim payments from $\mathcal{C}$; release collateral (Section~\ref{alg:claim-payments})
+    \State Calculate LoC cost: $\text{LoC}_t \gets \text{Collateral}_t \times r_{\text{LoC}}$
+    \State Calculate net income: $\text{NetIncome}_t \gets (\text{EBIT}_t - \text{LoC}_t) \times (1 - \tau)$ (where $\tau$ is the tax rate)
+    \State Update equity: Equity$_{t+1} \gets$ Equity$_t +$ NetIncome$_t \times \rho$ (where $\rho$ is the retention ratio)
+    \State Update assets: Assets$_{t+1} \gets$ Equity$_{t+1} +$ Liabilities$_{t+1}$
+    \State $t \gets t + 1$
+\EndWhile
+\State \textbf{Return:} Time series $\{\text{Assets}_t, \text{Equity}_t, \text{Revenue}_t, \text{ROE}_t\}_{t=0}^{T}$
+\end{algorithmic}
+
+Loss events are processed individually through the insurance structure (per-occurrence basis), so each event incurs its own deductible. Each retained loss creates a claim liability on the balance sheet, reducing equity directly through the accounting identity (Equity $=$ Assets $-$ Liabilities). The claim liability is paid over a 10-year schedule (Section~\ref{alg:claim-payments}). Retained losses do not appear as a separate line in EBIT; their equity impact flows entirely through the balance sheet rather than the income statement. This avoids double-counting in the ledger-based equity computation but foregoes the tax deduction on losses in the year of incurrence---a simplification whose effect is symmetric across insured and uninsured scenarios and therefore does not affect the relative comparisons that are the focus of this paper. The operational volatility shock $\xi_t$ is a multiplicative lognormal factor described in Section~\ref{sec:op-vol}.
+
+The simulation terminates upon insolvency (Equity$_t \leq 0$) or completion of the time horizon. The time-average growth rate for each trajectory is calculated as:
+\begin{equation}
+g_{\text{time}} = \frac{1}{T} \ln\left(\frac{\text{Equity}_T}{\text{Equity}_0}\right)
+\end{equation}
+
+This logarithmic formulation captures the multiplicative nature of wealth evolution and forms the basis for ergodic analysis across Monte Carlo scenarios.
+
+\subsubsection{Balance Sheet Update Mechanism}
+
+The annual \texttt{step()} method orchestrates financial statement updates with careful attention to the sequence of operations. The order is critical because each calculation affects subsequent balance sheet items. The method follows this sequence:
+
+\begin{algorithmic}[1]
+\State \textbf{Input:} Current balance sheet state, working capital percentage $w$, LoC rate $r_{\text{LoC}}$
+\State \textbf{Step 1: Revenue Calculation}
+\State Adjust for working capital: $A_{\text{eff}} \gets \frac{\text{Assets}}{1 + \text{Turnover} \times w}$ \text{ (}$w$ \text{is 0\% in this experiment)}
+\State Apply operational volatility: $R \gets A_{\text{eff}} \times \text{TurnoverRatio} \times \xi_t$ (see Section~\ref{sec:op-vol})
+\State \textbf{Step 2: Operating Income}
+\State Calculate operating income from recurring period costs:
+\State $\text{EBIT} \gets R \times m - \text{Premiums} - \text{Depreciation}$
+\State Retained losses reduce equity via the balance sheet (claim liabilities), not via EBIT
+\State \textbf{Step 3: Claim Payments and Collateral}
+\State Process scheduled payments: \{payments, collateral released\} $\gets$ \texttt{pay\_claim\_liabilities()}
+\State Accrue letter of credit charges: $\text{LoC\_cost} \gets \text{Collateral} \times r_{\text{LoC}}$
+\State \textbf{Step 4: Net Income}
+\State Taxable income: $\text{TaxableIncome} \gets \text{EBIT} - \text{LoC\_cost}$
+\State Net income: $\text{NetIncome} \gets \text{TaxableIncome} \times (1 - \tau)$
+\State \textbf{Step 5: Balance Sheet Update}
+\State Retained earnings: $\text{RetainedEarnings} \gets \text{NetIncome} \times \rho$
+\State Update equity: Equity$_{\text{new}} \gets$ Equity$_{\text{old}} + \text{RetainedEarnings}$
+\State Update assets: Assets$_{\text{new}} \gets$ Equity$_{\text{new}} + $ Liabilities
+\State \textbf{Return:} Metrics dictionary \{assets, equity, roe, revenue, net\_income, ...\}
+\end{algorithmic}
+
+Retained losses reduce equity through the balance sheet: each loss creates a claim liability (increasing total liabilities) which reduces equity via the accounting identity $\text{Equity} = \text{Assets} - \text{Liabilities}$. Losses do not appear as a separate deduction in EBIT. This balance-sheet-only treatment avoids double-counting between the income statement and ledger-based equity computation (see Section~\ref{sec:claim-incurrence} for details). Scheduled claim payments in Step~3 also affect only the balance sheet: reducing both the claim liability and restricted assets (collateral) without income statement impact.
+
+\vspace{\baselineskip}
+
+Key equations implemented in this sequence:
+
+\vspace{\baselineskip}
+
+\textbf{Operating Income:}
+\begin{equation}
+\text{EBIT} = R \times m - \text{Premiums} - \text{Depreciation}
+\end{equation}
+where $m$ is the base operating margin. Insurance premiums are treated as operating expenses. Depreciation is zero in this experiment (PP\&E ratio $= 0$). Company-retained losses are \emph{not} deducted from EBIT; instead, they reduce equity directly through the balance sheet via claim liabilities (see Section~\ref{sec:claim-incurrence}).
+
+\vspace{\baselineskip}
+
+\textbf{Net Income and Equity Growth:}
+\begin{equation}
+\text{Equity}_{t+1} = \text{Equity}_t + (\text{EBIT}_t - \text{LoC\_cost}_t) \times (1-\tau) \times \rho
+\end{equation}
+where $\tau$ is the corporate tax rate and $\rho$ is the earnings retention ratio. EBIT reflects premiums but not retained losses; those reduce equity separately through claim liabilities on the balance sheet. The letter of credit financing cost is a below-the-line deduction. Growth is funded entirely through retained earnings (no external capital). Because retained losses bypass the income statement, they are not tax-deductible in the year of incurrence (this is a conservative simplification that applies symmetrically to both insured and uninsured scenarios).
+
+\subsubsection{Claim Incurrence versus Payment Timing}
+\label{sec:claim-incurrence}
+
+A critical feature of the simulation is the temporal separation between claim incurrence and claim payment. This distinction creates realistic cash flow dynamics and collateral requirements that fundamentally affect company liquidity and growth trajectories.
+
+\vspace{\baselineskip}
+
+\textbf{At Claim Incurrence (Year $t$):}
+
+When a loss event occurs, the simulation immediately:
+\begin{enumerate}
+    \item Determines the company's retained portion (per-occurrence deductible):
+
+        $L_{\text{company}} = \min(\text{Deductible}, \text{ClaimAmount})$
+
+    \item Creates a claim liability on the balance sheet: Liabilities$_t \gets$ Liabilities$_{t-1} + L_{\text{company}}$
+    \item This liability increase reduces equity via the accounting identity: Equity $=$ Assets $-$ Liabilities
+    \item Posts collateral via Letter of Credit: Collateral$_t \gets$ Collateral$_{t-1} + L_{\text{company}}$
+    \item Reclassifies cash to restricted assets: RestrictedAssets$_t \gets$ Collateral$_t$
+\end{enumerate}
+
+The claim liability reduces equity through the balance sheet identity ($\text{Equity} = \text{Assets} - \text{Liabilities}$). In a full GAAP implementation, the loss would also appear as an expense in the income statement; however, because the simulation computes equity directly from ledger balances rather than accumulating retained earnings, routing the loss through both the income statement and the balance sheet would double-count its impact on equity. The simulation therefore recognizes losses solely through the liability mechanism. \textbf{No cash leaves the company at claim incurrence.} Instead, assets are reclassified from unrestricted to restricted and begin accruing Letter of Credit charges at rate $r_{\text{LoC}}$ (here, 1.5\% annually):
+\begin{equation}
+\text{LoC Cost}_t = \text{Collateral}_t \times r_{\text{LoC}}
+\end{equation}
+
+\textbf{During Payment Period (Years $t$ through $t+9$):}
+
+Each year, the simulation processes scheduled payments according to the claim development pattern:
+\begin{enumerate}
+    \item Calculate payment due: $\text{Payment}_{\tau} = L_{\text{company}} \times d_{\tau-t}$ where $d_k$ is the development factor for year $k$
+    \item Reduce restricted assets: RestrictedAssets $\gets$ RestrictedAssets $-$ Payment$_{\tau}$
+    \item Reduce liability: Liability $\gets$ Liability $-$ Payment$_{\tau}$
+    \item Both sides of the balance sheet decrease equally; equity is unaffected
+\end{enumerate}
+
+This creates an asymmetric cash flow profile: \textbf{immediate collateral requirement and ongoing LoC costs, but gradual release of restricted assets}. The restricted assets cannot be used for operations, reducing available capital for revenue generation:
+\begin{equation}
+\text{AvailableAssets}_t = \text{TotalAssets}_t - \text{RestrictedAssets}_t
+\end{equation}
+
+\textbf{Balance Sheet Impact:}
+
+The accounting identity Assets $=$ Liabilities $+$ Equity is maintained throughout, but the composition changes over the payment period:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Balance Sheet Item} & \textbf{At Incurrence} & \textbf{Over Payment Period} \\
+\midrule
+Cash & Reclassified to Restricted & No change (payments from Restricted) \\
+Restricted Assets & Increases (collateral posted) & Decreases as payments made \\
+Total Assets & No change* & Decreases as payments made \\
+Claim Liabilities & Increases & Decreases as payments made \\
+Equity & Decreases (A $-$ L identity) & Affected by LoC costs \\
+\bottomrule
+\multicolumn{3}{l}{\small *Asset composition changes (Cash $\to$ Restricted) but total unchanged at incurrence.}\\
+\multicolumn{3}{l}{\small Equity decreases because liabilities increase while assets are unchanged.}
+\end{tabular}
+\end{center}
+
+This temporal structure is fundamental to the model's realism. It captures the actuarial reality that claim liabilities are recognized immediately when the insured event occurs (accrual accounting), but cash settlements follow a protracted schedule driven by investigation, negotiation, litigation, and payment processing.
+
+\textbf{Reserve estimation simplification.} The model assumes that ultimate claim amounts are known exactly at inception: the full retained loss $L_{\text{company}}$ is booked as a liability immediately, and all subsequent payments follow the predetermined development pattern without revision. In practice, initial reserves are estimates subject to considerable uncertainty, and actuarial reserve development, whether adverse or favorable, can materially alter a company's financial trajectory over the payment period. Incorporating stochastic reserve development (e.g., via a Bornhuetter--Ferguson or chain-ladder model with parameter uncertainty) would add realism but also substantial complexity. This is a natural extension for future work.
+
+\subsubsection{Multi-Year Claim Payment Schedule}
+\label{alg:claim-payments}
+
+Claims follow a standardized 10-year development pattern representing typical long-tail liability settlement, calibrated to general liability and manufacturing claims experience:
+
+\begin{equation}
+\mathbf{d} = [0.10, 0.20, 0.20, 0.15, 0.10, 0.08, 0.07, 0.05, 0.03, 0.02]
+\end{equation}
+
+where $d_k$ is the percentage of the original claim paid in year $k$ (zero-indexed from year of incurrence). This pattern reflects several actuarial features:
+\begin{itemize}
+    \item \textbf{Front-loaded payments} (30\% in first two years): Initial payments for clear-cut liability
+    \item \textbf{Peak in years 2--3} (20\% each): Settlement of straightforward cases
+    \item \textbf{Gradual tail} (years 4--10): Complex litigation, structured settlements, late-developing injuries
+\end{itemize}
+
+The implementation uses a Strategy Pattern where \texttt{ClaimLiability} delegates to a \texttt{ClaimDevelopment} object that defines the payment schedule. The default 10-year long-tail pattern is created via a factory method:
+
+\begin{lstlisting}[language=Python, caption={Claim Payment Calculation}, label={lst:claim-payment}]
+def get_payment(self, years_since_incurred: int) -> Decimal:
+    """Calculate payment due for a given year after claim incurred."""
+    if years_since_incurred < 0:
+        return ZERO
+    payment_year = self.year_incurred + years_since_incurred
+    payment = self.development_strategy.calculate_payments(
+        claim_amount=float(self.original_amount),
+        accident_year=self.year_incurred,
+        payment_year=payment_year,
+    )
+    return to_decimal(payment)
+\end{lstlisting}
+
+Each simulation year, all outstanding claims are processed collectively. Payments are capped at available liquidity (cash plus restricted assets) and allocated proportionally across claims when constrained:
+
+\begin{lstlisting}[language=Python, caption={Annual Claim Payment Processing (simplified)}, label={lst:pay-claims}]
+def pay_claim_liabilities(self, max_payable=None) -> Decimal:
+    """Process scheduled payments for all outstanding claims."""
+    total_paid = ZERO
+
+    # Calculate total scheduled and cap at available liquidity
+    total_scheduled = sum(
+        claim.get_payment(self.current_year - claim.year_incurred)
+        for claim in self.claim_liabilities
+    )
+    payment_ratio = min(1, max_payable / total_scheduled)
+
+    for claim in self.claim_liabilities:
+        years_since = self.current_year - claim.year_incurred
+        scheduled = claim.get_payment(years_since)
+        actual = claim.make_payment(scheduled * payment_ratio)
+        total_paid += actual
+
+        # Double-entry: DR Claim Liability, CR Restricted Cash
+        self.ledger.record_double_entry(
+            debit_account=CLAIM_LIABILITIES,
+            credit_account=RESTRICTED_CASH,
+            amount=actual,
+        )
+
+    # Remove fully paid claims
+    self.claim_liabilities = [c for c in self.claim_liabilities
+                             if c.remaining_amount > 0]
+    return total_paid
+\end{lstlisting}
+
+This approach efficiently handles overlapping claim cohorts: a company may have dozens of claims at various stages of development, each following its own schedule. The collateral balance equals the sum of remaining liabilities across all active claims:
+\begin{equation}
+\text{Collateral}_t = \sum_{c \in \mathcal{C}_t} \text{RemainingLiability}_c
+\end{equation}
+where $\mathcal{C}_t$ is the set of active claims at time $t$.
+
+\subsubsection{Premium Payment and Expense Recognition}
+
+Insurance premiums follow a simplified timing structure that balances realism with computational efficiency:
+
+\vspace{\baselineskip}
+
+\textbf{Premium Calculation:} Premiums are calculated once at simulation inception based on the expected loss distribution and target loss ratio:
+\begin{equation}
+\text{Premium}_0 = \frac{\E[L]_0}{\text{LossRatio}_{\text{target}}}
+\end{equation}
+
+where $\E[L]_0$ is the expected annual loss at initial revenue level, estimated via a separate Monte Carlo simulation with 1,000,000 pricing runs. Target loss ratio was set to 70\%.
+
+\vspace{\baselineskip}
+
+\textbf{Revenue Scaling:} In subsequent years, premiums scale proportionally with revenue to maintain constant coverage relative to exposure:
+\begin{equation}
+\text{Premium}_t = \text{Premium}_0 \times \frac{\text{Revenue}_t}{\text{Revenue}_0}
+\end{equation}
+
+This reflects the reality that insurance pricing adjusts to changing exposure bases, which in this case is revenue, though it is simplified by omitting experience rating, market cycles, and multi-year policy structures (extensions for future research).
+
+\vspace{\baselineskip}
+
+\textbf{Expense Recognition:} Premiums are recorded as operating expenses in the year incurred, directly reducing EBIT alongside depreciation:
+\begin{equation}
+\text{EBIT}_t = \text{Revenue}_t \times \text{Margin} - \text{Premium}_t - \text{Depreciation}_t
+\end{equation}
+Retained losses are not deducted from EBIT; their equity impact flows through the balance sheet via claim liabilities (Section~\ref{sec:claim-incurrence}).
+
+This treatment is consistent with the simulation's annual time resolution. More sophisticated implementations could incorporate:
+\begin{itemize}
+    \item \textbf{Prepaid insurance assets} for annual policies paid in advance, with monthly amortization
+    \item \textbf{Premium accruals} for policies with different payment schedules (quarterly, annual)
+    \item \textbf{Multi-year policies} with premium smoothing and experience-based adjustments
+\end{itemize}
+
+The current implementation trades this complexity for computational speed and conceptual clarity, focusing the analysis on the core ergodic question: how do deductible choices affect long-term growth rates?
+
+\vspace{\baselineskip}
+
+\textbf{Tax Treatment:} Premiums are fully deductible in the year paid, reducing taxable income dollar-for-dollar:
+\begin{equation}
+\text{TaxBenefit}_t = \text{Premium}_t \times \tau
+\end{equation}
+where $\tau = 0.25$ is the corporate tax rate. This partially offsets premium costs, making insurance more attractive on an after-tax basis, which is properly captured in the net income calculation.
+
+\subsubsection{Loss Generation Process}
+\label{sec:loss-gen}
+
+The simulation employs a three-tier loss structure that captures the full spectrum of operational risks facing a manufacturing company. Each tier uses a compound Poisson process where claim counts and severities are independently drawn from calibrated distributions.
+
+\vspace{\baselineskip}
+
+\textbf{Tier 1: Attritional Losses}
+
+High-frequency, low-severity events such as minor equipment failures, small liability claims, and routine operational disruptions. Parameters:
+\begin{align}
+N_{\text{att}} &\sim \text{Poisson}(\lambda_{\text{att}}) \quad \text{where } \lambda_{\text{att}} = 2.85 \times \frac{R_t}{R_0} \\
+X_{\text{att}} &\sim \text{Lognormal}(\mu = \$40\text{K}, \text{CV} = 0.8)
+\end{align}
+
+The revenue scaling factor $R_t / R_0$ ensures claim frequency grows with business exposure.
+
+\vspace{\baselineskip}
+
+\textbf{Tier 2: Large Losses}
+
+Moderate-frequency events with substantial impact, including significant equipment breakdowns, supply chain disruptions, and major liability claims. Parameters:
+\begin{align}
+N_{\text{large}} &\sim \text{Poisson}(\lambda_{\text{large}}) \quad \text{where } \lambda_{\text{large}} = 0.20 \times \frac{R_t}{R_0} \\
+X_{\text{large}} &\sim \text{Lognormal}(\mu = \$500\text{K}, \text{CV} = 1.5)
+\end{align}
+
+\vspace{\baselineskip}
+
+\textbf{Tier 3: Catastrophic Losses}
+
+Low-probability, high-impact events that threaten business continuity, such as natural disasters, major litigation, or systemic failures. Parameters:
+\begin{align}
+N_{\text{cat}} &\sim \text{Poisson}(\lambda_{\text{cat}}) \quad \text{where } \lambda_{\text{cat}} = 0.02 \times \frac{R_t}{R_0} \\
+X_{\text{cat}} &\sim \text{Pareto}(x_{\text{min}} = \$5\text{M}, \alpha = 2.5)
+\end{align}
+
+The Pareto distribution with $\alpha = 2.5$ for catastrophic losses creates heavy-tailed risk: losses can be arbitrarily large, though with declining probability. At this shape parameter the variance is finite (requiring $\alpha > 2$), but the distribution remains sufficiently heavy-tailed to generate occasional losses that materially impair capital. This captures the fundamental uncertainty in extreme events that drives much of the insurance value proposition.
+
+\vspace{\baselineskip}
+
+\textbf{Total Annual Losses:}
+\begin{equation}
+L_t = \sum_{i=1}^{N_{\text{att}}(t)} X_{\text{att}}^{(i)} + \sum_{j=1}^{N_{\text{large}}(t)} X_{\text{large}}^{(j)} + \sum_{k=1}^{N_{\text{cat}}(t)} X_{\text{cat}}^{(k)}
+\end{equation}
+
+All loss counts are independent across tiers and years. Claim amounts are drawn independently, and no correlation is modeled between loss types or between losses and business performance (other than the revenue exposure scaling). These simplifications enhance computational efficiency while maintaining the essential features of manufacturing risk profiles. See Section~3.2 for complete parameter specifications and calibration rationale.
+
+Note that loss frequencies are scaled by deterministic revenue ($\text{Assets}_t \times \text{TurnoverRatio}$), not the stochastically shocked revenue used in the income statement. This separation ensures that operational volatility affects profitability without artificially inflating or deflating loss counts.
+
+\subsubsection{Operational Volatility}
+\label{sec:op-vol}
+
+Revenue is subject to a multiplicative lognormal shock each period, representing year-to-year uncertainty from market conditions, demand fluctuations, and operational variability. This corresponds to the $\sigma Z_t$ term in the mathematical framework of Section~\ref{sec:MathematicalFramework}.
+
+The shock is generated via an exact Geometric Brownian Motion (GBM) step:
+\begin{equation}
+\xi_t = \exp\!\left[\left(\mu_\xi - \frac{\sigma^2}{2}\right)\Delta t \;+\; \sigma\sqrt{\Delta t}\,Z_t\right], \quad Z_t \sim \mathcal{N}(0,1)
+\end{equation}
+where $\sigma$ is the annualized volatility parameter (set to 15\% in this experiment), $\mu_\xi$ is the drift (set to 0), and $\Delta t = 1$ year. Realized revenue for the period is then:
+\begin{equation}
+R_t = \text{Assets}_t \times \text{TurnoverRatio} \times \xi_t
+\end{equation}
+
+The $-\sigma^2/2$ correction in the exponent ensures that $\E[\xi_t] = e^{\mu_\xi \Delta t}$, so the shock is centered around unity in expectation when drift $\mu_\xi = 0$. This is the standard It\^{o} correction for lognormal processes and produces the familiar \emph{volatility drag} on the time-average growth rate: even when the expected (ensemble-average) growth is zero, the median and geometric-mean outcomes are reduced by $\sigma^2/2$. At $\sigma = 0.15$, this drag is approximately 1.1\% per year, a meaningful penalty that interacts with the insurance decision.
+
+The stochastic revenue affects the income statement (EBIT and downstream), premium scaling, and balance sheet growth. It does \emph{not} affect loss generation, which uses deterministic revenue to avoid confounding operational volatility with insurance loss dynamics.
+
+\subsubsection{Common Random Numbers (CRN)}
+\label{sec:crn}
+
+To reduce estimator variance when comparing insured and uninsured scenarios, the simulation employs a Common Random Numbers (CRN) strategy. Using CRN, the growth lift (the difference between insured and uninsured growth rates) can be estimated much more precisely because both scenarios experience the same underlying random draws, requiring less simulations to converge.
+
+At each $({\text{sim\_id}}, \text{year})$ boundary, the loss generator and stochastic process are reseeded using a deterministic function of a shared base seed:
+\begin{equation}
+\text{seed}_{s,t} = \texttt{SeedSequence}\!\left([\,\text{seed}_{\text{base}},\; s,\; t\,]\right)
+\end{equation}
+where $s$ is the simulation index and $t$ is the year. From each seed, two independent child streams are spawned: one for the loss generator and one for the GBM stochastic process.
+
+This guarantees that simulation path $s$ in year $t$ draws from the same underlying random numbers regardless of whether insurance is present, the deductible level, or any prior path divergence. Consequently, the paired difference $g^{\text{insured}}_{s} - g^{\text{uninsured}}_{s}$ has much lower variance than the unpaired estimator, enabling more precise estimation of growth lift even when the individual growth rate distributions are wide. The CRN base seed for this experiment is 20260130.
+
+\pagebreak
+\subsection{Code Repository and Reproducible Research}\label{sec:code-repo}
+
+The GitHub repository at \url{https://mostlyoptimal.com/GitHub#reproducible-research}
+contains the complete framework implementation, as well as the code to run the experiment described here.
+
+\vspace{\baselineskip}
+
+\noindent A starter guide is available at: \url{https://mostlyoptimal.com/tutorial}.
+
+\vspace{\baselineskip}
+
+\noindent The framework includes the following capabilities beyond those exercised in this experiment:
+
+\textbf{Comprehensive Insurance Program Structure:}
+
+\begin{itemize}[nosep]
+    \item Multi-layer insurance tower structures with per-occurrence, aggregate, and hybrid limit types
+    \item Reinstatement provisions (pro-rata, full, free) with automatic reactivation tracking
+    \item Variable participation rates per layer
+    \item Layer width optimization and automated multi-layer program design
+\end{itemize}
+
+\textbf{Dynamic Insurance Pricing:}
+\begin{itemize}[nosep]
+    \item Market cycle modeling (hard, normal, soft markets) with regime transition simulation
+    \item Pure premium, technical premium, and market premium calculation with loadings
+    \item Dynamic premium scaling tied to exposure base metrics
+\end{itemize}
+
+\textbf{Financial Accounting Following GAAP:}
+\begin{itemize}[nosep]
+    \item Full double-entry accounting ledger with 40+ accounts
+    \item Monthly time resolution with intra-period liquidity checking
+    \item Working capital management (accounts receivable, inventory, accounts payable) including DSO/DIO/DPO ratios
+    \item PP\&E (property, plant \& equipment) with depreciation expense tracking
+    \item Prepaid insurance asset recognition with monthly amortization
+    \item GAAP-based income statements, balance sheets, and cash flow statements
+\end{itemize}
+
+\textbf{Loss Modeling:}
+\begin{itemize}[nosep]
+    \item Inflation and trend adjustments: linear, random walk, and mean-reverting severity trends
+    \item Alternative claim development patterns: immediate (property), 5-year (workers compensation), 15-year (product liability), and custom user-defined schedules
+    \item IBNR (incurred but not reported) estimation and case reserve calculation
+\end{itemize}
+
+\textbf{Stochastic Processes:}
+\begin{itemize}[nosep]
+    \item Mean-reverting (Ornstein--Uhlenbeck) process as alternative to GBM
+    \item Lognormal volatility model
+    \item Factory pattern for flexible process instantiation from configuration
+\end{itemize}
+
+\textbf{Monte Carlo Engine:}
+\begin{itemize}[nosep]
+    \item Parallel execution with shared-memory optimization and load-balanced chunking
+    \item Adaptive stopping criteria with formal convergence diagnostics (Geweke test, Heidelberger--Welch test, $\hat{R}$ potential scale reduction factor, effective sample size)
+    \item Trajectory storage backends (HDF5, memory-mapped arrays) for full path retention
+\end{itemize}
+
+\textbf{Risk Metrics:}
+\begin{itemize}[nosep]
+    \item Value at Risk (VaR) and Tail Value at Risk (TVaR) with bootstrap confidence intervals
+    \item Probable Maximum Loss (PML) at specified return periods
+    \item Economic capital calculation, tail index estimation (Hill's estimator)
+    \item Risk-adjusted performance ratios (Sharpe, Sortino, Calmar) and maximum drawdown
+\end{itemize}
+
+\pagebreak
+\textbf{Management Decision Optimization:}
+\FloatBarrier
+\begin{itemize}[nosep]
+    \item Insurance decision engine with multiple constraint types (capital, liquidity, regulatory)
+    \item Multi-objective Pareto frontier generation (weighted sum, $\varepsilon$-constraint, evolutionary) with hypervolume calculation and knee-point detection
+    \item Hamilton--Jacobi--Bellman optimal control solver with log-utility, power-utility, and expected-wealth objective functions
+    \item Multiple optimization algorithms: trust region, penalty method, augmented Lagrangian, differential evolution, multi-start global search
+\end{itemize}
+
+\textbf{Sensitivity, Scenario Analysis, and Validation:}
+\begin{itemize}[nosep]
+    \item One-way and two-way sensitivity analysis with tornado diagram generation
+    \item Parameter sweep framework with adaptive refinement of promising regions
+    \item Scenario management with grid search, random search, and comparison tools
+    \item Walk-forward out-of-sample validation with overfitting detection
+    \item Strategy backtesting with pre-built insurance strategies (conservative, aggressive, optimized, adaptive)
+    \item Bootstrap confidence intervals and statistical significance testing
+\end{itemize}
+
+\textbf{Configuration and Reporting:}
+\begin{itemize}[nosep]
+    \item Industry-specific configuration profiles for different manufacturing sectors
+    \item Seasonal revenue patterns and fiscal year flexibility
+    \item Excel export with formatted multi-sheet workbooks
+    \item Comprehensive visualization suite for executive and technical audiences
+\end{itemize}
+
+\end{document}
