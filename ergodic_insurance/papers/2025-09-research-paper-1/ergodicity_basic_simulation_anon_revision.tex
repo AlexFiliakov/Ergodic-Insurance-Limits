@@ -84,7 +84,7 @@ A Simulation Framework for Understanding Risk Appetite}}
 \maketitle
 
 \begin{abstract}
-This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using {\color{red}250,000} Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, reveals optimal strategies invisible to traditional analysis. Moderate retention consistently dominates both guaranteed cost and self-insurance extremes. Small companies rationally pay substantial premium loadings because insurance alters multiplicative wealth dynamics. Capitalization, operating margins, and asset turnover drive optimal deductibles far more than industry benchmarks or peer conventions.
+This paper introduces an open-source simulation framework applying ergodicity economics to corporate risk transfer optimization. Using {\color{red}250,000} Monte Carlo paths over 50-year horizons, we model complete balance sheet dynamics under realistic loss distributions {\color{red}and operational volatility}. Results demonstrate that maximizing time-average growth rates, rather than minimizing expected costs, {\color{red}reverses optimal strategies due to the Volatility Tax effect}.
 \\\\
 \textbf{Keywords:} ergodicity economics, insurance purchasing, corporate risk management, time-average growth, deductible optimization, Monte Carlo simulation, multiplicative dynamics, risk modeling, property \& casualty insurance, Kelly Criterion, balance sheet modeling, retention strategy
 \end{abstract}
@@ -108,16 +108,16 @@ This paper introduces an open-source simulation framework that models complete c
 The framework accounts for critical financial realities often ignored in traditional analysis: losses compound through balance sheet effects, claim payments follow multi-year schedules requiring collateral, operating margins buffer loss impacts, and asset turnover determines exposure intensity. By modeling these dynamics explicitly, the simulation reveals optimization opportunities invisible to conventional expected value frameworks.
 
 \subsection{Key Findings}
-
+{\color{red}
 The analysis produces several insights relevant to corporate risk transfer decisions:
 
 \vspace{\baselineskip}
 
-\textbf{The Retention Sweet Spot.} Moderate retention strategies consistently outperform both extremes. Companies maximizing long-term growth typically select deductibles in the middle of the feasible range: neither guaranteed cost (zero deductible) nor complete self-insurance. This finding challenges the common practice of defaulting to guaranteed cost programs for "certainty" or aggressively high retentions to "save premium dollars." The optimal strategy balances premium costs against catastrophic loss protection, recognizing that both excessive coverage and insufficient protection leave value on the table.
+\textbf{Insurance Value Compounds Over Time.} Insurance programs that reduce loss volatility create a persistent growth-rate premium that compounds multiplicatively over time. Even modest annual growth advantages (e.g., 50-100 basis points) translate into substantial differences in terminal wealth over multi-decade horizons. This effect is particularly pronounced for smaller companies where individual catastrophic losses represent a significant fraction of equity. This underscores that insurance decisions must be evaluated as part of long-term strategic planning rather than annually at policy renewal.
 
 \vspace{\baselineskip}
 
-\textbf{Company Size Drives Strategy.} Capitalization level relative to potential loss severity matters far more than industry sector or revenue scale. A company with \$5M in equity derives fundamentally different insurance value than a \$25M company facing identical loss distributions. Smaller companies benefit substantially from insurance protection even at higher relative premium costs, while larger organizations can profitably retain more risk.
+\textbf{Volatility Tax Inverts Expected Value Analysis.} Traditional expected value analysis suggests that companies should self-insure or select high deductibles to minimize premium costs. However, the simulation demonstrates that reducing loss volatility through insurance can enhance time-average growth rates even when premiums exceed expected losses. This "Volatility Tax" effect means that insurance creates value by mitigating the multiplicative erosion of wealth from large losses, a dynamic invisible to expected value calculations.
 
 \vspace{\baselineskip}
 
@@ -125,13 +125,12 @@ The analysis produces several insights relevant to corporate risk transfer decis
 
 \vspace{\baselineskip}
 
-\textbf{Operating and Financial Characteristics Matter.} Asset turnover ratios and operating margins interact with capitalization to determine optimal strategies. Capital-efficient companies generating high revenues relative to their balance sheet face more frequent loss exposures per dollar of equity, amplifying insurance value. Similarly, low-margin operations exhibit greater sensitivity to retention choices because premium costs and retained losses represent larger fractions of net income. These company-specific factors drive optimal deductible selection far more than industry conventions or broker guidelines. This operational-dependent relationship explains why peer benchmarking often produces suboptimal strategies: companies at different operational efficiencies require different risk transfer approaches.
+\textbf{Understanding the Business Context is Paramount.} Optimal retention strategies depend critically on company-specific factors: capitalization relative to potential loss severity, operating margins that buffer loss impacts, and asset turnover that determines exposure intensity. Two companies with identical loss distributions but different financial profiles may arrive at radically different optimal insurance strategies. This finding challenges industry conventions that rely on peer benchmarking or one-size-fits-all recommendations.
+}
 
 \subsection{Practical Implications and Value Creation}
 
-Organizations that optimize retention strategies based on their specific financial characteristics rather than peer benchmarking or conventional wisdom can potentially create substantial shareholder value. The framework provides tools to quantify this impact for individual companies, translating abstract insurance decisions into concrete projections of equity accumulation under different scenarios.
-
-Current corporate insurance programs often exhibit one of two suboptimal patterns: excessive guaranteed cost coverage that trades growth for perceived certainty, or overly aggressive retention that exposes balance sheets to multiplicative erosion from tail losses. Both approaches leave value on the table. Companies implementing first-principles optimization can redirect these inefficiencies toward enhanced long-term growth.
+Organizations that optimize retention strategies based on their specific financial characteristics rather than peer benchmarking or conventional wisdom can potentially create substantial shareholder value. The framework provides tools to quantify this impact for individual companies, translating abstract insurance decisions into concrete projections of equity accumulation under different scenarios. {\color{red}Companies implementing first-principles optimization can redirect these inefficiencies toward enhanced long-term growth.}
 
 The framework is particularly relevant for organizations experiencing significant changes in capitalization, business model, or risk profile; situations where historical practices or peer comparisons provide limited guidance. It enables systematic evaluation of insurance programs as capital allocation decisions rather than cost centers, shifting the conversation from "How do we minimize insurance spending?" to "What retention strategy maximizes enterprise value?"
 
@@ -731,6 +730,7 @@ These extensions would transform the framework from an illustrative model to a p
 
 \section{Conclusion}
 
+{\color{red}
 Under ergodic (time-average) analysis with realistic stochastic volatility ($\sigma = 0.15$), Guaranteed Cost insurance delivers a persistent compound growth advantage of approximately 111 basis points per year over the uninsured baseline for small manufacturers (\$5M capitalization). This advantage compounds over time in the form of growth-rate premium that widens multiplicatively over the firm's horizon. The main driver of this is volatility reduction via the elimination of Volatility Tax, not expected claim recoveries.
 
 While traditional expected-value analysis recommends high deductibles or self-insurance, time-average analysis recommends Guaranteed Cost (lowest possible deductible). This finding scales with vulnerability and is strongest for firms where loss-to-asset variance is highest (small capitalization, high asset turnover, high operational volatility).
@@ -757,6 +757,7 @@ Although the experiment findings are directionally insightful, the main aim of t
 Viewing strategic planning through the lens of ergodicity will provide new insights for companies making insurance decisions, and this framework is intended to answer questions such as "what is the ROI of our insurance program?", "how much insurance do we need?" and considerations of optimal insurance deductibles and limits.
 
 We encourage industry practitioners to explore these concepts further and welcome collaboration on extending this research and the framework itself.
+}
 
 % Bibliography
 % \bibliographystyle{apalike}
