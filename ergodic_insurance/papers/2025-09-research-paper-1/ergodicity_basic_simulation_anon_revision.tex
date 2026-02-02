@@ -461,7 +461,7 @@ The simulation explores a multidimensional parameter space that captures key dri
             \begin{tabular}{lcccccccccc}
                 \toprule
                 Year & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
-                \midrule
+                % \midrule
                 Payment \% & 10\% & 20\% & 20\% & 15\% & 10\% & 8\% & 7\% & 5\% & 3\% & 2\% \\
                 \bottomrule
             \end{tabular}
@@ -487,110 +487,119 @@ The simulation employs Monte Carlo methods with:
 Parallel processing and efficient data structures ensure tractability despite the high dimensionality of the parameter space. Each full scenario run takes approximately {\color{red}a day on a standard workstation, allowing exploration of multiple parameter combinations within reasonable timeframes. The experiment described in this paper was performed in a cloud computing environment (Google Colab) in a couple of days and at a cost of approximately \$25}, so it can be easily replicated by anybody looking to validate or extend the findings.
 
 Static parameters, such as tailoring the model to a specific industry or company, or incorporating discounting, will not significantly affect run times. However, adding stochastic revenue or margin fluctuations, more complex insurance structures, or regulatory capital requirements will increase computational demands and may require further optimization.
-\section{Case Study: Deductible Appetite vs. Company Size and Margins}
 
-\subsection{Overview of Results}
+{\color{red}
+\section{Case Study: Ergodic Insurance Under Volatility}
 
-The simulation reveals fundamental patterns in how company characteristics drive optimal insurance strategies through an ergodic lens. Across {\color{red}250,000} Monte Carlo paths over 50-year horizons, we observe systematic relationships between company size, {\color{red}\sout{operating margins, }}asset turnover ratios, and the value derived from various deductible levels. These results demonstrate the practical power of time-average growth optimization and provide directional guidance for corporate risk management decisions.
-
-The findings challenge conventional insurance wisdom in several ways: guaranteed cost programs systematically underperform at higher capitalizations, moderate deductibles frequently dominate both extremes, and insurance creates substantial value even when premiums exceed actuarially fair rates. These patterns suggest that traditional expected value frameworks may systematically misprice insurance value for growth-focused enterprises.
-
-\subsection{The Size Effect: Capitalization and Insurance Value}
-
-The simulation demonstrates that capitalization level is the dominant driver of optimal insurance strategy, with smaller companies deriving substantially greater value from insurance protection. Figure~\ref{fig:growth_lift_by_cap} illustrates this relationship across three capitalization levels (\$5M, \$10M, \$25M) {\color{red}holding the Asset Turnover parameter constant at 1.0.}
+\subsection{Insurance Value Compounds Over Time}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1.0\textwidth]{images/growth_lift_by_capitalization.png}
-    \caption{Impact of initial capitalization on time-average growth rate. Growth lift measures the improvement in time-average growth rate relative to self-insurance, quantifying the ergodic benefit of insurance.}
-    \label{fig:growth_lift_by_cap}
+    \includegraphics[width=0.9\textwidth]{images/year_by_year_growth_lift_facets.png}
+    \caption{Every insured configuration outperforms the uninsured baseline. The growth-rate advantage compounds multiplicatively over the firm's lifetime.}
+    \label{fig:year_by_year_growth_lift_facets}
 \end{figure}
 
-\FloatBarrier
-\subsubsection{Key Observations from Figure~\ref{fig:growth_lift_by_cap}:}
+As shown in Figure \ref{fig:year_by_year_growth_lift_facets}, across all capitalizations tested (\$5M, \$10M, \$25M) and all asset turnover ratios (0.8, 1.0, 1.2), every insured configuration outperforms the uninsured baseline, and the advantage grows exponentially with time (linear on log-wealth scale). This growth-rate advantage compounds multiplicatively over the firm's lifetime. It demonstrates the core ergodic thesis: when analyzed through time-averages rather than ensemble expectations, insurance transforms from a cost center (negative expected value in the single-period ensemble view) into a growth engine (positive compounding advantage in the multi-period time-average view).
 
-\textbf{Declining Insurance Value with Size:} Growth lift decreases systematically as capitalization increases. At \$5M capitalization, even a \$500K deductible provides approximately 0.70\% annual growth lift, while at \$25M, the same deductible yields only 0.38\% lift. This \emph{scale effect} reflects the diminishing proportional impact of fixed-severity losses as the capital base expands. A \$5M catastrophic loss represents 100\% of equity for the smallest company but only 20\% for the largest, fundamentally altering the multiplicative growth dynamics.
+Guaranteed Cost (GC) option dominates all configurations, and the effects scale with capitalization in the modeled region. Lower deductibles produce larger growth advantages at every time horizon and every capitalization level. The ranking \$0 > \$100K > \$250K > \$500K never reverses in the modeled region. This is a direct consequence of the Volatility Tax mechanism detailed in Figure \ref{fig:volatility_tax_vs_premium_savings}. We expect the effect to reverse at higher capitalizations, however, and for some level of retention to become optimal.
 
-\vspace{\baselineskip}
+Results that follow focus on the \$5M capitalization with Asset Turnover Ratio (ATR) of 1.0 for detailed analysis, though the qualitative conclusions hold directionally across the full parameter grid (\$5M--\$25M capitalization and ATR 0.8--1.2).
 
-\textbf{Optimal Deductible Migration:} The optimal deductible (highest growth lift) shifts from \$100K-\$250K at \$5M capitalization to \$500K at \$10M-\$25M capitalization under baseline parameters. This progression aligns with the theoretical framework (Section~2.3): as capital grows relative to expected loss severity, companies can profitably retain more risk, trading premium savings against manageable volatility increases.
+\subsection{Volatility Tax Overwhelms Premium Savings}
 
-\vspace{\baselineskip}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/volatility_tax_vs_premium_savings.png}
+    \caption{This chart decomposes the growth rate into two components for each insurance configuration: the \textbf{Expected-Value Growth} (the growth rate one would predict from a deterministic, expected-loss analysis) and the \textbf{Volatility Tax} (the additional penalty or bonus arising from stochastic fluctuations). The Actual Growth (blue bars) is the net of these two effects.}
+    \label{fig:volatility_tax_vs_premium_savings}
+\end{figure}
 
-\textbf{The Guaranteed Cost Penalty:} Critically, the \$0 deductible (guaranteed cost) strategy consistently delivers the \emph{lowest} growth lift across all capitalization levels, despite eliminating retained loss volatility. This counterintuitive finding demonstrates that \emph{eliminating all retention is suboptimal}. The premium burden of full coverage destroys more growth through guaranteed costs than it preserves through variance reduction. For the \$25M company, guaranteed cost actually produces \emph{negative} growth lift relative to self-insurance in some parameter combinations (visible in later figures), meaning full insurance coverage destroys value compared to retaining all risk.
+\subsubsection{What is the Volatility Tax?}
 
-\vspace{\baselineskip}
+In any multiplicative growth process (a firm's year-over-year asset accumulation is inherently multiplicative), variance directly erodes the compound growth rate. This is a fundamental result from stochastic calculus: for a process with expected return $\mu$ and variance $\sigma^2$, the time-average (geometric) growth rate is approximately $\mu - \sigma^2/2$. The $\sigma^2/2$ term is the \textbf{Volatility Tax}.
 
-\textbf{The Retention Sweet Spot:} All scenarios exhibit an interior optimum: some retention is superior to both guaranteed cost and self-insurance. This result emerges from balancing two opposing forces: (1) premium savings from higher deductibles, which compound favorably over time, and (2) protection from catastrophic losses that trigger the multiplicative decay described in Section~2.2. The simulation suggests that \emph{moderate retention strategies dominate the extremes} across a wide parameter space.
+Consider a simple example: a firm earning +50\% one year and -50\% the next does \textit{not} break even. Starting at \$100, it grows to \$150, then falls to \$75, a cumulative loss of 25\% despite a 0\% average arithmetic return. The difference between the arithmetic average (0\%) and the geometric outcome (-13.4\% annualized) is the volatility tax.
 
-\vspace{\baselineskip}
+For a business carrying insurance risk, the relevant variance includes both operational revenue volatility (here modeled at $\sigma = 0.15$ via GBM) and the variance of retained losses. Insurance reduces retained-loss variance, thereby reducing the volatility tax.
 
-\textbf{Self-Insurance Threshold:} While not shown in this figure, additional analysis reveals that at capitalizations exceeding \$50M with the modeled loss distributions, self-insurance begins to dominate all insured strategies. At such scale, the company effectively becomes its own insurer, with sufficient capital to absorb tail losses without material growth impairment. This threshold will vary significantly with loss distribution parameters and operating characteristics, reinforcing the need for company-specific simulation analysis.
+\subsubsection{Value Reversal}
 
-\vspace{\baselineskip}
+The expected-value analysis (shown in Figure \ref{fig:volatility_tax_vs_premium_savings} as green bars) tells one story: No Insurance has the highest expected growth (255 bps) because it avoids paying any premium, and higher deductibles save premium relative to GC. A traditional ensemble-average analysis would therefore recommend \textit{against} insurance, or augmented with a notion of risk aversion, at minimum recommend high deductibles to minimize premium expenditure.
 
-\textbf{Practical Implications:} For corporate decision-makers, these patterns suggest several considerations:
-\begin{itemize}
-    \item Small and mid-market companies (\$5M-\$25M capital) derive substantial value from insurance even at relatively high premium loadings
-    \item Guaranteed cost programs should be questioned unless driven by non-economic factors (regulatory requirements, credit constraints, or other considerations not modeled here)
-    \item The optimal retention level depends critically on company-specific capitalization relative to loss exposure, not industry benchmarks or broker conventions
-    \item Companies approaching \$50M+ capitalization should rigorously evaluate whether traditional insurance programs remain economically justified
-\end{itemize}
+The time-average analysis tells the opposite story: GC achieves the highest \textit{actual} compound growth (235 bps) despite having the lowest expected growth (208 bps). The volatility tax of -132 bps for the uninsured path wipes out its 47-bps premium-savings advantage over GC, leaving it 111 bps behind in actual growth.
 
-\subsection{The Asset Turnover Effect: Exposure Scaling and Insurance Value}
+Uniquely, GC shows a positive volatility effect (+27 bps). This means the actual stochastic growth exceeds the deterministic estimate. This occurs for two reasons:
 
-Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150} display growth lift across asset turnover ratios (0.8 to 1.2) in a 3×3 grid format, with rows representing target loss ratios (60\%, 70\%, 80\%) and columns representing capitalization levels (\$5M, \$10M, \$25M). Each panel shows how growth lift varies with asset turnover for different deductible strategies.
+1. \textbf{Complete loss transfer.} With a \$0 deductible, all losses above zero are covered. The firm pays a fixed, deterministic premium each year. This eliminates retained-loss variance entirely, leaving only the uninsurable revenue volatility from the GBM process.
 
-\vspace{\baselineskip}
+2. \textbf{Volatility Tax shield efficiency.} Under accrual-basis tax accounting, a constant premium expense is fully deductible every year with no timing mismatch. In contrast, variable retained losses can create years where deductions exceed income (generating net operating losses with limited carryforward utility) followed by years of full taxation on profits. This asymmetric tax treatment penalizes variance, an effect that GC insurance eliminates.
 
-\textbf{Increasing Growth Lift with Turnover:} Within each panel, growth lift generally increases as asset turnover rises (moving right along the x-axis). This pattern is most pronounced at lower capitalizations and becomes muted or even reverses at \$25M. The mechanism driving this effect operates through the \emph{exposure scaling} built into the simulation framework: higher asset turnover generates proportionally more revenue, which increases loss frequency via the revenue-based exposure multiplier (Section~3.2, loss generation parameters).
+Figure \ref{fig:volatility_tax_vs_premium_savings} makes the case that traditional insurance purchasing decisions based on expected-cost minimization are not just slightly wrong but \textit{directionally} wrong. The rational time-average optimizer buys more insurance, not less, because the volatility tax on retained risk overwhelms any premium savings. We anticipate this conclusion may weaken for larger firms (where the loss-to-asset ratio is smaller, reducing relative variance) and for firms with lower operational volatility. These extensions are left for future work.
 
-When a company with 1.2 asset turnover generates 50\% more revenue than an otherwise-identical company with 0.8 turnover, it faces approximately 50\% more loss events annually. This increased loss frequency amplifies the \emph{frequency of multiplicative shocks} to the capital base, intensifying the non-ergodic dynamics that insurance mitigates. Consequently, insurance provides greater growth value to high-turnover operations because they experience more frequent opportunities for catastrophic losses to compound negatively over time.
+\subsection{Survival and Median Outperformance}
 
-\vspace{\baselineskip}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/wealth_fan_chart.png}
+    \caption{Side-by-side fan chart comparing the distribution of 50-year wealth trajectories for GC-insured (\$0 deductible) versus uninsured firms, both on a log scale. Two identically-parameterized sets of firms, facing the same loss events and revenue shocks across 250K scenarios, end up in dramatically different places depending on whether they purchased insurance.}
+    \label{fig:wealth_fan_chart}
+\end{figure}
 
-\textbf{Interaction with Capitalization:} The asset turnover effect weakens dramatically at higher capitalizations. For \$25M companies (rightmost column in each figure), growth lift often \emph{decreases} with turnover, and in some cases high deductibles and self-insurance converge or cross. This reversal occurs because larger capital bases can absorb the increased loss frequency without triggering the multiplicative decay that dominates smaller companies. Once capital substantially exceeds typical loss severity, additional exposure increases revenues (and thus potential growth) faster than it introduces material risk, reducing the relative value of insurance protection.
+\subsubsection{Survival}
 
-\vspace{\baselineskip}
+\textbf{Without insurance: 37.8\% insolvency by year 50, with a median time-to-ruin of 20 years.} More than one in three uninsured firms fail during the simulation horizon. The insolvency dots appear evenly across time, indicating that ruin is not primarily a late-life phenomenon, but can occur in any year due to an unforeseen catastrophe.
 
-\textbf{Practical Implications:} Efficient capital users generating substantial revenues relative to their balance sheet (i.e., companies with high asset turnover ratios) should recognize that they face disproportionately greater insurance value than low-turnover peers with similar capitalization. This suggests that focus should shift from absolute exposure size towards \emph{turnover-adjusted exposure intensity} that drives time-average growth dynamics.
+\textbf{With GC insurance: 0.01\% insolvency.} Virtually every insured path survives the full 50 years. This is mechanically expected because coverage is unlimited, so there is no scenario in which a single loss (or sequence of losses) can overwhelm the insurance protection. The rare insolvencies that do occur are attributable to extreme revenue declines under the GBM process rather than uninsured losses.
 
-\subsection{{\color{red}\sout{Operating Margin Interactions: The Profitability Buffer}}}
-{\color{red}\sout{
-Comparing growth lift patterns across the three margin levels (Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150}) reveals that higher operating margins systematically \emph{flatten} the response curves, reducing sensitivity to both asset turnover and insurance pricing variations.
+The high uninsured ruin rate (38\%) is consistent with the heavy-tailed catastrophic loss model (Pareto $\alpha = 2.5$, $x_m = \$5M$). For a firm with only \$5M in assets, even a single catastrophic event can be terminal. Insurance absorbs these tail events completely, converting a survival gamble into a near-certainty.
 
-\vspace{\baselineskip}
+\subsubsection{Median Outperformance}
 
-\textbf{The Margin Effect Mechanism:} Operating margins create a profitability buffer that dampens the impact of both insurance premiums and retained losses on growth rates. A company with 15\% operating margin can absorb a \$100K loss from a larger earnings base than an otherwise-identical company with 10\% margin, reducing the proportional impact on retained earnings and equity accumulation. Similarly, insurance premiums represent a smaller fraction of operating income for high-margin businesses, reducing the growth drag from premium costs.
+The more surprising result is visible in the median lines. The \textbf{GC-insured median path} (dark blue line, left panel) reaches approximately \$25M by year 50. The \textbf{uninsured median path} (dark orange line, right panel, survivors only) reaches approximately \$14M--\$15M by year 50.
 
-Both asset turnover and operating margin contribute to earnings growth, but through different mechanisms: turnover by scaling revenue generation, and margin by improving profitability per dollar of revenue. When margins are high, the \emph{variance in outcomes across different insurance strategies diminishes} because the strong underlying profitability swamps the differential premium costs and retained loss distributions. Conversely, low-margin operations exhibit greater sensitivity to insurance choices because premiums and retained losses represent a larger fraction of net income, materially affecting growth trajectories.
+The insured median is roughly \textbf{1.7x the uninsured median}, and this comparison is biased in favor of the uninsured because it's conditioned on survival. The uninsured median excludes the 37.8\% of paths that went bankrupt. If we included those failed paths (at zero terminal wealth), the uninsured median would be near zero.
 
-\vspace{\baselineskip}
+The fan width also tells a story: the insured fan (5th--95th percentile) is remarkably tight, while the uninsured fan is wide and includes many paths that drop below \$1M before recovering. This reduced dispersion is the manifestation of volatility tax reduction. Insurance compresses the distribution of outcomes, and under multiplicative dynamics, compression benefits the geometric mean.
 
-\textbf{Practical Implications:} Low-margin businesses (10\% or below before losses in this simulation, translating to about 5\% ensemble-average after losses) should pay particularly close attention to insurance optimization, as suboptimal strategies impose larger relative growth penalties. High-margin enterprises enjoy greater strategic flexibility: while optimal deductibles still exist, the growth differential between good and poor insurance decisions is smaller, potentially justifying simpler risk management approaches or greater emphasis on non-financial considerations (administrative burden, credit concerns, etc.).
-}}
-\subsection{{\color{red}\sout{Sensitivity to Insurance Pricing: Loss Ratio Effects}}}
-{\color{red}\sout{
-The row structure in Figures~\ref{fig:multiples_ebit_0.100}, \ref{fig:multiples_ebit_0.125}, and~\ref{fig:multiples_ebit_0.150} isolates the impact of target loss ratios (60\%, 70\%, 80\%), representing the insurer's pricing efficiency. Lower loss ratios indicate higher expense loadings and profit margins, making insurance more expensive for the buyer.
+\subsection{Outcome Distribution}
 
-\vspace{\baselineskip}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/insurance_outcome_distribution_basic.png}
+    \caption{Histogram showing the distribution of log-wealth advantage (insured minus uninsured) across the subset of paths where \textbf{both} the insured and uninsured firms survived all 50 years. The x-axis is the difference in log-assets at year 50; positive values mean the insured firm ended wealthier in terms of assets.}
+    \label{fig:insurance_outcome_distribution_basic}
+\end{figure}
 
-\textbf{Pricing Impact on Growth Lift:} As expected, cheaper insurance (higher loss ratios, lower rows in each figure) produces substantially greater growth lift. At 80\% loss ratio (bottom row), even guaranteed cost (\$0 deductible) frequently exceeds the growth rate of self-insurance for \$5M and \$10M capitalizations, while at 60\% loss ratio (top row), only moderate-to-high deductibles remain attractive. This pattern confirms the theoretical prediction that insurance creates value through variance reduction, but excessive premium costs can overwhelm this benefit.
+Figure \ref{fig:insurance_outcome_distribution_basic} shows that for the \$5M capitalization and 1.0 ATR, the median log-wealth advantage is 0.30 (corresponding to 1.4x wealth). This means the typical insured firm has 40\% more assets than its uninsured counterpart.
 
-\vspace{\baselineskip}
+\begin{table}[]
+\centering
+\caption{The following table summarizes the histogram results from Figure \ref{fig:insurance_outcome_distribution_basic}.}
+\label{tab:histogram_summary}
+\begin{tabular}{lcl}
+    \multicolumn{1}{c}{Metric} & \multicolumn{1}{c}{Value} & \\
+    \hline
+    Saved from ruin & 37.8\% & (94,607 of 250,000 paths) \\
+    Wealthier at year 50 (all paths) & 86.2\% & (215,538 of 250,000 paths) \\
+    Avg gain when insurance helps & +\$7M & (across 215,538 paths) \\
+    Avg loss when insurance hurts & -\$2M & (across 34,462 paths) \\
+    Gain/Loss asymmetry & 3.4x &
+\end{tabular}
+\end{table}
 
-\textbf{Robustness at Lower Capitalizations:} Critically, even at the \emph{expensive} 60\% loss ratio, insurance still delivers substantial growth lift for \$5M capitalization across nearly all deductible levels and turnover ratios. This robustness demonstrates that the ergodic benefit of reducing multiplicative volatility can justify significant premium loadings when capital is scarce relative to potential losses. For small companies, insurance remains economically rational even when premiums substantially exceed actuarially fair rates (a finding invisible to traditional expected value analysis).
-
-\vspace{\baselineskip}
-
-\textbf{Optimal Deductible Sensitivity:} Cheaper insurance (higher loss ratios) shifts optimal deductibles lower. At 80\% loss ratio, \$50K-\$100K deductibles often maximize growth lift even for \$10M companies, while at 60\% loss ratio, \$250K-\$500K deductibles dominate. This migration reflects the changing trade-off between premium savings and volatility protection: when insurance is expensive, companies must retain more risk to avoid excessive premium burden; when insurance is cheap, lower deductibles become attractive because the marginal premium cost of additional coverage is modest.
-
-\vspace{\baselineskip}
-
-\textbf{Practical Implications:} Corporate buyers should actively estimate loss costs and negotiate loss ratios, as pricing efficiency directly determines optimal retention strategies and realized growth lift. The substantial variation in growth outcomes across loss ratio scenarios suggests that \emph{insurance market cycles} (not modeled here) may create significant timing opportunities: companies purchasing programs during soft markets (high loss ratios) can justify lower deductibles, while hard markets (low loss ratios) favor higher retentions.
-}}
+The 3.4x gain/loss ratio in Table \ref{tab:histogram_summary} means that the expected dollar benefit when insurance helps is more than three times the expected dollar cost when it hurts.
+}
 
 \subsection{Limitations and Boundary Conditions}
+
+{\color{red}
+Real insurance programs have policy limits and aggregates. Introducing finite limits would reduce but not eliminate the GC advantage, as the most catastrophic tail events would revert to uninsured status.
+
+In practice, premium loading varies across the insurance tower and premiums adjust year-to-year based on loss experience, market conditions, and the insurer's own capital constraints. Dynamic premium modeling could attenuate the growth advantage by introducing premium volatility.
+
+The analysis anticipates that the GC advantage will diminish for larger firms (\$50M+ capitalization) where the loss-to-asset ratio decreases and operational volatility has a proportionally smaller impact on growth rates. This is supported by the observation that even within the tested range, the per-year growth lift for GC decreases as capitalization increases (on a relative, bps basis), though it remains positive and economically significant.
+}
 
 While the simulation results provide valuable directional insights, several important limitations constrain their generalizability. Corporate decision-makers should carefully consider whether their specific circumstances violate key modeling assumptions:
 
@@ -636,13 +645,6 @@ These frictions would increase the value of insurance beyond the modeled growth 
 \end{enumerate}
 
 The simulation framework provides the analytical foundation for such company-specific analyses. CFOs, risk managers, and actuaries are encouraged to adapt the methodology to their particular circumstances rather than applying the illustrated results directly.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=1.0\textwidth]{images/option3_multiples_ebit_0.125.png}
-    \caption{Impact of asset turnover ratio on time-average growth rate at operating margin of 12.5\%.}
-    \label{fig:multiples_ebit_0.125}
-\end{figure}
 
 \section{Implications for Insurance Decision-Making}
 
@@ -729,18 +731,32 @@ These extensions would transform the framework from an illustrative model to a p
 
 \section{Conclusion}
 
-This white paper has introduced a novel simulation framework based on ergodicity economics principles for analyzing insurance risk appetite. {\color{red}Our key findings demonstrate that company size significantly influences optimal risk appetite, with larger businesses exhibiting greater capacity to retain risk optimally.} This finding has important implications for competitive dynamics and market structure in P\&C insurance.
+Under ergodic (time-average) analysis with realistic stochastic volatility ($\sigma = 0.15$), Guaranteed Cost insurance delivers a persistent compound growth advantage of approximately 111 basis points per year over the uninsured baseline for small manufacturers (\$5M capitalization). This advantage compounds over time in the form of growth-rate premium that widens multiplicatively over the firm's horizon. The main driver of this is volatility reduction via the elimination of Volatility Tax, not expected claim recoveries.
 
-The simulation framework provides a powerful tool for:
+While traditional expected-value analysis recommends high deductibles or self-insurance, time-average analysis recommends Guaranteed Cost (lowest possible deductible). This finding scales with vulnerability and is strongest for firms where loss-to-asset variance is highest (small capitalization, high asset turnover, high operational volatility).
+
+\subsection{Reframing Insurance as a Growth Catalyst, Not a Cost}
+
+For small-to-medium manufacturers operating in volatile markets, these results suggest that the conventional wisdom of "retain more risk to save premium" is not just suboptimal but wealth-destroying in the long run. The Volatility Tax on retained risk compounds silently, year after year, eroding the very premium savings that motivated the higher retention. CFOs evaluating insurance purchasing decisions should:
+
+1. Reframe insurance as a growth investment, not a cost. Insurance is not "money lost to premiums," it is money invested in volatility reduction that pays compound dividends.
+
+2. Evaluate insurance decisions over the firm's full strategic planning horizon, not a single policy period.
+
+3. Recognize that survival probability is a critical input to long-run growth. The 37.8\% ruin rate for the uninsured baseline in our example is not an abstract tail risk; it represents a realistic probability of business failure over a multi-decade horizon. Insurance doesn't just improve expected outcomes; it keeps the firm alive to experience those outcomes.
+
+\subsection{Towards Enterprise Applications}
+
+Although the experiment findings are directionally insightful, the main aim of this paper is to introduce the simulation framework and illustrate its application to insurance decision-making. The specific numerical results depend heavily on the modeled loss distributions, business parameters, and simplifying assumptions. Corporate decision-makers should not apply these findings directly but rather use them as motivation to conduct company-specific ergodic analysis. The simulation framework provides a powerful tool for:
 \begin{itemize}
     \item Understanding temporal risk dynamics
     \item Optimizing policy decisions
     \item Informing strategic planning
 \end{itemize}
 
-I encourage industry practitioners to explore these concepts further and welcome collaboration on extending this research.
+Viewing strategic planning through the lens of ergodicity will provide new insights for companies making insurance decisions, and this framework is intended to answer questions such as "what is the ROI of our insurance program?", "how much insurance do we need?" and considerations of optimal insurance deductibles and limits.
 
-The framework will provide new insights for companies making insurance decisions and is intended to answer questions such as "what is the ROI of our insurance program?", "how much insurance do we need?" and considerations of optimal insurance deductibles and limits.
+We encourage industry practitioners to explore these concepts further and welcome collaboration on extending this research and the framework itself.
 
 % Bibliography
 % \bibliographystyle{apalike}

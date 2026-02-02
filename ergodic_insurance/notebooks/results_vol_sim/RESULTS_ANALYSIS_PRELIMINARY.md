@@ -30,7 +30,7 @@ Consider a simple example: a firm earning +50% one year and -50% the next does *
 
 For a business carrying insurance risk, the relevant variance includes both operational revenue volatility (here modeled at $\sigma = 0.15$ via GBM) and the variance of retained losses. Insurance reduces retained-loss variance, thereby reducing the volatility tax.
 
-### The Reversal
+### Value Reversal
 
 The expected-value analysis (shown in the green bars) tells one story: No Insurance has the highest expected growth (255 bps) because it avoids paying any premium, and higher deductibles save premium relative to GC. A traditional ensemble-average analysis would therefore recommend *against* insurance, or augmented with some notion of risk aversion, at minimum recommend high deductibles to minimize premium expenditure.
 
