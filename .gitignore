@@ -459,3 +459,6 @@ api/
 *.run.xml
 *.dvi
 *.synctex
+
+# Paper submissions
+ergodic_insurance/papers/2025-09-research-paper-1/final draft - revision 1/
