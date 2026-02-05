@@ -34,60 +34,72 @@ This comprehensive framework provides the mathematical rigor, practical paramete
 
 ```mermaid
 flowchart LR
-    %% Simplified Executive View
-    INPUT[("📊 Market Data<br/>& Configuration")]
-    BUSINESS[("🏭 Business<br/>Simulation")]
-    ERGODIC[("📈 Ergodic<br/>Analysis")]
-    OPTIMIZE[("🎯 Strategy<br/>Optimization")]
-    OUTPUT[("📑 Reports &<br/>Insights")]
+    MODEL["<b>🏭 Financial Model</b><br/>Widget Manufacturer<br/>Double-Entry Accounting<br/>Multi-Layer Insurance<br/>Stochastic Loss Processes"]
 
-    INPUT --> BUSINESS
-    BUSINESS --> ERGODIC
-    ERGODIC --> OPTIMIZE
-    OPTIMIZE --> OUTPUT
+    SIM["<b>🎲 Simulation Engine</b><br/>Parallel Monte Carlo<br/>100K+ Paths<br/>Convergence Monitoring"]
 
-    %% Styling
-    classDef inputStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:3px,font-size:14px
-    classDef processStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,font-size:14px
-    classDef outputStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px,font-size:14px
+    ERGODIC["<b>⚡ Ergodic Optimization</b><br/>Time-Average vs Ensemble<br/>8 Optimization Algorithms<br/>HJB Optimal Control<br/>Pareto Frontier Analysis"]
 
-    class INPUT inputStyle
-    class BUSINESS,ERGODIC,OPTIMIZE processStyle
-    class OUTPUT outputStyle
+    OUTPUT["<b>📊 Insights & Reports</b><br/>40+ Visualization Types<br/>VaR · TVaR · Ruin Metrics<br/>Walk-Forward Validation<br/>Excel & HTML Reports"]
+
+    MODEL ==> SIM ==> ERGODIC ==> OUTPUT
+    ERGODIC -.->|"♻️ Strategy Refinement"| MODEL
+
+    classDef default fill:#f8f9fa,stroke:#dee2e6,stroke-width:2px,color:#212529
+    classDef hero fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20
+
+    class ERGODIC hero
 ```
 
+### Ergodic Analysis
+- **Time-average vs ensemble-average growth** — the core framework for evaluating insurance decisions
+- **Scenario comparison** with statistical significance testing (insured vs uninsured trajectories)
+- **Convergence validation** to ensure time-average estimates are reliable
+- **Loss-integrated ergodic analysis** connecting loss processes to growth rate impacts
+
+### Monte Carlo Simulation
+- **Single-trajectory simulation** engine for detailed time-series analysis
+- **Parallel Monte Carlo engine** with convergence monitoring and checkpoint support
+- **Bootstrap confidence intervals** for ruin probability and key metrics
+- **CPU-optimized parallel executor** designed for budget hardware (4-8 cores, 100K+ simulations in <4GB RAM)
+
 ### Financial Modeling
-- **Widget manufacturer model** with comprehensive balance sheet management
-- **Stochastic processes** including geometric Brownian motion, lognormal volatility, and mean-reversion
-- **Insurance claim processing** with multi-year payment schedules
-- **Collateral management** for letter of credit requirements
+- **Widget manufacturer model** with 75+ methods for revenue, expenses, and balance sheet management
+- **Double-entry ledger** with event-sourced accounting and trial balance generation
+- **Full financial statement generation** — balance sheets, income statements, cash flow statements with GAAP compliance
+- **Stochastic processes** including geometric Brownian motion, mean-reversion, and lognormal volatility
+- **Multi-year claim liability scheduling** and collateral/letter of credit tracking
 
-### Configuration Management
-- **3-tier configuration architecture** with profiles, modules, and presets
-- **ConfigManager** with profile inheritance and module composition
-- **Runtime overrides** for flexible parameter experimentation
-- **Preset libraries** for common market conditions and risk scenarios
+### Insurance Modeling
+- **Multi-layer insurance programs** with attachment points, limits, and reinstatement provisions
+- **Market cycle-aware pricing** (soft/normal/hard markets) with cycle transition simulation
+- **Multiple limit types** and aggregate limit tracking with layer utilization monitoring
+- **Actuarial claim development** patterns (standard, slow, fast) with cash flow projection
 
-### Documentation & Testing
-- **Sphinx documentation system** for professional API reference
-- **Comprehensive Google-style docstrings** throughout the codebase
-- **90% test coverage** with pytest framework
-- **Type safety** enforced with mypy static analysis
+### Optimization
+- **8 optimization algorithms** — SLSQP, Differential Evolution, Trust Region, Penalty Method, Augmented Lagrangian, Multi-Start, and more
+- **Business outcome optimizer** — maximize ROE, minimize bankruptcy risk, optimize capital efficiency
+- **HJB optimal control solver** — stochastic control via Hamilton-Jacobi-Bellman PDE with multiple utility functions
+- **Multi-objective Pareto frontier** generation (weighted-sum, epsilon-constraint, evolutionary methods)
 
-### Analysis Tools
+### Risk Metrics & Validation
+- **Comprehensive risk metrics** — VaR, TVaR, Expected Shortfall, PML, maximum drawdown, economic capital
+- **Ruin probability analysis** with multi-horizon support and bootstrap confidence intervals
+- **Walk-forward validation** with out-of-sample testing across rolling windows
+- **Strategy backtesting** with pre-built strategies (conservative, aggressive, adaptive, optimized)
+
+### Visualization & Reporting
 ![Sample Analytics: Optimal Insurance Configuration by Company Size](assets/sample_optmal_insurance_config_by_company_size.png)
-- **Performance metrics** including ROE, risk of ruin, and time-average growth rates
-- **Robust Visualizations and Annotations** to help you see the stories behind the results
-- **Jupyter notebooks** with examples of interactive exploration and visualization
-- **Demo scripts** showing stochastic vs deterministic comparisons
+- **40+ executive and technical plots** — ROE-ruin frontiers, ruin cliffs, tornado diagrams, convergence diagnostics, Pareto frontiers
+- **Interactive dashboards** (Plotly-based) for exploration
+- **Excel report generation** with cover sheets, financial statements, metrics dashboards, and pivot data
+- **Automated insight extraction** — performance, trend, outlier, threshold, and correlation insights
+- **30+ Jupyter notebooks** for interactive analysis and exploration
 
-### Enhanced Parallel Processing (v2.0)
-- **CPU-optimized parallel executor** designed for budget hardware (4-8 cores)
-- **Memory efficiency** - handles 100K+ simulations in <4GB RAM
-- **Smart dynamic chunking** that adapts to workload complexity
-- **Shared memory management** for zero-copy data sharing across processes
-- **Near-linear scaling** with minimal serialization overhead (<5%)
-- **Performance monitoring** with detailed metrics and benchmarking tools
+### Configuration System
+- **3-tier architecture** — profiles, modules, and presets with inheritance
+- **ConfigManager** with profile loading, module composition, and runtime overrides
+- **Industry-specific configs** (manufacturing, service, retail) and market condition presets
 
 ## Published Results
 
@@ -172,45 +184,46 @@ See [Getting Started](https://docs.mostlyoptimal.com/tutorials/01_getting_starte
 
 ```
 Ergodic-Insurance-Limits/
-├── ergodic_insurance/          # Main Python package
-│   ├── src/                   # Core modules (50+ files)
-│   │   ├── config_*.py        # Configuration system v2.0 - 3-tier architecture with profiles, modules, and presets
-│   │   ├── manufacturer.py    # Widget manufacturer financial model with balance sheet management
-│   │   ├── insurance*.py      # Insurance optimization, pricing, and multi-layer program management
-│   │   ├── claim_development.py # Multi-year claim payment development patterns
-│   │   ├── loss_distributions.py # Statistical loss modeling (lognormal, pareto, etc.)
-│   │   ├── monte_carlo.py     # Enhanced Monte Carlo simulation engine with parallel processing
-│   │   ├── ergodic_analyzer.py # Ergodic theory implementation for time-average growth analysis
-│   │   ├── simulation.py      # Main simulation orchestrator
-│   │   ├── stochastic_processes.py # GBM, mean-reversion, and volatility models
-│   │   ├── risk_metrics.py    # VaR, CVaR, tail risk, and ruin probability calculations
-│   │   ├── optimization.py    # Core optimization algorithms and solvers
-│   │   ├── business_optimizer.py # Business-specific optimization strategies
-│   │   ├── decision_engine.py # Decision framework for insurance purchasing
-│   │   ├── parallel_executor.py # CPU-optimized parallel processing for budget hardware
-│   │   ├── convergence*.py    # Convergence analysis and advanced stopping criteria
-│   │   ├── sensitivity*.py    # Sensitivity analysis and visualization tools
-│   │   ├── bootstrap_analysis.py # Statistical bootstrap methods
-│   │   ├── validation_metrics.py # Model validation and accuracy metrics
-│   │   ├── walk_forward_validator.py # Walk-forward validation framework
-│   │   ├── strategy_backtester.py # Insurance strategy backtesting
-│   │   ├── result_aggregator.py # Results aggregation and summary statistics
-│   │   ├── excel_reporter.py  # Excel report generation for business users
-│   │   └── visualization*.py  # Comprehensive plotting and visualization utilities
-│   ├── tests/                 # Test suite with 80%+ coverage
-│   ├── notebooks/             # Jupyter notebooks for analysis and exploration
+├── ergodic_insurance/          # Main Python package (60+ modules)
+│   ├── manufacturer.py        # Widget manufacturer financial model with balance sheet management
+│   ├── simulation.py          # Main simulation orchestrator
+│   ├── monte_carlo.py         # Enhanced Monte Carlo engine with parallel processing
+│   ├── ergodic_analyzer.py    # Ergodic theory implementation for time-average growth analysis
+│   ├── insurance.py           # Core insurance policy and layer definitions
+│   ├── insurance_program.py   # Multi-layer insurance program management
+│   ├── insurance_pricing.py   # Insurance pricing models
+│   ├── loss_distributions.py  # Statistical loss modeling (lognormal, pareto, etc.)
+│   ├── config.py              # Configuration system - 3-tier architecture with profiles/modules/presets
+│   ├── risk_metrics.py        # VaR, CVaR, tail risk, and ruin probability calculations
+│   ├── optimization.py        # Core optimization algorithms and solvers
+│   ├── business_optimizer.py  # Business-specific optimization strategies
+│   ├── decision_engine.py     # Decision framework for insurance purchasing
+│   ├── financial_statements.py # Full financial statement generation
+│   ├── stochastic_processes.py # GBM, mean-reversion, and volatility models
+│   ├── parallel_executor.py   # CPU-optimized parallel processing for budget hardware
+│   ├── walk_forward_validator.py # Walk-forward validation framework
+│   ├── strategy_backtester.py # Insurance strategy backtesting
+│   ├── ...                    # + convergence, sensitivity, bootstrap, reporting modules
+│   ├── visualization/         # Plotting package (executive, technical, batch, interactive)
+│   ├── visualization_infra/   # Visualization infrastructure (figure factory, style manager)
+│   ├── reporting/             # Report generation (executive, technical, scenario comparator)
+│   ├── tests/                 # Test suite (100+ test files)
+│   ├── notebooks/             # Jupyter notebooks (30+) for analysis and exploration
 │   ├── examples/              # Demo scripts showing framework usage
 │   ├── data/                  # Configuration and parameter files
-│   │   └── config/           # 3-tier configuration system
-│   │       ├── profiles/     # Complete configuration profiles (default, conservative, aggressive)
-│   │       ├── modules/      # Reusable configuration components
-│   │       └── presets/      # Quick-apply market condition templates
-│   └── docs/                  # Sphinx documentation with API reference
-├── simone/                    # AI project management engine
+│   │   └── config/            # 3-tier configuration system
+│   │       ├── profiles/      # Complete configuration profiles (default, conservative, aggressive)
+│   │       ├── modules/       # Reusable configuration components
+│   │       └── presets/       # Quick-apply market condition templates
+│   ├── docs/                  # Sphinx documentation source (API reference, tutorials, theory)
+│   └── scripts/               # Utility and migration scripts
+├── docs/                      # GitHub Pages documentation
+├── tutorials/                 # Published tutorial pages
 ├── assets/                    # Images, diagrams, and visual resources
 ├── results/                   # Simulation outputs and analysis reports
+├── simone/                    # AI project management engine
 ├── .github/workflows/         # CI/CD pipelines for docs and testing
-├── pyproject.toml            # Python project configuration and dependencies
+├── pyproject.toml             # Python project configuration and dependencies
 ├── uv.lock                   # Locked dependency versions for reproducibility
 ├── README.md                 # Project overview and documentation (this file)
 ├── CLAUDE.md                 # AI assistant development instructions
