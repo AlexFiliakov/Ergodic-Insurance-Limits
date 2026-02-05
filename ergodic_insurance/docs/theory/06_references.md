@@ -342,7 +342,7 @@ Sections are roughly in recommended study order. Books in each section are liste
 
 ```
 
-Filiakov, A. (2025). Ergodic Insurance Limits: Optimizing insurance using time-average growth [Software]. GitHub.
+Filiakov, A. (2026). Ergodic Insurance Limits: Optimizing insurance using time-average growth [Software]. GitHub.
     https://ergodicityadvantage.com
 
 ```
@@ -352,7 +352,7 @@ Filiakov, A. (2025). Ergodic Insurance Limits: Optimizing insurance using time-a
 @software{ergodicinsurancelimits,
   author = {Filiakov, Alex},
   title = {Ergodic Insurance Limits: Optimizing insurance using time-average growth},
-  year = {2025},
+  year = {2026},
   publisher = {GitHub},
   url = {https://ergodicityadvantage.com}
 }
@@ -370,12 +370,12 @@ For updates to this reference list or to suggest additional resources, please:
 2. Submit a pull request with additions
 3. Contact the maintainers
 
-Last updated: September 2025
+Last updated: February 2026
 Version: 0.3.0
 
 ## Verification Note
 
-All references have been verified as of September 2025. Some resources may change over time. For the most current information:
+All references have been verified as of February 2026. Some resources may change over time. For the most current information:
 - Check DOI links for academic papers
 - Visit organization websites directly
 - Search GitHub for latest community implementations
