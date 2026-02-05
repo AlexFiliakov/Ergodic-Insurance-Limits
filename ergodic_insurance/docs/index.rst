@@ -69,7 +69,7 @@ Quick Links
      <div style="flex: 1; padding: 15px; border: 2px solid #795548; border-radius: 8px; background-color: #EFEBE9;">
        <h3 style="margin-top: 0; color: #5b4036ff !important;">📋 API Reference</h3>
        <p>Complete API documentation</p>
-       <a href="api/modules.html" style="color: #795548 !important; font-weight: bold; text-decoration: none;">Browse API →</a>
+       <a href="api/index.html" style="color: #795548 !important; font-weight: bold; text-decoration: none;">Browse API →</a>
      </div>
    </div>
 
@@ -99,4 +99,4 @@ Quick Links
    :maxdepth: 2
    :caption: API Reference:
 
-   api/modules
+   api/index
