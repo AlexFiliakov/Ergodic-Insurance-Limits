@@ -417,6 +417,36 @@ footer {
     }
 }
 
+/* ========================================
+   Sidebar Navigation - Custom Links
+   ======================================== */
+
+/* Documentation Home link above toctree */
+ul.doc-home-nav {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 0 8px 0 !important;
+    border-bottom: 1px solid #d0d4d8 !important;
+    padding-bottom: 8px !important;
+}
+
+ul.doc-home-nav li a {
+    color: #157878 !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 8px 14px !important;
+    display: block !important;
+}
+
+ul.doc-home-nav li a:hover {
+    background: rgba(21, 153, 87, 0.1) !important;
+    color: #159957 !important;
+}
+
+ul.doc-home-nav li a i {
+    margin-right: 6px;
+}
+
 /* API documentation specific styles */
 .class, .function, .method {
     margin-bottom: 2rem !important;

@@ -1,0 +1,26 @@
+{% extends "!layout.html" %}
+
+{% block sidebartitle %}
+<a href="https://mostlyoptimal.com/">
+  <i class="fa fa-home"></i> MostlyOptimal.com
+</a>
+{% if theme_display_version %}
+  {%- set nav_version = version %}
+  {% if READTHEDOCS and current_version %}
+    {%- set nav_version = current_version %}
+  {% endif %}
+  {% if nav_version %}
+    <div class="version">
+      {{ nav_version }}
+    </div>
+  {% endif %}
+{% endif %}
+{% include "searchbox.html" %}
+{% endblock %}
+
+{% block menu %}
+<ul class="doc-home-nav">
+  <li class="toctree-l1"><a class="reference internal" href="{{ pathto(master_doc) }}"><i class="fa fa-book"></i> Documentation Home</a></li>
+</ul>
+{{ super() }}
+{% endblock %}

@@ -408,6 +408,7 @@ nul
 ergodic_insurance/docs/_build/
 ergodic_insurance/docs/build/
 ergodic_insurance/docs/_static/
+!ergodic_insurance/docs/_static/custom.css
 
 # Cache
 ergodic_insurance/checkpoints/
