@@ -8,7 +8,7 @@ Traditional insurance analysis uses **ensemble averages** - the expected value a
 
 Ergodic economics uses **time averages** - what actually happens to one entity as it evolves through time. For businesses facing large, volatile losses, the time-average growth rate can differ dramatically from ensemble expectations.
 
-**Key insight**: Insurance that appears "expensive" from an expected-value perspective may actually *increase* long-term wealth growth when analyzed through time averages.
+**Key takeaway**: Insurance that appears "expensive" from an expected-value perspective may actually *increase* long-term wealth growth when analyzed through time averages.
 
 ## Installation
 
@@ -67,9 +67,6 @@ from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.simulation import Simulation
 ```
-
-> **Note**: `ClaimGenerator` is deprecated as of version 0.2.0. Use `ManufacturingLossGenerator` instead.
-> See the [migration guide](../migration_guides/claim_generator_migration.md) for details.
 
 ### Step 2: Configure a Manufacturer
 
@@ -173,9 +170,9 @@ Now that you've run your first simulation, continue with:
 
 - [Tutorial 2: Basic Simulation](02_basic_simulation.md) - Deeper dive into simulation mechanics
 - [Tutorial 3: Configuring Insurance](03_configuring_insurance.md) - Add insurance to your simulation
-- [Tutorial 4: Optimization Workflow](04_optimization_workflow.md) - Find optimal insurance strategies
-- [Tutorial 5: Analyzing Results](05_analyzing_results.md) - Ergodic analysis techniques
-- [Tutorial 6: Advanced Scenarios](06_advanced_scenarios.md) - Monte Carlo and complex configurations
+- [Tutorial 4: Optimization Workflow](04_optimization_workflow.md) -- Use the optimizer to automatically find the best deductible and limit for your business
+- [Tutorial 5: Analyzing Results](05_analyzing_results.md) -- Deep dive into ergodic analysis, volatility drag, and DuPont decomposition
+- [Tutorial 6: Advanced Scenarios](06_advanced_scenarios.md) -- Monte Carlo simulations, market cycles, and multi-line programs
 
 ## Quick Reference
 

@@ -308,7 +308,7 @@ print(f"Mean Time-Weighted ROE: {np.mean([o['time_weighted_roe'] for o in outcom
 
 ## Next Steps
 
-- [Tutorial 3: Configuring Insurance](03_configuring_insurance.md) - Add insurance protection
-- [Tutorial 4: Optimization Workflow](04_optimization_workflow.md) - Find optimal strategies
-- [Tutorial 5: Analyzing Results](05_analyzing_results.md) - Ergodic analysis
-- [Tutorial 6: Advanced Scenarios](06_advanced_scenarios.md) - Monte Carlo simulations
+- [Tutorial 3: Configuring Insurance](03_configuring_insurance.md) - Add insurance to your simulation
+- [Tutorial 4: Optimization Workflow](04_optimization_workflow.md) -- Use the optimizer to automatically find the best deductible and limit for your business
+- [Tutorial 5: Analyzing Results](05_analyzing_results.md) -- Deep dive into ergodic analysis, volatility drag, and DuPont decomposition
+- [Tutorial 6: Advanced Scenarios](06_advanced_scenarios.md) -- Monte Carlo simulations, market cycles, and multi-line programs

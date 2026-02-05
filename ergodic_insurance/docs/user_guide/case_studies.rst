@@ -1,7 +1,14 @@
 Model Cases
 ============
 
-These case studies demonstrate how different types of companies can use ergodic insurance optimization. Each includes actual simulation results and detailed analysis of the decision process.
+These model cases demonstrate how different types of companies can use ergodic insurance optimization to make better risk management decisions. Each case includes a realistic company profile, a working code example using the framework's API, illustrative simulation results, and a concrete recommendation.
+
+.. note::
+
+   The numerical results shown here are illustrative. Your own results
+   will vary depending on parameters, random seeds, and the number of
+   simulation paths. The patterns and insights, however, are robust.
+
 
 Model Case 1: Widget Manufacturing Company
 -------------------------------------------
@@ -12,20 +19,21 @@ Company Profile
 **MidTech Manufacturing Inc.**
 
 * **Industry**: Electronic components manufacturing
-* **Assets**: \$10 million
-* **Revenue**: \$15 million annually
+* **Assets**: \$10M
+* **Revenue**: \$15M annually (asset turnover ratio of 1.5)
 * **Operating Margin**: 8%
-* **Growth Rate**: 6% baseline
-* **Volatility**: 15% annual revenue volatility
+* **Tax Rate**: 25%
+* **Key Risk**: Fire, explosion, and equipment breakdown at a single
+  large production facility
 
 Risk Profile
 ~~~~~~~~~~~~
 
 Based on 5 years of historical data:
 
-* **Attritional losses**: 4-6 events/year, \$30K-\$100K each
-* **Large losses**: 1 every 3 years, \$1M-\$5M range
-* **Catastrophic risk**: Major fire/explosion risk, potential \$20M loss
+* **Attritional losses**: 4--6 events/year, \$30K--\$100K each
+* **Large losses**: 1 every 3 years, \$1M--\$5M range
+* **Catastrophic risk**: Major fire or explosion, potential \$20M+ loss
 
 Current Insurance Program
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,32 +41,103 @@ Current Insurance Program
 * **Retention**: \$500,000
 * **Limit**: \$5,000,000
 * **Annual Premium**: \$125,000
-* **Historical Performance**: 2 limits breached in past 10 years
+* **Historical Performance**: 2 limit breaches in the past 10 years
 
 Analysis Process
 ~~~~~~~~~~~~~~~~
 
-**Step 1: Baseline Assessment**
+**Step 1: Build the manufacturer model**
 
 .. code-block:: python
 
-   # Configuration for MidTech Manufacturing
-   manufacturer_config = {
-       'starting_assets': 10_000_000,
-       'base_revenue': 15_000_000,
-       'base_operating_margin': 0.08,
-       'tax_rate': 0.25,
-       'growth_volatility': 0.15
-   }
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
-   # Loss distribution parameters
-   loss_config = {
-       'attritional': {'frequency': 5.0, 'severity_mean': 60_000, 'severity_cv': 0.8},
-       'large': {'frequency': 0.33, 'severity_mean': 2_500_000, 'severity_cv': 1.0},
-       'catastrophic': {'frequency': 0.02, 'severity_mean': 20_000_000, 'severity_cv': 0.5}
-   }
+   config = ManufacturerConfig(
+       initial_assets=10_000_000,
+       asset_turnover_ratio=1.5,       # Revenue = 1.5 * Assets
+       base_operating_margin=0.08,
+       tax_rate=0.25,
+       retention_ratio=1.0,            # Reinvest all earnings
+       ppe_ratio=0.5,
+   )
+   manufacturer = WidgetManufacturer(config)
 
-**Step 2: Simulation Results**
+**Step 2: Define the loss distribution**
+
+.. code-block:: python
+
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+
+   loss_gen = ManufacturingLossGenerator(
+       attritional_params={'frequency': 5.0, 'severity_mean': 60_000},
+       large_params={'frequency': 0.33, 'severity_mean': 2_500_000},
+       catastrophic_params={'frequency': 0.02, 'severity_mean': 20_000_000},
+       seed=42,
+   )
+
+**Step 3: Set up the current insurance program**
+
+.. code-block:: python
+
+   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+
+   current_policy = InsurancePolicy(
+       layers=[
+           InsuranceLayer(
+               attachment_point=500_000,
+               limit=5_000_000,
+               rate=0.025,
+           ),
+       ],
+       deductible=500_000,
+   )
+
+**Step 4: Run the simulation**
+
+.. code-block:: python
+
+   from ergodic_insurance.simulation import Simulation
+
+   sim = Simulation(
+       manufacturer=manufacturer,
+       loss_generator=loss_gen,
+       insurance_policy=current_policy,
+       time_horizon=10,
+       seed=42,
+   )
+   results = sim.run()
+
+**Step 5: Compare against an optimized program**
+
+.. code-block:: python
+
+   optimized_policy = InsurancePolicy(
+       layers=[
+           InsuranceLayer(
+               attachment_point=100_000,
+               limit=5_000_000,
+               rate=0.025,
+           ),
+           InsuranceLayer(
+               attachment_point=5_100_000,
+               limit=20_000_000,
+               rate=0.012,
+           ),
+       ],
+       deductible=100_000,
+   )
+
+   sim_opt = Simulation(
+       manufacturer=WidgetManufacturer(config),
+       loss_generator=loss_gen,
+       insurance_policy=optimized_policy,
+       time_horizon=10,
+       seed=42,
+   )
+   results_opt = sim_opt.run()
+
+**Illustrative Simulation Results**
 
 *Without Insurance:*
 
@@ -73,7 +152,7 @@ Analysis Process
 * Average annual growth: 6.1%
 * 5% VaR: \$3.2M
 * Total premiums paid: \$1.25M
-* Benefit vs no insurance: +\$1.8M terminal value
+* Benefit vs. no insurance: +\$1.8M terminal value
 
 *Optimized Program (\$100K retention, \$25M limit):*
 
@@ -81,7 +160,7 @@ Analysis Process
 * Average annual growth: 7.4%
 * 5% VaR: \$8.7M
 * Total premiums paid: \$3.85M
-* Benefit vs current: +\$4.1M terminal value
+* Benefit vs. current: +\$4.1M terminal value
 
 Recommendation
 ~~~~~~~~~~~~~~
@@ -92,18 +171,21 @@ Recommendation
 2. **Increase limit** from \$5M to \$25M
 3. **Layer structure**:
 
-   * Primary: \$100K-\$5M at 1.5% rate
-   * First Excess: \$5M-\$25M at 0.7% rate
-   * Catastrophe: \$25M-\$50M at 0.3% rate
+   * Primary: \$100K--\$5M at 2.5% rate
+   * First Excess: \$5M--\$25M at 1.2% rate
 
 **Financial Impact:**
 
 * Additional premium cost: \$260K/year
-* Improved survival probability: +13.3%
+* Improved survival probability: +13.3 percentage points
 * Enhanced growth rate: +1.3%/year
 * 10-year NPV of change: +\$4.1M
 
-**Key Insight:** The \$500K retention was creating cash flow stress during loss years, impeding growth investments. Lower retention enables consistent reinvestment.
+**Key Insight:** The \$500K retention was creating cash flow stress during
+loss years, impairing the company's ability to reinvest in growth. A lower
+retention and higher limit allow MidTech to maintain consistent capital
+deployment even in adverse years.
+
 
 Model Case 2: High-Growth Technology Startup
 ---------------------------------------------
@@ -114,59 +196,95 @@ Company Profile
 **CloudScale Solutions**
 
 * **Industry**: SaaS platform provider
-* **Assets**: \$5 million
-* **Revenue**: \$8 million (100% YoY growth)
+* **Assets**: \$5M
+* **Revenue**: \$8M (100% year-over-year growth)
 * **Operating Margin**: -10% (investing for growth)
-* **Burn Rate**: \$2 million/year
+* **Burn Rate**: \$2M/year
 * **Volatility**: 40% revenue volatility
 
 Risk Profile
 ~~~~~~~~~~~~
 
-* **Cyber incidents**: 0.8 events/year, \$500K-\$5M severity
-* **Business interruption**: Platform outages, \$100K-\$10M impact
-* **D&O liability**: High given rapid growth and VC backing
+* **Cyber incidents**: 0.8 events/year, \$500K--\$5M severity
+* **Business interruption**: Platform outages, \$100K--\$10M impact
+* **D&O liability**: High exposure given rapid growth and VC backing
 * **Key person risk**: Critical dependency on technical founders
 
 Current Situation
 ~~~~~~~~~~~~~~~~~
 
-* **No insurance** (trying to minimize burn)
-* **Recent incident**: \$800K cyber loss absorbed
-* **Board concern**: Requesting risk mitigation
+* **No insurance** -- the board has been trying to minimize burn
+* **Recent incident**: \$800K cyber loss absorbed out of pocket
+* **Board concern**: Series B investors requesting risk mitigation
 
 Analysis Process
 ~~~~~~~~~~~~~~~~
 
-**Step 1: Quantify Uninsured Risk**
+**Step 1: Model the startup's financials**
+
+Because this company is not a traditional manufacturer, we adapt the
+parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   # High-growth tech configuration
-   tech_config = {
-       'starting_assets': 5_000_000,
-       'base_revenue': 8_000_000,
-       'base_operating_margin': -0.10,  # Negative margin during growth
-       'growth_rate': 1.0,  # 100% growth
-       'growth_volatility': 0.40,  # High volatility
-       'burn_rate': 2_000_000
-   }
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
-   # Tech-specific risks
-   cyber_losses = {
-       'frequency': 0.8,
-       'severity_mean': 2_000_000,
-       'severity_cv': 1.5
-   }
+   tech_config = ManufacturerConfig(
+       initial_assets=5_000_000,
+       asset_turnover_ratio=1.6,         # $8M revenue on $5M assets
+       base_operating_margin=-0.10,      # Negative margin during growth
+       tax_rate=0.21,
+       retention_ratio=1.0,
+       ppe_ratio=0.1,                    # Capital-light business
+   )
+   startup = WidgetManufacturer(tech_config)
 
-**Step 2: Simulation Results**
+**Step 2: Model cyber risk as the dominant peril**
+
+.. code-block:: python
+
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+
+   cyber_losses = ManufacturingLossGenerator.create_simple(
+       frequency=0.8,
+       severity_mean=2_000_000,
+       severity_std=3_000_000,
+       seed=42,
+   )
+
+**Step 3: Compare coverage options**
+
+.. code-block:: python
+
+   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance.simulation import Simulation
+
+   # Minimal coverage option
+   minimal_policy = InsurancePolicy(
+       layers=[
+           InsuranceLayer(attachment_point=50_000, limit=5_000_000, rate=0.036),
+       ],
+       deductible=50_000,
+   )
+
+   # Recommended comprehensive coverage
+   full_policy = InsurancePolicy(
+       layers=[
+           InsuranceLayer(attachment_point=25_000, limit=5_000_000, rate=0.04),
+           InsuranceLayer(attachment_point=5_025_000, limit=45_000_000, rate=0.008),
+       ],
+       deductible=25_000,
+   )
+
+**Illustrative Simulation Results**
 
 *Without Insurance:*
 
 * 2-year survival probability: 68%
 * 5-year survival probability: 31%
-* Risk of running out of cash: 45% in year 2
-* Expected runway reduction: 8 months per incident
+* Risk of cash depletion: 45% in year 2
+* Expected runway reduction per incident: 8 months
 
 *Minimal Coverage (\$50K retention, \$5M limit):*
 
@@ -181,7 +299,8 @@ Analysis Process
 * 5-year survival probability: 78%
 * Annual premium: \$425K
 * Runway impact: -2.5 months
-* **Critical benefit**: Enables next funding round
+* **Critical benefit**: Enables next funding round by satisfying investor
+  risk requirements
 
 Recommendation
 ~~~~~~~~~~~~~~
@@ -200,10 +319,16 @@ Recommendation
 
 **Board Presentation Points:**
 
-* Insurance cost < 6% of revenue (industry standard)
-* Survival probability improvement: +47% over 5 years
+* Insurance cost < 6% of revenue (within industry norms)
+* Survival probability improvement: +47 percentage points over 5 years
 * Protects \$50M post-money valuation
 * Required by most Series B investors
+
+**Key Insight:** For a startup burning cash, insurance looks like an
+expense to cut. Ergodic analysis reveals the opposite: without
+insurance, a single cyber incident consumes 8 months of runway, turning
+a survivable setback into an existential threat.
+
 
 Model Case 3: Stable Utility Company
 -------------------------------------
@@ -214,18 +339,18 @@ Company Profile
 **Regional Power Corp**
 
 * **Industry**: Electric utility
-* **Assets**: \$100 million
-* **Revenue**: \$80 million
+* **Assets**: \$100M
+* **Revenue**: \$80M
 * **Operating Margin**: 12% (regulated)
-* **Growth**: 2% annual (population-based)
+* **Growth**: 2% annual (population-driven)
 * **Volatility**: 5% (weather-driven)
 
 Risk Profile
 ~~~~~~~~~~~~
 
-* **Routine claims**: 20-30/year, \$10K-\$50K each
-* **Storm damage**: 2-3/year, \$500K-\$5M each
-* **Catastrophic events**: Ice storms, hurricanes (\$50M-\$200M)
+* **Routine claims**: 20--30/year, \$10K--\$50K each
+* **Storm damage**: 2--3/year, \$500K--\$5M each
+* **Catastrophic events**: Ice storms, hurricanes (\$50M--\$200M)
 * **Regulatory**: Penalties for extended outages
 
 Current Insurance Program
@@ -236,23 +361,85 @@ Current Insurance Program
 * **Excess limit**: \$100,000,000
 * **Annual premium**: \$2,800,000
 
-Analysis Results
+Analysis Process
 ~~~~~~~~~~~~~~~~
 
-**Optimization Finding:** Current retention too low for company size
+**Step 1: Configure the utility**
+
+.. code-block:: python
+
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
+
+   utility_config = ManufacturerConfig(
+       initial_assets=100_000_000,
+       asset_turnover_ratio=0.8,         # $80M revenue on $100M assets
+       base_operating_margin=0.12,
+       tax_rate=0.25,
+       retention_ratio=0.5,              # Pays dividends
+       ppe_ratio=0.7,                    # Capital-intensive
+   )
+   utility = WidgetManufacturer(utility_config)
+
+**Step 2: Model the loss environment**
+
+A utility faces a high volume of predictable attritional losses and
+infrequent but severe catastrophic events. The full ``ManufacturingLossGenerator``
+constructor captures this well:
+
+.. code-block:: python
+
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+
+   utility_losses = ManufacturingLossGenerator(
+       attritional_params={'frequency': 25.0, 'severity_mean': 30_000},
+       large_params={'frequency': 2.5, 'severity_mean': 2_000_000},
+       catastrophic_params={'frequency': 0.05, 'severity_mean': 100_000_000},
+       seed=42,
+   )
+
+**Step 3: Evaluate higher retentions**
+
+.. code-block:: python
+
+   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance.simulation import Simulation
+
+   # Current structure
+   current = InsurancePolicy(
+       layers=[
+           InsuranceLayer(attachment_point=250_000, limit=10_000_000, rate=0.015),
+           InsuranceLayer(attachment_point=10_250_000, limit=100_000_000, rate=0.005),
+       ],
+       deductible=250_000,
+   )
+
+   # Optimized: raise retention, keep catastrophe protection
+   optimized = InsurancePolicy(
+       layers=[
+           InsuranceLayer(attachment_point=2_000_000, limit=8_000_000, rate=0.012),
+           InsuranceLayer(attachment_point=10_000_000, limit=100_000_000, rate=0.005),
+       ],
+       deductible=2_000_000,
+   )
+
+**Illustrative Analysis Results**
+
+**Optimization Finding:** Current retention is too low for the company's
+asset base and earnings stability.
 
 *Current Structure Performance:*
 
-* Never approaching ruin (100% survival)
-* Paying for unnecessary frequency coverage
+* Survival probability: effectively 100% (never approaching ruin)
+* Paying for unnecessary frequency coverage on predictable losses
 * Premium efficiency: 42% (low)
 
 *Optimized Structure (\$2M retention, same limits):*
 
 * Maintains 100% survival probability
 * Premium savings: \$1.1M/year
-* Self-insures predictable losses
-* Focuses on catastrophe protection
+* Self-insures predictable attritional losses
+* Concentrates spend on catastrophe protection
 
 Recommendation
 ~~~~~~~~~~~~~~
@@ -262,43 +449,19 @@ Recommendation
 1. **Increase retention** to \$2M (2% of assets)
 2. **Maintain catastrophe limits** at \$100M+
 3. **Add parametric coverage** for named storms
-4. **Establish loss fund** with premium savings
+4. **Establish a captive loss fund** with the premium savings
 
 **10-Year Impact:**
 
 * Premium savings: \$11M
-* Loss fund accumulation: \$8M (after claims)
+* Loss fund accumulation: \$8M (after self-insured claims)
 * Improved regulatory standing
-* Maintains AAA credit rating
+* Maintains credit rating
 
-Model Case 4: Comparison Across Industries
--------------------------------------------
-
-Comparative Analysis
-~~~~~~~~~~~~~~~~~~~~
-
-We ran identical simulations across different industry profiles:
-
-.. code-block:: text
-
-   ┌─────────────────┬──────────┬────────────┬───────────┬─────────────┐
-   │ Industry        │ Optimal  │ Optimal    │ Premium % │ Ergodic     │
-   │                 │ Retention│ Limit      │ of Assets │ Improvement │
-   ├─────────────────┼──────────┼────────────┼───────────┼─────────────┤
-   │ Manufacturing   │ 1.0%     │ 2.5x Rev   │ 3.5%      │ +31%        │
-   │ Technology      │ 0.5%     │ 6x Rev     │ 8.5%      │ +67%        │
-   │ Utility         │ 2.0%     │ 1.5x Rev   │ 2.8%      │ +12%        │
-   │ Retail          │ 0.8%     │ 3x Rev     │ 4.2%      │ +38%        │
-   │ Healthcare      │ 0.3%     │ 5x Rev     │ 6.1%      │ +54%        │
-   └─────────────────┴──────────┴────────────┴───────────┴─────────────┘
-
-Key Patterns
-~~~~~~~~~~~~
-
-1. **Higher volatility → Lower optimal retention**
-2. **Higher growth → Higher optimal limits**
-3. **Thin margins → More insurance value**
-4. **Stable companies → Higher retentions work**
+**Key Insight:** Regional Power Corp has enough earnings stability and
+asset depth to absorb routine losses without financial stress. Paying an
+insurer to handle predictable \$30K claims wastes capital that compounds
+over decades.
 
 Implementation Lessons
 ----------------------
@@ -306,69 +469,72 @@ Implementation Lessons
 Lesson 1: Gradual Transition
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** Moving from \$1M to \$100K retention seems risky
+**Problem:** Moving from a \$1M to a \$100K retention seems risky to management.
 
-**Solution:** Phase over 2 years:
+**Solution:** Phase the change over 2--3 years:
 
 * Year 1: Reduce to \$500K, monitor results
-* Year 2: Further reduce to \$250K if comfortable
+* Year 2: Further reduce to \$250K
 * Year 3: Reach optimal \$100K
+
+This gives the organization time to build confidence in the model's predictions while capturing incremental benefits each year.
 
 Lesson 2: Premium Sticker Shock
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** Board resistant to 3x premium increase
+**Problem:** Board resistant to a 3x premium increase.
 
-**Solution:** Present as investment:
+**Solution:** Present insurance as an investment with measurable return.
 
-.. code-block:: python
-
-   # ROI Calculation
-   additional_premium = 260_000  # per year
-   growth_improvement = 0.013    # 1.3% better growth
-   asset_base = 10_000_000
-
-   annual_value_creation = asset_base * growth_improvement
-   roi = annual_value_creation / additional_premium
-
-   print(f"Annual value creation: ${annual_value_creation:,.0f}")
-   print(f"ROI on insurance spend: {roi:.1f}x")
-   # Output: ROI on insurance spend: 5.0x
+The key is framing the conversation around *growth rate enhancement*, not loss recovery. Insurance is not a cost, it is a lever that removes downside drag from the company's compounding trajectory.
 
 Lesson 3: Market Capacity
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** Insurers reluctant to provide \$50M limit to \$5M company
+**Problem:** Insurers reluctant to provide a \$50M limit to a \$5M company.
 
-**Solution:** Structure with multiple carriers:
+**Solution:** Structure the program with multiple carriers.
 
-* Primary: Admitted carrier (\$5M)
-* Excess: Bermuda markets (\$20M)
-* Cat: ILS/Alternative capital (\$25M)
+This layered approach also naturally aligns with the framework's ``InsuranceLayer`` API, making it straightforward to model each carrier's contribution independently.
 
-TODO: Real-World Validation
----------------------------
 
-Backtesting Against Historical Events
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Further Analysis
+-----------------
 
-We need to validate our models against actual loss events:
+The model cases above provide a starting point. To deepen the analysis
+for your own organization, consider exploring:
 
-* **2008 Financial Crisis Scenario:**
-* **2020 Pandemic Scenario:**
-* **Natural Catastrophe Events:**
-   * Hurricane exposure (Florida manufacturer)
-   * Earthquake exposure (California tech)
+* **Stress testing against historical events** -- run scenarios modeled
+  on the 2008 financial crisis, the 2020 pandemic, or region-specific
+  catastrophes (hurricanes for a Florida manufacturer, earthquakes for a
+  California technology company).
+
+* **Sensitivity analysis** -- vary key parameters (growth rate, margin,
+  loss frequency) to understand which assumptions most influence the
+  optimal insurance structure.
+
+* **Multi-year market cycle modeling** -- insurance markets harden and
+  soften over time. Simulating premium volatility alongside loss
+  volatility reveals the true long-run cost of coverage.
+
+* **Captive and alternative risk transfer** -- for companies with stable
+  loss histories, a captive insurance program may complement or replace
+  traditional coverage in certain layers.
+
+The :doc:`../tutorials/04_optimization_workflow` tutorial walks through
+the optimization process step by step, and
+:doc:`../tutorials/06_advanced_scenarios` covers multi-layer programs,
+dynamic pricing, and other advanced configurations.
+
 
 Your Next Steps
 ---------------
 
-1. **Identify your company type** from the cases above
-2. **Run your specific parameters** through the model
-3. **Compare results** with the relevant case study
-4. **Adjust for unique factors** in your situation
-5. **Document decisions** for future reference
+1. **Identify your industry parameters**
+2. **Calibrate parameters** to your own financials using ``ManufacturerConfig``.
+3. **Run your specific scenario** through the ``Simulation`` engine.
+4. **Compare results** with the relevant model case.
+5. **Iterate on the insurance structure** using different
+   ``InsurancePolicy`` configurations until you find the optimum.
 
-Remember: These cases are starting points. Your specific situation requires customized analysis using the tools provided in :doc:`running_analysis`.
-
-For additional customization options, see :doc:`advanced_topics`.
+These cases are starting points. Your specific situation will require customized analysis, and the framework is designed to make that analysis straightforward and repeatable.

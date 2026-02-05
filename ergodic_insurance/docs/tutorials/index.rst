@@ -1,39 +1,52 @@
-User Tutorials and How-To Guides
-=================================
+Tutorials
+=========
 
-Welcome to the comprehensive tutorial series for the Ergodic Insurance Framework. These hands-on guides will walk you through everything from basic setup to advanced insurance optimization strategies.
+This tutorial series walks you through the Ergodic Insurance Limits framework, from installation to advanced optimization. The goal is to help you understand how time-average (ergodic) analysis changes insurance purchasing decisions compared to traditional expected-value approaches.
 
 .. note::
-   **New to the framework?** Start with :doc:`01_getting_started` to get up and running in minutes!
+   **New here?** Start with :doc:`01_getting_started` for installation and a first simulation.
 
 Tutorial Overview
 -----------------
 
-Our tutorials are designed to take you from beginner to expert:
+The tutorials are split into two groups.
 
-1. **Getting Started** - Installation, setup, and your first simulation
-2. **Basic Simulation** - Understanding the simulation engine and parameters
-3. **Configuring Insurance** - Setting up single and multi-layer insurance programs
-4. **Optimization Workflow** - Finding optimal insurance strategies
-5. **Analyzing Results** - Interpreting metrics and making decisions
-6. **Advanced Scenarios** - Real-world applications and complex strategies
+**Foundations (Tutorials 1--2):**
 
-Quick Start Path
-----------------
+1. **Getting Started** -- Installation, environment setup, and running your first simulation
+2. **Basic Simulation** -- The Widget Manufacturer model, step-by-step year simulation, and loss processing
 
-Depending on your role and objectives, follow these recommended paths:
+**Applied Workflow (Tutorials 3--6):**
 
-**For Actuaries and Risk Managers:**
+Tutorials 3 and 4 follow **NovaTech Plastics**, a fictional $10M plastics manufacturer with an 8% operating margin, as the running example. The same manufacturer parameters carry through Tutorials 5 and 6.
+
+3. **Configuring Insurance** -- Building single-layer and multi-layer insurance towers for NovaTech
+4. **Optimization Workflow** -- Using ``BusinessOptimizer`` to find data-driven insurance strategies as NovaTech plans its expansion
+5. **Analyzing Results** -- Comparing time-average vs. ensemble-average growth rates with ``ErgodicAnalyzer``
+6. **Advanced Scenarios** -- Monte Carlo simulations, market cycle modeling, and scenario analysis
+
+Quick Start Paths
+-----------------
+
+You do not need to complete every tutorial. Pick a path based on what you want to learn:
+
+**Actuaries and Risk Managers:**
+   Start with the foundations, then focus on insurance structure and results interpretation.
+
    1. :doc:`01_getting_started`
    2. :doc:`03_configuring_insurance`
    3. :doc:`05_analyzing_results`
 
-**For Financial Analysts:**
+**Financial Analysts and CFOs:**
+   Focus on the business case for insurance and the optimization workflow.
+
    1. :doc:`01_getting_started`
    2. :doc:`04_optimization_workflow`
    3. :doc:`05_analyzing_results`
 
-**For Developers and Researchers:**
+**Developers and Researchers:**
+   Dive into the simulation engine and advanced techniques.
+
    1. :doc:`02_basic_simulation`
    2. :doc:`04_optimization_workflow`
    3. :doc:`06_advanced_scenarios`
@@ -65,93 +78,32 @@ Support Resources
 Learning Objectives
 -------------------
 
-By completing these tutorials, you will be able to:
+After working through these tutorials you should be able to:
 
-* **Set up and run** insurance simulations for your specific use case
-* **Configure** complex multi-layer insurance programs
-* **Optimize** insurance parameters for maximum growth while controlling risk
-* **Analyze** results using ergodic theory principles
-* **Apply** the framework to real-world business scenarios
-* **Troubleshoot** common issues and optimize performance
+* Install the framework and run a simulation end-to-end
+* Configure multi-layer insurance programs with deductibles, attachment points, and limits
+* Use the optimizer to search for insurance strategies that maximize time-average growth
+* Interpret the difference between ensemble-average and time-average growth rates
+* Run Monte Carlo simulations and analyze survival probabilities, ROE, and final equity distributions
 
 Prerequisites
 -------------
 
 **Required:**
    * Python 3.12 or higher
-   * Basic Python knowledge (running scripts, installing packages)
+   * Comfort with Python basics: importing packages, running scripts, reading tracebacks
+   * Familiarity with probability concepts (distributions, expected value, variance) at the level of Actuarial Exam P
 
-**Helpful but not required:**
-   * Understanding of insurance concepts (retention, limits, premiums)
-   * Basic statistics knowledge (distributions, averages)
-   * Familiarity with financial metrics (ROE, ROA)
-
-Interactive Learning
---------------------
-
-All tutorials include:
-
-* **Working code examples** that you can run immediately
-* **Visualizations** to understand concepts intuitively
-* **Best practices** from real-world applications
-* **Common pitfalls** and how to avoid them
-* **Exercises** to test your understanding
-
-Code Examples
--------------
-
-All code examples in these tutorials are:
-
-* ✅ **Tested** - Every example has been verified to work
-* ✅ **Complete** - Full working code, not just snippets
-* ✅ **Documented** - Clear comments explaining each step
-* ✅ **Practical** - Based on real-world use cases
+**Helpful:**
+   * Working knowledge of insurance terms -- deductible, retention, limit, attachment point, premium
+   * Exposure to financial metrics such as ROE, operating margin, and asset turnover
+   * Experience with NumPy arrays and Matplotlib (used throughout the code examples)
 
 Getting Help
 ------------
 
-If you encounter issues:
+If you get stuck:
 
-1. Check the :doc:`troubleshooting` guide for common problems
-2. Review the example notebooks in ``ergodic_insurance/notebooks/``
-3. Consult the :doc:`../api/modules` for detailed function documentation
-4. File an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`__
-
-Tutorial Notebooks
-------------------
-
-Jupyter notebook versions of these tutorials are available in:
-``ergodic_insurance/notebooks/tutorials/``
-
-These notebooks allow you to:
-
-* Run code interactively
-* Modify parameters and see results immediately
-* Save your own experiments and notes
-* Share analyses with colleagues
-
-Next Steps
-----------
-
-Ready to begin? Start with :doc:`01_getting_started` to install the framework and run your first simulation!
-
-For those who prefer learning by example, check out our :doc:`../examples` section for complete working demonstrations.
-
-.. note::
-   **Time Investment:** Each tutorial takes approximately 30-45 minutes to complete. The entire series can be completed in about 4 hours.
-
-For Help
---------
-
-* Check the :doc:`../user_guide/faq` for common questions
-* Consult the :doc:`../user_guide/glossary` for term definitions
-* Review example notebooks in ``ergodic_insurance/notebooks/``
-* Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`__
-* Contact: Alex Filiakov (alexfiliakov@gmail.com)
-
-Happy Learning!
----------------
-
-We're excited to help you master insurance optimization using ergodic theory. These tutorials represent the culmination of extensive research and real-world application.
-
-Let's transform insurance from a cost center to a growth enabler! 🚀
+1. Check the :doc:`troubleshooting` guide for common errors and fixes
+2. Consult the :doc:`../api/modules` for detailed function and class documentation
+3. Open an issue on `GitHub <https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues>`__
