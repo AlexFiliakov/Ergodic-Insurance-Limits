@@ -92,10 +92,17 @@ flowchart LR
 ## Published Results
 
 - [Ergodic Insurance Part 1: From Cost Center to Growth Engine: When N=1](https://medium.com/@alexfiliakov/ergodic-insurance-part-1-from-cost-center-to-growth-engine-when-n-1-52c17b048a94)
+- [Insurance Limit Selection Through Ergodicity: When the 99.9th Percentile Isn’t Enough](https://applications.mostlyoptimal.com/insurance-limit-selection-through-ergodicity-when-the-99p9th-percentile-isnt-enough)
+- [Beyond Point Estimates: Stochasticizing Tail Uncertainty With Sobol Sequences](https://applications.mostlyoptimal.com/stochasticizing-tail-risk)
+- [The Insurance Cliff: Where Small Decisions Create Catastrophic Outcomes](https://applications.mostlyoptimal.com/insurance-cliff-by-risk-profile)
 
 ## Reproducible Research
 
-This section will contain notebooks to reproduce research findings.
+### [Ergodic Insurance Under Volatility](ergodic_insurance/notebooks/reproducible_research_2026_02_02_basic_volatility/)
+
+Traditional insurance analysis says companies should self-insure whenever premiums exceed expected losses. A 250,000-path Monte Carlo simulation over 50-year horizons shows this advice is **directionally wrong**: the strategy that minimizes expected costs (no insurance) produces the worst actual compound growth, while guaranteed cost insurance achieves the highest growth despite costing the most. The mechanism is the Volatility Tax: large losses destroy more growth than their expected value suggests because wealth compounds multiplicatively. Without insurance, 37.8% of simulated firms go insolvent; with full coverage, just 0.01% do. The entire experiment is reproducible on Google Colab for ~$25. See the [project README](ergodic_insurance/notebooks/reproducible_research_2026_02_02_basic_volatility/README.md) for setup instructions and parameters to tweak.
+
+---
 
 ## Installation
 
@@ -159,7 +166,7 @@ print("Installation successful!")
 
 ## Documentation
 
-See [Getting Started](https://docs.ergodicityadvantage.com/api/tutorials/01_getting_started.html) for starter examples.
+See [Getting Started](https://docs.mostlyoptimal.com/tutorials/01_getting_started.html) for starter examples.
 
 ## Project Structure
 
