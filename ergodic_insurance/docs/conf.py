@@ -81,7 +81,7 @@ html_css_files = [
 
 # Additional theme options for GitHub Pages
 html_theme_options = {
-    "canonical_url": "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/",
+    "canonical_url": "https://docs.mostlyoptimal.com/",
     "analytics_id": "",
     "style_external_links": False,
 }
@@ -206,7 +206,7 @@ source_suffix = {
 # -- GitHub Pages Configuration ----------------------------------------------
 
 # For standard GitHub Pages (update with your username and repo name)
-html_baseurl = "https://alexfiliakov.github.io/Ergodic-Insurance-Limits/api/"
+html_baseurl = "https://docs.mostlyoptimal.com/"
 
 
 # Function to create .nojekyll file for GitHub Pages
