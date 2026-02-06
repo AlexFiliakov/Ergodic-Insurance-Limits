@@ -55,12 +55,22 @@ def run_chunk_standalone(
     ruin_evaluation = config_dict.get("ruin_evaluation", None)
     ruin_at_year_all = []
 
+    # Pre-copy stochastic process once outside the hot loop (Issue #366).
+    # Most runs have stochastic_process=None so this is a no-op.
+    _has_stochastic = manufacturer.stochastic_process is not None
+
     # Run simulations in chunk
     for i in range(n_sims):
-        # Create a deep copy of the manufacturer for this simulation
-        # This preserves ALL state including year, history, claims, ledger, etc.
-        # See Issue #273 for details on why manual copy was insufficient
-        sim_manufacturer = copy.deepcopy(manufacturer)
+        # Create a fresh manufacturer from config instead of deep-copying the
+        # entire object graph (Issue #366).  WidgetManufacturer.__init__ builds
+        # a clean ledger and balance sheet from config alone — no traversal of
+        # the existing manufacturer's ledger entries, caches, or history.
+        sim_manufacturer = WidgetManufacturer.create_fresh(
+            manufacturer.config,
+            stochastic_process=(
+                copy.deepcopy(manufacturer.stochastic_process) if _has_stochastic else None
+            ),
+        )
 
         # Deep-copy insurance program per simulation to avoid state leakage (Issue #348)
         sim_insurance_program = copy.deepcopy(insurance_program)
