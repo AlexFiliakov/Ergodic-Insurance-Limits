@@ -25,24 +25,20 @@ Example:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 import hashlib
 import json
-import os
 from pathlib import Path
 import pickle
 import shutil
-import tempfile
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional
 import warnings
 
 import h5py
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 from ..safe_pickle import safe_dump, safe_load
 
@@ -750,7 +746,7 @@ class CacheManager:
                 # Determine file path based on key prefix
                 if key.startswith("fig_"):
                     # Figure cache
-                    parts = key.split("_", 2)
+                    _parts = key.split("_", 2)
                     file_path = Path("figures") / "*" / f"*{cache_key}*"
                 elif "_" in key and not key.startswith("fig_"):
                     # Processed results

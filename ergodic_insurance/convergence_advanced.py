@@ -5,12 +5,11 @@ autocorrelation analysis, spectral density estimation, and sophisticated ESS cal
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 import warnings
 
 import numpy as np
 from scipy import fft, signal, stats
-from scipy.optimize import minimize_scalar
 
 
 @dataclass
@@ -378,7 +377,7 @@ class AdvancedConvergenceDiagnostics:
 
         if alpha > 0 and beta > 0:
             # Stationary distribution
-            pi = alpha / (alpha + beta)
+            _pi = alpha / (alpha + beta)
 
             # Required precision
             phi = stats.norm.ppf((s + 1) / 2)
@@ -555,7 +554,7 @@ class AdvancedConvergenceDiagnostics:
             try:
                 log_freq = np.log(frequencies[:n_points] + 1e-10)
                 log_psd = np.log(psd[:n_points] + 1e-10)
-                slope, intercept = np.polyfit(log_freq, log_psd, 1)
+                _slope, intercept = np.polyfit(log_freq, log_psd, 1)
                 return float(np.exp(intercept))
             except Exception:  # pylint: disable=broad-exception-caught
                 # Fall back to simple extrapolation
@@ -593,8 +592,8 @@ class AdvancedConvergenceDiagnostics:
 
             # Test if batch means are stationary
             # Using simple ANOVA-like test
-            overall_mean = np.mean(batch_means)
-            within_var = np.var(batch_means)
+            _overall_mean = np.mean(batch_means)
+            _within_var = np.var(batch_means)
 
             # Between batch variance (time trend test)
             time_indices = np.arange(n_batches)

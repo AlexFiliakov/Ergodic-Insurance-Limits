@@ -15,11 +15,10 @@ non-deterministic built-in hash() function.
 
 import hashlib
 import hmac
-import json
 from pathlib import Path
 import pickle
 import secrets
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 # Default location for the HMAC key
 _DEFAULT_KEY_DIR = Path.home() / ".ergodic_insurance"

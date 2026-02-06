@@ -53,10 +53,10 @@ Since:
     Version 0.1.0
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 import yaml
@@ -645,8 +645,6 @@ class Config(BaseModel):
             FileNotFoundError: If config file doesn't exist.
             ValidationError: If configuration is invalid.
         """
-        import yaml
-
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {path}")
 
@@ -726,8 +724,6 @@ class Config(BaseModel):
         Args:
             path: Path where to save the configuration.
         """
-        import yaml
-
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(self.model_dump(), f, default_flow_style=False, sort_keys=False)

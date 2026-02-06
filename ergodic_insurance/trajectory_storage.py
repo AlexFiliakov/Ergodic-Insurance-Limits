@@ -32,14 +32,12 @@ Example:
     >>> data = storage.load_simulation(sim_id=0)
 """
 
-import csv
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import gc
 import json
-import os
 from pathlib import Path
 import shutil
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 import warnings
 
 import h5py

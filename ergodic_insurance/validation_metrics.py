@@ -242,7 +242,7 @@ class MetricCalculator:
         if len(returns) > 2:
             cumulative = np.cumprod(1 + returns)
             x = np.arange(len(cumulative))
-            slope, intercept, r_value, _, _ = stats.linregress(x, np.log(cumulative))
+            _slope, _intercept, r_value, _, _ = stats.linregress(x, np.log(cumulative))
             stability = r_value**2
         else:
             stability = 0.0

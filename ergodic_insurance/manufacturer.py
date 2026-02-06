@@ -52,24 +52,16 @@ from typing import Any, Dict, List, Optional, Union
 
 try:
     from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
-    from ergodic_insurance.claim_development import ClaimDevelopment
     from ergodic_insurance.config import ManufacturerConfig
-    from ergodic_insurance.decimal_utils import (
-        ONE,
-        ZERO,
-        MetricsDict,
-        quantize_currency,
-        to_decimal,
-    )
+    from ergodic_insurance.decimal_utils import ONE, ZERO, MetricsDict, to_decimal
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.ledger import AccountName, Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
 except ImportError:
     try:
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
-        from .claim_development import ClaimDevelopment
         from .config import ManufacturerConfig
-        from .decimal_utils import ONE, ZERO, MetricsDict, quantize_currency, to_decimal
+        from .decimal_utils import ONE, ZERO, MetricsDict, to_decimal
         from .insurance_accounting import InsuranceAccounting
         from .ledger import AccountName, Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
@@ -79,29 +71,26 @@ except ImportError:
             AccrualType,
             PaymentSchedule,
         )
-        from claim_development import ClaimDevelopment  # type: ignore[no-redef]
         from config import ManufacturerConfig  # type: ignore[no-redef]
-        from decimal_utils import (  # type: ignore[no-redef]
-            ONE,
-            ZERO,
-            MetricsDict,
-            quantize_currency,
-            to_decimal,
-        )
+        from decimal_utils import ONE, ZERO, MetricsDict, to_decimal  # type: ignore[no-redef]
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from ledger import AccountName, Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
 
 # Re-exports for backward compatibility (Issue #305)
-from ergodic_insurance.claim_liability import ClaimLiability  # noqa: F401
+from ergodic_insurance.claim_liability import (  # noqa: F401  pylint: disable=ungrouped-imports
+    ClaimLiability,
+)
 
 # Import mixins
-from ergodic_insurance.manufacturer_balance_sheet import BalanceSheetMixin
+from ergodic_insurance.manufacturer_balance_sheet import (  # pylint: disable=ungrouped-imports
+    BalanceSheetMixin,
+)
 from ergodic_insurance.manufacturer_claims import ClaimProcessingMixin
 from ergodic_insurance.manufacturer_income import IncomeCalculationMixin
 from ergodic_insurance.manufacturer_metrics import MetricsCalculationMixin
 from ergodic_insurance.manufacturer_solvency import SolvencyMixin
-from ergodic_insurance.tax_handler import TaxHandler  # noqa: F401
+from ergodic_insurance.tax_handler import TaxHandler  # noqa: F401  pylint: disable=unused-import
 
 logger = logging.getLogger(__name__)
 
@@ -390,14 +379,12 @@ class WidgetManufacturer(
         Returns:
             Independent copy of this WidgetManufacturer with all state preserved
         """
-        import copy
-
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
 
         for key, value in self.__dict__.items():
-            setattr(result, key, copy.deepcopy(value, memo))
+            setattr(result, key, copy_module.deepcopy(value, memo))
 
         return result
 

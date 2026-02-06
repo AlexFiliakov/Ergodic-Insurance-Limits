@@ -56,32 +56,26 @@ class FinancialStateProvider(Protocol):
     @property
     def current_revenue(self) -> Decimal:
         """Get current revenue."""
-        ...
 
     @property
     def current_assets(self) -> Decimal:
         """Get current total assets."""
-        ...
 
     @property
     def current_equity(self) -> Decimal:
         """Get current equity value."""
-        ...
 
     @property
     def base_revenue(self) -> Decimal:
         """Get base (initial) revenue for comparison."""
-        ...
 
     @property
     def base_assets(self) -> Decimal:
         """Get base (initial) assets for comparison."""
-        ...
 
     @property
     def base_equity(self) -> Decimal:
         """Get base (initial) equity for comparison."""
-        ...
 
 
 class ExposureBase(ABC):
@@ -105,7 +99,6 @@ class ExposureBase(ABC):
             float: Exposure level (e.g., revenue in dollars, asset value, etc.).
                 Must be non-negative.
         """
-        pass
 
     @abstractmethod
     def get_frequency_multiplier(self, time: float) -> float:
@@ -122,7 +115,6 @@ class ExposureBase(ABC):
                 means no change from base frequency, 2.0 means double the
                 base frequency, etc. Must be non-negative.
         """
-        pass
 
     @abstractmethod
     def reset(self) -> None:
@@ -133,7 +125,6 @@ class ExposureBase(ABC):
         running multiple independent simulations with the same exposure
         configuration.
         """
-        pass
 
 
 @dataclass
@@ -183,7 +174,6 @@ class RevenueExposure(ExposureBase):
 
     def reset(self) -> None:
         """No internal state to reset for state-driven exposure."""
-        pass
 
 
 @dataclass
@@ -233,7 +223,6 @@ class AssetExposure(ExposureBase):
 
     def reset(self) -> None:
         """No internal state to reset for state-driven exposure."""
-        pass
 
 
 @dataclass
@@ -279,7 +268,6 @@ class EquityExposure(ExposureBase):
 
     def reset(self) -> None:
         """No internal state to reset for state-driven exposure."""
-        pass
 
 
 @dataclass
@@ -334,7 +322,6 @@ class EmployeeExposure(ExposureBase):
 
     def reset(self) -> None:
         """No state to reset."""
-        pass
 
 
 @dataclass
@@ -402,7 +389,6 @@ class ProductionExposure(ExposureBase):
 
     def reset(self) -> None:
         """No state to reset."""
-        pass
 
 
 @dataclass
@@ -526,14 +512,14 @@ class ScenarioExposure(ExposureBase):
 
         if self.interpolation == "nearest":
             return path[round(time)]
-        elif self.interpolation == "linear":
+        if self.interpolation == "linear":
             lower = int(time)
             upper = lower + 1
             weight = time - lower
             return path[lower] * (1 - weight) + path[upper] * weight
-        else:  # cubic
-            # Simple cubic interpolation (could use scipy for better implementation)
-            return self._cubic_interpolate(path, time)
+        # cubic
+        # Simple cubic interpolation (could use scipy for better implementation)
+        return self._cubic_interpolate(path, time)
 
     def _cubic_interpolate(self, path: List[float], time: float) -> float:
         """Simple cubic interpolation implementation."""

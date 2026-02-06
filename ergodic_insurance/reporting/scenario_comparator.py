@@ -5,19 +5,16 @@ highlighting parameter differences, and performing statistical comparisons.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
+from typing import Any, Dict, List, Optional, Tuple
 
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy import stats
-import seaborn as sns
 
-from ..visualization.annotations import add_callout, add_value_labels
-from ..visualization.core import WSJ_COLORS, format_currency, set_wsj_style
+from ..visualization.annotations import add_value_labels
+from ..visualization.core import WSJ_COLORS, set_wsj_style
 
 
 @dataclass

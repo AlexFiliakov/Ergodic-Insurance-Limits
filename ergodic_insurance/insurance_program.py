@@ -9,11 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy import optimize
-from scipy.optimize import OptimizeResult
 import yaml
 
 if TYPE_CHECKING:
@@ -212,16 +210,15 @@ class EnhancedInsuranceLayer:
         if self.limit_type == "per-occurrence":
             # For per-occurrence, limit each individual loss
             return min(excess_loss, self.limit)
-        elif self.limit_type == "aggregate":
+        if self.limit_type == "aggregate":
             # For aggregate, limit is handled in process_claim via aggregate tracking
             # Here we just return the excess without limiting
             return min(excess_loss, self.limit)
-        elif self.limit_type == "hybrid":
+        if self.limit_type == "hybrid":
             # For hybrid, apply per-occurrence limit first
             # Aggregate limit is handled in process_claim
             return min(excess_loss, self.per_occurrence_limit or self.limit)
-        else:
-            return min(excess_loss, self.limit)
+        return min(excess_loss, self.limit)
 
 
 @dataclass
@@ -265,7 +262,7 @@ class LayerState:
             self.total_claims_paid += payment
             return payment, 0.0  # No reinstatement premiums for per-occurrence
 
-        elif self.layer.limit_type == "aggregate":
+        if self.layer.limit_type == "aggregate":
             # Aggregate: track total usage and exhaust when limit reached
             if self.is_exhausted:
                 return 0.0, 0.0
@@ -364,7 +361,7 @@ class LayerState:
 
             return total_payment, total_reinstatement_premium
 
-        elif self.layer.limit_type == "hybrid":
+        if self.layer.limit_type == "hybrid":
             # Hybrid: apply both per-occurrence and aggregate constraints
             if self.is_exhausted:
                 return 0.0, 0.0
@@ -404,9 +401,8 @@ class LayerState:
 
             return max_payment, reinstatement_premium
 
-        else:
-            # Fallback to aggregate behavior
-            return self._process_claim_aggregate(claim_amount, timing_factor)
+        # Fallback to aggregate behavior
+        return self._process_claim_aggregate(claim_amount, timing_factor)
 
     def _process_claim_aggregate(
         self, claim_amount: float, timing_factor: float = 1.0

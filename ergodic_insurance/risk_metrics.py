@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import stats
-import seaborn as sns
 
 from .config import DEFAULT_RISK_FREE_RATE
 
@@ -650,8 +649,6 @@ def compare_risk_metrics(
     Returns:
         DataFrame with comparative metrics.
     """
-    import pandas as pd
-
     if confidence_levels is None:
         confidence_levels = [0.95, 0.99, 0.995]
 
@@ -943,13 +940,11 @@ class ROEAnalyzer:
                 "percentile_95": 0.0,
             }
 
-        from scipy import stats as scipy_stats
-
         return {
             "mean": np.mean(self.valid_roe),
             "median": np.median(self.valid_roe),
-            "skewness": scipy_stats.skew(self.valid_roe) if len(self.valid_roe) > 2 else 0.0,
-            "kurtosis": scipy_stats.kurtosis(self.valid_roe) if len(self.valid_roe) > 3 else 0.0,
+            "skewness": stats.skew(self.valid_roe) if len(self.valid_roe) > 2 else 0.0,
+            "kurtosis": stats.kurtosis(self.valid_roe) if len(self.valid_roe) > 3 else 0.0,
             "percentile_5": np.percentile(self.valid_roe, 5),
             "percentile_25": np.percentile(self.valid_roe, 25),
             "percentile_75": np.percentile(self.valid_roe, 75),

@@ -59,20 +59,15 @@ import hashlib
 from itertools import product
 import json
 import logging
-import os
 from pathlib import Path
-import pickle
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import h5py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
 from .business_optimizer import BusinessConstraints, BusinessOptimizer
-from .config import Config
 from .manufacturer import WidgetManufacturer
-from .parallel_executor import CPUProfile, ParallelExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -530,7 +525,7 @@ class ParameterSweeper:
         )
 
         # Add metric statistics
-        metric_summary = pd.DataFrame(
+        _metric_summary = pd.DataFrame(
             {
                 "optimal_mean": optimal[objective].mean(),
                 "optimal_std": optimal[objective].std(),
@@ -648,7 +643,7 @@ class ParameterSweeper:
                 # Create refined range around optimal values
                 param_min = param_stats.loc[param, "min"]
                 param_max = param_stats.loc[param, "max"]
-                param_mean = param_stats.loc[param, "mean"]
+                _param_mean = param_stats.loc[param, "mean"]
 
                 # Generate more points in optimal range
                 if isinstance(config.parameters[param][0], (int, float)):

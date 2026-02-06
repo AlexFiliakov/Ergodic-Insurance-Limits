@@ -4,15 +4,14 @@ This module provides visualization functions for batch simulation results,
 scenario comparisons, and sensitivity analyses.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
 
-from .core import COLOR_SEQUENCE, WSJ_COLORS, format_currency, set_wsj_style
+from .core import COLOR_SEQUENCE, WSJ_COLORS, set_wsj_style
 
 
 def plot_scenario_comparison(  # pylint: disable=too-many-locals
@@ -94,7 +93,7 @@ def plot_scenario_comparison(  # pylint: disable=too-many-locals
         ax.grid(True, alpha=0.3)
 
         # Add value labels
-        for j, (value_bar, val) in enumerate(zip(bars, values)):
+        for _j, (value_bar, val) in enumerate(zip(bars, values)):
             height = value_bar.get_height()
             format_str = f"{val:.2%}" if "probability" in metric else f"{val:.2g}"
             ax.text(
@@ -151,7 +150,7 @@ def plot_sensitivity_heatmap(  # pylint: disable=too-many-locals
         return plt.figure()
 
     # Prepare data for heatmap
-    sensitivity_matrix: List[List[float]] = []
+    _sensitivity_matrix: List[List[float]] = []
     param_names = []
 
     for _, row in sensitivity_df.iterrows():
@@ -411,8 +410,6 @@ def plot_parallel_scenarios(  # pylint: disable=too-many-branches
     Returns:
         Matplotlib figure with parallel coordinates
     """
-    import matplotlib.patches as mpatches
-
     set_wsj_style()
     fig, ax = plt.subplots(figsize=figsize)
 

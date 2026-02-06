@@ -8,18 +8,10 @@ global optima in complex insurance optimization problems.
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
-from scipy import optimize
-from scipy.optimize import (
-    Bounds,
-    LinearConstraint,
-    NonlinearConstraint,
-    OptimizeResult,
-    differential_evolution,
-    minimize,
-)
+from scipy.optimize import Bounds, NonlinearConstraint, OptimizeResult, minimize
 
 logger = logging.getLogger(__name__)
 

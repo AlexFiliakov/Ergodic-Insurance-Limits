@@ -78,7 +78,7 @@ class ConvergenceDiagnostics:
 
         # Calculate between-chain variance
         chain_means = np.mean(chains, axis=1)
-        grand_mean = np.mean(chain_means)
+        _grand_mean = np.mean(chain_means)
         between_var = n_iterations * np.var(chain_means, ddof=1)
 
         # Calculate within-chain variance
@@ -161,7 +161,7 @@ class ConvergenceDiagnostics:
             ess_values = [self.calculate_ess(chain) for chain in chains]
         elif chains.ndim == 3:
             # Multiple chains, multiple metrics
-            n_chains, n_iterations, n_metrics = chains.shape
+            n_chains, _n_iterations, n_metrics = chains.shape
             ess_values = []
             for m in range(n_metrics):
                 metric_ess = [self.calculate_ess(chains[c, :, m]) for c in range(n_chains)]

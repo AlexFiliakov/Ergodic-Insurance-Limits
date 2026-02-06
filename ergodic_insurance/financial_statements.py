@@ -757,13 +757,17 @@ class FinancialStatementGenerator:
         # Restricted assets and collateral may not be fully tracked in ledger
         # Fall back to manufacturer state if ledger shows incorrect (negative or zero) values
         ledger_restricted = self.ledger.get_balance("restricted_cash", year)
-        if ledger_restricted <= 0 and mfr_metrics and mfr_metrics.get("restricted_assets", 0) > 0:
+        if (
+            ledger_restricted <= 0 and mfr_metrics and mfr_metrics.get("restricted_assets", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["restricted_assets"] = mfr_metrics["restricted_assets"]
         else:
             metrics["restricted_assets"] = max(0, ledger_restricted)
 
         ledger_collateral = self.ledger.get_balance("collateral", year)
-        if ledger_collateral <= 0 and mfr_metrics and mfr_metrics.get("collateral", 0) > 0:
+        if (
+            ledger_collateral <= 0 and mfr_metrics and mfr_metrics.get("collateral", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["collateral"] = mfr_metrics["collateral"]
         else:
             metrics["collateral"] = max(0, ledger_collateral)
@@ -795,7 +799,9 @@ class FinancialStatementGenerator:
 
         # Accrued expenses may be negative in ledger if only payments recorded
         ledger_accrued_exp = self.ledger.get_balance("accrued_expenses", year)
-        if ledger_accrued_exp <= 0 and mfr_metrics and mfr_metrics.get("accrued_expenses", 0) > 0:
+        if (
+            ledger_accrued_exp <= 0 and mfr_metrics and mfr_metrics.get("accrued_expenses", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["accrued_expenses"] = mfr_metrics["accrued_expenses"]
         else:
             metrics["accrued_expenses"] = max(0, ledger_accrued_exp)
@@ -804,7 +810,9 @@ class FinancialStatementGenerator:
 
         # Accrued taxes may be negative in ledger if only payments recorded
         ledger_accrued_tax = self.ledger.get_balance("accrued_taxes", year)
-        if ledger_accrued_tax <= 0 and mfr_metrics and mfr_metrics.get("accrued_taxes", 0) > 0:
+        if (
+            ledger_accrued_tax <= 0 and mfr_metrics and mfr_metrics.get("accrued_taxes", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["accrued_taxes"] = mfr_metrics["accrued_taxes"]
         else:
             metrics["accrued_taxes"] = max(0, ledger_accrued_tax)
@@ -928,10 +936,9 @@ class FinancialStatementGenerator:
         """
         if self.ledger is not None:
             return self._get_metrics_from_ledger(year)
-        elif year < len(self.metrics_history):
+        if year < len(self.metrics_history):
             return self.metrics_history[year]
-        else:
-            raise IndexError(f"Year {year} out of range")
+        raise IndexError(f"Year {year} out of range")
 
     def generate_balance_sheet(
         self, year: int, compare_years: Optional[List[int]] = None
@@ -1012,7 +1019,7 @@ class FinancialStatementGenerator:
 
         # Get total assets and restricted assets to ensure proper allocation
         total_assets_actual = metrics.get("assets", 0)
-        restricted_assets = metrics.get("restricted_assets", 0)
+        _restricted_assets = metrics.get("restricted_assets", 0)
 
         # Issue #256: Critical financial keys MUST be provided by the Manufacturer
         # Fabricating data hides simulation bugs and produces misleading reports

@@ -8,18 +8,15 @@ insolvency handling, liquidity constraints, and minimum cash estimation methods.
 
 from decimal import Decimal
 import logging
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 try:
     from ergodic_insurance.decimal_utils import ZERO, to_decimal
-    from ergodic_insurance.ledger import AccountName, TransactionType
 except ImportError:
     try:
         from .decimal_utils import ZERO, to_decimal
-        from .ledger import AccountName, TransactionType
     except ImportError:
         from decimal_utils import ZERO, to_decimal  # type: ignore[no-redef]
-        from ledger import AccountName, TransactionType  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
 
@@ -194,17 +191,17 @@ class SolvencyMixin:
         if pattern == "uniform":
             monthly = annual_revenue / to_decimal(12)
             return [monthly] * 12
-        elif pattern == "seasonal":
+        if pattern == "seasonal":
             q1_q3_monthly = (annual_revenue * to_decimal(0.60)) / to_decimal(9)
             q4_monthly = (annual_revenue * to_decimal(0.40)) / to_decimal(3)
             return [q1_q3_monthly] * 9 + [q4_monthly] * 3
-        elif pattern == "back_loaded":
+        if pattern == "back_loaded":
             h1_monthly = (annual_revenue * to_decimal(0.40)) / to_decimal(6)
             h2_monthly = (annual_revenue * to_decimal(0.60)) / to_decimal(6)
             return [h1_monthly] * 6 + [h2_monthly] * 6
-        else:
-            monthly = annual_revenue / to_decimal(12)
-            return [monthly] * 12
+        # Default: uniform distribution
+        monthly = annual_revenue / to_decimal(12)
+        return [monthly] * 12
 
     def check_liquidity_constraints(self, time_resolution: str = "annual") -> bool:
         """Check if the company maintains positive liquidity throughout the period.

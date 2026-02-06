@@ -5,8 +5,7 @@ simulation results and generating natural language descriptions.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-import warnings
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -242,7 +241,7 @@ class InsightExtractor:
 
                 # Calculate trend
                 x = np.arange(len(series))
-                slope, intercept, r_value, p_value, std_err = stats.linregress(x, series)
+                slope, _intercept, r_value, p_value, _std_err = stats.linregress(x, series)
 
                 # Significant trend detection
                 if abs(r_value) > 0.7 and p_value < 0.05:

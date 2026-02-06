@@ -14,7 +14,7 @@ Example:
             print(f"Amount: {amount}")
 """
 
-from decimal import ROUND_HALF_UP, Decimal, localcontext
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, Union
 
 # Standard precision for financial calculations (2 decimal places = cents)

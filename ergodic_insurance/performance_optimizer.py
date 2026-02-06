@@ -295,7 +295,7 @@ class PerformanceOptimizer:
         profiler.enable()
 
         try:
-            result = func(*args, **kwargs)
+            _result = func(*args, **kwargs)
         finally:
             profiler.disable()
 

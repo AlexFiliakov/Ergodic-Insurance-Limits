@@ -1,9 +1,8 @@
 """Improved insurance tower visualization with stacked bar chart and smart annotations."""
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from matplotlib.figure import Figure
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -107,7 +106,7 @@ def plot_insurance_tower(  # pylint: disable=too-many-locals,too-many-branches,t
             display_bottom = log_scale_min
             display_height = limit - log_scale_min
 
-            rect = ax.bar(
+            _rect = ax.bar(
                 bar_center,
                 display_height,
                 bottom=display_bottom,
@@ -122,7 +121,7 @@ def plot_insurance_tower(  # pylint: disable=too-many-locals,too-many-branches,t
             actual_limit = limit
         else:
             # Create the vertical bar normally
-            rect = ax.bar(
+            _rect = ax.bar(
                 bar_center,
                 limit,
                 bottom=attachment,

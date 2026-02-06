@@ -1115,7 +1115,7 @@ class ManufacturingLossGenerator:
         }
 
         for _ in range(n_simulations):
-            losses, stats = self.generate_losses(duration, revenue)
+            _losses, stats = self.generate_losses(duration, revenue)
 
             results["attritional"].append(stats["attritional_amount"])
             results["large"].append(stats["large_amount"])

@@ -37,7 +37,7 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from jinja2 import Template
 import matplotlib.pyplot as plt
@@ -47,9 +47,9 @@ import seaborn as sns
 
 from .config import Config
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import MonteCarloEngine, SimulationConfig
+from .monte_carlo import SimulationConfig
 from .simulation import Simulation
-from .strategy_backtester import BacktestResult, InsuranceStrategy, StrategyBacktester
+from .strategy_backtester import InsuranceStrategy, StrategyBacktester
 from .validation_metrics import (
     MetricCalculator,
     PerformanceTargets,
@@ -179,7 +179,7 @@ class WalkForwardValidator:
         while current_start + self.window_size <= total_years:
             # Calculate train/test split
             train_years = int(self.window_size * (1 - self.test_ratio))
-            test_years = self.window_size - train_years
+            _test_years = self.window_size - train_years
 
             # Create window
             window = ValidationWindow(
@@ -782,7 +782,7 @@ class WalkForwardValidator:
         Returns:
             Path to generated plot or None.
         """
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        _fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
         # Collect data for plotting
         strategies = list(validation_result.window_results[0].strategy_performances.keys())
@@ -846,7 +846,7 @@ class WalkForwardValidator:
         if not validation_result.overfitting_analysis:
             return None
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        _fig, ax = plt.subplots(figsize=(10, 6))
 
         strategies = list(validation_result.overfitting_analysis.keys())
         scores = list(validation_result.overfitting_analysis.values())
@@ -890,7 +890,7 @@ class WalkForwardValidator:
         if validation_result.strategy_rankings.empty:
             return None
 
-        fig, ax = plt.subplots(figsize=(10, 6))
+        _fig, ax = plt.subplots(figsize=(10, 6))
 
         # Prepare data for heatmap - use available columns
         possible_cols = ["avg_roe", "avg_sharpe", "consistency_score", "composite_score"]

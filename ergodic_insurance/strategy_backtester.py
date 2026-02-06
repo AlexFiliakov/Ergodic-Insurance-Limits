@@ -24,15 +24,14 @@ Example:
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
-from .config import Config
 from .insurance import InsuranceLayer, InsurancePolicy
 from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator

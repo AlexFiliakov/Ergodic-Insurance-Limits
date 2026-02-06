@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from .config import ManufacturerConfig
 from .decimal_utils import ZERO, quantize_currency, safe_divide, to_decimal
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator

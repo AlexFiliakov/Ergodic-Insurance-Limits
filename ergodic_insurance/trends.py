@@ -93,7 +93,6 @@ class Trend(ABC):
             Implementations should handle negative time gracefully, typically
             returning 1.0 or the initial value.
         """
-        pass
 
     def reset_seed(self, seed: int) -> None:
         """Reset random seed for stochastic trends.
@@ -127,14 +126,6 @@ class NoTrend(Trend):
             assert baseline.get_multiplier(10) == 1.0
             assert baseline.get_multiplier(-5) == 1.0
     """
-
-    def __init__(self, seed: Optional[int] = None):
-        """Initialize no-trend (constant multiplier of 1.0).
-
-        Args:
-            seed: Included for interface consistency but unused.
-        """
-        super().__init__(seed)
 
     def get_multiplier(self, time: float) -> float:
         """Return constant multiplier of 1.0.
@@ -954,7 +945,7 @@ class ScenarioTrend(Trend):
         if self.interpolation == "linear":
             # Linear interpolation using numpy
             return float(np.interp(time, self.times, self.factors_array))
-        else:  # step
-            # Find the largest time <= given time
-            idx = np.searchsorted(self.times, time, side="right") - 1
-            return float(self.factors_array[idx])
+        # step
+        # Find the largest time <= given time
+        idx = np.searchsorted(self.times, time, side="right") - 1
+        return float(self.factors_array[idx])

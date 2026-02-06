@@ -4,7 +4,7 @@ This module provides statistical analysis tools, distribution fitting utilities,
 and formatted report generation for Monte Carlo simulation results.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 import io
@@ -15,7 +15,6 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.optimize import minimize
 
 
 def format_quantile_key(q: float) -> str:
@@ -510,10 +509,8 @@ class TDigest:
             value: The value to add.
         """
         self._buffer.append(value)
-        if value < self._min_val:
-            self._min_val = value
-        if value > self._max_val:
-            self._max_val = value
+        self._min_val = min(self._min_val, value)
+        self._max_val = max(self._max_val, value)
         self._count += 1
         if len(self._buffer) >= self._buffer_capacity:
             self._flush()
@@ -530,10 +527,8 @@ class TDigest:
         self._buffer.extend(flat.tolist())
         min_v = float(np.min(flat))
         max_v = float(np.max(flat))
-        if min_v < self._min_val:
-            self._min_val = min_v
-        if max_v > self._max_val:
-            self._max_val = max_v
+        self._min_val = min(self._min_val, min_v)
+        self._max_val = max(self._max_val, max_v)
         self._count += len(flat)
         if len(self._buffer) >= self._buffer_capacity:
             self._flush()
@@ -565,10 +560,8 @@ class TDigest:
         all_means = np.concatenate([self._means, other._means])
         all_weights = np.concatenate([self._weights, other._weights])
         self._count += other._count
-        if other._min_val < self._min_val:
-            self._min_val = other._min_val
-        if other._max_val > self._max_val:
-            self._max_val = other._max_val
+        self._min_val = min(self._min_val, other._min_val)
+        self._max_val = max(self._max_val, other._max_val)
         self._merge_centroids(all_means, all_weights)
 
     def quantile(self, q: float) -> float:

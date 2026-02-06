@@ -5,7 +5,7 @@ including ETA estimation, convergence summaries, and console output.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 import time
 from typing import Any, Dict, List, Optional, Tuple
 

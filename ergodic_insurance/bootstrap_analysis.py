@@ -28,7 +28,7 @@ Attributes:
     DEFAULT_N_WORKERS (int): Default number of parallel workers (4).
 """
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import warnings
@@ -47,7 +47,7 @@ def _bootstrap_worker(args: Tuple[np.ndarray, Any, int, int, Optional[int]]) -> 
     Returns:
         List of bootstrap statistics.
     """
-    data, statistic, start_idx, n_samples, seed = args
+    data, statistic, _start_idx, n_samples, seed = args
 
     # Handle common statistics as strings for better pickling support
     statistic_func: Callable[[np.ndarray], float]

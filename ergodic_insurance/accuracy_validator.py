@@ -34,7 +34,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
-from scipy.stats import kstwobign
 
 from ergodic_insurance.summary_statistics import format_quantile_key
 
@@ -343,7 +342,7 @@ class EdgeCaseTester:
 
         # Test very large numbers
         large_num = 1e308  # Near float64 max
-        retained, recovered = ref.apply_insurance_precise(large_num, 1000, 10000)
+        retained, _recovered = ref.apply_insurance_precise(large_num, 1000, 10000)
         tests["large_number_handling"] = bool(retained > 0 and not np.isnan(retained))
 
         # Test very small numbers
@@ -368,11 +367,11 @@ class EdgeCaseTester:
         loss = 5000
         attachment = 1000
         limit = 3000
-        retained, recovered = ref.apply_insurance_precise(loss, attachment, limit)
+        _retained, recovered = ref.apply_insurance_precise(loss, attachment, limit)
         tests["insurance_limit_boundary"] = bool(abs(recovered - limit) < 1e-10)
 
         # Test exact attachment point
-        retained2, recovered2 = ref.apply_insurance_precise(attachment, attachment, limit)
+        _retained2, recovered2 = ref.apply_insurance_precise(attachment, attachment, limit)
         tests["exact_attachment"] = bool(recovered2 == 0)
 
         # Test loss below attachment
