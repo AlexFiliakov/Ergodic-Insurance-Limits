@@ -306,9 +306,9 @@ class StatisticalValidation:
             "std_valid": bool(
                 abs(actual_std - expected_std) / (abs(expected_std) + 1e-10) < tolerance
             ),
-            "normality_test": bool(stats.normaltest(data).pvalue > 0.05)
-            if len(data) > 20
-            else True,
+            "normality_test": (
+                bool(stats.normaltest(data).pvalue > 0.05) if len(data) > 20 else True
+            ),
             "no_outliers": bool(np.sum(np.abs(stats.zscore(data)) > 4) / len(data) < 0.01),
         }
 

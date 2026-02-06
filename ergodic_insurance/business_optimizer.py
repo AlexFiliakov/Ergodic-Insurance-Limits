@@ -7,6 +7,7 @@ These algorithms maximize long-term company value through optimal insurance deci
 Author: Alex Filiakov
 Date: 2025-01-25
 """
+
 # pylint: disable=too-many-lines
 
 from dataclasses import dataclass, field

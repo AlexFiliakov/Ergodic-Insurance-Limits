@@ -627,9 +627,9 @@ class OptimalController:
         # Create and return insurance program
         program = InsuranceProgram(
             layers=layers,
-            deductible=min(retentions)
-            if retentions
-            else 0.0,  # Use minimum retention as deductible
+            deductible=(
+                min(retentions) if retentions else 0.0
+            ),  # Use minimum retention as deductible
         )
 
         return program

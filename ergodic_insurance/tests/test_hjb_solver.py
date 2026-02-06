@@ -340,9 +340,9 @@ class TestHJBSolver:
             control_variables=control_variables,
             utility_function=LogUtility(),
             dynamics=lambda x, u, t: x * 0.1,
-            running_cost=lambda x, u, t: np.zeros(x.shape[0])
-            if hasattr(x, "shape")
-            else np.array([0.0]),
+            running_cost=lambda x, u, t: (
+                np.zeros(x.shape[0]) if hasattr(x, "shape") else np.array([0.0])
+            ),
             time_horizon=1,
         )
 

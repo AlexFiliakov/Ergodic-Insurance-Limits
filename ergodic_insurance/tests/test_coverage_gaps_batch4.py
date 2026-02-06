@@ -683,8 +683,9 @@ class TestExcelReporterGaps:
         """Lines 140-141: auto engine with xlsxwriter unavailable falls to openpyxl."""
         config = ExcelReportConfig(engine="auto")
         reporter = ExcelReporter(config)
-        with patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False), patch(
-            "ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", True
+        with (
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", True),
         ):
             reporter._select_engine()
             assert reporter.engine == "openpyxl"
@@ -693,8 +694,9 @@ class TestExcelReporterGaps:
         """Lines 142-144: auto engine with both libraries unavailable falls to pandas."""
         config = ExcelReportConfig(engine="auto")
         reporter = ExcelReporter(config)
-        with patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False), patch(
-            "ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False
+        with (
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
         ):
             reporter._select_engine()
             assert reporter.engine == "pandas"
@@ -704,8 +706,9 @@ class TestExcelReporterGaps:
         config = ExcelReportConfig(engine="pandas")
         reporter = ExcelReporter(config)
         reporter.engine = "pandas"
-        with patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False), patch(
-            "ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", True
+        with (
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", True),
         ):
             result = reporter._get_pandas_engine()
             assert result == "xlsxwriter"
@@ -715,8 +718,9 @@ class TestExcelReporterGaps:
         config = ExcelReportConfig(engine="pandas")
         reporter = ExcelReporter(config)
         reporter.engine = "pandas"
-        with patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False), patch(
-            "ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False
+        with (
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
         ):
             result = reporter._get_pandas_engine()
             assert result is None

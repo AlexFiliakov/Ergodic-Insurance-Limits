@@ -480,9 +480,9 @@ class BatchProcessor:
                                 baseline_value = baseline_dict[max_year]
                                 # Extract same year from all scenarios
                                 metric_values = summary_df[metric].apply(
-                                    lambda d, _my=max_year: d.get(_my, np.nan)
-                                    if isinstance(d, dict)
-                                    else np.nan
+                                    lambda d, _my=max_year: (
+                                        d.get(_my, np.nan) if isinstance(d, dict) else np.nan
+                                    )
                                 )
                                 if baseline_value != 0:
                                     relative_performance[f"{metric}_relative"] = (

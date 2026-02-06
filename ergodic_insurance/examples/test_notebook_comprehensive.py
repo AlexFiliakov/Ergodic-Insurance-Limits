@@ -140,9 +140,9 @@ def evaluate_retention_level_simplified(
     return {
         "deductible": deductible,
         "premium": market_premium,
-        "rate_on_line": market_premium / (5_000_000 - deductible)
-        if (5_000_000 - deductible) > 0
-        else 0,
+        "rate_on_line": (
+            market_premium / (5_000_000 - deductible) if (5_000_000 - deductible) > 0 else 0
+        ),
         "expected_frequency": stats["expected_frequency"],
         "expected_severity": stats["expected_severity"],
     }

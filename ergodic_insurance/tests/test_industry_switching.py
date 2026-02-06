@@ -175,7 +175,7 @@ class TestIndustryConfigCompatibility:
             ),
             simulation=SimulationConfig(time_horizon_years=10),
             output=OutputConfig(),
-            logging=LoggingConfig(level="INFO")
+            logging=LoggingConfig(level="INFO"),
             # No industry_config specified
         )
 

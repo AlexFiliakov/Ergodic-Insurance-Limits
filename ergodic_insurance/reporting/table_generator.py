@@ -276,9 +276,11 @@ class TableGenerator:
         if "max_col_width" in style:
             for col in df.select_dtypes(include=["object"]).columns:
                 df[col] = df[col].apply(
-                    lambda x: str(x)[: style["max_col_width"]] + "..."
-                    if len(str(x)) > style["max_col_width"]
-                    else x
+                    lambda x: (
+                        str(x)[: style["max_col_width"]] + "..."
+                        if len(str(x)) > style["max_col_width"]
+                        else x
+                    )
                 )
 
         # Apply highlighting for specific values

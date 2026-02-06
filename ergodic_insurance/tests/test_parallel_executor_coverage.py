@@ -221,10 +221,11 @@ class TestParallelExecutorZeroTime:
             mock_time.perf_counter = time.perf_counter
 
             # Also need to patch the executor methods to avoid actual parallel exec
-            with patch.object(executor, "_setup_shared_data", return_value={}), patch.object(
-                executor, "_calculate_chunk_size", return_value=10
-            ), patch.object(executor, "_create_chunks", return_value=[]), patch.object(
-                executor, "_execute_parallel", return_value=[]
+            with (
+                patch.object(executor, "_setup_shared_data", return_value={}),
+                patch.object(executor, "_calculate_chunk_size", return_value=10),
+                patch.object(executor, "_create_chunks", return_value=[]),
+                patch.object(executor, "_execute_parallel", return_value=[]),
             ):
                 result = executor.map_reduce(
                     work_function=_simple_square,
