@@ -198,6 +198,7 @@ class TransactionType(Enum):
     REVALUATION = "revaluation"  # Asset value adjustments
     LIQUIDATION = "liquidation"  # Bankruptcy/emergency liquidation
     TRANSFER = "transfer"  # Internal asset transfers (e.g., cash to restricted)
+    RETAINED_EARNINGS = "retained_earnings"  # Internal equity allocation
 
 
 @dataclass
