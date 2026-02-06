@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.1",
-    "pytest-cov>=6.2.1",
+    "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
     "pylint>=3.3.8",
     "black>=25.1.0",
@@ -126,29 +126,6 @@ pretty = true
 show_column_numbers = true
 show_error_codes = true
 show_error_context = true
-
-[tool.coverage.run]
-source = ["src"]
-omit = ["*/tests/*", "*/test_*.py"]
-branch = false  # Explicitly disable branch coverage to avoid mismatch
-parallel = true  # Enable parallel coverage collection
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if __name__ == .__main__.:",
-    "raise NotImplementedError",
-    "pass",
-    "except ImportError:",
-]
-precision = 2
-show_missing = true
-skip_covered = false
-
-[tool.coverage.html]
-directory = "htmlcov"
 
 # Documentation build configuration
 [tool.sphinx]
