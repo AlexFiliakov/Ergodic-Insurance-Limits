@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ergodic-insurance"
-dynamic = ["version"]
+version = "0.4.0"
 description = "Financial modeling for widget manufacturers with ergodic insurance limits"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -70,6 +70,7 @@ docs = [
     "sphinx-autodoc-typehints>=3.2.0",
     "myst-parser>=4.0.1",
     "sphinx-copybutton>=0.5.2",
+    "sphinxcontrib-mermaid>=1.0.0",
 ]
 notebooks = [
     "jupyter>=1.1.1",
@@ -82,9 +83,6 @@ notebooks = [
 Homepage = "https://github.com/AlexFiliakov/Ergodic-Insurance-Limits"
 Repository = "https://github.com/AlexFiliakov/Ergodic-Insurance-Limits"
 Issues = "https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues"
-
-[tool.setuptools.dynamic]
-version = {attr = "ergodic_insurance._version.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -188,3 +186,20 @@ max-branches = 15
 
 [tool.pylint.similarities]
 min-similarity-lines = 10
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["ergodic_insurance/_version.py:__version__"]
+branch = "main"
+build_command = "pip install build && python -m build"
+commit_message = "chore(release): v{version}"
+major_on_zero = false
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.remote]
+type = "github"
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true

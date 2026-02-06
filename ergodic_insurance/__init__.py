@@ -44,7 +44,12 @@ Since:
 
 # pylint: disable=undefined-all-variable
 
-from ergodic_insurance._version import __version__
+try:
+    from ergodic_insurance._version import __version__
+except ImportError:
+    from importlib.metadata import version as _get_version
+
+    __version__ = _get_version("ergodic-insurance")
 
 __all__ = [
     "__version__",
