@@ -1,6 +1,21 @@
 # CHANGELOG
 
 
+## v0.4.3 (2026-02-06)
+
+### Performance Improvements
+
+- Remove Decimal arithmetic from worker hot loop (#368)
+  ([#429](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/pull/429),
+  [`bc35671`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/bc356712d6bbca1fcb0236f935a13a613b63bfb3))
+
+Replace Decimal operations (to_decimal, safe_divide, quantize_currency) with native float arithmetic
+  in run_chunk_standalone's per-year loop. This aligns the standard parallel path with the
+  sequential and enhanced parallel paths, which already use float. Results are stored in float64
+  arrays, so Decimal intermediate precision provides no benefit while costing 10-50x overhead per
+  iteration.
+
+
 ## v0.4.2 (2026-02-06)
 
 ### Bug Fixes
