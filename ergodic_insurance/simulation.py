@@ -47,6 +47,7 @@ Since:
     Version 0.1.0
 """
 
+import copy
 from dataclasses import dataclass
 import logging
 from pathlib import Path
@@ -488,6 +489,8 @@ class Simulation:
         insurance_policy: Optional[InsurancePolicy] = None,
         time_horizon: int = 100,
         seed: Optional[int] = None,
+        growth_rate: float = 0.0,
+        letter_of_credit_rate: float = 0.015,
     ):
         """Initialize simulation.
 
@@ -502,6 +505,8 @@ class Simulation:
                 legacy claim processing is used with fixed parameters.
             time_horizon: Number of years to simulate. Must be positive.
             seed: Random seed for reproducibility. Passed to loss generator(s).
+            growth_rate: Revenue growth rate per period (default 0.0).
+            letter_of_credit_rate: Annual LoC rate for collateral costs (default 0.015).
 
         Note:
             The manufacturer object is modified in-place during simulation.
@@ -534,6 +539,11 @@ class Simulation:
                 )
         """
         self.manufacturer = manufacturer
+        # Deep-copy the initial manufacturer state for re-entrancy (Issue #349)
+        self._initial_manufacturer = copy.deepcopy(manufacturer)
+        self.growth_rate = growth_rate
+        self.letter_of_credit_rate = letter_of_credit_rate
+        self._seed = seed
 
         # Handle single generator or list of generators
         if loss_generator is None:
@@ -594,12 +604,10 @@ class Simulation:
             - Modifies manufacturer.assets and manufacturer.equity
             - Updates manufacturer internal state via step() method
         """
-        # Step manufacturer forward FIRST (process year's normal operations)
-        # Then apply losses at END of year to prevent newly-created liabilities
-        # from being paid in the same year they're created
-        metrics = self.manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
-
-        # Process losses at END of year
+        # Unified ordering: claims → premium → step (Issue #349)
+        # Process claims and premium BEFORE stepping the manufacturer so that
+        # the metrics returned by step() reflect post-claim equity, and
+        # insolvency is detected in the year it occurs.
         total_loss_amount = sum(loss.amount for loss in losses)
         total_company_payment = ZERO
         total_insurance_recovery = ZERO
@@ -616,7 +624,7 @@ class Simulation:
                 total_company_payment += company_payment
                 total_insurance_recovery += insurance_recovery
 
-            # Record annual premium (will be handled in manufacturer's step method next year)
+            # Record annual premium
             annual_premium = self.insurance_policy.calculate_premium()
             self.manufacturer.record_insurance_premium(annual_premium)
         else:
@@ -629,6 +637,13 @@ class Simulation:
                     immediate_payment=False,  # Create liability with payment schedule starting next year
                 )
                 total_company_payment += to_decimal(loss.amount)
+
+        # Step manufacturer AFTER claims and premium (Issue #349)
+        # Uses configurable parameters instead of hardcoded values
+        metrics = self.manufacturer.step(
+            letter_of_credit_rate=self.letter_of_credit_rate,
+            growth_rate=self.growth_rate,
+        )
 
         # Add loss information to metrics
         metrics["claim_count"] = len(losses)
@@ -693,6 +708,13 @@ class Simulation:
         start_time = time.time()
 
         # Reset mutable state so the simulation is re-entrant
+        # Reset manufacturer from initial state (Issue #349)
+        self.manufacturer = copy.deepcopy(self._initial_manufacturer)
+        # Reseed loss generators so repeated runs produce identical sequences
+        if self._seed is not None:
+            for gen in self.loss_generator:
+                if hasattr(gen, "reseed"):
+                    gen.reseed(self._seed)
         self.insolvency_year = None
         self.assets = np.zeros(self.time_horizon)
         self.equity = np.zeros(self.time_horizon)
@@ -800,6 +822,12 @@ class Simulation:
                 losses_by_year[year].append(loss)
 
         # Reset mutable state so the simulation is re-entrant
+        # Reset manufacturer from initial state (Issue #349)
+        self.manufacturer = copy.deepcopy(self._initial_manufacturer)
+        if self._seed is not None:
+            for gen in self.loss_generator:
+                if hasattr(gen, "reseed"):
+                    gen.reseed(self._seed)
         self.insolvency_year = None
         self.assets = np.zeros(self.time_horizon)
         self.equity = np.zeros(self.time_horizon)

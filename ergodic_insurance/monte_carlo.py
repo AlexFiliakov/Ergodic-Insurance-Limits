@@ -200,8 +200,24 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         result_arrays["insurance_recoveries"][year] = total_recovery
         result_arrays["retained_losses"][year] = total_retained
 
-        # Step the manufacturer (growth, etc.)
-        manufacturer.step()
+        # Record insurance premium scaled by revenue (Issue #349)
+        current_revenue = manufacturer.calculate_revenue()
+        base_revenue = float(
+            manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
+        )
+        revenue_scaling_factor = float(current_revenue) / base_revenue if base_revenue > 0 else 1.0
+        base_annual_premium = insurance_program.calculate_annual_premium()
+        annual_premium = base_annual_premium * revenue_scaling_factor
+        if annual_premium > 0:
+            manufacturer.record_insurance_premium(annual_premium)
+
+        # Step with config parameters (Issue #349)
+        manufacturer.step(
+            letter_of_credit_rate=shared.get("letter_of_credit_rate", 0.015),
+            growth_rate=shared.get("growth_rate", 0.0),
+            time_resolution=shared.get("time_resolution", "annual"),
+            apply_stochastic=shared.get("apply_stochastic", False),
+        )
 
         # Prune old ledger entries to bound memory (Issue #315)
         if shared.get("enable_ledger_pruning", False) and year > 0:
@@ -857,6 +873,11 @@ class MonteCarloEngine:
             "insurance_program": self.insurance_program,
             "base_seed": self.config.seed,
             "crn_base_seed": self.config.crn_base_seed,
+            # Step parameters for manufacturer.step() (Issue #349)
+            "letter_of_credit_rate": self.config.letter_of_credit_rate,
+            "growth_rate": self.config.growth_rate,
+            "time_resolution": self.config.time_resolution,
+            "apply_stochastic": self.config.apply_stochastic,
         }
 
         # Define reduce function
@@ -1089,15 +1110,15 @@ class MonteCarloEngine:
 
             # Update manufacturer state with annual step
             # Apply stochastic if the manufacturer has a stochastic process
-            apply_stochastic = manufacturer.stochastic_process is not None
+            apply_stochastic = (
+                manufacturer.stochastic_process is not None or self.config.apply_stochastic
+            )
 
-            # Don't apply any exogenous growth rate - let retained earnings drive growth naturally
-            # The manufacturer.step() method already handles growth through retained earnings
-            # by updating assets based on net income * retention ratio
-            growth_rate = 0.0  # No exogenous growth, only endogenous growth from retained earnings
-
+            # Use config parameters instead of hardcoded values (Issue #349)
             manufacturer.step(
-                growth_rate=growth_rate,  # Only endogenous growth from retained earnings
+                letter_of_credit_rate=self.config.letter_of_credit_rate,
+                growth_rate=self.config.growth_rate,
+                time_resolution=self.config.time_resolution,
                 apply_stochastic=apply_stochastic,
             )
 
