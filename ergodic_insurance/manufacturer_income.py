@@ -12,13 +12,16 @@ from typing import Union
 
 try:
     from ergodic_insurance.decimal_utils import ZERO, to_decimal
+    from ergodic_insurance.ledger import AccountName, TransactionType
     from ergodic_insurance.tax_handler import TaxHandler
 except ImportError:
     try:
         from .decimal_utils import ZERO, to_decimal
+        from .ledger import AccountName, TransactionType
         from .tax_handler import TaxHandler
     except ImportError:
         from decimal_utils import ZERO, to_decimal  # type: ignore[no-redef]
+        from ledger import AccountName, TransactionType  # type: ignore[no-redef]
         from tax_handler import TaxHandler  # type: ignore[no-redef]
 
 logger = logging.getLogger(__name__)
@@ -38,8 +41,11 @@ class IncomeCalculationMixin:
         - self.collateral: Decimal (property from BalanceSheetMixin)
         - self.equity: Decimal (property from BalanceSheetMixin)
         - self.accrual_manager: AccrualManager instance
+        - self.tax_handler: TaxHandler instance (persistent, Issue #365)
+        - self.ledger: Ledger instance
         - self.current_year: int
         - self.current_month: int
+        - self._nol_carryforward_enabled: bool
     """
 
     def calculate_revenue(self, apply_stochastic: bool = False) -> Decimal:
@@ -151,18 +157,20 @@ class IncomeCalculationMixin:
             operating_income_decimal - collateral_costs_decimal - total_insurance_costs
         )
 
-        # Use TaxHandler for consolidated tax calculation
-        tax_handler = TaxHandler(
-            tax_rate=self.tax_rate,
-            accrual_manager=self.accrual_manager,
-        )
+        # Capture DTA before tax calculation for journal entry delta (Issue #365)
+        old_dta = self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else ZERO
 
-        taxes = tax_handler.calculate_tax_liability(income_before_tax)
+        # Compute theoretical tax for logging (no side effects)
+        theoretical_tax_for_log = max(
+            ZERO, to_decimal(income_before_tax) * to_decimal(self.tax_rate)
+        )
 
         # Read equity BEFORE tax accrual (critical for non-circular flow)
         current_equity = self.equity
 
-        actual_tax_expense, was_capped = tax_handler.calculate_and_accrue_tax(
+        # Use persistent TaxHandler — calculate_and_accrue_tax calls
+        # calculate_tax_liability internally, which modifies NOL state (Issue #365)
+        actual_tax_expense, was_capped, nol_utilized = self.tax_handler.calculate_and_accrue_tax(
             income_before_tax=income_before_tax,
             current_equity=current_equity,
             use_accrual=use_accrual,
@@ -172,6 +180,35 @@ class IncomeCalculationMixin:
         )
 
         net_income = income_before_tax - actual_tax_expense
+
+        # Record DTA journal entries for NOL changes (Issue #365)
+        if self._nol_carryforward_enabled:
+            new_dta = self.tax_handler.deferred_tax_asset
+            dta_change = new_dta - old_dta
+            if dta_change > ZERO:
+                # DTA increased (loss year or additional losses):
+                # Dr DEFERRED_TAX_ASSET, Cr TAX_EXPENSE (tax benefit)
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.DEFERRED_TAX_ASSET,
+                    credit_account=AccountName.TAX_EXPENSE,
+                    amount=dta_change,
+                    transaction_type=TransactionType.DTA_ADJUSTMENT,
+                    description=f"Year {self.current_year} DTA recognition from NOL carryforward",
+                    month=self.current_month,
+                )
+            elif dta_change < ZERO:
+                # DTA decreased (NOL utilized):
+                # Dr TAX_EXPENSE, Cr DEFERRED_TAX_ASSET (DTA reversal)
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.TAX_EXPENSE,
+                    credit_account=AccountName.DEFERRED_TAX_ASSET,
+                    amount=abs(dta_change),
+                    transaction_type=TransactionType.DTA_ADJUSTMENT,
+                    description=f"Year {self.current_year} DTA reversal from NOL utilization",
+                    month=self.current_month,
+                )
 
         # Enhanced profit waterfall logging
         logger.info("===== PROFIT WATERFALL =====")
@@ -183,11 +220,21 @@ class IncomeCalculationMixin:
         if collateral_costs_decimal > ZERO:
             logger.info(f"  - Collateral Costs:    ${collateral_costs_decimal:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
+        if nol_utilized > ZERO:
+            logger.info(f"  - NOL Utilized:        ${nol_utilized:,.2f}")
+            logger.info(f"  Taxable Income:        ${income_before_tax - nol_utilized:,.2f}")
         logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${actual_tax_expense:,.2f}")
         if was_capped:
-            logger.info(f"    (Capped from ${taxes:,.2f} due to limited liability)")
+            logger.info(
+                f"    (Capped from ${theoretical_tax_for_log:,.2f} due to limited liability)"
+            )
         if use_accrual and actual_tax_expense > 0:
             logger.info("    (Accrued for quarterly payment)")
+        if self._nol_carryforward_enabled and self.tax_handler.nol_carryforward > ZERO:
+            logger.info(
+                f"  NOL Carryforward:      ${self.tax_handler.nol_carryforward:,.2f} "
+                f"(DTA: ${self.tax_handler.deferred_tax_asset:,.2f})"
+            )
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
 

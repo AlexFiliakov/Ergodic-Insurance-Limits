@@ -171,6 +171,17 @@ class WidgetManufacturer(
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
 
+        # Tax handler with NOL carryforward tracking (Issue #365)
+        self.tax_handler = TaxHandler(
+            tax_rate=config.tax_rate,
+            accrual_manager=self.accrual_manager,
+            nol_carryforward=Decimal("0"),
+            nol_limitation_pct=(
+                config.nol_limitation_pct if config.nol_carryforward_enabled else 0.0
+            ),
+        )
+        self._nol_carryforward_enabled = config.nol_carryforward_enabled
+
         # Claim tracking
         self.claim_liabilities: List[ClaimLiability] = []
         self.current_year = 0
@@ -730,6 +741,16 @@ class WidgetManufacturer(
 
         # Reset accrual manager
         self.accrual_manager = AccrualManager()
+
+        # Reset tax handler with fresh NOL state (Issue #365)
+        self.tax_handler = TaxHandler(
+            tax_rate=self.config.tax_rate,
+            accrual_manager=self.accrual_manager,
+            nol_carryforward=Decimal("0"),
+            nol_limitation_pct=(
+                self.config.nol_limitation_pct if self._nol_carryforward_enabled else 0.0
+            ),
+        )
 
         # Track original prepaid premium for amortization calculation
         self._original_prepaid_premium = ZERO

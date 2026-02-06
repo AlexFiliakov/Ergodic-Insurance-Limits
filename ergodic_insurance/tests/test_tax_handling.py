@@ -429,18 +429,21 @@ class TestTaxHandler:
 
     def test_calculate_tax_liability_positive_income(self, tax_handler):
         """Test tax calculation on positive income."""
-        tax = tax_handler.calculate_tax_liability(1_000_000)
+        tax, nol_used = tax_handler.calculate_tax_liability(1_000_000)
         assert tax == 250_000  # 25% of $1M
+        assert nol_used == 0
 
     def test_calculate_tax_liability_zero_income(self, tax_handler):
         """Test tax calculation on zero income."""
-        tax = tax_handler.calculate_tax_liability(0)
+        tax, nol_used = tax_handler.calculate_tax_liability(0)
         assert tax == 0.0
+        assert nol_used == 0
 
     def test_calculate_tax_liability_negative_income(self, tax_handler):
         """Test tax calculation on negative income (loss)."""
-        tax = tax_handler.calculate_tax_liability(-500_000)
+        tax, nol_used = tax_handler.calculate_tax_liability(-500_000)
         assert tax == 0.0  # No tax on losses
+        assert nol_used == 0
 
     def test_limited_liability_cap_sufficient_equity(self, tax_handler):
         """Test that no cap is applied when equity is sufficient."""
@@ -510,7 +513,7 @@ class TestTaxHandler:
         """Test full tax calculation and accrual for annual mode."""
         from ergodic_insurance.accrual_manager import AccrualType
 
-        actual_tax, was_capped = tax_handler.calculate_and_accrue_tax(
+        actual_tax, was_capped, nol_utilized = tax_handler.calculate_and_accrue_tax(
             income_before_tax=1_000_000,
             current_equity=5_000_000,
             use_accrual=True,
@@ -522,6 +525,7 @@ class TestTaxHandler:
         # Check tax calculation
         assert actual_tax == 250_000  # 25% of $1M
         assert was_capped is False
+        assert nol_utilized == 0
 
         # Check accrual was recorded
         tax_accruals = accrual_manager.get_accruals_by_type(AccrualType.TAXES)
@@ -532,7 +536,7 @@ class TestTaxHandler:
         """Test tax calculation with limited liability cap applied."""
         from ergodic_insurance.accrual_manager import AccrualType
 
-        actual_tax, was_capped = tax_handler.calculate_and_accrue_tax(
+        actual_tax, was_capped, nol_utilized = tax_handler.calculate_and_accrue_tax(
             income_before_tax=1_000_000,
             current_equity=100_000,  # Less than $250K tax
             use_accrual=True,
@@ -554,7 +558,7 @@ class TestTaxHandler:
         """Test tax calculation without accrual recording."""
         from ergodic_insurance.accrual_manager import AccrualType
 
-        actual_tax, was_capped = tax_handler.calculate_and_accrue_tax(
+        actual_tax, was_capped, nol_utilized = tax_handler.calculate_and_accrue_tax(
             income_before_tax=1_000_000,
             current_equity=5_000_000,
             use_accrual=False,  # Accrual disabled
@@ -576,7 +580,7 @@ class TestTaxHandler:
         from ergodic_insurance.accrual_manager import AccrualType
 
         # Month 2 is end of Q1
-        actual_tax, was_capped = tax_handler.calculate_and_accrue_tax(
+        actual_tax, was_capped, nol_utilized = tax_handler.calculate_and_accrue_tax(
             income_before_tax=500_000,
             current_equity=5_000_000,
             use_accrual=True,
@@ -595,7 +599,7 @@ class TestTaxHandler:
         from ergodic_insurance.accrual_manager import AccrualType
 
         # Month 1 is mid-Q1
-        actual_tax, was_capped = tax_handler.calculate_and_accrue_tax(
+        actual_tax, was_capped, nol_utilized = tax_handler.calculate_and_accrue_tax(
             income_before_tax=500_000,
             current_equity=5_000_000,
             use_accrual=True,

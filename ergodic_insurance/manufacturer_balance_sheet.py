@@ -133,6 +133,15 @@ class BalanceSheetMixin:
         return self.restricted_assets
 
     @property
+    def deferred_tax_asset(self) -> Decimal:
+        """Deferred tax asset from NOL carryforward per ASC 740-10-25-3 (Issue #365).
+
+        Returns:
+            Current deferred tax asset balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.DEFERRED_TAX_ASSET)
+
+    @property
     def total_assets(self) -> Decimal:
         """Calculate total assets from all asset components.
 
@@ -146,8 +155,8 @@ class BalanceSheetMixin:
         current = self.cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
         # Non-current assets
         net_ppe = self.gross_ppe - self.accumulated_depreciation
-        # Total
-        return current + net_ppe + self.restricted_assets
+        # Total (includes DTA per ASC 740, Issue #365)
+        return current + net_ppe + self.restricted_assets + self.deferred_tax_asset
 
     @total_assets.setter
     def total_assets(self, value: Union[Decimal, float]) -> None:
