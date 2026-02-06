@@ -156,10 +156,13 @@ class ReportBuilder(ABC):
                     )
                 )
 
-        # Check if it's a file path
-        content_path = Path(content_ref)
-        if content_path.exists():
-            return content_path.read_text()
+        # Check if it's a file path (guard against long content strings)
+        try:
+            content_path = Path(content_ref)
+            if content_path.exists():
+                return content_path.read_text()
+        except OSError:
+            pass
 
         # Return as literal content
         return content_ref

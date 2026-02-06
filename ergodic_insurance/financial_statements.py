@@ -618,7 +618,9 @@ class CashFlowStatement:
         cash_flow_data.append(("  Cash - End of Period", ending_cash, ""))
 
         # Create DataFrame
-        df = pd.DataFrame(cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"])
+        df = pd.DataFrame(
+            cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"], dtype=object
+        )
         return df
 
 
@@ -987,7 +989,9 @@ class FinancialStatementGenerator:
 
         # Create DataFrame
         df = pd.DataFrame(
-            balance_sheet_data, columns=["Item", f"Year {year}", "YoY Change %", "Type"]
+            balance_sheet_data,
+            columns=["Item", f"Year {year}", "YoY Change %", "Type"],
+            dtype=object,
         )
 
         # Add year-over-year comparison if requested
@@ -1249,7 +1253,9 @@ class FinancialStatementGenerator:
 
         # Create DataFrame
         period_label = "Month" if monthly else "Year"
-        df = pd.DataFrame(income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"])
+        df = pd.DataFrame(
+            income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"], dtype=object
+        )
 
         # Add year-over-year comparison if requested
         if self.config.include_yoy_change and year > 0 and not monthly:
