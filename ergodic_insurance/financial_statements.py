@@ -407,6 +407,7 @@ class CashFlowStatement:
             "cash_from_insurance": flows.get("cash_from_insurance", ZERO),
             "cash_to_suppliers": -flows.get("cash_to_suppliers", ZERO),
             "cash_for_insurance": -flows.get("cash_for_insurance", ZERO),
+            "cash_for_claim_losses": -flows.get("cash_for_claim_losses", ZERO),
             "cash_for_taxes": -flows.get("cash_for_taxes", ZERO),
             "cash_for_wages": -flows.get("cash_for_wages", ZERO),
             "cash_for_interest": -flows.get("cash_for_interest", ZERO),
@@ -522,6 +523,10 @@ class CashFlowStatement:
             if operating.get("cash_for_insurance", 0) != 0:
                 cash_flow_data.append(
                     ("  Cash Paid for Insurance", operating["cash_for_insurance"], "")
+                )
+            if operating.get("cash_for_claim_losses", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Paid for Claim Losses", operating["cash_for_claim_losses"], "")
                 )
             if operating.get("cash_for_taxes", 0) != 0:
                 cash_flow_data.append(("  Cash Paid for Taxes", operating["cash_for_taxes"], ""))

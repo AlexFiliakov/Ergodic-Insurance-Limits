@@ -242,16 +242,21 @@ class TestRecordLiquidation:
 
 
 class TestRecordLiquidAssetReduction:
-    """Tests for _record_liquid_asset_reduction (lines 1384, 1393, 1400)."""
+    """Tests for _record_liquid_asset_reduction (Issue #379).
+
+    Verifies that liquid asset reductions debit INSURANCE_LOSS (expense)
+    instead of RETAINED_EARNINGS, so losses flow through the income statement
+    per ASC 450-20-25-7.
+    """
 
     def test_zero_reduction_is_noop(self, manufacturer):
-        """Line 1384: total_reduction <= ZERO returns early."""
+        """total_reduction <= ZERO returns early."""
         entry_count_before = len(manufacturer.ledger)
         manufacturer._record_liquid_asset_reduction(ZERO)
         assert len(manufacturer.ledger) == entry_count_before
 
     def test_reduction_with_no_liquid_assets(self, manufacturer):
-        """Line 1393: total_liquid <= ZERO returns early."""
+        """total_liquid <= ZERO returns early."""
         manufacturer._write_off_all_assets("drain all")
         entry_count_before = len(manufacturer.ledger)
         manufacturer._record_liquid_asset_reduction(to_decimal(100_000))
@@ -259,12 +264,57 @@ class TestRecordLiquidAssetReduction:
         assert len(manufacturer.ledger) == entry_count_before
 
     def test_reduction_exceeds_liquid_assets(self, manufacturer):
-        """Line 1396-1400: Use all liquid assets when reduction exceeds available."""
+        """Use all liquid assets when reduction exceeds available."""
         total_liquid = manufacturer.cash + manufacturer.accounts_receivable + manufacturer.inventory
         if total_liquid > ZERO:
             manufacturer._record_liquid_asset_reduction(total_liquid + to_decimal(1_000_000))
             # Cash should be near zero
             assert manufacturer.cash <= total_liquid
+
+    def test_debits_insurance_loss_not_retained_earnings(self, manufacturer):
+        """Issue #379: Debit must go to INSURANCE_LOSS, not RETAINED_EARNINGS."""
+        from ergodic_insurance.ledger import EntryType, TransactionType
+
+        total_liquid = manufacturer.cash + manufacturer.accounts_receivable + manufacturer.inventory
+        if total_liquid <= ZERO:
+            pytest.skip("No liquid assets to reduce")
+
+        entry_count_before = len(manufacturer.ledger)
+        manufacturer._record_liquid_asset_reduction(
+            to_decimal(10_000), description="Test claim reduction"
+        )
+
+        # Check that new entries debit INSURANCE_LOSS, not RETAINED_EARNINGS
+        new_entries = manufacturer.ledger.entries[entry_count_before:]
+        debit_entries = [e for e in new_entries if e.entry_type == EntryType.DEBIT]
+        for entry in debit_entries:
+            assert (
+                entry.account == AccountName.INSURANCE_LOSS.value
+            ), f"Expected debit to insurance_loss but got {entry.account}"
+            assert (
+                entry.transaction_type == TransactionType.INSURANCE_CLAIM
+            ), f"Expected INSURANCE_CLAIM transaction type but got {entry.transaction_type}"
+
+    def test_loss_appears_on_income_statement(self, manufacturer):
+        """Issue #379: Loss must appear via insurance_loss ledger account."""
+        total_liquid = manufacturer.cash + manufacturer.accounts_receivable + manufacturer.inventory
+        if total_liquid <= ZERO:
+            pytest.skip("No liquid assets to reduce")
+
+        reduction = to_decimal(10_000)
+        insurance_loss_before = manufacturer.ledger.get_period_change(
+            "insurance_loss", manufacturer.current_year
+        )
+        manufacturer._record_liquid_asset_reduction(reduction, description="Test claim reduction")
+        insurance_loss_after = manufacturer.ledger.get_period_change(
+            "insurance_loss", manufacturer.current_year
+        )
+
+        # The insurance_loss account should increase by the reduction amount
+        loss_increase = insurance_loss_after - insurance_loss_before
+        assert (
+            loss_increase > ZERO
+        ), "Insurance loss account must increase after liquid asset reduction"
 
 
 class TestRecordInsurancePremiumInsolvency:

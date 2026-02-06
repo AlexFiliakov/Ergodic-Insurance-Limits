@@ -550,30 +550,30 @@ class BalanceSheetMixin:
         if cash_reduction > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
+                debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.CASH,
                 amount=quantize_currency(cash_reduction),
-                transaction_type=TransactionType.WRITE_OFF,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
                 description=f"{description} - cash",
             )
 
         if ar_reduction > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
+                debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.ACCOUNTS_RECEIVABLE,
                 amount=quantize_currency(ar_reduction),
-                transaction_type=TransactionType.WRITE_OFF,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
                 description=f"{description} - accounts_receivable",
             )
 
         if inventory_reduction > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
+                debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.INVENTORY,
                 amount=quantize_currency(inventory_reduction),
-                transaction_type=TransactionType.WRITE_OFF,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
                 description=f"{description} - inventory",
             )
 
