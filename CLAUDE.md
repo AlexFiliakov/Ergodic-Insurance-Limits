@@ -9,7 +9,7 @@ The model is intended to be used with public financial data to model a real busi
 4. Validate that optimal insurance premiums can exceed expected losses by 200-500% while enhancing growth
 
 Primary Language: Python 3.12+
-Version Control: Never commit directly to main branch - use feature branches
+Version Control: Never commit directly to `main` branch - use feature branches and make pull requests to `develop` branch
 Code Quality: Run formatters and linters before committing
 
 ## Git Configuration
