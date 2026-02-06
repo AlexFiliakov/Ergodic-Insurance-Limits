@@ -26,13 +26,9 @@ Attributes:
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import warnings
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy import stats
-
-from .bootstrap_analysis import BootstrapAnalyzer, BootstrapResult
 
 
 def _calculate_p_value(
@@ -113,7 +109,7 @@ def _bootstrap_ratio_distribution(
     n1, n2 = len(sample1), len(sample2)
     bootstrap_ratios = []
 
-    for i in range(n_bootstrap):
+    for _i in range(n_bootstrap):
         idx1 = rng.choice(n1, size=n1, replace=True)
         idx2 = rng.choice(n2, size=n2, replace=True)
 
@@ -622,11 +618,11 @@ def multiple_comparison_correction(
         reject = np.zeros(n_tests, dtype=bool)
 
         # Find largest i where P(i) <= (i/m) * alpha
-        threshold_found = False
+        _threshold_found = False
         for i in range(n_tests - 1, -1, -1):
             threshold = ((i + 1) / n_tests) * alpha
             if sorted_p[i] <= threshold:
-                threshold_found = True
+                _threshold_found = True
                 # Reject all hypotheses up to i
                 for j in range(i + 1):
                     reject[sorted_idx[j]] = True

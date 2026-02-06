@@ -4,15 +4,14 @@ This module provides a framework for executing multiple scenarios in parallel
 or serial, with support for checkpointing, resumption, and result aggregation.
 """
 
-from concurrent.futures import Future, ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 import json
 from pathlib import Path
-import pickle
 import time
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 import pandas as pd
@@ -23,9 +22,8 @@ from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
-from .parallel_executor import ParallelExecutor
 from .safe_pickle import safe_dump, safe_load
-from .scenario_manager import ScenarioConfig, ScenarioManager
+from .scenario_manager import ScenarioConfig
 
 
 class ProcessingStatus(Enum):
@@ -478,11 +476,11 @@ class BatchProcessor:
                             # Extract oldest time value from ruin_probability dict
                             baseline_dict = summary_df[metric].iloc[baseline_idx]
                             if isinstance(baseline_dict, dict) and baseline_dict:
-                                max_year = max(baseline_dict.keys(), key=lambda x: int(x))
+                                max_year = max(baseline_dict.keys(), key=int)
                                 baseline_value = baseline_dict[max_year]
                                 # Extract same year from all scenarios
                                 metric_values = summary_df[metric].apply(
-                                    lambda d: d.get(max_year, np.nan)
+                                    lambda d, _my=max_year: d.get(_my, np.nan)
                                     if isinstance(d, dict)
                                     else np.nan
                                 )
@@ -512,7 +510,7 @@ class BatchProcessor:
                     # Extract oldest time value from ruin_probability dict for ranking
                     first_dict = summary_df["ruin_probability"].iloc[0]
                     if isinstance(first_dict, dict) and first_dict:
-                        max_year = max(first_dict.keys(), key=lambda x: int(x))
+                        max_year = max(first_dict.keys(), key=int)
                         ruin_prob_values = summary_df["ruin_probability"].apply(
                             lambda d: d.get(max_year, np.nan) if isinstance(d, dict) else np.nan
                         )

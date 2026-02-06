@@ -29,16 +29,14 @@ Example:
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
 import warnings
 
-import numpy as np
 import pandas as pd
 
 # Try to import Excel libraries with fallback
 try:
-    import xlsxwriter
-    from xlsxwriter.utility import xl_col_to_name, xl_range
+    import xlsxwriter  # noqa: F401 pylint: disable=unused-import
 
     XLSXWRITER_AVAILABLE = True
 except ImportError:
@@ -46,20 +44,15 @@ except ImportError:
     warnings.warn("XlsxWriter not available. Some formatting features may be limited.")
 
 try:
-    import openpyxl
-    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-    from openpyxl.utils import get_column_letter
+    import openpyxl  # noqa: F401 pylint: disable=unused-import
+    from openpyxl.styles import Font
 
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
     warnings.warn("openpyxl not available. Using pandas default Excel writer.")
 
-from .financial_statements import (
-    FinancialStatementConfig,
-    FinancialStatementGenerator,
-    MonteCarloStatementAggregator,
-)
+from .financial_statements import FinancialStatementConfig, FinancialStatementGenerator
 
 if TYPE_CHECKING:
     from .manufacturer import WidgetManufacturer
@@ -358,7 +351,7 @@ class ExcelReporter:
             worksheet.write(row, col_offset + 1, f"Year {year}", self.formats["header"])
 
             # Write data
-            for idx, data_row in df.iterrows():
+            for _idx, data_row in df.iterrows():
                 row += 1
                 item = data_row["Item"]
                 value = data_row[f"Year {year}"]
@@ -416,7 +409,7 @@ class ExcelReporter:
             worksheet.write(row, col_offset + 1, f"Year {year}", self.formats["header"])
 
             # Write data
-            for idx, data_row in df.iterrows():
+            for _idx, data_row in df.iterrows():
                 row += 1
                 item = data_row["Item"]
                 value = data_row[f"Year {year}"]
@@ -481,7 +474,7 @@ class ExcelReporter:
             worksheet.write(row, col_offset + 1, f"Year {year}", self.formats["header"])
 
             # Write data
-            for idx, data_row in df.iterrows():
+            for _idx, data_row in df.iterrows():
                 row += 1
                 item = data_row["Item"]
                 value = data_row[f"Year {year}"]
@@ -553,7 +546,7 @@ class ExcelReporter:
             row += 1
 
             # Write data
-            for idx, data_row in df.iterrows():
+            for _idx, data_row in df.iterrows():
                 check = data_row["Check"]
                 value = data_row["Value"]
                 expected = data_row.get("Expected", "")
@@ -645,7 +638,7 @@ class ExcelReporter:
             worksheet.write(row, col, header, self.formats["header"])
 
         # Write data
-        for idx, data_row in df.iterrows():
+        for _idx, data_row in df.iterrows():
             row += 1
             for col, (key, value) in enumerate(data_row.items()):
                 if key == "Year":
@@ -749,7 +742,7 @@ class ExcelReporter:
             worksheet.write(row, col, header, self.formats["header"])
 
         # Write data
-        for idx, data_row in df.iterrows():
+        for _idx, data_row in df.iterrows():
             row += 1
             for col, value in enumerate(data_row):
                 if col == 0:  # Year
@@ -818,7 +811,6 @@ class ExcelReporter:
             output_path: Output file path
             title: Optional report title
         """
-        import openpyxl
         from openpyxl import Workbook
 
         # Create workbook
@@ -868,7 +860,7 @@ class ExcelReporter:
 
         # Write data starting from row 2
         row = 2
-        for idx, data_row in df.iterrows():
+        for _idx, data_row in df.iterrows():
             ws[f"A{row}"] = data_row["Item"]
             value = data_row[f"Year {year}"]
             if value != "" and value is not None:
@@ -904,7 +896,7 @@ class ExcelReporter:
 
         # Write data
         row = 4
-        for idx, data_row in df.iterrows():
+        for _idx, data_row in df.iterrows():
             ws[f"A{row}"] = data_row["Item"]
             value = data_row[f"Year {year}"]
             if value != "" and value is not None:
@@ -938,7 +930,7 @@ class ExcelReporter:
 
         # Write data
         row = 4
-        for idx, data_row in df.iterrows():
+        for _idx, data_row in df.iterrows():
             ws[f"A{row}"] = data_row["Item"]
             value = data_row[f"Year {year}"]
             if value != "" and value is not None:
@@ -974,7 +966,7 @@ class ExcelReporter:
 
         # Write data
         row = 4
-        for idx, data_row in df.iterrows():
+        for _idx, data_row in df.iterrows():
             ws[f"A{row}"] = data_row["Check"]
             if data_row["Value"] != "":
                 ws[f"B{row}"] = data_row["Value"]

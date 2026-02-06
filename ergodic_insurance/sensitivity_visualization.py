@@ -24,7 +24,6 @@ Date: 2025-01-29
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 from matplotlib.figure import Figure
-from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -101,14 +100,14 @@ def plot_tornado_diagram(  # pylint: disable=too-many-locals
         high_change = (high_values_arr - baseline_values_arr) / np.abs(baseline_values_arr) * 100
 
     # Create bars
-    for i, (idx, row) in enumerate(tornado_data.iterrows()):
+    for i, (_idx, row) in enumerate(tornado_data.iterrows()):
         color = color_positive if row["direction"] == "positive" else color_negative
 
         # Draw bar from low to high
         left = low_change[i]
         width = high_change[i] - low_change[i]
 
-        rect = ax.barh(
+        _rect = ax.barh(
             i, width, left=left, height=0.6, color=color, alpha=0.7, edgecolor="black", linewidth=1
         )
 
@@ -201,7 +200,7 @@ def plot_two_way_sensitivity(
     im = ax.pcolormesh(X, Y, result.metric_grid, cmap=cmap, shading="auto")
 
     # Add colorbar
-    cbar = plt.colorbar(im, ax=ax, label=result.metric_name)
+    _cbar = plt.colorbar(im, ax=ax, label=result.metric_name)
 
     # Add contours if requested
     if show_contours:
@@ -485,7 +484,7 @@ def plot_sensitivity_matrix(  # pylint: disable=too-many-locals
     im = ax.imshow(matrix, cmap=cmap, aspect="auto")
 
     # Add colorbar
-    cbar = plt.colorbar(im, ax=ax, label=f"{metric} (% change)")
+    _cbar = plt.colorbar(im, ax=ax, label=f"{metric} (% change)")
 
     # Set ticks and labels
     ax.set_xticks(np.arange(len(variation_points)))
@@ -497,7 +496,7 @@ def plot_sensitivity_matrix(  # pylint: disable=too-many-locals
     if show_values:
         for i in range(n_params):
             for j in range(len(variation_points)):
-                text = ax.text(
+                _text = ax.text(
                     j,
                     i,
                     f"{matrix[i, j]:.1f}",

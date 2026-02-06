@@ -29,14 +29,12 @@ Date:
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
-import gc
+from dataclasses import dataclass
 import multiprocessing as mp
 from multiprocessing import shared_memory
 import os
 import pickle
 import platform
-import sys
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import uuid
@@ -661,7 +659,7 @@ def _execute_chunk(
     Returns:
         Any: Results from the chunk
     """
-    start_idx, end_idx, items = chunk
+    _start_idx, _end_idx, items = chunk
 
     # Reconstruct shared data
     shared_data = {}

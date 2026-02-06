@@ -27,7 +27,6 @@ from .parallel_executor import (
 from .progress_monitor import ProgressMonitor
 from .result_aggregator import (
     AggregationConfig,
-    PercentileTracker,
     ResultAggregator,
     ResultExporter,
     TimeSeriesAggregator,
@@ -82,7 +81,7 @@ def _test_worker_function() -> bool:
     """
     try:
         # Try importing scipy to check if it causes issues
-        from scipy import stats  # noqa: F401
+        from scipy import stats  # noqa: F401  # pylint: disable=unused-import
 
         # Test numpy is available (already imported at module level)
         _ = np.array([1, 2, 3])
@@ -106,7 +105,6 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     Returns:
         Dict with simulation results
     """
-    import copy
     import sys
 
     module_path = Path(__file__).parent.parent.parent
@@ -734,7 +732,7 @@ class MonteCarloEngine:
         # Fall back to sequential execution in these cases
         try:
             # Test if we can import scipy successfully (needed for loss distributions)
-            from scipy import stats  # noqa: F401
+            from scipy import stats  # noqa: F401  # pylint: disable=unused-import
         except (ImportError, TypeError) as e:
             warnings.warn(
                 f"Scipy import failed in parallel mode: {e}. "
@@ -1441,14 +1439,7 @@ class MonteCarloEngine:
             Dictionary mapping metric names to (lower, upper) confidence bounds.
         """
         # Lazy import to avoid scipy issues in worker processes
-        from .bootstrap_analysis import BootstrapAnalyzer, bootstrap_confidence_interval
-
-        analyzer = BootstrapAnalyzer(
-            n_bootstrap=n_bootstrap,
-            confidence_level=confidence_level,
-            seed=self.config.seed,
-            show_progress=show_progress,
-        )
+        from .bootstrap_analysis import bootstrap_confidence_interval
 
         confidence_intervals = {}
 

@@ -1,5 +1,6 @@
 """Pytest configuration and shared fixtures."""
 
+import os
 from pathlib import Path
 import sys
 
@@ -38,6 +39,17 @@ from ergodic_insurance.tests.integration.test_fixtures import (
 )
 
 # pylint: enable=wrong-import-position
+
+
+def pytest_collection_modifyitems(config, items):
+    """Auto-skip requires_multiprocessing tests in CI (they crash xdist workers)."""
+    if os.environ.get("CI"):
+        skip_marker = pytest.mark.skip(
+            reason="Multiprocessing/shared memory tests crash xdist workers in CI"
+        )
+        for item in items:
+            if "requires_multiprocessing" in item.keywords:
+                item.add_marker(skip_marker)
 
 
 @pytest.fixture

@@ -59,7 +59,6 @@ class StochasticProcess(ABC):
         Returns:
             Multiplicative shock to apply to the value
         """
-        ...
 
     def reset(self, seed: Optional[int] = None) -> None:
         """Reset the random number generator.

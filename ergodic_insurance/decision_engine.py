@@ -11,14 +11,12 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy import optimize
 from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
 
 from .config import DEFAULT_RISK_FREE_RATE, DecisionEngineConfig
 from .config_loader import ConfigLoader
 from .ergodic_analyzer import ErgodicAnalyzer
 from .insurance_program import EnhancedInsuranceLayer as Layer
-from .insurance_program import InsuranceProgram
 from .loss_distributions import LossDistribution
 from .manufacturer import WidgetManufacturer
 from .optimization import (
@@ -27,7 +25,6 @@ from .optimization import (
     MultiStartOptimizer,
     PenaltyMethodOptimizer,
     TrustRegionOptimizer,
-    create_optimizer,
 )
 from .risk_metrics import RiskMetrics
 
@@ -405,8 +402,6 @@ class InsuranceDecisionEngine:
 
         Global optimization method, robust to local optima.
         """
-        n_vars = 1 + constraints.max_layers
-
         # Bounds for decision variables
         bounds = [(constraints.min_retained_limit, constraints.max_retained_limit)]
         for _ in range(constraints.max_layers):
@@ -1202,7 +1197,7 @@ class InsuranceDecisionEngine:
 
                 # Apply insurance
                 retained_losses = min(annual_losses, decision.retained_limit)
-                insured_losses = 0
+                insured_losses = 0.0
 
                 if decision.layers:
                     remaining_loss = max(annual_losses - decision.retained_limit, 0)
@@ -1298,7 +1293,7 @@ class InsuranceDecisionEngine:
             # Test parameter variations
             for variation in [-variation_range, variation_range]:
                 # Modify parameter
-                modified_scenario = self._modify_parameter(param, variation)
+                self._modify_parameter(param, variation)
 
                 # Re-optimize with modified parameter
                 constraints = OptimizationConstraints(

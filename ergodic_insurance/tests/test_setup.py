@@ -32,7 +32,7 @@ def test_package_imports():
     try:
         import ergodic_insurance
 
-        assert ergodic_insurance.__version__ == "0.3.0"
+        assert ergodic_insurance.__version__ == "0.4.0"
     except ImportError:
         pytest.skip("Package not installed in editable mode yet")
 

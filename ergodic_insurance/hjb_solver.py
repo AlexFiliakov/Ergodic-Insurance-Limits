@@ -16,14 +16,13 @@ Date: 2025-01-26
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import interpolate, sparse
-from scipy.sparse import linalg as sparse_linalg
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +137,7 @@ class StateSpace:
         """
         mask = np.zeros(self.shape, dtype=bool)
 
-        for dim, sv in enumerate(self.state_variables):
+        for dim, _sv in enumerate(self.state_variables):
             # Create slice for this dimension's boundaries
             slices_lower: list[slice | int] = [slice(None)] * self.ndim
             slices_lower[dim] = 0
@@ -477,9 +476,6 @@ class HJBSolver:
         dx = self.dx[dim]
         result = np.zeros_like(value)
 
-        # Reshape for easier indexing
-        shape = value.shape
-
         # Forward difference where drift > 0
         mask_pos = drift > 0
         if dim == 0:
@@ -660,7 +656,7 @@ class HJBSolver:
                 control_array = np.array(control)
 
                 # Compute Hamiltonian
-                drift = self.problem.dynamics(
+                _drift = self.problem.dynamics(
                     point.reshape(1, -1), control_array.reshape(1, -1), 0.0
                 )
                 cost = self.problem.running_cost(
@@ -731,11 +727,11 @@ class HJBSolver:
         )
 
         # Evaluate HJB residual
-        drift = self.problem.dynamics(state_points, control_array, 0.0)
+        _drift = self.problem.dynamics(state_points, control_array, 0.0)
         cost = self.problem.running_cost(state_points, control_array, 0.0)
 
         # Approximate time derivative (backward difference)
-        dt = self.config.time_step
+        _dt = self.config.time_step
         v_flat = self.value_function.ravel()
 
         # Simplified residual (would compute full PDE residual in production)

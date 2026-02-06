@@ -6,13 +6,11 @@ during long-running simulations with minimal computational overhead.
 
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Tuple, Union
-import warnings
 
 from matplotlib import animation, gridspec
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -116,7 +114,7 @@ class RealTimeConvergencePlotter:
 
             # Initialize trace lines
             self.lines[f"trace_{i}"] = []
-            for chain in range(self.n_chains):
+            for _chain in range(self.n_chains):
                 (line,) = ax.plot([], [], alpha=0.7, linewidth=0.8)
                 self.lines[f"trace_{i}"].append(line)
 
@@ -338,8 +336,6 @@ class RealTimeConvergencePlotter:
         Returns:
             Figure with 3D autocorrelation surface
         """
-        from mpl_toolkits.mplot3d import Axes3D
-
         n_chains, n_iterations, _ = chains.shape
 
         # Calculate ACF at different time windows

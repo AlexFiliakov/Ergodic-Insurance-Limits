@@ -167,9 +167,8 @@ class TestMonteCarloEngine:
         engine.config.parallel = True
         engine.config.n_workers = 2
         engine.config.chunk_size = 5_000
-        # Disable enhanced parallel on Windows to avoid scipy issues
-        if os.name == "nt":
-            engine.config.use_enhanced_parallel = False
+        # Disable enhanced parallel to test _run_parallel path specifically
+        engine.config.use_enhanced_parallel = False
 
         # Mock loss events
 
@@ -710,6 +709,7 @@ class TestRuinProbabilityEstimation:
     os.name == "nt",
     reason="Skipping enhanced parallel tests on Windows due to scipy/multiprocessing issues",
 )
+@pytest.mark.requires_multiprocessing
 class TestEnhancedParallelExecution:
     """Test enhanced parallel execution features."""
 

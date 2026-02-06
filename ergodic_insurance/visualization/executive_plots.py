@@ -466,7 +466,7 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
     # Premium breakdown pie chart
     premiums = [layer["premium"] * layer["limit"] for layer in layers]
 
-    wedges, texts, autotexts = ax2.pie(
+    _wedges, texts, autotexts = ax2.pie(
         premiums, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90
     )
 
@@ -900,7 +900,7 @@ def plot_ruin_cliff(  # pylint: disable=too-many-locals,too-many-statements,too-
         cmap_3d = LinearSegmentedColormap.from_list("ruin_cliff", colors_3d, N=n_bins)
 
         # Add gradient background
-        contour = ax.contourf(
+        _contour = ax.contourf(
             X_mesh, Y_mesh, Z_mesh, levels=20, cmap=cmap_3d, alpha=0.3, antialiased=True
         )
 
@@ -1105,7 +1105,7 @@ def plot_simulation_architecture(  # pylint: disable=too-many-locals
     # Define box positions and sizes
     box_width = 0.15
     box_height = 0.12
-    arrow_width = 0.02
+    _arrow_width = 0.02
 
     # Main flow boxes (left to right)
     boxes = [
@@ -1854,7 +1854,7 @@ def plot_sensitivity_tornado(  # pylint: disable=too-many-locals
 
     # Add percentage labels
     if show_percentages:
-        for bar_item, param, impact in zip(bars, params, impacts):
+        for bar_item, _param, impact in zip(bars, params, impacts):
             width = bar_item.get_width()
             label_x = width * 1.02 if width > 0 else width * 1.02
             ax.text(
@@ -2014,6 +2014,7 @@ def plot_robustness_heatmap(  # pylint: disable=too-many-locals,too-many-stateme
 
     # Add regions
     # Stable region (robustness > 0.7)
+    assert robustness_data is not None  # Guaranteed by branches above
     stable_mask = robustness_data > 0.7
     if np.any(stable_mask):
         ax.contour(
@@ -2065,7 +2066,7 @@ def plot_robustness_heatmap(  # pylint: disable=too-many-locals,too-many-stateme
     ax.grid(True, alpha=0.2)
 
     # Add legend only if there are labeled artists
-    handles, labels = ax.get_legend_handles_labels()
+    handles, _labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(loc="upper right", fontsize=9)
 

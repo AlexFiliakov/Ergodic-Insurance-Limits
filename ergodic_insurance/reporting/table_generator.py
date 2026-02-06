@@ -4,13 +4,12 @@ This module provides functions to generate and format tables from various data s
 supporting multiple output formats including Markdown, HTML, and LaTeX.
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from tabulate import tabulate  # type: ignore[import-untyped]
+from tabulate import tabulate
 
 from .formatters import ColorCoder, NumberFormatter, TableFormatter, format_for_export
 
@@ -129,13 +128,24 @@ class TableGenerator:
         table_format = self._format_map.get(format_key, "pipe")
 
         # Generate base table
-        table: str = tabulate(
-            df,
-            headers=df.columns,
-            tablefmt=table_format,
-            showindex=index,
-            floatfmt=f".{precision or self.precision}f",
-        )
+        if index:
+            # Preserve DataFrame index by prepending it to each row
+            rows = [[idx] + list(row) for idx, row in zip(df.index, df.values.tolist())]
+            headers = [""] + list(df.columns)
+            table: str = tabulate(
+                rows,
+                headers=headers,
+                tablefmt=table_format,
+                floatfmt=f".{precision or self.precision}f",
+            )
+        else:
+            table = tabulate(
+                df.values.tolist(),
+                headers=list(df.columns),
+                tablefmt=table_format,
+                showindex=False,
+                floatfmt=f".{precision or self.precision}f",
+            )
 
         # Add caption if provided
         if caption:

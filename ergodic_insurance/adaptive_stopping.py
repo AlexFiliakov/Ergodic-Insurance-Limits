@@ -6,7 +6,7 @@ allowing simulations to terminate early when convergence criteria are met.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import warnings
 
 import numpy as np
@@ -215,7 +215,7 @@ class AdaptiveStoppingMonitor:
                         continue
 
                     # Geweke test
-                    z_score, p_value = self._geweke_test(test_chain)
+                    _z_score, p_value = self._geweke_test(test_chain)
 
                     if p_value > 0.05:  # Stationary
                         burn_in_estimates.append(test_point)
@@ -281,7 +281,7 @@ class AdaptiveStoppingMonitor:
 
         # Linear regression
         if len(iterations_masked) >= 2:
-            slope, intercept = np.polyfit(iterations_masked, log_values, 1)
+            slope, _intercept = np.polyfit(iterations_masked, log_values, 1)
             rate = -slope
 
             if rate > 0:
@@ -366,11 +366,11 @@ class AdaptiveStoppingMonitor:
 
     def _calculate_r_hat(self, chains: np.ndarray) -> float:
         """Calculate Gelman-Rubin R-hat statistic."""
-        n_chains, n_iterations = chains.shape[:2]
+        _n_chains, n_iterations = chains.shape[:2]
 
         # Between-chain variance
         chain_means = np.mean(chains, axis=1)
-        grand_mean = np.mean(chain_means)
+        _grand_mean = np.mean(chain_means)
         between_var = n_iterations * np.var(chain_means, ddof=1)
 
         # Within-chain variance

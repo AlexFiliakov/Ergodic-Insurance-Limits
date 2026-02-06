@@ -1,0 +1,201 @@
+# mypy: disable-error-code="attr-defined, has-type, no-any-return"
+"""Income calculation mixin for WidgetManufacturer.
+
+This module contains the IncomeCalculationMixin class, extracted from manufacturer.py
+as part of the decomposition refactor (Issue #305). It provides revenue, operating
+income, collateral costs, and net income calculation methods.
+"""
+
+from decimal import Decimal
+import logging
+from typing import Union
+
+try:
+    from ergodic_insurance.decimal_utils import ZERO, to_decimal
+    from ergodic_insurance.tax_handler import TaxHandler
+except ImportError:
+    try:
+        from .decimal_utils import ZERO, to_decimal
+        from .tax_handler import TaxHandler
+    except ImportError:
+        from decimal_utils import ZERO, to_decimal  # type: ignore[no-redef]
+        from tax_handler import TaxHandler  # type: ignore[no-redef]
+
+logger = logging.getLogger(__name__)
+
+
+class IncomeCalculationMixin:
+    """Mixin providing income statement calculation methods.
+
+    This mixin expects the host class to have:
+        - self.total_assets: Decimal (property from BalanceSheetMixin)
+        - self.asset_turnover_ratio: float
+        - self.base_operating_margin: float
+        - self.tax_rate: float
+        - self.stochastic_process: Optional[StochasticProcess]
+        - self.period_insurance_premiums: Decimal
+        - self.period_insurance_losses: Decimal
+        - self.collateral: Decimal (property from BalanceSheetMixin)
+        - self.equity: Decimal (property from BalanceSheetMixin)
+        - self.accrual_manager: AccrualManager instance
+        - self.current_year: int
+        - self.current_month: int
+    """
+
+    def calculate_revenue(self, apply_stochastic: bool = False) -> Decimal:
+        """Calculate revenue based on available assets and turnover ratio.
+
+        Args:
+            apply_stochastic (bool): Whether to apply stochastic shock to revenue.
+
+        Returns:
+            float: Annual revenue in dollars. Always non-negative.
+        """
+        available_assets = max(ZERO, self.total_assets)
+        revenue = available_assets * to_decimal(self.asset_turnover_ratio)
+
+        if apply_stochastic and self.stochastic_process is not None:
+            shock = self.stochastic_process.generate_shock(float(revenue))
+            revenue *= to_decimal(shock)
+            logger.debug(f"Applied stochastic shock: {shock:.4f}")
+
+        logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.total_assets:,.2f}")
+        return revenue
+
+    def calculate_operating_income(
+        self, revenue: Union[Decimal, float], depreciation_expense: Union[Decimal, float] = ZERO
+    ) -> Decimal:
+        """Calculate operating income including insurance and depreciation as operating expenses.
+
+        Args:
+            revenue: Annual revenue in dollars.
+            depreciation_expense: Depreciation expense for the period.
+
+        Returns:
+            Decimal: Operating income in dollars after insurance costs and depreciation.
+        """
+        revenue_decimal = to_decimal(revenue)
+        depreciation_decimal = to_decimal(depreciation_expense)
+
+        base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
+
+        actual_operating_income = (
+            base_operating_income
+            - self.period_insurance_premiums
+            - self.period_insurance_losses
+            - depreciation_decimal
+        )
+
+        logger.debug(
+            f"Operating income: ${actual_operating_income:,.2f} "
+            f"(base: ${base_operating_income:,.2f}, insurance: "
+            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f}, "
+            f"depreciation: ${depreciation_decimal:,.2f})"
+        )
+        return actual_operating_income
+
+    def calculate_collateral_costs(
+        self, letter_of_credit_rate: Union[Decimal, float] = 0.015, time_period: str = "annual"
+    ) -> Decimal:
+        """Calculate costs for letter of credit collateral.
+
+        Args:
+            letter_of_credit_rate (float): Annual interest rate for letter of credit.
+            time_period (str): "annual" or "monthly".
+
+        Returns:
+            Decimal: Collateral costs for the specified period in dollars.
+        """
+        if time_period == "monthly":
+            period_rate = to_decimal(letter_of_credit_rate / 12)
+        else:
+            period_rate = to_decimal(letter_of_credit_rate)
+
+        collateral_costs = self.collateral * period_rate
+        if collateral_costs > ZERO:
+            logger.debug(
+                f"Collateral costs ({time_period}): ${collateral_costs:,.2f} on ${self.collateral:,.2f} collateral"
+            )
+        return collateral_costs
+
+    def calculate_net_income(
+        self,
+        operating_income: Union[Decimal, float],
+        collateral_costs: Union[Decimal, float],
+        insurance_premiums: Union[Decimal, float] = ZERO,
+        insurance_losses: Union[Decimal, float] = ZERO,
+        use_accrual: bool = True,
+        time_resolution: str = "annual",
+    ) -> Decimal:
+        """Calculate net income after collateral costs and taxes.
+
+        Args:
+            operating_income: Operating income (EBIT).
+            collateral_costs: Financing costs for letter of credit collateral.
+            insurance_premiums: Insurance premium costs to deduct.
+            insurance_losses: Insurance loss/deductible costs to deduct.
+            use_accrual: Whether to use accrual accounting for taxes.
+            time_resolution: Time resolution for tax accrual calculation.
+
+        Returns:
+            Decimal: Net income after all expenses and taxes.
+        """
+        # Convert inputs to Decimal
+        operating_income_decimal = to_decimal(operating_income)
+        collateral_costs_decimal = to_decimal(collateral_costs)
+        insurance_premiums_decimal = to_decimal(insurance_premiums)
+        insurance_losses_decimal = to_decimal(insurance_losses)
+
+        total_insurance_costs = insurance_premiums_decimal + insurance_losses_decimal
+        income_before_tax = (
+            operating_income_decimal - collateral_costs_decimal - total_insurance_costs
+        )
+
+        # Use TaxHandler for consolidated tax calculation
+        tax_handler = TaxHandler(
+            tax_rate=self.tax_rate,
+            accrual_manager=self.accrual_manager,
+        )
+
+        taxes = tax_handler.calculate_tax_liability(income_before_tax)
+
+        # Read equity BEFORE tax accrual (critical for non-circular flow)
+        current_equity = self.equity
+
+        actual_tax_expense, was_capped = tax_handler.calculate_and_accrue_tax(
+            income_before_tax=income_before_tax,
+            current_equity=current_equity,
+            use_accrual=use_accrual,
+            time_resolution=time_resolution,
+            current_year=self.current_year,
+            current_month=self.current_month,
+        )
+
+        net_income = income_before_tax - actual_tax_expense
+
+        # Enhanced profit waterfall logging
+        logger.info("===== PROFIT WATERFALL =====")
+        logger.info(f"Operating Income:        ${operating_income_decimal:,.2f}")
+        if insurance_premiums_decimal > ZERO:
+            logger.info(f"  - Insurance Premiums:  ${insurance_premiums_decimal:,.2f}")
+        if insurance_losses_decimal > ZERO:
+            logger.info(f"  - Insurance Losses:    ${insurance_losses_decimal:,.2f}")
+        if collateral_costs_decimal > ZERO:
+            logger.info(f"  - Collateral Costs:    ${collateral_costs_decimal:,.2f}")
+        logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
+        logger.info(f"  - Taxes (@{self.tax_rate:.1%}):      ${actual_tax_expense:,.2f}")
+        if was_capped:
+            logger.info(f"    (Capped from ${taxes:,.2f} due to limited liability)")
+        if use_accrual and actual_tax_expense > 0:
+            logger.info("    (Accrued for quarterly payment)")
+        logger.info(f"NET INCOME:              ${net_income:,.2f}")
+        logger.info("============================")
+
+        # Validation assertion
+        epsilon = to_decimal("0.000000001")
+        if total_insurance_costs + collateral_costs_decimal > epsilon:
+            assert (
+                net_income <= operating_income_decimal + epsilon
+            ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income_decimal}) when costs exist"
+
+        return net_income

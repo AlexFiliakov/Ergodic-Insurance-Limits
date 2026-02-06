@@ -5,16 +5,12 @@ labels, and callouts to plots with smart placement and leader line routing.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-import warnings
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from matplotlib import transforms
 from matplotlib.axes import Axes
-from matplotlib.patches import FancyBboxPatch, PathPatch
+from matplotlib.patches import PathPatch
 from matplotlib.path import Path
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial.distance import cdist
 
 from .core import WSJ_COLORS
 
@@ -209,7 +205,7 @@ def add_benchmark_line(
     color = color or WSJ_COLORS["gray"]
 
     # Add the line
-    line = ax.axhline(
+    _line = ax.axhline(
         y=value,
         color=color,
         linestyle=linestyle,
@@ -508,7 +504,7 @@ class SmartAnnotationPlacer:
 
         # Create positions in a circle around the target point
         n_angles = 8
-        for i, angle in enumerate(np.linspace(0, 2 * np.pi, n_angles, endpoint=False)):
+        for _i, angle in enumerate(np.linspace(0, 2 * np.pi, n_angles, endpoint=False)):
             # Vary radius based on position in plot
             if target_axes[1] > 0.7:  # Upper part - annotations below
                 if angle > np.pi:  # Lower half of circle preferred
@@ -777,11 +773,11 @@ class SmartAnnotationPlacer:
         # Prefer opposite quadrant for better visibility
         if x_ratio < 0.3 and y_ratio < 0.3:
             return "NE"  # Point in SW, annotate in NE
-        elif x_ratio > 0.7 and y_ratio < 0.3:
+        if x_ratio > 0.7 and y_ratio < 0.3:
             return "NW"  # Point in SE, annotate in NW
-        elif x_ratio < 0.3 and y_ratio > 0.7:
+        if x_ratio < 0.3 and y_ratio > 0.7:
             return "SE"  # Point in NW, annotate in SE
-        elif x_ratio > 0.7 and y_ratio > 0.7:
+        if x_ratio > 0.7 and y_ratio > 0.7:
             return "SW"  # Point in NE, annotate in SW
 
         return None  # Let algorithm decide for middle points

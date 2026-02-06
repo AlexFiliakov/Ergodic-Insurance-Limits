@@ -4,12 +4,10 @@ This module provides functions to export visualizations to different formats
 including high-resolution images, PDFs, and web-ready formats.
 """
 
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
 
@@ -295,7 +293,7 @@ def save_for_web(
 def batch_export(
     figures: Dict[str, Union[Figure, go.Figure]],
     output_dir: str,
-    formats: List[str] = ["png", "pdf"],
+    formats: Optional[List[str]] = None,
     dpi: int = 300,
 ) -> Dict[str, List[str]]:
     """Export multiple figures in batch.
@@ -317,6 +315,8 @@ def batch_export(
         >>> figures = {"chart1": fig1, "chart2": fig2}
         >>> batch_export(figures, "output/", formats=["png"])
     """
+    if formats is None:
+        formats = ["png", "pdf"]
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 

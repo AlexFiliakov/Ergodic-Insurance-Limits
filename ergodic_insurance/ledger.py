@@ -36,7 +36,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 import uuid
 
-from .decimal_utils import ZERO, is_zero, quantize_currency, to_decimal
+from .decimal_utils import ZERO, to_decimal
 
 
 class AccountType(Enum):
@@ -236,7 +236,7 @@ class LedgerEntry:
             object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
         if self.amount < ZERO:
             raise ValueError(f"Ledger entry amount must be non-negative, got {self.amount}")
-        if not (0 <= self.month <= 11):
+        if not 0 <= self.month <= 11:
             raise ValueError(f"Month must be 0-11, got {self.month}")
 
     @property
@@ -252,8 +252,7 @@ class LedgerEntry:
         """
         if self.entry_type == EntryType.DEBIT:
             return self.amount
-        else:
-            return -self.amount
+        return -self.amount
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> "LedgerEntry":
         """Create a deep copy of this ledger entry.
@@ -458,9 +457,8 @@ class Ledger:
                     error_msg += f"Did you mean one of: {similar}? "
                 error_msg += "Use AccountName enum to prevent typos (Issue #260)."
                 raise ValueError(error_msg)
-            else:
-                # Backward compatible: add unknown account as ASSET
-                self.chart_of_accounts[entry.account] = AccountType.ASSET
+            # Backward compatible: add unknown account as ASSET
+            self.chart_of_accounts[entry.account] = AccountType.ASSET
 
         self.entries.append(entry)
         self._update_balance_cache(entry)

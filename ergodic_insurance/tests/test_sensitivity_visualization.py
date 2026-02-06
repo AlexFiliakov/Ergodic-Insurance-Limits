@@ -239,9 +239,9 @@ class TestParameterSweep:
             if ax.get_visible():
                 lines = ax.lines
                 if lines:
-                    y_data = lines[0].get_ydata()
+                    y_data = np.asarray(lines[0].get_ydata())
                     # Normalized data should be between 0 and 1
-                    assert all(0 <= y <= 1 for y in y_data if not np.isnan(y))
+                    assert all(0 <= float(y) <= 1 for y in y_data if not np.isnan(y))
 
         plt.close(fig)
 

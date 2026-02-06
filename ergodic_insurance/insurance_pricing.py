@@ -37,11 +37,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-import warnings
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy import stats
 
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
@@ -196,10 +194,9 @@ class InsurancePricer:
         """
         if loss_ratio <= 0.65:
             return MarketCycle.HARD
-        elif loss_ratio >= 0.75:
+        if loss_ratio >= 0.75:
             return MarketCycle.SOFT
-        else:
-            return MarketCycle.NORMAL
+        return MarketCycle.NORMAL
 
     def calculate_pure_premium(
         self,
@@ -237,7 +234,7 @@ class InsurancePricer:
 
         for _ in range(years):
             # Generate annual losses
-            losses, stats = self.loss_generator.generate_losses(
+            losses, _stats = self.loss_generator.generate_losses(
                 duration=1.0, revenue=expected_revenue, include_catastrophic=True
             )
 
@@ -417,7 +414,7 @@ class InsurancePricer:
         Returns:
             Program with updated pricing (original or copy based on update_program)
         """
-        from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
+        from .insurance_program import InsuranceProgram
 
         # Create a copy if not updating in place
         if not update_program:
@@ -475,7 +472,7 @@ class InsurancePricer:
         Returns:
             Policy with updated pricing (original or copy based on update_policy)
         """
-        from .insurance import InsuranceLayer, InsurancePolicy
+        from .insurance import InsurancePolicy
 
         # Create a copy if not updating in place
         if not update_policy:
@@ -636,26 +633,23 @@ class InsurancePricer:
         if current == MarketCycle.HARD:
             if rand < probs.get("hard_to_normal", 0.4):
                 return MarketCycle.NORMAL
-            elif rand < probs.get("hard_to_normal", 0.4) + probs.get("hard_to_soft", 0.1):
+            if rand < probs.get("hard_to_normal", 0.4) + probs.get("hard_to_soft", 0.1):
                 return MarketCycle.SOFT
-            else:
-                return MarketCycle.HARD
+            return MarketCycle.HARD
 
-        elif current == MarketCycle.NORMAL:
+        if current == MarketCycle.NORMAL:
             if rand < probs.get("normal_to_hard", 0.2):
                 return MarketCycle.HARD
-            elif rand < probs.get("normal_to_hard", 0.2) + probs.get("normal_to_soft", 0.2):
+            if rand < probs.get("normal_to_hard", 0.2) + probs.get("normal_to_soft", 0.2):
                 return MarketCycle.SOFT
-            else:
-                return MarketCycle.NORMAL
+            return MarketCycle.NORMAL
 
-        else:  # SOFT
-            if rand < probs.get("soft_to_normal", 0.3):
-                return MarketCycle.NORMAL
-            elif rand < probs.get("soft_to_normal", 0.3) + probs.get("soft_to_hard", 0.1):
-                return MarketCycle.HARD
-            else:
-                return MarketCycle.SOFT
+        # SOFT
+        if rand < probs.get("soft_to_normal", 0.3):
+            return MarketCycle.NORMAL
+        if rand < probs.get("soft_to_normal", 0.3) + probs.get("soft_to_hard", 0.1):
+            return MarketCycle.HARD
+        return MarketCycle.SOFT
 
     @staticmethod
     def create_from_config(

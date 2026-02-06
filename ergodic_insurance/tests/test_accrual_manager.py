@@ -159,7 +159,7 @@ class TestAccrualManager:
         manager = AccrualManager()
         custom_pattern = [0.5, 0.3, 0.2]
 
-        schedule = manager.get_claim_payment_schedule(100000.0, custom_pattern)
+        schedule = manager.get_claim_payment_schedule(100000.0, custom_pattern)  # type: ignore[arg-type]
 
         assert len(schedule) == 3
         expected_amounts = [50000.0, 30000.0, 20000.0]
@@ -260,7 +260,7 @@ class TestAccrualManager:
         """Test AccrualItem properties."""
         item = AccrualItem(
             item_type=AccrualType.WAGES,
-            amount=10000.0,
+            amount=10000.0,  # type: ignore[arg-type]
             period_incurred=0,
             payment_schedule=PaymentSchedule.IMMEDIATE,
         )
@@ -268,11 +268,11 @@ class TestAccrualManager:
         assert item.remaining_balance == 10000.0
         assert not item.is_fully_paid
 
-        item.amounts_paid.append(5000.0)
+        item.amounts_paid.append(5000.0)  # type: ignore[arg-type]
         assert item.remaining_balance == 5000.0
         assert not item.is_fully_paid
 
-        item.amounts_paid.append(5000.0)
+        item.amounts_paid.append(5000.0)  # type: ignore[arg-type]
         assert item.remaining_balance == 0.0
         assert item.is_fully_paid
 

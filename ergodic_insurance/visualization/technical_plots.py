@@ -239,8 +239,8 @@ def plot_pareto_frontier_2d(  # pylint: disable=too-many-locals
                 )
 
     # Shade dominated region
-    x_min, x_max = ax.get_xlim()
-    y_min, y_max = ax.get_ylim()
+    _x_min, x_max = ax.get_xlim()
+    _y_min, y_max = ax.get_ylim()
 
     # Create polygon for dominated region (assumes minimization for both)
     dominated_x = [x_max] + x_sorted + [x_sorted[-1]]
@@ -295,7 +295,7 @@ def plot_pareto_frontier_3d(  # pylint: disable=too-many-locals
     Returns:
         Matplotlib figure with 3D Pareto frontier
     """
-    from mpl_toolkits.mplot3d import Axes3D
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  # pylint: disable=unused-import
 
     set_wsj_style()
     fig = plt.figure(figsize=figsize)
@@ -1450,7 +1450,7 @@ def plot_path_dependent_wealth(  # pylint: disable=too-many-locals,too-many-bran
 
     # Calculate percentiles for all paths and survivors only
     percentile_values = np.percentile(trajectories, percentiles, axis=0)
-    survivor_percentiles = (
+    _survivor_percentiles = (
         np.percentile(trajectories[survived_mask], percentiles, axis=0)
         if n_survived > 0
         else percentile_values
@@ -1972,7 +1972,7 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals,too-many-bran
         layers = sorted(list(all_layers))
 
     # Prepare data for plotting
-    n_groups = len(company_sizes) * len(layers)
+    _n_groups = len(company_sizes) * len(layers)
     group_labels = []
     component_names = [
         "expected_loss",
@@ -2024,7 +2024,7 @@ def plot_premium_decomposition(  # pylint: disable=too-many-locals,too-many-bran
         _add_percentage_labels(ax, group_labels, component_data, component_names)
 
     # Add total premium values on top of bars
-    for i, (label, total_height) in enumerate(zip(group_labels, bottom)):
+    for i, (_label, total_height) in enumerate(zip(group_labels, bottom)):
         if total_height > 0:
             ax.text(
                 i,
@@ -2125,9 +2125,7 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
         ... }
         >>> fig = plot_capital_efficiency_frontier_3d(data)
     """
-    from matplotlib import cm
-    from matplotlib.colors import Normalize
-    from mpl_toolkits.mplot3d import Axes3D
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  # pylint: disable=unused-import
 
     set_wsj_style()
 
@@ -2151,7 +2149,7 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
     ax = fig.add_subplot(111, projection="3d")
 
     # Plot surfaces for each company size
-    for idx, company_size in enumerate(company_sizes):
+    for _idx, company_size in enumerate(company_sizes):
         if company_size not in efficiency_data:
             continue
 
@@ -2172,7 +2170,7 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
         cmap = plt.colormaps[cmap_name]
 
         # Plot surface with transparency
-        surf = ax.plot_surface(
+        _surf = ax.plot_surface(
             X,
             Y,
             Z,
@@ -2278,7 +2276,7 @@ def plot_capital_efficiency_frontier_3d(  # pylint: disable=too-many-locals,too-
             ax_view = fig_view.add_subplot(111, projection="3d")
 
             # Recreate the plot with new viewing angle
-            for idx, company_size in enumerate(company_sizes):
+            for _idx, company_size in enumerate(company_sizes):
                 if company_size not in efficiency_data:
                     continue
 

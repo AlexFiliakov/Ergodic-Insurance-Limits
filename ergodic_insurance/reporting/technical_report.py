@@ -6,7 +6,7 @@ technical appendices with methodology, validation, and detailed results.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,16 +15,7 @@ from scipy import stats
 import seaborn as sns
 
 from ..convergence import ConvergenceDiagnostics
-from ..statistical_tests import HypothesisTestResult
-from ..validation_metrics import ValidationMetrics
-from .config import (
-    FigureConfig,
-    ReportConfig,
-    ReportMetadata,
-    SectionConfig,
-    TableConfig,
-    create_technical_config,
-)
+from .config import FigureConfig, ReportConfig, create_technical_config
 from .report_builder import ReportBuilder
 
 logger = logging.getLogger(__name__)

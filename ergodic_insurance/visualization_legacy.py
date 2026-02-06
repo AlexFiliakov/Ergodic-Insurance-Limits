@@ -16,10 +16,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import seaborn as sns
 
 # Import from new modular structure
 try:
@@ -45,7 +43,7 @@ try:
     from .visualization.interactive_plots import (
         create_interactive_dashboard as _new_create_interactive_dashboard,
     )
-    from .visualization.style_manager import StyleManager, Theme
+    from .visualization.style_manager import Theme
     from .visualization.technical_plots import (
         create_interactive_pareto_frontier as _new_create_interactive_pareto_frontier,
     )
@@ -99,7 +97,7 @@ if not _NEW_MODULE_AVAILABLE:
 if not _NEW_MODULE_AVAILABLE:
     try:
         from .visualization_infra.figure_factory import FigureFactory  # type: ignore[assignment]
-        from .visualization_infra.style_manager import (  # type: ignore[assignment]
+        from .visualization_infra.style_manager import (  # type: ignore[assignment]  # pylint: disable=unused-import
             StyleManager,
             Theme,
         )
@@ -807,7 +805,7 @@ def plot_insurance_layers(  # pylint: disable=too-many-locals,too-many-statement
     # Premium breakdown pie chart
     premiums = [layer["premium"] * layer["limit"] for layer in layers]
 
-    wedges, texts, autotexts = ax2.pie(
+    _wedges, texts, autotexts = ax2.pie(
         premiums, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90
     )
 
@@ -1271,8 +1269,8 @@ def plot_pareto_frontier_2d(  # pylint: disable=too-many-locals
                 )
 
     # Shade dominated region
-    x_min, x_max = ax.get_xlim()
-    y_min, y_max = ax.get_ylim()
+    _x_min, x_max = ax.get_xlim()
+    _y_min, y_max = ax.get_ylim()
 
     # Create polygon for dominated region (assumes minimization for both)
     dominated_x = [x_max] + x_sorted + [x_sorted[-1]]
@@ -1324,7 +1322,7 @@ def plot_pareto_frontier_3d(  # pylint: disable=too-many-locals
     Returns:
         Matplotlib figure
     """
-    from mpl_toolkits.mplot3d import Axes3D
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  # pylint: disable=unused-import
 
     set_wsj_style()
     fig = plt.figure(figsize=figsize)
@@ -1700,7 +1698,7 @@ def plot_scenario_comparison(  # pylint: disable=too-many-locals
         ax.grid(True, alpha=0.3)
 
         # Add value labels
-        for j, (value_bar, val) in enumerate(zip(bars, values)):
+        for _j, (value_bar, val) in enumerate(zip(bars, values)):
             height = value_bar.get_height()
             format_str = f"{val:.2%}" if "probability" in metric else f"{val:.2g}"
             ax.text(
@@ -1754,7 +1752,7 @@ def plot_sensitivity_heatmap(  # pylint: disable=too-many-locals
         return plt.figure()
 
     # Prepare data for heatmap
-    sensitivity_matrix: List[List[float]] = []
+    _sensitivity_matrix: List[List[float]] = []
     param_names = []
 
     for _, row in sensitivity_df.iterrows():

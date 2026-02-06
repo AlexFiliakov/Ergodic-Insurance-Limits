@@ -4,11 +4,7 @@ This module provides the foundational elements for visualization including
 WSJ-style color palettes, formatters, and base configuration settings.
 """
 
-from typing import Optional, Tuple
-
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-import numpy as np
 
 # WSJ Color Palette
 WSJ_COLORS = {

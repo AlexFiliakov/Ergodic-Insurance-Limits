@@ -49,7 +49,7 @@ import numpy as np
 import pandas as pd
 from scipy import interpolate
 
-from .hjb_solver import HJBProblem, HJBSolver
+from .hjb_solver import HJBSolver
 from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from .manufacturer import WidgetManufacturer
 
@@ -616,7 +616,7 @@ class OptimalController:
         if not isinstance(coverages, list):
             coverages = [coverages]
 
-        for i, (limit, retention, coverage) in enumerate(zip(limits, retentions, coverages)):
+        for _i, (limit, retention, coverage) in enumerate(zip(limits, retentions, coverages)):
             layer = EnhancedInsuranceLayer(
                 attachment_point=retention,
                 limit=limit * coverage,  # Apply coverage percentage to limit
@@ -651,11 +651,11 @@ class OptimalController:
         metrics = manufacturer.calculate_metrics()
 
         return {
-            "assets": manufacturer.total_assets,
-            "equity": manufacturer.equity,
-            "wealth": manufacturer.total_assets,  # Alternative naming
+            "assets": float(manufacturer.total_assets),
+            "equity": float(manufacturer.equity),
+            "wealth": float(manufacturer.total_assets),  # Alternative naming
             "debt": 0.0,  # WidgetManufacturer doesn't track debt separately
-            "revenue": metrics.get("revenue", 0),
+            "revenue": float(metrics.get("revenue", 0)),
             "cumulative_losses": getattr(manufacturer, "cumulative_losses", 0),
             "time": getattr(manufacturer, "current_period", 0),
         }
@@ -849,14 +849,14 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
     def dynamics(state, control, time):
         """Wealth dynamics with insurance."""
         wealth = state[..., 0]
-        limit = control[..., 0]
-        retention = control[..., 1]
+        _limit = control[..., 0]
+        _retention = control[..., 1]
 
         # Expected growth rate (simplified)
         growth_rate = 0.08  # 8% baseline growth
 
         # Insurance cost reduces growth
-        premium_rate = 0.02 * (limit / 1e7)  # Simplified premium
+        premium_rate = 0.02 * (_limit / 1e7)  # Simplified premium
 
         # Wealth drift
         wealth_drift = wealth * (growth_rate - premium_rate)
@@ -872,7 +872,7 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
     def running_cost(state, control, time):
         """Running reward function."""
         wealth = state[..., 0]
-        limit = control[..., 0]
+        _limit = control[..., 0]
 
         # Reward is utility of wealth minus insurance cost
         reward = utility.evaluate(wealth)
@@ -904,7 +904,7 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
 
     solver = HJBSolver(problem, config)
     logger.info("Solving HJB equation...")
-    value_function, optimal_policy = solver.solve()
+    solver.solve()
 
     # Create control space (single layer)
     control_space = ControlSpace(

@@ -8,12 +8,11 @@ insurance optimization trade-offs between ROE, risk, and costs.
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import differential_evolution, minimize
-from scipy.spatial.distance import cdist
 
 logger = logging.getLogger(__name__)
 

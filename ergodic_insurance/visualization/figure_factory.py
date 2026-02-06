@@ -385,7 +385,7 @@ class FigureFactory:
         colors = self.style_manager.get_colors()
 
         # Create histogram
-        n, bins_out, patches = ax.hist(
+        _n, _bins_out, _patches = ax.hist(
             data,
             bins=bins,
             color=colors.primary,
@@ -507,7 +507,7 @@ class FigureFactory:
         if show_values:
             for i in range(data.shape[0]):
                 for j in range(data.shape[1]):
-                    text = ax.text(
+                    _text = ax.text(
                         j,
                         i,
                         f"{data[i, j]:{value_format}}",

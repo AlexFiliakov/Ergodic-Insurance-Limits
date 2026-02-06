@@ -7,12 +7,11 @@ accuracy, and quality before generation.
 import logging
 from pathlib import Path
 import re
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple
+from typing import Any, Dict, Generator, List, Tuple
 
 import numpy as np
-import pandas as pd
 
-from .config import FigureConfig, ReportConfig, SectionConfig, TableConfig
+from .config import ReportConfig, SectionConfig
 
 logger = logging.getLogger(__name__)
 

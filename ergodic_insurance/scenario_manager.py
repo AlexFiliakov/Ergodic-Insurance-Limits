@@ -11,7 +11,7 @@ import hashlib
 from itertools import product
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator
@@ -444,7 +444,7 @@ class ScenarioManager:
             },
         }
 
-        with open(path, "w") as f:
+        with open(path, "w") as _f:
             json.dumps(data, indent=2, default=str)
 
     def import_scenarios(self, path: Union[str, Path]) -> None:

@@ -1005,7 +1005,7 @@ def plot_validation_methods():
 
     # Walk-forward validation illustration
     axes[0, 0].plot(data, "b-", alpha=0.5, linewidth=1)
-    colors = plt.cm.RdYlGn(np.linspace(0.2, 0.8, n_windows))
+    colors = plt.colormaps["RdYlGn"](np.linspace(0.2, 0.8, n_windows))
 
     for i in range(min(5, n_windows)):  # Show first 5 windows
         train_start = i * test_size

@@ -618,7 +618,9 @@ class CashFlowStatement:
         cash_flow_data.append(("  Cash - End of Period", ending_cash, ""))
 
         # Create DataFrame
-        df = pd.DataFrame(cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"])
+        df = pd.DataFrame(
+            cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"], dtype=object
+        )
         return df
 
 
@@ -757,13 +759,17 @@ class FinancialStatementGenerator:
         # Restricted assets and collateral may not be fully tracked in ledger
         # Fall back to manufacturer state if ledger shows incorrect (negative or zero) values
         ledger_restricted = self.ledger.get_balance("restricted_cash", year)
-        if ledger_restricted <= 0 and mfr_metrics and mfr_metrics.get("restricted_assets", 0) > 0:
+        if (
+            ledger_restricted <= 0 and mfr_metrics and mfr_metrics.get("restricted_assets", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["restricted_assets"] = mfr_metrics["restricted_assets"]
         else:
             metrics["restricted_assets"] = max(0, ledger_restricted)
 
         ledger_collateral = self.ledger.get_balance("collateral", year)
-        if ledger_collateral <= 0 and mfr_metrics and mfr_metrics.get("collateral", 0) > 0:
+        if (
+            ledger_collateral <= 0 and mfr_metrics and mfr_metrics.get("collateral", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["collateral"] = mfr_metrics["collateral"]
         else:
             metrics["collateral"] = max(0, ledger_collateral)
@@ -795,7 +801,9 @@ class FinancialStatementGenerator:
 
         # Accrued expenses may be negative in ledger if only payments recorded
         ledger_accrued_exp = self.ledger.get_balance("accrued_expenses", year)
-        if ledger_accrued_exp <= 0 and mfr_metrics and mfr_metrics.get("accrued_expenses", 0) > 0:
+        if (
+            ledger_accrued_exp <= 0 and mfr_metrics and mfr_metrics.get("accrued_expenses", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["accrued_expenses"] = mfr_metrics["accrued_expenses"]
         else:
             metrics["accrued_expenses"] = max(0, ledger_accrued_exp)
@@ -804,7 +812,9 @@ class FinancialStatementGenerator:
 
         # Accrued taxes may be negative in ledger if only payments recorded
         ledger_accrued_tax = self.ledger.get_balance("accrued_taxes", year)
-        if ledger_accrued_tax <= 0 and mfr_metrics and mfr_metrics.get("accrued_taxes", 0) > 0:
+        if (
+            ledger_accrued_tax <= 0 and mfr_metrics and mfr_metrics.get("accrued_taxes", 0) > 0
+        ):  # pylint: disable=chained-comparison
             metrics["accrued_taxes"] = mfr_metrics["accrued_taxes"]
         else:
             metrics["accrued_taxes"] = max(0, ledger_accrued_tax)
@@ -928,10 +938,9 @@ class FinancialStatementGenerator:
         """
         if self.ledger is not None:
             return self._get_metrics_from_ledger(year)
-        elif year < len(self.metrics_history):
+        if year < len(self.metrics_history):
             return self.metrics_history[year]
-        else:
-            raise IndexError(f"Year {year} out of range")
+        raise IndexError(f"Year {year} out of range")
 
     def generate_balance_sheet(
         self, year: int, compare_years: Optional[List[int]] = None
@@ -980,7 +989,9 @@ class FinancialStatementGenerator:
 
         # Create DataFrame
         df = pd.DataFrame(
-            balance_sheet_data, columns=["Item", f"Year {year}", "YoY Change %", "Type"]
+            balance_sheet_data,
+            columns=["Item", f"Year {year}", "YoY Change %", "Type"],
+            dtype=object,
         )
 
         # Add year-over-year comparison if requested
@@ -1012,7 +1023,7 @@ class FinancialStatementGenerator:
 
         # Get total assets and restricted assets to ensure proper allocation
         total_assets_actual = metrics.get("assets", 0)
-        restricted_assets = metrics.get("restricted_assets", 0)
+        _restricted_assets = metrics.get("restricted_assets", 0)
 
         # Issue #256: Critical financial keys MUST be provided by the Manufacturer
         # Fabricating data hides simulation bugs and produces misleading reports
@@ -1242,7 +1253,9 @@ class FinancialStatementGenerator:
 
         # Create DataFrame
         period_label = "Month" if monthly else "Year"
-        df = pd.DataFrame(income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"])
+        df = pd.DataFrame(
+            income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"], dtype=object
+        )
 
         # Add year-over-year comparison if requested
         if self.config.include_yoy_change and year > 0 and not monthly:
@@ -1763,8 +1776,8 @@ class FinancialStatementGenerator:
         if year > 0:
             prev_metrics = self.metrics_history[year - 1]
 
-            # Add previous year column
-            df[f"Year {year-1}"] = ""
+            # Add previous year column (use None for pandas 3.0 Arrow string compat)
+            df[f"Year {year-1}"] = None
 
             # Calculate YoY for revenue
             if prev_metrics.get("revenue", 0) > 0:
@@ -1786,7 +1799,8 @@ class FinancialStatementGenerator:
         """
         if comp_year < self.years_available:
             comp_metrics = self.metrics_history[comp_year]
-            df[f"Year {comp_year}"] = ""
+            # Use None for pandas 3.0 Arrow string compatibility
+            df[f"Year {comp_year}"] = None
 
             # Add comparison year values for key items
             for index, row in df.iterrows():
@@ -1815,7 +1829,8 @@ class FinancialStatementGenerator:
         """
         if comp_year < self.years_available:
             comp_metrics = self.metrics_history[comp_year]
-            df[f"Year {comp_year}"] = ""
+            # Use None for pandas 3.0 Arrow string compatibility
+            df[f"Year {comp_year}"] = None
 
             # Add comparison year values for key items
             for index, row in df.iterrows():

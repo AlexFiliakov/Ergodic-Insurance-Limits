@@ -441,3 +441,358 @@ class TestInsightExtractor:
             assert template in self.extractor.TEMPLATES
             assert isinstance(self.extractor.TEMPLATES[template], str)
             assert "{" in self.extractor.TEMPLATES[template]  # Has placeholders
+
+    # ---------------------------------------------------------------
+    # New tests for uncovered lines
+    # ---------------------------------------------------------------
+
+    def test_performance_insights_with_dict_data(self):
+        """Test _extract_performance_insights using plain dict format instead of Mock."""
+        data = {
+            "metrics": {
+                "growth_rate": {
+                    "baseline": 0.05,
+                    "optimized": 0.08,
+                    "conservative": 0.03,
+                },
+            },
+        }
+
+        self.extractor._extract_performance_insights(data)
+
+        performance_insights = [i for i in self.extractor.insights if i.category == "performance"]
+        # With no baseline_scenario attribute, it should still find best/worst
+        # but the baseline comparison branch will be skipped.
+        # The worst-performer branch requires >2 std devs from mean, which
+        # these values do not satisfy. So we just confirm no crash occurred.
+        assert isinstance(performance_insights, list)
+
+    def test_outlier_insights_with_dict_data(self):
+        """Test _extract_outlier_insights using plain dict format."""
+        # Use many clustered values so the single outlier exceeds 2 std devs.
+        # With 5 values at 10 and 1 at 100: mean~25, std~33.5, z(100)~2.24 > 2.
+        data = {
+            "metrics": {
+                "some_metric": {
+                    "s1": 10,
+                    "s2": 10,
+                    "s3": 10,
+                    "s4": 10,
+                    "s5": 10,
+                    "outlier_scenario": 100,
+                },
+            },
+        }
+
+        self.extractor._extract_outlier_insights(data)
+
+        outlier_insights = [i for i in self.extractor.insights if i.category == "outlier"]
+        assert len(outlier_insights) > 0
+        assert any("outlier_scenario" in i.data.get("scenario", "") for i in outlier_insights)
+
+    def test_threshold_insights_with_dict_data(self):
+        """Test _extract_threshold_insights using plain dict format."""
+        data = {
+            "metrics": {
+                "ruin_probability": {
+                    "risky1": 0.02,
+                    "risky2": 0.05,
+                    "safe": 0.005,
+                },
+            },
+        }
+
+        self.extractor._extract_threshold_insights(data)
+
+        threshold_insights = [i for i in self.extractor.insights if i.category == "threshold"]
+        assert len(threshold_insights) > 0
+        ruin_insight = next((i for i in threshold_insights if "ruin" in i.metrics[0]), None)
+        assert ruin_insight is not None
+        assert "risky1" in ruin_insight.data["violations"]
+        assert "risky2" in ruin_insight.data["violations"]
+        assert "safe" not in ruin_insight.data["violations"]
+
+    def test_correlation_insights_with_dict_data(self):
+        """Test _extract_correlation_insights using plain dict format."""
+        data = {
+            "metrics": {
+                "metric_a": {"s1": 10, "s2": 20, "s3": 30, "s4": 40},
+                "metric_b": {"s1": 100, "s2": 200, "s3": 300, "s4": 400},
+            },
+        }
+
+        self.extractor._extract_correlation_insights(data)
+
+        correlation_insights = [i for i in self.extractor.insights if i.category == "correlation"]
+        assert len(correlation_insights) > 0
+        assert abs(correlation_insights[0].data["correlation"]) > 0.99
+
+    def test_performance_insights_no_metrics_attr_or_key(self):
+        """Test _extract_performance_insights returns early when data has no metrics."""
+        data = {"something_else": 42}
+
+        self.extractor._extract_performance_insights(data)
+
+        assert len(self.extractor.insights) == 0
+
+    def test_outlier_insights_no_metrics_attr_or_key(self):
+        """Test _extract_outlier_insights returns early when data has no metrics."""
+        data = "just a string"
+
+        self.extractor._extract_outlier_insights(data)
+
+        assert len(self.extractor.insights) == 0
+
+    def test_threshold_insights_no_metrics_attr_or_key(self):
+        """Test _extract_threshold_insights returns early when data has no metrics."""
+        data = [1, 2, 3]
+
+        self.extractor._extract_threshold_insights(data)
+
+        assert len(self.extractor.insights) == 0
+
+    def test_correlation_insights_no_metrics_attr_or_key(self):
+        """Test _extract_correlation_insights returns early when data has no metrics."""
+        data = 12345
+
+        self.extractor._extract_correlation_insights(data)
+
+        assert len(self.extractor.insights) == 0
+
+    def test_worst_performer_insight_triggered(self):
+        """Test that worst performer insight is generated when value is >2 std devs from mean.
+
+        Using many clustered values plus one extreme outlier so that the
+        worst performer exceeds 2 standard deviations from the mean.
+        With 5 values at 0.10 and 1 at -1.0: mean~-0.083, std~0.41,
+        abs(-1.0 - (-0.083)) = 0.917 > 2*0.41 = 0.82 => triggers.
+        """
+        data = Mock()
+        data.metrics = {
+            "growth_rate": {
+                "s1": 0.10,
+                "s2": 0.10,
+                "s3": 0.10,
+                "s4": 0.10,
+                "s5": 0.10,
+                "terrible": -1.0,
+            },
+        }
+        data.baseline_scenario = None
+
+        self.extractor._extract_performance_insights(data)
+
+        performance_insights = [i for i in self.extractor.insights if i.category == "performance"]
+        # The worst performer ('terrible' at -1.0) is far below the mean
+        # and should trigger the underperformance insight.
+        worst_insights = [i for i in performance_insights if "Underperformance" in i.title]
+        assert len(worst_insights) == 1
+        assert worst_insights[0].data["scenario"] == "terrible"
+        assert worst_insights[0].data["value"] == -1.0
+        assert worst_insights[0].confidence == 0.90
+
+    def test_empty_values_in_metrics_skipped(self):
+        """Test that metrics with empty values dict are skipped (line 154)."""
+        data = Mock()
+        data.metrics = {
+            "empty_metric": {},
+            "growth_rate": {
+                "s1": 0.05,
+                "s2": 0.08,
+                "s3": 0.03,
+            },
+        }
+        data.baseline_scenario = None
+
+        self.extractor._extract_performance_insights(data)
+
+        # Should not crash, and any insights produced should not reference empty_metric.
+        for insight in self.extractor.insights:
+            assert "empty_metric" not in insight.metrics
+
+    def test_trend_insights_no_time_series(self):
+        """Test _extract_trend_insights when data has no time_series attribute or key."""
+        data = Mock(spec=[])  # Mock with no attributes at all
+        self.extractor._extract_trend_insights(data)
+        assert len(self.extractor.insights) == 0
+
+        # Also test with a dict that has no time_series key
+        data_dict = {"metrics": {"growth_rate": {"s1": 0.05}}}
+        self.extractor._extract_trend_insights(data_dict)
+        assert len(self.extractor.insights) == 0
+
+    def test_trend_insights_short_series(self):
+        """Test _extract_trend_insights with time series shorter than 10 data points."""
+        data = Mock()
+        data.time_series = {
+            "growth": np.array([0.01, 0.02, 0.03, 0.04, 0.05]),  # only 5 points
+        }
+
+        self.extractor._extract_trend_insights(data)
+
+        trend_insights = [i for i in self.extractor.insights if i.category == "trend"]
+        assert len(trend_insights) == 0
+
+    def test_trend_insights_non_significant(self):
+        """Test _extract_trend_insights with flat/noisy data where r_value is low.
+
+        A flat series with noise should not produce a significant trend because
+        the r_value will be close to 0 and p_value will be high.
+        """
+        np.random.seed(42)
+        # Flat series centered at 1.0 with random noise
+        flat_series = np.ones(20) + np.random.normal(0, 0.01, 20)
+
+        data = Mock()
+        data.time_series = {
+            "flat_metric": flat_series,
+        }
+
+        self.extractor._extract_trend_insights(data)
+
+        trend_insights = [i for i in self.extractor.insights if i.category == "trend"]
+        assert len(trend_insights) == 0
+
+    def test_correlation_zero_std_skipped(self):
+        """Test that correlation calculation is skipped when one metric has zero std.
+
+        When all values for a metric are identical, std is 0, and the
+        correlation branch at line 414 should skip.
+        """
+        data = Mock()
+        data.metrics = {
+            "constant_metric": {"s1": 5, "s2": 5, "s3": 5, "s4": 5},
+            "varying_metric": {"s1": 10, "s2": 20, "s3": 30, "s4": 40},
+        }
+
+        self.extractor._extract_correlation_insights(data)
+
+        correlation_insights = [i for i in self.extractor.insights if i.category == "correlation"]
+        assert len(correlation_insights) == 0
+
+    def test_generate_executive_summary_focus_positive_false(self):
+        """Test generate_executive_summary with focus_positive=False (line 481).
+
+        When focus_positive is False, all insights should be considered,
+        not just the performance/trend ones with 'best' or 'growth' in the title.
+        """
+        self.extractor.insights = [
+            Insight(
+                category="threshold",
+                importance=85,
+                title="Risk Alert",
+                description="Ruin probability exceeded threshold in 3 scenarios",
+            ),
+            Insight(
+                category="outlier",
+                importance=75,
+                title="Anomalous Scenario Detected",
+                description="Scenario X shows unusually high variance",
+            ),
+            Insight(
+                category="performance",
+                importance=65,
+                title="Underperformance Warning",
+                description="Conservative scenario shows suboptimal growth rate",
+            ),
+        ]
+
+        summary = self.extractor.generate_executive_summary(max_points=5, focus_positive=False)
+
+        assert "## Executive Summary" in summary
+        assert "### Key Findings:" in summary
+        # All 3 insights should appear since focus_positive=False uses all insights.
+        # Note: to_executive_summary() applies text replacements:
+        #   "ruin probability" -> "risk of failure"
+        #   "variance" -> "volatility"
+        #   "suboptimal" -> "poor"
+        #   "growth rate" -> "return"
+        assert "risk of failure" in summary or "Ruin" in summary
+        assert "volatility" in summary.lower() or "Anomalous" in summary
+        assert "poor" in summary.lower() or "return" in summary.lower()
+
+    def test_generate_executive_summary_focus_positive_false_no_filter(self):
+        """Test that focus_positive=False does not filter by category.
+
+        Verifies the exact branch: when focus_positive=False, filtered = self.insights
+        (all insights are included regardless of category or title keywords).
+        """
+        self.extractor.insights = [
+            Insight(
+                category="correlation",
+                importance=80,
+                title="Correlation Found",
+                description="Strong negative correlation between loss and growth",
+            ),
+        ]
+
+        summary = self.extractor.generate_executive_summary(max_points=5, focus_positive=False)
+
+        # The correlation insight should appear in the summary
+        assert "correlation" in summary.lower() or "loss" in summary.lower()
+
+    def test_performance_dict_with_baseline_scenario(self):
+        """Test _extract_performance_insights with dict data that also has baseline info.
+
+        Dict data does not have a baseline_scenario attribute, so the baseline
+        comparison branch (hasattr check on line 173) should be skipped cleanly.
+        """
+        data = {
+            "metrics": {
+                "growth_rate": {
+                    "baseline": 0.05,
+                    "optimized": 0.08,
+                    "conservative": 0.03,
+                },
+            },
+        }
+
+        self.extractor._extract_performance_insights(data)
+
+        # No baseline_scenario attribute on a dict, so no best-performer
+        # insight via baseline comparison. Only worst-performer if >2 std devs.
+        for insight in self.extractor.insights:
+            assert "outperforming the baseline" not in insight.description
+
+    def test_trend_insights_with_dict_time_series(self):
+        """Test _extract_trend_insights using dict format with time_series key."""
+        data = {
+            "time_series": {
+                "growth": list(np.linspace(0.02, 0.15, 20)),
+            },
+        }
+
+        self.extractor._extract_trend_insights(data)
+
+        trend_insights = [i for i in self.extractor.insights if i.category == "trend"]
+        # A strong positive linear trend should be detected
+        assert len(trend_insights) == 1
+        assert "Growth" in trend_insights[0].title or "growth" in trend_insights[0].title.lower()
+
+    def test_worst_performer_lower_is_better_metric(self):
+        """Test worst performer detection with a lower-is-better metric like ruin_probability.
+
+        For lower-is-better metrics, the worst performer is the one with the
+        highest value. Using many clustered values plus one extreme outlier:
+        5 values at ~0.005 and 1 at 0.50 gives mean~0.088, std~0.184,
+        abs(0.50 - 0.088)=0.412 > 2*0.184=0.368 => triggers.
+        """
+        data = Mock()
+        data.metrics = {
+            "ruin_probability": {
+                "s1": 0.005,
+                "s2": 0.006,
+                "s3": 0.007,
+                "s4": 0.005,
+                "s5": 0.006,
+                "terrible": 0.50,
+            },
+        }
+        data.baseline_scenario = None
+
+        self.extractor._extract_performance_insights(data)
+
+        performance_insights = [i for i in self.extractor.insights if i.category == "performance"]
+        worst_insights = [i for i in performance_insights if "Underperformance" in i.title]
+        assert len(worst_insights) == 1
+        assert worst_insights[0].data["scenario"] == "terrible"

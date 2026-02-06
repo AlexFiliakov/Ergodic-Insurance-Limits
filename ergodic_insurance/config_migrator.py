@@ -5,9 +5,8 @@ system to the new profiles/modules/presets architecture.
 """
 
 from pathlib import Path
-import re
 import sys
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List
 
 import yaml
 

@@ -42,9 +42,8 @@ from functools import lru_cache
 import hashlib
 import json
 import logging
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional
 import warnings
 
 import yaml
@@ -544,7 +543,7 @@ class ConfigManager:
             Path to the created profile file.
         """
         # Load base profile
-        base_config = self.load_profile(base_profile)
+        _base_config = self.load_profile(base_profile)
 
         # Create new profile data
         profile_data = {

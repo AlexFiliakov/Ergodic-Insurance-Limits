@@ -6,24 +6,15 @@ high-level reports targeted at executive audiences.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
 from ..risk_metrics import RiskMetrics
-from ..visualization.executive_plots import plot_roe_ruin_frontier
 from ..visualization.style_manager import StyleManager
-from .config import (
-    FigureConfig,
-    ReportConfig,
-    ReportMetadata,
-    SectionConfig,
-    TableConfig,
-    create_executive_config,
-)
+from .config import FigureConfig, ReportConfig, create_executive_config
 from .report_builder import ReportBuilder
 
 logger = logging.getLogger(__name__)
@@ -76,8 +67,8 @@ class ExecutiveReport(ReportBuilder):
 
         # Generate report in all requested formats
         output_paths = []
-        for format in self.config.output_formats:
-            path = self.save(format)
+        for output_format in self.config.output_formats:
+            path = self.save(output_format)
             output_paths.append(path)
 
         logger.info(f"Executive report generated: {output_paths}")
@@ -334,11 +325,6 @@ class ExecutiveReport(ReportBuilder):
         """
         if "frontier_data" in self.results:
             data = self.results["frontier_data"]
-            # Create DataFrame for plot_roe_ruin_frontier
-            import pandas as pd
-
-            df = pd.DataFrame({"ruin_probability": data["ruin_probs"], "roe": data["roes"]})
-
             # Create figure directly without using plot_roe_ruin_frontier
             fig, ax = plt.subplots(figsize=(fig_config.width, fig_config.height))
 

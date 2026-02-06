@@ -44,6 +44,7 @@ def _failing_work(x):
 # ---------------------------------------------------------------------------
 # SharedMemoryManager - share_array (lines 187-202)
 # ---------------------------------------------------------------------------
+@pytest.mark.requires_multiprocessing
 class TestSharedMemoryManagerShareArray:
     """Cover SharedMemoryManager.share_array and get_array."""
 
@@ -116,6 +117,7 @@ class TestSharedMemoryManagerShareObjectDisabled:
 # ---------------------------------------------------------------------------
 # SharedMemoryManager - compression (lines 236-238, 269-271)
 # ---------------------------------------------------------------------------
+@pytest.mark.requires_multiprocessing
 class TestSharedMemoryManagerCompression:
     """Cover compression in share_object and decompression in get_object."""
 
@@ -239,6 +241,7 @@ class TestParallelExecutorZeroTime:
 class TestSetupSharedDataNumpy:
     """Cover _setup_shared_data sharing numpy arrays."""
 
+    @pytest.mark.requires_multiprocessing
     @pytest.mark.skipif(
         platform.system() == "Windows",
         reason="Shared memory tests are unreliable on Windows in CI",

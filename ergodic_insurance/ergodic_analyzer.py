@@ -1235,7 +1235,7 @@ class ErgodicAnalyzer:
             return False, np.inf
 
         # Calculate rolling mean and standard error
-        rolling_means = np.convolve(values, np.ones(window_size) / window_size, mode="valid")
+        _rolling_means = np.convolve(values, np.ones(window_size) / window_size, mode="valid")
 
         # Standard error of the mean
         se = np.std(values[-window_size:]) / np.sqrt(window_size)
@@ -1903,7 +1903,7 @@ class ErgodicAnalyzer:
         """
         # Extract equity trajectories
         equity_trajectories = np.array([r.equity for r in simulation_results])
-        asset_trajectories = np.array([r.assets for r in simulation_results])
+        _asset_trajectories = np.array([r.assets for r in simulation_results])
 
         # Calculate time-average growth for each path
         time_avg_growth = [

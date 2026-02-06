@@ -6,16 +6,13 @@ figure embedding, section management, and content generation.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-import json
 import logging
 from pathlib import Path
-import pickle
 import shutil
 from typing import Any, Dict, List, Optional, Union, cast
 
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Environment, FileSystemLoader
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 from ..reporting.cache_manager import CacheManager
@@ -159,10 +156,13 @@ class ReportBuilder(ABC):
                     )
                 )
 
-        # Check if it's a file path
-        content_path = Path(content_ref)
-        if content_path.exists():
-            return content_path.read_text()
+        # Check if it's a file path (guard against long content strings)
+        try:
+            content_path = Path(content_ref)
+            if content_path.exists():
+                return content_path.read_text()
+        except OSError:
+            pass
 
         # Return as literal content
         return content_ref
