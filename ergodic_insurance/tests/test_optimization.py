@@ -339,6 +339,104 @@ class TestAugmentedLagrangianOptimizer:
         assert result.success
         assert np.allclose(result.x, [2.0], atol=1e-2)
 
+    def test_inequality_penalty_nonzero_when_violated(self):
+        """Issue #381 acceptance criterion 1: penalty term is nonzero at violated point.
+
+        For g(x) = x - 1 >= 0 with lambda=2, rho=10: at x=0.5 the constraint
+        is violated (g = -0.5) and the penalty term must be nonzero.
+        """
+
+        def objective(x):
+            return x[0] ** 2
+
+        constraints = [{"type": "ineq", "fun": lambda x: x[0] - 1}]
+        optimizer = AugmentedLagrangianOptimizer(objective, constraints)
+
+        x = np.array([0.5])
+        lambdas = np.array([2.0])
+        mus = np.array([])
+        rho = 10.0
+
+        L = optimizer._augmented_lagrangian(x, lambdas, mus, rho)
+        f = objective(x)  # 0.25
+
+        # The penalty contribution is L - f; it must be nonzero
+        penalty = L - f
+        assert (
+            abs(penalty) > 1e-10
+        ), f"Penalty should be nonzero when constraint is violated, got {penalty}"
+
+        # Verify the correct value:
+        # slack = max(0, lambda/rho - g) = max(0, 2/10 - (-0.5)) = max(0, 0.7) = 0.7
+        # penalty = (rho/2)*slack^2 - lambda^2/(2*rho) = 5*0.49 - 4/20 = 2.45 - 0.2 = 2.25
+        expected_penalty = (rho / 2) * max(0, 2.0 / rho - (-0.5)) ** 2 - 2.0**2 / (2 * rho)
+        assert abs(penalty - expected_penalty) < 1e-10
+
+    def test_inequality_converges_to_constrained_optimum(self):
+        """Issue #381 acceptance criterion 2: min x^2 s.t. x >= 1 -> x=1."""
+
+        def objective(x):
+            return x[0] ** 2
+
+        constraints = [{"type": "ineq", "fun": lambda x: x[0] - 1}]
+        bounds = Bounds([-5.0], [5.0])
+
+        optimizer = AugmentedLagrangianOptimizer(objective, constraints, bounds)
+        result = optimizer.optimize(np.array([0.0]), max_outer_iter=50)
+
+        assert result.success, f"Optimizer did not converge: {result.message}"
+        assert np.allclose(result.x, [1.0], atol=1e-2), f"Expected x=1.0, got x={result.x[0]}"
+        assert np.allclose(result.fun, 1.0, atol=1e-2), f"Expected f=1.0, got f={result.fun}"
+
+    def test_inequality_multiplier_convergence(self):
+        """Issue #381 acceptance criterion 3: multiplier converges to correct dual value.
+
+        For min x^2 s.t. x >= 1, the KKT dual variable is lambda* = 2
+        (since df/dx = 2x = 2 at x=1, and the active constraint gradient is 1).
+        """
+
+        def objective(x):
+            return x[0] ** 2
+
+        constraints = [{"type": "ineq", "fun": lambda x: x[0] - 1}]
+        bounds = Bounds([-5.0], [5.0])
+
+        optimizer = AugmentedLagrangianOptimizer(objective, constraints, bounds)
+
+        # Run the optimization manually to inspect multipliers
+        x_current = np.array([0.0])
+        lambdas = np.zeros(1)
+        rho = 1.0
+
+        for _ in range(100):
+
+            def aug_lag_fn(x, _lambdas=lambdas.copy(), _rho=rho):
+                return optimizer._augmented_lagrangian(x, _lambdas, np.array([]), _rho)
+
+            from scipy.optimize import minimize
+
+            result = minimize(
+                aug_lag_fn,
+                x_current,
+                method="L-BFGS-B",
+                bounds=bounds,
+            )
+            x_current = result.x
+
+            g = x_current[0] - 1
+            lambdas[0] = max(0, lambdas[0] - rho * g)
+            constraint_violation = max(0, -g)
+
+            if constraint_violation < 1e-6 and abs(g) < 1e-4:
+                break
+
+            rho = min(rho * 2, 1e4)
+
+        # x should converge to 1.0
+        assert np.allclose(x_current, [1.0], atol=1e-2)
+        # lambda should converge to 2.0 (the KKT dual variable)
+        assert np.allclose(lambdas[0], 2.0, atol=0.5), f"Expected lambda ~ 2.0, got {lambdas[0]}"
+
 
 class TestMultiStartOptimizer:
     """Test MultiStartOptimizer class."""
