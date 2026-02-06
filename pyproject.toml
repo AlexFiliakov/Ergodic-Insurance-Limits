@@ -71,6 +71,12 @@ omit = [
     "*/__init__.py",
     "*/conftest.py",
     "*/setup.py",
+    "*/visualization_legacy.py",
+    "*/visualization/improved_tower_plot.py",
+    "*/_version.py",
+    "generate_docs_images.py",
+    "update_docs_batch.py",
+    "main.py",
 ]
 
 [tool.coverage.report]
