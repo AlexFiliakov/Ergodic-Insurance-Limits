@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from .decimal_utils import ZERO, quantize_currency, safe_divide, to_decimal
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
@@ -106,56 +105,47 @@ def run_chunk_standalone(
                     f"Loss generator {type(loss_generator).__name__} has no generate_losses method"
                 )
 
-            # Sum loss amounts using Decimal for precision, then convert to float
-            # for numpy array storage (R3 from issue #278)
-            total_year_loss_decimal = sum((to_decimal(loss.amount) for loss in year_losses), ZERO)
-            sim_annual_losses[year] = float(total_year_loss_decimal)
+            # Sum loss amounts using native float (Issue #368: remove Decimal
+            # from hot loop — results are stored in float64 arrays anyway)
+            total_loss = sum(loss.amount for loss in year_losses)
+            sim_annual_losses[year] = total_loss
 
             # Apply insurance PER OCCURRENCE (not aggregate) to correctly apply
             # per-occurrence deductibles and limits (Issue #348)
-            total_recovery_decimal = ZERO
-            total_retained_decimal = ZERO
+            total_recovery = 0.0
+            total_retained = 0.0
 
             for loss_event in year_losses:
-                loss_amount_decimal = to_decimal(loss_event.amount)
-                if loss_amount_decimal > ZERO:
-                    # Note: process_claim expects float, this is the documented boundary
-                    claim_result = sim_insurance_program.process_claim(float(loss_amount_decimal))
-                    # Use Decimal for financial accounting precision (R1 from issue #278)
-                    event_recovery = to_decimal(claim_result["insurance_recovery"])
-                    event_retained = loss_amount_decimal - event_recovery
+                if loss_event.amount > 0:
+                    claim_result = sim_insurance_program.process_claim(loss_event.amount)
+                    event_recovery = claim_result["insurance_recovery"]
+                    event_retained = loss_event.amount - event_recovery
 
-                    total_recovery_decimal += event_recovery
-                    total_retained_decimal += event_retained
+                    total_recovery += event_recovery
+                    total_retained += event_retained
 
-                    # Record the insurance loss for proper accounting using Decimal
+                    # Record the insurance loss for proper accounting
                     # The loss will be deducted from operating income in calculate_operating_income
                     # Use public method to maintain encapsulation (Issue #276)
-                    if event_retained > ZERO:
+                    if event_retained > 0:
                         sim_manufacturer.record_insurance_loss(event_retained)
 
-            # Convert to float only at numpy array storage boundary (R3 from issue #278)
-            sim_insurance_recoveries[year] = float(total_recovery_decimal)
-            sim_retained_losses[year] = float(total_retained_decimal)
+            sim_insurance_recoveries[year] = total_recovery
+            sim_retained_losses[year] = total_retained
 
             # Calculate and pay insurance premiums AFTER claims (Issue #349)
             # Premium scales proportionally with revenue growth
-            # Use Decimal arithmetic for precision in financial calculations
-            initial_revenue_decimal = to_decimal(
+            base_revenue = float(
                 manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
             )
-            # Calculate revenue multiplier using Decimal division for precision
-            revenue_multiplier = safe_divide(
-                to_decimal(revenue), initial_revenue_decimal, default=to_decimal(1)
-            )
-            # Calculate annual premium using Decimal arithmetic
-            base_premium = to_decimal(sim_insurance_program.calculate_annual_premium())
+            revenue_multiplier = float(revenue) / base_revenue if base_revenue > 0 else 1.0
+            base_premium = sim_insurance_program.calculate_annual_premium()
             annual_premium = base_premium * revenue_multiplier
 
             # Record the insurance premium for accounting purposes
             # The premium will be deducted from operating income in calculate_operating_income
             # Use public method to maintain encapsulation (Issue #276)
-            if annual_premium > ZERO:
+            if annual_premium > 0:
                 sim_manufacturer.record_insurance_premium(annual_premium, is_annual=False)
 
             # Run business operations (growth, etc.)
@@ -174,9 +164,7 @@ def run_chunk_standalone(
                             ruin_at_year[eval_year] = True
                 break
 
-        # Convert to float at numpy array storage boundary (R3 from issue #278)
-        # This is the documented conversion point for simulation results
-        final_assets[i] = float(quantize_currency(sim_manufacturer.total_assets))
+        final_assets[i] = float(sim_manufacturer.total_assets)
         annual_losses[i] = sim_annual_losses
         insurance_recoveries[i] = sim_insurance_recoveries
         retained_losses[i] = sim_retained_losses
