@@ -43,6 +43,7 @@ def _test_cpu_bound_work(item):
     return result
 
 
+@pytest.mark.requires_multiprocessing
 class TestSlowTests:
     @pytest.mark.slow
     def test_10k_simulations_performance(self, setup_realistic_engine):

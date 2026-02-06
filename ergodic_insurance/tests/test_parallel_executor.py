@@ -240,6 +240,7 @@ class TestChunkingStrategy:
         assert chunk_size_high_load > chunk_size_high_mem
 
 
+@pytest.mark.requires_multiprocessing
 class TestSharedMemoryManager:
     """Test shared memory management."""
 
@@ -408,6 +409,7 @@ class TestPerformanceMetrics:
         assert "Speedup: 3.50x" in summary
 
 
+@pytest.mark.requires_multiprocessing
 class TestParallelExecutor:
     """Test parallel executor functionality."""
 
@@ -549,6 +551,7 @@ class TestParallelExecutor:
         assert len(executor.shared_memory_manager.shared_objects) == 0
 
 
+@pytest.mark.requires_multiprocessing
 class TestUtilityFunctions:
     """Test utility functions for common patterns."""
 
@@ -591,6 +594,7 @@ class TestUtilityFunctions:
         assert result == expected
 
 
+@pytest.mark.requires_multiprocessing
 class TestIntegration:
     """Integration tests for parallel executor."""
 

@@ -710,6 +710,7 @@ class TestRuinProbabilityEstimation:
     os.name == "nt",
     reason="Skipping enhanced parallel tests on Windows due to scipy/multiprocessing issues",
 )
+@pytest.mark.requires_multiprocessing
 class TestEnhancedParallelExecution:
     """Test enhanced parallel execution features."""
 

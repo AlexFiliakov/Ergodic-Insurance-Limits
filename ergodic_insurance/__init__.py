@@ -39,11 +39,11 @@ Note:
     module's __all__ list.
 
 Since:
-    Version 0.3.0
+    Version 0.4.0
 """
 # pylint: disable=undefined-all-variable
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "__version__",
     "BusinessObjective",
