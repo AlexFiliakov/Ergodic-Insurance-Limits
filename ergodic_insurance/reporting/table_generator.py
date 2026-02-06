@@ -128,13 +128,24 @@ class TableGenerator:
         table_format = self._format_map.get(format_key, "pipe")
 
         # Generate base table
-        table: str = tabulate(
-            df.values.tolist(),
-            headers=list(df.columns),
-            tablefmt=table_format,
-            showindex=index,
-            floatfmt=f".{precision or self.precision}f",
-        )
+        if index:
+            # Preserve DataFrame index by prepending it to each row
+            rows = [[idx] + list(row) for idx, row in zip(df.index, df.values.tolist())]
+            headers = [""] + list(df.columns)
+            table: str = tabulate(
+                rows,
+                headers=headers,
+                tablefmt=table_format,
+                floatfmt=f".{precision or self.precision}f",
+            )
+        else:
+            table = tabulate(
+                df.values.tolist(),
+                headers=list(df.columns),
+                tablefmt=table_format,
+                showindex=False,
+                floatfmt=f".{precision or self.precision}f",
+            )
 
         # Add caption if provided
         if caption:
