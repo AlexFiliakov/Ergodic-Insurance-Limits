@@ -259,6 +259,7 @@ class TestShareObjectCompressionMocked:
 
         # Verify the buffer content is actually compressed
         shm = manager.shared_objects["comp"]
+        assert shm.buf is not None
         stored = bytes(shm.buf[: shm.size])
         decompressed = zlib.decompress(stored)
         restored = pickle.loads(decompressed)
@@ -281,6 +282,7 @@ class TestShareObjectCompressionMocked:
 
         expected = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
         shm = manager.shared_objects["raw"]
+        assert shm.buf is not None
         stored = bytes(shm.buf[: len(expected)])
         assert stored == expected
 

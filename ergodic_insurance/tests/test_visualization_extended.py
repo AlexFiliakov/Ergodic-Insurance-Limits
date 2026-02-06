@@ -765,7 +765,7 @@ class TestROERuinFrontier:
 
         # Test with invalid data type
         with pytest.raises(ValueError, match="Results must be DataFrame or dict"):
-            plot_roe_ruin_frontier("invalid_data")  # type: ignore[arg-type]
+            plot_roe_ruin_frontier("invalid_data")
 
         # Test with DataFrame missing required column
         df_missing = pd.DataFrame({"roe": [0.1, 0.2], "ruin_prob": [0.01, 0.02]})

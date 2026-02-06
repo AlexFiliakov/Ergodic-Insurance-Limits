@@ -41,7 +41,11 @@ class TestTracePlots:
         # Check that burn-in line is present
         ax = fig.axes[0]
         lines = ax.get_lines()
-        assert any(line.get_xdata()[0] == 20 for line in lines if len(line.get_xdata()) == 2)
+        assert any(
+            np.asarray(line.get_xdata())[0] == 20
+            for line in lines
+            if len(np.asarray(line.get_xdata())) == 2
+        )
         plt.close(fig)
 
     def test_trace_plots_multiple_chains_multiple_params(self):
@@ -223,7 +227,7 @@ class TestMonteCarloConvergence:
             ax = fig.axes[idx]
             # Look for horizontal line at threshold value
             for line in ax.get_lines():
-                y_data = line.get_ydata()
+                y_data = np.asarray(line.get_ydata())
                 # Check if it's a horizontal line (all y values the same)
                 if len(y_data) >= 2:
                     if np.allclose(y_data[0], threshold, rtol=0.01) and np.allclose(
@@ -232,7 +236,7 @@ class TestMonteCarloConvergence:
                         break
             else:
                 # If no threshold line found in lines, check if label mentions threshold
-                labels = [line.get_label() for line in ax.get_lines()]
+                labels = [str(line.get_label()) for line in ax.get_lines()]
                 assert any("Threshold" in label for label in labels)
         plt.close(fig)
 

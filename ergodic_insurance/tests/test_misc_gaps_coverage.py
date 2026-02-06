@@ -566,7 +566,7 @@ class TestTableGenerator:
 
         gen = TableGenerator()
         with pytest.raises(ValueError, match="Unsupported data type"):
-            gen._to_dataframe("not a valid type")  # type: ignore[arg-type]  # noqa: E501
+            gen._to_dataframe("not a valid type")  # noqa: E501
 
     def test_apply_style_max_col_width(self):
         """Lines 266-284: _apply_style with max_col_width and highlight."""
@@ -673,7 +673,7 @@ class TestFigureFactory:
             rows=2, cols=2, title="My Grid", subplot_titles=["A", "B", "C", "D"]
         )
         assert fig is not None
-        assert fig._suptitle is not None
+        assert fig._suptitle is not None  # type: ignore[attr-defined]
 
     def test_create_bar_plot_multi_series(self):
         """Lines 240-263: multi-series bar plot."""
