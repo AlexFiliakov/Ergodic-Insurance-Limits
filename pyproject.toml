@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ergodic-insurance"
-version = "0.4.0"
+dynamic = ["version"]
 description = "Financial modeling for widget manufacturers with ergodic insurance limits"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -64,6 +64,13 @@ dev = [
     "xlsxwriter>=3.1.0",
     "openpyxl>=3.1.0",
 ]
+docs = [
+    "sphinx>=8.2.3",
+    "sphinx-rtd-theme>=3.0.2",
+    "sphinx-autodoc-typehints>=3.2.0",
+    "myst-parser>=4.0.1",
+    "sphinx-copybutton>=0.5.2",
+]
 notebooks = [
     "jupyter>=1.1.1",
     "notebook>=7.4.5",
@@ -71,11 +78,32 @@ notebooks = [
     "nbformat>=5.10.4",
 ]
 
+[project.urls]
+Homepage = "https://github.com/AlexFiliakov/Ergodic-Insurance-Limits"
+Repository = "https://github.com/AlexFiliakov/Ergodic-Insurance-Limits"
+Issues = "https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "ergodic_insurance._version.__version__"}
+
 [tool.setuptools.packages.find]
 where = ["."]
 
 [tool.setuptools.package-data]
 "*" = ["*.yaml", "*.yml", "*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_third_party = ["numpy", "scipy", "pandas", "pytest", "matplotlib", "seaborn", "pydantic", "yaml", "joblib", "tqdm"]
+known_first_party = ["ergodic_insurance"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+force_sort_within_sections = true
 
 [tool.coverage.run]
 source = ["ergodic_insurance"]
@@ -120,4 +148,43 @@ directory = "htmlcov"
 output = "coverage.xml"
 
 [tool.pylint.messages_control]
-disable = ["fixme"]
+disable = [
+    "fixme",
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+    "R0917",  # too-many-positional-arguments
+    "W0212",  # protected-access
+    "C0103",  # invalid-name (for single letter variables in math contexts)
+    "C0301",  # line-too-long (handled by black formatter)
+    "C0415",  # import-outside-toplevel (common pattern for optional imports)
+    "W1203",  # logging-fstring-interpolation (f-strings in logging are fine)
+    "W0611",  # unused-import (sometimes needed for type checking)
+    "W0612",  # unused-variable (common in test fixtures)
+    "W0613",  # unused-argument (common in interface implementations)
+    "R0902",  # too-many-instance-attributes (financial models need many attributes)
+    "R0904",  # too-many-public-methods (test classes often have many methods)
+    "W0621",  # redefined-outer-name (common in pytest fixtures)
+    "C1803",  # use-implicit-booleaness-not-comparison (explicit comparison is clearer)
+    "E1101",  # no-member (false positives with numpy)
+    "W1514",  # unspecified-encoding (not critical for config files)
+    "W0122",  # exec-used (needed in setup.py)
+    "R1732",  # consider-using-with (not always applicable)
+    "E0401",  # import-error (h5py import issues in trajectory_storage)
+]
+
+[tool.pylint.format]
+max-line-length = 100
+max-module-lines = 2000
+
+[tool.pylint.design]
+max-args = 7
+max-attributes = 10
+max-locals = 45
+max-returns = 14
+max-branches = 15
+
+[tool.pylint.similarities]
+min-similarity-lines = 10

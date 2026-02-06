@@ -114,9 +114,11 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     # Create manufacturer instance
     manufacturer = _create_manufacturer(shared["manufacturer_config"])
 
-    # Get the configured loss generator and insurance program
+    # Deep-copy the insurance program so each simulation gets fresh state (Issue #348)
+    import copy
+
     loss_generator = shared["loss_generator"]
-    insurance_program = shared["insurance_program"]
+    insurance_program = copy.deepcopy(shared["insurance_program"])
 
     # Re-seed the loss generator for this simulation to ensure independence
     base_seed = shared.get("base_seed")
@@ -146,6 +148,10 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
     # Simulate years using the configured loss generator
     for year in range(n_years):
+        # Reset insurance program aggregate limits at start of each policy year (Issue #348)
+        if year > 0:
+            insurance_program.reset_annual()
+
         # CRN: reseed per (sim_id, year) for reproducible cross-scenario comparison
         if crn_base_seed is not None:
             year_ss = np.random.SeedSequence([crn_base_seed, sim_id, year])
@@ -623,9 +629,9 @@ class MonteCarloEngine:
                     reduction_time=0.0,
                     memory_peak=memory_estimate,
                     cpu_utilization=0.0,
-                    items_per_second=self.config.n_simulations / execution_time
-                    if execution_time > 0
-                    else 0.0,
+                    items_per_second=(
+                        self.config.n_simulations / execution_time if execution_time > 0 else 0.0
+                    ),
                     speedup=1.0,
                 )
 
@@ -1001,8 +1007,15 @@ class MonteCarloEngine:
         # Always track final year to ensure early bankruptcies propagate
         ruin_at_year[n_years] = False
 
+        # Reset insurance program state for this simulation path (Issue #348)
+        self.insurance_program.reset_annual()
+
         # Run simulation for each year
         for year in range(n_years):
+            # Reset insurance program aggregate limits at start of each policy year (Issue #348)
+            if year > 0:
+                self.insurance_program.reset_annual()
+
             # CRN: reseed per (sim_id, year) for reproducible cross-scenario comparison
             if self.config.crn_base_seed is not None:
                 year_ss = np.random.SeedSequence([self.config.crn_base_seed, sim_id, year])
@@ -1114,9 +1127,9 @@ class MonteCarloEngine:
             self.trajectory_storage.store_simulation(
                 sim_id=sim_id,
                 annual_losses=annual_losses[: year + 1] if ruin_occurred else annual_losses,
-                insurance_recoveries=insurance_recoveries[: year + 1]
-                if ruin_occurred
-                else insurance_recoveries,
+                insurance_recoveries=(
+                    insurance_recoveries[: year + 1] if ruin_occurred else insurance_recoveries
+                ),
                 retained_losses=retained_losses[: year + 1] if ruin_occurred else retained_losses,
                 final_assets=float(manufacturer.total_assets),
                 initial_assets=float(self.manufacturer.total_assets),
@@ -1296,9 +1309,11 @@ class MonteCarloEngine:
             "mean_retained": np.mean(np.sum(results.retained_losses, axis=1)),
             "mean_growth_rate": np.mean(results.growth_rates),
             "std_growth_rate": np.std(results.growth_rates),
-            "sharpe_ratio": np.mean(results.growth_rates) / np.std(results.growth_rates)
-            if np.std(results.growth_rates) > 0
-            else 0,
+            "sharpe_ratio": (
+                np.mean(results.growth_rates) / np.std(results.growth_rates)
+                if np.std(results.growth_rates) > 0
+                else 0
+            ),
         }
 
         return metrics

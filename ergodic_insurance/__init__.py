@@ -41,9 +41,11 @@ Note:
 Since:
     Version 0.4.0
 """
+
 # pylint: disable=undefined-all-variable
 
-__version__ = "0.4.0"
+from ergodic_insurance._version import __version__
+
 __all__ = [
     "__version__",
     "BusinessObjective",

@@ -85,4 +85,4 @@ __all__ = [
     "validate_parameters",
 ]
 
-__version__ = "1.0.0"
+from ergodic_insurance._version import __version__
