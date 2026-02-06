@@ -6,10 +6,7 @@ from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 # Test create_simple()
 print("Testing ManufacturingLossGenerator.create_simple()...")
 gen = ManufacturingLossGenerator.create_simple(
-    frequency=0.1,
-    severity_mean=5_000_000,
-    severity_std=2_000_000,
-    seed=42
+    frequency=0.1, severity_mean=5_000_000, severity_std=2_000_000, seed=42
 )
 print("[+] Generator created successfully")
 
