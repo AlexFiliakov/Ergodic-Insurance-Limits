@@ -896,8 +896,10 @@ class MonteCarloEngine:
                     valid_idx += 1
                 else:
                     # Log warning for unexpected result format
-                    import warnings
-
+                    # NOTE: Do NOT use ``import warnings`` here – it creates
+                    # a local binding that shadows the module-level import and
+                    # causes UnboundLocalError later in the function.  The
+                    # module-level ``import warnings`` (line 11) is sufficient.
                     warnings.warn(f"Unexpected result format: {type(result)}")
 
             # Trim arrays to only valid results
