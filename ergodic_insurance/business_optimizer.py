@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 import logging
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import warnings
 
 import numpy as np
@@ -529,7 +529,7 @@ class BusinessOptimizer:
         return allocation
 
     def analyze_time_horizon_impact(
-        self, strategies: List[Dict[str, float]], time_horizons: Optional[List[int]] = None
+        self, strategies: List[Dict[str, Any]], time_horizons: Optional[List[int]] = None
     ) -> pd.DataFrame:
         """Analyze strategy performance across different time horizons.
 
