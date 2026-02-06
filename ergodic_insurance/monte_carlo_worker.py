@@ -92,25 +92,7 @@ def run_chunk_standalone(
             # Generate losses for the year
             revenue = sim_manufacturer.calculate_revenue()
 
-            # Calculate and pay insurance premiums (scaled by revenue)
-            # Premium scales proportionally with revenue growth
-            # Use Decimal arithmetic for precision in financial calculations
-            initial_revenue_decimal = to_decimal(
-                manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
-            )
-            # Calculate revenue multiplier using Decimal division for precision
-            revenue_multiplier = safe_divide(
-                to_decimal(revenue), initial_revenue_decimal, default=to_decimal(1)
-            )
-            # Calculate annual premium using Decimal arithmetic
-            base_premium = to_decimal(sim_insurance_program.calculate_annual_premium())
-            annual_premium = base_premium * revenue_multiplier
-
-            # Record the insurance premium for accounting purposes
-            # The premium will be deducted from operating income in calculate_operating_income
-            # Use public method to maintain encapsulation (Issue #276)
-            if annual_premium > ZERO:
-                sim_manufacturer.record_insurance_premium(annual_premium, is_annual=False)
+            # Unified ordering: losses → claims → premium → step (Issue #349)
 
             # Use ManufacturingLossGenerator to generate losses
             # Note: Loss generator interface requires float for numpy compatibility
@@ -156,8 +138,27 @@ def run_chunk_standalone(
             sim_insurance_recoveries[year] = float(total_recovery_decimal)
             sim_retained_losses[year] = float(total_retained_decimal)
 
+            # Calculate and pay insurance premiums AFTER claims (Issue #349)
+            # Premium scales proportionally with revenue growth
+            # Use Decimal arithmetic for precision in financial calculations
+            initial_revenue_decimal = to_decimal(
+                manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
+            )
+            # Calculate revenue multiplier using Decimal division for precision
+            revenue_multiplier = safe_divide(
+                to_decimal(revenue), initial_revenue_decimal, default=to_decimal(1)
+            )
+            # Calculate annual premium using Decimal arithmetic
+            base_premium = to_decimal(sim_insurance_program.calculate_annual_premium())
+            annual_premium = base_premium * revenue_multiplier
+
+            # Record the insurance premium for accounting purposes
+            # The premium will be deducted from operating income in calculate_operating_income
+            # Use public method to maintain encapsulation (Issue #276)
+            if annual_premium > ZERO:
+                sim_manufacturer.record_insurance_premium(annual_premium, is_annual=False)
+
             # Run business operations (growth, etc.)
-            # Note: insurance premiums were already paid above, so pass 0 to avoid double-counting
             sim_manufacturer.step(
                 letter_of_credit_rate, growth_rate, time_resolution, apply_stochastic
             )
