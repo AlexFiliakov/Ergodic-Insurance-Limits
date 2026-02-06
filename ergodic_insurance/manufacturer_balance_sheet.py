@@ -858,7 +858,7 @@ class BalanceSheetMixin:
                     debit_account=AccountName.CASH,
                     credit_account=AccountName.RETAINED_EARNINGS,
                     amount=total_retained,
-                    transaction_type=TransactionType.REVENUE,
+                    transaction_type=TransactionType.RETAINED_EARNINGS,
                     description=f"Year {self.current_year} retained earnings",
                     month=self.current_month,
                 )
