@@ -241,6 +241,7 @@ class SharedMemoryManager:
         )
 
         # Copy to shared memory
+        assert shm.buf is not None
         shm.buf[: len(serialized)] = serialized
 
         # Store reference
@@ -260,6 +261,7 @@ class SharedMemoryManager:
             Any: Deserialized object
         """
         shm = shared_memory.SharedMemory(name=shm_name)
+        assert shm.buf is not None
         data = bytes(shm.buf[:size])
 
         # Decompress if needed

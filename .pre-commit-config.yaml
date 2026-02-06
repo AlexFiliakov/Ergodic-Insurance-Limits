@@ -4,35 +4,35 @@
 
 repos:
   # Black - Python code formatter
+  # No `files` filter — matches CI's `black --check --diff .`
   - repo: https://github.com/psf/black
     rev: 25.1.0
     hooks:
       - id: black
         language_version: python3.12
         args: [--line-length=100]
-        files: ^(ergodic_insurance/|simone/.*\.py$)
 
   # isort - Python import sorter
+  # No `files` filter — matches CI's `isort --check-only --diff .`
   - repo: https://github.com/pycqa/isort
     rev: 6.0.1
     hooks:
       - id: isort
         args: [--profile=black, --line-length=100]
-        files: ^(ergodic_insurance/|simone/.*\.py$)
 
   # MyPy - Static type checker
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+  # Local hook runs mypy on the full package (matching CI's
+  # `mypy ergodic_insurance/ --ignore-missing-imports`) so that
+  # cross-file errors are caught before push, not just in changed files.
+  - repo: local
     hooks:
       - id: mypy
-        args: [--config-file=mypy.ini, --exclude=ergodic_insurance/src/visualization\.py$]
+        name: mypy
+        entry: python -m mypy ergodic_insurance/ --ignore-missing-imports
+        language: system
+        types: [python]
         files: ^ergodic_insurance/
-        additional_dependencies:
-          - types-PyYAML>=6.0.0
-          - numpy>=2.3.2
-          - pandas-stubs>=2.0.0
-          - pydantic>=2.11.7
-          - types-tabulate>=0.9.0
+        pass_filenames: false
 
   # Trailing whitespace
   - repo: https://github.com/pre-commit/pre-commit-hooks

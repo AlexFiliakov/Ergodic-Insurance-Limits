@@ -742,7 +742,7 @@ class TestInteractivePlots:
             "ergodic_insurance.visualization.interactive_plots.make_subplots"
         ) as mock_subplots:
             mock_subplots.return_value = MagicMock()
-            fig = interactive_plots.create_risk_dashboard(risk_metrics, title="Risk Dashboard")  # type: ignore[arg-type]
+            fig = interactive_plots.create_risk_dashboard(risk_metrics, title="Risk Dashboard")
             assert mock_subplots.called or fig is not None
 
 

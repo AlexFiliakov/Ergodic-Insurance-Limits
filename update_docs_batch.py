@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Batch update documentation files for ClaimGenerator deprecation."""
 
-import re
 from pathlib import Path
+import re
 
 # Files to update
 TUTORIAL_FILES = [
@@ -32,46 +32,41 @@ def update_markdown_file(filepath):
         print(f"Skipping {filepath} - not found")
         return False
 
-    content = path.read_text(encoding='utf-8')
+    content = path.read_text(encoding="utf-8")
     original = content
 
     # Add deprecation notice after import statements
-    deprecation_notice = '''
+    deprecation_notice = """
 > **Note**: `ClaimGenerator` is deprecated as of version 0.2.0. Use `ManufacturingLossGenerator.create_simple()` instead.
 > See the [migration guide](../migration_guides/claim_generator_migration.md) for details.
-'''
+"""
 
     # Pattern 1: Replace import statement
     content = re.sub(
-        r'from ergodic_insurance\.claim_generator import ClaimGenerator',
-        'from ergodic_insurance.loss_distributions import ManufacturingLossGenerator',
-        content
+        r"from ergodic_insurance\.claim_generator import ClaimGenerator",
+        "from ergodic_insurance.loss_distributions import ManufacturingLossGenerator",
+        content,
     )
 
     # Pattern 2: Add deprecation notice if not already present
-    if 'ClaimGenerator is deprecated' not in content and 'from ergodic_insurance.loss_distributions import ManufacturingLossGenerator' in content:
+    if (
+        "ClaimGenerator is deprecated" not in content
+        and "from ergodic_insurance.loss_distributions import ManufacturingLossGenerator" in content
+    ):
         content = re.sub(
-            r'(from ergodic_insurance\.loss_distributions import ManufacturingLossGenerator\s*```)',
-            r'\1\n' + deprecation_notice,
-            content
+            r"(from ergodic_insurance\.loss_distributions import ManufacturingLossGenerator\s*```)",
+            r"\1\n" + deprecation_notice,
+            content,
         )
 
     # Pattern 3: Replace ClaimGenerator instantiation
-    content = re.sub(
-        r'ClaimGenerator\(',
-        'ManufacturingLossGenerator.create_simple(',
-        content
-    )
+    content = re.sub(r"ClaimGenerator\(", "ManufacturingLossGenerator.create_simple(", content)
 
     # Pattern 4: Update parameter names
-    content = re.sub(
-        r'base_frequency=',
-        'frequency=',
-        content
-    )
+    content = re.sub(r"base_frequency=", "frequency=", content)
 
     if content != original:
-        path.write_text(content, encoding='utf-8')
+        path.write_text(content, encoding="utf-8")
         print(f"[+] Updated {filepath}")
         return True
     else:
@@ -88,58 +83,55 @@ def update_notebook_file(filepath):
         print(f"Skipping {filepath} - not found")
         return False
 
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, "r", encoding="utf-8") as f:
         notebook = json.load(f)
 
     modified = False
 
     # Update all code cells
-    for cell in notebook.get('cells', []):
-        if cell.get('cell_type') == 'code':
-            source = cell.get('source', [])
+    for cell in notebook.get("cells", []):
+        if cell.get("cell_type") == "code":
+            source = cell.get("source", [])
             if isinstance(source, list):
-                original_source = ''.join(source)
+                original_source = "".join(source)
                 new_source = original_source
 
                 # Replace imports
                 new_source = re.sub(
-                    r'from ergodic_insurance\.claim_generator import ClaimGenerator',
-                    'from ergodic_insurance.loss_distributions import ManufacturingLossGenerator',
-                    new_source
+                    r"from ergodic_insurance\.claim_generator import ClaimGenerator",
+                    "from ergodic_insurance.loss_distributions import ManufacturingLossGenerator",
+                    new_source,
                 )
 
                 # Replace instantiation
                 new_source = re.sub(
-                    r'ClaimGenerator\(',
-                    'ManufacturingLossGenerator.create_simple(',
-                    new_source
+                    r"ClaimGenerator\(", "ManufacturingLossGenerator.create_simple(", new_source
                 )
 
                 # Update parameter names
-                new_source = re.sub(
-                    r'base_frequency=',
-                    'frequency=',
-                    new_source
-                )
+                new_source = re.sub(r"base_frequency=", "frequency=", new_source)
 
                 if new_source != original_source:
                     # Convert back to list format
-                    cell['source'] = [new_source]
+                    cell["source"] = [new_source]
                     modified = True
 
         # Add markdown deprecation notice after imports
-        elif cell.get('cell_type') == 'markdown':
-            source = cell.get('source', [])
+        elif cell.get("cell_type") == "markdown":
+            source = cell.get("source", [])
             if isinstance(source, list):
-                source_text = ''.join(source)
-                if 'ManufacturingLossGenerator' in source_text and 'deprecated' not in source_text.lower():
+                source_text = "".join(source)
+                if (
+                    "ManufacturingLossGenerator" in source_text
+                    and "deprecated" not in source_text.lower()
+                ):
                     # Add deprecation notice
-                    deprecation = '\\n> **Note**: `ClaimGenerator` is deprecated. Use `ManufacturingLossGenerator.create_simple()` instead.\\n'
-                    cell['source'] = [source_text + deprecation]
+                    deprecation = "\\n> **Note**: `ClaimGenerator` is deprecated. Use `ManufacturingLossGenerator.create_simple()` instead.\\n"
+                    cell["source"] = [source_text + deprecation]
                     modified = True
 
     if modified:
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(notebook, f, indent=1, ensure_ascii=False)
         print(f"[+] Updated {filepath}")
         return True
@@ -170,5 +162,5 @@ def main():
     print(f"{'='*50}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

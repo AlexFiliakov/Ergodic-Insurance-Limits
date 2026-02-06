@@ -36,7 +36,7 @@ else:
 pytest.skip(allow_module_level=True)
 
 
-def _test_cpu_bound_work(item):
+def _test_cpu_bound_work(item):  # type: ignore[unreachable]
     """Helper function for testing CPU-bound work."""
     result = 0
     for i in range(1000000):

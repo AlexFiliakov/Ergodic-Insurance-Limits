@@ -794,3 +794,26 @@ class WidgetManufacturer(
 
         logger.debug("Created copy of manufacturer")
         return new_manufacturer
+
+    @classmethod
+    def create_fresh(
+        cls,
+        config: ManufacturerConfig,
+        stochastic_process: Optional[StochasticProcess] = None,
+    ) -> "WidgetManufacturer":
+        """Create a fresh manufacturer from configuration alone.
+
+        Factory method that avoids ``copy.deepcopy`` by constructing a new
+        instance directly from its config.  Use this in hot loops (e.g. Monte
+        Carlo workers) where each simulation needs a clean initial state.
+
+        Args:
+            config: Manufacturing configuration parameters.
+            stochastic_process: Optional stochastic process instance.  The
+                caller is responsible for ensuring independence (e.g. by
+                deep-copying the process once before passing it in).
+
+        Returns:
+            A new WidgetManufacturer in its initial state.
+        """
+        return cls(config=config, stochastic_process=stochastic_process)
