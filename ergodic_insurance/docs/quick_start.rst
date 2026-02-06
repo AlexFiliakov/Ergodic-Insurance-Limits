@@ -83,7 +83,8 @@ Here's a complete example that demonstrates the key features:
    from ergodic_insurance.config_manager import ConfigManager
    from ergodic_insurance.manufacturer import WidgetManufacturer
    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-   from ergodic_insurance.insurance import optimize_insurance_limit
+   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance.simulation import Simulation
 
    # Configuration
    manager = ConfigManager()
@@ -102,15 +103,21 @@ Here's a complete example that demonstrates the key features:
        seed=42
    )
 
-   # Optimize insurance
-   optimal_limit = optimize_insurance_limit(
+   # Create insurance policy
+   layer = InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)
+   policy = InsurancePolicy(layers=[layer], deductible=100_000)
+
+   # Run simulation with insurance
+   sim = Simulation(
        manufacturer=manufacturer,
        loss_generator=generator,
-       limits_to_test=[5e6, 10e6, 15e6, 20e6],
-       n_simulations=100
+       insurance_policy=policy,
+       time_horizon=50
    )
+   results = sim.run()
 
-   print(f"Optimal insurance limit: ${optimal_limit:,.0f}")
+   print(f"Final equity: ${results.equity[-1]:,.0f}")
+   print(f"Time-weighted ROE: {results.calculate_time_weighted_roe():.2%}")
 
 Using Different Profiles
 ------------------------
@@ -166,26 +173,16 @@ Compare time-average vs ensemble-average growth:
 
    analyzer = ErgodicAnalyzer()
 
-   # Analyze with and without insurance
-   results = analyzer.compare_strategies(
-       manufacturer=manufacturer,
-       strategies={
-           "no_insurance": {"limit": 0, "premium": 0},
-           "basic": {"limit": 5_000_000, "base_premium_rate": 0.015},
-           "comprehensive": {"limit": 20_000_000, "base_premium_rate": 0.012}
-       },
-       n_paths=1000,
-       time_horizon=100
+   # Compare insured vs uninsured results
+   comparison = analyzer.compare_scenarios(
+       insured_results=results_insured,
+       uninsured_results=results_uninsured,
+       metric="equity"
    )
 
-   # Display results
-   analyzer.plot_growth_comparison(results)
-
-   for strategy, metrics in results.items():
-       print(f"{strategy}:")
-       print(f"  Time-average growth: {metrics['time_avg_growth']:.2%}")
-       print(f"  Ensemble-average: {metrics['ensemble_avg']:.2%}")
-       print(f"  Ergodic advantage: {metrics['ergodic_advantage']:.2%}")
+   print(f"Ergodic advantage: {comparison['ergodic_advantage']:.4f}")
+   print(f"Insured time-avg growth: {comparison['insured_time_avg']:.4f}")
+   print(f"Uninsured time-avg growth: {comparison['uninsured_time_avg']:.4f}")
 
 Visualization
 -------------
@@ -196,15 +193,12 @@ Quick visualizations of results:
 
    from ergodic_insurance.visualization import plot_simulation_results
 
-   # Run simulation
-   results = sim.run(years=20)
+   # Run simulation (time_horizon set in constructor)
+   results = sim.run()
 
-   # Plot results
-   plot_simulation_results(
-       results,
-       metrics=["assets", "equity", "roe"],
-       title="20-Year Simulation"
-   )
+   # Convert to DataFrame for analysis
+   df = results.to_dataframe()
+   print(df[['assets', 'equity', 'roe']].head(10))
 
 Next Steps
 ----------

@@ -276,7 +276,7 @@ pre-commit run black --all-files
 mypy ergodic_insurance
 
 # Run with specific file
-mypy ergodic_insurance/src/manufacturer.py
+mypy ergodic_insurance/manufacturer.py
 ```
 
 ### Code Formatting

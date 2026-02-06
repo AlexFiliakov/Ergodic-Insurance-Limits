@@ -122,7 +122,7 @@ claims = ManufacturingLossGenerator.create_simple(
 # Create simulation
 sim = Simulation(
     manufacturer=manufacturer,
-    claim_generator=claims,
+    loss_generator=claims,
     time_horizon=30           # 30-year horizon
 )
 
@@ -289,7 +289,7 @@ for seed in range(n_simulations):
     )
 
     # Run simulation
-    sim = Simulation(manufacturer=mfg, claim_generator=claims, time_horizon=30)
+    sim = Simulation(manufacturer=mfg, loss_generator=claims, time_horizon=30)
     results = sim.run()
 
     outcomes.append({

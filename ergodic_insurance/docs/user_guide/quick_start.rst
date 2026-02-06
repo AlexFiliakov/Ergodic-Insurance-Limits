@@ -143,46 +143,52 @@ Now let's run a basic simulation using Python:
 .. code-block:: python
    :caption: first_simulation.py
 
-   from ergodic_insurance.config_loader import load_config
+   from ergodic_insurance.config import ManufacturerConfig
    from ergodic_insurance.manufacturer import WidgetManufacturer
-   from ergodic_insurance.insurance_program import InsuranceProgram
-   from ergodic_insurance.monte_carlo import MonteCarloEngine
-   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
-
-   # Load your configuration
-   config = load_config('my_company.yaml')
+   from ergodic_insurance.insurance_program import InsuranceProgram, EnhancedInsuranceLayer
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+   from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
 
    # Create manufacturer with your parameters
-   manufacturer = WidgetManufacturer(
-       starting_assets=10_000_000,
-       base_revenue=15_000_000,
+   mfg_config = ManufacturerConfig(
+       initial_assets=10_000_000,
+       asset_turnover_ratio=1.5,        # Revenue = 1.5x assets = $15M
        base_operating_margin=0.08
    )
+   manufacturer = WidgetManufacturer(mfg_config)
 
    # Define insurance program
    insurance = InsuranceProgram(
-       retention=100_000,
        layers=[
-           {'limit': 5_000_000, 'attachment': 100_000, 'base_premium_rate': 0.015},
-           {'limit': 20_000_000, 'attachment': 5_100_000, 'base_premium_rate': 0.008}
-       ]
+           EnhancedInsuranceLayer(
+               attachment_point=100_000, limit=5_000_000, base_premium_rate=0.015
+           ),
+           EnhancedInsuranceLayer(
+               attachment_point=5_100_000, limit=20_000_000, base_premium_rate=0.008
+           ),
+       ],
+       deductible=100_000,
    )
 
-   # Run Monte Carlo simulation
-   engine = MonteCarloEngine(n_simulations=1000)
-   results = engine.run(
-       manufacturer=manufacturer,
+   # Configure and run Monte Carlo simulation
+   loss_gen = ManufacturingLossGenerator.create_simple(
+       frequency=5, severity_mean=100_000, severity_std=50_000, seed=42
+   )
+   sim_config = SimulationConfig(n_simulations=1_000, n_years=10, seed=42)
+
+   engine = MonteCarloEngine(
+       loss_generator=loss_gen,
        insurance_program=insurance,
-       n_years=10
+       manufacturer=manufacturer,
+       config=sim_config
    )
+   results = engine.run()
 
-   # Analyze results
-   analyzer = ErgodicAnalyzer()
-   metrics = analyzer.calculate_metrics(results)
-
-   print(f"10-Year Survival Probability: {metrics['survival_rate']:.1%}")
-   print(f"Time-Average Growth Rate: {metrics['time_avg_growth']:.2%}")
-   print(f"Expected Terminal Wealth: ${metrics['expected_terminal_wealth']:,.0f}")
+   # Display results
+   import numpy as np
+   print(f"Mean Final Assets: ${np.mean(results.final_assets):,.0f}")
+   print(f"Mean Growth Rate: {np.mean(results.growth_rates):.4f}")
+   print(results.summary())
 
 Step 5: Using Pre-Built Notebooks
 ----------------------------------

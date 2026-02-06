@@ -74,7 +74,7 @@ pip install numpy scipy --platform macosx_11_0_arm64
 
 **Symptoms:**
 ```python
->>> from ergodic_insurance.manufacturer import Manufacturer
+>>> from ergodic_insurance.manufacturer import WidgetManufacturer
 ModuleNotFoundError: No module named 'ergodic_insurance'
 ```
 
@@ -96,7 +96,7 @@ pip install -e /path/to/ergodic_insurance
 
 **Symptoms:**
 ```python
-ImportError: cannot import name 'ClaimGenerator' from 'ergodic_insurance.src'
+ImportError: cannot import name 'ClaimGenerator' from 'ergodic_insurance'
 ```
 
 **Solution:**
@@ -105,8 +105,8 @@ ImportError: cannot import name 'ClaimGenerator' from 'ergodic_insurance.src'
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 # Check available modules
-import ergodic_insurance.src
-print(dir(ergodic_insurance.src))
+import ergodic_insurance
+print(dir(ergodic_insurance))
 ```
 
 (simulation-problems)=
@@ -122,38 +122,37 @@ print(dir(ergodic_insurance.src))
 **Diagnosis and Solution:**
 ```python
 # Check loss severity relative to assets
-manufacturer = Manufacturer(initial_assets=10_000_000)
-claim_generator = ManufacturingLossGenerator.create_simple(
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+
+mfg_config = ManufacturerConfig(initial_assets=10_000_000)
+manufacturer = WidgetManufacturer(mfg_config)
+loss_generator = ManufacturingLossGenerator.create_simple(
     frequency=5,
-    severity_mu=10.0,
-    severity_sigma=1.5
+    severity_mean=100_000,
+    severity_std=50_000
 )
 
 # Diagnose the problem
-sample_losses = [claim_generator.generate_claims(1) for _ in range(100)]
-avg_annual_loss = np.mean([sum(losses) for losses in sample_losses])
-loss_ratio = avg_annual_loss / manufacturer.initial_assets
+sample_losses, _ = loss_generator.generate_losses(duration=1, revenue=10_000_000)
+print(f"Sample annual loss: ${sum(l.amount for l in sample_losses):,.0f}")
 
-print(f"Average annual loss: ${avg_annual_loss:,.0f}")
-print(f"Loss ratio: {loss_ratio:.1%}")
+# Solutions:
+# 1. Reduce loss severity
+loss_generator = ManufacturingLossGenerator.create_simple(
+    frequency=5,
+    severity_mean=50_000,   # Reduced
+    severity_std=25_000     # Reduced
+)
 
-if loss_ratio > 0.1:
-    print("⚠️ Losses too high relative to assets!")
+# 2. Increase insurance coverage
+retention = 250_000  # Lower retention
+limit = 15_000_000   # Higher limit
 
-    # Solutions:
-    # 1. Reduce loss severity
-    claim_generator = ManufacturingLossGenerator.create_simple(
-        frequency=5,
-        severity_mu=9.0,  # Reduced
-        severity_sigma=1.0  # Reduced
-    )
-
-    # 2. Increase insurance coverage
-    retention = 250_000  # Lower retention
-    limit = 15_000_000   # Higher limit
-
-    # 3. Increase initial assets
-    manufacturer = Manufacturer(initial_assets=20_000_000)
+# 3. Increase initial assets
+mfg_config = ManufacturerConfig(initial_assets=20_000_000)
+manufacturer = WidgetManufacturer(mfg_config)
 ```
 
 ### Issue: Results vary wildly between runs
@@ -196,18 +195,22 @@ mean_growth = np.mean([r['mean_growth_rate'] for r in all_results])
 **Solution:**
 ```python
 # Check base profitability without losses
-manufacturer = Manufacturer(
+from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+
+mfg_config = ManufacturerConfig(
     initial_assets=10_000_000,
-    asset_turnover=1.0,
+    asset_turnover_ratio=1.0,
     base_operating_margin=0.08,
     tax_rate=0.25
 )
+manufacturer = WidgetManufacturer(mfg_config)
 
 # Calculate base ROE
-revenue = manufacturer.initial_assets * manufacturer.asset_turnover
-operating_income = revenue * manufacturer.base_operating_margin
-net_income = operating_income * (1 - manufacturer.tax_rate)
-base_roe = net_income / manufacturer.initial_assets
+revenue = mfg_config.initial_assets * mfg_config.asset_turnover_ratio
+operating_income = revenue * mfg_config.base_operating_margin
+net_income = operating_income * (1 - mfg_config.tax_rate)
+base_roe = net_income / mfg_config.initial_assets
 
 print(f"Base ROE (no losses): {base_roe:.1%}")
 
@@ -215,12 +218,13 @@ if base_roe < 0.05:
     print("⚠️ Base profitability too low!")
 
     # Improve profitability
-    manufacturer = Manufacturer(
+    mfg_config = ManufacturerConfig(
         initial_assets=10_000_000,
-        asset_turnover=1.2,      # Increased
-        base_operating_margin=0.10,   # Increased
-        tax_rate=0.21           # Reduced
+        asset_turnover_ratio=1.2,      # Increased
+        base_operating_margin=0.10,    # Increased
+        tax_rate=0.21                  # Reduced
     )
+    manufacturer = WidgetManufacturer(mfg_config)
 ```
 
 (performance-issues)=
@@ -242,16 +246,21 @@ quick_test = mc_analyzer.run_simulations(
     seed=42
 )
 
-# 2. Use parallel processing
-from ergodic_insurance.parallel_executor import ParallelExecutor
+# 2. Use parallel processing via MonteCarloEngine
+from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
 
-executor = ParallelExecutor(n_workers=4)
-results = executor.run_parallel_monte_carlo(
+engine = MonteCarloEngine(
+    loss_generator=loss_generator,
+    insurance_program=insurance_program,
     manufacturer=manufacturer,
-    claim_generator=claim_generator,
-    n_simulations=10000,
-    n_years=20
+    config=SimulationConfig(
+        n_simulations=10_000,
+        n_years=20,
+        parallel=True,
+        n_workers=4
+    )
 )
+results = engine.run()
 
 # 3. Profile code to find bottlenecks
 import cProfile

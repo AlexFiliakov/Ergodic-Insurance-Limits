@@ -322,43 +322,44 @@ quota_share_layer = EnhancedInsuranceLayer(
 Here is a realistic multi-layer program for NovaTech using all the advanced features:
 
 ```python
-program = InsuranceProgram(deductible=250_000)
-
-# Primary: per-occurrence, no reinstatements
-program.add_layer(EnhancedInsuranceLayer(
-    attachment_point=250_000,
-    limit=5_000_000,
-    base_premium_rate=0.025,
-    limit_type="per-occurrence",
-))
-
-# First excess: aggregate with 1 reinstatement
-program.add_layer(EnhancedInsuranceLayer(
-    attachment_point=5_250_000,
-    limit=5_000_000,
-    base_premium_rate=0.015,
-    limit_type="aggregate",
-    aggregate_limit=10_000_000,
-    reinstatements=1,
-    reinstatement_premium=1.0,
-    reinstatement_type=ReinstatementType.FULL,
-))
-
-# Catastrophe excess: aggregate with 2 free reinstatements
-program.add_layer(EnhancedInsuranceLayer(
-    attachment_point=10_250_000,
-    limit=10_000_000,
-    base_premium_rate=0.008,
-    limit_type="aggregate",
-    aggregate_limit=10_000_000,
-    reinstatements=2,
-    reinstatement_type=ReinstatementType.FREE,
-))
+program = InsuranceProgram(
+    layers=[
+        # Primary: per-occurrence, no reinstatements
+        EnhancedInsuranceLayer(
+            attachment_point=250_000,
+            limit=5_000_000,
+            base_premium_rate=0.025,
+            limit_type="per-occurrence",
+        ),
+        # First excess: aggregate with 1 reinstatement
+        EnhancedInsuranceLayer(
+            attachment_point=5_250_000,
+            limit=5_000_000,
+            base_premium_rate=0.015,
+            limit_type="aggregate",
+            aggregate_limit=10_000_000,
+            reinstatements=1,
+            reinstatement_premium=1.0,
+            reinstatement_type=ReinstatementType.FULL,
+        ),
+        # Catastrophe excess: aggregate with 2 free reinstatements
+        EnhancedInsuranceLayer(
+            attachment_point=10_250_000,
+            limit=10_000_000,
+            base_premium_rate=0.008,
+            limit_type="aggregate",
+            aggregate_limit=10_000_000,
+            reinstatements=2,
+            reinstatement_type=ReinstatementType.FREE,
+        ),
+    ],
+    deductible=250_000,
+)
 
 # Print program summary
 print(f"Deductible: ${program.deductible:,.0f}")
-print(f"Total Coverage: ${program.total_coverage():,.0f}")
-print(f"Total Annual Premium: ${program.total_premium():,.0f}")
+print(f"Total Coverage: ${program.get_total_coverage():,.0f}")
+print(f"Total Annual Premium: ${program.calculate_annual_premium():,.0f}")
 ```
 
 ### Processing Claims Through InsuranceProgram

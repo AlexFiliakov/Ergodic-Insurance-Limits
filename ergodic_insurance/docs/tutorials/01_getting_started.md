@@ -119,7 +119,7 @@ loss_generator = ManufacturingLossGenerator.create_simple(
 # Note: Simulation will use the loss generator internally
 simulation = Simulation(
     manufacturer=manufacturer,
-    claim_generator=loss_generator,  # Accepts both ClaimGenerator and ManufacturingLossGenerator
+    loss_generator=loss_generator,
     time_horizon=20  # Simulate 20 years
 )
 

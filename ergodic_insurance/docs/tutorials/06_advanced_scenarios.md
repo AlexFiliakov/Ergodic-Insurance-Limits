@@ -45,17 +45,21 @@ manufacturer = WidgetManufacturer(mfg_config)
 loss_gen = ManufacturingLossGenerator(seed=42)
 
 # Current insurance program: $500K deductible, two layers
-program = InsuranceProgram(deductible=500_000)
-program.add_layer(EnhancedInsuranceLayer(
-    attachment_point=500_000,
-    limit=5_000_000,
-    base_premium_rate=0.025
-))
-program.add_layer(EnhancedInsuranceLayer(
-    attachment_point=5_500_000,
-    limit=10_000_000,
-    base_premium_rate=0.012
-))
+program = InsuranceProgram(
+    layers=[
+        EnhancedInsuranceLayer(
+            attachment_point=500_000,
+            limit=5_000_000,
+            base_premium_rate=0.025
+        ),
+        EnhancedInsuranceLayer(
+            attachment_point=5_500_000,
+            limit=10_000_000,
+            base_premium_rate=0.012
+        ),
+    ],
+    deductible=500_000,
+)
 
 # Simulation configuration
 sim_config = SimulationConfig(
@@ -375,8 +379,6 @@ from ergodic_insurance.insurance_program import (
 )
 
 # NovaTech's enhanced program for the 5-year plan
-enhanced_program = InsuranceProgram(deductible=500_000)
-
 # Primary layer: $2.5M limit with 2 reinstatements
 # Pro-rata reinstatement means the premium is proportional
 # to the fraction of the limit consumed.
@@ -407,9 +409,10 @@ high_excess = EnhancedInsuranceLayer(
     aggregate_limit=15_000_000
 )
 
-enhanced_program.add_layer(primary)
-enhanced_program.add_layer(first_excess)
-enhanced_program.add_layer(high_excess)
+enhanced_program = InsuranceProgram(
+    layers=[primary, first_excess, high_excess],
+    deductible=500_000,
+)
 
 # Display the tower
 print("=== NovaTech Enhanced Insurance Tower ===")
@@ -431,8 +434,8 @@ for i, layer in enumerate(enhanced_program.layers, 1):
             print(f"  Aggregate Limit: ${layer.aggregate_limit:,.0f}")
     print()
 
-print(f"Total Premium: ${enhanced_program.total_premium():,.0f}")
-print(f"Total Coverage: ${enhanced_program.total_coverage():,.0f}")
+print(f"Total Premium: ${enhanced_program.calculate_annual_premium():,.0f}")
+print(f"Total Coverage: ${enhanced_program.get_total_coverage():,.0f}")
 ```
 
 ### How Reinstatements Affect Tail Risk
@@ -441,13 +444,17 @@ Reinstatements matter most in years with multiple large losses. Without reinstat
 
 ```python
 # Compare programs with and without reinstatements
-no_reinstatement_program = InsuranceProgram(deductible=500_000)
-no_reinstatement_program.add_layer(EnhancedInsuranceLayer(
-    attachment_point=500_000,
-    limit=2_500_000,
-    base_premium_rate=0.04,
-    reinstatements=0  # No reinstatements
-))
+no_reinstatement_program = InsuranceProgram(
+    layers=[
+        EnhancedInsuranceLayer(
+            attachment_point=500_000,
+            limit=2_500_000,
+            base_premium_rate=0.04,
+            reinstatements=0  # No reinstatements
+        ),
+    ],
+    deductible=500_000,
+)
 
 for label, prog in [("With reinstatements", enhanced_program),
                      ("Without reinstatements", no_reinstatement_program)]:
