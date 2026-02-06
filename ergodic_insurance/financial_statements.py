@@ -1776,8 +1776,8 @@ class FinancialStatementGenerator:
         if year > 0:
             prev_metrics = self.metrics_history[year - 1]
 
-            # Add previous year column
-            df[f"Year {year-1}"] = ""
+            # Add previous year column (use None for pandas 3.0 Arrow string compat)
+            df[f"Year {year-1}"] = None
 
             # Calculate YoY for revenue
             if prev_metrics.get("revenue", 0) > 0:
@@ -1799,7 +1799,8 @@ class FinancialStatementGenerator:
         """
         if comp_year < self.years_available:
             comp_metrics = self.metrics_history[comp_year]
-            df[f"Year {comp_year}"] = ""
+            # Use None for pandas 3.0 Arrow string compatibility
+            df[f"Year {comp_year}"] = None
 
             # Add comparison year values for key items
             for index, row in df.iterrows():
@@ -1828,7 +1829,8 @@ class FinancialStatementGenerator:
         """
         if comp_year < self.years_available:
             comp_metrics = self.metrics_history[comp_year]
-            df[f"Year {comp_year}"] = ""
+            # Use None for pandas 3.0 Arrow string compatibility
+            df[f"Year {comp_year}"] = None
 
             # Add comparison year values for key items
             for index, row in df.iterrows():
