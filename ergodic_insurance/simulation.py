@@ -924,12 +924,9 @@ class Simulation:
 
         loss_generator = ManufacturingLossGenerator(seed=seed)
 
-        # Create insurance program
-        # Always create a new program since InsurancePolicy and InsuranceProgram
-        # have incompatible signatures
-        insurance_program = InsuranceProgram(layers=[])
+        # Create insurance program with layers passed to constructor so that
+        # layer_states are properly initialized (Issue #348)
         if insurance_policy:
-            # Add layer based on simple policy
             from .insurance_program import EnhancedInsuranceLayer
 
             layer = EnhancedInsuranceLayer(
@@ -939,7 +936,9 @@ class Simulation:
                 ),
                 base_premium_rate=0.01,
             )
-            insurance_program.layers.append(layer)
+            insurance_program = InsuranceProgram(layers=[layer])
+        else:
+            insurance_program = InsuranceProgram(layers=[])
 
         # Create manufacturer
         manufacturer = WidgetManufacturer(config=config.manufacturer)

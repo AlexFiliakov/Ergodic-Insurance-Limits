@@ -18,13 +18,15 @@ def test_project_structure_exists():
 
 def test_configuration_files_exist():
     """Test that configuration files are present."""
-    project_root = Path(__file__).parent.parent
+    package_root = Path(__file__).parent.parent
+    repo_root = package_root.parent
 
-    assert (project_root / "pytest.ini").exists()
-    assert (project_root / "pyproject.toml").exists()
-    assert (project_root / "requirements.txt").exists()
-    assert (project_root / "setup.py").exists()
-    assert (project_root / "README.md").exists()
+    # Package-level config files
+    assert (package_root / "pytest.ini").exists()
+    assert (package_root / "requirements.txt").exists()
+    assert (package_root / "README.md").exists()
+    # Repo-level config files (pyproject.toml consolidated to repo root)
+    assert (repo_root / "pyproject.toml").exists()
 
 
 def test_package_imports():

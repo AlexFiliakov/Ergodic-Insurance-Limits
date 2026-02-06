@@ -5,7 +5,7 @@
 repos:
   # Black - Python code formatter
   - repo: https://github.com/psf/black
-    rev: 23.12.1
+    rev: 25.1.0
     hooks:
       - id: black
         language_version: python3.12
@@ -14,7 +14,7 @@ repos:
 
   # isort - Python import sorter
   - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+    rev: 6.0.1
     hooks:
       - id: isort
         args: [--profile=black, --line-length=100]
@@ -22,7 +22,7 @@ repos:
 
   # MyPy - Static type checker
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
+    rev: v1.17.1
     hooks:
       - id: mypy
         args: [--config-file=mypy.ini, --exclude=ergodic_insurance/src/visualization\.py$]
@@ -36,7 +36,7 @@ repos:
 
   # Trailing whitespace
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -48,6 +48,14 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
 
+  # Conventional Commits - enforce commit message format
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
+
   # Pylint - Python linter (optional, can be slow)
   - repo: local
     hooks:
@@ -57,4 +65,4 @@ repos:
         language: system
         types: [python]
         files: ^ergodic_insurance/(src|tests)/
-        args: [--rcfile=ergodic_insurance/pyproject.toml]
+        args: [--rcfile=pyproject.toml]

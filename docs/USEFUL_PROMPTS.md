@@ -1,5 +1,9 @@
 # Useful Prompts
 
+## Basic issue fix
+
+Use subagents to parallelize the work whenever possible and resolve issue # . Ensure all relevant tests pass, but skip full-suite validation because it times out.
+
 ## High-Powered Debug
 
 Create an agent team to review my Python package for actuarial/risk management use. Spawn five reviewers:

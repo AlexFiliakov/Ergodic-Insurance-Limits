@@ -144,6 +144,7 @@ __all__ = [
 ]
 
 # Package metadata
-__version__ = "2.0.0"
+from ergodic_insurance._version import __version__
+
 __author__ = "Ergodic Insurance Team"
 __description__ = "Professional visualization infrastructure for insurance analytics"
