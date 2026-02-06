@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "Ergodic Insurance Limits"
 copyright = "2026, Alex Filiakov"
 author = "Alex Filiakov"
-release = "0.3.0"
-version = "0.3.0"
+release = "0.4.0"
+version = "0.4.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
