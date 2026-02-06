@@ -28,9 +28,12 @@ try:
     from .visualization.batch_plots import plot_scenario_comparison as _new_plot_scenario_comparison
     from .visualization.batch_plots import plot_sensitivity_heatmap as _new_plot_sensitivity_heatmap
     from .visualization.core import (
+        COLOR_SEQUENCE,
+        WSJ_COLORS,
+    )
+    from .visualization.core import (
         set_wsj_style as _new_set_wsj_style,  # Core; Executive plots; Technical plots; Interactive plots; Batch plots; Factory
     )
-    from .visualization.core import COLOR_SEQUENCE, WSJ_COLORS
     from .visualization.core import WSJFormatter as _new_WSJFormatter
     from .visualization.core import format_currency as _new_format_currency
     from .visualization.core import format_percentage as _new_format_percentage

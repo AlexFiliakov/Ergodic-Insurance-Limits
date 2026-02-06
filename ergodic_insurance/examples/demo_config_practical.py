@@ -96,11 +96,11 @@ def demo_scenario_comparison():
             "volatility": config.growth.volatility,
             "base_operating_margin": config.manufacturer.base_operating_margin,
             "expected_annual_profit": expected_profit,
-            "risk_tolerance": "High"
-            if scenario_name == "expansion"
-            else "Low"
-            if "conservative" in scenario_config["profile"]
-            else "Medium",
+            "risk_tolerance": (
+                "High"
+                if scenario_name == "expansion"
+                else "Low" if "conservative" in scenario_config["profile"] else "Medium"
+            ),
         }
         results.append(result)
 

@@ -280,11 +280,13 @@ class TestRecordInsurancePremiumInsolvency:
             debit_account=AccountName.CASH,
             credit_account=AccountName.RETAINED_EARNINGS,
             amount=to_decimal(100),
-            transaction_type=manufacturer.ledger.entries[0].transaction_type
-            if manufacturer.ledger.entries
-            else __import__(
-                "ergodic_insurance.ledger", fromlist=["TransactionType"]
-            ).TransactionType.ADJUSTMENT,
+            transaction_type=(
+                manufacturer.ledger.entries[0].transaction_type
+                if manufacturer.ledger.entries
+                else __import__(
+                    "ergodic_insurance.ledger", fromlist=["TransactionType"]
+                ).TransactionType.ADJUSTMENT
+            ),
             description="Tiny cash",
         )
         # Try to pay a large premium

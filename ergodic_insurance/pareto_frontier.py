@@ -476,9 +476,9 @@ class ParetoFrontier:
 
                 if abs(obj1_diff) > 1e-10:
                     trade_off = obj2_diff / obj1_diff
-                    p1.trade_offs[
-                        f"{self.objectives[1].name}_per_{self.objectives[0].name}"
-                    ] = trade_off
+                    p1.trade_offs[f"{self.objectives[1].name}_per_{self.objectives[0].name}"] = (
+                        trade_off
+                    )
 
     def calculate_hypervolume(self, reference_point: Optional[Dict[str, float]] = None) -> float:
         """Calculate hypervolume indicator for the Pareto frontier.

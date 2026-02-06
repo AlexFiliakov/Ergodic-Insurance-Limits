@@ -754,9 +754,11 @@ class StrategyBacktester:
         # Extract ruin probability for the final year from the dict
         metrics.ruin_probability = simulation_results.ruin_probability.get(
             str(n_years),
-            list(simulation_results.ruin_probability.values())[-1]
-            if simulation_results.ruin_probability
-            else 0.0,
+            (
+                list(simulation_results.ruin_probability.values())[-1]
+                if simulation_results.ruin_probability
+                else 0.0
+            ),
         )
 
         return metrics

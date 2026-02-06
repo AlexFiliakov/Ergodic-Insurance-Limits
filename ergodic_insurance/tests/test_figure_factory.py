@@ -1,4 +1,5 @@
 """Comprehensive tests for the figure_factory module with 90%+ coverage."""
+
 # mypy: ignore-errors
 
 from pathlib import Path

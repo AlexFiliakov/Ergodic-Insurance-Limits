@@ -329,9 +329,9 @@ class PenaltyMethodOptimizer:
 
         # Initialize penalties
         for i in range(len(self.constraints)):
-            self.penalty_params.current_penalties[
-                f"constraint_{i}"
-            ] = self.penalty_params.initial_penalty
+            self.penalty_params.current_penalties[f"constraint_{i}"] = (
+                self.penalty_params.initial_penalty
+            )
 
         for outer_iter in range(max_outer_iter):
             # Solve penalized problem

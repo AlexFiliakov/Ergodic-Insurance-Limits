@@ -1481,29 +1481,29 @@ class ErgodicAnalyzer:
         # Compile results
         results = {
             "insured": {
-                "time_average_mean": np.mean(insured_time_avg_valid)
-                if insured_time_avg_valid
-                else -np.inf,
-                "time_average_median": np.median(insured_time_avg_valid)
-                if insured_time_avg_valid
-                else -np.inf,
-                "time_average_std": np.std(insured_time_avg_valid)
-                if insured_time_avg_valid
-                else 0.0,
+                "time_average_mean": (
+                    np.mean(insured_time_avg_valid) if insured_time_avg_valid else -np.inf
+                ),
+                "time_average_median": (
+                    np.median(insured_time_avg_valid) if insured_time_avg_valid else -np.inf
+                ),
+                "time_average_std": (
+                    np.std(insured_time_avg_valid) if insured_time_avg_valid else 0.0
+                ),
                 "ensemble_average": insured_ensemble["mean"],
                 "survival_rate": insured_ensemble["survival_rate"],
                 "n_survived": insured_ensemble["n_survived"],
             },
             "uninsured": {
-                "time_average_mean": np.mean(uninsured_time_avg_valid)
-                if uninsured_time_avg_valid
-                else -np.inf,
-                "time_average_median": np.median(uninsured_time_avg_valid)
-                if uninsured_time_avg_valid
-                else -np.inf,
-                "time_average_std": np.std(uninsured_time_avg_valid)
-                if uninsured_time_avg_valid
-                else 0.0,
+                "time_average_mean": (
+                    np.mean(uninsured_time_avg_valid) if uninsured_time_avg_valid else -np.inf
+                ),
+                "time_average_median": (
+                    np.median(uninsured_time_avg_valid) if uninsured_time_avg_valid else -np.inf
+                ),
+                "time_average_std": (
+                    np.std(uninsured_time_avg_valid) if uninsured_time_avg_valid else 0.0
+                ),
                 "ensemble_average": uninsured_ensemble["mean"],
                 "survival_rate": uninsured_ensemble["survival_rate"],
                 "n_survived": uninsured_ensemble["n_survived"],
@@ -2300,12 +2300,12 @@ class ErgodicAnalyzer:
                 roe=sim.roe[: year + 1] if sim.insolvency_year else sim.roe,
                 revenue=sim.revenue[: year + 1] if sim.insolvency_year else sim.revenue,
                 net_income=sim.net_income[: year + 1] if sim.insolvency_year else sim.net_income,
-                claim_counts=sim.claim_counts[: year + 1]
-                if sim.insolvency_year
-                else sim.claim_counts,
-                claim_amounts=sim.claim_amounts[: year + 1]
-                if sim.insolvency_year
-                else sim.claim_amounts,
+                claim_counts=(
+                    sim.claim_counts[: year + 1] if sim.insolvency_year else sim.claim_counts
+                ),
+                claim_amounts=(
+                    sim.claim_amounts[: year + 1] if sim.insolvency_year else sim.claim_amounts
+                ),
                 insolvency_year=sim.insolvency_year,
             )
             simulation_results.append(result)

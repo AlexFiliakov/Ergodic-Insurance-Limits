@@ -534,7 +534,7 @@ class TestReportValidator:
             sections=[
                 SectionConfig(
                     title="Empty Section",
-                    level=1
+                    level=1,
                     # No content, figures, or tables
                 )
             ],

@@ -410,9 +410,9 @@ class LossData:
             loss_amounts=recovered_amounts,
             loss_types=self.loss_types.copy() if self.loss_types else [],
             claim_ids=self.claim_ids.copy() if self.claim_ids else [],
-            development_factors=self.development_factors.copy()
-            if self.development_factors is not None
-            else None,
+            development_factors=(
+                self.development_factors.copy() if self.development_factors is not None else None
+            ),
             metadata=recovery_metadata,
         )
 
@@ -1086,9 +1086,9 @@ class ManufacturingLossGenerator:
             ),
             "max_loss": max((loss.amount for loss in all_losses), default=0),
             "annual_frequency": len(all_losses) / duration if duration > 0 else 0,
-            "annual_expected_loss": sum(loss.amount for loss in all_losses) / duration
-            if duration > 0
-            else 0,
+            "annual_expected_loss": (
+                sum(loss.amount for loss in all_losses) / duration if duration > 0 else 0
+            ),
         }
 
         return all_losses, statistics
@@ -1130,9 +1130,11 @@ class ManufacturingLossGenerator:
             validation[loss_type] = {
                 "mean": np.mean(amounts_array),
                 "std": np.std(amounts_array),
-                "cv": np.std(amounts_array) / np.mean(amounts_array)
-                if np.mean(amounts_array) > 0
-                else 0,
+                "cv": (
+                    np.std(amounts_array) / np.mean(amounts_array)
+                    if np.mean(amounts_array) > 0
+                    else 0
+                ),
                 "min": np.min(amounts_array),
                 "p25": np.percentile(amounts_array, 25),
                 "median": np.median(amounts_array),
@@ -1179,9 +1181,11 @@ def perform_statistical_tests(
                 "statistic": ks_stat,
                 "p_value": ks_pvalue,
                 "reject_null": ks_pvalue < significance_level,
-                "interpretation": "Data fits lognormal"
-                if ks_pvalue >= significance_level
-                else "Data does not fit lognormal",
+                "interpretation": (
+                    "Data fits lognormal"
+                    if ks_pvalue >= significance_level
+                    else "Data does not fit lognormal"
+                ),
             }
 
         # Anderson-Darling test for lognormality
@@ -1221,9 +1225,11 @@ def perform_statistical_tests(
                 "statistic": ks_stat,
                 "p_value": ks_pvalue,
                 "reject_null": ks_pvalue < significance_level,
-                "interpretation": "Data fits Pareto"
-                if ks_pvalue >= significance_level
-                else "Data does not fit Pareto",
+                "interpretation": (
+                    "Data fits Pareto"
+                    if ks_pvalue >= significance_level
+                    else "Data does not fit Pareto"
+                ),
             }
 
     # Shapiro-Wilk test for normality of log-transformed data (if applicable)
@@ -1235,9 +1241,11 @@ def perform_statistical_tests(
                 "statistic": shapiro_stat,
                 "p_value": shapiro_pvalue,
                 "reject_null": shapiro_pvalue < significance_level,
-                "interpretation": "Log-transformed data is normal"
-                if shapiro_pvalue >= significance_level
-                else "Log-transformed data is not normal",
+                "interpretation": (
+                    "Log-transformed data is normal"
+                    if shapiro_pvalue >= significance_level
+                    else "Log-transformed data is not normal"
+                ),
             }
 
     return results

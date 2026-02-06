@@ -379,9 +379,9 @@ class TestParallelRuinProbability:
             call_count[0] += 1
             return {
                 "equity": 3_000_000,
-                "operating_income": 100_000
-                if call_count[0] == 1
-                else 200_000,  # Low income first year
+                "operating_income": (
+                    100_000 if call_count[0] == 1 else 200_000
+                ),  # Low income first year
             }
 
         with patch.object(manufacturer, "step", side_effect=mock_step):

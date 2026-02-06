@@ -671,9 +671,11 @@ class ExcelReporter:
             ("Average Revenue", df["Revenue"].mean()),
             (
                 "Revenue CAGR",
-                ((df["Revenue"].iloc[-1] / df["Revenue"].iloc[0]) ** (1 / len(df)) - 1) * 100
-                if len(df) > 1
-                else 0,
+                (
+                    ((df["Revenue"].iloc[-1] / df["Revenue"].iloc[0]) ** (1 / len(df)) - 1) * 100
+                    if len(df) > 1
+                    else 0
+                ),
             ),
             ("Average ROE %", df["ROE %"].mean()),
             ("Average ROA %", df["ROA %"].mean()),

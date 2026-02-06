@@ -241,8 +241,10 @@ class WalkForwardValidator:
                 ManufacturerConfig,
                 OutputConfig,
             )
+            from ergodic_insurance.config import (
+                WorkingCapitalConfig,
+            )
             from ergodic_insurance.config import SimulationConfig as SimConfig
-            from ergodic_insurance.config import WorkingCapitalConfig
 
             config = Config(
                 manufacturer=ManufacturerConfig(
@@ -957,9 +959,11 @@ class WalkForwardValidator:
             "best_strategy": validation_result.best_strategy,
             "overfitting_analysis": validation_result.overfitting_analysis,
             "consistency_scores": validation_result.consistency_scores,
-            "strategy_rankings": validation_result.strategy_rankings.to_dict()
-            if not validation_result.strategy_rankings.empty
-            else {},
+            "strategy_rankings": (
+                validation_result.strategy_rankings.to_dict()
+                if not validation_result.strategy_rankings.empty
+                else {}
+            ),
             "windows": [],
         }
 
@@ -978,12 +982,12 @@ class WalkForwardValidator:
             performances_dict: Dict[str, Any] = {}
             for strategy_name, perf in window_result.strategy_performances.items():
                 performances_dict[strategy_name] = {
-                    "in_sample": perf.in_sample_metrics.to_dict()
-                    if perf.in_sample_metrics
-                    else None,
-                    "out_sample": perf.out_sample_metrics.to_dict()
-                    if perf.out_sample_metrics
-                    else None,
+                    "in_sample": (
+                        perf.in_sample_metrics.to_dict() if perf.in_sample_metrics else None
+                    ),
+                    "out_sample": (
+                        perf.out_sample_metrics.to_dict() if perf.out_sample_metrics else None
+                    ),
                     "overfitting_score": perf.overfitting_score,
                 }
 

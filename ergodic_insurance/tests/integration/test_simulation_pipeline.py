@@ -538,9 +538,7 @@ class TestSimulationPipeline:
             scenario_seed = (
                 42
                 if scenario["name"] == "baseline"
-                else 43
-                if scenario["name"] == "high_volatility"
-                else 44
+                else 43 if scenario["name"] == "high_volatility" else 44
             )
             engine = MonteCarloEngine(
                 loss_generator=manufacturing_loss_generator,

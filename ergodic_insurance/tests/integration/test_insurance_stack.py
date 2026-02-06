@@ -3,6 +3,7 @@
 This module tests the integration between insurance layers,
 insurance programs, and manufacturer components.
 """
+
 # mypy: ignore-errors
 
 import numpy as np

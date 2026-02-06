@@ -264,7 +264,7 @@ class TestConfigurationMigration:
         old_config = {
             "limit": 5_000_000.0,
             "attachment_point": 100_000.0,
-            "base_premium_rate": 0.02
+            "base_premium_rate": 0.02,
             # No limit_type specified
         }
 
@@ -308,7 +308,7 @@ class TestConfigurationMigration:
             "attachment_point": 100_000.0,
             "base_premium_rate": 0.02,
             "limit_type": "hybrid",
-            "per_occurrence_limit": 1_000_000.0
+            "per_occurrence_limit": 1_000_000.0,
             # Missing aggregate_limit
         }
 

@@ -85,9 +85,10 @@ class TestSerialCheckpoint:
         # Create scenarios that exceed the checkpoint interval
         scenarios = [ScenarioConfig(f"id{i}", f"Scenario {i}") for i in range(5)]
 
-        with patch.object(processor, "_process_scenario") as mock_process, patch.object(
-            processor, "_save_checkpoint"
-        ) as mock_save:
+        with (
+            patch.object(processor, "_process_scenario") as mock_process,
+            patch.object(processor, "_save_checkpoint") as mock_save,
+        ):
             mock_process.return_value = BatchResult("idx", "name", ProcessingStatus.COMPLETED)
             # checkpoint_interval=2: checkpoint at indices 1, 3
             results = processor._process_serial(scenarios, checkpoint_interval=2, max_failures=None)
@@ -120,11 +121,12 @@ class TestParallelProcessingCoverage:
             ScenarioConfig("id2", "Scenario 2"),
         ]
 
-        with patch.object(processor, "_process_scenario") as mock_process, patch(
-            "ergodic_insurance.batch_processor.ProcessPoolExecutor"
-        ) as MockPool, patch("ergodic_insurance.batch_processor.tqdm") as mock_tqdm, patch(
-            "ergodic_insurance.batch_processor.as_completed"
-        ) as mock_completed:
+        with (
+            patch.object(processor, "_process_scenario") as mock_process,
+            patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool,
+            patch("ergodic_insurance.batch_processor.tqdm") as mock_tqdm,
+            patch("ergodic_insurance.batch_processor.as_completed") as mock_completed,
+        ):
             # Set up the mock pool and futures
             mock_executor = MagicMock()
             MockPool.return_value.__enter__ = Mock(return_value=mock_executor)
@@ -165,9 +167,10 @@ class TestParallelProcessingCoverage:
 
         scenarios = [ScenarioConfig(f"id{i}", f"Scenario {i}") for i in range(5)]
 
-        with patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool, patch(
-            "ergodic_insurance.batch_processor.as_completed"
-        ) as mock_completed:
+        with (
+            patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool,
+            patch("ergodic_insurance.batch_processor.as_completed") as mock_completed,
+        ):
             mock_executor = MagicMock()
             MockPool.return_value.__enter__ = Mock(return_value=mock_executor)
             MockPool.return_value.__exit__ = Mock(return_value=False)
@@ -205,9 +208,10 @@ class TestParallelProcessingCoverage:
 
         scenarios = [ScenarioConfig("id1", "Scenario 1")]
 
-        with patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool, patch(
-            "ergodic_insurance.batch_processor.as_completed"
-        ) as mock_completed:
+        with (
+            patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool,
+            patch("ergodic_insurance.batch_processor.as_completed") as mock_completed,
+        ):
             mock_executor = MagicMock()
             MockPool.return_value.__enter__ = Mock(return_value=mock_executor)
             MockPool.return_value.__exit__ = Mock(return_value=False)
@@ -241,9 +245,10 @@ class TestParallelProcessingCoverage:
 
         scenarios = [ScenarioConfig("fail_id", "Fail Scenario")]
 
-        with patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool, patch(
-            "ergodic_insurance.batch_processor.as_completed"
-        ) as mock_completed:
+        with (
+            patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool,
+            patch("ergodic_insurance.batch_processor.as_completed") as mock_completed,
+        ):
             mock_executor = MagicMock()
             MockPool.return_value.__enter__ = Mock(return_value=mock_executor)
             MockPool.return_value.__exit__ = Mock(return_value=False)
@@ -274,9 +279,11 @@ class TestParallelProcessingCoverage:
 
         scenarios = [ScenarioConfig(f"id{i}", f"Scenario {i}") for i in range(4)]
 
-        with patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool, patch(
-            "ergodic_insurance.batch_processor.as_completed"
-        ) as mock_completed, patch.object(processor, "_save_checkpoint") as mock_save:
+        with (
+            patch("ergodic_insurance.batch_processor.ProcessPoolExecutor") as MockPool,
+            patch("ergodic_insurance.batch_processor.as_completed") as mock_completed,
+            patch.object(processor, "_save_checkpoint") as mock_save,
+        ):
             mock_executor = MagicMock()
             MockPool.return_value.__enter__ = Mock(return_value=mock_executor)
             MockPool.return_value.__exit__ = Mock(return_value=False)

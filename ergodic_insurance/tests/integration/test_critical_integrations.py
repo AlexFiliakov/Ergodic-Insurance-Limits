@@ -8,6 +8,7 @@ This module covers:
 - Validation framework
 - End-to-end scenarios
 """
+
 # mypy: ignore-errors
 
 import numpy as np
@@ -573,9 +574,9 @@ class TestValidationFramework:
             # Return prediction and any metrics
             return {
                 "prediction": next_value,
-                "actual": test_window[0]
-                if test_window is not None and len(test_window) > 0
-                else None,
+                "actual": (
+                    test_window[0] if test_window is not None and len(test_window) > 0 else None
+                ),
             }
 
         # Test the walk-forward validation by manually running windows

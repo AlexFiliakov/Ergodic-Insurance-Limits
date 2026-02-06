@@ -252,9 +252,9 @@ def compare_scenarios(
                 "alternative_mean": np.mean(alt_values),
                 "baseline_std": np.std(base_values),
                 "alternative_std": np.std(alt_values),
-                "volatility_ratio": np.std(alt_values) / np.std(base_values)
-                if np.std(base_values) > 0
-                else np.inf,
+                "volatility_ratio": (
+                    np.std(alt_values) / np.std(base_values) if np.std(base_values) > 0 else np.inf
+                ),
             }
 
     return comparisons

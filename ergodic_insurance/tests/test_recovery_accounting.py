@@ -9,6 +9,8 @@ from ergodic_insurance.manufacturer import WidgetManufacturer
 class TestRecoveryAccounting:
     """Test insurance claim recovery accounting functionality."""
 
+    manufacturer: WidgetManufacturer
+
     def setup_method(self):
         """Set up test fixtures."""
         config = ManufacturerConfig(
@@ -18,9 +20,7 @@ class TestRecoveryAccounting:
             tax_rate=0.25,
             retention_ratio=0.7,
         )
-        self.manufacturer = WidgetManufacturer(
-            config
-        )  # pylint: disable=attribute-defined-outside-init
+        self.manufacturer = WidgetManufacturer(config)
 
     def test_insurance_claim_creates_receivable(self):
         """Test that insurance claim coverage creates a receivable."""

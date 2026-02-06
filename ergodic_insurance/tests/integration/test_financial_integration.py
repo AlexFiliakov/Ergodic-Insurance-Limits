@@ -3,6 +3,7 @@
 This module tests the integration between manufacturer, claim generator,
 and claim development components to ensure financial consistency.
 """
+
 # mypy: ignore-errors
 
 import numpy as np

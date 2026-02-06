@@ -1,4 +1,5 @@
 """Comprehensive tests for the performance_optimizer module."""
+
 # mypy: ignore-errors
 
 import cProfile

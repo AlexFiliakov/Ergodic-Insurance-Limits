@@ -10,6 +10,7 @@ To exclude slow tests during regular test runs:
 This module also tests the new performance optimization, accuracy validation,
 and benchmarking modules to ensure they meet the 100K simulations target.
 """
+
 # pylint: disable=duplicate-code
 # Test setup patterns are intentionally similar across test files for clarity
 

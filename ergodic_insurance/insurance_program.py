@@ -77,9 +77,9 @@ class EnhancedInsuranceLayer:
     participation_rate: float = 1.0  # % of loss covered by this layer (default 100%)
     limit_type: str = "per-occurrence"  # Type of limit: "per-occurrence", "aggregate", or "hybrid"
     per_occurrence_limit: Optional[float] = None  # Per-occurrence limit (for hybrid type)
-    premium_rate_exposure: Optional[
-        "ExposureBase"
-    ] = None  # Exposure object for dynamic premium scaling
+    premium_rate_exposure: Optional["ExposureBase"] = (
+        None  # Exposure object for dynamic premium scaling
+    )
 
     def __post_init__(self):
         """Validate layer parameters."""
@@ -1281,9 +1281,11 @@ class InsuranceProgram:
                         "attachment_point": layer.attachment_point,
                         "limit": layer.limit,
                         "base_premium_rate": layer.base_premium_rate,
-                        "market_premium": pricing.market_premium
-                        if pricing
-                        else layer.limit * layer.base_premium_rate,
+                        "market_premium": (
+                            pricing.market_premium
+                            if pricing
+                            else layer.limit * layer.base_premium_rate
+                        ),
                         "pure_premium": pricing.pure_premium if pricing else None,
                         "expected_frequency": pricing.expected_frequency if pricing else None,
                         "expected_severity": pricing.expected_severity if pricing else None,
