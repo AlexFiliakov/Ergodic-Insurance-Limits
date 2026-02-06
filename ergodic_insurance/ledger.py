@@ -781,6 +781,7 @@ class Ledger:
             - cash_from_customers: Collections on AR + cash sales
             - cash_to_suppliers: Inventory + expense payments
             - cash_for_insurance: Premium payments
+            - cash_for_claim_losses: Claim-related asset reduction payments
             - cash_for_taxes: Tax payments
             - cash_for_wages: Wage payments
             - cash_for_interest: Interest payments
@@ -807,6 +808,10 @@ class Ledger:
 
         flows["cash_from_insurance"] = self.sum_by_transaction_type(
             TransactionType.INSURANCE_CLAIM, period, "cash", EntryType.DEBIT
+        )
+
+        flows["cash_for_claim_losses"] = self.sum_by_transaction_type(
+            TransactionType.INSURANCE_CLAIM, period, "cash", EntryType.CREDIT
         )
 
         # Cash payments (credits to cash)
@@ -851,11 +856,13 @@ class Ledger:
         )
 
         # Calculate totals (Issue #319: include wages and interest in operating)
+        # Issue #379: include claim loss payments in operating outflows
         flows["net_operating"] = (
             flows["cash_from_customers"]
             + flows["cash_from_insurance"]
             - flows["cash_to_suppliers"]
             - flows["cash_for_insurance"]
+            - flows["cash_for_claim_losses"]
             - flows["cash_for_taxes"]
             - flows["cash_for_wages"]
             - flows["cash_for_interest"]
