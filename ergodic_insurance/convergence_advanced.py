@@ -484,12 +484,15 @@ class AdvancedConvergenceDiagnostics:
         """Find initial monotone sequence in ACF (Geyer, 1992)."""
         n = len(acf)
 
-        # Look at sums of consecutive pairs
+        # Look at sums of non-overlapping consecutive pairs
+        prev_pair_sum = None
         for i in range(1, n - 1, 2):
-            if acf[i] + acf[i + 1] < 0:
+            pair_sum = acf[i] + acf[i + 1]
+            if pair_sum < 0:
                 return i - 1
-            if i > 1 and acf[i - 1] + acf[i] < acf[i] + acf[i + 1]:
+            if prev_pair_sum is not None and prev_pair_sum < pair_sum:
                 return i - 1
+            prev_pair_sum = pair_sum
 
         return n - 1
 
@@ -509,12 +512,12 @@ class AdvancedConvergenceDiagnostics:
             if i + 1 < cutoff:
                 pair_sum = acf[i] + acf[i + 1]
                 if pair_sum > 0:
-                    tau += pair_sum
+                    tau += 2 * pair_sum
                 else:
                     break
             else:
                 if acf[i] > 0:
-                    tau += acf[i]
+                    tau += 2 * acf[i]
 
         return tau
 

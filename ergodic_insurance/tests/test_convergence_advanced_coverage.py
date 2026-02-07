@@ -171,7 +171,8 @@ class TestCalculateIntegratedTimeBreak:
         acf = np.array([1.0, 0.5, 0.3, -0.2, -0.4, -0.5, -0.6])
         tau = diagnostics._calculate_integrated_time(acf, cutoff=7)
         # Should include pairs (0.5, 0.3) but stop at (-0.2, -0.4)
-        assert tau == pytest.approx(1.0 + 0.5 + 0.3, abs=0.01)
+        # tau = 1 + 2*(0.5+0.3) = 2.6
+        assert tau == pytest.approx(1.0 + 2 * (0.5 + 0.3), abs=0.01)
 
 
 # ---------------------------------------------------------------------------
@@ -348,5 +349,5 @@ class TestCalculateIntegratedTimeOddCutoff:
         # so we enter the else branch and add acf[3] alone
         acf = np.array([1.0, 0.8, 0.6, 0.4, 0.2])
         tau = diagnostics._calculate_integrated_time(acf, cutoff=4)
-        # tau = 1.0 (lag0) + 0.8 + 0.6 (pair at i=1) + 0.4 (single at i=3)
-        assert tau == pytest.approx(1.0 + 0.8 + 0.6 + 0.4, abs=0.01)
+        # tau = 1.0 (lag0) + 2*(0.8+0.6) (pair at i=1) + 2*0.4 (single at i=3)
+        assert tau == pytest.approx(1.0 + 2 * (0.8 + 0.6) + 2 * 0.4, abs=0.01)
