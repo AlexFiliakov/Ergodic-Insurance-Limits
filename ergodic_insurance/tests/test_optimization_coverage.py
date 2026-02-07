@@ -57,6 +57,23 @@ class TestConvergenceMonitorGradient:
         # Should NOT converge from gradient (0 < gradient_norm requires > 0)
         assert monitor.converged is False
 
+    def test_gradient_convergence_after_multiple_iterations(self):
+        """Issue #351: Gradient convergence must be detectable after 2+ iterations.
+
+        The old code used an elif chain that made the gradient-norm branch
+        unreachable once objective_history had >= 2 entries. The fix nests
+        the gradient check inside the objective-change branch so it fires
+        when objective change is large but gradient norm is small.
+        """
+        monitor = ConvergenceMonitor(tolerance=1e-4, max_iterations=100)
+        # First iteration: large objective, large gradient
+        monitor.update(objective=10.0, constraint_violation=0.0, gradient_norm=1.0, step_size=0.1)
+        assert not monitor.converged
+        # Second iteration: objective changed significantly but gradient is tiny
+        monitor.update(objective=5.0, constraint_violation=0.0, gradient_norm=1e-5, step_size=0.1)
+        assert monitor.converged is True
+        assert "Gradient converged" in monitor.convergence_message  # type: ignore[unreachable]
+
     def test_objective_convergence_takes_priority(self):
         """Objective change < tolerance triggers before gradient check."""
         monitor = ConvergenceMonitor(tolerance=1e-4, max_iterations=100)
@@ -85,12 +102,11 @@ class TestTrustRegionUnconstrainedWithGradient:
         )
         assert result.fun < 1.0
 
-    def test_unconstrained_with_gradient_only_trust_exact(self):
-        """Line 228: trust-exact path (gradient only, no hessian).
+    def test_unconstrained_with_gradient_only_falls_back_to_bfgs(self):
+        """When hessian_fn is None, falls back to BFGS instead of crashing.
 
-        This exercises the else branch at line 228 where hessian_fn is None,
-        causing scipy to select trust-exact which requires a hessian.
-        scipy raises an error since trust-exact needs a Hessian.
+        Issue #351: The old code selected trust-exact (which requires a Hessian)
+        when hessian_fn was absent. The fix falls back to BFGS.
         """
         optimizer = TrustRegionOptimizer(
             objective_fn=simple_quadratic,
@@ -99,14 +115,13 @@ class TestTrustRegionUnconstrainedWithGradient:
             constraints=[],
             bounds=None,
         )
-        # trust-exact requires a Hessian; this exercises the code path (line 228)
-        # scipy will raise an error (ValueError or TypeError depending on version)
-        with pytest.raises((ValueError, TypeError)):
-            optimizer.optimize(
-                x0=np.array([5.0, 3.0]),
-                max_iter=100,
-                tol=1e-6,
-            )
+        result = optimizer.optimize(
+            x0=np.array([5.0, 3.0]),
+            max_iter=100,
+            tol=1e-6,
+        )
+        assert result.success
+        assert result.fun < 1e-6
 
 
 class TestConvertConstraintsEquality:
