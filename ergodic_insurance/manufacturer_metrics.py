@@ -110,6 +110,13 @@ class MetricsCalculationMixin:
             self.period_insurance_premiums + self.period_insurance_losses
         )
 
+        # Reserve development metrics (Issue #470)
+        adverse_dev: Decimal = getattr(self, "period_adverse_development", ZERO)
+        favorable_dev: Decimal = getattr(self, "period_favorable_development", ZERO)
+        metrics["adverse_development"] = adverse_dev
+        metrics["favorable_development"] = favorable_dev
+        metrics["net_reserve_development"] = adverse_dev - favorable_dev
+
         # Dividends and depreciation
         metrics["dividends_paid"] = self._last_dividends_paid
         metrics["depreciation_expense"] = annual_depreciation

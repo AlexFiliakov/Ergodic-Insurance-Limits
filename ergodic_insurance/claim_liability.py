@@ -6,7 +6,8 @@ as part of the decomposition refactor (Issue #305).
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Dict, List, Union
+import random
+from typing import Any, Dict, List, Optional, Union
 
 try:
     from ergodic_insurance.claim_development import ClaimDevelopment
@@ -103,6 +104,11 @@ class ClaimLiability:
         default_factory=ClaimDevelopment.create_long_tail_10yr
     )
 
+    # Reserve re-estimation fields (Issue #470, ASC 944-40-25)
+    true_ultimate: Optional[Decimal] = None
+    _total_paid: Decimal = field(default=ZERO, repr=False)
+    _noise_std: float = field(default=0.0, repr=False)
+
     @property
     def payment_schedule(self) -> List[float]:
         """Return development factors for backward compatibility.
@@ -153,9 +159,13 @@ class ClaimLiability:
             return ZERO
         # Delegate to ClaimDevelopment strategy
         # calculate_payments uses (claim_amount, accident_year, payment_year)
+        # Use true_ultimate for actual cash flows when reserve development is active
+        claim_amount = float(
+            self.true_ultimate if self.true_ultimate is not None else self.original_amount
+        )
         payment_year = self.year_incurred + years_since_incurred
         payment = self.development_strategy.calculate_payments(
-            claim_amount=float(self.original_amount),  # Boundary: float for ClaimDevelopment
+            claim_amount=claim_amount,
             accident_year=self.year_incurred,
             payment_year=payment_year,
         )
@@ -200,7 +210,48 @@ class ClaimLiability:
         amount_decimal = to_decimal(amount)
         payment = min(amount_decimal, self.remaining_amount)
         self.remaining_amount -= payment
+        self._total_paid += payment
         return payment
+
+    def re_estimate(self, current_year: int, rng: random.Random) -> Decimal:
+        """Re-estimate remaining reserve based on claim maturity (ASC 944-40-25).
+
+        As the claim matures, the estimate converges toward the true residual.
+        Noise shrinks proportionally to maturity (1 - maturity).
+
+        Args:
+            current_year: Current simulation year.
+            rng: Random number generator for reproducible noise.
+
+        Returns:
+            Decimal: Change in remaining amount (positive=adverse, negative=favorable).
+        """
+        if self.true_ultimate is None or self.remaining_amount <= ZERO:
+            return ZERO
+
+        # Calculate maturity as fraction of development pattern length
+        years_elapsed = current_year - self.year_incurred
+        pattern_length = len(self.development_strategy.development_factors)
+        maturity = min(max(years_elapsed / pattern_length, 0.0), 1.0)
+
+        # True residual: what's actually left to pay
+        true_residual = max(self.true_ultimate - self._total_paid, ZERO)
+
+        # Noise shrinks to zero at full maturity
+        noise_std = (1.0 - maturity) * self._noise_std
+        if noise_std <= 0.0:
+            # At maturity, snap to true residual
+            old_remaining = self.remaining_amount
+            self.remaining_amount = true_residual
+            return self.remaining_amount - old_remaining
+
+        # Apply noise around true residual
+        noise_factor = 1.0 + rng.gauss(0.0, noise_std)
+        new_remaining = to_decimal(max(float(true_residual) * noise_factor, 0.0))
+
+        old_remaining = self.remaining_amount
+        self.remaining_amount = new_remaining
+        return new_remaining - old_remaining
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> "ClaimLiability":
         """Create a deep copy of this claim liability.
@@ -220,10 +271,14 @@ class ClaimLiability:
             tail_factor=self.development_strategy.tail_factor,
         )
 
-        return ClaimLiability(
+        result = ClaimLiability(
             original_amount=copy.deepcopy(self.original_amount, memo),
             remaining_amount=copy.deepcopy(self.remaining_amount, memo),
             year_incurred=self.year_incurred,
             is_insured=self.is_insured,
             development_strategy=copied_strategy,
+            true_ultimate=copy.deepcopy(self.true_ultimate, memo),
+            _noise_std=self._noise_std,
         )
+        result._total_paid = copy.deepcopy(self._total_paid, memo)
+        return result
