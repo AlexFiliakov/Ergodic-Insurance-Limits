@@ -2,9 +2,11 @@
 
 This module contains the TaxHandler dataclass, extracted from manufacturer.py
 as part of the decomposition refactor (Issue #305).
+
+Issue #365: Added NOL carryforward tracking per ASC 740 / IRC §172.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
 from typing import Union
@@ -44,7 +46,8 @@ class TaxHandler:
        periods) but NOT the tax we are about to calculate.
 
     2. **Calculate Tax**: Based on income_before_tax and tax_rate, we calculate
-       the theoretical tax liability.
+       the theoretical tax liability, applying any available NOL carryforward
+       per IRC §172 (Issue #365).
 
     3. **Apply Limited Liability Cap**: If equity is insufficient to support the
        full tax liability, we cap the accrual at available equity. This protects
@@ -68,16 +71,26 @@ class TaxHandler:
     based on their financial position, then record it. The liability affects
     future equity, but doesn't retroactively change the calculation.
 
+    NOL Carryforward (Issue #365):
+    ------------------------------
+    Per ASC 740-10-25-3 and IRC §172, net operating losses create deferred tax
+    assets that offset future tax liabilities. Post-TCJA rules apply:
+    - NOLs carry forward indefinitely (no carryback)
+    - NOL deduction limited to 80% of taxable income per IRC §172(a)(2)
+    - DTA = cumulative unused NOL x enacted tax rate
+
     Integration Points:
     -------------------
-    - `calculate_net_income()`: Calls calculate_and_accrue_tax() to handle taxes
-    - `process_accrued_payments()`: Pays previously accrued taxes
-    - `AccrualManager`: Stores tax accruals as liabilities
-    - `total_liabilities`: Includes accrued taxes from AccrualManager
+    - ``calculate_net_income()``: Calls calculate_and_accrue_tax() to handle taxes
+    - ``process_accrued_payments()``: Pays previously accrued taxes
+    - ``AccrualManager``: Stores tax accruals as liabilities
+    - ``total_liabilities``: Includes accrued taxes from AccrualManager
 
     Attributes:
         tax_rate: Corporate tax rate (0.0 to 1.0)
         accrual_manager: Reference to the AccrualManager for recording accruals
+        nol_carryforward: Cumulative unused NOL per IRC §172
+        nol_limitation_pct: 80% limitation per IRC §172(a)(2), post-TCJA
 
     Example:
         Within WidgetManufacturer.calculate_net_income()::
@@ -102,21 +115,55 @@ class TaxHandler:
 
     tax_rate: float
     accrual_manager: "AccrualManager"
+    nol_carryforward: Decimal = field(default_factory=lambda: Decimal("0"))
+    nol_limitation_pct: float = 0.80
 
-    def calculate_tax_liability(self, income_before_tax: Union[Decimal, float]) -> Decimal:
-        """Calculate theoretical tax liability from pre-tax income.
+    @property
+    def deferred_tax_asset(self) -> Decimal:
+        """Deferred tax asset from NOL carryforward per ASC 740-10-25-3.
 
-        This is a pure calculation with no side effects. Taxes are only
-        applied to positive income; losses generate no tax benefit.
+        DTA = cumulative unused NOL x enacted tax rate.
+        """
+        return self.nol_carryforward * to_decimal(self.tax_rate)
+
+    def calculate_tax_liability(
+        self, income_before_tax: Union[Decimal, float]
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate tax liability with NOL carryforward per IRC §172.
+
+        For negative income: accumulates the loss into nol_carryforward (no tax due).
+        For positive income: applies available NOL carryforward subject to the
+        80% limitation per IRC §172(a)(2) before computing tax.
 
         Args:
-            income_before_tax: Pre-tax income in dollars
+            income_before_tax: Pre-tax income (may be negative).
 
         Returns:
-            Theoretical tax liability (>=0). Returns ZERO for negative income.
+            Tuple of (tax_liability, nol_utilized):
+            - tax_liability: Tax due after NOL offset (>= 0).
+            - nol_utilized: Amount of NOL consumed this period.
         """
         income = to_decimal(income_before_tax)
-        return max(ZERO, income * to_decimal(self.tax_rate))
+
+        if income <= ZERO:
+            # Loss year: accumulate NOL per IRC §172(b)(1)(A)(ii)
+            self.nol_carryforward += abs(income)
+            return ZERO, ZERO
+
+        if self.nol_carryforward <= ZERO:
+            # No NOL available — standard tax
+            return max(ZERO, income * to_decimal(self.tax_rate)), ZERO
+
+        # Apply 80% limitation per IRC §172(a)(2):
+        # NOL deduction limited to nol_limitation_pct of taxable income
+        max_nol_deduction = income * to_decimal(self.nol_limitation_pct)
+        nol_utilized = min(self.nol_carryforward, max_nol_deduction)
+
+        taxable_income = income - nol_utilized
+        self.nol_carryforward -= nol_utilized
+
+        tax = max(ZERO, taxable_income * to_decimal(self.tax_rate))
+        return tax, nol_utilized
 
     def apply_limited_liability_cap(
         self, tax_amount: Union[Decimal, float], current_equity: Union[Decimal, float]
@@ -200,11 +247,11 @@ class TaxHandler:
         time_resolution: str,
         current_year: int,
         current_month: int,
-    ) -> tuple[Decimal, bool]:
+    ) -> tuple[Decimal, bool, Decimal]:
         """Calculate tax and optionally accrue it - the main entry point.
 
         This method orchestrates the complete tax calculation flow:
-        1. Calculate theoretical tax
+        1. Calculate theoretical tax (with NOL offset per IRC §172)
         2. Apply limited liability cap based on current equity
         3. Record accrual if enabled and timing is appropriate
 
@@ -220,12 +267,13 @@ class TaxHandler:
             current_month: Current simulation month (0-11)
 
         Returns:
-            Tuple of (actual_tax_expense, was_capped):
+            Tuple of (actual_tax_expense, was_capped, nol_utilized):
             - actual_tax_expense: Tax expense for net income calculation
             - was_capped: True if limited liability cap was applied
+            - nol_utilized: Amount of NOL consumed this period
 
         Example:
-            actual_tax, capped = handler.calculate_and_accrue_tax(
+            actual_tax, capped, nol_used = handler.calculate_and_accrue_tax(
                 income_before_tax=1_000_000,
                 current_equity=5_000_000,
                 use_accrual=True,
@@ -234,11 +282,17 @@ class TaxHandler:
                 current_month=0
             )
         """
-        # Step 1: Calculate theoretical tax
-        theoretical_tax = self.calculate_tax_liability(income_before_tax)
+        # Step 1: Calculate theoretical tax (with NOL offset)
+        theoretical_tax, nol_utilized = self.calculate_tax_liability(income_before_tax)
+
+        if nol_utilized > ZERO:
+            logger.info(
+                f"NOL utilization: ${nol_utilized:,.2f} offset against income. "
+                f"Remaining NOL carryforward: ${self.nol_carryforward:,.2f}"
+            )
 
         if theoretical_tax <= ZERO:
-            return ZERO, False
+            return ZERO, False, nol_utilized
 
         # Step 2: Determine if this period should accrue taxes
         should_accrue = False
@@ -255,7 +309,7 @@ class TaxHandler:
 
         if not should_accrue:
             # No accrual needed - return full tax as expense
-            return theoretical_tax, False
+            return theoretical_tax, False, nol_utilized
 
         # Step 3: Apply limited liability cap
         # This is where we read current_equity to cap the accrual
@@ -276,4 +330,4 @@ class TaxHandler:
             description=description,
         )
 
-        return capped_tax, was_capped
+        return capped_tax, was_capped, nol_utilized

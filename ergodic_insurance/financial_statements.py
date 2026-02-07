@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import pandas as pd
 
 from .decimal_utils import ZERO, MetricsDict, is_zero, to_decimal
+from .ledger import AccountName
 
 if TYPE_CHECKING:
     from .ledger import Ledger
@@ -1531,10 +1532,23 @@ class FinancialStatementGenerator:
             # Calculate tax provision on positive income only
             tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 
+        # Deferred tax from DTA changes (Issue #365: NOL carryforward per ASC 740)
+        deferred_tax_expense = ZERO
+        if (
+            hasattr(self, "manufacturer")
+            and self.manufacturer is not None
+            and hasattr(self.manufacturer, "ledger")
+            and self.manufacturer.ledger is not None
+        ):
+            # Positive DTA change = tax benefit (negative deferred expense)
+            deferred_tax_expense = -self.manufacturer.ledger.get_period_change(
+                AccountName.DEFERRED_TAX_ASSET, year
+            )
+
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
-        data.append(("  Deferred Tax Expense", 0, "", ""))  # No deferred taxes per requirement
-        data.append(("  Total Tax Provision", tax_provision, "", "subtotal"))
+        data.append(("  Deferred Tax Expense", deferred_tax_expense, "", ""))
+        data.append(("  Total Tax Provision", tax_provision + deferred_tax_expense, "", "subtotal"))
         data.append(("", "", "", ""))
 
         # NET INCOME

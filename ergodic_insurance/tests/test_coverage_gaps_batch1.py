@@ -449,6 +449,7 @@ class TestMonteCarloWorkerRuinMarking:
             tax_rate=0.25,
             retention_ratio=0.9,
             check_intra_period_liquidity=False,
+            nol_carryforward_enabled=False,
         )
         manufacturer = WidgetManufacturer(mfg_config)
 

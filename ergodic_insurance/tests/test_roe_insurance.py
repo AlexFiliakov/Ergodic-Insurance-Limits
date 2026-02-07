@@ -27,6 +27,7 @@ class TestROEWithInsurance:
             base_operating_margin=0.12,
             tax_rate=0.25,
             retention_ratio=0.7,
+            nol_carryforward_enabled=False,
         )
 
     @pytest.fixture
@@ -132,7 +133,7 @@ class TestROEWithInsurance:
         )
         expected_roe = net_income / manufacturer.equity
 
-        assert metrics["roe"] == pytest.approx(expected_roe, rel=0.01)
+        assert float(metrics["roe"]) == pytest.approx(float(expected_roe), rel=0.01)
         assert metrics["insurance_premiums"] == premium
         assert metrics["insurance_losses"] == losses
         assert metrics["total_insurance_costs"] == total_costs
@@ -350,6 +351,7 @@ class TestROEEdgeCases:
             base_operating_margin=0.05,  # Low margin
             tax_rate=0.25,
             retention_ratio=0.7,
+            nol_carryforward_enabled=False,
         )
         # WorkingCapitalConfig is no longer used in WidgetManufacturer initialization
         return WidgetManufacturer(config)

@@ -217,6 +217,19 @@ class ManufacturerConfig(BaseModel):
         description="Core operating margin before insurance costs (EBIT before insurance / Revenue)",
     )
     tax_rate: float = Field(ge=0, le=1, description="Corporate tax rate")
+    nol_carryforward_enabled: bool = Field(
+        default=True,
+        description="Enable NOL carryforward tracking per IRC §172. "
+        "When False, losses generate no future tax benefit (legacy behavior).",
+    )
+    nol_limitation_pct: float = Field(
+        default=0.80,
+        ge=0.0,
+        le=1.0,
+        description="NOL deduction limitation as fraction of taxable income. "
+        "Set to 0.80 per IRC §172(a)(2) post-TCJA. "
+        "Set to 1.0 for pre-2018 NOLs or non-US jurisdictions.",
+    )
     retention_ratio: float = Field(ge=0, le=1, description="Portion of earnings retained")
     ppe_ratio: Optional[float] = Field(
         default=None,

@@ -68,7 +68,7 @@ class AccountName(Enum):
     Assets (debit normal balance):
         CASH, ACCOUNTS_RECEIVABLE, INVENTORY, PREPAID_INSURANCE,
         INSURANCE_RECEIVABLES, GROSS_PPE, ACCUMULATED_DEPRECIATION,
-        RESTRICTED_CASH, COLLATERAL
+        RESTRICTED_CASH, COLLATERAL, DEFERRED_TAX_ASSET
 
     Liabilities (credit normal balance):
         ACCOUNTS_PAYABLE, ACCRUED_EXPENSES, ACCRUED_WAGES, ACCRUED_TAXES,
@@ -113,6 +113,7 @@ class AccountName(Enum):
     ACCUMULATED_DEPRECIATION = "accumulated_depreciation"
     RESTRICTED_CASH = "restricted_cash"
     COLLATERAL = "collateral"  # Deprecated: tracked via RESTRICTED_CASH (Issue #302/#319)
+    DEFERRED_TAX_ASSET = "deferred_tax_asset"  # DTA from NOL carryforward per ASC 740
 
     # Liabilities (credit normal balance)
     ACCOUNTS_PAYABLE = "accounts_payable"
@@ -178,6 +179,7 @@ class TransactionType(Enum):
     INSURANCE_CLAIM = "insurance_claim"
     TAX_ACCRUAL = "tax_accrual"
     TAX_PAYMENT = "tax_payment"
+    DTA_ADJUSTMENT = "dta_adjustment"  # Deferred tax asset recognition/reversal
     DEPRECIATION = "depreciation"
     WORKING_CAPITAL = "working_capital"
 
@@ -292,6 +294,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.ACCUMULATED_DEPRECIATION: AccountType.ASSET,  # Contra-asset
     AccountName.RESTRICTED_CASH: AccountType.ASSET,
     AccountName.COLLATERAL: AccountType.ASSET,  # Deprecated: tracked via RESTRICTED_CASH (#302/#319)
+    AccountName.DEFERRED_TAX_ASSET: AccountType.ASSET,
     # Liabilities (credit normal balance)
     AccountName.ACCOUNTS_PAYABLE: AccountType.LIABILITY,
     AccountName.ACCRUED_EXPENSES: AccountType.LIABILITY,
