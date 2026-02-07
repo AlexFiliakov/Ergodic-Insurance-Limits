@@ -411,7 +411,7 @@ class TestBusinessOptimizer:
         assert objectives[1].weight == 0.3
         assert objectives[2].weight == 0.5
 
-        # Test with non-normalized weights
+        # Test with non-normalized weights — caller's objects must NOT be mutated
         objectives2 = [
             BusinessObjective(name="ROE", weight=0.4),
             BusinessObjective(name="risk", weight=0.6),
@@ -422,10 +422,10 @@ class TestBusinessOptimizer:
             objectives=objectives2, constraints=constraints, time_horizon=1
         )
 
-        # Check normalization (0.4+0.6+1.0=2.0, so weights should be 0.2, 0.3, 0.5)
-        assert abs(objectives2[0].weight - 0.2) < 0.001
-        assert abs(objectives2[1].weight - 0.3) < 0.001
-        assert abs(objectives2[2].weight - 0.5) < 0.001
+        # Weights on the caller's objects must remain unchanged (fix for #352)
+        assert objectives2[0].weight == 0.4
+        assert objectives2[1].weight == 0.6
+        assert objectives2[2].weight == 1.0
 
     def test_sensitivity_analysis(self, optimizer):
         """Test sensitivity analysis is performed."""
@@ -566,6 +566,145 @@ class TestBusinessOptimizer:
             # Should still return a strategy even if optimization didn't converge
             assert isinstance(strategy, OptimalStrategy)
             assert strategy.coverage_limit > 0
+
+
+class TestIssue352Fixes:
+    """Regression tests for issue #352: unreliable BusinessOptimizer results."""
+
+    @pytest.fixture
+    def manufacturer(self):
+        """Create mock manufacturer."""
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.total_assets = 10_000_000
+        manufacturer.equity = 4_000_000
+        manufacturer.liabilities = 6_000_000
+        manufacturer.revenue = 5_000_000
+        manufacturer.operating_income = 500_000
+        manufacturer.cash = 2_000_000
+        manufacturer.config = Mock()
+        manufacturer.calculate_revenue = Mock(return_value=5_000_000)
+        return manufacturer
+
+    @pytest.fixture
+    def optimizer(self, manufacturer):
+        """Create optimizer instance."""
+        return BusinessOptimizer(manufacturer)
+
+    def test_weight_normalization_does_not_mutate_caller_objects(self, optimizer):
+        """Verify that optimize_business_outcomes does not mutate objective weights."""
+        objectives = [
+            BusinessObjective(name="ROE", weight=0.4),
+            BusinessObjective(name="bankruptcy_risk", weight=0.6),
+            BusinessObjective(name="growth_rate", weight=1.0),
+        ]
+        constraints = BusinessConstraints()
+
+        optimizer.optimize_business_outcomes(
+            objectives=objectives, constraints=constraints, time_horizon=1
+        )
+
+        # Caller's weights must be unchanged
+        assert objectives[0].weight == 0.4
+        assert objectives[1].weight == 0.6
+        assert objectives[2].weight == 1.0
+
+    def test_repeated_calls_same_weights(self, optimizer):
+        """Calling optimize_business_outcomes twice with same objectives gives same weights."""
+        objectives = [
+            BusinessObjective(name="ROE", weight=0.3),
+            BusinessObjective(name="bankruptcy_risk", weight=0.7),
+        ]
+        constraints = BusinessConstraints()
+
+        optimizer.optimize_business_outcomes(
+            objectives=objectives, constraints=constraints, time_horizon=1
+        )
+        optimizer.optimize_business_outcomes(
+            objectives=objectives, constraints=constraints, time_horizon=1
+        )
+
+        # Weights unchanged after two calls
+        assert objectives[0].weight == 0.3
+        assert objectives[1].weight == 0.7
+
+    def test_deterministic_results(self, optimizer):
+        """Same inputs must produce same optimization results."""
+        objectives = [
+            BusinessObjective(
+                name="ROE", weight=0.5, optimization_direction=OptimizationDirection.MAXIMIZE
+            ),
+            BusinessObjective(
+                name="bankruptcy_risk",
+                weight=0.5,
+                optimization_direction=OptimizationDirection.MINIMIZE,
+            ),
+        ]
+        constraints = BusinessConstraints()
+
+        result1 = optimizer.optimize_business_outcomes(
+            objectives=objectives, constraints=constraints, time_horizon=5
+        )
+        result2 = optimizer.optimize_business_outcomes(
+            objectives=objectives, constraints=constraints, time_horizon=5
+        )
+
+        assert result1.optimal_strategy.coverage_limit == result2.optimal_strategy.coverage_limit
+        assert result1.optimal_strategy.deductible == result2.optimal_strategy.deductible
+        assert result1.optimal_strategy.premium_rate == result2.optimal_strategy.premium_rate
+
+    def test_simulate_roe_deterministic(self, optimizer):
+        """_simulate_roe must return the same value for the same inputs."""
+        result1 = optimizer._simulate_roe(5_000_000, 100_000, 0.02, 5)
+        result2 = optimizer._simulate_roe(5_000_000, 100_000, 0.02, 5)
+        assert result1 == result2
+
+    def test_deductible_affects_roe(self, optimizer):
+        """Different deductibles must produce different ROE values."""
+        roe_low_ded = optimizer._simulate_roe(5_000_000, 10_000, 0.02, 5)
+        roe_high_ded = optimizer._simulate_roe(5_000_000, 500_000, 0.02, 5)
+        assert roe_low_ded != roe_high_ded
+
+    def test_deductible_affects_bankruptcy_risk(self, optimizer):
+        """Different deductibles must produce different bankruptcy risk values."""
+        risk_low_ded = optimizer._estimate_bankruptcy_risk(5_000_000, 10_000, 0.02, 5)
+        risk_high_ded = optimizer._estimate_bankruptcy_risk(5_000_000, 500_000, 0.02, 5)
+        assert risk_low_ded != risk_high_ded
+        # Higher deductible should increase risk (less effective coverage)
+        assert risk_high_ded > risk_low_ded
+
+    def test_deductible_affects_growth_rate(self, optimizer):
+        """Different deductibles must produce different growth rate values."""
+        growth_low_ded = optimizer._estimate_growth_rate(5_000_000, 10_000, 0.02, 5)
+        growth_high_ded = optimizer._estimate_growth_rate(5_000_000, 500_000, 0.02, 5)
+        assert growth_low_ded != growth_high_ded
+
+    def test_zero_deductible_preserves_original_behavior(self, optimizer):
+        """Zero deductible should give maximum coverage benefit (no retention)."""
+        risk_zero_ded = optimizer._estimate_bankruptcy_risk(5_000_000, 0, 0.02, 5)
+        risk_nonzero_ded = optimizer._estimate_bankruptcy_risk(5_000_000, 100_000, 0.02, 5)
+        # Zero deductible = full coverage, should have lower risk
+        assert risk_zero_ded < risk_nonzero_ded
+
+    def test_deductible_affects_capital_efficiency(self, optimizer):
+        """Different deductibles must produce different capital efficiency values."""
+        eff_low = optimizer._calculate_capital_efficiency(5_000_000, 10_000, 0.02)
+        eff_high = optimizer._calculate_capital_efficiency(5_000_000, 500_000, 0.02)
+        assert eff_low != eff_high
+        # Higher deductible reduces risk-transfer benefit → lower efficiency
+        assert eff_high < eff_low
+
+    def test_deductible_affects_ergodic_growth(self, optimizer):
+        """Different deductibles must produce different ergodic growth values."""
+        eg_low = optimizer._calculate_ergodic_growth(5_000_000, 10_000, 0.02, 5)
+        eg_high = optimizer._calculate_ergodic_growth(5_000_000, 500_000, 0.02, 5)
+        assert eg_low != eg_high
+
+    def test_deductible_ratio_helper(self, optimizer):
+        """_deductible_ratio edge cases."""
+        assert optimizer._deductible_ratio(0, 5_000_000) == 0.0
+        assert optimizer._deductible_ratio(5_000_000, 5_000_000) == 1.0
+        assert optimizer._deductible_ratio(10_000_000, 5_000_000) == 1.0  # clamped
+        assert optimizer._deductible_ratio(100, 0) == 0.0  # coverage_limit=0
 
 
 class TestIntegration:
