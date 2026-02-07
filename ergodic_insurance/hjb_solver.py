@@ -26,6 +26,11 @@ from scipy import interpolate, sparse
 
 logger = logging.getLogger(__name__)
 
+# Module-level named constants for numerical tolerances
+_DRIFT_THRESHOLD = 1e-10
+_MARGINAL_UTILITY_FLOOR = 1e-10
+_GAMMA_TOLERANCE = 1e-10
+
 
 class TimeSteppingScheme(Enum):
     """Time stepping schemes for PDE integration."""
@@ -255,7 +260,7 @@ class LogUtility(UtilityFunction):
 
     def inverse_derivative(self, marginal_utility: np.ndarray) -> np.ndarray:
         """Compute inverse: (U')^(-1)(m) = 1/m."""
-        safe_marginal = np.maximum(marginal_utility, 1e-10)
+        safe_marginal = np.maximum(marginal_utility, _MARGINAL_UTILITY_FLOOR)
         return np.array(1.0 / safe_marginal)
 
 
@@ -279,12 +284,12 @@ class PowerUtility(UtilityFunction):
         self.wealth_floor = wealth_floor
 
         # Use log utility if gamma is close to 1
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             self._log_utility = LogUtility(wealth_floor)
 
     def evaluate(self, wealth: np.ndarray) -> np.ndarray:
         """Evaluate power utility."""
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             return self._log_utility.evaluate(wealth)
 
         safe_wealth = np.maximum(wealth, self.wealth_floor)
@@ -292,7 +297,7 @@ class PowerUtility(UtilityFunction):
 
     def derivative(self, wealth: np.ndarray) -> np.ndarray:
         """Compute marginal utility: U'(w) = w^(-γ)."""
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             return self._log_utility.derivative(wealth)
 
         safe_wealth = np.maximum(wealth, self.wealth_floor)
@@ -300,10 +305,10 @@ class PowerUtility(UtilityFunction):
 
     def inverse_derivative(self, marginal_utility: np.ndarray) -> np.ndarray:
         """Compute inverse: (U')^(-1)(m) = m^(-1/γ)."""
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             return self._log_utility.inverse_derivative(marginal_utility)
 
-        safe_marginal = np.maximum(marginal_utility, 1e-10)
+        safe_marginal = np.maximum(marginal_utility, _MARGINAL_UTILITY_FLOOR)
         return np.array(np.power(safe_marginal, -1.0 / self.gamma))
 
 
@@ -368,6 +373,8 @@ class HJBSolverConfig:
     scheme: TimeSteppingScheme = TimeSteppingScheme.IMPLICIT
     use_sparse: bool = True
     verbose: bool = True
+    inner_max_iterations: int = 100
+    inner_tolerance_factor: float = 0.1  # inner_tol = tolerance * this
 
 
 class HJBSolver:
@@ -640,7 +647,7 @@ class HJBSolver:
 
     def _apply_upwind_drift(self, new_v, drift, dt):
         """Apply upwind differencing for drift term across all dimensions."""
-        if not np.any(np.abs(drift) > 1e-10):
+        if not np.any(np.abs(drift) > _DRIFT_THRESHOLD):
             return new_v
 
         if self.value_function is None:
@@ -707,7 +714,7 @@ class HJBSolver:
 
         dt = self.config.time_step
 
-        for _ in range(100):  # Inner iterations for policy evaluation
+        for _ in range(self.config.inner_max_iterations):  # Inner iterations for policy evaluation
             # Type guard ensures value_function is not None after the check above
             assert self.value_function is not None  # For mypy
             old_v = self.value_function.copy()
@@ -757,7 +764,10 @@ class HJBSolver:
             self.value_function = new_v
 
             # Check inner convergence
-            if np.max(np.abs(new_v - old_v)) < self.config.tolerance / 10:
+            if (
+                np.max(np.abs(new_v - old_v))
+                < self.config.tolerance * self.config.inner_tolerance_factor
+            ):
                 break
 
     def _policy_improvement(self):

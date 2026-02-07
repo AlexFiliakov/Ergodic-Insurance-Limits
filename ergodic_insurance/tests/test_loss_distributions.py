@@ -869,3 +869,55 @@ class TestEdgeCases:
         # Test generate_event_times with Decimal revenue
         event_times = gen.generate_event_times(1.0, Decimal("10000000"))
         assert isinstance(event_times, np.ndarray)
+
+
+class TestManufacturingLossGeneratorCreateSimple:
+    """Test create_simple() custom ratios from Issue #517."""
+
+    def test_create_simple_default_ratios(self):
+        """Test that create_simple() with defaults produces valid generator."""
+        gen = ManufacturingLossGenerator.create_simple(
+            frequency=10.0, severity_mean=100_000, severity_std=50_000
+        )
+        assert gen.attritional is not None
+        assert gen.large is not None
+        assert gen.catastrophic is not None
+
+    def test_create_simple_custom_ratios(self):
+        """Test that custom split ratios are applied correctly."""
+        gen = ManufacturingLossGenerator.create_simple(
+            frequency=10.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            attritional_frequency_ratio=0.8,
+            attritional_severity_factor=0.4,
+            large_frequency_ratio=0.2,
+            large_severity_factor=3.0,
+            large_cv_factor=2.0,
+            catastrophic_frequency=0.005,
+            catastrophic_pareto_alpha=3.0,
+            catastrophic_severity_factor=10.0,
+        )
+        assert gen.attritional is not None
+        assert gen.large is not None
+        assert gen.catastrophic is not None
+
+        # Verify the custom ratios were applied:
+        # attritional frequency = 10 * 0.8 = 8.0
+        assert gen.attritional.frequency_generator.base_frequency == pytest.approx(8.0)
+        # large frequency = 10 * 0.2 = 2.0
+        assert gen.large.frequency_generator.base_frequency == pytest.approx(2.0)
+        # catastrophic frequency = 0.005
+        assert gen.catastrophic.frequency_generator.base_frequency == pytest.approx(0.005)
+
+    def test_create_simple_backward_compatible(self):
+        """Test that calling create_simple() without new args matches old behavior."""
+        gen = ManufacturingLossGenerator.create_simple(
+            frequency=10.0, severity_mean=100_000, severity_std=50_000
+        )
+        # Old hardcoded: attritional = frequency * 0.9 = 9.0
+        assert gen.attritional.frequency_generator.base_frequency == pytest.approx(9.0)
+        # Old hardcoded: large = frequency * 0.1 = 1.0
+        assert gen.large.frequency_generator.base_frequency == pytest.approx(1.0)
+        # Old hardcoded: catastrophic = 0.001
+        assert gen.catastrophic.frequency_generator.base_frequency == pytest.approx(0.001)

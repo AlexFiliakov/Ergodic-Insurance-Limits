@@ -302,13 +302,24 @@ class ClaimCohort:
 class CashFlowProjector:
     """Project cash flows based on claim development patterns."""
 
-    def __init__(self, discount_rate: float = 0.03):
+    def __init__(
+        self,
+        discount_rate: float = 0.03,
+        ibnr_recent_factor: float = 1.2,
+        ibnr_late_factor: float = 1.05,
+    ):
         """Initialize cash flow projector.
 
         Args:
             discount_rate: Annual discount rate for present value calculations.
+            ibnr_recent_factor: Multiplier for IBNR on recent accident years
+                (within reporting lag). Default 1.2 (20% uplift).
+            ibnr_late_factor: Multiplier for IBNR on older but still developing
+                accident years. Default 1.05 (5% uplift).
         """
         self.discount_rate = discount_rate
+        self.ibnr_recent_factor = ibnr_recent_factor
+        self.ibnr_late_factor = ibnr_late_factor
         self.cohorts: Dict[int, ClaimCohort] = {}
 
     def add_cohort(self, cohort: ClaimCohort):
@@ -375,11 +386,11 @@ class CashFlowProjector:
                 # Estimate unreported claims based on reporting pattern
                 if development_years < reporting_lag / 12:
                     # Recent accident year - significant IBNR
-                    expected_ultimate = cohort.get_total_incurred() * 1.2
+                    expected_ultimate = cohort.get_total_incurred() * self.ibnr_recent_factor
                     ibnr += expected_ultimate - cohort.get_total_incurred()
                 elif development_years < 2:
                     # Some late-reported claims expected
-                    expected_ultimate = cohort.get_total_incurred() * 1.05
+                    expected_ultimate = cohort.get_total_incurred() * self.ibnr_late_factor
                     ibnr += expected_ultimate - cohort.get_total_incurred()
 
         return ibnr

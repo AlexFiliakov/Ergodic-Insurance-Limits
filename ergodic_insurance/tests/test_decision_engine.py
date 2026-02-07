@@ -938,3 +938,29 @@ class TestEnhancedOptimizationMethods:
         # Method might have changed due to fallback — any method is acceptable
         valid_methods = [m.value for m in OptimizationMethod]
         assert decision.optimization_method in valid_methods
+
+
+class TestDecisionEngineConfigNewFields:
+    """Test new DecisionEngineConfig fields from Issue #517."""
+
+    def test_new_defaults(self):
+        """Test that new fields have correct default values."""
+        from ergodic_insurance.config.optimizer import DecisionEngineConfig
+
+        cfg = DecisionEngineConfig()
+        assert cfg.loss_cv == 0.5
+        assert cfg.default_optimization_weights == {"growth": 0.4, "risk": 0.4, "cost": 0.2}
+        assert cfg.layer_attachment_thresholds == (5_000_000, 25_000_000)
+
+    def test_custom_new_fields(self):
+        """Test that new fields can be overridden."""
+        from ergodic_insurance.config.optimizer import DecisionEngineConfig
+
+        cfg = DecisionEngineConfig(
+            loss_cv=0.8,
+            default_optimization_weights={"growth": 0.6, "risk": 0.3, "cost": 0.1},
+            layer_attachment_thresholds=(3_000_000, 20_000_000),
+        )
+        assert cfg.loss_cv == 0.8
+        assert cfg.default_optimization_weights == {"growth": 0.6, "risk": 0.3, "cost": 0.1}
+        assert cfg.layer_attachment_thresholds == (3_000_000, 20_000_000)

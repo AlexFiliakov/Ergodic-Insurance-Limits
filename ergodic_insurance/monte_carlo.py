@@ -303,8 +303,13 @@ class SimulationConfig:
     # Periodic ruin evaluation options
     ruin_evaluation: Optional[List[int]] = None
     # Insolvency tolerance
+    # NOTE: insolvency_tolerance is also referenced in _simulate_path_enhanced()
+    # via shared["insolvency_tolerance"]. Keep defaults in sync.
     insolvency_tolerance: float = 10_000  # Company is insolvent when equity <= this threshold
     # Simulation step parameters (passed to manufacturer.step())
+    # NOTE: letter_of_credit_rate and growth_rate defaults are coupled with
+    # _simulate_path_enhanced() shared-data defaults and run_chunk_standalone().
+    # If you change these defaults, update those functions accordingly.
     letter_of_credit_rate: float = 0.015  # Annual LoC rate for collateral costs
     growth_rate: float = 0.0  # Revenue growth rate per period
     time_resolution: str = "annual"  # "annual" or "monthly"
