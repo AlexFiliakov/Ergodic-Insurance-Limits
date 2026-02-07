@@ -1,0 +1,57 @@
+{# GitHub release notes template - Keep a Changelog style #}
+{%- set ns = namespace(added=[], changed=[], deprecated=[], removed=[], fixed=[], security=[]) %}
+{%- for type, commits in release["elements"].items() %}
+{%- if type == "feature" or type == "feat" %}
+{%- set ns.added = ns.added + commits %}
+{%- elif type == "fix" %}
+{%- set ns.fixed = ns.fixed + commits %}
+{%- elif type == "breaking" %}
+{%- set ns.changed = ns.changed + commits %}
+{%- elif type in ["perf", "refactor", "docs", "style", "ci", "build", "chore", "test"] %}
+{%- set ns.changed = ns.changed + commits %}
+{%- else %}
+{%- set ns.changed = ns.changed + commits %}
+{%- endif %}
+{%- endfor %}
+{%- if ns.added %}
+
+## Added
+{% for commit in ns.added %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{%- endfor %}
+{%- endif %}
+{%- if ns.changed %}
+
+## Changed
+{% for commit in ns.changed %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{%- endfor %}
+{%- endif %}
+{%- if ns.deprecated %}
+
+## Deprecated
+{% for commit in ns.deprecated %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{%- endfor %}
+{%- endif %}
+{%- if ns.removed %}
+
+## Removed
+{% for commit in ns.removed %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{%- endfor %}
+{%- endif %}
+{%- if ns.fixed %}
+
+## Fixed
+{% for commit in ns.fixed %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{%- endfor %}
+{%- endif %}
+{%- if ns.security %}
+
+## Security
+{% for commit in ns.security %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{%- endfor %}
+{%- endif %}
