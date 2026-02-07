@@ -1550,13 +1550,16 @@ class InsuranceDecisionEngine:
                 self.loss_distribution.frequency *= 1 + variation
 
         elif parameter == "capital_base":
-            # Modify manufacturer capital
+            # Modify manufacturer capital via cash adjustment (Issue #472)
+            # The total_assets setter was removed because proportional asset
+            # revaluation violates US GAAP (ASC 360/820). Instead, adjust cash
+            # which is the only asset that can be freely revalued.
             original_state["total_assets"] = self.manufacturer.total_assets
-            # Note: total_assets is Decimal, so we need to use Decimal arithmetic
             from decimal import Decimal
 
-            self.manufacturer.total_assets = self.manufacturer.total_assets * Decimal(
-                str(1 + variation)
+            delta = self.manufacturer.total_assets * Decimal(str(variation))
+            self.manufacturer._record_cash_adjustment(
+                delta, f"Sensitivity analysis: capital_base {variation:+.1%}"
             )
 
         # Return original state for restoration

@@ -45,7 +45,9 @@ class TestRevenueExposure:
         assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
         # WHEN: Manufacturer revenue doubles through business growth
-        manufacturer.total_assets = 20_000_000  # Revenue will be $20M
+        manufacturer._record_cash_adjustment(
+            to_decimal(20_000_000) - manufacturer.total_assets, "Increase assets for test"
+        )
 
         # THEN: Frequency multiplier should reflect actual 2x revenue
         assert float(exposure.get_exposure(1.0)) == 20_000_000
@@ -113,7 +115,9 @@ class TestAssetExposure:
         assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
         # WHEN: Large claim reduces assets to $30M
-        manufacturer.total_assets = 30_000_000
+        manufacturer._record_cash_adjustment(
+            to_decimal(30_000_000) - manufacturer.total_assets, "Reduce assets for test"
+        )
 
         # THEN: Frequency multiplier should be 0.6 (30M/50M)
         assert float(exposure.get_exposure(1.0)) == 30_000_000
