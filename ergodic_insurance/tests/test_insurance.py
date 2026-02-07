@@ -423,3 +423,145 @@ class TestOverRecoveryGuard:
         # Same as above — second layer attaches at 5M, claim=5M doesn't penetrate
         company2, insurance2 = policy.process_claim(5_000_000)
         assert insurance2 == 4_000_000
+
+
+class TestFromSimple:
+    """Tests for InsurancePolicy.from_simple() convenience constructor."""
+
+    def test_creates_single_layer_policy(self):
+        """from_simple() should create a policy with exactly one layer."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+        assert len(policy.layers) == 1
+
+    def test_deductible_set_correctly(self):
+        """Deductible on the policy matches the argument."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+        assert policy.deductible == 500_000
+
+    def test_layer_attachment_equals_deductible(self):
+        """The single layer's attachment point equals the deductible."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+        assert policy.layers[0].attachment_point == 500_000
+
+    def test_layer_limit_and_rate(self):
+        """Layer limit and rate match the arguments."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+        assert policy.layers[0].limit == 10_000_000
+        assert policy.layers[0].rate == 0.025
+
+    def test_equivalent_to_manual_construction(self):
+        """from_simple() produces an identical policy to manual 2-step construction."""
+        manual_layer = InsuranceLayer(
+            attachment_point=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        manual_policy = InsurancePolicy(layers=[manual_layer], deductible=500_000)
+
+        simple_policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+
+        # Same structure
+        assert simple_policy.deductible == manual_policy.deductible
+        assert len(simple_policy.layers) == len(manual_policy.layers)
+        assert simple_policy.layers[0].attachment_point == manual_policy.layers[0].attachment_point
+        assert simple_policy.layers[0].limit == manual_policy.layers[0].limit
+        assert simple_policy.layers[0].rate == manual_policy.layers[0].rate
+
+        # Same premium
+        assert simple_policy.calculate_premium() == manual_policy.calculate_premium()
+
+        # Same claim processing
+        for claim in [100_000, 500_000, 3_000_000, 15_000_000]:
+            assert simple_policy.process_claim(claim) == manual_policy.process_claim(claim)
+
+    def test_premium_calculation(self):
+        """Premium is limit * premium_rate."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+        assert policy.calculate_premium() == 250_000  # 10M * 0.025
+
+    def test_claim_processing(self):
+        """Claims flow correctly through a from_simple() policy."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+        )
+
+        # Below deductible
+        company, insurance = policy.process_claim(300_000)
+        assert company == 300_000
+        assert insurance == 0
+
+        # Partially in layer
+        company, insurance = policy.process_claim(3_000_000)
+        assert company == 500_000
+        assert insurance == 2_500_000
+
+        # Exceeds coverage
+        company, insurance = policy.process_claim(15_000_000)
+        assert company == 5_000_000  # 500K deductible + 4.5M excess
+        assert insurance == 10_000_000
+
+    def test_zero_deductible(self):
+        """from_simple() works with zero deductible."""
+        policy = InsurancePolicy.from_simple(
+            deductible=0,
+            limit=5_000_000,
+            premium_rate=0.03,
+        )
+        assert policy.deductible == 0
+        assert policy.layers[0].attachment_point == 0
+
+        company, insurance = policy.process_claim(2_000_000)
+        assert company == 0
+        assert insurance == 2_000_000
+
+    def test_kwargs_forwarded(self):
+        """Extra kwargs are forwarded to InsurancePolicy.__init__."""
+        policy = InsurancePolicy.from_simple(
+            deductible=500_000,
+            limit=10_000_000,
+            premium_rate=0.025,
+            pricing_enabled=True,
+        )
+        assert policy.pricing_enabled is True
+
+    def test_validation_propagates(self):
+        """InsuranceLayer validation errors propagate from from_simple()."""
+        with pytest.raises(ValueError, match="Limit must be positive"):
+            InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=0,
+                premium_rate=0.025,
+            )
+
+        with pytest.raises(ValueError, match="Premium rate must be non-negative"):
+            InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=-0.01,
+            )

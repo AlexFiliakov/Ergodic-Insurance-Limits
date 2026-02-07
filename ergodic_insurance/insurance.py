@@ -16,20 +16,15 @@ Key Features:
     - Premium calculation with various rating methods
 
 Examples:
-    Simple single-layer policy::
+    Simple single-layer policy (recommended)::
 
-        from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+        from ergodic_insurance.insurance import InsurancePolicy
 
         # $5M excess $1M with 3% rate
-        layer = InsuranceLayer(
-            attachment_point=1_000_000,
+        policy = InsurancePolicy.from_simple(
+            deductible=1_000_000,
             limit=5_000_000,
-            rate=0.03
-        )
-
-        policy = InsurancePolicy(
-            layers=[layer],
-            deductible=500_000
+            premium_rate=0.03,
         )
 
         # Process a $3M claim
@@ -349,6 +344,58 @@ class InsurancePolicy:
             Total annual premium.
         """
         return sum(layer.calculate_premium() for layer in self.layers)
+
+    @classmethod
+    def from_simple(
+        cls,
+        deductible: float,
+        limit: float,
+        premium_rate: float,
+        **kwargs,
+    ) -> "InsurancePolicy":
+        """Create a single-layer insurance policy from basic parameters.
+
+        Convenience factory for the most common use case: a single primary
+        layer where the attachment point equals the deductible.
+
+        Args:
+            deductible: Self-insured retention in dollars. The insured pays
+                this amount before coverage begins.
+            limit: Maximum coverage amount in dollars above the deductible.
+            premium_rate: Annual premium as a fraction of the limit (e.g.
+                0.025 for 2.5%).
+            **kwargs: Additional keyword arguments forwarded to the
+                ``InsurancePolicy`` constructor (e.g. ``pricing_enabled``,
+                ``pricer``).
+
+        Returns:
+            InsurancePolicy with a single layer whose attachment point
+            equals the deductible.
+
+        Examples:
+            Quick single-layer policy::
+
+                policy = InsurancePolicy.from_simple(
+                    deductible=500_000,
+                    limit=10_000_000,
+                    premium_rate=0.025,
+                )
+
+            This is equivalent to::
+
+                layer = InsuranceLayer(
+                    attachment_point=500_000,
+                    limit=10_000_000,
+                    rate=0.025,
+                )
+                policy = InsurancePolicy(layers=[layer], deductible=500_000)
+        """
+        layer = InsuranceLayer(
+            attachment_point=deductible,
+            limit=limit,
+            rate=premium_rate,
+        )
+        return cls(layers=[layer], deductible=deductible, **kwargs)
 
     @classmethod
     def from_yaml(cls, config_path: str) -> "InsurancePolicy":

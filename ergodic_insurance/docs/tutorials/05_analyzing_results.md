@@ -48,7 +48,7 @@ We assume you have your manufacturer and loss generator configured (see Tutorial
 ```python
 from ergodic_insurance import (
     ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    InsurancePolicy, InsuranceLayer, Simulation,
+    InsurancePolicy, Simulation,
 )
 
 # NovaTech's financial profile
@@ -61,9 +61,10 @@ config = ManufacturerConfig(
 )
 
 # NovaTech's proposed insurance program
-policy = InsurancePolicy(
-    layers=[InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)],
-    deductible=100_000
+policy = InsurancePolicy.from_simple(
+    deductible=100_000,
+    limit=5_000_000,
+    premium_rate=0.02
 )
 
 # Run paired simulations
