@@ -396,14 +396,14 @@ class HJBSolver:
 
     def _setup_operators(self):
         """Set up finite difference operators for the PDE."""
-        # Store grid spacings
+        # Store per-interval grid spacings as arrays (supports non-uniform grids)
         self.dx = []
         for sv in self.problem.state_space.state_variables:
             grid = sv.get_grid()
             if len(grid) > 1:
-                self.dx.append(grid[1] - grid[0])
+                self.dx.append(np.diff(grid))
             else:
-                self.dx.append(1.0)
+                self.dx.append(np.array([1.0]))
 
         # Will construct operators during solve based on current policy
         self.operators_initialized = True
@@ -421,7 +421,7 @@ class HJBSolver:
             Sparse difference operator
         """
         n = self.problem.state_space.state_variables[dim].num_points
-        dx = self.dx[dim]
+        dx = float(np.mean(self.dx[dim]))
 
         # First derivative (upwind)
         # We'll build this dynamically based on drift direction
@@ -465,32 +465,74 @@ class HJBSolver:
     def _apply_upwind_scheme(self, value: np.ndarray, drift: np.ndarray, dim: int) -> np.ndarray:
         """Apply upwind finite difference for advection term.
 
+        Uses proper boundary-aware slicing (no wraparound) and supports
+        non-uniform grid spacing for all dimensions.
+
         Args:
-            value: Value function
-            drift: Drift values at each point
+            value: Value function on state grid
+            drift: Drift values at each grid point
             dim: Dimension for differentiation
 
         Returns:
-            Advection term contribution
+            Advection term contribution (drift * dV/dx)
         """
-        dx = self.dx[dim]
+        dx_array = self.dx[dim]  # Array of per-interval spacings
+        ndim = value.ndim
+        n = value.shape[dim]
         result = np.zeros_like(value)
 
-        # Forward difference where drift > 0
-        mask_pos = drift > 0
-        if dim == 0:
-            result[mask_pos] = (
-                (np.roll(value, -1, axis=dim)[mask_pos] - value[mask_pos]) / dx * drift[mask_pos]
-            )
+        # Build index slices for interior points
+        hi = [slice(None)] * ndim
+        lo = [slice(None)] * ndim
+        hi[dim] = slice(1, None)  # indices 1..N-1
+        lo[dim] = slice(None, -1)  # indices 0..N-2
 
-        # Backward difference where drift < 0
+        # Shape dx_array for broadcasting: (1, ..., N-1, ..., 1)
+        dx_shape = [1] * ndim
+        dx_shape[dim] = n - 1
+        dx_bc = dx_array.reshape(dx_shape)
+
+        # Forward difference: (V[i+1] - V[i]) / dx[i] for i=0..N-2
+        # At i=N-1, the forward difference is 0 (boundary)
+        fwd_diff = np.zeros_like(value)
+        fwd_diff[tuple(lo)] = (value[tuple(hi)] - value[tuple(lo)]) / dx_bc
+
+        # Backward difference: (V[i] - V[i-1]) / dx[i-1] for i=1..N-1
+        # At i=0, the backward difference is 0 (boundary)
+        bwd_diff = np.zeros_like(value)
+        bwd_diff[tuple(hi)] = (value[tuple(hi)] - value[tuple(lo)]) / dx_bc
+
+        # Upwind selection: forward for positive drift, backward for negative
+        mask_pos = drift > 0
         mask_neg = drift < 0
-        if dim == 0:
-            result[mask_neg] = (
-                (value[mask_neg] - np.roll(value, 1, axis=dim)[mask_neg]) / dx * drift[mask_neg]
-            )
+
+        result[mask_pos] = fwd_diff[mask_pos] * drift[mask_pos]
+        result[mask_neg] = bwd_diff[mask_neg] * drift[mask_neg]
 
         return result
+
+    def _compute_gradient(self) -> np.ndarray:
+        """Compute numerical gradient of the value function.
+
+        Uses np.gradient which handles non-uniform grids with second-order
+        accurate central differences in the interior and first-order accurate
+        one-sided differences at the boundaries.
+
+        Returns:
+            Gradient array with shape state_shape + (ndim,)
+        """
+        if self.value_function is None:
+            shape = self.problem.state_space.shape + (self.problem.state_space.ndim,)
+            return np.zeros(shape)
+
+        grids = self.problem.state_space.grids
+
+        if self.problem.state_space.ndim == 1:
+            grad_components = [np.gradient(self.value_function, grids[0])]
+        else:
+            grad_components = np.gradient(self.value_function, *grids)
+
+        return np.stack(grad_components, axis=-1)
 
     def solve(self) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         """Solve the HJB equation using policy iteration.
@@ -557,7 +599,7 @@ class HJBSolver:
         return cost.reshape(self.problem.state_space.shape)
 
     def _apply_upwind_drift(self, new_v, drift, dt):
-        """Apply upwind differencing for drift term."""
+        """Apply upwind differencing for drift term across all dimensions."""
         if not np.any(np.abs(drift) > 1e-10):
             return new_v
 
@@ -567,13 +609,9 @@ class HJBSolver:
         for dim in range(drift.shape[-1]):
             if dim >= len(self.problem.state_space.state_variables):
                 continue
-            dx = self.dx[dim]
             drift_component = drift[..., dim]
-
-            # Simple upwind differencing
-            grad = np.zeros_like(self.value_function)
-            grad[1:] = (self.value_function[1:] - self.value_function[:-1]) / dx
-            new_v += dt * drift_component * grad
+            advection = self._apply_upwind_scheme(self.value_function, drift_component, dim)
+            new_v = new_v + dt * advection
         return new_v
 
     def _update_value_finite_horizon(self, old_v, cost, drift, dt):
@@ -623,8 +661,16 @@ class HJBSolver:
             if self.problem.time_horizon is not None:
                 new_v = self._update_value_finite_horizon(old_v, cost, drift, dt)
             else:
-                # For infinite horizon, use standard update
-                new_v = old_v + dt * (-self.problem.discount_rate * old_v + cost)
+                # For infinite horizon: 0 = -ρV + f(x,u) + drift·∇V
+                # Time-step: V_new = V_old + dt * (-ρ*V_old + cost + drift·∇V)
+                advection = np.zeros_like(old_v)
+                for dim in range(drift.shape[-1]):
+                    if dim >= len(self.problem.state_space.state_variables):
+                        continue
+                    drift_component = drift[..., dim]
+                    advection += self._apply_upwind_scheme(old_v, drift_component, dim)
+
+                new_v = old_v + dt * (-self.problem.discount_rate * old_v + cost + advection)
 
             # Apply boundary conditions (skip for now to preserve terminal condition)
 
@@ -635,52 +681,68 @@ class HJBSolver:
                 break
 
     def _policy_improvement(self):
-        """Improve policy by maximizing Hamiltonian."""
-        # For each state, find optimal control
+        """Improve policy by maximizing Hamiltonian H(x,u) = f(x,u) + drift(x,u)·∇V(x).
+
+        Vectorized over all state points for each control combination to avoid
+        the combinatorial explosion of evaluating each state-control pair individually.
+        """
+        if self.value_function is None or self.optimal_policy is None:
+            return
+
         state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
+        n_states = state_points.shape[0]
+        n_controls = len(self.problem.control_variables)
 
-        for i, point in enumerate(state_points):
-            # Discrete optimization over control space
-            best_value = -np.inf
-            best_control = None
+        # Compute value function gradient at all state points
+        grad_V = self._compute_gradient()
+        grad_V_flat = grad_V.reshape(n_states, -1)
 
-            # Sample control space
-            control_samples = []
-            for cv in self.problem.control_variables:
-                control_samples.append(cv.get_values())
+        # Initialize tracking arrays
+        best_values = np.full(n_states, -np.inf)
+        best_controls = np.zeros((n_states, n_controls))
 
-            # Grid search (would use gradient-based in production)
-            from itertools import product
+        # Get discrete control samples for each control variable
+        control_samples = [cv.get_values() for cv in self.problem.control_variables]
 
-            for control in product(*control_samples):
-                control_array = np.array(control)
+        # Iterate over control combinations, vectorized over all states
+        from itertools import product
 
-                # Compute Hamiltonian
-                _drift = self.problem.dynamics(
-                    point.reshape(1, -1), control_array.reshape(1, -1), 0.0
-                )
-                cost = self.problem.running_cost(
-                    point.reshape(1, -1), control_array.reshape(1, -1), 0.0
-                )
+        for control_combo in product(*control_samples):
+            control_array = np.array(control_combo)
+            control_broadcast = np.tile(control_array, (n_states, 1))
 
-                # Approximate value function gradient (would use interpolation)
-                if hasattr(cost, "__getitem__"):
-                    # Handle multi-dimensional cost arrays
-                    cost_flat = np.asarray(cost).flatten()
-                    hamiltonian = float(cost_flat[0])
+            # Evaluate dynamics and running cost at all states simultaneously
+            drift = self.problem.dynamics(state_points, control_broadcast, 0.0)
+            cost = self.problem.running_cost(state_points, control_broadcast, 0.0)
+
+            # Reduce cost to 1D (one value per state point)
+            cost = np.asarray(cost)
+            if cost.ndim > 1:
+                if cost.shape[-1] > 1:
+                    cost = np.mean(cost, axis=-1)
                 else:
-                    hamiltonian = float(cost)  # Simplified
+                    cost = cost[..., 0]
+            cost = cost.flatten()
 
-                if hamiltonian > best_value:
-                    best_value = hamiltonian
-                    best_control = control_array
+            # Flatten drift for dot product with gradient
+            drift_flat = np.asarray(drift).reshape(n_states, -1)
 
-            # Update policy
-            if best_control is not None:
-                idx = np.unravel_index(i, self.problem.state_space.shape)
-                for j, cv in enumerate(self.problem.control_variables):
-                    if self.optimal_policy is not None:
-                        self.optimal_policy[cv.name][idx] = best_control[j]
+            # Match drift and gradient dimensions
+            n_dims = min(drift_flat.shape[1], grad_V_flat.shape[1])
+
+            # Full Hamiltonian: H = f(x,u) + drift(x,u) · ∇V(x)
+            hamiltonian = cost + np.sum(drift_flat[:, :n_dims] * grad_V_flat[:, :n_dims], axis=1)
+
+            # Update best control where this combo improves the Hamiltonian
+            improved = hamiltonian > best_values
+            best_values[improved] = hamiltonian[improved]
+            best_controls[improved] = control_array
+
+        # Write optimal controls back to policy arrays
+        for j, cv in enumerate(self.problem.control_variables):
+            self.optimal_policy[cv.name] = best_controls[:, j].reshape(
+                self.problem.state_space.shape
+            )
 
     def extract_feedback_control(self, state: np.ndarray) -> Dict[str, float]:
         """Extract feedback control law at given state.

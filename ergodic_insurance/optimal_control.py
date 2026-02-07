@@ -819,19 +819,19 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         UtilityFunction,
     )
 
-    # Define state space (simplified 2D for demonstration)
+    # Define state space (2D: wealth × time)
     state_variables = [
-        StateVariable(name="wealth", min_value=1e6, max_value=1e8, num_points=10, log_scale=True),
+        StateVariable(name="wealth", min_value=1e6, max_value=1e8, num_points=30, log_scale=True),
         StateVariable(
-            name="time", min_value=0, max_value=simulation_years, num_points=5, log_scale=False
+            name="time", min_value=0, max_value=simulation_years, num_points=15, log_scale=False
         ),
     ]
     state_space = StateSpace(state_variables)
 
-    # Define control variables (single layer for simplicity)
+    # Define control variables (single layer)
     control_variables = [
-        ControlVariable(name="limit", min_value=1e6, max_value=5e7, num_points=5),
-        ControlVariable(name="retention", min_value=1e5, max_value=1e7, num_points=5),
+        ControlVariable(name="limit", min_value=1e6, max_value=5e7, num_points=10),
+        ControlVariable(name="retention", min_value=1e5, max_value=1e7, num_points=10),
     ]
 
     # Select utility function
@@ -900,7 +900,7 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
     )
 
     # Solve HJB equation
-    config = HJBSolverConfig(time_step=0.1, max_iterations=10, tolerance=1e-3, verbose=False)
+    config = HJBSolverConfig(time_step=0.05, max_iterations=50, tolerance=1e-4, verbose=False)
 
     solver = HJBSolver(problem, config)
     logger.info("Solving HJB equation...")

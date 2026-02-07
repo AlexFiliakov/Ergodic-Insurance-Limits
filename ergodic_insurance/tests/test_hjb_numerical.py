@@ -114,9 +114,14 @@ class TestNumericalMethods:
         mixed_drift = np.linspace(-1, 1, 11)
         result_mixed = solver._apply_upwind_scheme(value, mixed_drift, 0)
         assert result_mixed.shape == value.shape
-        # Middle should be near zero where drift crosses zero
-        assert abs(result_mixed[5]) < abs(result_mixed[0])
-        assert abs(result_mixed[5]) < abs(result_mixed[-1])
+        # At drift=0 (index 5), result should be zero
+        assert result_mixed[5] == 0.0
+        # At interior points with nonzero drift, result should be nonzero
+        assert result_mixed[1] != 0  # negative drift, interior point
+        assert result_mixed[9] != 0  # positive drift, interior point
+        # Boundaries should be zero (no wraparound)
+        assert result_mixed[0] == 0.0  # backward diff undefined at first point
+        assert result_mixed[-1] == 0.0  # forward diff undefined at last point
 
     def test_numerical_stability_extreme_values(self):
         """Test solver stability with extreme parameter values."""
@@ -760,7 +765,9 @@ class TestAdditionalCoverage:
         assert solver.operators_initialized
         assert hasattr(solver, "dx")
         assert len(solver.dx) == 1
-        assert solver.dx[0] == 0.25  # (1-0)/4 for 5 points
+        # dx is now a per-interval spacing array (supports non-uniform grids)
+        assert len(solver.dx[0]) == 4  # 5 points = 4 intervals
+        assert np.allclose(solver.dx[0], 0.25)  # Uniform spacing of 0.25
 
     def test_terminal_value_callback(self):
         """Test terminal value callback is used."""
