@@ -158,23 +158,6 @@ class BalanceSheetMixin:
         # Total (includes DTA per ASC 740, Issue #365)
         return current + net_ppe + self.restricted_assets + self.deferred_tax_asset
 
-    @total_assets.setter
-    def total_assets(self, value: Union[Decimal, float]) -> None:
-        """Set total assets by proportionally adjusting all asset components.
-
-        This setter maintains the relative proportions of all asset components
-        when changing the total asset value. All changes go through the ledger
-        to maintain consistency between Direct and Indirect cash flow methods.
-
-        Args:
-            value: New total asset value in dollars.
-        """
-        value_decimal = to_decimal(value)
-        self._record_proportional_revaluation(
-            target_total=value_decimal,
-            description="Proportional asset revaluation via total_assets setter",
-        )
-
     @property
     def total_liabilities(self) -> Decimal:
         """Calculate total liabilities from all liability components.
@@ -338,103 +321,6 @@ class BalanceSheetMixin:
             transaction_type=TransactionType.TRANSFER,
             description=description,
         )
-
-    def _record_proportional_revaluation(
-        self,
-        target_total: Decimal,
-        description: str = "Proportional asset revaluation",
-    ) -> None:
-        """Record proportional revaluation of all assets through the ledger.
-
-        Adjusts all asset accounts proportionally to reach a target total.
-        Used by the total_assets setter.
-
-        Args:
-            target_total: Target total asset value
-            description: Description of the revaluation
-        """
-        current_total = self.total_assets
-        if current_total <= ZERO or target_total <= ZERO:
-            # Handle edge cases - write off all assets
-            self._write_off_all_assets(description)
-            if target_total > ZERO:
-                # Record new cash position
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=AccountName.CASH,
-                    credit_account=AccountName.RETAINED_EARNINGS,
-                    amount=target_total,
-                    transaction_type=TransactionType.REVALUATION,
-                    description=description,
-                )
-            return
-
-        ratio = target_total / current_total
-        if ratio == ONE:
-            return
-
-        # Calculate adjustments for each account
-        accounts = [
-            (AccountName.CASH, self.cash),
-            (AccountName.ACCOUNTS_RECEIVABLE, self.accounts_receivable),
-            (AccountName.INVENTORY, self.inventory),
-            (AccountName.PREPAID_INSURANCE, self.prepaid_insurance),
-            (AccountName.GROSS_PPE, self.gross_ppe),
-            (AccountName.RESTRICTED_CASH, self.restricted_assets),
-        ]
-
-        for account, current_balance in accounts:
-            if current_balance <= ZERO:
-                continue
-            new_balance = current_balance * ratio
-            adjustment = new_balance - current_balance
-
-            if adjustment > ZERO:
-                # Increase asset
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=account,
-                    credit_account=AccountName.RETAINED_EARNINGS,
-                    amount=adjustment,
-                    transaction_type=TransactionType.REVALUATION,
-                    description=f"{description} - {account.value}",
-                )
-            elif adjustment < ZERO:
-                # Decrease asset
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=AccountName.RETAINED_EARNINGS,
-                    credit_account=account,
-                    amount=-adjustment,
-                    transaction_type=TransactionType.REVALUATION,
-                    description=f"{description} - {account.value}",
-                )
-
-        # Also adjust accumulated depreciation proportionally (contra-asset)
-        current_accum_depr = self.accumulated_depreciation
-        if current_accum_depr > ZERO:
-            new_accum_depr = current_accum_depr * ratio
-            adjustment = new_accum_depr - current_accum_depr
-            if adjustment > ZERO:
-                # Increase accumulated depreciation (credit)
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=AccountName.RETAINED_EARNINGS,
-                    credit_account=AccountName.ACCUMULATED_DEPRECIATION,
-                    amount=adjustment,
-                    transaction_type=TransactionType.REVALUATION,
-                    description=f"{description} - accumulated_depreciation",
-                )
-            elif adjustment < ZERO:
-                # Decrease accumulated depreciation (debit)
-                self.ledger.record_double_entry(
-                    date=self.current_year,
-                    debit_account=AccountName.ACCUMULATED_DEPRECIATION,
-                    credit_account=AccountName.RETAINED_EARNINGS,
-                    amount=-adjustment,
-                    transaction_type=TransactionType.REVALUATION,
-                    description=f"{description} - accumulated_depreciation",
-                )
 
     def _write_off_all_assets(self, description: str = "Asset write-off") -> None:
         """Write off all asset balances to zero through the ledger.

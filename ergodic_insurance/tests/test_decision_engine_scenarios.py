@@ -250,9 +250,9 @@ class TestMultiYearOptimizationScenarios:
         # Simulate 3-year growth phase
         for year in range(3):
             # Update manufacturer size (simulate growth)
-            manufacturer.total_assets = manufacturer.total_assets * to_decimal(
-                1.3
-            )  # 30% annual growth
+            manufacturer._record_cash_adjustment(
+                manufacturer.total_assets * to_decimal(0.3), "Simulate 30% annual growth"
+            )
 
             engine = InsuranceDecisionEngine(
                 manufacturer=manufacturer,

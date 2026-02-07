@@ -437,7 +437,7 @@ class TestParallelRuinProbability:
             result = original_step(*args, **kwargs)
             # Force bankruptcy after first year
             if step_count == 1:
-                manufacturer.total_assets = 0
+                manufacturer._write_off_all_assets("Force bankruptcy for test")
             return result
 
         with patch.object(manufacturer, "step", side_effect=mock_step):

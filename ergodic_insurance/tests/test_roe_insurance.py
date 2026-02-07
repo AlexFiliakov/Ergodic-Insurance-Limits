@@ -360,7 +360,10 @@ class TestROEEdgeCases:
         """Test ROE calculation when equity approaches zero."""
         # Deplete equity significantly by setting assets close to liabilities
         current_liabilities = manufacturer.total_liabilities
-        manufacturer.total_assets = current_liabilities + to_decimal(100)  # Very small equity
+        target = current_liabilities + to_decimal(100)
+        manufacturer._record_cash_adjustment(
+            target - manufacturer.total_assets, "test: set near-zero equity"
+        )
 
         manufacturer.record_insurance_premium(50_000)
         metrics = manufacturer.calculate_metrics()
@@ -375,7 +378,10 @@ class TestROEEdgeCases:
         """Test ROE calculation with negative equity (insolvent)."""
         # Make company insolvent by setting assets less than liabilities
         current_liabilities = manufacturer.total_liabilities
-        manufacturer.total_assets = current_liabilities - 100_000  # Negative equity
+        target = current_liabilities - to_decimal(100_000)
+        manufacturer._record_cash_adjustment(
+            target - manufacturer.total_assets, "test: set negative equity"
+        )
         manufacturer.is_ruined = True
 
         metrics = manufacturer.calculate_metrics()
