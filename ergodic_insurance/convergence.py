@@ -263,7 +263,7 @@ class ConvergenceDiagnostics:
             mcse = self.calculate_mcse(combined_chain, ess)
 
             # Calculate autocorrelation
-            autocorr = self._calculate_autocorrelation(combined_chain, 1)[0]
+            autocorr = self._calculate_autocorrelation(combined_chain, 1)[1]
 
             # Check convergence criteria
             mean_val = np.mean(combined_chain)
