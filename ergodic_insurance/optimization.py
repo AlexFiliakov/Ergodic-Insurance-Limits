@@ -82,6 +82,9 @@ class ConvergenceMonitor:
             if obj_change < self.tolerance:
                 self.converged = True
                 self.convergence_message = f"Objective converged (change: {obj_change:.2e})"
+            elif 0 < gradient_norm < self.tolerance:
+                self.converged = True
+                self.convergence_message = f"Gradient converged (norm: {gradient_norm:.2e})"
         elif 0 < gradient_norm < self.tolerance:
             self.converged = True
             self.convergence_message = f"Gradient converged (norm: {gradient_norm:.2e})"
@@ -217,12 +220,14 @@ class TrustRegionOptimizer:
                     options={"maxiter": max_iter, "ftol": tol},
                 )
             else:
+                # trust-ncg requires a Hessian; fall back to BFGS when absent
+                method = "trust-ncg" if self.hessian_fn else "BFGS"
                 result = minimize(
                     self.objective_fn,
                     x0,
-                    method="trust-ncg" if self.hessian_fn else "trust-exact",
+                    method=method,
                     jac=self.gradient_fn,
-                    hess=self.hessian_fn,
+                    hess=self.hessian_fn if self.hessian_fn else None,
                     options={"maxiter": max_iter, "gtol": tol},
                 )
 
