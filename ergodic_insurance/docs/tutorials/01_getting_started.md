@@ -98,10 +98,7 @@ results.plot()
 blocks. Power users can import them directly:
 
 ```python
-from ergodic_insurance import Config
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.simulation import Simulation
+from ergodic_insurance import Config, WidgetManufacturer, ManufacturingLossGenerator, Simulation
 ```
 
 See [Tutorial 2: Basic Simulation](02_basic_simulation.md) for a deeper

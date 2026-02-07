@@ -59,10 +59,19 @@ class TestImportPatterns:
             BusinessObjective,
             BusinessOptimizer,
             Config,
+            EnhancedInsuranceLayer,
             ErgodicAnalyzer,
+            InsuranceLayer,
+            InsurancePolicy,
+            InsurancePricer,
+            InsuranceProgram,
             LossEvent,
             ManufacturerConfig,
             ManufacturingLossGenerator,
+            MarketCycle,
+            MonteCarloEngine,
+            RiskMetrics,
+            RuinProbabilityAnalyzer,
             Simulation,
             SimulationResults,
             WidgetManufacturer,
@@ -83,6 +92,22 @@ class TestImportPatterns:
         assert isinstance(Simulation, type), "Simulation should be a class"
         assert isinstance(SimulationResults, type), "SimulationResults should be a class"
 
+        # Verify new Insurance & Risk exports
+        assert isinstance(InsurancePolicy, type), "InsurancePolicy should be a class"
+        assert isinstance(InsuranceLayer, type), "InsuranceLayer should be a class"
+        assert isinstance(InsuranceProgram, type), "InsuranceProgram should be a class"
+        assert isinstance(EnhancedInsuranceLayer, type), "EnhancedInsuranceLayer should be a class"
+        assert isinstance(InsurancePricer, type), "InsurancePricer should be a class"
+        assert isinstance(RiskMetrics, type), "RiskMetrics should be a class"
+        assert isinstance(MonteCarloEngine, type), "MonteCarloEngine should be a class"
+        assert isinstance(
+            RuinProbabilityAnalyzer, type
+        ), "RuinProbabilityAnalyzer should be a class"
+        # MarketCycle is an Enum, not a plain type
+        from enum import EnumMeta
+
+        assert isinstance(MarketCycle, EnumMeta), "MarketCycle should be an Enum"
+
         # Verify classes have expected methods/attributes
         assert hasattr(BusinessOptimizer, "__init__"), "BusinessOptimizer should be instantiable"
         assert hasattr(
@@ -101,6 +126,34 @@ class TestImportPatterns:
             assert LossEvent.__module__.startswith(
                 "ergodic_insurance"
             ), "LossEvent should be from ergodic_insurance module"
+
+    def test_internals_imports(self):
+        """Test that relocated internal classes are importable from internals module."""
+        from ergodic_insurance.internals import (
+            BenchmarkConfig,
+            BenchmarkMetrics,
+            BenchmarkResult,
+            BenchmarkSuite,
+            EdgeCaseTester,
+            ProfileResult,
+            ReferenceImplementations,
+            SmartCache,
+            SystemProfiler,
+            VectorizedOperations,
+        )
+
+        assert isinstance(SmartCache, type), "SmartCache should be a class"
+        assert isinstance(BenchmarkSuite, type), "BenchmarkSuite should be a class"
+        assert isinstance(ProfileResult, type), "ProfileResult should be a class"
+        assert isinstance(VectorizedOperations, type), "VectorizedOperations should be a class"
+        assert isinstance(
+            ReferenceImplementations, type
+        ), "ReferenceImplementations should be a class"
+        assert isinstance(EdgeCaseTester, type), "EdgeCaseTester should be a class"
+        assert isinstance(BenchmarkConfig, type), "BenchmarkConfig should be a class"
+        assert isinstance(BenchmarkResult, type), "BenchmarkResult should be a class"
+        assert isinstance(BenchmarkMetrics, type), "BenchmarkMetrics should be a class"
+        assert isinstance(SystemProfiler, type), "SystemProfiler should be a class"
 
     def test_no_circular_imports(self):
         """Verify there are no circular import dependencies."""

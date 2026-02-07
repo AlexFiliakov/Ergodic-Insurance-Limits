@@ -4,6 +4,7 @@ This module provides detailed technical visualization functions for
 convergence diagnostics, Pareto frontier analysis, loss distribution validation,
 and Monte Carlo convergence analysis.
 """
+
 # pylint: disable=too-many-lines
 
 from typing import Any, Dict, List, Optional, Tuple, Union

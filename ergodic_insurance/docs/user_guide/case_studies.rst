@@ -50,8 +50,7 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturerConfig
-   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
 
    config = ManufacturerConfig(
        initial_assets=10_000_000,
@@ -67,7 +66,7 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+   from ergodic_insurance import ManufacturingLossGenerator
 
    loss_gen = ManufacturingLossGenerator(
        attritional_params={'frequency': 5.0, 'severity_mean': 60_000},
@@ -80,7 +79,7 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance import InsurancePolicy, InsuranceLayer
 
    current_policy = InsurancePolicy(
        layers=[
@@ -97,7 +96,7 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance.simulation import Simulation
+   from ergodic_insurance import Simulation
 
    sim = Simulation(
        manufacturer=manufacturer,
@@ -227,8 +226,7 @@ parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturerConfig
-   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
 
    tech_config = ManufacturerConfig(
        initial_assets=5_000_000,
@@ -244,7 +242,7 @@ parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+   from ergodic_insurance import ManufacturingLossGenerator
 
    cyber_losses = ManufacturingLossGenerator.create_simple(
        frequency=0.8,
@@ -257,8 +255,7 @@ parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
-   from ergodic_insurance.simulation import Simulation
+   from ergodic_insurance import InsurancePolicy, InsuranceLayer, Simulation
 
    # Minimal coverage option
    minimal_policy = InsurancePolicy(
@@ -368,8 +365,7 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturerConfig
-   from ergodic_insurance.manufacturer import WidgetManufacturer
+   from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
 
    utility_config = ManufacturerConfig(
        initial_assets=100_000_000,
@@ -389,7 +385,7 @@ constructor captures this well:
 
 .. code-block:: python
 
-   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+   from ergodic_insurance import ManufacturingLossGenerator
 
    utility_losses = ManufacturingLossGenerator(
        attritional_params={'frequency': 25.0, 'severity_mean': 30_000},
@@ -402,8 +398,7 @@ constructor captures this well:
 
 .. code-block:: python
 
-   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
-   from ergodic_insurance.simulation import Simulation
+   from ergodic_insurance import InsurancePolicy, InsuranceLayer, Simulation
 
    # Current structure
    current = InsurancePolicy(

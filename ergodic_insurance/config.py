@@ -20,7 +20,7 @@ Key Features:
 Examples:
     Quick start with defaults::
 
-        from ergodic_insurance.config import Config
+        from ergodic_insurance import Config
 
         # All defaults — $10M manufacturer, 50-year horizon
         config = Config()
@@ -35,7 +35,7 @@ Examples:
 
     Full control::
 
-        from ergodic_insurance.config import Config, ManufacturerConfig
+        from ergodic_insurance import Config, ManufacturerConfig
 
         config = Config(
             manufacturer=ManufacturerConfig(

@@ -83,7 +83,7 @@ Here's a complete example that demonstrates the key features:
    from ergodic_insurance.config_manager import ConfigManager
    from ergodic_insurance.manufacturer import WidgetManufacturer
    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-   from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance import InsurancePolicy, InsuranceLayer
    from ergodic_insurance.simulation import Simulation
 
    # Configuration
