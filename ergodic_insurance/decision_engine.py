@@ -5,10 +5,11 @@ insurance purchasing decisions using multi-objective optimization to balance
 growth targets with bankruptcy risk constraints.
 """
 
+import copy
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
@@ -209,26 +210,48 @@ class InsuranceDecisionEngine:
         self._decision_cache: Dict[str, InsuranceDecision] = {}
         self._metrics_cache: Dict[str, DecisionMetrics] = {}
 
+    # Ordered fallback sequence for optimization methods
+    _FALLBACK_SEQUENCE: List[OptimizationMethod] = [
+        OptimizationMethod.SLSQP,
+        OptimizationMethod.DIFFERENTIAL_EVOLUTION,
+        OptimizationMethod.ENHANCED_SLSQP,
+        OptimizationMethod.PENALTY_METHOD,
+        OptimizationMethod.AUGMENTED_LAGRANGIAN,
+        OptimizationMethod.MULTI_START,
+        OptimizationMethod.TRUST_REGION,
+        OptimizationMethod.WEIGHTED_SUM,
+    ]
+
     def optimize_insurance_decision(
         self,
         constraints: OptimizationConstraints,
         method: OptimizationMethod = OptimizationMethod.SLSQP,
         weights: Optional[Dict[str, float]] = None,
+        _attempted_methods: Optional[Set[OptimizationMethod]] = None,
     ) -> InsuranceDecision:
         """Find optimal insurance structure given constraints.
 
         Uses multi-objective optimization to balance growth, risk, and cost.
+        Falls back through alternative methods if validation fails, tracking
+        attempted methods to prevent infinite recursion.
 
         Args:
             constraints: Optimization constraints
             method: Optimization method to use
             weights: Objective function weights (default: balanced)
+            _attempted_methods: Internal set tracking methods already tried
+                (prevents infinite recursion). Callers should not set this.
 
         Returns:
             Optimal insurance decision
         """
         if weights is None:
             weights = {"growth": 0.4, "risk": 0.4, "cost": 0.2}
+
+        if _attempted_methods is None:
+            _attempted_methods = set()
+
+        _attempted_methods.add(method)
 
         logger.info(f"Starting optimization with method: {method.value}")
 
@@ -239,37 +262,32 @@ class InsuranceDecisionEngine:
             return self._decision_cache[cache_key]
 
         # Run optimization based on method
-        if method == OptimizationMethod.SLSQP:
-            result = self._optimize_slsqp(constraints, weights)
-        elif method == OptimizationMethod.ENHANCED_SLSQP:
-            result = self._optimize_enhanced_slsqp(constraints, weights)
-        elif method == OptimizationMethod.DIFFERENTIAL_EVOLUTION:
-            result = self._optimize_differential_evolution(constraints, weights)
-        elif method == OptimizationMethod.TRUST_REGION:
-            result = self._optimize_trust_region(constraints, weights)
-        elif method == OptimizationMethod.PENALTY_METHOD:
-            result = self._optimize_penalty_method(constraints, weights)
-        elif method == OptimizationMethod.AUGMENTED_LAGRANGIAN:
-            result = self._optimize_augmented_lagrangian(constraints, weights)
-        elif method == OptimizationMethod.MULTI_START:
-            result = self._optimize_multi_start(constraints, weights)
-        else:  # WEIGHTED_SUM
-            result = self._optimize_weighted_sum(constraints, weights)
+        result = self._run_optimization_method(method, constraints, weights)
 
         # Create decision from optimization result
         decision = self._create_decision_from_result(result, method)
 
         # Validate decision meets constraints
         if not self._validate_decision(decision, constraints):
-            logger.warning("Decision violates constraints, attempting fallback")
-            # Try alternative method
-            fallback_method = (
-                OptimizationMethod.DIFFERENTIAL_EVOLUTION
-                if method != OptimizationMethod.DIFFERENTIAL_EVOLUTION
-                else OptimizationMethod.WEIGHTED_SUM
+            logger.warning(
+                f"Decision from {method.value} violates constraints, "
+                f"attempting fallback (tried {len(_attempted_methods)} methods)"
             )
-            # Recursive call returns InsuranceDecision, not OptimizeResult
-            decision = self.optimize_insurance_decision(constraints, fallback_method, weights)
+            # Try fallback methods in sequence, skipping already-attempted ones
+            for fallback_method in self._FALLBACK_SEQUENCE:
+                if fallback_method not in _attempted_methods:
+                    decision = self.optimize_insurance_decision(
+                        constraints, fallback_method, weights, _attempted_methods
+                    )
+                    # If fallback found a valid decision, use it
+                    if self._validate_decision(decision, constraints):
+                        break
+            else:
+                # All methods exhausted — return best-effort result
+                logger.warning(
+                    "All optimization methods exhausted without meeting constraints. "
+                    "Returning best-effort result."
+                )
 
         # Cache result
         self._decision_cache[cache_key] = decision
@@ -280,6 +298,34 @@ class InsuranceDecisionEngine:
         )
 
         return decision
+
+    def _run_optimization_method(
+        self,
+        method: OptimizationMethod,
+        constraints: OptimizationConstraints,
+        weights: Dict[str, float],
+    ) -> OptimizeResult:
+        """Dispatch to the appropriate optimization method.
+
+        Args:
+            method: Optimization method to use
+            constraints: Optimization constraints
+            weights: Objective function weights
+
+        Returns:
+            Optimization result
+        """
+        dispatch = {
+            OptimizationMethod.SLSQP: self._optimize_slsqp,
+            OptimizationMethod.ENHANCED_SLSQP: self._optimize_enhanced_slsqp,
+            OptimizationMethod.DIFFERENTIAL_EVOLUTION: self._optimize_differential_evolution,
+            OptimizationMethod.TRUST_REGION: self._optimize_trust_region,
+            OptimizationMethod.PENALTY_METHOD: self._optimize_penalty_method,
+            OptimizationMethod.AUGMENTED_LAGRANGIAN: self._optimize_augmented_lagrangian,
+            OptimizationMethod.MULTI_START: self._optimize_multi_start,
+            OptimizationMethod.WEIGHTED_SUM: self._optimize_weighted_sum,
+        }
+        return dispatch[method](constraints, weights)
 
     def _optimize_slsqp(
         self, constraints: OptimizationConstraints, weights: Dict[str, float]
@@ -457,9 +503,33 @@ class InsuranceDecisionEngine:
     def _optimize_weighted_sum(
         self, constraints: OptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
-        """Optimize using weighted sum approach for multi-objective."""
-        # Similar to SLSQP but with explicit multi-objective handling
-        return self._optimize_slsqp(constraints, weights)
+        """Optimize using weighted sum scalarization with Pareto sampling.
+
+        Generates multiple candidate solutions by sweeping weight combinations,
+        then selects the best according to the user-specified weights. This
+        approach explores a broader Pareto front than single-shot SLSQP.
+        """
+        # Generate weight sweep: vary growth/risk emphasis
+        weight_sets = [
+            {"growth": 0.6, "risk": 0.3, "cost": 0.1},
+            {"growth": 0.3, "risk": 0.5, "cost": 0.2},
+            {"growth": 0.2, "risk": 0.3, "cost": 0.5},
+            weights,  # Include caller's weights
+        ]
+
+        best_result: Optional[OptimizeResult] = None
+        best_score = float("inf")
+
+        for w in weight_sets:
+            result = self._optimize_slsqp(constraints, w)
+            # Re-score using the caller's weights for fair comparison
+            score = self._calculate_objective(result.x, weights)
+            if score < best_score:
+                best_score = score
+                best_result = result
+
+        assert best_result is not None  # At least one result from the sweep
+        return best_result
 
     def _optimize_enhanced_slsqp(
         self, constraints: OptimizationConstraints, weights: Dict[str, float]
@@ -786,26 +856,78 @@ class InsuranceDecisionEngine:
         return total_premium
 
     def _estimate_growth_rate(self, retained_limit: float, layer_limits: List[float]) -> float:
-        """Estimate ergodic growth rate for given insurance structure."""
-        # Simplified estimation - in practice would run full simulation
-        base_growth = self.engine_config.base_growth_rate
+        """Estimate ergodic (time-average) growth rate for given insurance structure.
 
-        # Insurance benefit increases growth by reducing volatility drag
+        Uses the fundamental ergodic economics formula:
+            g_time = g_ensemble - σ²/2
+
+        where σ² is the variance of log-returns. Insurance reduces the effective
+        volatility of net losses, improving the time-average growth rate even
+        when the expected (ensemble) cost exceeds expected losses.
+
+        Args:
+            retained_limit: Self-insured retention level.
+            layer_limits: List of insurance layer limits.
+
+        Returns:
+            Estimated time-average growth rate.
+        """
+        assets = float(self.manufacturer.total_assets)
+        revenue = assets * self.manufacturer.asset_turnover_ratio
+        operating_income = revenue * self.manufacturer.base_operating_margin
+
+        # Ensemble (expected) growth rate from operations
+        g_ensemble = operating_income / assets if assets > 0 else 0.0
+
+        # Estimate loss volatility using loss distribution
+        if hasattr(self.loss_distribution, "expected_value"):
+            expected_loss = self.loss_distribution.expected_value()
+        else:
+            expected_loss = 0.0
+
+        # Compute effective loss volatility (σ of loss/assets ratio)
+        # Use CV=0.5 as default coefficient of variation for loss severity
+        loss_cv = 0.5
+        loss_std = expected_loss * loss_cv
+
+        # Without insurance: full loss volatility hits the balance sheet
+        sigma_no_insurance = loss_std / assets if assets > 0 else 0.0
+
+        # With insurance: only retained losses create volatility
         coverage = sum(layer_limits)
-        coverage_ratio = coverage / float(
-            self.manufacturer.total_assets
-        )  # Boundary: float for scipy.optimize
+        total_coverage = retained_limit + coverage
 
-        # Estimate volatility reduction
-        volatility_reduction = min(
-            coverage_ratio * self.engine_config.volatility_reduction_factor,
-            self.engine_config.max_volatility_reduction,
-        )
+        if total_coverage > 0 and expected_loss > 0:
+            # Fraction of loss variance retained (not covered by insurance)
+            # Losses above the retention up to coverage are transferred
+            retained_fraction = min(retained_limit / total_coverage, 1.0)
+            # Excess losses beyond total coverage also hit the balance sheet
+            excess_fraction = max(1.0 - total_coverage / (expected_loss * 10), 0.0)
+            effective_fraction = retained_fraction + excess_fraction
+            sigma_with_insurance = sigma_no_insurance * min(effective_fraction, 1.0)
+        else:
+            sigma_with_insurance = sigma_no_insurance
 
-        # Ergodic growth benefit
-        growth_benefit = volatility_reduction * self.engine_config.growth_benefit_factor
+        # Premium drag on growth
+        premium = 0.0
+        current_attachment = retained_limit
+        for limit in layer_limits:
+            if limit > 1000:
+                if current_attachment < 5_000_000:
+                    rate = self.current_scenario.primary_layer_rate
+                elif current_attachment < 25_000_000:
+                    rate = self.current_scenario.first_excess_rate
+                else:
+                    rate = self.current_scenario.higher_excess_rate
+                premium += limit * rate
+                current_attachment += limit
 
-        return float(base_growth + growth_benefit)  # Boundary: float for scipy.optimize
+        premium_drag = premium / assets if assets > 0 else 0.0
+
+        # Ergodic (time-average) growth rate: g_time = g_ensemble - σ²/2 - premium_drag
+        g_time = g_ensemble - (sigma_with_insurance**2) / 2 - premium_drag
+
+        return float(g_time)
 
     def _calculate_cvar(self, losses: np.ndarray, percentile: float) -> float:
         """Calculate Conditional Value at Risk (CVaR).
@@ -1149,15 +1271,26 @@ class InsuranceDecisionEngine:
         return metrics
 
     def _run_simulation(
-        self, decision: InsuranceDecision, n_simulations: int, time_horizon: int
+        self,
+        decision: InsuranceDecision,
+        n_simulations: int,
+        time_horizon: int,
+        seed: Optional[int] = 42,
     ) -> Dict[str, np.ndarray]:
-        """Run Monte Carlo simulation for given decision."""
+        """Run Monte Carlo simulation for given decision.
+
+        Args:
+            decision: Insurance decision to simulate.
+            n_simulations: Number of Monte Carlo paths.
+            time_horizon: Number of years per path.
+            seed: Random seed for reproducibility. Pass None for non-deterministic.
+        """
         equity_ratio = (
             float(self.manufacturer.equity) / float(self.manufacturer.total_assets)
             if float(self.manufacturer.total_assets) > 0
             else 0.3
         )
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed)
         results = {
             "growth_rates": np.zeros(n_simulations),
             "bankruptcies": np.zeros(n_simulations),
@@ -1173,9 +1306,9 @@ class InsuranceDecisionEngine:
         all_equity_series = []
 
         for i in range(n_simulations):
-            # Initialize company state
+            # Initialize company state from manufacturer financials
             assets = float(self.manufacturer.total_assets)
-            equity = assets * equity_ratio
+            equity = float(self.manufacturer.equity)
 
             bankrupt = False
             annual_returns = []
@@ -1186,12 +1319,17 @@ class InsuranceDecisionEngine:
                 # Generate revenue
                 revenue = assets * self.manufacturer.asset_turnover_ratio
 
-                # Generate losses
+                # Generate losses using loss distribution parameters
                 if hasattr(self.loss_distribution, "expected_value"):
-                    # Simple lognormal approximation for losses
-                    annual_losses = rng.lognormal(
-                        np.log(max(self.loss_distribution.expected_value(), 1)), 0.5
-                    )
+                    expected = max(self.loss_distribution.expected_value(), 1.0)
+                    # Use distribution's CV if available, otherwise default 0.5
+                    if hasattr(self.loss_distribution, "cv"):
+                        cv = self.loss_distribution.cv()
+                    else:
+                        cv = 0.5
+                    sigma_sq = np.log(1 + cv**2)
+                    mu = np.log(expected) - sigma_sq / 2
+                    annual_losses = rng.lognormal(mu, np.sqrt(sigma_sq))
                 else:
                     annual_losses = 0.0
 
@@ -1283,44 +1421,67 @@ class InsuranceDecisionEngine:
         # Calculate base metrics
         base_metrics = self.calculate_decision_metrics(base_decision)
 
+        # Save original state so sensitivity analysis does not corrupt the engine
+        original_scenario = copy.deepcopy(self.current_scenario)
+        original_loss_dist = copy.deepcopy(self.loss_distribution)
+        original_manufacturer = copy.deepcopy(self.manufacturer)
+
         # Initialize results
         parameter_sensitivities = {}
         stress_test_results = {}
 
-        for param in parameters:
-            param_results = {}
+        try:
+            for param in parameters:
+                param_results = {}
 
-            # Test parameter variations
-            for variation in [-variation_range, variation_range]:
-                # Modify parameter
-                self._modify_parameter(param, variation)
+                # Test parameter variations
+                for variation in [-variation_range, variation_range]:
+                    # Modify parameter (works on copies via deepcopy restore below)
+                    self._modify_parameter(param, variation)
 
-                # Re-optimize with modified parameter
-                constraints = OptimizationConstraints(
-                    max_premium_budget=base_decision.total_premium * 1.1
-                )
-                modified_decision = self.optimize_insurance_decision(constraints)
+                    # Clear caches so modified parameters take effect
+                    self._decision_cache.clear()
+                    self._metrics_cache.clear()
 
-                # Calculate metrics
-                modified_metrics = self.calculate_decision_metrics(modified_decision)
+                    # Re-optimize with modified parameter
+                    constraints = OptimizationConstraints(
+                        max_premium_budget=base_decision.total_premium * 1.1
+                    )
+                    modified_decision = self.optimize_insurance_decision(constraints)
 
-                # Calculate sensitivity
-                label = "decrease" if variation < 0 else "increase"
-                param_results[label] = {
-                    "growth_change": (
-                        modified_metrics.ergodic_growth_rate - base_metrics.ergodic_growth_rate
-                    ),
-                    "risk_change": (
-                        modified_metrics.bankruptcy_probability
-                        - base_metrics.bankruptcy_probability
-                    ),
-                    "roe_change": modified_metrics.expected_roe - base_metrics.expected_roe,
-                }
+                    # Calculate metrics
+                    modified_metrics = self.calculate_decision_metrics(modified_decision)
 
-                # Store stress test results
-                stress_test_results[f"{param}_{label}"] = modified_metrics
+                    # Calculate sensitivity
+                    label = "decrease" if variation < 0 else "increase"
+                    param_results[label] = {
+                        "growth_change": (
+                            modified_metrics.ergodic_growth_rate - base_metrics.ergodic_growth_rate
+                        ),
+                        "risk_change": (
+                            modified_metrics.bankruptcy_probability
+                            - base_metrics.bankruptcy_probability
+                        ),
+                        "roe_change": modified_metrics.expected_roe - base_metrics.expected_roe,
+                    }
 
-            parameter_sensitivities[param] = param_results
+                    # Store stress test results
+                    stress_test_results[f"{param}_{label}"] = modified_metrics
+
+                    # Restore state after each variation to start clean for next one
+                    self.current_scenario = copy.deepcopy(original_scenario)
+                    self.loss_distribution = copy.deepcopy(original_loss_dist)
+                    self.manufacturer = copy.deepcopy(original_manufacturer)
+
+                parameter_sensitivities[param] = param_results
+        finally:
+            # Always restore original state, even if analysis fails partway
+            self.current_scenario = original_scenario
+            self.loss_distribution = original_loss_dist
+            self.manufacturer = original_manufacturer
+            # Clear caches so restored state is used for subsequent calls
+            self._decision_cache.clear()
+            self._metrics_cache.clear()
 
         # Flatten parameter sensitivities for the report
         flattened_sensitivities = {}
