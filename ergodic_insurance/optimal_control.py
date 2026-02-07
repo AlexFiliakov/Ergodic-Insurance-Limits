@@ -56,6 +56,57 @@ from .manufacturer import WidgetManufacturer
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class HJBControllerConfig:
+    """Configuration for create_hjb_controller().
+
+    Consolidates hardcoded numeric literals from the HJB controller factory
+    into a single configurable object with backward-compatible defaults.
+    """
+
+    # State space
+    wealth_min: float = 1e6
+    wealth_max: float = 1e8
+    wealth_points: int = 30
+    time_points: int = 15
+    # Control space
+    limit_min: float = 1e6
+    limit_max: float = 5e7
+    limit_points: int = 10
+    retention_min: float = 1e5
+    retention_max: float = 1e7
+    retention_points: int = 10
+    coverage_min: float = 0.9
+    coverage_max: float = 1.0
+    # Dynamics
+    growth_rate: Optional[float] = None  # None → derive from manufacturer
+    premium_rate_base: float = 0.02
+    premium_rate_scaling: float = 1e7
+    loss_volatility: float = 0.15
+    coverage_volatility_factor: float = 0.7
+    # Solver
+    discount_rate: float = 0.05
+    solver_time_step: float = 0.05
+    solver_max_iterations: int = 50
+    solver_tolerance: float = 1e-4
+    solver_verbose: bool = False
+
+
+@dataclass
+class PremiumEstimationConfig:
+    """Configuration for OptimalController._estimate_premium_rate().
+
+    Extracts the heuristic premium-estimation magic numbers into a
+    configurable object with backward-compatible defaults.
+    """
+
+    base_rate: float = 0.02
+    max_retention_discount: float = 0.5
+    retention_scaling: float = 1e7
+    limit_scaling: float = 1e6
+    limit_log_factor: float = 0.1
+
+
 class ControlMode(Enum):
     """Mode of control application.
 
@@ -547,12 +598,19 @@ class OptimalController:
     managing the application of controls and tracking performance.
     """
 
-    def __init__(self, strategy: ControlStrategy, control_space: ControlSpace):
+    def __init__(
+        self,
+        strategy: ControlStrategy,
+        control_space: ControlSpace,
+        premium_config: Optional[PremiumEstimationConfig] = None,
+    ):
         """Initialize optimal controller.
 
         Args:
             strategy: Control strategy to apply during simulation.
             control_space: Definition of feasible control space.
+            premium_config: Optional configuration for premium rate estimation
+                heuristic. Uses PremiumEstimationConfig defaults when None.
 
         Attributes:
             control_history: List of applied controls.
@@ -561,6 +619,7 @@ class OptimalController:
         """
         self.strategy = strategy
         self.control_space = control_space
+        self.premium_config = premium_config or PremiumEstimationConfig()
 
         # Performance tracking
         self.control_history: list[Dict[str, Any]] = []
@@ -677,13 +736,14 @@ class OptimalController:
             actuarial models based on loss history and risk factors.
         """
         # Simple heuristic - would use actuarial model in production
-        base_rate = 0.02  # 2% base rate
+        cfg = self.premium_config
+        base_rate = cfg.base_rate
 
         # Adjust for retention (higher retention = lower rate)
-        retention_factor = 1.0 - min(0.5, retention / 1e7)
+        retention_factor = 1.0 - min(cfg.max_retention_discount, retention / cfg.retention_scaling)
 
         # Adjust for limit (higher limit = slightly higher rate)
-        limit_factor = 1.0 + 0.1 * np.log10(max(1, limit / 1e6))
+        limit_factor = 1.0 + cfg.limit_log_factor * np.log10(max(1, limit / cfg.limit_scaling))
 
         # Adjust for coverage
         coverage_factor = coverage
@@ -749,6 +809,7 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
     simulation_years: int = 10,
     utility_type: str = "log",
     risk_aversion: float = 2.0,
+    config: Optional[HJBControllerConfig] = None,
 ) -> OptimalController:
     """Convenience function to create HJB-based controller.
 
@@ -819,19 +880,56 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         UtilityFunction,
     )
 
+    # Use provided config or defaults
+    cfg = config or HJBControllerConfig()
+
+    # Derive growth rate from manufacturer if not explicitly set
+    effective_growth_rate = cfg.growth_rate
+    if effective_growth_rate is None:
+        effective_growth_rate = (
+            manufacturer.config.asset_turnover_ratio * manufacturer.config.base_operating_margin
+        )
+
+    # Capture config values for closures
+    _premium_rate_base = cfg.premium_rate_base
+    _premium_rate_scaling = cfg.premium_rate_scaling
+    _loss_volatility = cfg.loss_volatility
+    _coverage_volatility_factor = cfg.coverage_volatility_factor
+    _effective_growth_rate = effective_growth_rate
+
     # Define state space (2D: wealth × time)
     state_variables = [
-        StateVariable(name="wealth", min_value=1e6, max_value=1e8, num_points=30, log_scale=True),
         StateVariable(
-            name="time", min_value=0, max_value=simulation_years, num_points=15, log_scale=False
+            name="wealth",
+            min_value=cfg.wealth_min,
+            max_value=cfg.wealth_max,
+            num_points=cfg.wealth_points,
+            log_scale=True,
+        ),
+        StateVariable(
+            name="time",
+            min_value=0,
+            max_value=simulation_years,
+            num_points=cfg.time_points,
+            log_scale=False,
         ),
     ]
     state_space = StateSpace(state_variables)
 
     # Define control variables (single layer)
     control_variables = [
-        ControlVariable(name="limit", min_value=1e6, max_value=5e7, num_points=10),
-        ControlVariable(name="retention", min_value=1e5, max_value=1e7, num_points=10),
+        ControlVariable(
+            name="limit",
+            min_value=cfg.limit_min,
+            max_value=cfg.limit_max,
+            num_points=cfg.limit_points,
+        ),
+        ControlVariable(
+            name="retention",
+            min_value=cfg.retention_min,
+            max_value=cfg.retention_max,
+            num_points=cfg.retention_points,
+        ),
     ]
 
     # Select utility function
@@ -852,11 +950,11 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         _limit = control[..., 0]
         _retention = control[..., 1]
 
-        # Expected growth rate (simplified)
-        growth_rate = 0.08  # 8% baseline growth
+        # Expected growth rate
+        growth_rate = _effective_growth_rate
 
         # Insurance cost reduces growth
-        premium_rate = 0.02 * (_limit / 1e7)  # Simplified premium
+        premium_rate = _premium_rate_base * (_limit / _premium_rate_scaling)
 
         # Wealth drift
         wealth_drift = wealth * (growth_rate - premium_rate)
@@ -878,12 +976,12 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         wealth = state[..., 0]
         _limit = control[..., 0]
 
-        # Baseline loss volatility (15% of wealth)
-        loss_volatility = 0.15
+        # Baseline loss volatility
+        loss_vol = _loss_volatility
 
         # Insurance reduces volatility proportional to coverage
         coverage_ratio = np.clip(_limit / (wealth + 1e-6), 0, 1)
-        net_volatility = loss_volatility * (1 - 0.7 * coverage_ratio)
+        net_volatility = loss_vol * (1 - _coverage_volatility_factor * coverage_ratio)
 
         # σ² for wealth dimension
         wealth_sigma_sq = (wealth * net_volatility) ** 2
@@ -920,21 +1018,28 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         dynamics=dynamics,
         running_cost=running_cost,
         terminal_value=terminal_value,
-        discount_rate=0.05,  # 5% discount rate
+        discount_rate=cfg.discount_rate,
         time_horizon=simulation_years,
         diffusion=diffusion_coeff,
     )
 
     # Solve HJB equation
-    config = HJBSolverConfig(time_step=0.05, max_iterations=50, tolerance=1e-4, verbose=False)
+    solver_config = HJBSolverConfig(
+        time_step=cfg.solver_time_step,
+        max_iterations=cfg.solver_max_iterations,
+        tolerance=cfg.solver_tolerance,
+        verbose=cfg.solver_verbose,
+    )
 
-    solver = HJBSolver(problem, config)
+    solver = HJBSolver(problem, solver_config)
     logger.info("Solving HJB equation...")
     solver.solve()
 
     # Create control space (single layer)
     control_space = ControlSpace(
-        limits=[(1e6, 5e7)], retentions=[(1e5, 1e7)], coverage_percentages=[(0.9, 1.0)]
+        limits=[(cfg.limit_min, cfg.limit_max)],
+        retentions=[(cfg.retention_min, cfg.retention_max)],
+        coverage_percentages=[(cfg.coverage_min, cfg.coverage_max)],
     )
 
     # Create feedback control strategy

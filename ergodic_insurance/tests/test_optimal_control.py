@@ -23,8 +23,10 @@ from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.optimal_control import (
     ControlMode,
     ControlSpace,
+    HJBControllerConfig,
     HJBFeedbackControl,
     OptimalController,
+    PremiumEstimationConfig,
     StaticControl,
     TimeVaryingControl,
     create_hjb_controller,
@@ -513,3 +515,141 @@ class TestCreateHJBController:
         assert insurance is not None
         assert hasattr(insurance, "layers")
         assert len(insurance.layers) > 0
+
+
+class TestHJBControllerConfig:
+    """Test HJBControllerConfig dataclass from Issue #517."""
+
+    def test_default_values(self):
+        """Test that defaults match the previously hardcoded values."""
+        cfg = HJBControllerConfig()
+        assert cfg.wealth_min == 1e6
+        assert cfg.wealth_max == 1e8
+        assert cfg.wealth_points == 30
+        assert cfg.time_points == 15
+        assert cfg.limit_min == 1e6
+        assert cfg.limit_max == 5e7
+        assert cfg.limit_points == 10
+        assert cfg.retention_min == 1e5
+        assert cfg.retention_max == 1e7
+        assert cfg.retention_points == 10
+        assert cfg.coverage_min == 0.9
+        assert cfg.coverage_max == 1.0
+        assert cfg.growth_rate is None
+        assert cfg.premium_rate_base == 0.02
+        assert cfg.premium_rate_scaling == 1e7
+        assert cfg.loss_volatility == 0.15
+        assert cfg.coverage_volatility_factor == 0.7
+        assert cfg.discount_rate == 0.05
+        assert cfg.solver_time_step == 0.05
+        assert cfg.solver_max_iterations == 50
+        assert cfg.solver_tolerance == 1e-4
+        assert cfg.solver_verbose is False
+
+    def test_custom_values(self):
+        """Test that custom values override defaults."""
+        cfg = HJBControllerConfig(
+            wealth_min=5e5,
+            wealth_max=5e8,
+            growth_rate=0.10,
+            solver_max_iterations=100,
+        )
+        assert cfg.wealth_min == 5e5
+        assert cfg.wealth_max == 5e8
+        assert cfg.growth_rate == 0.10
+        assert cfg.solver_max_iterations == 100
+        # Other defaults unchanged
+        assert cfg.wealth_points == 30
+        assert cfg.loss_volatility == 0.15
+
+
+class TestPremiumEstimationConfig:
+    """Test PremiumEstimationConfig dataclass from Issue #517."""
+
+    def test_default_values(self):
+        """Test that defaults match the previously hardcoded values."""
+        cfg = PremiumEstimationConfig()
+        assert cfg.base_rate == 0.02
+        assert cfg.max_retention_discount == 0.5
+        assert cfg.retention_scaling == 1e7
+        assert cfg.limit_scaling == 1e6
+        assert cfg.limit_log_factor == 0.1
+
+    def test_custom_values(self):
+        """Test that custom values override defaults."""
+        cfg = PremiumEstimationConfig(base_rate=0.03, max_retention_discount=0.4)
+        assert cfg.base_rate == 0.03
+        assert cfg.max_retention_discount == 0.4
+        # Other defaults unchanged
+        assert cfg.retention_scaling == 1e7
+
+
+class TestCreateHJBControllerWithConfig:
+    """Test create_hjb_controller() with the new config parameter from Issue #517."""
+
+    @pytest.fixture
+    def manufacturer(self):
+        """Create a test manufacturer."""
+        config = ManufacturerConfig(
+            initial_assets=1e7,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.6,
+        )
+        return WidgetManufacturer(config)
+
+    @pytest.mark.slow
+    @pytest.mark.filterwarnings("ignore:overflow encountered:RuntimeWarning")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered:RuntimeWarning")
+    def test_create_with_custom_config(self, manufacturer):
+        """Test creating controller with custom HJBControllerConfig."""
+        cfg = HJBControllerConfig(
+            wealth_points=10,
+            time_points=5,
+            limit_points=5,
+            retention_points=5,
+            solver_max_iterations=5,
+        )
+        controller = create_hjb_controller(
+            manufacturer, simulation_years=1, utility_type="log", config=cfg
+        )
+        assert isinstance(controller, OptimalController)
+        assert isinstance(controller.strategy, HJBFeedbackControl)
+
+    def test_manufacturer_derived_growth_rate(self, manufacturer):
+        """Test that growth_rate=None derives from manufacturer config."""
+        cfg = HJBControllerConfig(growth_rate=None)
+        # growth_rate should be derived as asset_turnover_ratio * base_operating_margin
+        expected_growth = (
+            manufacturer.config.asset_turnover_ratio * manufacturer.config.base_operating_margin
+        )
+        assert expected_growth == pytest.approx(0.08)
+        # When growth_rate is None in config, the function derives it
+        assert cfg.growth_rate is None
+
+    def test_explicit_growth_rate(self):
+        """Test that explicit growth_rate is used when provided."""
+        cfg = HJBControllerConfig(growth_rate=0.12)
+        assert cfg.growth_rate == 0.12
+
+
+class TestOptimalControllerPremiumConfig:
+    """Test OptimalController with custom premium config from Issue #517."""
+
+    def test_custom_premium_config(self):
+        """Test that custom premium params are stored on controller."""
+        strategy = StaticControl([1e7], [1e6])
+        control_space = ControlSpace(limits=[(1e6, 5e7)], retentions=[(1e5, 1e6)])
+        premium_cfg = PremiumEstimationConfig(base_rate=0.03)
+
+        controller = OptimalController(strategy, control_space, premium_config=premium_cfg)
+        assert controller.premium_config.base_rate == 0.03
+
+    def test_default_premium_config(self):
+        """Test that default premium config is created when None."""
+        strategy = StaticControl([1e7], [1e6])
+        control_space = ControlSpace(limits=[(1e6, 5e7)], retentions=[(1e5, 1e6)])
+
+        controller = OptimalController(strategy, control_space)
+        assert controller.premium_config.base_rate == 0.02

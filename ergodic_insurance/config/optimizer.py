@@ -8,7 +8,8 @@ Since:
     Version 0.9.0 (Issue #314, #458)
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict, Tuple
 
 
 @dataclass
@@ -97,3 +98,14 @@ class DecisionEngineConfig:
     """Maximum volatility reduction (15%)."""
     growth_benefit_factor: float = 0.5
     """Simplified growth benefit multiplier."""
+
+    loss_cv: float = 0.5
+    """Default coefficient of variation for loss severity."""
+
+    default_optimization_weights: Dict[str, float] = field(
+        default_factory=lambda: {"growth": 0.4, "risk": 0.4, "cost": 0.2}
+    )
+    """Default objective function weights."""
+
+    layer_attachment_thresholds: Tuple[float, float] = (5_000_000, 25_000_000)
+    """Attachment thresholds: (primary_ceiling, first_excess_ceiling)."""

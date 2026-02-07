@@ -928,6 +928,15 @@ class ManufacturingLossGenerator:
         severity_mean: float = 5_000_000,
         severity_std: float = 2_000_000,
         seed: Optional[int] = None,
+        *,
+        attritional_frequency_ratio: float = 0.9,
+        attritional_severity_factor: float = 0.5,
+        large_frequency_ratio: float = 0.1,
+        large_severity_factor: float = 2.0,
+        large_cv_factor: float = 1.5,
+        catastrophic_frequency: float = 0.001,
+        catastrophic_pareto_alpha: float = 2.5,
+        catastrophic_severity_factor: float = 5.0,
     ) -> "ManufacturingLossGenerator":
         """Create a simple loss generator (migration helper from ClaimGenerator).
 
@@ -940,6 +949,22 @@ class ManufacturingLossGenerator:
             severity_mean: Mean loss amount in dollars.
             severity_std: Standard deviation of loss amount.
             seed: Random seed for reproducibility.
+            attritional_frequency_ratio: Fraction of frequency allocated to
+                attritional losses. Default 0.9 (90%).
+            attritional_severity_factor: Multiplier on severity_mean for
+                attritional loss mean. Default 0.5.
+            large_frequency_ratio: Fraction of frequency allocated to large
+                losses. Default 0.1 (10%).
+            large_severity_factor: Multiplier on severity_mean for large loss
+                mean. Default 2.0.
+            large_cv_factor: Multiplier on CV for large loss variability.
+                Default 1.5.
+            catastrophic_frequency: Absolute annual frequency for catastrophic
+                losses (not scaled by ``frequency``). Default 0.001.
+            catastrophic_pareto_alpha: Pareto shape parameter for catastrophic
+                losses. Default 2.5.
+            catastrophic_severity_factor: Multiplier on severity_mean for the
+                Pareto xm (minimum catastrophic loss). Default 5.0.
 
         Returns:
             ManufacturingLossGenerator configured for simple use case.
@@ -977,25 +1002,24 @@ class ManufacturingLossGenerator:
         cv = severity_std / severity_mean if severity_mean > 0 else 0
 
         # Configure as primarily attritional with small large loss component
-        # Attritional losses: 90% of events, use mean/cv approach
         attritional_params = {
-            "base_frequency": frequency * 0.9,  # 90% of frequency
-            "severity_mean": severity_mean * 0.5,  # Smaller attritional losses
+            "base_frequency": frequency * attritional_frequency_ratio,
+            "severity_mean": severity_mean * attritional_severity_factor,
             "severity_cv": cv,
         }
 
-        # Large losses: 10% of events, use mean/cv approach
+        # Large losses
         large_params = {
-            "base_frequency": frequency * 0.1,  # 10% of frequency
-            "severity_mean": severity_mean * 2,  # Larger losses
-            "severity_cv": cv * 1.5,  # More variable
+            "base_frequency": frequency * large_frequency_ratio,
+            "severity_mean": severity_mean * large_severity_factor,
+            "severity_cv": cv * large_cv_factor,
         }
 
-        # Catastrophic losses: very rare, use Pareto distribution
+        # Catastrophic losses: use Pareto distribution
         catastrophic_params = {
-            "base_frequency": 0.001,  # Very rare
-            "severity_alpha": 2.5,  # Pareto shape
-            "severity_xm": severity_mean * 5,  # Much larger severities
+            "base_frequency": catastrophic_frequency,
+            "severity_alpha": catastrophic_pareto_alpha,
+            "severity_xm": severity_mean * catastrophic_severity_factor,
         }
 
         return cls(
