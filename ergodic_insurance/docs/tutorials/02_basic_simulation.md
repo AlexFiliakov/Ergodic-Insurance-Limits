@@ -2,6 +2,8 @@
 
 This tutorial covers the core simulation mechanics in detail, including how the business model evolves over time and how to interpret simulation results.
 
+> **Tip:** For a quick insured-vs-uninsured comparison without managing individual objects, use `run_analysis()` — see [Tutorial 1: Getting Started](01_getting_started.md).
+
 ## The Widget Manufacturer Model
 
 The framework models a manufacturing business with the following financial dynamics:

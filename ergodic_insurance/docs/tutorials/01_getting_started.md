@@ -55,11 +55,47 @@ uv sync
 python -c "import ergodic_insurance; print(ergodic_insurance.__version__)"
 ```
 
-## Your First Simulation
+## Your First Analysis
 
-Let's run a simple simulation to see the framework in action.
+The fastest way to get results is `run_analysis()` — one import, one call:
 
-### Step 1: Import the Core Components
+```python
+from ergodic_insurance import run_analysis
+
+results = run_analysis(
+    initial_assets=10_000_000,       # $10M starting assets
+    operating_margin=0.08,           # 8% operating margin
+    loss_frequency=2.5,              # ~2.5 losses per year
+    loss_severity_mean=1_000_000,    # $1M average loss
+    deductible=500_000,              # $500K self-insured retention
+    coverage_limit=10_000_000,       # $10M policy limit
+    premium_rate=0.025,              # 2.5% rate on limit
+    n_simulations=1000,              # Monte Carlo paths
+    time_horizon=20,                 # 20-year horizon
+)
+
+print(results.summary())
+```
+
+That's it — `run_analysis` builds the manufacturer, loss model, insurance
+policy, and simulation engine internally, runs both *insured* and
+*uninsured* Monte Carlo batches, and returns a rich result object.
+
+### Inspect the Results
+
+```python
+# Export per-simulation metrics to a DataFrame
+df = results.to_dataframe()
+print(df.head())
+
+# Quick 2x2 comparison chart
+results.plot()
+```
+
+### Under the Hood
+
+`run_analysis` is a convenience wrapper around the framework's building
+blocks. Power users can import them directly:
 
 ```python
 from ergodic_insurance import Config
@@ -68,100 +104,8 @@ from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.simulation import Simulation
 ```
 
-### Step 2: Configure a Manufacturer
-
-Create a configuration for a widget manufacturing company. The simplest way is to use the defaults:
-
-```python
-# Option A: Use defaults — $10M manufacturer, 8% margin, 50-year horizon
-config = Config()
-
-# Option B: Customize from basic company info
-config = Config.from_company(
-    initial_assets=10_000_000,      # $10M starting assets
-    operating_margin=0.08,          # 8% operating margin
-)
-
-# Option C: Full control over individual parameters
-from ergodic_insurance import ManufacturerConfig
-config = Config(
-    manufacturer=ManufacturerConfig(
-        initial_assets=10_000_000,
-        asset_turnover_ratio=1.0,
-        base_operating_margin=0.08,
-        tax_rate=0.25,
-        retention_ratio=1.0,
-    )
-)
-
-# Create the manufacturer instance
-manufacturer = WidgetManufacturer(config.manufacturer)
-
-print(f"Initial Equity: ${manufacturer.equity:,.0f}")
-print(f"Initial Cash: ${manufacturer.cash:,.0f}")
-```
-
-**Expected Output:**
-```
-Initial Equity: $10,000,000
-Initial Cash: $7,000,000
-```
-
-### Step 3: Configure Loss Generation
-
-Set up a loss generator to simulate random loss events:
-
-```python
-# Create a loss generator with:
-# - 10% annual loss frequency (average 0.1 losses per year)
-# - Lognormal severity distribution (mean $500K, std $500K)
-# - Reproducible results with seed
-loss_generator = ManufacturingLossGenerator.create_simple(
-    frequency=0.1,            # Expected losses per year
-    severity_mean=500_000,    # Average loss size
-    severity_std=500_000,     # Standard deviation
-    seed=42
-)
-```
-
-### Step 4: Run a Basic Simulation
-
-```python
-# Create and run the simulation
-# Note: Simulation will use the loss generator internally
-simulation = Simulation(
-    manufacturer=manufacturer,
-    loss_generator=loss_generator,
-    time_horizon=20  # Simulate 20 years
-)
-
-results = simulation.run()
-
-# Display summary statistics
-print("\n=== Simulation Results ===")
-print(f"Final Assets: ${results.assets[-1]:,.0f}")
-print(f"Final Equity: ${results.equity[-1]:,.0f}")
-print(f"Mean ROE: {results.roe.mean():.2%}")
-print(f"Survived: {'Yes' if results.insolvency_year is None else f'No (Year {results.insolvency_year})'}")
-```
-
-### Step 5: Examine the Results
-
-The `SimulationResults` object contains detailed time series data:
-
-```python
-import pandas as pd
-
-# Convert to DataFrame for easy analysis
-df = results.to_dataframe()
-print("\nYear-by-year results:")
-print(df.head(10).to_string())
-
-# Calculate time-weighted ROE (ergodic measure)
-time_weighted_roe = results.calculate_time_weighted_roe()
-print(f"\nTime-weighted ROE: {time_weighted_roe:.2%}")
-print(f"Simple average ROE: {results.roe.mean():.2%}")
-```
+See [Tutorial 2: Basic Simulation](02_basic_simulation.md) for a deeper
+dive into the individual components.
 
 ## Understanding the Output
 
@@ -190,12 +134,13 @@ Now that you've run your first simulation, continue with:
 
 ### Key Classes
 
-| Class | Purpose |
-|-------|---------|
+| Class / Function | Purpose |
+|------------------|---------|
+| `run_analysis()` | **Quick-start** — one call for a full insured-vs-uninsured comparison |
+| `AnalysisResults` | Container returned by `run_analysis` with `.summary()`, `.to_dataframe()`, `.plot()` |
 | `ManufacturerConfig` | Configure business financial parameters |
 | `WidgetManufacturer` | Business model with financial operations |
 | `ManufacturingLossGenerator` | Generate random loss events (recommended) |
-| `ClaimGenerator` | ⚠️ **Deprecated** - Use ManufacturingLossGenerator instead |
 | `Simulation` | Run time evolution of the business |
 | `SimulationResults` | Container for simulation output |
 

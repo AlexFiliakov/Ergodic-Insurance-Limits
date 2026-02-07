@@ -15,6 +15,21 @@ Key Features:
     - Comprehensive visualization and reporting
 
 Examples:
+    One-call analysis (recommended starting point)::
+
+        from ergodic_insurance import run_analysis
+
+        results = run_analysis(
+            initial_assets=10_000_000,
+            loss_frequency=2.5,
+            loss_severity_mean=1_000_000,
+            deductible=500_000,
+            coverage_limit=10_000_000,
+            premium_rate=0.025,
+        )
+        print(results.summary())
+        results.plot()
+
     Quick start with defaults (creates a $10M manufacturer, 50-year horizon)::
 
         from ergodic_insurance import Config
@@ -28,16 +43,6 @@ Examples:
         config = Config.from_company(
             initial_assets=50_000_000,
             operating_margin=0.12,
-        )
-
-    Business optimization::
-
-        from ergodic_insurance import BusinessOptimizer, BusinessObjective
-
-        optimizer = BusinessOptimizer()
-        result = optimizer.optimize(
-            objective=BusinessObjective.MAXIMIZE_GROWTH,
-            constraints=BusinessConstraints(min_survival_prob=0.95)
         )
 
 Note:
@@ -60,6 +65,9 @@ except ImportError:
 
 __all__ = [
     "__version__",
+    # Quick-start factory
+    "run_analysis",
+    "AnalysisResults",
     "BusinessObjective",
     "BusinessConstraints",
     "OptimalStrategy",
@@ -134,6 +142,13 @@ def __getattr__(name):
         This function is called automatically by Python when accessing module
         attributes that are not yet loaded. It should not be called directly.
     """
+    if name in ("run_analysis", "AnalysisResults"):
+        from ._run_analysis import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AnalysisResults,
+            run_analysis,
+        )
+
+        return locals()[name]
     if name in (
         "BusinessObjective",
         "BusinessConstraints",
