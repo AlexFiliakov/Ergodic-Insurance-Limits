@@ -839,7 +839,7 @@ results2 = engine.run()  # Near-instant
 Use `BenchmarkSuite` to measure your system's throughput and identify bottlenecks.
 
 ```python
-from ergodic_insurance import BenchmarkSuite, BenchmarkConfig
+from ergodic_insurance.internals import BenchmarkSuite, BenchmarkConfig
 
 benchmark_config = BenchmarkConfig(
     scales=[1_000, 5_000, 10_000],  # Test at these simulation counts

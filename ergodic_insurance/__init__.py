@@ -68,16 +68,30 @@ __all__ = [
     # Quick-start factory
     "run_analysis",
     "AnalysisResults",
+    # Insurance & Risk
+    "InsurancePolicy",
+    "InsuranceLayer",
+    "InsuranceProgram",
+    "EnhancedInsuranceLayer",
+    "InsurancePricer",
+    "MarketCycle",
+    "RiskMetrics",
+    "MonteCarloEngine",
+    "RuinProbabilityAnalyzer",
+    # Business optimization
     "BusinessObjective",
     "BusinessConstraints",
     "OptimalStrategy",
     "BusinessOptimizationResult",
     "BusinessOptimizer",
+    # Loss modeling
     "LossEvent",
     "LossData",
     "ManufacturingLossGenerator",
+    # Configuration
     "Config",
     "ManufacturerConfig",
+    # Analysis & simulation
     "ErgodicAnalyzer",
     "WidgetManufacturer",
     "Simulation",
@@ -85,6 +99,7 @@ __all__ = [
     "ValidationMetrics",
     "MetricCalculator",
     "PerformanceTargets",
+    # Strategies
     "InsuranceStrategy",
     "NoInsuranceStrategy",
     "ConservativeFixedStrategy",
@@ -93,20 +108,12 @@ __all__ = [
     "AdaptiveStrategy",
     "StrategyBacktester",
     "WalkForwardValidator",
+    # Performance & validation (user-facing only)
     "PerformanceOptimizer",
     "OptimizationConfig",
-    "ProfileResult",
-    "SmartCache",
-    "VectorizedOperations",
     "AccuracyValidator",
     "ValidationResult",
-    "ReferenceImplementations",
-    "EdgeCaseTester",
-    "BenchmarkSuite",
-    "BenchmarkConfig",
-    "BenchmarkResult",
-    "BenchmarkMetrics",
-    "SystemProfiler",
+    # Visualization
     "StyleManager",
     "Theme",
     "FigureFactory",
@@ -149,6 +156,41 @@ def __getattr__(name):
         )
 
         return locals()[name]
+    if name in ("InsurancePolicy", "InsuranceLayer"):
+        from .insurance import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            InsuranceLayer,
+            InsurancePolicy,
+        )
+
+        return locals()[name]
+    if name in ("InsuranceProgram", "EnhancedInsuranceLayer"):
+        from .insurance_program import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            EnhancedInsuranceLayer,
+            InsuranceProgram,
+        )
+
+        return locals()[name]
+    if name in ("InsurancePricer", "MarketCycle"):
+        from .insurance_pricing import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            InsurancePricer,
+            MarketCycle,
+        )
+
+        return locals()[name]
+    if name == "RiskMetrics":
+        from .risk_metrics import RiskMetrics  # pylint: disable=import-outside-toplevel
+
+        return RiskMetrics
+    if name == "MonteCarloEngine":
+        from .monte_carlo import MonteCarloEngine  # pylint: disable=import-outside-toplevel
+
+        return MonteCarloEngine
+    if name == "RuinProbabilityAnalyzer":
+        from .ruin_probability import (  # pylint: disable=import-outside-toplevel
+            RuinProbabilityAnalyzer,
+        )
+
+        return RuinProbabilityAnalyzer
     if name in (
         "BusinessObjective",
         "BusinessConstraints",
@@ -229,49 +271,17 @@ def __getattr__(name):
         )
 
         return WalkForwardValidator
-    if name in (
-        "PerformanceOptimizer",
-        "OptimizationConfig",
-        "ProfileResult",
-        "SmartCache",
-        "VectorizedOperations",
-    ):
+    if name in ("PerformanceOptimizer", "OptimizationConfig"):
         from .performance_optimizer import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             OptimizationConfig,
             PerformanceOptimizer,
-            ProfileResult,
-            SmartCache,
-            VectorizedOperations,
         )
 
         return locals()[name]
-    if name in (
-        "AccuracyValidator",
-        "ValidationResult",
-        "ReferenceImplementations",
-        "EdgeCaseTester",
-    ):
+    if name in ("AccuracyValidator", "ValidationResult"):
         from .accuracy_validator import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             AccuracyValidator,
-            EdgeCaseTester,
-            ReferenceImplementations,
             ValidationResult,
-        )
-
-        return locals()[name]
-    if name in (
-        "BenchmarkSuite",
-        "BenchmarkConfig",
-        "BenchmarkResult",
-        "BenchmarkMetrics",
-        "SystemProfiler",
-    ):
-        from .benchmarking import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
-            BenchmarkConfig,
-            BenchmarkMetrics,
-            BenchmarkResult,
-            BenchmarkSuite,
-            SystemProfiler,
         )
 
         return locals()[name]
