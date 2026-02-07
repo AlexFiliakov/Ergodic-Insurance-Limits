@@ -144,25 +144,37 @@ pip install -e .
 pre-commit install
 ```
 
+## Quick Start
+
+```python
+from ergodic_insurance import run_analysis
+
+results = run_analysis(
+    initial_assets=10_000_000,
+    loss_frequency=2.5,
+    loss_severity_mean=1_000_000,
+    deductible=500_000,
+    coverage_limit=10_000_000,
+    premium_rate=0.025,
+    n_simulations=1000,
+    time_horizon=20,
+)
+print(results.summary())   # human-readable comparison
+results.plot()              # 2×2 insured-vs-uninsured chart
+df = results.to_dataframe() # per-simulation metrics
+```
+
 ## Verify Installation
 
 ```python
 # test_installation.py
-from ergodic_insurance.config import Config
-from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance import run_analysis
 
 print("Framework imported successfully!")
 
-# Create a default configuration — $10M manufacturer, sensible defaults
-config = Config()
-
-# Or customize from basic company info:
-# config = Config.from_company(initial_assets=50_000_000, operating_margin=0.12)
-
-# Create a simple manufacturer
-company = WidgetManufacturer(config.manufacturer)
-
-print(f"Created company with ${company.assets:,.0f} in assets")
+# Quick smoke test with minimal simulations
+results = run_analysis(n_simulations=5, time_horizon=5, seed=42)
+print(results.summary())
 print("Installation successful!")
 ```
 
