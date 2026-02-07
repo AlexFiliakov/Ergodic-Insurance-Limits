@@ -47,6 +47,7 @@ Examples:
 import copy as copy_module
 from decimal import Decimal
 import logging
+import random
 from typing import Any, Dict, List, Optional, Union
 
 try:
@@ -196,6 +197,14 @@ class WidgetManufacturer(
         # Solvency tracking
         self.is_ruined = False
         self.ruin_month: Optional[int] = None
+
+        # Reserve development tracking (Issue #470, ASC 944-40-25)
+        self.period_adverse_development: Decimal = ZERO
+        self.period_favorable_development: Decimal = ZERO
+        self._enable_reserve_development = config.enable_reserve_development
+        self._reserve_rng: Optional[random.Random] = (
+            random.Random(42) if self._enable_reserve_development else None
+        )
 
         # Metrics tracking
         self.metrics_history: List[MetricsDict] = []
@@ -645,6 +654,10 @@ class WidgetManufacturer(
         if time_resolution == "annual" or self.current_month == 0:
             self.pay_claim_liabilities(max_payable=max_claim_payable)
 
+        # Re-estimate reserves per ASC 944-40-25 (Issue #470)
+        if time_resolution == "annual" or self.current_month == 0:
+            self.re_estimate_reserves()
+
         # Calculate depreciation expense for the period
         if time_resolution == "annual":
             depreciation_expense = self.record_depreciation(useful_life_years=10)
@@ -729,6 +742,12 @@ class WidgetManufacturer(
         # Reset period insurance cost tracking
         self.period_insurance_premiums = ZERO
         self.period_insurance_losses = ZERO
+
+        # Reset reserve development tracking (Issue #470)
+        self.period_adverse_development = ZERO
+        self.period_favorable_development = ZERO
+        if self._enable_reserve_development and self._reserve_rng is not None:
+            self._reserve_rng.seed(42)
 
         # Reset dividend tracking
         self._last_dividends_paid = ZERO

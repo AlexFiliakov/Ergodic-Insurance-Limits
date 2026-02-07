@@ -285,6 +285,22 @@ class ManufacturerConfig(BaseModel):
         "the lowest cash point and triggers insolvency if it goes negative.",
     )
 
+    # Reserve re-estimation configuration (Issue #470, ASC 944-40-25)
+    enable_reserve_development: bool = Field(
+        default=False,
+        description="Enable stochastic reserve re-estimation per ASC 944-40-25. "
+        "When True, claim reserves start as noisy estimates that converge "
+        "toward the true ultimate over the claim's life. Default off.",
+    )
+    reserve_noise_std: float = Field(
+        default=0.20,
+        ge=0.0,
+        le=1.0,
+        description="Std dev of initial reserve estimation noise as fraction of "
+        "true ultimate (typically 0.15-0.40 depending on line of business). "
+        "Noise shrinks proportionally to claim maturity.",
+    )
+
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):
         """Set default PPE ratio based on operating margin if not provided."""
