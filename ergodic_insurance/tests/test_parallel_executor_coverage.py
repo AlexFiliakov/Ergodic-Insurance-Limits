@@ -326,8 +326,8 @@ class TestProfileWorkComplexityFailure:
 class TestExecuteChunkErrorHandling:
     """Cover error handling in _execute_chunk worker function."""
 
-    def test_execute_chunk_reports_errors(self):
-        """Lines 673-674: _execute_chunk raises RuntimeError with error details."""
+    def test_execute_chunk_returns_partial_results(self):
+        """_execute_chunk returns partial results with None for failed items."""
         chunk = (0, 3, [1, 2, 3])
         config = SharedMemoryConfig()
 
@@ -336,8 +336,8 @@ class TestExecuteChunkErrorHandling:
                 raise ValueError("bad value")
             return x
 
-        with pytest.raises(RuntimeError, match="Work function failed"):
-            _execute_chunk(fail_on_two, chunk, {}, config)
+        results = _execute_chunk(fail_on_two, chunk, {}, config)
+        assert results == [1, None, 3]
 
     def test_execute_chunk_no_shared_refs(self):
         """_execute_chunk works without shared refs."""
@@ -441,3 +441,187 @@ class TestSharedMemoryManagerDel:
         with patch.object(manager, "cleanup") as mock_cleanup:
             manager.__del__()  # pylint: disable=unnecessary-dunder-call
             mock_cleanup.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# SharedMemoryManager - opened handle tracking
+# ---------------------------------------------------------------------------
+class TestOpenedHandleTracking:
+    """Cover _opened_handles tracking in get_array and cleanup."""
+
+    def test_get_array_tracks_handle(self):
+        """get_array adds shm handle to _opened_handles."""
+        config = SharedMemoryConfig(cleanup_on_exit=False)
+        manager = SharedMemoryManager(config)
+
+        mock_shm = MagicMock()
+        mock_shm.buf = bytearray(24)  # 3 float64 values
+
+        with patch(
+            "ergodic_insurance.parallel_executor.shared_memory.SharedMemory", return_value=mock_shm
+        ):
+            manager.get_array("test_shm", (3,), np.dtype(np.float64))
+
+        assert len(manager._opened_handles) == 1
+        assert manager._opened_handles[0] is mock_shm
+
+    def test_cleanup_closes_opened_handles(self):
+        """cleanup closes all tracked opened handles without unlinking."""
+        config = SharedMemoryConfig(cleanup_on_exit=False)
+        manager = SharedMemoryManager(config)
+
+        mock_shm1 = MagicMock()
+        mock_shm2 = MagicMock()
+        manager._opened_handles = [mock_shm1, mock_shm2]
+
+        manager.cleanup()
+
+        mock_shm1.close.assert_called_once()
+        mock_shm2.close.assert_called_once()
+        # Should NOT call unlink on opened handles (only close)
+        mock_shm1.unlink.assert_not_called()
+        mock_shm2.unlink.assert_not_called()
+        assert len(manager._opened_handles) == 0
+
+    def test_cleanup_handles_os_error_on_opened(self):
+        """cleanup handles OSError on _opened_handles gracefully."""
+        config = SharedMemoryConfig(cleanup_on_exit=False)
+        manager = SharedMemoryManager(config)
+
+        mock_shm = MagicMock()
+        mock_shm.close.side_effect = OSError("handle invalid")
+        manager._opened_handles = [mock_shm]
+
+        # Should not raise
+        manager.cleanup()
+        assert len(manager._opened_handles) == 0
+
+
+# ---------------------------------------------------------------------------
+# SharedMemoryManager - object size tracking
+# ---------------------------------------------------------------------------
+class TestObjectSizeTracking:
+    """Cover _object_sizes tracking and get_object_size."""
+
+    @pytest.mark.requires_multiprocessing
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="Shared memory tests are unreliable on Windows in CI",
+    )
+    def test_share_object_stores_size(self):
+        """share_object stores actual serialized size in _object_sizes."""
+        config = SharedMemoryConfig(compression=False)
+        manager = SharedMemoryManager(config)
+
+        try:
+            obj = {"key": "value", "data": [1, 2, 3]}
+            manager.share_object("test", obj)
+
+            expected_size = len(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))
+            assert manager.get_object_size("test") == expected_size
+        finally:
+            manager.cleanup()
+
+    @pytest.mark.requires_multiprocessing
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="Shared memory tests are unreliable on Windows in CI",
+    )
+    def test_share_object_stores_compressed_size(self):
+        """share_object stores compressed size when compression enabled."""
+        import zlib
+
+        config = SharedMemoryConfig(compression=True)
+        manager = SharedMemoryManager(config)
+
+        try:
+            obj = {"data": list(range(1000))}
+            manager.share_object("compressed", obj)
+
+            raw = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+            expected_compressed_size = len(zlib.compress(raw))
+            actual_size = manager.get_object_size("compressed")
+
+            assert actual_size == expected_compressed_size
+            # Compressed size should be smaller than raw
+            assert actual_size < len(raw)
+        finally:
+            manager.cleanup()
+
+    def test_cleanup_clears_object_sizes(self):
+        """cleanup clears _object_sizes dict."""
+        config = SharedMemoryConfig(cleanup_on_exit=False)
+        manager = SharedMemoryManager(config)
+        manager._object_sizes = {"a": 100, "b": 200}
+
+        manager.cleanup()
+
+        assert len(manager._object_sizes) == 0
+
+
+# ---------------------------------------------------------------------------
+# _execute_chunk - worker cleanup
+# ---------------------------------------------------------------------------
+class TestExecuteChunkWorkerCleanup:
+    """Cover worker-side SharedMemoryManager cleanup in _execute_chunk."""
+
+    def test_execute_chunk_cleans_up_on_success(self):
+        """_execute_chunk cleans up worker SharedMemoryManager on success."""
+        chunk = (0, 2, [1, 2])
+        config = SharedMemoryConfig()
+
+        with patch("ergodic_insurance.parallel_executor.SharedMemoryManager") as MockSM:
+            mock_manager = MockSM.return_value
+            mock_manager.get_object.return_value = 5
+
+            shared_refs = {"multiplier": ("object", ("shm_name", 100, False))}
+
+            def multiply(x, **kwargs):
+                return x * kwargs.get("multiplier", 1)
+
+            _execute_chunk(multiply, chunk, shared_refs, config)
+            mock_manager.cleanup.assert_called_once()
+
+    def test_execute_chunk_cleans_up_on_failure(self):
+        """_execute_chunk cleans up worker SharedMemoryManager even when all items fail."""
+        chunk = (0, 2, [1, 2])
+        config = SharedMemoryConfig()
+
+        with patch("ergodic_insurance.parallel_executor.SharedMemoryManager") as MockSM:
+            mock_manager = MockSM.return_value
+            mock_manager.get_object.return_value = 0
+
+            shared_refs = {"val": ("object", ("shm_name", 50, False))}
+
+            def always_fail(x, **kwargs):
+                raise ValueError("boom")
+
+            results = _execute_chunk(always_fail, chunk, shared_refs, config)
+            mock_manager.cleanup.assert_called_once()
+            assert results == [None, None]
+
+
+# ---------------------------------------------------------------------------
+# get_object closes handle
+# ---------------------------------------------------------------------------
+class TestGetObjectClosesHandle:
+    """Cover get_object closing SharedMemory handle after reading."""
+
+    def test_get_object_closes_shm(self):
+        """get_object closes the SharedMemory handle after reading data."""
+        config = SharedMemoryConfig(cleanup_on_exit=False)
+        manager = SharedMemoryManager(config)
+
+        obj = {"test": 42}
+        serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+
+        mock_shm = MagicMock()
+        mock_shm.buf = serialized + b"\x00" * 100
+
+        with patch(
+            "ergodic_insurance.parallel_executor.shared_memory.SharedMemory", return_value=mock_shm
+        ):
+            result = manager.get_object("test_shm", len(serialized), compressed=False)
+
+        assert result == obj
+        mock_shm.close.assert_called_once()

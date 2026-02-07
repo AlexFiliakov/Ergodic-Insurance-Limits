@@ -525,16 +525,21 @@ class TestParallelExecutor:
         assert len(results) == 100
 
     def test_error_handling(self):
-        """Test error handling in parallel execution."""
+        """Test error handling in parallel execution returns partial results."""
         executor = ParallelExecutor(n_workers=2)
 
-        with pytest.warns(UserWarning, match="Chunk execution failed"):
-            results = executor.map_reduce(
-                work_function=_test_failing_function, work_items=range(10), progress_bar=False
-            )
+        results = executor.map_reduce(
+            work_function=_test_failing_function, work_items=range(10), progress_bar=False
+        )
 
-        # Should still return partial results
+        # Should return all successful results (item 5 fails, so 9 results)
         assert results is not None
+        assert len(results) == 9
+        assert 5 not in results
+        # All non-failing items should be present
+        for i in range(10):
+            if i != 5:
+                assert i in results
 
     def test_context_manager(self):
         """Test context manager functionality."""
