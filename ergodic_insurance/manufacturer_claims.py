@@ -288,13 +288,10 @@ class ClaimProcessingMixin:
                     description="Cash to restricted for insurance claim collateral",
                 )
 
-                year_incurred = (
-                    self.current_year - 1 if self.current_year > 0 else self.current_year
-                )
                 claim_liability = ClaimLiability(
                     original_amount=max_payable,
                     remaining_amount=max_payable,
-                    year_incurred=year_incurred,
+                    year_incurred=self.current_year,
                     is_insured=True,
                 )
                 self.claim_liabilities.append(claim_liability)
@@ -324,13 +321,10 @@ class ClaimProcessingMixin:
                 )
 
                 if max_liability > ZERO:
-                    year_incurred = (
-                        self.current_year - 1 if self.current_year > 0 else self.current_year
-                    )
                     unpayable_claim = ClaimLiability(
                         original_amount=max_liability,
                         remaining_amount=max_liability,
-                        year_incurred=year_incurred,
+                        year_incurred=self.current_year,
                         is_insured=False,
                     )
                     self.claim_liabilities.append(unpayable_claim)
@@ -472,11 +466,10 @@ class ClaimProcessingMixin:
         )
 
         if deferred_max_liability > ZERO:
-            year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
             claim_liability = ClaimLiability(
                 original_amount=deferred_max_liability,
                 remaining_amount=deferred_max_liability,
-                year_incurred=year_incurred,
+                year_incurred=self.current_year,
                 is_insured=False,
             )
             self.claim_liabilities.append(claim_liability)
@@ -654,8 +647,6 @@ class ClaimProcessingMixin:
             development_pattern: Optional ClaimDevelopment strategy for payment timing.
         """
         amount = to_decimal(claim_amount)
-        year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
-
         if development_pattern is not None:
             if isinstance(development_pattern, list):
                 development_pattern = ClaimDevelopment(
@@ -665,7 +656,7 @@ class ClaimProcessingMixin:
             new_claim = ClaimLiability(
                 original_amount=amount,
                 remaining_amount=amount,
-                year_incurred=year_incurred,
+                year_incurred=self.current_year,
                 is_insured=False,
                 development_strategy=development_pattern,
             )
@@ -673,7 +664,7 @@ class ClaimProcessingMixin:
             new_claim = ClaimLiability(
                 original_amount=amount,
                 remaining_amount=amount,
-                year_incurred=year_incurred,
+                year_incurred=self.current_year,
                 is_insured=False,
             )
         self.claim_liabilities.append(new_claim)
