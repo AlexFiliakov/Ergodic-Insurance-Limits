@@ -685,6 +685,27 @@ class TestIssue352Fixes:
         # Zero deductible = full coverage, should have lower risk
         assert risk_zero_ded < risk_nonzero_ded
 
+    def test_deductible_affects_capital_efficiency(self, optimizer):
+        """Different deductibles must produce different capital efficiency values."""
+        eff_low = optimizer._calculate_capital_efficiency(5_000_000, 10_000, 0.02)
+        eff_high = optimizer._calculate_capital_efficiency(5_000_000, 500_000, 0.02)
+        assert eff_low != eff_high
+        # Higher deductible reduces risk-transfer benefit → lower efficiency
+        assert eff_high < eff_low
+
+    def test_deductible_affects_ergodic_growth(self, optimizer):
+        """Different deductibles must produce different ergodic growth values."""
+        eg_low = optimizer._calculate_ergodic_growth(5_000_000, 10_000, 0.02, 5)
+        eg_high = optimizer._calculate_ergodic_growth(5_000_000, 500_000, 0.02, 5)
+        assert eg_low != eg_high
+
+    def test_deductible_ratio_helper(self, optimizer):
+        """_deductible_ratio edge cases."""
+        assert optimizer._deductible_ratio(0, 5_000_000) == 0.0
+        assert optimizer._deductible_ratio(5_000_000, 5_000_000) == 1.0
+        assert optimizer._deductible_ratio(10_000_000, 5_000_000) == 1.0  # clamped
+        assert optimizer._deductible_ratio(100, 0) == 0.0  # coverage_limit=0
+
 
 class TestIntegration:
     """Integration tests for business optimizer."""

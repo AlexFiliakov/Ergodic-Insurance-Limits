@@ -729,6 +729,10 @@ class BusinessOptimizer:
 
     # Private helper methods
 
+    def _deductible_ratio(self, deductible: float, coverage_limit: float) -> float:
+        """Return the fraction of coverage retained by the insured (0-1)."""
+        return min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
+
     def _simulate_roe(
         self,
         coverage_limit: float,
@@ -745,8 +749,8 @@ class BusinessOptimizer:
         total_assets = float(self.manufacturer.total_assets)
 
         # Higher deductible reduces effective premium (insurer covers less)
-        deductible_ratio = min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
-        annual_premium = coverage_limit * premium_rate * (1 - deductible_ratio)
+        ded_ratio = self._deductible_ratio(deductible, coverage_limit)
+        annual_premium = coverage_limit * premium_rate * (1 - ded_ratio)
 
         for _ in range(min(n_simulations, 100)):  # Limit for performance
             # Simple ROE simulation
@@ -761,7 +765,7 @@ class BusinessOptimizer:
             # Deductible reduces effective protection (business retains losses up to deductible)
             retained_loss_drag = (
                 deductible / equity * self.optimizer_config.protection_benefit_factor
-            )
+            )  # uses raw deductible, not ded_ratio — intentional (absolute retained loss)
 
             # Adjust ROE
             adjusted_roe = base_roe - premium_cost + protection_benefit - retained_loss_drag
@@ -781,15 +785,15 @@ class BusinessOptimizer:
         revenue = float(self.manufacturer.calculate_revenue())
 
         # Higher deductible reduces effective premium
-        deductible_ratio = min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
-        annual_premium = coverage_limit * premium_rate * (1 - deductible_ratio)
+        ded_ratio = self._deductible_ratio(deductible, coverage_limit)
+        annual_premium = coverage_limit * premium_rate * (1 - ded_ratio)
 
         # Simple bankruptcy risk model
         base_risk = self.optimizer_config.base_bankruptcy_risk
 
         # Insurance reduces risk, but deductible creates a coverage gap
         coverage_ratio = coverage_limit / total_assets
-        effective_coverage_ratio = coverage_ratio * (1 - deductible_ratio)
+        effective_coverage_ratio = coverage_ratio * (1 - ded_ratio)
         risk_reduction = min(
             effective_coverage_ratio * self.optimizer_config.max_risk_reduction,
             self.optimizer_config.max_risk_reduction,
@@ -824,15 +828,15 @@ class BusinessOptimizer:
         revenue = float(self.manufacturer.calculate_revenue())
 
         # Higher deductible reduces effective premium
-        deductible_ratio = min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
-        annual_premium = coverage_limit * premium_rate * (1 - deductible_ratio)
+        ded_ratio = self._deductible_ratio(deductible, coverage_limit)
+        annual_premium = coverage_limit * premium_rate * (1 - ded_ratio)
 
         # Base growth rate
         base_growth = self.optimizer_config.base_growth_rate
 
         # Insurance enables more aggressive growth (reduced by deductible gap)
         coverage_ratio = coverage_limit / total_assets
-        effective_coverage_ratio = coverage_ratio * (1 - deductible_ratio)
+        effective_coverage_ratio = coverage_ratio * (1 - ded_ratio)
         growth_boost = effective_coverage_ratio * self.optimizer_config.growth_boost_factor
 
         # Premium cost reduces growth (lower with higher deductible)
@@ -858,10 +862,15 @@ class BusinessOptimizer:
         """Calculate capital efficiency ratio."""
         # Convert Decimal properties to float for calculations
         total_assets = float(self.manufacturer.total_assets)
-        annual_premium = coverage_limit * premium_rate
 
-        # Capital freed by risk transfer
-        risk_transfer_benefit = coverage_limit * self.optimizer_config.risk_transfer_benefit_rate
+        # Higher deductible reduces effective premium
+        ded_ratio = self._deductible_ratio(deductible, coverage_limit)
+        annual_premium = coverage_limit * premium_rate * (1 - ded_ratio)
+
+        # Capital freed by risk transfer (reduced by deductible retention)
+        risk_transfer_benefit = (
+            coverage_limit * (1 - ded_ratio) * self.optimizer_config.risk_transfer_benefit_rate
+        )
 
         # Net capital efficiency
         net_benefit = risk_transfer_benefit - annual_premium
@@ -898,11 +907,14 @@ class BusinessOptimizer:
         )
         volatility = self.optimizer_config.assumed_volatility
 
-        # Insurance reduces volatility
+        # Insurance reduces volatility (deductible reduces effective coverage)
         # Convert Decimal to float for calculations
         total_assets = float(self.manufacturer.total_assets)
-        coverage_ratio = coverage_limit / total_assets
-        volatility_reduction = coverage_ratio * self.optimizer_config.volatility_reduction_factor
+        ded_ratio = self._deductible_ratio(deductible, coverage_limit)
+        effective_coverage_ratio = (coverage_limit / total_assets) * (1 - ded_ratio)
+        volatility_reduction = (
+            effective_coverage_ratio * self.optimizer_config.volatility_reduction_factor
+        )
         adjusted_volatility = max(
             self.optimizer_config.min_volatility, volatility - volatility_reduction
         )
@@ -970,7 +982,8 @@ class BusinessOptimizer:
         constraint_list.append({"type": "ineq", "fun": risk_constraint})
 
         def premium_constraint(x):
-            annual_premium = x[0] * x[2]
+            ded_ratio = self._deductible_ratio(x[1], x[0])
+            annual_premium = x[0] * x[2] * (1 - ded_ratio)
             max_premium = (
                 float(self.manufacturer.calculate_revenue()) * constraints.max_premium_budget
             )
