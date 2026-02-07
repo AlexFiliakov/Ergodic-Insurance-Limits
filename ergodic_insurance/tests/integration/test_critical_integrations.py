@@ -1099,47 +1099,30 @@ class TestEndToEndScenarios:
 class TestClaimPaymentTiming:
     """Test claim payment timing integration across simulation and manufacturer.
 
-    Tests for issue #201: Ensure claims incurred in year 0 receive first payment in year 0,
-    not year 1. This validates the fix for the year_incurred adjustment.
+    Tests for issue #491: Claims must be recorded in the period in which the
+    loss-causing event occurs (ASC 944-40-25). year_incurred should equal
+    current_year at the time of processing, not current_year - 1.
     """
 
     def test_simulation_year_zero_claim_payment(self, default_config_v2: ConfigV2):
-        """Test that simulation year 0 losses receive first payment in year 0.
+        """Test that claims are recorded in the current simulation year per GAAP.
 
-        This test verifies that when step() increments the year before processing claims,
-        the claims are correctly marked with year_incurred = current_year - 1 so that
-        the first payment occurs in the year of the loss.
+        Per ASC 944-40-25, claims must be recorded in the period in which the
+        loss-causing event occurs. After step() increments current_year, claims
+        processed in that step are incurred in current_year (not current_year - 1).
         """
         config = default_config_v2.model_copy()
-        config.simulation.time_horizon_years = 3  # Short simulation for testing
+        config.simulation.time_horizon_years = 3
 
         manufacturer = WidgetManufacturer(config.manufacturer)
 
-        # Create a simple insurance policy
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(100_000, 5_000_000, 0.02)],
-            deductible=100_000,
-        )
-
-        sim = Simulation(
-            manufacturer=manufacturer,
-            time_horizon=3,
-            insurance_policy=policy,
-            seed=42,
-        )
-
-        # Track claims and payments over time
-        # Step 1: Create a claim in year 0 (after step() has been called)
-        from ergodic_insurance.loss_distributions import LossEvent
-
         # Manually process a claim to test timing
-        manufacturer.current_year = 0  # Start at year 0
+        manufacturer.current_year = 0
 
-        # Simulate the step/claim processing flow
+        # step() increments current_year from 0 to 1
         manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
-        # After step(), current_year is now 1
 
-        # Process a claim (this happens after step() increments the year)
+        # Process a claim (current_year is now 1)
         claim_amount = 500_000
         deductible = 100_000
 
@@ -1149,48 +1132,22 @@ class TestClaimPaymentTiming:
             insurance_limit=5_000_000,
         )
 
-        # The claim should be marked with year_incurred = 0 (current_year - 1 = 1 - 1 = 0)
+        # The claim should be marked with year_incurred = current_year = 1
         assert len(manufacturer.claim_liabilities) > 0, "Claim liability should be created"
         claim = manufacturer.claim_liabilities[0]
 
-        # Verify claim is marked with correct year
         assert (
-            claim.year_incurred == 0
-        ), f"Claim should be marked as incurred in year 0, got {claim.year_incurred}"
+            claim.year_incurred == 1
+        ), f"Claim should be incurred in current_year=1, got {claim.year_incurred}"
 
-        # In the next step (year 1), the first payment should be made
-        # years_since = 1 - 0 = 1, so get_payment(1) should return 20% (second payment)
-        # But wait, we want the first payment in year 0!
-
-        # Actually, let me think about this more carefully...
-        # After the fix, the claim is created with year_incurred = 0
-        # In year 1, years_since = 1 - 0 = 1, so get_payment(1) = 20% (second payment)
-        # But we want the first payment (10%) to happen in year 0!
-
-        # The issue is that the first payment should happen in the SAME year as the claim
-        # But the claim is processed AFTER step() has incremented the year
-
-        # Let me re-check the expected behavior from the issue...
-        # The issue says: "For a claim incurred in year 0 with standard development pattern:
-        # - Year 0: 10% payment"
-
-        # So if a claim is incurred in simulation year 0, it should pay 10% in year 0
-        # But the claim is processed after step() increments from 0 to 1
-        # So we mark it with year_incurred = 0 (current_year - 1)
-        # Then in the CURRENT step (still year 1 in the manufacturer's internal state),
-        # the payment should be calculated and made
-
-        # Actually, I think the payment happens in the NEXT step() call
-        # Let me trace through the flow more carefully by looking at process_scheduled_claim_payments
-
-        # For now, let's just verify the claim is marked correctly
-        assert claim.year_incurred == 0
+        # Payment timing: years_since = 1 - 1 = 0, so get_payment(0) = 10% (first payment)
+        # The first scheduled payment correctly occurs in the year of incurrence.
+        assert claim.year_incurred == manufacturer.current_year
 
     def test_total_payments_equal_claim_amount(self, default_config_v2: ConfigV2):
         """Test that total paid amount across all years equals claim amount.
 
-        Verifies that with the timing fix, all scheduled payments are made correctly
-        and sum to the original claim amount.
+        Verifies that all scheduled payments sum to the original claim amount.
         """
         config = default_config_v2.model_copy()
         manufacturer = WidgetManufacturer(config.manufacturer)
@@ -1206,10 +1163,10 @@ class TestClaimPaymentTiming:
             immediate_payment=False,  # Use payment schedule
         )
 
-        # Verify claim is created with correct year
+        # Verify claim is created with correct year (current_year = 1 after step)
         assert len(manufacturer.claim_liabilities) == 1
         claim = manufacturer.claim_liabilities[0]
-        assert claim.year_incurred == 0, "Claim should be incurred in year 0"
+        assert claim.year_incurred == 1, "Claim should be incurred in current_year=1"
 
         # Calculate total scheduled payments over 10 years
         total_scheduled = sum(claim.get_payment(i) for i in range(10))
@@ -1236,9 +1193,9 @@ class TestClaimPaymentTiming:
             insurance_limit=5_000_000,
         )
 
-        # Verify insured claims are marked correctly
+        # Verify insured claims are marked correctly (current_year = 1 after step)
         for claim in manufacturer_insured.claim_liabilities:
-            assert claim.year_incurred == 0, "Insured claims should be incurred in year 0"
+            assert claim.year_incurred == 1, "Insured claims should be incurred in current_year=1"
 
         # Test without insurance
         manufacturer_uninsured = WidgetManufacturer(config.manufacturer)
@@ -1250,6 +1207,6 @@ class TestClaimPaymentTiming:
             immediate_payment=False,
         )
 
-        # Verify uninsured claims are marked correctly
+        # Verify uninsured claims are marked correctly (current_year = 1 after step)
         for claim in manufacturer_uninsured.claim_liabilities:
-            assert claim.year_incurred == 0, "Uninsured claims should be incurred in year 0"
+            assert claim.year_incurred == 1, "Uninsured claims should be incurred in current_year=1"
