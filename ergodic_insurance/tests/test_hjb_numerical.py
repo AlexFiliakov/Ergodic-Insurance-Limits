@@ -884,3 +884,301 @@ class TestSparseMatrixOperations:
         value, policy = solver_sparse.solve()
         assert value is not None
         assert np.all(np.isfinite(value))
+
+
+class TestDiffusionTerm:
+    """Test diffusion term (½σ²∇²V) in HJB solver (issue #447)."""
+
+    def test_second_derivatives_quadratic(self):
+        """Test _compute_second_derivatives on V(x) = x² gives d²V/dx² = 2."""
+        state_space = StateSpace([StateVariable("x", 0, 1, 21)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        config = HJBSolverConfig()
+        solver = HJBSolver(problem, config)
+
+        # V(x) = x²
+        grid = state_space.grids[0]
+        value = grid**2
+
+        d2v = solver._compute_second_derivatives(value)
+
+        # Shape: (21, 1) for 1D problem
+        assert d2v.shape == (21, 1)
+        # Interior points should have d²V/dx² = 2 exactly (central diff on quadratic)
+        assert np.allclose(d2v[1:-1, 0], 2.0, atol=1e-10)
+        # Boundary values default to zero
+        assert d2v[0, 0] == 0.0
+        assert d2v[-1, 0] == 0.0
+
+    def test_second_derivatives_2d(self):
+        """Test second derivatives in 2D state space."""
+        sv1 = StateVariable("x", 0, 1, 11)
+        sv2 = StateVariable("y", 0, 1, 11)
+        state_space = StateSpace([sv1, sv2])
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        config = HJBSolverConfig()
+        solver = HJBSolver(problem, config)
+
+        # V(x,y) = x² + 3y² => d²V/dx² = 2, d²V/dy² = 6
+        X, Y = np.meshgrid(state_space.grids[0], state_space.grids[1], indexing="ij")
+        value = X**2 + 3 * Y**2
+
+        d2v = solver._compute_second_derivatives(value)
+        assert d2v.shape == (11, 11, 2)
+
+        # Check interior points
+        assert np.allclose(d2v[1:-1, 1:-1, 0], 2.0, atol=1e-10)
+        assert np.allclose(d2v[1:-1, 1:-1, 1], 6.0, atol=1e-10)
+
+    def test_apply_diffusion_term(self):
+        """Test _apply_diffusion_term with known values."""
+        state_space = StateSpace([StateVariable("x", 0, 1, 11)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        config = HJBSolverConfig()
+        solver = HJBSolver(problem, config)
+
+        # V(x) = x², d²V/dx² = 2 at interior
+        grid = state_space.grids[0]
+        value = grid**2
+
+        # σ² = 1.0 everywhere => ½ * 1.0 * 2.0 = 1.0 at interior
+        sigma_sq = np.ones((11, 1))
+        result = solver._apply_diffusion_term(value, sigma_sq)
+
+        assert result.shape == (11,)
+        assert np.allclose(result[1:-1], 1.0, atol=1e-10)
+        assert result[0] == 0.0
+        assert result[-1] == 0.0
+
+    def test_zero_diffusion_recovers_deterministic(self):
+        """Test that σ=0 recovers identical deterministic behavior."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 10)])
+
+        def dynamics(x, u, t):
+            return x * 0.1
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * 0.01
+
+        def zero_diffusion(x, u, t):
+            return np.zeros_like(x)
+
+        config = HJBSolverConfig(time_step=0.01, max_iterations=20, tolerance=1e-6, verbose=False)
+
+        # Without diffusion
+        problem_no = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=1.0,
+        )
+        solver_no = HJBSolver(problem_no, config)
+        value_no, _ = solver_no.solve()
+
+        # With zero diffusion
+        problem_zero = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=1.0,
+            diffusion=zero_diffusion,
+        )
+        solver_zero = HJBSolver(problem_zero, config)
+        value_zero, _ = solver_zero.solve()
+
+        assert np.allclose(value_no, value_zero, atol=1e-12)
+
+    def test_nonzero_diffusion_changes_value(self):
+        """Test that non-zero diffusion produces different results."""
+        state_space = StateSpace([StateVariable("x", 1, 10, 15)])
+
+        def dynamics(x, u, t):
+            return x * 0.05
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * 0.01
+
+        def nonzero_diffusion(x, u, t):
+            return x**2 * 0.04  # GBM-like σ²
+
+        config = HJBSolverConfig(time_step=0.01, max_iterations=20, tolerance=1e-6, verbose=False)
+
+        # Without diffusion
+        problem_no = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=1.0,
+        )
+        solver_no = HJBSolver(problem_no, config)
+        value_no, _ = solver_no.solve()
+
+        # With diffusion
+        problem_diff = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=1.0,
+            diffusion=nonzero_diffusion,
+        )
+        solver_diff = HJBSolver(problem_diff, config)
+        value_diff, _ = solver_diff.solve()
+
+        # Must differ
+        assert not np.allclose(value_no, value_diff, atol=1e-6)
+        # Both finite
+        assert np.all(np.isfinite(value_no))
+        assert np.all(np.isfinite(value_diff))
+
+    def test_diffusion_in_2d_problem(self):
+        """Test diffusion in 2D state space."""
+        sv1 = StateVariable("x", 1, 3, 5)
+        sv2 = StateVariable("y", 1, 2, 4)
+        state_space = StateSpace([sv1, sv2])
+
+        def dynamics(x, u, t):
+            result = np.zeros_like(x)
+            result[..., 0] = x[..., 0] * 0.05
+            result[..., 1] = 0.0
+            return result
+
+        def running_cost(x, u, t):
+            return -(x[..., 0] + x[..., 1])
+
+        def diffusion(x, u, t):
+            result = np.zeros_like(x)
+            result[..., 0] = x[..., 0] ** 2 * 0.01
+            result[..., 1] = 0.0
+            return result
+
+        def terminal_value(x):
+            return x[..., 0] + x[..., 1]
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            terminal_value=terminal_value,
+            discount_rate=0.1,
+            time_horizon=0.5,
+            diffusion=diffusion,
+        )
+        config = HJBSolverConfig(time_step=0.1, max_iterations=3, tolerance=1e-2, verbose=False)
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert value.shape == (5, 4)
+        assert np.all(np.isfinite(value))
+        assert np.all(np.isfinite(policy["u"]))
+
+    def test_control_dependent_diffusion_affects_value(self):
+        """Test that control-dependent diffusion changes the value function."""
+        state_space = StateSpace([StateVariable("x", 1, 10, 10)])
+
+        def dynamics(x, u, t):
+            return x * 0.05 * u[..., 0].reshape(x.shape)
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * 0.01
+
+        def ctrl_diffusion(x, u, t):
+            # Higher control -> higher volatility
+            return x**2 * 0.1 * u[..., 0].reshape(x.shape)
+
+        config = HJBSolverConfig(time_step=0.01, max_iterations=30, tolerance=1e-5, verbose=False)
+
+        # Without diffusion
+        problem_no = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.1, 1.0, 5)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+        )
+        solver_no = HJBSolver(problem_no, config)
+        value_no, _ = solver_no.solve()
+
+        # With control-dependent diffusion
+        problem_diff = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.1, 1.0, 5)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            diffusion=ctrl_diffusion,
+        )
+        solver_diff = HJBSolver(problem_diff, config)
+        value_diff, _ = solver_diff.solve()
+
+        # Value functions should differ when diffusion is control-dependent
+        assert not np.allclose(value_no, value_diff, atol=1e-6)
+
+    def test_infinite_horizon_with_diffusion(self):
+        """Test infinite horizon problem with diffusion term."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 10)])
+
+        def dynamics(x, u, t):
+            return x * 0.05
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * 0.01
+
+        def diffusion(x, u, t):
+            return x**2 * 0.02
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=None,  # Infinite horizon
+            diffusion=diffusion,
+        )
+        config = HJBSolverConfig(time_step=0.01, max_iterations=50, tolerance=1e-5, verbose=False)
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value))
+        assert np.all(np.isfinite(policy["u"]))
+        # Value should not be all zeros (solver should have updated it)
+        assert not np.allclose(value, 0)
