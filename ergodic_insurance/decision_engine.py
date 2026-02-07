@@ -1195,8 +1195,8 @@ class InsuranceDecisionEngine:
                 roe_volatility, 0.001
             )
             roe_data_arr = np.array(with_insurance_results["roe"])
-            below_mean = roe_data_arr[roe_data_arr < np.mean(roe_data_arr)]
-            roe_downside_dev = float(np.std(below_mean)) if len(below_mean) > 0 else 0.0
+            roe_mean = np.mean(roe_data_arr)
+            roe_downside_dev = float(np.sqrt(np.mean(np.minimum(roe_data_arr - roe_mean, 0) ** 2)))
             roe_1yr = np.mean(with_insurance_results["roe"])
             roe_3yr = np.mean(with_insurance_results["roe"])
             roe_5yr = np.mean(with_insurance_results["roe"])

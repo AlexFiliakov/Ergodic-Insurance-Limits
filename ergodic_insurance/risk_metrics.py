@@ -417,19 +417,16 @@ class RiskMetrics:
         # Sharpe ratio
         sharpe = (mean_return - risk_free_rate) / std_return if std_return > 0 else 0
 
-        # Sortino ratio (downside deviation)
-        downside_returns = returns[returns < risk_free_rate]
-        if len(downside_returns) > 0:
-            if self.weights is None:
-                downside_std = np.std(downside_returns)
-            else:
-                downside_weights = self.weights[returns < risk_free_rate]
-                downside_mean = np.average(downside_returns, weights=downside_weights)
-                downside_var = np.average(
-                    (downside_returns - downside_mean) ** 2, weights=downside_weights
-                )
-                downside_std = np.sqrt(downside_var)
-            sortino = (mean_return - risk_free_rate) / downside_std if downside_std > 0 else 0
+        # Sortino ratio (downside deviation over all observations)
+        # DD = sqrt( (1/N) * sum( min(r_i - target, 0)^2 ) )
+        # Reference: Sortino & Price (1994)
+        downside_deviations = np.minimum(returns - risk_free_rate, 0)
+        if self.weights is None:
+            downside_std = np.sqrt(np.mean(downside_deviations**2))
+        else:
+            downside_std = np.sqrt(np.average(downside_deviations**2, weights=self.weights))
+        if downside_std > 0:
+            sortino = (mean_return - risk_free_rate) / downside_std
         else:
             sortino = np.inf if mean_return > risk_free_rate else 0
 
@@ -798,9 +795,9 @@ class ROEAnalyzer:
         mean_roe = np.mean(self.valid_roe)
         std_roe = np.std(self.valid_roe)
 
-        # Downside deviation (below mean)
-        below_mean = self.valid_roe[self.valid_roe < mean_roe]
-        downside_dev = np.std(below_mean) if len(below_mean) > 0 else 0.0
+        # Downside deviation (below mean, over all observations)
+        downside_deviations = np.minimum(self.valid_roe - mean_roe, 0)
+        downside_dev = np.sqrt(np.mean(downside_deviations**2))
 
         # Upside deviation (above mean)
         above_mean = self.valid_roe[self.valid_roe > mean_roe]
@@ -851,9 +848,10 @@ class ROEAnalyzer:
         # Sharpe ratio
         sharpe = (mean_roe - risk_free_rate) / std_roe if std_roe > 0 else 0.0
 
-        # Sortino ratio (using downside deviation)
-        below_target = self.valid_roe[self.valid_roe < risk_free_rate] - risk_free_rate
-        downside_dev = np.sqrt(np.mean(below_target**2)) if len(below_target) > 0 else 0.0
+        # Sortino ratio (downside deviation over all observations)
+        # DD = sqrt( (1/N) * sum( min(r_i - target, 0)^2 ) )
+        downside_deviations = np.minimum(self.valid_roe - risk_free_rate, 0)
+        downside_dev = np.sqrt(np.mean(downside_deviations**2))
         sortino = (mean_roe - risk_free_rate) / downside_dev if downside_dev > 0 else 0.0
 
         # Calmar ratio (return over max drawdown)
