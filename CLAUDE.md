@@ -17,6 +17,35 @@ Code Quality: Run formatters and linters before committing
 - **Email**: alexfiliakov@gmail.com
 - **Repository**: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits
 
+## Commit Messages & Version Bumps
+This project uses [python-semantic-release](https://python-semantic-release.readthedocs.io/) to automatically version and release on pushes to `main`. It reads **only first-parent commits** on `main`, so the **merge commit message** is what determines the version bump — not the individual commits inside a PR branch.
+
+### Conventional Commits format (required)
+All commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+| Prefix | Version Bump | Example |
+|---|---|---|
+| `fix:` | Patch (0.0.x) | `fix: correct sign error in penalty calculation` |
+| `perf:` | Patch (0.0.x) | `perf: remove deepcopy from worker hot loop` |
+| `feat:` | Minor (0.x.0) | `feat: add NOL carryforward tracking per ASC 740` |
+| `feat!:` or `BREAKING CHANGE:` | Major (x.0.0) | `feat!: redesign Config API` |
+| `docs:`, `ci:`, `test:`, `chore:`, `refactor:`, `style:` | No release | `ci: add pip caching to workflows` |
+
+### PR titles to `main` (critical)
+When merging a PR into `main`, GitHub uses the **PR title** as the merge commit message. Because semantic-release only sees first-parent commits, this title is the **sole input** for version detection. Always:
+
+1. **Title the PR with a conventional commit prefix** matching the highest-impact change:
+   - If the PR contains any `feat:` commits, title it `feat: <summary>`
+   - If the PR contains only `fix:`/`perf:` commits, title it `fix: <summary>` or `perf: <summary>`
+   - If the PR contains a breaking change, title it `feat!: <summary>`
+2. **Never use non-standard prefixes** like `Release:`, `Merge:`, or `Update:` — these produce no version bump.
+
+### PR titles to `develop`
+PRs into `develop` do not trigger releases, so the title format is less critical. However, using conventional commit prefixes consistently is still recommended for readability.
+
+### `major_on_zero = false`
+While the project is pre-1.0, breaking changes bump minor (not major). This is configured in `pyproject.toml` under `[tool.semantic_release]`.
+
 You have access to the `log_activity` tool. Use it to record your activities after every activity that is relevant for the project. This helps track development progress and understand what has been done.
 
 ## When Starting Work
