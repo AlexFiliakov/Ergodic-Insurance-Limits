@@ -137,6 +137,11 @@ class BusinessOptimizerConfig:
     min_volatility: float = 0.05
     """Floor for adjusted volatility."""
 
+    # RNG seed for reproducibility
+    seed: int = 42
+    """Seed for the random number generator used in Monte Carlo simulations.
+    Ensures deterministic results for the same inputs."""
+
 
 @dataclass
 class DecisionEngineConfig:

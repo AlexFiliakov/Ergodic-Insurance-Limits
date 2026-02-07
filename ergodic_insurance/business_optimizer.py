@@ -617,11 +617,12 @@ class BusinessOptimizer:
         """
         self.logger.info(f"Optimizing {len(objectives)} objectives using {method} method")
 
-        # Normalize weights
+        # Normalize weights on local copies to avoid mutating caller's objects
         total_weight = sum(obj.weight for obj in objectives)
         if total_weight > 0:
-            for obj in objectives:
-                obj.weight /= total_weight
+            normalized_weights = [obj.weight / total_weight for obj in objectives]
+        else:
+            normalized_weights = [obj.weight for obj in objectives]
 
         # Define optimization bounds
         # Boundary: float for scipy.optimize
@@ -636,9 +637,8 @@ class BusinessOptimizer:
         def composite_objective(x):
             coverage_limit, deductible, premium_rate = x
             total_score = 0.0
-            total_score = 0.0
 
-            for obj in objectives:
+            for i, obj in enumerate(objectives):
                 value = self._evaluate_objective(
                     obj.name, coverage_limit, deductible, premium_rate, time_horizon
                 )
@@ -649,7 +649,7 @@ class BusinessOptimizer:
                 else:
                     score = -value  # Lower is better (negate for minimization)
 
-                total_score = total_score + obj.weight * score
+                total_score = total_score + normalized_weights[i] * score
 
             return -total_score  # Negative for scipy minimization
 
@@ -687,7 +687,12 @@ class BusinessOptimizer:
 
         # Perform sensitivity analysis
         sensitivity = self._perform_sensitivity_analysis(
-            optimal_coverage, optimal_deductible, optimal_premium, objectives, time_horizon
+            optimal_coverage,
+            optimal_deductible,
+            optimal_premium,
+            objectives,
+            time_horizon,
+            normalized_weights=normalized_weights,
         )
 
         # Create optimal strategy
@@ -733,12 +738,15 @@ class BusinessOptimizer:
         n_simulations: int = 100,
     ) -> float:
         """Simulate ROE with given insurance parameters."""
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(self.optimizer_config.seed)
         roe_values = []
         # Boundary: float for scipy.optimize
         equity = float(self.manufacturer.equity)
         total_assets = float(self.manufacturer.total_assets)
-        annual_premium = coverage_limit * premium_rate
+
+        # Higher deductible reduces effective premium (insurer covers less)
+        deductible_ratio = min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
+        annual_premium = coverage_limit * premium_rate * (1 - deductible_ratio)
 
         for _ in range(min(n_simulations, 100)):  # Limit for performance
             # Simple ROE simulation
@@ -750,8 +758,13 @@ class BusinessOptimizer:
                 coverage_limit / total_assets
             )
 
+            # Deductible reduces effective protection (business retains losses up to deductible)
+            retained_loss_drag = (
+                deductible / equity * self.optimizer_config.protection_benefit_factor
+            )
+
             # Adjust ROE
-            adjusted_roe = base_roe - premium_cost + protection_benefit
+            adjusted_roe = base_roe - premium_cost + protection_benefit - retained_loss_drag
 
             # Add randomness
             adjusted_roe *= rng.normal(1.0, self.optimizer_config.roe_noise_std)
@@ -766,17 +779,24 @@ class BusinessOptimizer:
         # Convert Decimal properties to float for calculations
         total_assets = float(self.manufacturer.total_assets)
         revenue = float(self.manufacturer.calculate_revenue())
-        annual_premium = coverage_limit * premium_rate
+
+        # Higher deductible reduces effective premium
+        deductible_ratio = min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
+        annual_premium = coverage_limit * premium_rate * (1 - deductible_ratio)
 
         # Simple bankruptcy risk model
         base_risk = self.optimizer_config.base_bankruptcy_risk
 
-        # Insurance reduces risk
+        # Insurance reduces risk, but deductible creates a coverage gap
         coverage_ratio = coverage_limit / total_assets
+        effective_coverage_ratio = coverage_ratio * (1 - deductible_ratio)
         risk_reduction = min(
-            coverage_ratio * self.optimizer_config.max_risk_reduction,
+            effective_coverage_ratio * self.optimizer_config.max_risk_reduction,
             self.optimizer_config.max_risk_reduction,
         )
+
+        # Deductible adds retained-loss risk (higher deductible = more retained risk)
+        retained_risk = (deductible / total_assets) * self.optimizer_config.max_risk_reduction
 
         # Premium cost increases risk slightly
         premium_burden = annual_premium / revenue
@@ -787,7 +807,7 @@ class BusinessOptimizer:
             -time_horizon / self.optimizer_config.time_risk_constant
         )  # Risk increases with time
 
-        bankruptcy_risk = (base_risk - risk_reduction + risk_increase) * time_factor
+        bankruptcy_risk = (base_risk - risk_reduction + retained_risk + risk_increase) * time_factor
         return float(max(0, min(1, bankruptcy_risk)))
 
     def _estimate_growth_rate(
@@ -802,20 +822,27 @@ class BusinessOptimizer:
         # Convert Decimal properties to float for calculations
         total_assets = float(self.manufacturer.total_assets)
         revenue = float(self.manufacturer.calculate_revenue())
-        annual_premium = coverage_limit * premium_rate
+
+        # Higher deductible reduces effective premium
+        deductible_ratio = min(deductible / coverage_limit, 1.0) if coverage_limit > 0 else 0.0
+        annual_premium = coverage_limit * premium_rate * (1 - deductible_ratio)
 
         # Base growth rate
         base_growth = self.optimizer_config.base_growth_rate
 
-        # Insurance enables more aggressive growth
+        # Insurance enables more aggressive growth (reduced by deductible gap)
         coverage_ratio = coverage_limit / total_assets
-        growth_boost = coverage_ratio * self.optimizer_config.growth_boost_factor
+        effective_coverage_ratio = coverage_ratio * (1 - deductible_ratio)
+        growth_boost = effective_coverage_ratio * self.optimizer_config.growth_boost_factor
 
-        # Premium cost reduces growth
+        # Premium cost reduces growth (lower with higher deductible)
         premium_drag = annual_premium / revenue * self.optimizer_config.premium_drag_factor
 
+        # Retained risk from deductible constrains growth
+        retained_risk_drag = (deductible / total_assets) * self.optimizer_config.growth_boost_factor
+
         # Calculate adjusted growth
-        adjusted_growth = base_growth + growth_boost - premium_drag
+        adjusted_growth = base_growth + growth_boost - premium_drag - retained_risk_drag
 
         # Adjust for different metrics
         if metric == "assets":
@@ -1019,50 +1046,52 @@ class BusinessOptimizer:
         premium_rate: float,
         objectives: List[BusinessObjective],
         time_horizon: int,
+        normalized_weights: Optional[List[float]] = None,
     ) -> Dict[str, float]:
         """Perform sensitivity analysis on key parameters."""
+        weights = normalized_weights or [obj.weight for obj in objectives]
         sensitivity = {}
         delta = 0.01  # 1% change
 
         # Base objective value
         base_value = sum(
-            obj.weight
+            w
             * self._evaluate_objective(
                 obj.name, coverage_limit, deductible, premium_rate, time_horizon
             )
-            for obj in objectives
+            for w, obj in zip(weights, objectives)
         )
 
         # Coverage limit sensitivity
         coverage_delta = coverage_limit * delta
         value_up = sum(
-            obj.weight
+            w
             * self._evaluate_objective(
                 obj.name, coverage_limit + coverage_delta, deductible, premium_rate, time_horizon
             )
-            for obj in objectives
+            for w, obj in zip(weights, objectives)
         )
         sensitivity["coverage_limit"] = (value_up - base_value) / (coverage_delta + 1e-6)
 
         # Deductible sensitivity
         deductible_delta = max(1000, deductible * delta)
         value_up = sum(
-            obj.weight
+            w
             * self._evaluate_objective(
                 obj.name, coverage_limit, deductible + deductible_delta, premium_rate, time_horizon
             )
-            for obj in objectives
+            for w, obj in zip(weights, objectives)
         )
         sensitivity["deductible"] = (value_up - base_value) / (deductible_delta + 1e-6)
 
         # Premium rate sensitivity
         premium_delta = premium_rate * delta
         value_up = sum(
-            obj.weight
+            w
             * self._evaluate_objective(
                 obj.name, coverage_limit, deductible, premium_rate + premium_delta, time_horizon
             )
-            for obj in objectives
+            for w, obj in zip(weights, objectives)
         )
         sensitivity["premium_rate"] = (value_up - base_value) / (premium_delta + 1e-6)
 
