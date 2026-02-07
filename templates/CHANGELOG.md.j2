@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 {%- elif type in ["perf", "refactor", "docs", "style", "ci", "build", "chore", "test"] %}
 {%- set ns.changed = ns.changed + commits %}
 {%- else %}
-{%- set ns.changed = ns.changed + commits %}
+{# Skip non-conventional commits that cannot be parsed #}
 {%- endif %}
 {%- endfor %}
 {%- if ns.added %}
@@ -84,7 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 {%- elif type in ["perf", "refactor", "docs", "style", "ci", "build", "chore", "test"] %}
 {%- set ns.changed = ns.changed + commits %}
 {%- else %}
-{%- set ns.changed = ns.changed + commits %}
+{# Skip non-conventional commits that cannot be parsed #}
 {%- endif %}
 {%- endfor %}
 {%- if ns.added %}
