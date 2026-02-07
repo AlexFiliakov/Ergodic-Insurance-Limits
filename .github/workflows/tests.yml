@@ -65,3 +65,31 @@ jobs:
         with:
           name: coverage-report
           path: ergodic_insurance/coverage.md
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-paths: pyproject.toml
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Validate package metadata
+        run: twine check dist/*
+
+      - name: Test clean install and import
+        run: |
+          pip install dist/*.whl
+          python -c "import ergodic_insurance; print(ergodic_insurance.__version__)"
