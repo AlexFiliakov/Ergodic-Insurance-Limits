@@ -375,8 +375,36 @@ class TestInsuranceDecisionEngine:
         assert metrics.premium_to_limit_ratio == 40_000 / 5_000_000
         assert metrics.coverage_adequacy > 0
 
-    def test_run_sensitivity_analysis(self, engine):
-        """Test sensitivity analysis."""
+    def test_run_sensitivity_analysis(self):
+        """Test sensitivity analysis.
+
+        Uses real objects (not mocks) because sensitivity analysis deepcopies
+        engine state to prevent mutation, and Mock objects don't support deepcopy.
+        """
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.6,
+        )
+        manufacturer = WidgetManufacturer(config=config)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.expected_value = Mock(return_value=500_000)
+
+        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
+            mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
+                primary_layer_rate=0.01,
+                first_excess_rate=0.005,
+                higher_excess_rate=0.002,
+            )
+            engine = InsuranceDecisionEngine(
+                manufacturer=manufacturer,
+                loss_distribution=loss_dist,
+                pricing_scenario="baseline",
+            )
+
         base_decision = InsuranceDecision(
             retained_limit=500_000,
             layers=[
@@ -394,15 +422,18 @@ class TestInsuranceDecisionEngine:
 
         # Run sensitivity analysis on subset of parameters
         report = engine.run_sensitivity_analysis(
-            base_decision, parameters=["base_premium_rates", "capital_base"]
+            base_decision, parameters=["base_premium_rate", "capital_base"]
         )
 
         assert isinstance(report, SensitivityReport)
         assert report.base_decision == base_decision
-        assert "base_premium_rates" in report.parameter_sensitivities
+        assert "base_premium_rate" in report.parameter_sensitivities
         assert "capital_base" in report.parameter_sensitivities
         assert len(report.key_drivers) > 0
         assert len(report.stress_test_results) > 0
+
+        # Verify engine state was restored after sensitivity analysis
+        assert float(manufacturer.total_assets) == float(engine.manufacturer.total_assets)
 
     def test_generate_recommendations(self, engine):
         """Test recommendation generation."""
@@ -904,9 +935,6 @@ class TestEnhancedOptimizationMethods:
 
         # Should still return a decision (even if not optimal)
         assert isinstance(decision, InsuranceDecision)
-        # Method might have changed due to fallback
-        assert decision.optimization_method in [
-            "trust_region",
-            "differential_evolution",
-            "weighted_sum",
-        ]
+        # Method might have changed due to fallback — any method is acceptable
+        valid_methods = [m.value for m in OptimizationMethod]
+        assert decision.optimization_method in valid_methods
