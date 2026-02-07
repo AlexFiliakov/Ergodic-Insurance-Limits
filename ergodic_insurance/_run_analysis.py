@@ -49,7 +49,7 @@ import pandas as pd
 
 from .config import Config, ManufacturerConfig
 from .ergodic_analyzer import ErgodicAnalyzer
-from .insurance import InsuranceLayer, InsurancePolicy
+from .insurance import InsurancePolicy
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .simulation import Simulation, SimulationResults
@@ -446,12 +446,11 @@ def run_analysis(
     )
 
     # --- Build insurance policy ---
-    layer = InsuranceLayer(
-        attachment_point=deductible,
+    policy = InsurancePolicy.from_simple(
+        deductible=deductible,
         limit=coverage_limit,
-        rate=premium_rate,
+        premium_rate=premium_rate,
     )
-    policy = InsurancePolicy(layers=[layer], deductible=deductible)
 
     # --- Run insured simulations ---
     logger.info(

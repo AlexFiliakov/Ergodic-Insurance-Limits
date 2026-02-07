@@ -135,6 +135,20 @@ Visualizing Your Insurance Tower
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                               Total Premium: $335K/year
 
+For quick single-layer policies in Python, use the convenience constructor:
+
+.. code-block:: python
+
+   from ergodic_insurance import InsurancePolicy
+
+   policy = InsurancePolicy.from_simple(
+       deductible=100_000,
+       limit=5_000_000,
+       premium_rate=0.015,
+   )
+
+For multi-layer towers and advanced structures, see ``docs/tutorials/03_configuring_insurance.md``.
+
 Step 4: Running Your First Simulation
 --------------------------------------
 
