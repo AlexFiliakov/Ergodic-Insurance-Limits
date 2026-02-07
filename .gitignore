@@ -462,5 +462,10 @@ vendor/
 *.dvi
 *.synctex
 
+# Python packaging
+dist/
+build/
+*.egg-info/
+
 # Paper submissions
 ergodic_insurance/papers/2025-09-research-paper-1/final draft - revision 1/
