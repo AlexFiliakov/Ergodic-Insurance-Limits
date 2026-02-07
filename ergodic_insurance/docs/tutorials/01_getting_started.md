@@ -62,7 +62,7 @@ Let's run a simple simulation to see the framework in action.
 ### Step 1: Import the Core Components
 
 ```python
-from ergodic_insurance import Config, ManufacturerConfig
+from ergodic_insurance import Config
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.simulation import Simulation
@@ -70,20 +70,32 @@ from ergodic_insurance.simulation import Simulation
 
 ### Step 2: Configure a Manufacturer
 
-Create a configuration for a widget manufacturing company:
+Create a configuration for a widget manufacturing company. The simplest way is to use the defaults:
 
 ```python
-# Define manufacturer financial parameters
-manufacturer_config = ManufacturerConfig(
+# Option A: Use defaults — $10M manufacturer, 8% margin, 50-year horizon
+config = Config()
+
+# Option B: Customize from basic company info
+config = Config.from_company(
     initial_assets=10_000_000,      # $10M starting assets
-    asset_turnover_ratio=1.0,       # Revenue = 1x assets
-    base_operating_margin=0.08,     # 8% operating margin
-    tax_rate=0.25,                  # 25% corporate tax rate
-    retention_ratio=1.0             # Retain all earnings (no dividends)
+    operating_margin=0.08,          # 8% operating margin
+)
+
+# Option C: Full control over individual parameters
+from ergodic_insurance import ManufacturerConfig
+config = Config(
+    manufacturer=ManufacturerConfig(
+        initial_assets=10_000_000,
+        asset_turnover_ratio=1.0,
+        base_operating_margin=0.08,
+        tax_rate=0.25,
+        retention_ratio=1.0,
+    )
 )
 
 # Create the manufacturer instance
-manufacturer = WidgetManufacturer(manufacturer_config)
+manufacturer = WidgetManufacturer(config.manufacturer)
 
 print(f"Initial Equity: ${manufacturer.equity:,.0f}")
 print(f"Initial Cash: ${manufacturer.cash:,.0f}")

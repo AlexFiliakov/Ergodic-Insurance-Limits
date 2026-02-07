@@ -477,3 +477,159 @@ class TestQuickLoad:
         """Test quick load with overrides."""
         config = load_config("baseline", manufacturer__base_operating_margin=0.15)
         assert config.manufacturer.base_operating_margin == 0.15
+
+
+class TestConfigDefaults:
+    """Test that Config() with no arguments creates a valid default config.
+
+    Acceptance criteria from issue #369: Config() with no arguments creates
+    a valid default configuration with sensible manufacturing defaults.
+    """
+
+    def test_config_no_args(self):
+        """Config() with no arguments creates a valid configuration."""
+        config = Config()
+        assert config.manufacturer.initial_assets == 10_000_000
+        assert config.manufacturer.asset_turnover_ratio == 0.8
+        assert config.manufacturer.base_operating_margin == 0.08
+        assert config.manufacturer.tax_rate == 0.25
+        assert config.manufacturer.retention_ratio == 0.7
+        assert config.working_capital.percent_of_sales == 0.20
+        assert config.growth.annual_growth_rate == 0.05
+        assert config.debt.interest_rate == 0.05
+        assert config.debt.max_leverage_ratio == 2.0
+        assert config.debt.minimum_cash_balance == 500_000
+        assert config.simulation.time_horizon_years == 50
+        assert config.output.output_directory == "outputs"
+        assert config.logging.enabled is True
+
+    def test_sub_config_defaults(self):
+        """Each sub-config can be created with no arguments."""
+        mfg = ManufacturerConfig()
+        assert mfg.initial_assets == 10_000_000
+
+        wc = WorkingCapitalConfig()
+        assert wc.percent_of_sales == 0.20
+
+        g = GrowthConfig()
+        assert g.annual_growth_rate == 0.05
+
+        d = DebtConfig()
+        assert d.interest_rate == 0.05
+
+        s = SimulationConfig()
+        assert s.time_horizon_years == 50
+
+    def test_partial_override(self):
+        """Config accepts partial overrides, filling remaining from defaults."""
+        config = Config(
+            manufacturer=ManufacturerConfig(initial_assets=20_000_000),
+        )
+        assert config.manufacturer.initial_assets == 20_000_000
+        # Other sub-configs should still have defaults
+        assert config.working_capital.percent_of_sales == 0.20
+        assert config.simulation.time_horizon_years == 50
+
+    def test_backward_compatibility_explicit(self):
+        """Existing explicit instantiation still works unchanged."""
+        config = Config(
+            manufacturer=ManufacturerConfig(
+                initial_assets=10_000_000,
+                asset_turnover_ratio=1.0,
+                base_operating_margin=0.08,
+                tax_rate=0.25,
+                retention_ratio=1.0,
+            ),
+            working_capital=WorkingCapitalConfig(percent_of_sales=0.2),
+            growth=GrowthConfig(annual_growth_rate=0.05),
+            debt=DebtConfig(
+                interest_rate=0.015,
+                max_leverage_ratio=2.0,
+                minimum_cash_balance=100_000,
+            ),
+            simulation=SimulationConfig(time_horizon_years=100),
+            output=OutputConfig(),
+            logging=LoggingConfig(),
+        )
+        assert config.manufacturer.initial_assets == 10_000_000
+        assert config.manufacturer.retention_ratio == 1.0
+        assert config.simulation.time_horizon_years == 100
+
+
+class TestConfigFromCompany:
+    """Test Config.from_company() factory method.
+
+    Acceptance criteria from issue #369: Config.from_company(initial_assets=10e6)
+    creates a reasonable config with one parameter.
+    """
+
+    def test_from_company_minimal(self):
+        """Config.from_company(initial_assets=10e6) works with one param."""
+        config = Config.from_company(initial_assets=10_000_000)
+        assert config.manufacturer.initial_assets == 10_000_000
+        assert config.manufacturer.base_operating_margin == 0.08
+        assert config.manufacturer.asset_turnover_ratio == 0.8
+
+    def test_from_company_no_args(self):
+        """Config.from_company() uses all defaults."""
+        config = Config.from_company()
+        assert config.manufacturer.initial_assets == 10_000_000
+        assert config.simulation.time_horizon_years == 50
+
+    def test_from_company_custom_margin(self):
+        """Custom operating margin is applied."""
+        config = Config.from_company(
+            initial_assets=50_000_000,
+            operating_margin=0.15,
+        )
+        assert config.manufacturer.initial_assets == 50_000_000
+        assert config.manufacturer.base_operating_margin == 0.15
+
+    def test_from_company_service_industry(self):
+        """Service industry gets appropriate defaults."""
+        config = Config.from_company(
+            initial_assets=5_000_000,
+            industry="service",
+        )
+        assert config.manufacturer.asset_turnover_ratio == 1.2
+        assert config.manufacturer.retention_ratio == 0.6
+        assert config.working_capital.percent_of_sales == 0.15
+
+    def test_from_company_retail_industry(self):
+        """Retail industry gets appropriate defaults."""
+        config = Config.from_company(
+            initial_assets=5_000_000,
+            industry="retail",
+        )
+        assert config.manufacturer.asset_turnover_ratio == 1.5
+        assert config.working_capital.percent_of_sales == 0.25
+
+    def test_from_company_unknown_industry_falls_back(self):
+        """Unknown industry falls back to manufacturing defaults."""
+        config = Config.from_company(
+            initial_assets=10_000_000,
+            industry="unknown",
+        )
+        assert config.manufacturer.asset_turnover_ratio == 0.8
+
+    def test_from_company_override_kwargs(self):
+        """Extra kwargs override industry defaults."""
+        config = Config.from_company(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.5,
+            retention_ratio=0.9,
+        )
+        assert config.manufacturer.asset_turnover_ratio == 1.5
+        assert config.manufacturer.retention_ratio == 0.9
+
+    def test_from_company_time_horizon(self):
+        """Custom time horizon is applied."""
+        config = Config.from_company(time_horizon_years=100)
+        assert config.simulation.time_horizon_years == 100
+
+    def test_from_company_produces_valid_config(self):
+        """Config from from_company() can be used with override()."""
+        config = Config.from_company(initial_assets=20_000_000)
+        new_config = config.override(manufacturer__base_operating_margin=0.12)
+        assert new_config.manufacturer.base_operating_margin == 0.12
+        assert new_config.manufacturer.initial_assets == 20_000_000

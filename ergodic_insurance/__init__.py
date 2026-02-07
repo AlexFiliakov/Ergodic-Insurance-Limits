@@ -15,13 +15,20 @@ Key Features:
     - Comprehensive visualization and reporting
 
 Examples:
-    Basic simulation::
+    Quick start with defaults (creates a $10M manufacturer, 50-year horizon)::
 
-        from ergodic_insurance import Simulation, Config
+        from ergodic_insurance import Config
 
-        config = Config()
-        sim = Simulation(config)
-        results = sim.run(years=50)
+        config = Config()  # All defaults — just works
+
+    From basic company info::
+
+        from ergodic_insurance import Config
+
+        config = Config.from_company(
+            initial_assets=50_000_000,
+            operating_margin=0.12,
+        )
 
     Business optimization::
 

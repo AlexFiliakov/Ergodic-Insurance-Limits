@@ -148,23 +148,19 @@ pre-commit install
 
 ```python
 # test_installation.py
+from ergodic_insurance.config import Config
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.config import ManufacturerConfig
 
 print("Framework imported successfully!")
 
-# Create configuration
-config = ManufacturerConfig(
-    initial_assets=10_000_000,
-    asset_turnover_ratio=1.0,
-    base_operating_margin=0.08,
-    tax_rate=0.25,
-    retention_ratio=0.7
-)
+# Create a default configuration — $10M manufacturer, sensible defaults
+config = Config()
+
+# Or customize from basic company info:
+# config = Config.from_company(initial_assets=50_000_000, operating_margin=0.12)
 
 # Create a simple manufacturer
-company = WidgetManufacturer(config)
+company = WidgetManufacturer(config.manufacturer)
 
 print(f"Created company with ${company.assets:,.0f} in assets")
 print("Installation successful!")
