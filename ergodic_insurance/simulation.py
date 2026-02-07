@@ -432,7 +432,7 @@ class Simulation:
             manufacturer = WidgetManufacturer(config)
 
             # Create insurance policy
-            policy = InsurancePolicy(
+            policy = InsurancePolicy.from_simple(
                 deductible=500_000,
                 limit=5_000_000,
                 premium_rate=0.02
