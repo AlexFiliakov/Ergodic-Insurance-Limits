@@ -14,27 +14,29 @@ The framework models a manufacturing business with the following financial dynam
 ### Creating a Manufacturer
 
 ```python
-from ergodic_insurance import ManufacturerConfig
+from ergodic_insurance import Config, ManufacturerConfig
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
-# Create configuration with detailed parameters
-config = ManufacturerConfig(
-    initial_assets=10_000_000,      # Starting capital
-    asset_turnover_ratio=1.0,       # Revenue efficiency
-    base_operating_margin=0.08,     # 8% margin before insurance
-    tax_rate=0.25,                  # 25% tax rate
-    retention_ratio=1.0,            # 100% earnings retained
-    ppe_ratio=0.5,                  # 50% in property/plant/equipment
-    insolvency_tolerance=10_000     # Bankruptcy threshold
-)
+# Quick start — use defaults ($10M assets, 8% margin, 50-year horizon)
+config = Config()
+manufacturer = WidgetManufacturer(config.manufacturer)
 
-# Instantiate the manufacturer
-manufacturer = WidgetManufacturer(config)
+# Or customize specific parameters
+config = Config(
+    manufacturer=ManufacturerConfig(
+        initial_assets=10_000_000,
+        asset_turnover_ratio=1.0,
+        base_operating_margin=0.08,
+        retention_ratio=1.0,
+        ppe_ratio=0.5,
+    )
+)
+manufacturer = WidgetManufacturer(config.manufacturer)
 
 # Check initial state
 print(f"Assets: ${manufacturer.assets:,.0f}")
 print(f"Equity: ${manufacturer.equity:,.0f}")
-print(f"Expected Revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
+print(f"Expected Revenue: ${manufacturer.assets * config.manufacturer.asset_turnover_ratio:,.0f}")
 ```
 
 ## Running a Year Step-by-Step

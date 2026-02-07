@@ -143,19 +143,18 @@ Now let's run a basic simulation using Python:
 .. code-block:: python
    :caption: first_simulation.py
 
-   from ergodic_insurance.config import ManufacturerConfig
+   from ergodic_insurance.config import Config
    from ergodic_insurance.manufacturer import WidgetManufacturer
    from ergodic_insurance.insurance_program import InsuranceProgram, EnhancedInsuranceLayer
    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
    from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
 
-   # Create manufacturer with your parameters
-   mfg_config = ManufacturerConfig(
+   # Create a config with defaults — or use Config.from_company() for customization
+   config = Config.from_company(
        initial_assets=10_000_000,
-       asset_turnover_ratio=1.5,        # Revenue = 1.5x assets = $15M
-       base_operating_margin=0.08
+       operating_margin=0.08,
    )
-   manufacturer = WidgetManufacturer(mfg_config)
+   manufacturer = WidgetManufacturer(config.manufacturer)
 
    # Define insurance program
    insurance = InsuranceProgram(
