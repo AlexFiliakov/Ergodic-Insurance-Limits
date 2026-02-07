@@ -5,11 +5,8 @@ realistic claim payment patterns and project cash flows.
 """
 
 from pathlib import Path
-import sys
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
+from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
 from ergodic_insurance.claim_development import (
     CashFlowProjector,
     Claim,
@@ -17,8 +14,6 @@ from ergodic_insurance.claim_development import (
     ClaimDevelopment,
     load_development_patterns,
 )
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 def demo_basic_development_patterns():

@@ -17,9 +17,7 @@ Date:
 import argparse
 from datetime import datetime
 import json
-from pathlib import Path
 import platform
-import sys
 import time
 from typing import Dict, List, Tuple
 
@@ -27,14 +25,15 @@ import numpy as np
 import psutil
 from tabulate import tabulate
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance import (
+    EnhancedInsuranceLayer,
+    InsuranceProgram,
+    ManufacturerConfig,
+    ManufacturingLossGenerator,
+    MonteCarloEngine,
+    WidgetManufacturer,
+)
+from ergodic_insurance.monte_carlo import SimulationConfig
 from ergodic_insurance.parallel_executor import CPUProfile
 
 

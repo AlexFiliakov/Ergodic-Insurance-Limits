@@ -1,15 +1,15 @@
 """Test script to verify notebook fixes."""
 
-from pathlib import Path
-import sys
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 import numpy as np
 
-from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
-from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance import (
+    EnhancedInsuranceLayer,
+    InsurancePricer,
+    InsuranceProgram,
+    ManufacturingLossGenerator,
+    MarketCycle,
+)
+from ergodic_insurance.insurance_pricing import PricingParameters
 
 # Create loss generator with same params as notebook
 loss_generator = ManufacturingLossGenerator(

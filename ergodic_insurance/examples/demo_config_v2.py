@@ -5,15 +5,9 @@ This script shows how to use the new 3-tier configuration system
 with profiles, modules, and presets.
 """
 
-from pathlib import Path
-import sys
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
+from ergodic_insurance import WidgetManufacturer
 from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
-from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
 def demo_basic_loading():

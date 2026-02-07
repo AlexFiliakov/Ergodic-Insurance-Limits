@@ -10,12 +10,6 @@ This script demonstrates:
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 import matplotlib.pyplot as plt
 import numpy as np
 from rich.console import Console
@@ -23,13 +17,15 @@ from rich.panel import Panel
 from rich.progress import track
 from rich.table import Table
 
-from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
-from ergodic_insurance.insurance_program import (
+from ergodic_insurance import (
     EnhancedInsuranceLayer,
+    InsurancePricer,
     InsuranceProgram,
-    ReinstatementType,
+    ManufacturingLossGenerator,
+    MarketCycle,
 )
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.insurance_pricing import PricingParameters
+from ergodic_insurance.insurance_program import ReinstatementType
 
 console = Console()
 

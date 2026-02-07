@@ -9,8 +9,8 @@ This code can be copied into Jupyter notebooks to demonstrate the bootstrap func
 # We can now compute bootstrap confidence intervals for key metrics to understand the statistical uncertainty in our simulation results.
 
 # %%
-from src.bootstrap_analysis import BootstrapAnalyzer, bootstrap_confidence_interval
-from src.statistical_tests import difference_in_means_test, ratio_of_metrics_test
+from ergodic_insurance.bootstrap_analysis import BootstrapAnalyzer, bootstrap_confidence_interval
+from ergodic_insurance.statistical_tests import difference_in_means_test, ratio_of_metrics_test
 
 # Enable bootstrap confidence intervals in simulation config
 bootstrap_config = SimulationConfig(
@@ -202,7 +202,7 @@ print(f"Bootstrap Std Error: {np.std(result.bootstrap_distribution):.6f}")
 
 # %%
 # Test if ruin probability is significantly different from a threshold
-from src.statistical_tests import paired_comparison_test
+from ergodic_insurance.statistical_tests import paired_comparison_test
 
 # Create ruin indicator (1 if ruined, 0 otherwise)
 ruin_indicator = (results_with_bootstrap.final_assets <= 0).astype(float)
