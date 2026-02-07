@@ -2,6 +2,8 @@
 
 This tutorial covers the core simulation mechanics in detail, including how the business model evolves over time and how to interpret simulation results.
 
+> **Tip:** For a quick insured-vs-uninsured comparison without managing individual objects, use `run_analysis()` — see [Tutorial 1: Getting Started](01_getting_started.md).
+
 ## The Widget Manufacturer Model
 
 The framework models a manufacturing business with the following financial dynamics:
@@ -14,27 +16,28 @@ The framework models a manufacturing business with the following financial dynam
 ### Creating a Manufacturer
 
 ```python
-from ergodic_insurance import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance import Config, ManufacturerConfig, WidgetManufacturer
 
-# Create configuration with detailed parameters
-config = ManufacturerConfig(
-    initial_assets=10_000_000,      # Starting capital
-    asset_turnover_ratio=1.0,       # Revenue efficiency
-    base_operating_margin=0.08,     # 8% margin before insurance
-    tax_rate=0.25,                  # 25% tax rate
-    retention_ratio=1.0,            # 100% earnings retained
-    ppe_ratio=0.5,                  # 50% in property/plant/equipment
-    insolvency_tolerance=10_000     # Bankruptcy threshold
+# Quick start — use defaults ($10M assets, 8% margin, 50-year horizon)
+config = Config()
+manufacturer = WidgetManufacturer(config.manufacturer)
+
+# Or customize specific parameters
+config = Config(
+    manufacturer=ManufacturerConfig(
+        initial_assets=10_000_000,
+        asset_turnover_ratio=1.0,
+        base_operating_margin=0.08,
+        retention_ratio=1.0,
+        ppe_ratio=0.5,
+    )
 )
-
-# Instantiate the manufacturer
-manufacturer = WidgetManufacturer(config)
+manufacturer = WidgetManufacturer(config.manufacturer)
 
 # Check initial state
 print(f"Assets: ${manufacturer.assets:,.0f}")
 print(f"Equity: ${manufacturer.equity:,.0f}")
-print(f"Expected Revenue: ${manufacturer.assets * config.asset_turnover_ratio:,.0f}")
+print(f"Expected Revenue: ${manufacturer.assets * config.manufacturer.asset_turnover_ratio:,.0f}")
 ```
 
 ## Running a Year Step-by-Step
@@ -105,8 +108,7 @@ print(f"Current Collateral: ${manufacturer.collateral:,.0f}")
 For multi-year simulations, use the `Simulation` class:
 
 ```python
-from ergodic_insurance.simulation import Simulation
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance import Simulation, ManufacturingLossGenerator
 
 # Reset manufacturer
 manufacturer = WidgetManufacturer(config)
@@ -267,10 +269,7 @@ else:
 To understand the range of outcomes:
 
 ```python
-from ergodic_insurance import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.simulation import Simulation
+from ergodic_insurance import ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator, Simulation
 
 # Run multiple simulations
 n_simulations = 10

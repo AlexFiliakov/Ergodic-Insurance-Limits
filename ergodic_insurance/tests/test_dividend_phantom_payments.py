@@ -13,7 +13,7 @@ import pytest
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.financial_statements import CashFlowStatement
-from ergodic_insurance.ledger import AccountName, TransactionType
+from ergodic_insurance.ledger import AccountName, Ledger, TransactionType
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -450,3 +450,77 @@ class TestDividendEdgeCases:
         else:
             # Partial dividends based on available cash
             assert manufacturer._last_dividends_paid <= initial_cash
+
+
+class TestRetainedEarningsCashFlowClassification:
+    """Regression tests for Issue #370: retained earnings misclassified as REVENUE.
+
+    Retained earnings allocation is an internal equity movement, not a cash flow
+    event. Using TransactionType.RETAINED_EARNINGS ensures the entry is excluded
+    from all cash flow categories in get_cash_flows().
+    """
+
+    def test_retained_earnings_uses_correct_transaction_type(self):
+        """Verify retained earnings entries use RETAINED_EARNINGS, not REVENUE."""
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            asset_turnover_ratio=0.8,
+        )
+        manufacturer = WidgetManufacturer(config)
+
+        # Generate income so retained earnings are recorded
+        manufacturer.update_balance_sheet(100_000)
+
+        # Find retained earnings entries in the ledger
+        re_entries = [
+            e
+            for e in manufacturer.ledger.entries
+            if e.transaction_type == TransactionType.RETAINED_EARNINGS
+        ]
+        assert len(re_entries) > 0, "Expected at least one RETAINED_EARNINGS entry"
+
+        # No retained-earnings description should use REVENUE type
+        revenue_re = [
+            e
+            for e in manufacturer.ledger.entries
+            if e.transaction_type == TransactionType.REVENUE
+            and "retained earnings" in (e.description or "").lower()
+        ]
+        assert len(revenue_re) == 0, "Retained earnings should not use REVENUE type"
+
+    def test_retained_earnings_excluded_from_cash_from_customers(self):
+        """Core regression: cash_from_customers must be 0 when only retained earnings exist."""
+        ledger = Ledger()
+        # Record only a retained earnings entry
+        ledger.record_double_entry(
+            date=1,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.RETAINED_EARNINGS,
+            amount=to_decimal(50_000),
+            transaction_type=TransactionType.RETAINED_EARNINGS,
+            description="Year 1 retained earnings",
+        )
+
+        flows = ledger.get_cash_flows(period=1)
+        assert (
+            flows["cash_from_customers"] == 0
+        ), "Retained earnings must not appear in cash_from_customers"
+
+    def test_retained_earnings_not_in_any_cash_flow_category(self):
+        """All cash flow line items must be 0 when only retained earnings are recorded."""
+        ledger = Ledger()
+        ledger.record_double_entry(
+            date=1,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.RETAINED_EARNINGS,
+            amount=to_decimal(50_000),
+            transaction_type=TransactionType.RETAINED_EARNINGS,
+            description="Year 1 retained earnings",
+        )
+
+        flows = ledger.get_cash_flows(period=1)
+        for key, value in flows.items():
+            assert value == 0, f"Cash flow item '{key}' should be 0 but was {value}"

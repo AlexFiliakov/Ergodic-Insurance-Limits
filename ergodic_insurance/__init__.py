@@ -15,22 +15,34 @@ Key Features:
     - Comprehensive visualization and reporting
 
 Examples:
-    Basic simulation::
+    One-call analysis (recommended starting point)::
 
-        from ergodic_insurance import Simulation, Config
+        from ergodic_insurance import run_analysis
 
-        config = Config()
-        sim = Simulation(config)
-        results = sim.run(years=50)
+        results = run_analysis(
+            initial_assets=10_000_000,
+            loss_frequency=2.5,
+            loss_severity_mean=1_000_000,
+            deductible=500_000,
+            coverage_limit=10_000_000,
+            premium_rate=0.025,
+        )
+        print(results.summary())
+        results.plot()
 
-    Business optimization::
+    Quick start with defaults (creates a $10M manufacturer, 50-year horizon)::
 
-        from ergodic_insurance import BusinessOptimizer, BusinessObjective
+        from ergodic_insurance import Config
 
-        optimizer = BusinessOptimizer()
-        result = optimizer.optimize(
-            objective=BusinessObjective.MAXIMIZE_GROWTH,
-            constraints=BusinessConstraints(min_survival_prob=0.95)
+        config = Config()  # All defaults — just works
+
+    From basic company info::
+
+        from ergodic_insurance import Config
+
+        config = Config.from_company(
+            initial_assets=50_000_000,
+            operating_margin=0.12,
         )
 
 Note:
@@ -53,16 +65,33 @@ except ImportError:
 
 __all__ = [
     "__version__",
+    # Quick-start factory
+    "run_analysis",
+    "AnalysisResults",
+    # Insurance & Risk
+    "InsurancePolicy",
+    "InsuranceLayer",
+    "InsuranceProgram",
+    "EnhancedInsuranceLayer",
+    "InsurancePricer",
+    "MarketCycle",
+    "RiskMetrics",
+    "MonteCarloEngine",
+    "RuinProbabilityAnalyzer",
+    # Business optimization
     "BusinessObjective",
     "BusinessConstraints",
     "OptimalStrategy",
     "BusinessOptimizationResult",
     "BusinessOptimizer",
+    # Loss modeling
     "LossEvent",
     "LossData",
     "ManufacturingLossGenerator",
+    # Configuration
     "Config",
     "ManufacturerConfig",
+    # Analysis & simulation
     "ErgodicAnalyzer",
     "WidgetManufacturer",
     "Simulation",
@@ -70,6 +99,7 @@ __all__ = [
     "ValidationMetrics",
     "MetricCalculator",
     "PerformanceTargets",
+    # Strategies
     "InsuranceStrategy",
     "NoInsuranceStrategy",
     "ConservativeFixedStrategy",
@@ -78,20 +108,12 @@ __all__ = [
     "AdaptiveStrategy",
     "StrategyBacktester",
     "WalkForwardValidator",
+    # Performance & validation (user-facing only)
     "PerformanceOptimizer",
     "OptimizationConfig",
-    "ProfileResult",
-    "SmartCache",
-    "VectorizedOperations",
     "AccuracyValidator",
     "ValidationResult",
-    "ReferenceImplementations",
-    "EdgeCaseTester",
-    "BenchmarkSuite",
-    "BenchmarkConfig",
-    "BenchmarkResult",
-    "BenchmarkMetrics",
-    "SystemProfiler",
+    # Visualization
     "StyleManager",
     "Theme",
     "FigureFactory",
@@ -127,6 +149,48 @@ def __getattr__(name):
         This function is called automatically by Python when accessing module
         attributes that are not yet loaded. It should not be called directly.
     """
+    if name in ("run_analysis", "AnalysisResults"):
+        from ._run_analysis import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            AnalysisResults,
+            run_analysis,
+        )
+
+        return locals()[name]
+    if name in ("InsurancePolicy", "InsuranceLayer"):
+        from .insurance import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            InsuranceLayer,
+            InsurancePolicy,
+        )
+
+        return locals()[name]
+    if name in ("InsuranceProgram", "EnhancedInsuranceLayer"):
+        from .insurance_program import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            EnhancedInsuranceLayer,
+            InsuranceProgram,
+        )
+
+        return locals()[name]
+    if name in ("InsurancePricer", "MarketCycle"):
+        from .insurance_pricing import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            InsurancePricer,
+            MarketCycle,
+        )
+
+        return locals()[name]
+    if name == "RiskMetrics":
+        from .risk_metrics import RiskMetrics  # pylint: disable=import-outside-toplevel
+
+        return RiskMetrics
+    if name == "MonteCarloEngine":
+        from .monte_carlo import MonteCarloEngine  # pylint: disable=import-outside-toplevel
+
+        return MonteCarloEngine
+    if name == "RuinProbabilityAnalyzer":
+        from .ruin_probability import (  # pylint: disable=import-outside-toplevel
+            RuinProbabilityAnalyzer,
+        )
+
+        return RuinProbabilityAnalyzer
     if name in (
         "BusinessObjective",
         "BusinessConstraints",
@@ -207,49 +271,17 @@ def __getattr__(name):
         )
 
         return WalkForwardValidator
-    if name in (
-        "PerformanceOptimizer",
-        "OptimizationConfig",
-        "ProfileResult",
-        "SmartCache",
-        "VectorizedOperations",
-    ):
+    if name in ("PerformanceOptimizer", "OptimizationConfig"):
         from .performance_optimizer import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             OptimizationConfig,
             PerformanceOptimizer,
-            ProfileResult,
-            SmartCache,
-            VectorizedOperations,
         )
 
         return locals()[name]
-    if name in (
-        "AccuracyValidator",
-        "ValidationResult",
-        "ReferenceImplementations",
-        "EdgeCaseTester",
-    ):
+    if name in ("AccuracyValidator", "ValidationResult"):
         from .accuracy_validator import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             AccuracyValidator,
-            EdgeCaseTester,
-            ReferenceImplementations,
             ValidationResult,
-        )
-
-        return locals()[name]
-    if name in (
-        "BenchmarkSuite",
-        "BenchmarkConfig",
-        "BenchmarkResult",
-        "BenchmarkMetrics",
-        "SystemProfiler",
-    ):
-        from .benchmarking import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
-            BenchmarkConfig,
-            BenchmarkMetrics,
-            BenchmarkResult,
-            BenchmarkSuite,
-            SystemProfiler,
         )
 
         return locals()[name]

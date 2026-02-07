@@ -138,57 +138,37 @@ Visualizing Your Insurance Tower
 Step 4: Running Your First Simulation
 --------------------------------------
 
-Now let's run a basic simulation using Python:
+The fastest way to run a full insured-vs-uninsured comparison is the
+``run_analysis()`` helper — one import, one call:
 
 .. code-block:: python
    :caption: first_simulation.py
 
-   from ergodic_insurance.config import ManufacturerConfig
-   from ergodic_insurance.manufacturer import WidgetManufacturer
-   from ergodic_insurance.insurance_program import InsuranceProgram, EnhancedInsuranceLayer
-   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-   from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+   from ergodic_insurance import run_analysis
 
-   # Create manufacturer with your parameters
-   mfg_config = ManufacturerConfig(
+   results = run_analysis(
        initial_assets=10_000_000,
-       asset_turnover_ratio=1.5,        # Revenue = 1.5x assets = $15M
-       base_operating_margin=0.08
-   )
-   manufacturer = WidgetManufacturer(mfg_config)
-
-   # Define insurance program
-   insurance = InsuranceProgram(
-       layers=[
-           EnhancedInsuranceLayer(
-               attachment_point=100_000, limit=5_000_000, base_premium_rate=0.015
-           ),
-           EnhancedInsuranceLayer(
-               attachment_point=5_100_000, limit=20_000_000, base_premium_rate=0.008
-           ),
-       ],
+       operating_margin=0.08,
+       loss_frequency=5,
+       loss_severity_mean=100_000,
        deductible=100_000,
+       coverage_limit=5_000_000,
+       premium_rate=0.015,
+       n_simulations=1_000,
+       time_horizon=10,
+       seed=42,
    )
-
-   # Configure and run Monte Carlo simulation
-   loss_gen = ManufacturingLossGenerator.create_simple(
-       frequency=5, severity_mean=100_000, severity_std=50_000, seed=42
-   )
-   sim_config = SimulationConfig(n_simulations=1_000, n_years=10, seed=42)
-
-   engine = MonteCarloEngine(
-       loss_generator=loss_gen,
-       insurance_program=insurance,
-       manufacturer=manufacturer,
-       config=sim_config
-   )
-   results = engine.run()
-
-   # Display results
-   import numpy as np
-   print(f"Mean Final Assets: ${np.mean(results.final_assets):,.0f}")
-   print(f"Mean Growth Rate: {np.mean(results.growth_rates):.4f}")
    print(results.summary())
+
+   # Export per-simulation metrics
+   df = results.to_dataframe()
+   print(df.head())
+
+   # Quick visualization
+   results.plot()
+
+For full control over individual components (manufacturer, loss generator,
+insurance layers), see the tutorials in ``docs/tutorials/``.
 
 Step 5: Using Pre-Built Notebooks
 ----------------------------------

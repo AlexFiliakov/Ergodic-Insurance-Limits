@@ -24,8 +24,7 @@ Key Components:
 Examples:
     Basic manufacturer setup and simulation::
 
-        from ergodic_insurance.config import ManufacturerConfig
-        from ergodic_insurance.manufacturer import WidgetManufacturer
+        from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
 
         config = ManufacturerConfig(
             initial_assets=10_000_000,
@@ -170,6 +169,17 @@ class WidgetManufacturer(
         self.base_operating_margin = config.base_operating_margin
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
+
+        # Tax handler with NOL carryforward tracking (Issue #365)
+        self.tax_handler = TaxHandler(
+            tax_rate=config.tax_rate,
+            accrual_manager=self.accrual_manager,
+            nol_carryforward=Decimal("0"),
+            nol_limitation_pct=(
+                config.nol_limitation_pct if config.nol_carryforward_enabled else 0.0
+            ),
+        )
+        self._nol_carryforward_enabled = config.nol_carryforward_enabled
 
         # Claim tracking
         self.claim_liabilities: List[ClaimLiability] = []
@@ -731,6 +741,16 @@ class WidgetManufacturer(
         # Reset accrual manager
         self.accrual_manager = AccrualManager()
 
+        # Reset tax handler with fresh NOL state (Issue #365)
+        self.tax_handler = TaxHandler(
+            tax_rate=self.config.tax_rate,
+            accrual_manager=self.accrual_manager,
+            nol_carryforward=Decimal("0"),
+            nol_limitation_pct=(
+                self.config.nol_limitation_pct if self._nol_carryforward_enabled else 0.0
+            ),
+        )
+
         # Track original prepaid premium for amortization calculation
         self._original_prepaid_premium = ZERO
 
@@ -794,3 +814,26 @@ class WidgetManufacturer(
 
         logger.debug("Created copy of manufacturer")
         return new_manufacturer
+
+    @classmethod
+    def create_fresh(
+        cls,
+        config: ManufacturerConfig,
+        stochastic_process: Optional[StochasticProcess] = None,
+    ) -> "WidgetManufacturer":
+        """Create a fresh manufacturer from configuration alone.
+
+        Factory method that avoids ``copy.deepcopy`` by constructing a new
+        instance directly from its config.  Use this in hot loops (e.g. Monte
+        Carlo workers) where each simulation needs a clean initial state.
+
+        Args:
+            config: Manufacturing configuration parameters.
+            stochastic_process: Optional stochastic process instance.  The
+                caller is responsible for ensuring independence (e.g. by
+                deep-copying the process once before passing it in).
+
+        Returns:
+            A new WidgetManufacturer in its initial state.
+        """
+        return cls(config=config, stochastic_process=stochastic_process)

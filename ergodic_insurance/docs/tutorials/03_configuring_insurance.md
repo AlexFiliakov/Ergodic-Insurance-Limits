@@ -20,7 +20,7 @@ Insurance is structured in **layers** stacked on top of one another, forming a *
 The `InsurancePolicy` and `InsuranceLayer` classes in `ergodic_insurance.insurance` are the building blocks you will use with the `Simulation` engine. Let us start NovaTech with a straightforward single-layer policy.
 
 ```python
-from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+from ergodic_insurance import InsurancePolicy, InsuranceLayer
 
 # NovaTech's first insurance layer:
 #   - $100K deductible (they retain the first $100K of any loss)
@@ -151,11 +151,10 @@ A few things to notice. Small losses stay entirely with NovaTech. Medium losses 
 Now for the central question: does insurance actually improve NovaTech's long-term growth? Let us run parallel simulations with and without coverage.
 
 ```python
-from ergodic_insurance import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.simulation import Simulation
-from ergodic_insurance.insurance import InsurancePolicy, InsuranceLayer
+from ergodic_insurance import (
+    ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
+    Simulation, InsurancePolicy, InsuranceLayer,
+)
 
 # -- NovaTech's financial profile --
 novatech_config = ManufacturerConfig(

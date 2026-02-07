@@ -18,32 +18,38 @@ Key Features:
     - Cross-field validation for consistency
 
 Examples:
-    Basic configuration setup::
+    Quick start with defaults::
 
-        from ergodic_insurance.config import Config, ManufacturerConfig
+        from ergodic_insurance import Config
 
-        # Create manufacturer config
-        manufacturer = ManufacturerConfig(
-            initial_assets=10_000_000,
-            asset_turnover_ratio=0.8,
-            base_operating_margin=0.08,
-            tax_rate=0.25,
-            retention_ratio=0.7
+        # All defaults — $10M manufacturer, 50-year horizon
+        config = Config()
+
+    From basic company info::
+
+        config = Config.from_company(
+            initial_assets=50_000_000,
+            operating_margin=0.12,
+            industry="manufacturing",
         )
 
-        # Create master config
+    Full control::
+
+        from ergodic_insurance import Config, ManufacturerConfig
+
         config = Config(
-            manufacturer=manufacturer,
-            simulation_years=50
+            manufacturer=ManufacturerConfig(
+                initial_assets=10_000_000,
+                asset_turnover_ratio=0.8,
+                base_operating_margin=0.08,
+                tax_rate=0.25,
+                retention_ratio=0.7,
+            )
         )
 
     Loading from file::
 
-        # Load from JSON
-        config = Config.from_json('config.json')
-
-        # Load from environment
-        config = Config.from_env()
+        config = Config.from_yaml(Path('config.yaml'))
 
 Note:
     All monetary values are in nominal dollars unless otherwise specified.
@@ -209,15 +215,35 @@ class ManufacturerConfig(BaseModel):
         Actual operating margins will be lower when insurance costs are included.
     """
 
-    initial_assets: float = Field(gt=0, description="Starting asset value in dollars")
-    asset_turnover_ratio: float = Field(gt=0, le=5, description="Revenue per dollar of assets")
+    initial_assets: float = Field(
+        default=10_000_000, gt=0, description="Starting asset value in dollars"
+    )
+    asset_turnover_ratio: float = Field(
+        default=0.8, gt=0, le=5, description="Revenue per dollar of assets"
+    )
     base_operating_margin: float = Field(
+        default=0.08,
         gt=-1,
         lt=1,
         description="Core operating margin before insurance costs (EBIT before insurance / Revenue)",
     )
-    tax_rate: float = Field(ge=0, le=1, description="Corporate tax rate")
-    retention_ratio: float = Field(ge=0, le=1, description="Portion of earnings retained")
+    tax_rate: float = Field(default=0.25, ge=0, le=1, description="Corporate tax rate")
+    nol_carryforward_enabled: bool = Field(
+        default=True,
+        description="Enable NOL carryforward tracking per IRC §172. "
+        "When False, losses generate no future tax benefit (legacy behavior).",
+    )
+    nol_limitation_pct: float = Field(
+        default=0.80,
+        ge=0.0,
+        le=1.0,
+        description="NOL deduction limitation as fraction of taxable income. "
+        "Set to 0.80 per IRC §172(a)(2) post-TCJA. "
+        "Set to 1.0 for pre-2018 NOLs or non-US jurisdictions.",
+    )
+    retention_ratio: float = Field(
+        default=0.7, ge=0, le=1, description="Portion of earnings retained"
+    )
     ppe_ratio: Optional[float] = Field(
         default=None,
         ge=0,
@@ -360,7 +386,7 @@ class WorkingCapitalConfig(BaseModel):
     """
 
     percent_of_sales: float = Field(
-        ge=0, le=1, description="Working capital as percentage of sales"
+        default=0.20, ge=0, le=1, description="Working capital as percentage of sales"
     )
 
     @field_validator("percent_of_sales")
@@ -422,7 +448,9 @@ class GrowthConfig(BaseModel):
     type: Literal["deterministic", "stochastic"] = Field(
         default="deterministic", description="Growth model type"
     )
-    annual_growth_rate: float = Field(ge=-0.5, le=1.0, description="Annual growth rate")
+    annual_growth_rate: float = Field(
+        default=0.05, ge=-0.5, le=1.0, description="Annual growth rate"
+    )
     volatility: float = Field(
         ge=0, le=1, default=0.0, description="Growth rate volatility (std dev)"
     )
@@ -478,9 +506,15 @@ class DebtConfig(BaseModel):
         bankruptcy risk during adverse claim events.
     """
 
-    interest_rate: float = Field(ge=0, le=0.5, description="Annual interest rate on debt")
-    max_leverage_ratio: float = Field(ge=0, le=10, description="Maximum debt-to-equity ratio")
-    minimum_cash_balance: float = Field(ge=0, description="Minimum cash balance to maintain")
+    interest_rate: float = Field(
+        default=0.05, ge=0, le=0.5, description="Annual interest rate on debt"
+    )
+    max_leverage_ratio: float = Field(
+        default=2.0, ge=0, le=10, description="Maximum debt-to-equity ratio"
+    )
+    minimum_cash_balance: float = Field(
+        default=500_000, ge=0, description="Minimum cash balance to maintain"
+    )
 
 
 class SimulationConfig(BaseModel):
@@ -536,7 +570,9 @@ class SimulationConfig(BaseModel):
     time_resolution: Literal["annual", "monthly"] = Field(
         default="annual", description="Simulation time step"
     )
-    time_horizon_years: int = Field(gt=0, le=1000, description="Simulation horizon in years")
+    time_horizon_years: int = Field(
+        default=50, gt=0, le=1000, description="Simulation horizon in years"
+    )
     max_horizon_years: int = Field(
         default=1000, ge=100, le=10000, description="Maximum supported horizon"
     )
@@ -621,15 +657,122 @@ class Config(BaseModel):
 
     This is the main configuration class that combines all sub-configurations
     and provides methods for loading, saving, and manipulating configurations.
+
+    All sub-configs have sensible defaults, so ``Config()`` with no arguments
+    creates a valid configuration for a $10M widget manufacturer.
+
+    Examples:
+        Minimal usage::
+
+            config = Config()
+
+        Override specific parameters::
+
+            config = Config(
+                manufacturer=ManufacturerConfig(initial_assets=20_000_000)
+            )
+
+        From basic company info::
+
+            config = Config.from_company(initial_assets=50_000_000, operating_margin=0.12)
     """
 
-    manufacturer: ManufacturerConfig
-    working_capital: WorkingCapitalConfig
-    growth: GrowthConfig
-    debt: DebtConfig
-    simulation: SimulationConfig
-    output: OutputConfig
-    logging: LoggingConfig
+    manufacturer: ManufacturerConfig = Field(default_factory=ManufacturerConfig)
+    working_capital: WorkingCapitalConfig = Field(default_factory=WorkingCapitalConfig)
+    growth: GrowthConfig = Field(default_factory=GrowthConfig)
+    debt: DebtConfig = Field(default_factory=DebtConfig)
+    simulation: SimulationConfig = Field(default_factory=SimulationConfig)
+    output: OutputConfig = Field(default_factory=OutputConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+
+    @classmethod
+    def from_company(
+        cls,
+        initial_assets: float = 10_000_000,
+        operating_margin: float = 0.08,
+        industry: str = "manufacturing",
+        tax_rate: float = 0.25,
+        growth_rate: float = 0.05,
+        time_horizon_years: int = 50,
+        **kwargs,
+    ) -> "Config":
+        """Create a Config from basic company information.
+
+        This factory derives reasonable sub-config defaults from a small number
+        of intuitive business parameters, so actuaries and risk managers can get
+        started quickly without understanding every sub-config class.
+
+        Args:
+            initial_assets: Starting asset value in dollars.
+            operating_margin: Base operating margin (e.g. 0.08 for 8%).
+            industry: Industry type for deriving defaults.
+                Supported values: "manufacturing", "service", "retail".
+            tax_rate: Corporate tax rate.
+            growth_rate: Annual growth rate.
+            time_horizon_years: Simulation horizon in years.
+            **kwargs: Additional overrides passed to sub-configs.
+
+        Returns:
+            Config object with parameters derived from company info.
+
+        Examples:
+            Minimal::
+
+                config = Config.from_company(initial_assets=50_000_000)
+
+            With industry defaults::
+
+                config = Config.from_company(
+                    initial_assets=25_000_000,
+                    operating_margin=0.15,
+                    industry="service",
+                )
+        """
+        # Industry-specific defaults
+        industry_defaults = {
+            "manufacturing": {
+                "asset_turnover_ratio": 0.8,
+                "retention_ratio": 0.7,
+                "percent_of_sales": 0.20,
+                "minimum_cash_balance": initial_assets * 0.05,
+            },
+            "service": {
+                "asset_turnover_ratio": 1.2,
+                "retention_ratio": 0.6,
+                "percent_of_sales": 0.15,
+                "minimum_cash_balance": initial_assets * 0.03,
+            },
+            "retail": {
+                "asset_turnover_ratio": 1.5,
+                "retention_ratio": 0.5,
+                "percent_of_sales": 0.25,
+                "minimum_cash_balance": initial_assets * 0.04,
+            },
+        }
+
+        defaults = industry_defaults.get(industry, industry_defaults["manufacturing"])
+
+        return cls(
+            manufacturer=ManufacturerConfig(
+                initial_assets=initial_assets,
+                asset_turnover_ratio=kwargs.get(
+                    "asset_turnover_ratio", defaults["asset_turnover_ratio"]
+                ),
+                base_operating_margin=operating_margin,
+                tax_rate=tax_rate,
+                retention_ratio=kwargs.get("retention_ratio", defaults["retention_ratio"]),
+            ),
+            working_capital=WorkingCapitalConfig(
+                percent_of_sales=kwargs.get("percent_of_sales", defaults["percent_of_sales"]),
+            ),
+            growth=GrowthConfig(annual_growth_rate=growth_rate),
+            debt=DebtConfig(
+                minimum_cash_balance=kwargs.get(
+                    "minimum_cash_balance", defaults["minimum_cash_balance"]
+                ),
+            ),
+            simulation=SimulationConfig(time_horizon_years=time_horizon_years),
+        )
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":

@@ -44,7 +44,7 @@ For sophisticated insurance programs with multiple layers:
 
 .. code-block:: python
 
-   from ergodic_insurance.insurance_program import InsuranceProgram
+   from ergodic_insurance import InsuranceProgram
    from ergodic_insurance.optimization import optimize_program_structure
 
    # Define layer structure

@@ -336,35 +336,45 @@ class ExecutiveReport(ReportBuilder):
             data = self.results["frontier_data"]
             # Create DataFrame for plot_roe_ruin_frontier
             import pandas as pd
-            df = pd.DataFrame({
-                'ruin_probability': data["ruin_probs"],
-                'roe': data["roes"]
-            })
+
+            df = pd.DataFrame({"ruin_probability": data["ruin_probs"], "roe": data["roes"]})
 
             # Create figure directly without using plot_roe_ruin_frontier
             fig, ax = plt.subplots(figsize=(fig_config.width, fig_config.height))
 
             # Plot the frontier
-            ax.plot(data["ruin_probs"], data["roes"],
-                   'o-', linewidth=2, markersize=8,
-                   color='#2E86C1', label='Efficient Frontier')
+            ax.plot(
+                data["ruin_probs"],
+                data["roes"],
+                "o-",
+                linewidth=2,
+                markersize=8,
+                color="#2E86C1",
+                label="Efficient Frontier",
+            )
 
             # Add optimal point if present
             if "optimal_point" in data and data["optimal_point"]:
                 opt_x, opt_y = data["optimal_point"]
-                ax.plot(opt_x, opt_y, '*',
-                       markersize=15, color='#E74C3C',
-                       label='Optimal Point', zorder=5)
+                ax.plot(
+                    opt_x,
+                    opt_y,
+                    "*",
+                    markersize=15,
+                    color="#E74C3C",
+                    label="Optimal Point",
+                    zorder=5,
+                )
 
             ax.set_xlabel("Ruin Probability", fontsize=12)
             ax.set_ylabel("Return on Equity", fontsize=12)
-            ax.set_title("ROE-Ruin Efficient Frontier", fontsize=14, fontweight='bold')
+            ax.set_title("ROE-Ruin Efficient Frontier", fontsize=14, fontweight="bold")
             ax.grid(True, alpha=0.3)
-            ax.legend(loc='best')
+            ax.legend(loc="best")
 
             # Format axes
-            ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1%}'))
-            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, p: f'{y:.1%}'))
+            ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f"{x:.1%}"))
+            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, p: f"{y:.1%}"))
         else:
             # Create placeholder
             fig, ax = plt.subplots(figsize=(fig_config.width, fig_config.height))
@@ -384,46 +394,69 @@ class ExecutiveReport(ReportBuilder):
 
         # ROE metrics
         if "roe" in self.key_metrics:
-            metrics.append({
-                "Metric": "Return on Equity",
-                "Current": f"{self.key_metrics['roe']:.1%}",
-                "Baseline": f"{self.results.get('roe_baseline', 0):.1%}",
-                "Change": f"+{self.key_metrics.get('roe_improvement', 0):.1f}%"
-            })
+            metrics.append(
+                {
+                    "Metric": "Return on Equity",
+                    "Current": f"{self.key_metrics['roe']:.1%}",
+                    "Baseline": f"{self.results.get('roe_baseline', 0):.1%}",
+                    "Change": f"+{self.key_metrics.get('roe_improvement', 0):.1f}%",
+                }
+            )
 
         # Ruin probability
         if "ruin_prob" in self.key_metrics:
-            metrics.append({
-                "Metric": "Ruin Probability",
-                "Current": f"{self.key_metrics['ruin_prob']:.2%}",
-                "Baseline": f"{self.results.get('ruin_probability_baseline', 0):.2%}",
-                "Change": f"-{self.key_metrics.get('ruin_reduction', 0):.1f}%"
-            })
+            metrics.append(
+                {
+                    "Metric": "Ruin Probability",
+                    "Current": f"{self.key_metrics['ruin_prob']:.2%}",
+                    "Baseline": f"{self.results.get('ruin_probability_baseline', 0):.2%}",
+                    "Change": f"-{self.key_metrics.get('ruin_reduction', 0):.1f}%",
+                }
+            )
 
         # Growth rate
         if "growth_rate" in self.key_metrics:
-            metrics.append({
-                "Metric": "Growth Rate",
-                "Current": f"{self.key_metrics['growth_rate']:.1%}",
-                "Baseline": f"{self.results.get('growth_rate_baseline', 0):.1%}",
-                "Change": f"+{self.key_metrics.get('growth_improvement', 0):.1f}%"
-            })
+            metrics.append(
+                {
+                    "Metric": "Growth Rate",
+                    "Current": f"{self.key_metrics['growth_rate']:.1%}",
+                    "Baseline": f"{self.results.get('growth_rate_baseline', 0):.1%}",
+                    "Change": f"+{self.key_metrics.get('growth_improvement', 0):.1f}%",
+                }
+            )
 
         # Risk metrics
         if "var_95" in self.key_metrics:
-            metrics.append({
-                "Metric": "95% VaR",
-                "Current": f"${self.key_metrics['var_95']/1e6:.1f}M",
-                "Baseline": "N/A",
-                "Change": "N/A"
-            })
+            metrics.append(
+                {
+                    "Metric": "95% VaR",
+                    "Current": f"${self.key_metrics['var_95']/1e6:.1f}M",
+                    "Baseline": "N/A",
+                    "Change": "N/A",
+                }
+            )
 
         if not metrics:
             # Provide default data
             metrics = [
-                {"Metric": "Return on Equity", "Current": "18.5%", "Baseline": "15.5%", "Change": "+19.4%"},
-                {"Metric": "Ruin Probability", "Current": "0.80%", "Baseline": "2.50%", "Change": "-68.0%"},
-                {"Metric": "Growth Rate", "Current": "7.2%", "Baseline": "6.5%", "Change": "+10.8%"},
+                {
+                    "Metric": "Return on Equity",
+                    "Current": "18.5%",
+                    "Baseline": "15.5%",
+                    "Change": "+19.4%",
+                },
+                {
+                    "Metric": "Ruin Probability",
+                    "Current": "0.80%",
+                    "Baseline": "2.50%",
+                    "Change": "-68.0%",
+                },
+                {
+                    "Metric": "Growth Rate",
+                    "Current": "7.2%",
+                    "Baseline": "6.5%",
+                    "Change": "+10.8%",
+                },
             ]
 
         return pd.DataFrame(metrics)
@@ -529,7 +562,12 @@ class ExecutiveReport(ReportBuilder):
         else:
             # Generate placeholder data
             metrics = [
-                {"Metric": "Gelman-Rubin R-hat", "Value": 1.02, "Target": "< 1.1", "Status": "PASS"},
+                {
+                    "Metric": "Gelman-Rubin R-hat",
+                    "Value": 1.02,
+                    "Target": "< 1.1",
+                    "Status": "PASS",
+                },
                 {
                     "Metric": "Effective Sample Size",
                     "Value": 5234,

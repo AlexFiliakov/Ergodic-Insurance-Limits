@@ -388,12 +388,16 @@ class TestMonteCarloWorkerErrorHandling:
 
         # Create a mock manufacturer with the minimum required interface
         mock_manufacturer = MagicMock()
-        mock_manufacturer.calculate_revenue.return_value = Decimal("1000000")
+        mock_manufacturer.stochastic_process = None
         mock_manufacturer.config = MagicMock()
         mock_manufacturer.config.initial_assets = 10_000_000
         mock_manufacturer.config.asset_turnover_ratio = 0.8
-        mock_manufacturer.equity = Decimal("10000000")
-        mock_manufacturer.total_assets = Decimal("10000000")
+
+        # Mock the sim_manufacturer returned by create_fresh
+        mock_sim_manufacturer = MagicMock()
+        mock_sim_manufacturer.calculate_revenue.return_value = Decimal("1000000")
+        mock_sim_manufacturer.equity = Decimal("10000000")
+        mock_sim_manufacturer.total_assets = Decimal("10000000")
 
         # Create mock insurance program
         mock_insurance = MagicMock()
@@ -406,14 +410,19 @@ class TestMonteCarloWorkerErrorHandling:
 
         chunk = (0, 1, None)  # seed=None to skip reseed call
 
-        with pytest.raises(AttributeError, match="has no generate_losses method"):
-            run_chunk_standalone(
-                chunk=chunk,
-                loss_generator=bad_generator,  # type: ignore[arg-type]
-                insurance_program=mock_insurance,
-                manufacturer=mock_manufacturer,
-                config_dict=config_dict,
-            )
+        # Patch create_fresh to avoid building a real WidgetManufacturer from the mock config
+        with patch(
+            "ergodic_insurance.monte_carlo_worker.WidgetManufacturer.create_fresh",
+            return_value=mock_sim_manufacturer,
+        ):
+            with pytest.raises(AttributeError, match="has no generate_losses method"):
+                run_chunk_standalone(
+                    chunk=chunk,
+                    loss_generator=bad_generator,  # type: ignore[arg-type]
+                    insurance_program=mock_insurance,
+                    manufacturer=mock_manufacturer,
+                    config_dict=config_dict,
+                )
 
 
 class TestMonteCarloWorkerRuinMarking:
@@ -422,38 +431,27 @@ class TestMonteCarloWorkerRuinMarking:
     def test_ruin_marked_for_future_evaluation_years(self):
         """When equity drops below insolvency_tolerance, future eval years are marked ruined (lines 157-161).
 
-        This test creates a fake manufacturer with equity at zero (below the default
-        insolvency_tolerance of 10,000). The loss generator returns a large loss.
-        After the first year's step, the equity check triggers ruin marking for
-        all future evaluation years.
+        This test creates a tiny manufacturer whose equity cannot absorb
+        the large uninsured loss.  After the first year's step the equity
+        check triggers ruin marking for all future evaluation years.
         """
+        from ergodic_insurance.config import ManufacturerConfig
+        from ergodic_insurance.manufacturer import WidgetManufacturer
         from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
 
-        class FakeConfig:
-            """Minimal config with numeric attributes required by the worker."""
-
-            initial_assets = 10_000_000
-            asset_turnover_ratio = 0.8
-
-        class FakeManufacturer:
-            """Minimal manufacturer that supports deepcopy and goes insolvent immediately."""
-
-            def __init__(self):
-                self.config = FakeConfig()
-                self.equity = Decimal("0")  # Below insolvency_tolerance of 10,000
-                self.total_assets = Decimal("0")
-
-            def calculate_revenue(self):
-                return Decimal("1000000")
-
-            def record_insurance_premium(self, amount, is_annual=False):
-                pass
-
-            def record_insurance_loss(self, amount):
-                pass
-
-            def step(self, *args, **kwargs):
-                pass
+        # Tiny company: initial equity ≈ 50k, loss = 5M → guaranteed ruin.
+        # Disable mid-year liquidity check so the full loss flows through
+        # the accounting step and equity actually drops below tolerance.
+        mfg_config = ManufacturerConfig(
+            initial_assets=50_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.9,
+            check_intra_period_liquidity=False,
+            nol_carryforward_enabled=False,
+        )
+        manufacturer = WidgetManufacturer(mfg_config)
 
         # Create mock loss that generates a large loss amount
         mock_loss = MagicMock()
@@ -469,11 +467,14 @@ class TestMonteCarloWorkerRuinMarking:
             "deductible_paid": 5_000_000.0,
         }
 
+        # Tolerance set above initial equity (~50k) so the worker's
+        # equity check fires even when the manufacturer's internal
+        # insolvency flag short-circuits the accounting step.
         config_dict = {
             "n_years": 5,
             "use_float32": False,
             "ruin_evaluation": [3, 5],
-            "insolvency_tolerance": 10_000,
+            "insolvency_tolerance": 100_000,
             "letter_of_credit_rate": 0.015,
             "growth_rate": 0.05,
             "time_resolution": "annual",
@@ -486,7 +487,7 @@ class TestMonteCarloWorkerRuinMarking:
             chunk=chunk,
             loss_generator=mock_loss_generator,
             insurance_program=mock_insurance,
-            manufacturer=FakeManufacturer(),  # type: ignore[arg-type]
+            manufacturer=manufacturer,
             config_dict=config_dict,
         )
 
@@ -495,38 +496,27 @@ class TestMonteCarloWorkerRuinMarking:
         ruin_data = result["ruin_at_year"]
         assert len(ruin_data) == 1  # One simulation
 
-        # Ruin occurred at year 0, so all evaluation years (3 and 5) should be marked True
+        # Equity (~50k) < tolerance (100k) at year 0, so all
+        # evaluation years (3 and 5) should be marked True.
         ruin_at_year = ruin_data[0]
         assert ruin_at_year[3] is True, "Eval year 3 should be marked as ruined"
         assert ruin_at_year[5] is True, "Eval year 5 should be marked as ruined"
 
     def test_ruin_not_marked_when_equity_above_tolerance(self):
         """When equity stays above insolvency_tolerance, ruin should not be marked."""
+        from ergodic_insurance.config import ManufacturerConfig
+        from ergodic_insurance.manufacturer import WidgetManufacturer
         from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
 
-        class HealthyConfig:
-            initial_assets = 10_000_000
-            asset_turnover_ratio = 0.8
-
-        class HealthyManufacturer:
-            """Manufacturer with healthy equity that stays solvent."""
-
-            def __init__(self):
-                self.config = HealthyConfig()
-                self.equity = Decimal("5000000")  # Well above tolerance
-                self.total_assets = Decimal("10000000")
-
-            def calculate_revenue(self):
-                return Decimal("8000000")
-
-            def record_insurance_premium(self, amount, is_annual=False):
-                pass
-
-            def record_insurance_loss(self, amount):
-                pass
-
-            def step(self, *args, **kwargs):
-                pass
+        # Large company: initial equity ≈ 10M, loss = 100k → stays solvent
+        mfg_config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.9,
+        )
+        manufacturer = WidgetManufacturer(mfg_config)
 
         # Create a small loss that won't cause insolvency
         mock_loss = MagicMock()
@@ -559,7 +549,7 @@ class TestMonteCarloWorkerRuinMarking:
             chunk=chunk,
             loss_generator=mock_loss_generator,
             insurance_program=mock_insurance,
-            manufacturer=HealthyManufacturer(),  # type: ignore[arg-type]
+            manufacturer=manufacturer,
             config_dict=config_dict,
         )
 

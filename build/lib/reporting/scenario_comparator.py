@@ -327,9 +327,11 @@ class ScenarioComparator:
                 "min": np.min(scenario_values),
                 "max": np.max(scenario_values),
                 "range": np.max(scenario_values) - np.min(scenario_values),
-                "cv": np.std(scenario_values) / np.mean(scenario_values)
-                if np.mean(scenario_values) != 0
-                else 0,
+                "cv": (
+                    np.std(scenario_values) / np.mean(scenario_values)
+                    if np.mean(scenario_values) != 0
+                    else 0
+                ),
             }
 
             # ANOVA if more than 2 scenarios

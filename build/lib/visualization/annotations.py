@@ -422,9 +422,9 @@ class SmartAnnotationPlacer:
         self.placed_annotations: List[AnnotationBox] = []
         self.candidate_positions = self._generate_candidate_positions()
         self.used_colors: Set[str] = set()  # Track colors to avoid conflicts
-        self.annotation_cache: Dict[
-            str, Tuple[float, float]
-        ] = {}  # Cache positions for consistency
+        self.annotation_cache: Dict[str, Tuple[float, float]] = (
+            {}
+        )  # Cache positions for consistency
 
     def _generate_candidate_positions(self, n_positions: int = 20) -> List[Tuple[float, float]]:
         """Generate candidate positions for annotations.

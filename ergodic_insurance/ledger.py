@@ -68,7 +68,7 @@ class AccountName(Enum):
     Assets (debit normal balance):
         CASH, ACCOUNTS_RECEIVABLE, INVENTORY, PREPAID_INSURANCE,
         INSURANCE_RECEIVABLES, GROSS_PPE, ACCUMULATED_DEPRECIATION,
-        RESTRICTED_CASH, COLLATERAL
+        RESTRICTED_CASH, COLLATERAL, DEFERRED_TAX_ASSET
 
     Liabilities (credit normal balance):
         ACCOUNTS_PAYABLE, ACCRUED_EXPENSES, ACCRUED_WAGES, ACCRUED_TAXES,
@@ -113,6 +113,7 @@ class AccountName(Enum):
     ACCUMULATED_DEPRECIATION = "accumulated_depreciation"
     RESTRICTED_CASH = "restricted_cash"
     COLLATERAL = "collateral"  # Deprecated: tracked via RESTRICTED_CASH (Issue #302/#319)
+    DEFERRED_TAX_ASSET = "deferred_tax_asset"  # DTA from NOL carryforward per ASC 740
 
     # Liabilities (credit normal balance)
     ACCOUNTS_PAYABLE = "accounts_payable"
@@ -178,6 +179,7 @@ class TransactionType(Enum):
     INSURANCE_CLAIM = "insurance_claim"
     TAX_ACCRUAL = "tax_accrual"
     TAX_PAYMENT = "tax_payment"
+    DTA_ADJUSTMENT = "dta_adjustment"  # Deferred tax asset recognition/reversal
     DEPRECIATION = "depreciation"
     WORKING_CAPITAL = "working_capital"
 
@@ -198,6 +200,7 @@ class TransactionType(Enum):
     REVALUATION = "revaluation"  # Asset value adjustments
     LIQUIDATION = "liquidation"  # Bankruptcy/emergency liquidation
     TRANSFER = "transfer"  # Internal asset transfers (e.g., cash to restricted)
+    RETAINED_EARNINGS = "retained_earnings"  # Internal equity allocation
 
 
 @dataclass
@@ -291,6 +294,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.ACCUMULATED_DEPRECIATION: AccountType.ASSET,  # Contra-asset
     AccountName.RESTRICTED_CASH: AccountType.ASSET,
     AccountName.COLLATERAL: AccountType.ASSET,  # Deprecated: tracked via RESTRICTED_CASH (#302/#319)
+    AccountName.DEFERRED_TAX_ASSET: AccountType.ASSET,
     # Liabilities (credit normal balance)
     AccountName.ACCOUNTS_PAYABLE: AccountType.LIABILITY,
     AccountName.ACCRUED_EXPENSES: AccountType.LIABILITY,
@@ -780,6 +784,7 @@ class Ledger:
             - cash_from_customers: Collections on AR + cash sales
             - cash_to_suppliers: Inventory + expense payments
             - cash_for_insurance: Premium payments
+            - cash_for_claim_losses: Claim-related asset reduction payments
             - cash_for_taxes: Tax payments
             - cash_for_wages: Wage payments
             - cash_for_interest: Interest payments
@@ -806,6 +811,10 @@ class Ledger:
 
         flows["cash_from_insurance"] = self.sum_by_transaction_type(
             TransactionType.INSURANCE_CLAIM, period, "cash", EntryType.DEBIT
+        )
+
+        flows["cash_for_claim_losses"] = self.sum_by_transaction_type(
+            TransactionType.INSURANCE_CLAIM, period, "cash", EntryType.CREDIT
         )
 
         # Cash payments (credits to cash)
@@ -850,11 +859,13 @@ class Ledger:
         )
 
         # Calculate totals (Issue #319: include wages and interest in operating)
+        # Issue #379: include claim loss payments in operating outflows
         flows["net_operating"] = (
             flows["cash_from_customers"]
             + flows["cash_from_insurance"]
             - flows["cash_to_suppliers"]
             - flows["cash_for_insurance"]
+            - flows["cash_for_claim_losses"]
             - flows["cash_for_taxes"]
             - flows["cash_for_wages"]
             - flows["cash_for_interest"]

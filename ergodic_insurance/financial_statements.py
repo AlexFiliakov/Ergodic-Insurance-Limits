@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import pandas as pd
 
 from .decimal_utils import ZERO, MetricsDict, is_zero, to_decimal
+from .ledger import AccountName
 
 if TYPE_CHECKING:
     from .ledger import Ledger
@@ -407,6 +408,7 @@ class CashFlowStatement:
             "cash_from_insurance": flows.get("cash_from_insurance", ZERO),
             "cash_to_suppliers": -flows.get("cash_to_suppliers", ZERO),
             "cash_for_insurance": -flows.get("cash_for_insurance", ZERO),
+            "cash_for_claim_losses": -flows.get("cash_for_claim_losses", ZERO),
             "cash_for_taxes": -flows.get("cash_for_taxes", ZERO),
             "cash_for_wages": -flows.get("cash_for_wages", ZERO),
             "cash_for_interest": -flows.get("cash_for_interest", ZERO),
@@ -522,6 +524,10 @@ class CashFlowStatement:
             if operating.get("cash_for_insurance", 0) != 0:
                 cash_flow_data.append(
                     ("  Cash Paid for Insurance", operating["cash_for_insurance"], "")
+                )
+            if operating.get("cash_for_claim_losses", 0) != 0:
+                cash_flow_data.append(
+                    ("  Cash Paid for Claim Losses", operating["cash_for_claim_losses"], "")
                 )
             if operating.get("cash_for_taxes", 0) != 0:
                 cash_flow_data.append(("  Cash Paid for Taxes", operating["cash_for_taxes"], ""))
@@ -1526,10 +1532,23 @@ class FinancialStatementGenerator:
             # Calculate tax provision on positive income only
             tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 
+        # Deferred tax from DTA changes (Issue #365: NOL carryforward per ASC 740)
+        deferred_tax_expense = ZERO
+        if (
+            hasattr(self, "manufacturer")
+            and self.manufacturer is not None
+            and hasattr(self.manufacturer, "ledger")
+            and self.manufacturer.ledger is not None
+        ):
+            # Positive DTA change = tax benefit (negative deferred expense)
+            deferred_tax_expense = -self.manufacturer.ledger.get_period_change(
+                AccountName.DEFERRED_TAX_ASSET, year
+            )
+
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
-        data.append(("  Deferred Tax Expense", 0, "", ""))  # No deferred taxes per requirement
-        data.append(("  Total Tax Provision", tax_provision, "", "subtotal"))
+        data.append(("  Deferred Tax Expense", deferred_tax_expense, "", ""))
+        data.append(("  Total Tax Provision", tax_provision + deferred_tax_expense, "", "subtotal"))
         data.append(("", "", "", ""))
 
         # NET INCOME

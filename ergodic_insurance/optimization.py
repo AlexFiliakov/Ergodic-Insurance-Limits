@@ -469,9 +469,10 @@ class AugmentedLagrangianOptimizer:
             if constr["type"] == "ineq":
                 # Inequality constraint g(x) >= 0
                 g = constr["fun"](x)
-                # Augmented term: -lambda*g + (rho/2)*max(0, -g - lambda/rho)^2
-                slack = max(0, -g - lambdas[ineq_idx] / rho)
-                L += -lambdas[ineq_idx] * g + (rho / 2) * slack**2
+                # Standard augmented Lagrangian (Bertsekas, 1999, Section 4.2):
+                # L_A += (rho/2) * max(0, lambda/rho - g)^2 - lambda^2/(2*rho)
+                slack = max(0, lambdas[ineq_idx] / rho - g)
+                L += (rho / 2) * slack**2 - lambdas[ineq_idx] ** 2 / (2 * rho)
                 ineq_idx += 1
             else:
                 # Equality constraint h(x) = 0
@@ -570,12 +571,13 @@ class AugmentedLagrangianOptimizer:
                 break
 
             # Update penalty parameter
-            if (
-                constraint_violation
-                > 0.5 * self.convergence_monitor.constraint_violation_history[-2]
-                if len(self.convergence_monitor.constraint_violation_history) > 1
-                else True
-            ):
+            should_increase_penalty = True
+            if len(self.convergence_monitor.constraint_violation_history) > 1:
+                should_increase_penalty = (
+                    constraint_violation
+                    > 0.5 * self.convergence_monitor.constraint_violation_history[-2]
+                )
+            if should_increase_penalty:
                 rho = min(rho * 2, rho_max)
 
         # Create final result

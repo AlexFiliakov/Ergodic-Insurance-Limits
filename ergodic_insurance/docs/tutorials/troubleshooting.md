@@ -102,7 +102,7 @@ ImportError: cannot import name 'ClaimGenerator' from 'ergodic_insurance'
 **Solution:**
 ```python
 # Use correct import path
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance import ManufacturingLossGenerator
 
 # Check available modules
 import ergodic_insurance
@@ -122,9 +122,7 @@ print(dir(ergodic_insurance))
 **Diagnosis and Solution:**
 ```python
 # Check loss severity relative to assets
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance import ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator
 
 mfg_config = ManufacturerConfig(initial_assets=10_000_000)
 manufacturer = WidgetManufacturer(mfg_config)
@@ -195,8 +193,7 @@ mean_growth = np.mean([r['mean_growth_rate'] for r in all_results])
 **Solution:**
 ```python
 # Check base profitability without losses
-from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
 
 mfg_config = ManufacturerConfig(
     initial_assets=10_000_000,
@@ -543,7 +540,7 @@ ValidationError: 1 validation error for ManufacturerConfig
 **Solution:**
 ```python
 # 1. Check required fields
-from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance import ManufacturerConfig
 
 # See what's required
 print(ManufacturerConfig.schema())

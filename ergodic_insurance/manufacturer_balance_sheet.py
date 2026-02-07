@@ -133,6 +133,15 @@ class BalanceSheetMixin:
         return self.restricted_assets
 
     @property
+    def deferred_tax_asset(self) -> Decimal:
+        """Deferred tax asset from NOL carryforward per ASC 740-10-25-3 (Issue #365).
+
+        Returns:
+            Current deferred tax asset balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.DEFERRED_TAX_ASSET)
+
+    @property
     def total_assets(self) -> Decimal:
         """Calculate total assets from all asset components.
 
@@ -146,8 +155,8 @@ class BalanceSheetMixin:
         current = self.cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
         # Non-current assets
         net_ppe = self.gross_ppe - self.accumulated_depreciation
-        # Total
-        return current + net_ppe + self.restricted_assets
+        # Total (includes DTA per ASC 740, Issue #365)
+        return current + net_ppe + self.restricted_assets + self.deferred_tax_asset
 
     @total_assets.setter
     def total_assets(self, value: Union[Decimal, float]) -> None:
@@ -550,30 +559,30 @@ class BalanceSheetMixin:
         if cash_reduction > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
+                debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.CASH,
                 amount=quantize_currency(cash_reduction),
-                transaction_type=TransactionType.WRITE_OFF,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
                 description=f"{description} - cash",
             )
 
         if ar_reduction > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
+                debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.ACCOUNTS_RECEIVABLE,
                 amount=quantize_currency(ar_reduction),
-                transaction_type=TransactionType.WRITE_OFF,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
                 description=f"{description} - accounts_receivable",
             )
 
         if inventory_reduction > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
+                debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.INVENTORY,
                 amount=quantize_currency(inventory_reduction),
-                transaction_type=TransactionType.WRITE_OFF,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
                 description=f"{description} - inventory",
             )
 
@@ -858,7 +867,7 @@ class BalanceSheetMixin:
                     debit_account=AccountName.CASH,
                     credit_account=AccountName.RETAINED_EARNINGS,
                     amount=total_retained,
-                    transaction_type=TransactionType.REVENUE,
+                    transaction_type=TransactionType.RETAINED_EARNINGS,
                     description=f"Year {self.current_year} retained earnings",
                     month=self.current_month,
                 )

@@ -253,8 +253,8 @@ class TestParameterSweep:
 
         assert fig is not None
         # Check suptitle
-        assert fig._suptitle is not None
-        assert fig._suptitle.get_text() == "Custom Sweep Analysis"
+        assert fig._suptitle is not None  # type: ignore[attr-defined]
+        assert fig._suptitle.get_text() == "Custom Sweep Analysis"  # type: ignore[attr-defined]
 
         plt.close(fig)
 
