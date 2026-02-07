@@ -24,10 +24,10 @@ The engine requires three components: a **loss generator** (how losses arrive), 
 
 ```python
 from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.insurance_program import InsuranceProgram, EnhancedInsuranceLayer
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance import ManufacturerConfig
+from ergodic_insurance import (
+    ManufacturingLossGenerator, InsuranceProgram, EnhancedInsuranceLayer,
+    WidgetManufacturer, ManufacturerConfig,
+)
 
 # --- NovaTech at $25M ---
 mfg_config = ManufacturerConfig(
@@ -303,7 +303,7 @@ Insurance markets cycle between soft markets (cheap, abundant coverage) and hard
 ### Pricing Under Different Markets
 
 ```python
-from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle
+from ergodic_insurance import InsurancePricer, MarketCycle
 
 # Create pricers for each market condition
 soft_pricer = InsurancePricer(

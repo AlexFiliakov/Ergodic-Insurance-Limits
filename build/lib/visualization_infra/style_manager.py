@@ -560,27 +560,35 @@ class StyleManager:
         for theme, theme_config in self.themes.items():
             config["themes"][theme.value] = {
                 "colors": {
-                    key: list(val)
-                    if isinstance(val := getattr(theme_config["colors"], key), tuple)
-                    else val
+                    key: (
+                        list(val)
+                        if isinstance(val := getattr(theme_config["colors"], key), tuple)
+                        else val
+                    )
                     for key in theme_config["colors"].__dataclass_fields__
                 },
                 "fonts": {
-                    key: list(val)
-                    if isinstance(val := getattr(theme_config["fonts"], key), tuple)
-                    else val
+                    key: (
+                        list(val)
+                        if isinstance(val := getattr(theme_config["fonts"], key), tuple)
+                        else val
+                    )
                     for key in theme_config["fonts"].__dataclass_fields__
                 },
                 "figure": {
-                    key: list(val)
-                    if isinstance(val := getattr(theme_config["figure"], key), tuple)
-                    else val
+                    key: (
+                        list(val)
+                        if isinstance(val := getattr(theme_config["figure"], key), tuple)
+                        else val
+                    )
                     for key in theme_config["figure"].__dataclass_fields__
                 },
                 "grid": {
-                    key: list(val)
-                    if isinstance(val := getattr(theme_config["grid"], key), tuple)
-                    else val
+                    key: (
+                        list(val)
+                        if isinstance(val := getattr(theme_config["grid"], key), tuple)
+                        else val
+                    )
                     for key in theme_config["grid"].__dataclass_fields__
                 },
             }

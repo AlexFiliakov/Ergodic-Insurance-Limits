@@ -16,8 +16,7 @@ The framework models a manufacturing business with the following financial dynam
 ### Creating a Manufacturer
 
 ```python
-from ergodic_insurance import Config, ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance import Config, ManufacturerConfig, WidgetManufacturer
 
 # Quick start — use defaults ($10M assets, 8% margin, 50-year horizon)
 config = Config()
@@ -109,8 +108,7 @@ print(f"Current Collateral: ${manufacturer.collateral:,.0f}")
 For multi-year simulations, use the `Simulation` class:
 
 ```python
-from ergodic_insurance.simulation import Simulation
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance import Simulation, ManufacturingLossGenerator
 
 # Reset manufacturer
 manufacturer = WidgetManufacturer(config)
@@ -271,10 +269,7 @@ else:
 To understand the range of outcomes:
 
 ```python
-from ergodic_insurance import ManufacturerConfig
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.simulation import Simulation
+from ergodic_insurance import ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator, Simulation
 
 # Run multiple simulations
 n_simulations = 10
