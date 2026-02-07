@@ -921,3 +921,81 @@ class TestCompareScenariosMixedPaths:
         assert np.isnan(results["ergodic_advantage"]["t_statistic"])
         assert np.isnan(results["ergodic_advantage"]["p_value"])
         assert results["ergodic_advantage"]["significant"] is False
+
+
+# ===================================================================
+# Issue #474: Verify removal of growth rate clamp at -1.0
+# ===================================================================
+
+
+class TestGrowthRateNoClamp:
+    """Verify that time-average growth rates below -1.0 are preserved (issue #474).
+
+    The previous implementation clamped growth rates to max(g, -1.0), which
+    biased ergodic comparisons upward by softening near-bankruptcy trajectories.
+    """
+
+    def test_severe_loss_below_negative_one(self, analyzer):
+        """99.9% equity loss over 1 year should yield g ≈ -6.9, not -1.0."""
+        # $10M -> $100 in 1 year
+        values = np.array([10_000_000.0, 100.0])
+        growth = analyzer.calculate_time_average_growth(values)
+        expected = np.log(100.0 / 10_000_000.0)  # ≈ -11.51
+        assert abs(growth - expected) < 1e-6
+        assert growth < -1.0, "Growth rate must not be clamped to -1.0"
+
+    def test_99_percent_loss_over_10_years(self, analyzer):
+        """$10M -> $10K over 10 years should yield g ≈ -0.69 (above -1.0, no clamp issue)."""
+        values = np.array([10_000_000.0] + [0.0] * 8 + [10_000.0])
+        # first_idx=0 (10M>0), final=10K, time_horizon=9
+        # But values[1..8] are 0, so first valid positive is index 0
+        growth = analyzer.calculate_time_average_growth(values)
+        expected = (1.0 / 9) * np.log(10_000.0 / 10_000_000.0)
+        assert abs(growth - expected) < 1e-6
+
+    def test_99_point_999_percent_loss_single_year(self, analyzer):
+        """Near-total loss in 1 year: g = ln(1/10M) ≈ -16.1."""
+        values = np.array([10_000_000.0, 1.0])
+        growth = analyzer.calculate_time_average_growth(values)
+        expected = np.log(1.0 / 10_000_000.0)  # ≈ -16.12
+        assert abs(growth - expected) < 1e-6
+        assert growth < -10.0
+
+    def test_moderate_loss_preserves_exact_value(self, analyzer):
+        """50% loss over 5 years: g = ln(0.5)/5 ≈ -0.139 (was never clamped, but verify)."""
+        initial = 1_000_000.0
+        final = 500_000.0
+        values = np.array([initial, 0.0, 0.0, 0.0, 0.0, final])
+        growth = analyzer.calculate_time_average_growth(values)
+        expected = (1.0 / 5) * np.log(final / initial)
+        assert abs(growth - expected) < 1e-6
+
+    def test_compare_scenarios_handles_very_negative_growth(self, analyzer):
+        """compare_scenarios should include very negative finite growth rates in means."""
+        # Insured: mild losses
+        insured = [np.array([1_000_000.0] * 5 + [900_000.0]) for _ in range(5)]
+        # Uninsured: catastrophic losses (below old clamp)
+        uninsured = [np.array([1_000_000.0] * 5 + [10.0]) for _ in range(5)]
+
+        results = analyzer.compare_scenarios(insured, uninsured, metric="equity")
+
+        # Uninsured mean should reflect the true severity (g ≈ ln(10/1e6)/5 ≈ -2.3)
+        uninsured_mean = results["uninsured"]["time_average_mean"]
+        assert (
+            uninsured_mean < -1.0
+        ), f"Uninsured time_average_mean={uninsured_mean} should be < -1.0"
+        # Ergodic advantage should be large and positive
+        assert results["ergodic_advantage"]["time_average_gain"] > 1.0
+
+    def test_mean_of_mixed_growth_rates_not_clamped(self, analyzer):
+        """Mean of growth rates should reflect unclamped values."""
+        # Mix of mild and catastrophic trajectories
+        trajectories = [
+            np.array([1_000_000.0, 1_050_000.0]),  # +5%
+            np.array([1_000_000.0, 100.0]),  # -99.99% -> g ≈ -9.21
+        ]
+        growths = [analyzer.calculate_time_average_growth(t) for t in trajectories]
+        mean_growth = np.mean(growths)
+        # With clamp: mean ≈ (0.0488 + (-1.0))/2 = -0.476
+        # Without clamp: mean ≈ (0.0488 + (-9.21))/2 = -4.58
+        assert mean_growth < -1.0, f"Mean growth {mean_growth} should be < -1.0 without clamping"

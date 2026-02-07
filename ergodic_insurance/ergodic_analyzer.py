@@ -677,7 +677,8 @@ class ErgodicAnalyzer:
                 Special return values:
                 - -inf: Trajectory ended in bankruptcy (final value <= 0)
                 - 0.0: Single time point or zero time horizon
-                - Finite value: Calculated growth rate
+                - Finite value: Calculated growth rate (no artificial floor;
+                  near-ruin scenarios may produce values much less than -1.0)
 
         Examples:
             Calculate growth for successful trajectory::
@@ -776,9 +777,7 @@ class ErgodicAnalyzer:
         # Calculate growth rate
         if final_value > 0 and initial_value > 0 and time_horizon > 0:
             growth_rate = float((1.0 / time_horizon) * np.log(final_value / initial_value))
-            # LIMITED LIABILITY: Floor at -100% (-1.0) due to equity constraint
-            # Companies with limited liability cannot lose more than 100% of equity
-            return max(growth_rate, -1.0)
+            return growth_rate
 
         return 0.0 if time_horizon <= 0 else -np.inf
 
