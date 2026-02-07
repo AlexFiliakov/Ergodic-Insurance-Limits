@@ -1538,6 +1538,7 @@ class FinancialStatementGenerator:
             hasattr(self, "manufacturer")
             and self.manufacturer is not None
             and hasattr(self.manufacturer, "ledger")
+            and self.manufacturer.ledger is not None
         ):
             # Positive DTA change = tax benefit (negative deferred expense)
             deferred_tax_expense = -self.manufacturer.ledger.get_period_change(

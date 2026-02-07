@@ -425,6 +425,7 @@ class TestNOLMultiYear:
             base_operating_margin=0.15,
             tax_rate=0.25,
             retention_ratio=1.0,
+            nol_carryforward_enabled=True,
             nol_limitation_pct=1.0,  # No limitation (pre-2018 rules)
         )
         mfr = WidgetManufacturer(config)

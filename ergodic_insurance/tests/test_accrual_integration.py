@@ -20,6 +20,7 @@ class TestAccrualIntegration:
             base_operating_margin=0.10,
             tax_rate=0.25,
             retention_ratio=0.7,
+            nol_carryforward_enabled=False,
         )
 
     @pytest.fixture
