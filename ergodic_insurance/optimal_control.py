@@ -868,6 +868,31 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         result = np.stack([wealth_drift, time_drift], axis=-1)
         return result
 
+    # Define diffusion coefficient (σ² for stochastic dynamics)
+    def diffusion_coeff(state, control, time):
+        """Wealth volatility from uncertain losses.
+
+        Insurance coverage reduces wealth volatility by transferring
+        loss risk to the insurer.
+        """
+        wealth = state[..., 0]
+        _limit = control[..., 0]
+
+        # Baseline loss volatility (15% of wealth)
+        loss_volatility = 0.15
+
+        # Insurance reduces volatility proportional to coverage
+        coverage_ratio = np.clip(_limit / (wealth + 1e-6), 0, 1)
+        net_volatility = loss_volatility * (1 - 0.7 * coverage_ratio)
+
+        # σ² for wealth dimension
+        wealth_sigma_sq = (wealth * net_volatility) ** 2
+
+        # Time dimension has no diffusion
+        time_sigma_sq = np.zeros_like(wealth)
+
+        return np.stack([wealth_sigma_sq, time_sigma_sq], axis=-1)
+
     # Define running cost (negative for reward)
     def running_cost(state, control, time):
         """Running reward function."""
@@ -897,6 +922,7 @@ def create_hjb_controller(  # pylint: disable=too-many-locals
         terminal_value=terminal_value,
         discount_rate=0.05,  # 5% discount rate
         time_horizon=simulation_years,
+        diffusion=diffusion_coeff,
     )
 
     # Solve HJB equation
