@@ -461,6 +461,161 @@ class TestBoundaryConditions:
         ), "Absorbing and Dirichlet BCs produced identical solutions"
 
 
+class TestBoundaryConditionEnforcement:
+    """Verify that boundary conditions are actually enforced during time-stepping (issue #448)."""
+
+    @staticmethod
+    def _make_solver(bc_lower, bc_upper, num_points=20, time_horizon=0.5, max_iter=10):
+        """Helper: build a 1-D solver with specified BCs."""
+        state_var = StateVariable(
+            "x",
+            0.1,
+            2.0,
+            num_points,
+            boundary_lower=bc_lower,
+            boundary_upper=bc_upper,
+        )
+        state_space = StateSpace([state_var])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: 0.1 * np.ones_like(x),
+            running_cost=lambda x, u, t: np.ones(x.shape[0]),
+            terminal_value=lambda x: x[..., 0] ** 2,
+            time_horizon=time_horizon,
+        )
+        config = HJBSolverConfig(
+            time_step=0.05, max_iterations=max_iter, tolerance=1e-6, verbose=False
+        )
+        return HJBSolver(problem, config)
+
+    def test_absorbing_bc_zero_curvature(self):
+        """Absorbing BCs should enforce d²V/dx² ≈ 0 at both boundaries."""
+        solver = self._make_solver(BoundaryCondition.ABSORBING, BoundaryCondition.ABSORBING)
+        value, _ = solver.solve()
+
+        # Numerical second derivative at lower boundary: V[2] - 2*V[1] + V[0]
+        d2_lower = value[2] - 2.0 * value[1] + value[0]
+        # Numerical second derivative at upper boundary: V[-1] - 2*V[-2] + V[-3]
+        d2_upper = value[-1] - 2.0 * value[-2] + value[-3]
+
+        assert abs(d2_lower) < 1e-10, f"Lower absorbing BC violated: d²V = {d2_lower}"
+        assert abs(d2_upper) < 1e-10, f"Upper absorbing BC violated: d²V = {d2_upper}"
+
+    def test_dirichlet_bc_preserves_prescribed_values(self):
+        """Dirichlet BCs should hold boundary values fixed at their initial values."""
+        solver = self._make_solver(BoundaryCondition.DIRICHLET, BoundaryCondition.DIRICHLET)
+
+        # Capture prescribed boundary values before solve
+        solver.solve()  # triggers value_function init & boundary capture
+        lower_prescribed = solver._boundary_values[0]["lower"]
+        upper_prescribed = solver._boundary_values[0]["upper"]
+
+        # After solve, boundary values should match prescribed values
+        assert np.allclose(solver.value_function[0], lower_prescribed), (
+            f"Lower Dirichlet BC drifted: got {solver.value_function[0]}, "
+            f"expected {lower_prescribed}"
+        )
+        assert np.allclose(solver.value_function[-1], upper_prescribed), (
+            f"Upper Dirichlet BC drifted: got {solver.value_function[-1]}, "
+            f"expected {upper_prescribed}"
+        )
+
+    def test_neumann_bc_zero_gradient(self):
+        """Neumann BCs should enforce dV/dx ≈ 0 at both boundaries."""
+        solver = self._make_solver(BoundaryCondition.NEUMANN, BoundaryCondition.NEUMANN)
+        value, _ = solver.solve()
+
+        # dV/dx ≈ (V[1] - V[0]) / dx at lower boundary
+        dx = solver.dx[0]
+        grad_lower = (value[1] - value[0]) / dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+
+        assert abs(grad_lower) < 1e-10, f"Lower Neumann BC violated: dV/dx = {grad_lower}"
+        assert abs(grad_upper) < 1e-10, f"Upper Neumann BC violated: dV/dx = {grad_upper}"
+
+    def test_reflecting_bc_zero_gradient(self):
+        """Reflecting BCs are equivalent to Neumann (dV/dx = 0)."""
+        solver = self._make_solver(BoundaryCondition.REFLECTING, BoundaryCondition.REFLECTING)
+        value, _ = solver.solve()
+
+        dx = solver.dx[0]
+        grad_lower = (value[1] - value[0]) / dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+
+        assert abs(grad_lower) < 1e-10, f"Lower reflecting BC violated: dV/dx = {grad_lower}"
+        assert abs(grad_upper) < 1e-10, f"Upper reflecting BC violated: dV/dx = {grad_upper}"
+
+    def test_mixed_boundary_conditions(self):
+        """Different BC types on lower vs. upper boundary."""
+        solver = self._make_solver(BoundaryCondition.ABSORBING, BoundaryCondition.NEUMANN)
+        value, _ = solver.solve()
+
+        # Lower: absorbing → d²V/dx² ≈ 0
+        d2_lower = value[2] - 2.0 * value[1] + value[0]
+        assert abs(d2_lower) < 1e-10, f"Lower absorbing BC violated: d²V = {d2_lower}"
+
+        # Upper: Neumann → dV/dx ≈ 0
+        dx = solver.dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+        assert abs(grad_upper) < 1e-10, f"Upper Neumann BC violated: dV/dx = {grad_upper}"
+
+    def test_finite_horizon_terminal_condition_preserved(self):
+        """Terminal condition should remain intact at the time boundary."""
+        state_var = StateVariable(
+            "x",
+            0.1,
+            2.0,
+            15,
+            boundary_lower=BoundaryCondition.ABSORBING,
+            boundary_upper=BoundaryCondition.ABSORBING,
+        )
+        state_space = StateSpace([state_var])
+
+        def terminal_fn(x):
+            return x[..., 0] ** 2
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            terminal_value=terminal_fn,
+            time_horizon=0.5,
+        )
+
+        config = HJBSolverConfig(time_step=0.05, max_iterations=3, tolerance=1e-8, verbose=False)
+        solver = HJBSolver(problem, config)
+        value, _ = solver.solve()
+
+        # With zero dynamics and zero running cost, the value function should
+        # remain close to the terminal condition (only boundary enforcement changes it)
+        state_points = np.stack(state_space.flat_grids, axis=-1)
+        terminal_values = terminal_fn(state_points).reshape(state_space.shape)
+
+        # Interior points should stay close to terminal condition
+        interior = value[2:-2]
+        terminal_interior = terminal_values[2:-2]
+        assert np.allclose(interior, terminal_interior, atol=0.5), (
+            f"Terminal condition drifted too much in interior: "
+            f"max diff = {np.max(np.abs(interior - terminal_interior))}"
+        )
+
+    def test_boundary_values_finite_after_many_iterations(self):
+        """Boundary values should stay finite and stable, not blow up."""
+        solver = self._make_solver(
+            BoundaryCondition.ABSORBING, BoundaryCondition.ABSORBING, max_iter=50
+        )
+        value, _ = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Value function has non-finite values"
+        assert (
+            np.max(np.abs(value)) < 1e10
+        ), f"Value function blew up: max = {np.max(np.abs(value))}"
+
+
 class TestMultiDimensionalProblems:
     """Test multi-dimensional state spaces."""
 
