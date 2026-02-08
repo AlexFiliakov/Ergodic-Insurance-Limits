@@ -223,6 +223,52 @@ class TestErgodicAnalyzer:
         t_stat, p_value = analyzer.significance_test(sample1, sample1)
         assert p_value > 0.95  # Should not be significant
 
+    def test_significance_test_uses_welch(self, analyzer):
+        """Test that significance_test uses Welch's t-test (equal_var=False).
+
+        Welch's t-test is correct when comparing insured vs uninsured growth
+        rates because insurance reduces volatility, making equal-variance
+        assumptions invalid. Regression test for #504.
+        """
+        # Unequal sizes + very different variances to maximise the difference
+        # between Student's and Welch's t-statistics.
+        rng = np.random.default_rng(42)
+        sample1 = rng.normal(0.05, 0.01, 30)  # insured: tight spread, small n
+        sample2 = rng.normal(0.05, 0.10, 100)  # uninsured: wide spread, large n
+
+        t_stat, p_value = analyzer.significance_test(sample1, sample2)
+
+        # Verify against scipy Welch's t-test directly
+        from scipy import stats as sp_stats
+
+        expected_t, expected_p = sp_stats.ttest_ind(sample1, sample2, equal_var=False)
+        assert t_stat == pytest.approx(expected_t)
+        assert p_value == pytest.approx(expected_p)
+
+        # Verify it does NOT match Student's t-test (equal_var=True)
+        student_t, student_p = sp_stats.ttest_ind(sample1, sample2, equal_var=True)
+        # With unequal n and unequal variances, t-statistics differ
+        assert t_stat != pytest.approx(student_t, abs=1e-6)
+
+    def test_significance_test_welch_equals_student_when_variances_equal(self, analyzer):
+        """Welch's t-test reduces to Student's when variances are equal.
+
+        Acceptance criterion from #504: results unchanged when variances
+        happen to be equal.
+        """
+        rng = np.random.default_rng(123)
+        sample1 = rng.normal(0.06, 0.02, 200)
+        sample2 = rng.normal(0.04, 0.02, 200)  # same std as sample1
+
+        t_stat, p_value = analyzer.significance_test(sample1, sample2)
+
+        from scipy import stats as sp_stats
+
+        student_t, student_p = sp_stats.ttest_ind(sample1, sample2, equal_var=True)
+        # With equal variances and equal n, Welch's ≈ Student's
+        assert t_stat == pytest.approx(student_t, rel=0.05)
+        assert p_value == pytest.approx(student_p, rel=0.05)
+
     def test_significance_test_with_nan(self, analyzer):
         """Test significance test with NaN values."""
         sample1 = np.array([0.05, 0.04, np.nan, 0.06, 0.05])
