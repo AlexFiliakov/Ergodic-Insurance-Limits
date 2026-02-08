@@ -305,21 +305,23 @@ class CashFlowProjector:
     def __init__(
         self,
         discount_rate: float = 0.03,
-        ibnr_recent_factor: float = 1.2,
-        ibnr_late_factor: float = 1.05,
+        a_priori_loss_ratio: Optional[float] = None,
+        ibnr_factors: Optional[Dict[str, float]] = None,
     ):
         """Initialize cash flow projector.
 
         Args:
             discount_rate: Annual discount rate for present value calculations.
-            ibnr_recent_factor: Multiplier for IBNR on recent accident years
-                (within reporting lag). Default 1.2 (20% uplift).
-            ibnr_late_factor: Multiplier for IBNR on older but still developing
-                accident years. Default 1.05 (5% uplift).
+            a_priori_loss_ratio: User-provided expected loss ratio for
+                Bornhuetter-Ferguson method (Tier 1 ELR). If None, ELR is
+                derived from Cape Cod or industry benchmarks.
+            ibnr_factors: Industry benchmark factors by pattern name (Tier 3
+                ELR), e.g. {"long_tail_10yr": 1.20}. Loaded from YAML via
+                load_ibnr_factors().
         """
         self.discount_rate = discount_rate
-        self.ibnr_recent_factor = ibnr_recent_factor
-        self.ibnr_late_factor = ibnr_late_factor
+        self.a_priori_loss_ratio = a_priori_loss_ratio
+        self.ibnr_factors = ibnr_factors or {}
         self.cohorts: Dict[int, ClaimCohort] = {}
 
     def add_cohort(self, cohort: ClaimCohort):
@@ -365,54 +367,206 @@ class CashFlowProjector:
                 pv += amount / ((1 + self.discount_rate) ** years_to_discount)
         return pv
 
-    def estimate_ibnr(self, evaluation_year: int, reporting_lag: int = 3) -> float:
-        """Estimate IBNR using simplified chain-ladder method.
+    def _get_cohort_pct_developed(self, cohort: ClaimCohort, development_years: int) -> float:
+        """Compute weighted-average cumulative development percentage for a cohort.
+
+        Handles mixed development patterns within a cohort by weighting each
+        claim's maturity by its size (initial estimate).
+
+        Args:
+            cohort: Claim cohort to evaluate.
+            development_years: Number of years since accident year.
+
+        Returns:
+            Weighted-average percentage developed, clamped to [0.0, 1.0].
+        """
+        total_incurred = cohort.get_total_incurred()
+        if total_incurred <= 0:
+            return 0.0
+        weighted = sum(
+            claim.initial_estimate
+            * claim.development_pattern.get_cumulative_paid(development_years)
+            for claim in cohort.claims
+            if claim.development_pattern
+        )
+        return min(weighted / total_incurred, 1.0)
+
+    def _resolve_elr_for_cohort(
+        self, cohort: ClaimCohort, development_years: int
+    ) -> Optional[float]:
+        """Resolve Expected Loss Ratio via tiered fallback.
+
+        Tier 1: User-provided a_priori_loss_ratio.
+        Tier 2: Cape Cod from >=2 cohorts with pct_developed > 0.
+        Tier 3: Industry benchmark from ibnr_factors keyed by dominant pattern.
+        Tier 4: None (CL-only mode).
+
+        Args:
+            cohort: Current cohort being evaluated.
+            development_years: Years since accident year for the current cohort.
+
+        Returns:
+            ELR value, or None if no method can produce one.
+        """
+        # Tier 1: user-provided
+        if self.a_priori_loss_ratio is not None:
+            return self.a_priori_loss_ratio
+
+        # Tier 2: Cape Cod from multiple cohorts
+        eligible = []
+        for ay, c in self.cohorts.items():
+            inc = c.get_total_incurred()
+            if inc <= 0:
+                continue
+            dy = max(development_years, 0)
+            # Use the evaluation context: we approximate dev_years relative
+            # to the cohort being evaluated (same evaluation_year implied).
+            # For Cape Cod we need each cohort's own dev_years, but we only
+            # have the evaluation_year implicitly. Re-derive from the
+            # current cohort's accident_year + development_years.
+            eval_year = cohort.accident_year + development_years
+            cohort_dy = eval_year - ay
+            if cohort_dy < 0:
+                continue
+            pct = self._get_cohort_pct_developed(c, cohort_dy)
+            if pct > 0:
+                eligible.append((inc, pct))
+
+        if len(eligible) >= 2:
+            total_inc = sum(inc for inc, _ in eligible)
+            weighted_developed = sum(inc * pct for inc, pct in eligible)
+            if weighted_developed > 0:
+                return total_inc / weighted_developed
+
+        # Tier 3: industry benchmark from ibnr_factors
+        if self.ibnr_factors:
+            # Find the dominant pattern name in the cohort
+            pattern_weights: Dict[str, float] = {}
+            for claim in cohort.claims:
+                if claim.development_pattern:
+                    name = claim.development_pattern.pattern_name.lower()
+                    pattern_weights[name] = pattern_weights.get(name, 0.0) + claim.initial_estimate
+            if pattern_weights:
+                dominant = max(pattern_weights, key=pattern_weights.get)  # type: ignore[arg-type]
+                if dominant in self.ibnr_factors:
+                    return self.ibnr_factors[dominant]
+
+        # Tier 4: no ELR available
+        return None
+
+    def estimate_ibnr(self, evaluation_year: int, earned_premium: Optional[float] = None) -> float:
+        """Estimate IBNR using maturity-adaptive Chain-Ladder / Bornhuetter-Ferguson blend.
+
+        Per-cohort logic:
+        - Chain-Ladder ultimate = incurred / pct_developed
+        - Bornhuetter-Ferguson ultimate = incurred + ELR * premium * (1 - pct_developed)
+        - Blended ultimate uses maturity-adaptive credibility weights:
+          CL weight = pct_developed, BF weight = 1 - pct_developed
+        - IBNR floored at 0 per cohort (E7).
 
         Args:
             evaluation_year: Current evaluation year.
-            reporting_lag: Average months for claim reporting.
+            earned_premium: Earned premium for BF method. If None, a modified
+                BF using incurred as exposure base is used when ELR is available.
 
         Returns:
-            Estimated IBNR amount.
+            Total estimated IBNR amount across all cohorts.
         """
-        # Simplified IBNR estimation
-        # In practice, would use full development triangles
         ibnr = 0.0
 
         for accident_year, cohort in self.cohorts.items():
-            if accident_year <= evaluation_year:
-                development_years = evaluation_year - accident_year
+            if accident_year > evaluation_year:
+                continue
+            if not cohort.claims:
+                continue
 
-                # Estimate unreported claims based on reporting pattern
-                if development_years < reporting_lag / 12:
-                    # Recent accident year - significant IBNR
-                    expected_ultimate = cohort.get_total_incurred() * self.ibnr_recent_factor
-                    ibnr += expected_ultimate - cohort.get_total_incurred()
-                elif development_years < 2:
-                    # Some late-reported claims expected
-                    expected_ultimate = cohort.get_total_incurred() * self.ibnr_late_factor
-                    ibnr += expected_ultimate - cohort.get_total_incurred()
+            dev_years = evaluation_year - accident_year
+            incurred = cohort.get_total_incurred()
+            pct_developed = self._get_cohort_pct_developed(cohort, dev_years)
+
+            # E5: Fully developed → IBNR = 0
+            if pct_developed >= 1.0:
+                continue
+
+            # E4: Zero incurred → IBNR = 0
+            if incurred <= 0:
+                continue
+
+            # Chain-Ladder ultimate
+            cl_ultimate = incurred / pct_developed if pct_developed > 0 else None
+
+            # Bornhuetter-Ferguson ultimate
+            elr = self._resolve_elr_for_cohort(cohort, dev_years)
+            bf_ultimate: Optional[float] = None
+            if elr is not None and earned_premium is not None:
+                bf_ibnr = elr * earned_premium * (1 - pct_developed)
+                bf_ultimate = incurred + bf_ibnr
+            elif elr is not None:
+                # Modified BF: use ELR as multiplier on incurred (no premium)
+                bf_ibnr = (elr - 1.0) * incurred * (1 - pct_developed)
+                bf_ultimate = incurred + bf_ibnr
+
+            # Maturity-adaptive credibility blend (E2)
+            if cl_ultimate is not None and bf_ultimate is not None:
+                cl_weight = pct_developed
+                bf_weight = 1 - pct_developed
+                blended_ultimate = cl_weight * cl_ultimate + bf_weight * bf_ultimate
+            elif bf_ultimate is not None:
+                # BF only (immature year with pct=0, E2)
+                blended_ultimate = bf_ultimate
+            elif cl_ultimate is not None:
+                # CL only (no ELR, Tier 4)
+                blended_ultimate = cl_ultimate
+            else:
+                # E4: no method available
+                blended_ultimate = incurred
+
+            # E7: Floor IBNR at 0 per cohort
+            cohort_ibnr = max(0.0, blended_ultimate - incurred)
+            ibnr += cohort_ibnr
 
         return ibnr
 
-    def calculate_total_reserves(self, evaluation_year: int) -> Dict[str, float]:
+    def calculate_total_reserves(
+        self, evaluation_year: int, earned_premium: Optional[float] = None
+    ) -> Dict[str, float]:
         """Calculate total reserve requirements.
 
         Args:
             evaluation_year: Current evaluation year.
+            earned_premium: Earned premium passed through to estimate_ibnr
+                for Bornhuetter-Ferguson calculations.
 
         Returns:
             Dictionary with case reserves, IBNR, and total.
         """
         case_reserves = sum(cohort.get_outstanding_reserve() for cohort in self.cohorts.values())
 
-        ibnr = self.estimate_ibnr(evaluation_year)
+        ibnr = self.estimate_ibnr(evaluation_year, earned_premium=earned_premium)
 
         return {
             "case_reserves": case_reserves,
             "ibnr": ibnr,
             "total_reserves": case_reserves + ibnr,
         }
+
+
+def load_ibnr_factors(file_path: str) -> Dict[str, float]:
+    """Load IBNR factors from YAML configuration.
+
+    Reads the ``ibnr_factors`` section from a development-patterns YAML file
+    for use as Tier 3 industry-benchmark ELRs in CashFlowProjector.
+
+    Args:
+        file_path: Path to YAML configuration file.
+
+    Returns:
+        Dictionary mapping pattern names to IBNR factor values.
+    """
+    with open(file_path, "r") as f:
+        config = yaml.safe_load(f)
+    factors: Dict[str, float] = config.get("ibnr_factors", {})
+    return factors
 
 
 def load_development_patterns(file_path: str) -> Dict[str, ClaimDevelopment]:
