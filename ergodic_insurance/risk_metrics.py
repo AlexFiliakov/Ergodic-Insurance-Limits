@@ -204,7 +204,7 @@ class RiskMetrics:
         """Calculate parametric VaR assuming normal distribution."""
         mean = np.average(self.losses, weights=self.weights)
         if self.weights is None:
-            std = np.std(self.losses)
+            std = np.std(self.losses, ddof=1)
         else:
             variance = np.average((self.losses - mean) ** 2, weights=self.weights)
             std = np.sqrt(variance)
