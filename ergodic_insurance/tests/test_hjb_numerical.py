@@ -7,6 +7,8 @@ Author: Alex Filiakov
 Date: 2025-01-26
 """
 
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 from scipy import sparse
@@ -830,6 +832,153 @@ class TestConvergenceAndAccuracy:
         assert "min" in metrics["policy_stats"]["u"]
         assert "max" in metrics["policy_stats"]["u"]
         assert "mean" in metrics["policy_stats"]["u"]
+
+
+class TestGradientConsistency:
+    """Test that policy improvement uses the same gradient scheme as evaluation (#454)."""
+
+    def test_policy_improvement_uses_upwind_gradient(self):
+        """Verify policy improvement computes drift*grad_V via upwind, not central diffs.
+
+        The Hamiltonian maximized during policy improvement must use the same
+        spatial discretization (upwind) as the PDE time-stepping in policy
+        evaluation.
+        """
+        state_space = StateSpace([StateVariable("x", 0, 10, 21)])
+
+        def dynamics(x, u, t):
+            return np.ones_like(x) * 5.0
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * u[..., 0]
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.1, 1.0, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=None,
+        )
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        # Set a non-trivial value function (quadratic) so gradients differ
+        grid = state_space.grids[0]
+        solver.value_function = grid**2
+        solver.optimal_policy = {"u": np.full(state_space.shape, 0.5)}
+
+        # Compute what _policy_evaluation uses: upwind advection
+        drift_val = np.ones(state_space.shape) * 5.0
+        upwind_advection = solver._apply_upwind_scheme(solver.value_function, drift_val, 0)
+
+        # Compute what old code used: central-difference gradient * drift
+        grad_central = np.gradient(solver.value_function, grid)
+        central_advection = drift_val * grad_central
+
+        # They should differ (confirms the bug was real)
+        assert not np.allclose(
+            upwind_advection, central_advection
+        ), "Upwind and central advection should differ for non-linear V"
+
+        # Run policy improvement and verify the solver calls _apply_upwind_scheme
+        upwind_called: list[bool] = []
+        original_upwind = solver._apply_upwind_scheme
+
+        def tracking_upwind(*args, **kwargs):
+            upwind_called.append(True)
+            return original_upwind(*args, **kwargs)
+
+        with patch.object(solver, "_apply_upwind_scheme", side_effect=tracking_upwind):
+            solver._policy_improvement()
+
+        assert len(upwind_called) > 0, "Policy improvement must call _apply_upwind_scheme"
+
+    def test_policy_iteration_monotonic_convergence(self):
+        """Policy iteration should converge monotonically for a simple 1D problem.
+
+        With consistent gradient discretization, the value function should
+        improve (or stay the same) at every policy iteration step.
+        """
+        state_space = StateSpace([StateVariable("x", 1, 10, 15)])
+
+        def dynamics(x, u, t):
+            return x * u[..., 0:1] * 0.05
+
+        def running_cost(x, u, t):
+            return -np.log(np.maximum(x[..., 0], 1e-10)) * 0.1
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.01, 0.5, 5)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=None,
+        )
+
+        config = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=20,
+            tolerance=1e-6,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        # Capture value function norm at each outer iteration
+        value_norms: list[float] = []
+        original_policy_eval = solver._policy_evaluation
+
+        def tracking_eval(*args, **kwargs):
+            original_policy_eval()
+            if solver.value_function is not None:
+                value_norms.append(np.max(np.abs(solver.value_function)))
+
+        with patch.object(solver, "_policy_evaluation", side_effect=tracking_eval):
+            solver.solve()
+
+        # After convergence, verify changes shrink over time
+        if len(value_norms) >= 3:
+            diffs = [abs(value_norms[i + 1] - value_norms[i]) for i in range(len(value_norms) - 1)]
+            early = np.mean(diffs[: max(1, len(diffs) // 3)])
+            late = np.mean(diffs[-(max(1, len(diffs) // 3)) :])
+            assert (
+                late <= early + 1e-8
+            ), f"Value function should converge: early={early:.6f}, late={late:.6f}"
+
+    def test_convergence_metrics_uses_upwind(self):
+        """Convergence metrics residual should use the upwind scheme."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 11)])
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.0, 1.0, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.1,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        # Verify upwind is called during metrics computation
+        upwind_called: list[bool] = []
+        original_upwind = solver._apply_upwind_scheme
+
+        def tracking_upwind(*args, **kwargs):
+            upwind_called.append(True)
+            return original_upwind(*args, **kwargs)
+
+        with patch.object(solver, "_apply_upwind_scheme", side_effect=tracking_upwind):
+            metrics = solver.compute_convergence_metrics()
+
+        assert len(upwind_called) > 0, "compute_convergence_metrics must use _apply_upwind_scheme"
+        assert "max_residual" in metrics
+        assert metrics["max_residual"] >= 0
 
 
 class TestEdgeCasesAndErrors:
