@@ -165,6 +165,7 @@ class RuinProbabilityAnalyzer:
             config.time_horizons,
             config.n_bootstrap,
             config.bootstrap_confidence_level,
+            seed=config.seed,
         )
 
         # Check convergence
@@ -552,9 +553,10 @@ class RuinProbabilityAnalyzer:
         time_horizons: List[int],
         n_bootstrap: int,
         confidence_level: float,
+        seed: Optional[int] = None,
     ) -> np.ndarray:
         """Calculate bootstrap confidence intervals for ruin probabilities."""
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed)
         n_sims = len(bankruptcy_years)
         confidence_intervals = np.zeros((len(time_horizons), 2))
 
