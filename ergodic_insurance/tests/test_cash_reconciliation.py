@@ -20,10 +20,10 @@ class TestCashReconciliation:
         """Test basic cash reconciliation: Beginning + Net Change = Ending."""
         # Cash flow calculation for Year 1:
         #   Operating: 600k NI + 60k Dep = 660k
-        #   Investing: -(100k PP&E change + 60k Dep) = -160k
+        #   Investing: -(40k net PP&E change + 60k Dep) = -100k
         #   Financing: -180k dividends
-        #   Net: 660k - 160k - 180k = 320k
-        #   Ending cash: 1,000k + 320k = 1,320k
+        #   Net: 660k - 100k - 180k = 380k
+        #   Ending cash: 1,000k + 380k = 1,380k
         metrics: MetricsList = [
             {
                 "cash": 1000000,
@@ -31,13 +31,15 @@ class TestCashReconciliation:
                 "dividends_paid": 150000,
                 "depreciation_expense": 50000,
                 "gross_ppe": 500000,
+                "net_ppe": 450000,
             },
             {
-                "cash": 1320000,  # Consistent with cash flow calculation
+                "cash": 1380000,  # Consistent with cash flow calculation
                 "net_income": 600000,
                 "dividends_paid": 180000,
                 "depreciation_expense": 60000,
                 "gross_ppe": 600000,
+                "net_ppe": 490000,
             },
         ]
 
@@ -57,7 +59,7 @@ class TestCashReconciliation:
 
         # Verify reconciliation
         assert reconciliation["beginning"] == 1000000
-        assert reconciliation["ending"] == 1320000
+        assert reconciliation["ending"] == 1380000
         # Calculated cash flow must equal actual cash change (no plug)
         assert (
             abs(
@@ -79,16 +81,18 @@ class TestCashReconciliation:
                 "inventory": 80000,
                 "accounts_payable": 60000,
                 "gross_ppe": 500000,
+                "net_ppe": 450000,
                 "dividends_paid": 200000 * 0.3,  # 30% payout on net income
             },
             {
-                "cash": 680000,  # Should reconcile with cash flow
+                "cash": 615000,  # Should reconcile with cash flow
                 "net_income": 250000,
                 "depreciation_expense": 60000,
                 "accounts_receivable": 120000,  # Increased by 20k
                 "inventory": 90000,  # Increased by 10k
                 "accounts_payable": 70000,  # Increased by 10k
                 "gross_ppe": 600000,  # Increased by 100k
+                "net_ppe": 490000,
                 "dividends_paid": 250000 * 0.3,  # 30% payout on net income (75k)
             },
         ]
@@ -98,10 +102,10 @@ class TestCashReconciliation:
 
         # Calculate expected cash flow
         # Operating: 250k (NI) + 60k (Dep) - 20k (AR) - 10k (Inv) + 10k (AP) = 290k
-        # Investing: -(100k + 60k) = -160k (Capex = Change in PP&E + Dep)
+        # Investing: -(40k + 60k) = -100k (Capex = Change in Net PP&E + Dep)
         # Financing: -75k (30% of 250k NI as dividends)
-        # Net change: 290k - 160k - 75k = 55k
-        # But actual change is 680k - 500k = 180k
+        # Net change: 290k - 100k - 75k = 115k
+        # But actual change is 615k - 500k = 115k
 
         # Extract actual values
         values = self._extract_values_from_df(df, "Year 1")
@@ -109,7 +113,7 @@ class TestCashReconciliation:
         # Beginning cash should match year 0
         assert values.get("Cash - Beginning of Period") == 500000
         # Ending cash should match year 1
-        assert values.get("Cash - End of Period") == 680000
+        assert values.get("Cash - End of Period") == 615000
 
     def test_reconciliation_negative_cash_flow(self):
         """Test reconciliation when cash decreases."""
@@ -119,12 +123,14 @@ class TestCashReconciliation:
                 "net_income": 100000,
                 "depreciation_expense": 50000,
                 "gross_ppe": 1000000,
+                "net_ppe": 950000,
             },
             {
-                "cash": 800000,  # Cash decreased
+                "cash": 850000,  # Cash decreased
                 "net_income": -200000,  # Loss
                 "depreciation_expense": 50000,
                 "gross_ppe": 1000000,  # No change in PP&E
+                "net_ppe": 900000,
                 "dividends_paid": 0,  # No dividends on loss
             },
         ]
@@ -136,7 +142,7 @@ class TestCashReconciliation:
 
         # Verify negative net change
         net_change = values.get("NET INCREASE (DECREASE) IN CASH", 0)
-        assert net_change == -200000  # 800k - 1000k
+        assert net_change == -150000  # 850k - 1000k
 
         # Verify reconciliation
         beginning = values.get("Cash - Beginning of Period")
@@ -151,6 +157,7 @@ class TestCashReconciliation:
                 "net_income": 100000,
                 "depreciation_expense": 20000,
                 "gross_ppe": 200000,
+                "net_ppe": 180000,
                 "dividends_paid": 30000,
             }
         ]
@@ -166,9 +173,9 @@ class TestCashReconciliation:
 
         # Net cash flow components:
         # Operating: 100k (NI) + 20k (Dep) = 120k
-        # Investing: -(200k + 20k) = -220k (Initial PP&E + Dep)
+        # Investing: -(180k + 20k) = -200k (Initial Net PP&E + Dep)
         # Financing: -30k (Dividends)
-        # Net: 120k - 220k - 30k = -130k
+        # Net: 120k - 200k - 30k = -110k
 
         net_change = values.get("NET INCREASE (DECREASE) IN CASH", 0)
         beginning_cash = values.get("Cash - Beginning of Period")
@@ -181,10 +188,10 @@ class TestCashReconciliation:
         # Cash flow calculation for Year 1:
         #   Operating: 600k NI + 110k Dep - 50k AR - 50k Inv - 10k Prepaid
         #              + 30k AP + 20k Accrued + 50k Claims = 700k
-        #   Investing: -(300k PP&E change + 110k Dep) = -410k
+        #   Investing: -(190k net PP&E change + 110k Dep) = -300k
         #   Financing: -180k dividends
-        #   Net: 700k - 410k - 180k = 110k
-        #   Ending cash: 1,000k + 110k = 1,110k
+        #   Net: 700k - 300k - 180k = 220k
+        #   Ending cash: 1,000k + 220k = 1,220k
         metrics: MetricsList = [
             {
                 "cash": 1000000,
@@ -197,10 +204,11 @@ class TestCashReconciliation:
                 "accrued_expenses": 50000,
                 "claim_liabilities": 30000,
                 "gross_ppe": 1000000,
+                "net_ppe": 900000,
                 "dividends_paid": 150000,
             },
             {
-                "cash": 1110000,  # Consistent with cash flow calculation
+                "cash": 1220000,  # Consistent with cash flow calculation
                 "net_income": 600000,
                 "depreciation_expense": 110000,
                 "accounts_receivable": 250000,  # +50k
@@ -210,6 +218,7 @@ class TestCashReconciliation:
                 "accrued_expenses": 70000,  # +20k
                 "claim_liabilities": 80000,  # +50k
                 "gross_ppe": 1300000,  # +300k
+                "net_ppe": 1090000,
                 "dividends_paid": 180000,
             },
         ]
@@ -221,16 +230,16 @@ class TestCashReconciliation:
 
         # Calculate expected net cash flow:
         # Operating: 600k + 110k - 50k - 50k - 10k + 30k + 20k + 50k = 700k
-        # Investing: -(300k + 110k) = -410k
+        # Investing: -(190k + 110k) = -300k
         # Financing: -180k
-        # Net: 700k - 410k - 180k = 110k
+        # Net: 700k - 300k - 180k = 220k
 
         beginning = values.get("Cash - Beginning of Period")
         ending = values.get("Cash - End of Period")
         net_change = values.get("NET INCREASE (DECREASE) IN CASH", 0)
 
         assert beginning == 1000000
-        assert ending == 1110000
+        assert ending == 1220000
         # Calculated cash flow must equal actual cash change (no plug)
         assert abs((beginning + net_change) - ending) < 0.01
 
@@ -242,6 +251,7 @@ class TestCashReconciliation:
                 "net_income": 120000,  # Annual
                 "depreciation_expense": 12000,  # Annual
                 "gross_ppe": 120000,
+                "net_ppe": 108000,
                 "dividends_paid": 36000,  # Annual
             },
             {
@@ -249,6 +259,7 @@ class TestCashReconciliation:
                 "net_income": 144000,  # Annual
                 "depreciation_expense": 12000,  # Annual
                 "gross_ppe": 132000,  # Increased by 12k annually
+                "net_ppe": 108000,
                 "dividends_paid": 43200,  # Annual
             },
         ]
@@ -278,23 +289,25 @@ class TestCashReconciliation:
         """Test reconciliation when beginning cash is zero."""
         # Cash flow calculation for Year 1:
         #   Operating: 150k NI + 10k Dep = 160k
-        #   Investing: -(10k PP&E change + 10k Dep) = -20k
+        #   Investing: -(0k net PP&E change + 10k Dep) = -10k
         #   Financing: -45k dividends
-        #   Net: 160k - 20k - 45k = 95k
-        #   Ending cash: 0 + 95k = 95k
+        #   Net: 160k - 10k - 45k = 105k
+        #   Ending cash: 0 + 105k = 105k
         metrics: MetricsList = [
             {
                 "cash": 0,
                 "net_income": 100000,
                 "depreciation_expense": 10000,
                 "gross_ppe": 50000,
+                "net_ppe": 40000,
                 "dividends_paid": 0,
             },
             {
-                "cash": 95000,  # Consistent with cash flow calculation
+                "cash": 105000,  # Consistent with cash flow calculation
                 "net_income": 150000,
                 "depreciation_expense": 10000,
                 "gross_ppe": 60000,
+                "net_ppe": 40000,
                 "dividends_paid": 45000,
             },
         ]
@@ -305,32 +318,34 @@ class TestCashReconciliation:
         values = self._extract_values_from_df(df, "Year 1")
 
         assert values.get("Cash - Beginning of Period") == 0
-        assert values.get("Cash - End of Period") == 95000
+        assert values.get("Cash - End of Period") == 105000
 
         net_change = values.get("NET INCREASE (DECREASE) IN CASH", 0)
-        assert net_change == 95000
+        assert net_change == 105000
 
     def test_large_capex_reconciliation(self):
         """Test reconciliation with large capital expenditures."""
         # Cash flow calculation for Year 1:
         #   Operating: 1200k NI + 250k Dep = 1450k
-        #   Investing: -(2000k PP&E change + 250k Dep) = -2250k
+        #   Investing: -(1750k net PP&E change + 250k Dep) = -2000k
         #   Financing: -360k dividends
-        #   Net: 1450k - 2250k - 360k = -1160k
-        #   Ending cash: 5000k - 1160k = 3840k
+        #   Net: 1450k - 2000k - 360k = -910k
+        #   Ending cash: 5000k - 910k = 4,090k
         metrics: MetricsList = [
             {
                 "cash": 5000000,
                 "net_income": 1000000,
                 "depreciation_expense": 200000,
                 "gross_ppe": 2000000,
+                "net_ppe": 1800000,
                 "dividends_paid": 300000,
             },
             {
-                "cash": 3840000,  # Consistent with cash flow calculation
+                "cash": 4090000,  # Consistent with cash flow calculation
                 "net_income": 1200000,
                 "depreciation_expense": 250000,
                 "gross_ppe": 4000000,  # Large increase in PP&E
+                "net_ppe": 3550000,
                 "dividends_paid": 360000,
             },
         ]
@@ -340,14 +355,14 @@ class TestCashReconciliation:
 
         values = self._extract_values_from_df(df, "Year 1")
 
-        # Capex = (4M - 2M) + 250k = 2.25M
+        # Capex = (3550k - 1800k) + 250k = 2M
         capex = abs(values.get("Capital Expenditures", 0))
-        assert capex == 2250000
+        assert capex == 2000000
 
         # Net change should be negative due to large capex
-        # Calculated: 1450k - 2250k - 360k = -1160k
+        # Calculated: 1450k - 2000k - 360k = -910k
         net_change = values.get("NET INCREASE (DECREASE) IN CASH", 0)
-        assert net_change == -1160000
+        assert net_change == -910000
 
         # Verify reconciliation
         beginning = values.get("Cash - Beginning of Period")
@@ -378,22 +393,24 @@ class TestCashReconciliation:
                 "inventory": 100000,
                 "accounts_payable": 50000,
                 "gross_ppe": 500000,
+                "net_ppe": 400000,
                 "dividends_paid": 120000,
             },
             {
                 # Calculate ending cash from components:
                 # Operating: 500k NI + 120k Dep - 50k AR - 40k Inv + 30k AP = 560k
-                # Investing: -(100k PP&E change + 120k Dep) = -220k
+                # Investing: -(−20k net PP&E change + 120k Dep) = -100k
                 # Financing: -150k dividends
-                # Net: 560k - 220k - 150k = 190k
-                # Ending: 1000k + 190k = 1190k
-                "cash": 1190000,  # Consistent with calculation
+                # Net: 560k - 100k - 150k = 310k
+                # Ending: 1000k + 310k = 1310k
+                "cash": 1310000,  # Consistent with calculation
                 "net_income": 500000,
                 "depreciation_expense": 120000,
                 "accounts_receivable": 150000,  # +50k
                 "inventory": 140000,  # +40k
                 "accounts_payable": 80000,  # +30k
                 "gross_ppe": 600000,  # +100k
+                "net_ppe": 380000,
                 "dividends_paid": 150000,
             },
         ]
@@ -416,12 +433,12 @@ class TestCashReconciliation:
 
         # Explicitly verify the expected value
         # Operating: 500k + 120k - 50k - 40k + 30k = 560k
-        # Investing: -(100k + 120k) = -220k
+        # Investing: -(−20k + 120k) = -100k
         # Financing: -150k
-        # Net: 560k - 220k - 150k = 190k
-        assert net_cash_flow == 190000, (
+        # Net: 560k - 100k - 150k = 310k
+        assert net_cash_flow == 310000, (
             f"Calculated cash flow ({net_cash_flow}) does not match "
-            "expected calculation (190000)."
+            "expected calculation (310000)."
         )
 
     def _extract_values_from_df(self, df, column):

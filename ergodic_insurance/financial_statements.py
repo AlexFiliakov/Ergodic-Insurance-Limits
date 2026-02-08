@@ -277,19 +277,23 @@ class CashFlowStatement:
         return investing_items
 
     def _calculate_capex(self, current: MetricsDict, prior: MetricsDict) -> Decimal:
-        """Calculate capital expenditures from PP&E changes.
+        """Calculate capital expenditures from net PP&E changes.
 
-        Capex = Ending PP&E - Beginning PP&E + Depreciation
+        Capex = Ending Net PP&E - Beginning Net PP&E + Depreciation
+
+        This formula must use **net** PP&E (gross PP&E minus accumulated
+        depreciation).  Using gross PP&E would double-count depreciation
+        because gross PP&E is *not* reduced by depreciation.
 
         Args:
-            current: Current period metrics
+            current: Current period metrics (must include ``net_ppe``)
             prior: Prior period metrics
 
         Returns:
             Capital expenditures amount
         """
-        current_ppe = to_decimal(current.get("gross_ppe", ZERO))
-        prior_ppe = to_decimal(prior.get("gross_ppe", ZERO)) if prior else ZERO
+        current_ppe = to_decimal(current.get("net_ppe", ZERO))
+        prior_ppe = to_decimal(prior.get("net_ppe", ZERO)) if prior else ZERO
 
         # Get depreciation for the period
         # Depreciation expense MUST be provided by the Manufacturer class
@@ -300,8 +304,9 @@ class CashFlowStatement:
             )
         depreciation = to_decimal(current["depreciation_expense"])
 
-        # Capex = Change in PP&E + Depreciation
-        # (Since depreciation reduces net PP&E, we add it back)
+        # Capex = Change in Net PP&E + Depreciation
+        # Net PP&E falls by depreciation each period, so adding depreciation
+        # back recovers the actual capital expenditure (new asset purchases).
         capex = (current_ppe - prior_ppe) + depreciation
 
         # Capex should not be negative in normal operations
