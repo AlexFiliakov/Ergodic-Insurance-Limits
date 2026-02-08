@@ -233,7 +233,11 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
                         ruin_at_year[eval_year] = True
             break
 
-    result = {"final_assets": float(manufacturer.total_assets), **result_arrays}
+    result = {
+        "final_assets": float(manufacturer.total_assets),
+        "final_equity": float(manufacturer.equity),
+        **result_arrays,
+    }
     if ruin_evaluation:
         result["ruin_at_year"] = ruin_at_year
     return result
@@ -680,6 +684,7 @@ class MonteCarloEngine:
 
         # Pre-allocate arrays
         final_assets = np.zeros(n_sims, dtype=dtype)
+        final_equity = np.zeros(n_sims, dtype=dtype)
         annual_losses = np.zeros((n_sims, n_years), dtype=dtype)
         insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
         retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
@@ -696,6 +701,7 @@ class MonteCarloEngine:
         for i in iterator:
             sim_results = self._run_single_simulation(i)
             final_assets[i] = sim_results["final_assets"]
+            final_equity[i] = sim_results["final_equity"]
             annual_losses[i] = sim_results["annual_losses"]
             insurance_recoveries[i] = sim_results["insurance_recoveries"]
             retained_losses[i] = sim_results["retained_losses"]
@@ -718,8 +724,9 @@ class MonteCarloEngine:
                     retained_losses[: i + 1],
                 )
 
-        # Calculate growth rates
-        growth_rates = self._calculate_growth_rates(final_assets)
+        # Calculate growth rates using equity (#355: total assets includes
+        # liabilities, giving misleading growth when leverage changes)
+        growth_rates = self._calculate_growth_rates(final_equity)
 
         # Calculate ruin probability
         ruin_probability = {}
@@ -899,6 +906,7 @@ class MonteCarloEngine:
             dtype = np.float32 if self.config.use_float32 else np.float64
 
             final_assets = np.zeros(n_results, dtype=dtype)
+            final_equity = np.zeros(n_results, dtype=dtype)
             annual_losses = np.zeros((n_results, n_years), dtype=dtype)
             insurance_recoveries = np.zeros((n_results, n_years), dtype=dtype)
             retained_losses = np.zeros((n_results, n_years), dtype=dtype)
@@ -915,6 +923,9 @@ class MonteCarloEngine:
                 # Ensure result is a dictionary with expected keys
                 if isinstance(result, dict) and "final_assets" in result:
                     final_assets[valid_idx] = result["final_assets"]
+                    final_equity[valid_idx] = result.get(
+                        "final_equity", result["final_assets"]
+                    )  # type: ignore[assignment]
                     annual_losses[valid_idx] = result["annual_losses"]
                     insurance_recoveries[valid_idx] = result["insurance_recoveries"]
                     retained_losses[valid_idx] = result["retained_losses"]
@@ -935,12 +946,13 @@ class MonteCarloEngine:
             # Trim arrays to only valid results
             if valid_idx < n_results:
                 final_assets = final_assets[:valid_idx]
+                final_equity = final_equity[:valid_idx]
                 annual_losses = annual_losses[:valid_idx]
                 insurance_recoveries = insurance_recoveries[:valid_idx]
                 retained_losses = retained_losses[:valid_idx]
 
-            # Calculate derived metrics
-            growth_rates = self._calculate_growth_rates(final_assets)
+            # Calculate derived metrics using equity (#355)
+            growth_rates = self._calculate_growth_rates(final_equity)
 
             # Calculate ruin probability
             ruin_probability = {}
@@ -1165,6 +1177,7 @@ class MonteCarloEngine:
 
         return {
             "final_assets": float(manufacturer.total_assets),
+            "final_equity": float(manufacturer.equity),
             "annual_losses": annual_losses,
             "insurance_recoveries": insurance_recoveries,
             "retained_losses": retained_losses,
@@ -1205,12 +1218,17 @@ class MonteCarloEngine:
 
         # Concatenate arrays
         final_assets = np.concatenate([r["final_assets"] for r in chunk_results])
+        final_equity = np.concatenate(
+            [r["final_equity"] for r in chunk_results]
+            if all("final_equity" in r for r in chunk_results)
+            else [r["final_assets"] for r in chunk_results]
+        )
         annual_losses = np.vstack([r["annual_losses"] for r in chunk_results])
         insurance_recoveries = np.vstack([r["insurance_recoveries"] for r in chunk_results])
         retained_losses = np.vstack([r["retained_losses"] for r in chunk_results])
 
-        # Calculate derived metrics
-        growth_rates = self._calculate_growth_rates(final_assets)
+        # Calculate derived metrics using equity (#355)
+        growth_rates = self._calculate_growth_rates(final_equity)
 
         # Aggregate periodic ruin probabilities
         ruin_probability = {}
@@ -1257,24 +1275,28 @@ class MonteCarloEngine:
             config=self.config,
         )
 
-    def _calculate_growth_rates(self, final_assets: np.ndarray) -> np.ndarray:
-        """Calculate annualized growth rates.
+    def _calculate_growth_rates(self, final_equity: np.ndarray) -> np.ndarray:
+        """Calculate annualized growth rates based on equity.
+
+        Uses equity rather than total assets so that growth reflects
+        changes in owner value, consistent with how ruin detection
+        uses equity (#355).
 
         Args:
-            final_assets: Final asset values
+            final_equity: Final equity values for each simulation
 
         Returns:
-            Array of growth rates
+            Array of annualized log growth rates
         """
-        initial_assets = float(self.manufacturer.total_assets)
+        initial_equity = float(self.manufacturer.equity)
         n_years = self.config.n_years
 
         # Avoid division by zero and log of negative numbers
-        valid_mask = (final_assets > 0) & (initial_assets > 0)
-        growth_rates = np.zeros_like(final_assets, dtype=np.float64)
+        valid_mask = (final_equity > 0) & (initial_equity > 0)
+        growth_rates = np.zeros_like(final_equity, dtype=np.float64)
 
         if np.any(valid_mask):
-            growth_rates[valid_mask] = np.log(final_assets[valid_mask] / initial_assets) / n_years
+            growth_rates[valid_mask] = np.log(final_equity[valid_mask] / initial_equity) / n_years
 
         return growth_rates
 
