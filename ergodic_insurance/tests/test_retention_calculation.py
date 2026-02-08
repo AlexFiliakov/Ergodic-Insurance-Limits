@@ -48,7 +48,7 @@ class TestRetentionCalculation:
         # Run actual calculation
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
-        net_income = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+        net_income = manufacturer.calculate_net_income(operating_income, 0)
 
         # Verify net income calculation
         assert (
@@ -71,7 +71,12 @@ class TestRetentionCalculation:
         ), "Retention seems to be applied to revenue instead of net income"
 
     def test_all_costs_deducted_before_retention(self):
-        """Verify all cost components are deducted before applying retention."""
+        """Verify all cost components are deducted before applying retention.
+
+        Insurance costs are deducted in calculate_operating_income().
+        Collateral costs are deducted in calculate_net_income().
+        Retention applies to the final net income after all deductions.
+        """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
@@ -81,25 +86,23 @@ class TestRetentionCalculation:
         )
         manufacturer = WidgetManufacturer(config)
 
-        # Calculate base values
+        # Record insurance costs (deducted in operating income)
+        manufacturer.record_insurance_premium(100_000)
+        manufacturer.period_insurance_losses = to_decimal(50_000)
+        collateral_costs = 75_000
+
+        # Calculate values through the correct waterfall
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Add various costs
-        insurance_premiums = 100_000
-        insurance_losses = 50_000
-        collateral_costs = 75_000
-
-        # Calculate expected net income with all costs
-        total_insurance = to_decimal(insurance_premiums + insurance_losses)
-        income_before_tax = operating_income - to_decimal(collateral_costs) - total_insurance
+        # Expected: operating income already includes insurance deductions
+        # income_before_tax = operating_income - collateral_costs
+        income_before_tax = operating_income - to_decimal(collateral_costs)
         expected_taxes = max(to_decimal(0), income_before_tax * to_decimal(manufacturer.tax_rate))
         expected_net_income = income_before_tax - expected_taxes
 
-        # Run actual calculation
-        actual_net_income = manufacturer.calculate_net_income(
-            operating_income, collateral_costs, insurance_premiums, insurance_losses
-        )
+        # Run actual calculation — no insurance params (Issue #374)
+        actual_net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
 
         # Verify all costs were deducted
         assert (
@@ -117,7 +120,15 @@ class TestRetentionCalculation:
         ), f"Retained earnings {equity_increase} != expected {expected_retained}"
 
     def test_profit_waterfall_calculation(self):
-        """Validate the complete profit waterfall from revenue to retained earnings."""
+        """Validate the complete profit waterfall from revenue to retained earnings.
+
+        The correct waterfall (Issue #374):
+        1. Revenue
+        2. Operating Income = Revenue * margin - insurance costs - depreciation
+        3. Income Before Tax = Operating Income - collateral costs
+        4. Net Income = Income Before Tax - taxes
+        5. Retained Earnings = Net Income * retention_ratio
+        """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=1.2,
@@ -136,23 +147,22 @@ class TestRetentionCalculation:
             manufacturer.asset_turnover_ratio
         )
 
-        # Step 2: Operating Income (after operating costs)
+        # Step 2: Record insurance costs (deducted in operating income)
+        manufacturer.record_insurance_premium(80_000)
+        manufacturer.period_insurance_losses = to_decimal(40_000)
+        waterfall["insurance_premiums"] = to_decimal(80_000)
+        waterfall["insurance_losses"] = to_decimal(40_000)
+        waterfall["collateral_costs"] = to_decimal(60_000)
+
+        # Step 3: Operating Income (includes insurance deductions)
         waterfall["operating_income"] = manufacturer.calculate_operating_income(
             waterfall["revenue"]
         )
         waterfall["operating_costs"] = waterfall["revenue"] - waterfall["operating_income"]
 
-        # Step 3: Add other costs
-        waterfall["insurance_premiums"] = to_decimal(80_000)
-        waterfall["insurance_losses"] = to_decimal(40_000)
-        waterfall["collateral_costs"] = to_decimal(60_000)
-
-        # Step 4: Income before tax
+        # Step 4: Income before tax (only collateral costs below the line)
         waterfall["income_before_tax"] = (
-            waterfall["operating_income"]
-            - waterfall["collateral_costs"]
-            - waterfall["insurance_premiums"]
-            - waterfall["insurance_losses"]
+            waterfall["operating_income"] - waterfall["collateral_costs"]
         )
 
         # Step 5: Taxes
@@ -175,8 +185,6 @@ class TestRetentionCalculation:
         actual_net_income = manufacturer.calculate_net_income(
             waterfall["operating_income"],
             waterfall["collateral_costs"],
-            waterfall["insurance_premiums"],
-            waterfall["insurance_losses"],
         )
 
         assert (
@@ -218,14 +226,11 @@ class TestRetentionCalculation:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Add large costs to create a loss
-        large_insurance_loss = 500_000
-        collateral_costs = 100_000
+        # Add large collateral costs to create a loss
+        collateral_costs = 600_000
 
         # Calculate expected loss
-        income_before_tax = (
-            operating_income - to_decimal(collateral_costs) - to_decimal(large_insurance_loss)
-        )
+        income_before_tax = operating_income - to_decimal(collateral_costs)
         assert income_before_tax < 0, "Should create a loss scenario"
 
         # No taxes on losses
@@ -236,9 +241,7 @@ class TestRetentionCalculation:
         expected_retained_loss = expected_net_loss * to_decimal(manufacturer.retention_ratio)
 
         # Run actual calculation
-        actual_net_income = manufacturer.calculate_net_income(
-            operating_income, collateral_costs, 0, large_insurance_loss
-        )
+        actual_net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
 
         assert actual_net_income < 0, "Should result in a net loss"
         assert abs(float(actual_net_income) - float(expected_net_loss)) < 0.01
@@ -277,8 +280,6 @@ class TestRetentionCalculation:
         net_income = manufacturer.calculate_net_income(
             operating_income,
             collateral_costs,
-            0,  # Don't double-count premiums
-            0,  # Don't double-count losses
         )
 
         # Verify retention applies correctly
@@ -319,8 +320,6 @@ class TestRetentionCalculation:
         net_income = manufacturer.calculate_net_income(
             operating_income,
             collateral_costs,
-            0,  # Already in operating_income
-            0,  # Already in operating_income
         )
 
         # Retention should apply to final net income after all costs
@@ -350,7 +349,7 @@ class TestRetentionCalculation:
 
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
-        net_income = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+        net_income = manufacturer.calculate_net_income(operating_income, 0)
 
         assert net_income > 0, "Should have positive income"
 
@@ -372,7 +371,7 @@ class TestRetentionCalculation:
 
         revenue2 = manufacturer2.calculate_revenue()
         operating_income2 = manufacturer2.calculate_operating_income(revenue2)
-        net_income2 = manufacturer2.calculate_net_income(operating_income2, 0, 0, 0)
+        net_income2 = manufacturer2.calculate_net_income(operating_income2, 0)
 
         initial_equity2 = manufacturer2.equity
         manufacturer2.update_balance_sheet(net_income2)
@@ -402,7 +401,7 @@ class TestRetentionValidation:
 
         # Add significant costs
         total_costs = 300_000
-        net_income = manufacturer.calculate_net_income(operating_income, total_costs, 0, 0)
+        net_income = manufacturer.calculate_net_income(operating_income, total_costs)
 
         # Calculate what retention would be if mistakenly applied to wrong values
         wrong_applications = {
@@ -447,7 +446,7 @@ class TestRetentionValidation:
 
             # Varying costs per period
             collateral_costs = 50_000 + period * 10_000
-            net_income = manufacturer.calculate_net_income(operating_income, collateral_costs, 0, 0)
+            net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
 
             if net_income > 0:  # Only check ratio for profitable periods
                 initial_equity = manufacturer.equity

@@ -199,8 +199,6 @@ def run_vol_sim(
         base_manufacturer.calculate_net_income(
             operating_income=cur_operating_income,
             collateral_costs=0.0,
-            insurance_premiums=annual_premium,
-            insurance_losses=average_annual_retained_loss,
             use_accrual=True,
             time_resolution="annual",
         )

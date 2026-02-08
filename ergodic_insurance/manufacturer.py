@@ -681,8 +681,6 @@ class WidgetManufacturer(
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            0,
-            0,
             use_accrual=True,
             time_resolution=time_resolution,
         )
