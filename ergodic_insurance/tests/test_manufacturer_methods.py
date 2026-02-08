@@ -646,10 +646,10 @@ class TestStepMethod:
         manufacturer.base_operating_margin = 0.0
         metrics = manufacturer.step()
 
-        # With zero margin, operating income should be negative due to depreciation
-        # Depreciation = PP&E / 10 = $5M / 10 = $500K
-        expected_operating_income = -(manufacturer.gross_ppe / 10)
-        assert metrics["operating_income"] == expected_operating_income
+        # With zero margin, operating income should be ~0 because depreciation
+        # is already embedded in COGS/SGA expense ratios via
+        # base_operating_margin and is NOT subtracted separately (#475)
+        assert float(metrics["operating_income"]) == pytest.approx(0.0, abs=1.0)
 
         # Test with negative growth rate
         manufacturer.reset()
