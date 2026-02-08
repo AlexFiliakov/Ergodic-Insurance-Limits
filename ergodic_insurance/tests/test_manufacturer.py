@@ -351,7 +351,9 @@ class TestWidgetManufacturer:
         """Test processing large claim with high deductible."""
         # Large claim with high deductible to test company payment collateralization
         company_payment, insurance_payment = manufacturer.process_insurance_claim(
-            claim_amount=20_000_000, deductible_amount=5_000_000, insurance_limit=15_000_000
+            claim_amount=20_000_000,
+            deductible_amount=5_000_000,
+            insurance_limit=15_000_000,
         )
 
         # Company pays deductible, insurance covers up to limit
@@ -368,7 +370,9 @@ class TestWidgetManufacturer:
         """Test paying scheduled claim liabilities."""
         # Process a claim with deductible in year 0
         manufacturer.process_insurance_claim(
-            claim_amount=1_500_000, deductible_amount=1_000_000, insurance_limit=2_000_000
+            claim_amount=1_500_000,
+            deductible_amount=1_000_000,
+            insurance_limit=2_000_000,
         )
 
         # Pay first year payment (year 0 of claim = 10% of company portion = 100k)
@@ -390,7 +394,9 @@ class TestWidgetManufacturer:
         """Test partial payment when insufficient cash."""
         # Process claim first - this will set collateral and reduce cash
         manufacturer.process_insurance_claim(
-            claim_amount=1_500_000, deductible_amount=1_000_000, insurance_limit=2_000_000
+            claim_amount=1_500_000,
+            deductible_amount=1_000_000,
+            insurance_limit=2_000_000,
         )
 
         # Reduce cash to low value via ledger (Issue #275: ledger is single source of truth)
@@ -444,15 +450,15 @@ class TestWidgetManufacturer:
         assert metrics["claim_liabilities"] == ZERO
         assert metrics["is_solvent"]
         assert metrics["revenue"] == to_decimal(10_000_000)
-        # Operating income now includes depreciation expense
-        # PP&E is $1M (10% of $10M with ppe_ratio=0.1), depreciation is $100k/year
-        # Operating income = $10M * 8% - $100k = $700k
-        assert metrics["operating_income"] == to_decimal(700_000)
+        # Operating income = Revenue * base_operating_margin = $10M * 8% = $800k
+        # Issue #475: Depreciation is no longer subtracted from operating income
+        # because it is already embedded in the COGS/SGA expense ratios.
+        assert metrics["operating_income"] == to_decimal(800_000)
         assert float(metrics["asset_turnover"]) == pytest.approx(1.0)
         assert metrics["base_operating_margin"] == to_decimal(0.08)
-        # Net income after tax: $700k * (1 - 0.25) = $525k
-        assert float(metrics["roe"]) == pytest.approx(0.0525)  # 525k / 10M
-        assert float(metrics["roa"]) == pytest.approx(0.0525)  # 525k / 10M
+        # Net income after tax: $800k * (1 - 0.25) = $600k
+        assert float(metrics["roe"]) == pytest.approx(0.06)  # 600k / 10M
+        assert float(metrics["roa"]) == pytest.approx(0.06)  # 600k / 10M
         assert metrics["collateral_to_equity"] == ZERO
         assert metrics["collateral_to_assets"] == ZERO
 
@@ -661,7 +667,9 @@ class TestWidgetManufacturer:
         """Test monthly letter of credit cost tracking."""
         # Add collateral by processing claim with deductible
         manufacturer.process_insurance_claim(
-            claim_amount=2_000_000, deductible_amount=1_200_000, insurance_limit=3_000_000
+            claim_amount=2_000_000,
+            deductible_amount=1_200_000,
+            insurance_limit=3_000_000,
         )
 
         # Calculate expected monthly cost
@@ -724,7 +732,9 @@ class TestWidgetManufacturer:
         # Process a large claim with deductible that requires collateral
         # Only company portion requires collateral
         company_payment, insurance_payment = manufacturer.process_insurance_claim(
-            claim_amount=20_000_000, deductible_amount=5_000_000, insurance_limit=15_000_000
+            claim_amount=20_000_000,
+            deductible_amount=5_000_000,
+            insurance_limit=15_000_000,
         )
 
         # Year 1: Operations with claim payments and collateral costs
@@ -795,7 +805,9 @@ class TestWidgetManufacturer:
         # Process claim with smaller deductible to maintain positive income
         deductible = 50_000
         company_payment, insurance_payment = manufacturer.process_insurance_claim(
-            claim_amount=200_000, deductible_amount=deductible, insurance_limit=10_000_000
+            claim_amount=200_000,
+            deductible_amount=deductible,
+            insurance_limit=10_000_000,
         )
 
         # Verify deductible creates a liability (not an expense)
@@ -821,7 +833,9 @@ class TestWidgetManufacturer:
         # Process claim with deductible
         deductible = 1_000_000
         manufacturer.process_insurance_claim(
-            claim_amount=5_000_000, deductible_amount=deductible, insurance_limit=10_000_000
+            claim_amount=5_000_000,
+            deductible_amount=deductible,
+            insurance_limit=10_000_000,
         )
 
         # Verify no expense is recorded (only liability)
@@ -857,7 +871,9 @@ class TestWidgetManufacturer:
         # Process claim with deductible
         deductible = 200_000
         manufacturer.process_insurance_claim(
-            claim_amount=1_000_000, deductible_amount=deductible, insurance_limit=5_000_000
+            claim_amount=1_000_000,
+            deductible_amount=deductible,
+            insurance_limit=5_000_000,
         )
 
         # Pay premium
@@ -892,7 +908,9 @@ class TestWidgetManufacturer:
         # Process claim and pay premium before step
         deductible = 300_000
         manufacturer.process_insurance_claim(
-            claim_amount=2_000_000, deductible_amount=deductible, insurance_limit=5_000_000
+            claim_amount=2_000_000,
+            deductible_amount=deductible,
+            insurance_limit=5_000_000,
         )
 
         premium = 250_000
@@ -938,7 +956,9 @@ class TestWidgetManufacturer:
         manufacturer_insured = WidgetManufacturer(manufacturer.config)
         deductible = 100_000
         manufacturer_insured.process_insurance_claim(
-            claim_amount=500_000, deductible_amount=deductible, insurance_limit=1_000_000
+            claim_amount=500_000,
+            deductible_amount=deductible,
+            insurance_limit=1_000_000,
         )
 
         # Test uninsured claim with payment schedule (comparable to insured)
@@ -1148,7 +1168,9 @@ class TestWidgetManufacturer:
         # Process a claim with deductible
         deductible = 150_000
         manufacturer.process_insurance_claim(
-            claim_amount=1_000_000, deductible_amount=deductible, insurance_limit=5_000_000
+            claim_amount=1_000_000,
+            deductible_amount=deductible,
+            insurance_limit=5_000_000,
         )
 
         # Pay premium

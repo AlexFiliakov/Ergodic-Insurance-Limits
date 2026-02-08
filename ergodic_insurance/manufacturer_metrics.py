@@ -89,7 +89,7 @@ class MetricsCalculationMixin:
             to_decimal(period_revenue) if period_revenue is not None else self.calculate_revenue()
         )
         annual_depreciation = self.gross_ppe / to_decimal(10) if self.gross_ppe > ZERO else ZERO
-        operating_income = self.calculate_operating_income(revenue, annual_depreciation)
+        operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
         net_income = self.calculate_net_income(
             operating_income,
@@ -100,6 +100,7 @@ class MetricsCalculationMixin:
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income
         metrics["net_income"] = net_income
+        metrics["interest_expense"] = collateral_costs
 
         # Insurance expenses
         metrics["insurance_premiums"] = self.period_insurance_premiums

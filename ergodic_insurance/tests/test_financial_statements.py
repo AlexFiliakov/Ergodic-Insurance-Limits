@@ -41,7 +41,10 @@ class TestFinancialStatementConfig:
     def test_custom_config(self):
         """Test custom configuration values."""
         config = FinancialStatementConfig(
-            currency_symbol="€", decimal_places=2, include_yoy_change=False, fiscal_year_end=6
+            currency_symbol="€",
+            decimal_places=2,
+            include_yoy_change=False,
+            fiscal_year_end=6,
         )
 
         assert config.currency_symbol == "€"
@@ -247,7 +250,8 @@ class TestFinancialStatementGenerator:
     def test_initialization_error(self):
         """Test initialization without required data."""
         with pytest.raises(
-            ValueError, match="Either manufacturer or manufacturer_data must be provided"
+            ValueError,
+            match="Either manufacturer or manufacturer_data must be provided",
         ):
             FinancialStatementGenerator()
 
@@ -830,29 +834,42 @@ class TestFinancialStatementGenerator:
                     values[i] == 0
                 ), f"Interest income should be 0 (not fabricated), got {values[i]}"
 
-    def test_net_income_matches_manufacturer(self, generator):
-        """Test that income statement NET INCOME matches manufacturer's computed value.
+    def test_net_income_gaap_consistency(self, generator):
+        """Test that NET INCOME equals INCOME BEFORE TAXES minus Total Tax Provision.
 
-        Issue #301: The income statement must report the manufacturer's net_income
-        directly rather than recomputing it, which could diverge due to GAAP
-        categorization differences.
+        Issue #475: The income statement must be internally consistent — net income
+        must equal the sum of its component line items per ASC 220-10-45.
+        The old override that used the manufacturer's net_income directly was removed
+        because it could create unexplained gaps between line items and the bottom line.
         """
         df = generator.generate_income_statement(year=2)
 
-        # Find NET INCOME row
-        net_income_value = None
-        for i, item in enumerate(df["Item"].values):
-            if str(item).strip() == "NET INCOME":
-                net_income_value = df["Year 2"].values[i]
-                break
+        items = [str(item).strip() for item in df["Item"].values]
+        values = df["Year 2"].values
 
+        # Extract key line items
+        pretax_income = None
+        total_tax = None
+        net_income_value = None
+
+        for i, item in enumerate(items):
+            if item == "INCOME BEFORE TAXES":
+                pretax_income = values[i]
+            elif item == "Total Tax Provision":
+                total_tax = values[i]
+            elif item == "NET INCOME":
+                net_income_value = values[i]
+
+        assert pretax_income is not None, "INCOME BEFORE TAXES row not found"
+        assert total_tax is not None, "Total Tax Provision row not found"
         assert net_income_value is not None, "NET INCOME row not found"
 
-        # Should match manufacturer's net_income exactly
-        expected = generator.metrics_history[2]["net_income"]
-        assert (
-            net_income_value == expected
-        ), f"NET INCOME should be {expected} (from manufacturer), got {net_income_value}"
+        # Net income MUST equal pretax income minus total tax provision
+        expected = float(pretax_income) - float(total_tax)
+        assert abs(float(net_income_value) - expected) < 0.01, (
+            f"NET INCOME ({net_income_value}) must equal "
+            f"INCOME BEFORE TAXES ({pretax_income}) - Total Tax Provision ({total_tax}) = {expected}"
+        )
 
     def test_tax_provision_structure(self, generator):
         """Test that tax provision follows flat rate structure."""

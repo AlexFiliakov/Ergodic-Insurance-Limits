@@ -68,20 +68,22 @@ class IncomeCalculationMixin:
         logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.total_assets:,.2f}")
         return revenue
 
-    def calculate_operating_income(
-        self, revenue: Union[Decimal, float], depreciation_expense: Union[Decimal, float] = ZERO
-    ) -> Decimal:
-        """Calculate operating income including insurance and depreciation as operating expenses.
+    def calculate_operating_income(self, revenue: Union[Decimal, float]) -> Decimal:
+        """Calculate operating income including insurance as operating expenses.
+
+        Depreciation is NOT subtracted here because it is already embedded in the
+        COGS/SGA expense ratios derived from base_operating_margin.  Since
+        Revenue = COGS + SGA + base_operating_income (where COGS and SGA each
+        include their allocated depreciation), subtracting depreciation again
+        would double-count it (Issue #475).
 
         Args:
             revenue: Annual revenue in dollars.
-            depreciation_expense: Depreciation expense for the period.
 
         Returns:
-            Decimal: Operating income in dollars after insurance costs and depreciation.
+            Decimal: Operating income in dollars after insurance costs.
         """
         revenue_decimal = to_decimal(revenue)
-        depreciation_decimal = to_decimal(depreciation_expense)
 
         base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
 
@@ -94,20 +96,20 @@ class IncomeCalculationMixin:
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
-            - depreciation_decimal
             - net_reserve_development
         )
 
         logger.debug(
             f"Operating income: ${actual_operating_income:,.2f} "
             f"(base: ${base_operating_income:,.2f}, insurance: "
-            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f}, "
-            f"depreciation: ${depreciation_decimal:,.2f})"
+            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f})"
         )
         return actual_operating_income
 
     def calculate_collateral_costs(
-        self, letter_of_credit_rate: Union[Decimal, float] = 0.015, time_period: str = "annual"
+        self,
+        letter_of_credit_rate: Union[Decimal, float] = 0.015,
+        time_period: str = "annual",
     ) -> Decimal:
         """Calculate costs for letter of credit collateral.
 

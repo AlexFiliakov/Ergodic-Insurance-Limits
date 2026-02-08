@@ -51,7 +51,11 @@ import random
 from typing import Any, Dict, List, Optional, Union
 
 try:
-    from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
+    from ergodic_insurance.accrual_manager import (
+        AccrualManager,
+        AccrualType,
+        PaymentSchedule,
+    )
     from ergodic_insurance.config import ManufacturerConfig
     from ergodic_insurance.decimal_utils import ONE, ZERO, MetricsDict, to_decimal
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
@@ -141,7 +145,9 @@ class WidgetManufacturer(
     """
 
     def __init__(
-        self, config: ManufacturerConfig, stochastic_process: Optional[StochasticProcess] = None
+        self,
+        config: ManufacturerConfig,
+        stochastic_process: Optional[StochasticProcess] = None,
     ):
         """Initialize manufacturer with configuration parameters.
 
@@ -215,7 +221,9 @@ class WidgetManufacturer(
 
         # Compute initial balance sheet values
         # Type ignore: ppe_ratio is guaranteed non-None after model_validator
-        initial_gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)  # type: ignore
+        initial_gross_ppe: Decimal = to_decimal(
+            config.initial_assets * config.ppe_ratio
+        )  # type: ignore
         initial_accumulated_depreciation: Decimal = ZERO
 
         # Current Assets - initialize working capital to steady state
@@ -227,7 +235,9 @@ class WidgetManufacturer(
         initial_prepaid_insurance: Decimal = ZERO
 
         working_capital_assets = initial_accounts_receivable + initial_inventory
-        initial_cash: Decimal = to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets  # type: ignore
+        initial_cash: Decimal = (
+            to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets
+        )  # type: ignore
 
         initial_accounts_payable: Decimal = ZERO
         initial_collateral: Decimal = ZERO
@@ -428,7 +438,9 @@ class WidgetManufacturer(
     # ========================================================================
 
     def process_accrued_payments(
-        self, time_resolution: str = "annual", max_payable: Optional[Union[Decimal, float]] = None
+        self,
+        time_resolution: str = "annual",
+        max_payable: Optional[Union[Decimal, float]] = None,
     ) -> Decimal:
         """Process due accrual payments for the current period.
 
@@ -509,7 +521,9 @@ class WidgetManufacturer(
         return total_paid
 
     def record_wage_accrual(
-        self, amount: float, payment_schedule: PaymentSchedule = PaymentSchedule.IMMEDIATE
+        self,
+        amount: float,
+        payment_schedule: PaymentSchedule = PaymentSchedule.IMMEDIATE,
     ) -> None:
         """Record accrued wages to be paid later.
 
@@ -673,8 +687,8 @@ class WidgetManufacturer(
             capex_amount = depreciation_expense * capex_ratio
             self.record_capex(capex_amount)
 
-        # Calculate operating income including depreciation
-        operating_income = self.calculate_operating_income(revenue, depreciation_expense)
+        # Calculate operating income (depreciation already embedded in COGS/SGA ratios)
+        operating_income = self.calculate_operating_income(revenue)
 
         # Calculate collateral costs
         if time_resolution == "monthly":
