@@ -75,6 +75,35 @@ class TestVaR:
         # Parametric should be very close to theoretical for normal data
         assert abs(var_99 - theoretical_var_99) < 5
 
+    def test_parametric_var_uses_sample_std(self):
+        """Issue #389: parametric VaR must use sample std (ddof=1)."""
+        losses = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        metrics = RiskMetrics(losses)
+
+        var_99 = metrics.var(0.99, method="parametric")
+
+        # Sample std: sqrt(2.5), NOT population std sqrt(2.0)
+        expected_mean = 3.0
+        expected_std = np.sqrt(2.5)
+        expected_var = expected_mean + expected_std * stats.norm.ppf(0.99)
+        assert var_99 == pytest.approx(expected_var, rel=1e-10)
+
+        # Verify it does NOT equal the population-std result
+        wrong_var = expected_mean + np.sqrt(2.0) * stats.norm.ppf(0.99)
+        assert var_99 != pytest.approx(wrong_var, rel=1e-10)
+
+    def test_parametric_var_large_sample_backward_compat(self):
+        """Issue #389: for large n, ddof=1 vs ddof=0 difference is negligible."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 10000)
+        metrics = RiskMetrics(losses)
+
+        var_99 = metrics.var(0.99, method="parametric")
+        # Population-std estimate for reference
+        pop_var = float(np.mean(losses) + np.std(losses, ddof=0) * stats.norm.ppf(0.99))
+        # Difference should be < 0.1% for n=10000
+        assert abs(var_99 - pop_var) / pop_var < 0.001
+
     def test_weighted_var(self):
         """Test VaR with importance weights."""
         losses = np.array([100, 200, 300, 400, 500])
