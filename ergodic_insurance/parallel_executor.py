@@ -171,6 +171,8 @@ class SharedMemoryManager:
         self.config = config or SharedMemoryConfig()
         self.shared_arrays: Dict[str, Tuple[shared_memory.SharedMemory, tuple, np.dtype]] = {}
         self.shared_objects: Dict[str, shared_memory.SharedMemory] = {}
+        self._opened_handles: List[shared_memory.SharedMemory] = []
+        self._object_sizes: Dict[str, int] = {}
 
     def share_array(self, name: str, array: np.ndarray) -> str:
         """Share a numpy array via shared memory.
@@ -211,6 +213,7 @@ class SharedMemoryManager:
             np.ndarray: Shared array (view, not copy)
         """
         shm = shared_memory.SharedMemory(name=shm_name)
+        self._opened_handles.append(shm)
         return np.ndarray(shape, dtype=dtype, buffer=shm.buf)
 
     def share_object(self, name: str, obj: Any) -> str:
@@ -244,8 +247,9 @@ class SharedMemoryManager:
         assert shm.buf is not None
         shm.buf[: len(serialized)] = serialized
 
-        # Store reference
+        # Store reference and actual size
         self.shared_objects[name] = shm
+        self._object_sizes[name] = len(serialized)
 
         return shm.name
 
@@ -263,6 +267,7 @@ class SharedMemoryManager:
         shm = shared_memory.SharedMemory(name=shm_name)
         assert shm.buf is not None
         data = bytes(shm.buf[:size])
+        shm.close()
 
         # Decompress if needed
         if compressed:
@@ -271,6 +276,17 @@ class SharedMemoryManager:
             data = zlib.decompress(data)
 
         return pickle.loads(data)
+
+    def get_object_size(self, name: str) -> int:
+        """Get the actual stored size of a shared object.
+
+        Args:
+            name: Object identifier used in share_object
+
+        Returns:
+            int: Actual byte size stored in shared memory
+        """
+        return self._object_sizes[name]
 
     def cleanup(self):
         """Clean up all shared memory resources."""
@@ -290,8 +306,17 @@ class SharedMemoryManager:
             except (FileNotFoundError, PermissionError):
                 pass
 
+        # Close read-only handles opened via get_array (don't unlink)
+        for shm in self._opened_handles:
+            try:
+                shm.close()
+            except (FileNotFoundError, PermissionError, OSError):
+                pass
+
         self.shared_arrays.clear()
         self.shared_objects.clear()
+        self._opened_handles.clear()
+        self._object_sizes.clear()
 
     def __del__(self):
         """Cleanup on deletion."""
@@ -475,10 +500,10 @@ class ParallelExecutor:
             else:
                 # Share serialized object
                 shm_name = self.shared_memory_manager.share_object(key, value)
-                serialized = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+                actual_size = self.shared_memory_manager.get_object_size(key)
                 shared_refs[key] = (
                     "object",
-                    (shm_name, len(serialized), self.shared_memory_config.compression),
+                    (shm_name, actual_size, self.shared_memory_config.compression),
                 )
 
         return shared_refs
@@ -607,11 +632,11 @@ class ParallelExecutor:
         # Sort results by original order
         results.sort(key=lambda x: x[0])
 
-        # Flatten the results - each chunk returns a list
-        flattened_results = []
+        # Flatten the results - each chunk returns a list; filter None from partial failures
+        flattened_results: List[Any] = []
         for _, chunk_results in results:
-            if chunk_results:  # Skip empty results from failed chunks
-                flattened_results.extend(chunk_results)
+            if chunk_results:
+                flattened_results.extend(r for r in chunk_results if r is not None)
 
         return flattened_results
 
@@ -665,6 +690,7 @@ def _execute_chunk(
 
     # Reconstruct shared data
     shared_data = {}
+    sm_manager = None
     if shared_refs:
         sm_manager = SharedMemoryManager(shared_memory_config)
 
@@ -676,29 +702,23 @@ def _execute_chunk(
                 shm_name, size, compressed = ref_data
                 shared_data[key] = sm_manager.get_object(shm_name, size, compressed)
 
-    # Process items
-    results = []
-    errors = []
-    for item in items:
-        try:
-            if shared_data:
-                # Pass shared data as keyword arguments
-                result = work_function(item, **shared_data)
-            else:
-                result = work_function(item)
-            results.append(result)
-        except Exception as e:
-            # Collect errors to report back
-            errors.append((item, str(e)))
-            # Return None or a default result structure that the reduce function can handle
-            results.append(None)
+    # Process items - return partial results on individual failures
+    try:
+        results = []
+        for item in items:
+            try:
+                if shared_data:
+                    result = work_function(item, **shared_data)
+                else:
+                    result = work_function(item)
+                results.append(result)
+            except Exception:
+                results.append(None)
 
-    # If there were errors, raise an exception with details
-    if errors:
-        error_msg = "; ".join([f"Item {item}: {err}" for item, err in errors])
-        raise RuntimeError(f"Work function failed for items: {error_msg}")
-
-    return results
+        return results
+    finally:
+        if sm_manager is not None:
+            sm_manager.cleanup()
 
 
 # Utility functions for common patterns

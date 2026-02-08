@@ -8,13 +8,10 @@ import matplotlib
 import pytest
 
 # pylint: disable=wrong-import-position
-# We need to configure matplotlib and update sys.path before importing test fixtures
+# We need to configure matplotlib before importing test fixtures
 
 # Set matplotlib to use non-interactive backend for testing
 matplotlib.use("Agg")
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Import all fixtures from integration test_fixtures to make them available globally
 from ergodic_insurance.tests.integration.test_fixtures import (

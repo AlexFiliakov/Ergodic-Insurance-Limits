@@ -246,7 +246,7 @@ class InsuranceDecisionEngine:
             Optimal insurance decision
         """
         if weights is None:
-            weights = {"growth": 0.4, "risk": 0.4, "cost": 0.2}
+            weights = self.engine_config.default_optimization_weights.copy()
 
         if _attempted_methods is None:
             _attempted_methods = set()
@@ -839,12 +839,13 @@ class InsuranceDecisionEngine:
         total_premium = 0
         current_attachment = retained_limit
 
+        primary_ceiling, excess_ceiling = self.engine_config.layer_attachment_thresholds
         for limit in layer_limits:
             if limit > 1000:  # Minimum meaningful layer
                 # Use pricing scenario rates
-                if current_attachment < 5_000_000:
+                if current_attachment < primary_ceiling:
                     rate = self.current_scenario.primary_layer_rate
-                elif current_attachment < 25_000_000:
+                elif current_attachment < excess_ceiling:
                     rate = self.current_scenario.first_excess_rate
                 else:
                     rate = self.current_scenario.higher_excess_rate
@@ -886,8 +887,7 @@ class InsuranceDecisionEngine:
             expected_loss = 0.0
 
         # Compute effective loss volatility (σ of loss/assets ratio)
-        # Use CV=0.5 as default coefficient of variation for loss severity
-        loss_cv = 0.5
+        loss_cv = self.engine_config.loss_cv
         loss_std = expected_loss * loss_cv
 
         # Without insurance: full loss volatility hits the balance sheet
@@ -911,11 +911,12 @@ class InsuranceDecisionEngine:
         # Premium drag on growth
         premium = 0.0
         current_attachment = retained_limit
+        primary_ceiling, excess_ceiling = self.engine_config.layer_attachment_thresholds
         for limit in layer_limits:
             if limit > 1000:
-                if current_attachment < 5_000_000:
+                if current_attachment < primary_ceiling:
                     rate = self.current_scenario.primary_layer_rate
-                elif current_attachment < 25_000_000:
+                elif current_attachment < excess_ceiling:
                     rate = self.current_scenario.first_excess_rate
                 else:
                     rate = self.current_scenario.higher_excess_rate
@@ -968,12 +969,13 @@ class InsuranceDecisionEngine:
         layers = []
         current_attachment = retained_limit
 
+        primary_ceiling, excess_ceiling = self.engine_config.layer_attachment_thresholds
         for limit in layer_limits:
             if limit > 1000:  # Minimum meaningful layer
                 # Determine rate based on attachment
-                if current_attachment < 5_000_000:
+                if current_attachment < primary_ceiling:
                     rate = self.current_scenario.primary_layer_rate
-                elif current_attachment < 25_000_000:
+                elif current_attachment < excess_ceiling:
                     rate = self.current_scenario.first_excess_rate
                 else:
                     rate = self.current_scenario.higher_excess_rate
@@ -1054,12 +1056,13 @@ class InsuranceDecisionEngine:
         layers = []
         current_attachment = retained_limit
 
+        primary_ceiling, excess_ceiling = self.engine_config.layer_attachment_thresholds
         for limit in layer_limits:
             if limit > 1000:  # Minimum meaningful layer
                 # Determine rate based on attachment
-                if current_attachment < 5_000_000:
+                if current_attachment < primary_ceiling:
                     rate = self.current_scenario.primary_layer_rate
-                elif current_attachment < 25_000_000:
+                elif current_attachment < excess_ceiling:
                     rate = self.current_scenario.first_excess_rate
                 else:
                     rate = self.current_scenario.higher_excess_rate
@@ -1195,8 +1198,8 @@ class InsuranceDecisionEngine:
                 roe_volatility, 0.001
             )
             roe_data_arr = np.array(with_insurance_results["roe"])
-            below_mean = roe_data_arr[roe_data_arr < np.mean(roe_data_arr)]
-            roe_downside_dev = float(np.std(below_mean)) if len(below_mean) > 0 else 0.0
+            roe_mean = np.mean(roe_data_arr)
+            roe_downside_dev = float(np.sqrt(np.mean(np.minimum(roe_data_arr - roe_mean, 0) ** 2)))
             roe_1yr = np.mean(with_insurance_results["roe"])
             roe_3yr = np.mean(with_insurance_results["roe"])
             roe_5yr = np.mean(with_insurance_results["roe"])
@@ -1550,13 +1553,16 @@ class InsuranceDecisionEngine:
                 self.loss_distribution.frequency *= 1 + variation
 
         elif parameter == "capital_base":
-            # Modify manufacturer capital
+            # Modify manufacturer capital via cash adjustment (Issue #472)
+            # The total_assets setter was removed because proportional asset
+            # revaluation violates US GAAP (ASC 360/820). Instead, adjust cash
+            # which is the only asset that can be freely revalued.
             original_state["total_assets"] = self.manufacturer.total_assets
-            # Note: total_assets is Decimal, so we need to use Decimal arithmetic
             from decimal import Decimal
 
-            self.manufacturer.total_assets = self.manufacturer.total_assets * Decimal(
-                str(1 + variation)
+            delta = self.manufacturer.total_assets * Decimal(str(variation))
+            self.manufacturer._record_cash_adjustment(
+                delta, f"Sensitivity analysis: capital_base {variation:+.1%}"
             )
 
         # Return original state for restoration

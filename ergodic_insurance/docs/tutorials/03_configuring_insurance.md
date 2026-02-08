@@ -17,24 +17,19 @@ Insurance is structured in **layers** stacked on top of one another, forming a *
 
 ## Creating a Simple Insurance Policy
 
-The `InsurancePolicy` and `InsuranceLayer` classes in `ergodic_insurance.insurance` are the building blocks you will use with the `Simulation` engine. Let us start NovaTech with a straightforward single-layer policy.
+The `InsurancePolicy` class in `ergodic_insurance.insurance` is the building block you will use with the `Simulation` engine. Let us start NovaTech with a straightforward single-layer policy.
 
 ```python
-from ergodic_insurance import InsurancePolicy, InsuranceLayer
+from ergodic_insurance import InsurancePolicy
 
-# NovaTech's first insurance layer:
+# NovaTech's first insurance policy:
 #   - $100K deductible (they retain the first $100K of any loss)
 #   - $5M of coverage above the deductible
 #   - 2.5% premium rate on the limit
-primary_layer = InsuranceLayer(
-    attachment_point=100_000,   # Coverage begins at $100K
-    limit=5_000_000,            # Maximum payout: $5M
-    rate=0.025                  # Annual premium = 2.5% x $5M = $125K
-)
-
-policy = InsurancePolicy(
-    layers=[primary_layer],
-    deductible=100_000          # Self-insured retention
+policy = InsurancePolicy.from_simple(
+    deductible=100_000,            # Self-insured retention
+    limit=5_000_000,               # Maximum payout: $5M
+    premium_rate=0.025             # Annual premium = 2.5% x $5M = $125K
 )
 
 print(f"Annual Premium: ${policy.calculate_premium():,.0f}")
@@ -153,7 +148,7 @@ Now for the central question: does insurance actually improve NovaTech's long-te
 ```python
 from ergodic_insurance import (
     ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    Simulation, InsurancePolicy, InsuranceLayer,
+    Simulation, InsurancePolicy,
 )
 
 # -- NovaTech's financial profile --
@@ -166,12 +161,11 @@ novatech_config = ManufacturerConfig(
 )
 
 # -- Insurance policy: $5M xs $100K --
-layer = InsuranceLayer(
-    attachment_point=100_000,
+policy = InsurancePolicy.from_simple(
+    deductible=100_000,
     limit=5_000_000,
-    rate=0.025
+    premium_rate=0.025
 )
-policy = InsurancePolicy(layers=[layer], deductible=100_000)
 
 # -- Loss profile: moderate frequency, high severity variability --
 loss_gen = ManufacturingLossGenerator.create_simple(
@@ -448,12 +442,11 @@ for load in loadings:
     # Calculate premium rate that produces this loading
     adjusted_rate = (1 + load) * expected_annual_loss / 5_000_000
 
-    test_layer = InsuranceLayer(
-        attachment_point=100_000,
+    test_policy = InsurancePolicy.from_simple(
+        deductible=100_000,
         limit=5_000_000,
-        rate=adjusted_rate
+        premium_rate=adjusted_rate
     )
-    test_policy = InsurancePolicy(layers=[test_layer], deductible=100_000)
 
     test_loss_gen = ManufacturingLossGenerator.create_simple(
         frequency=0.15, severity_mean=1_000_000,

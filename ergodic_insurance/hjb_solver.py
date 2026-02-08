@@ -26,6 +26,11 @@ from scipy import interpolate, sparse
 
 logger = logging.getLogger(__name__)
 
+# Module-level named constants for numerical tolerances
+_DRIFT_THRESHOLD = 1e-10
+_MARGINAL_UTILITY_FLOOR = 1e-10
+_GAMMA_TOLERANCE = 1e-10
+
 
 class TimeSteppingScheme(Enum):
     """Time stepping schemes for PDE integration."""
@@ -255,7 +260,7 @@ class LogUtility(UtilityFunction):
 
     def inverse_derivative(self, marginal_utility: np.ndarray) -> np.ndarray:
         """Compute inverse: (U')^(-1)(m) = 1/m."""
-        safe_marginal = np.maximum(marginal_utility, 1e-10)
+        safe_marginal = np.maximum(marginal_utility, _MARGINAL_UTILITY_FLOOR)
         return np.array(1.0 / safe_marginal)
 
 
@@ -279,12 +284,12 @@ class PowerUtility(UtilityFunction):
         self.wealth_floor = wealth_floor
 
         # Use log utility if gamma is close to 1
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             self._log_utility = LogUtility(wealth_floor)
 
     def evaluate(self, wealth: np.ndarray) -> np.ndarray:
         """Evaluate power utility."""
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             return self._log_utility.evaluate(wealth)
 
         safe_wealth = np.maximum(wealth, self.wealth_floor)
@@ -292,7 +297,7 @@ class PowerUtility(UtilityFunction):
 
     def derivative(self, wealth: np.ndarray) -> np.ndarray:
         """Compute marginal utility: U'(w) = w^(-γ)."""
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             return self._log_utility.derivative(wealth)
 
         safe_wealth = np.maximum(wealth, self.wealth_floor)
@@ -300,10 +305,10 @@ class PowerUtility(UtilityFunction):
 
     def inverse_derivative(self, marginal_utility: np.ndarray) -> np.ndarray:
         """Compute inverse: (U')^(-1)(m) = m^(-1/γ)."""
-        if abs(self.gamma - 1.0) < 1e-10:
+        if abs(self.gamma - 1.0) < _GAMMA_TOLERANCE:
             return self._log_utility.inverse_derivative(marginal_utility)
 
-        safe_marginal = np.maximum(marginal_utility, 1e-10)
+        safe_marginal = np.maximum(marginal_utility, _MARGINAL_UTILITY_FLOOR)
         return np.array(np.power(safe_marginal, -1.0 / self.gamma))
 
 
@@ -341,6 +346,9 @@ class HJBProblem:
     terminal_value: Optional[Callable[[np.ndarray], np.ndarray]] = None
     discount_rate: float = 0.0
     time_horizon: Optional[float] = None
+    diffusion: Optional[Callable[[np.ndarray, np.ndarray, float], np.ndarray]] = None
+    """Optional callback returning σ²(x,u,t) with same shape as dynamics output.
+    When provided, the solver includes the ½σ²·∇²V diffusion term."""
 
     def __post_init__(self):
         """Validate problem specification."""
@@ -365,6 +373,8 @@ class HJBSolverConfig:
     scheme: TimeSteppingScheme = TimeSteppingScheme.IMPLICIT
     use_sparse: bool = True
     verbose: bool = True
+    inner_max_iterations: int = 100
+    inner_tolerance_factor: float = 0.1  # inner_tol = tolerance * this
 
 
 class HJBSolver:
@@ -534,6 +544,43 @@ class HJBSolver:
 
         return np.stack(grad_components, axis=-1)
 
+    def _compute_second_derivatives(self, value: np.ndarray) -> np.ndarray:
+        """Compute second derivatives d²V/dx_i² for each dimension.
+
+        Uses central finite differences for interior points. Boundary
+        values default to zero (no diffusion contribution at boundaries).
+
+        Args:
+            value: Value function on state grid
+
+        Returns:
+            Array with shape state_shape + (ndim,) containing d²V/dx_i²
+        """
+        ndim = self.problem.state_space.ndim
+        components = []
+
+        for dim in range(ndim):
+            dx_array = self.dx[dim]
+            dx = float(np.mean(dx_array))
+
+            d2v = np.zeros_like(value)
+
+            # Interior: (V[i+1] - 2*V[i] + V[i-1]) / dx²
+            hi = [slice(None)] * ndim
+            mid = [slice(None)] * ndim
+            lo = [slice(None)] * ndim
+            hi[dim] = slice(2, None)
+            mid[dim] = slice(1, -1)
+            lo[dim] = slice(None, -2)
+
+            d2v[tuple(mid)] = (value[tuple(hi)] - 2 * value[tuple(mid)] + value[tuple(lo)]) / (
+                dx * dx
+            )
+
+            components.append(d2v)
+
+        return np.stack(components, axis=-1)
+
     def solve(self) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         """Solve the HJB equation using policy iteration.
 
@@ -600,7 +647,7 @@ class HJBSolver:
 
     def _apply_upwind_drift(self, new_v, drift, dt):
         """Apply upwind differencing for drift term across all dimensions."""
-        if not np.any(np.abs(drift) > 1e-10):
+        if not np.any(np.abs(drift) > _DRIFT_THRESHOLD):
             return new_v
 
         if self.value_function is None:
@@ -614,7 +661,32 @@ class HJBSolver:
             new_v = new_v + dt * advection
         return new_v
 
-    def _update_value_finite_horizon(self, old_v, cost, drift, dt):
+    def _apply_diffusion_term(
+        self,
+        value: np.ndarray,
+        sigma_sq: np.ndarray,
+    ) -> np.ndarray:
+        """Compute diffusion contribution ½σ²∇²V.
+
+        Args:
+            value: Value function on state grid
+            sigma_sq: Diffusion coefficients σ²(x,u) with shape state_shape + (ndim,)
+
+        Returns:
+            Diffusion term (scalar field, same shape as value)
+        """
+        d2v = self._compute_second_derivatives(value)
+
+        diffusion = np.zeros_like(value)
+        n_dims = min(sigma_sq.shape[-1], d2v.shape[-1])
+        for dim in range(n_dims):
+            if dim >= len(self.problem.state_space.state_variables):
+                continue
+            diffusion += 0.5 * sigma_sq[..., dim] * d2v[..., dim]
+
+        return diffusion
+
+    def _update_value_finite_horizon(self, old_v, cost, drift, dt, sigma_sq=None):
         """Update value function for finite horizon problems."""
         # Backward Euler scheme for parabolic PDE
         new_v = old_v + dt * cost
@@ -624,7 +696,13 @@ class HJBSolver:
             new_v -= dt * self.problem.discount_rate * old_v
 
         # Add drift term using upwind differencing
-        return self._apply_upwind_drift(new_v, drift, dt)
+        new_v = self._apply_upwind_drift(new_v, drift, dt)
+
+        # Add diffusion term: ½σ²∇²V
+        if sigma_sq is not None:
+            new_v += dt * self._apply_diffusion_term(old_v, sigma_sq)
+
+        return new_v
 
     def _policy_evaluation(self):
         """Evaluate current policy by solving linear PDE."""
@@ -636,7 +714,7 @@ class HJBSolver:
 
         dt = self.config.time_step
 
-        for _ in range(100):  # Inner iterations for policy evaluation
+        for _ in range(self.config.inner_max_iterations):  # Inner iterations for policy evaluation
             # Type guard ensures value_function is not None after the check above
             assert self.value_function is not None  # For mypy
             old_v = self.value_function.copy()
@@ -656,13 +734,19 @@ class HJBSolver:
             drift = drift.reshape(self.problem.state_space.shape + (-1,))
             cost = self._reshape_cost(cost)
 
+            # Compute diffusion coefficient if specified
+            sigma_sq = None
+            if self.problem.diffusion is not None:
+                sigma_sq_raw = self.problem.diffusion(state_points, control_array, 0.0)
+                sigma_sq = sigma_sq_raw.reshape(self.problem.state_space.shape + (-1,))
+
             # Apply finite differences with upwind scheme
             # For finite horizon problems, integrate backwards from terminal condition
             if self.problem.time_horizon is not None:
-                new_v = self._update_value_finite_horizon(old_v, cost, drift, dt)
+                new_v = self._update_value_finite_horizon(old_v, cost, drift, dt, sigma_sq)
             else:
-                # For infinite horizon: 0 = -ρV + f(x,u) + drift·∇V
-                # Time-step: V_new = V_old + dt * (-ρ*V_old + cost + drift·∇V)
+                # For infinite horizon: 0 = -ρV + f(x,u) + drift·∇V + ½σ²·∇²V
+                # Time-step: V_new = V_old + dt * (-ρ*V_old + cost + drift·∇V + ½σ²·∇²V)
                 advection = np.zeros_like(old_v)
                 for dim in range(drift.shape[-1]):
                     if dim >= len(self.problem.state_space.state_variables):
@@ -670,18 +754,26 @@ class HJBSolver:
                     drift_component = drift[..., dim]
                     advection += self._apply_upwind_scheme(old_v, drift_component, dim)
 
-                new_v = old_v + dt * (-self.problem.discount_rate * old_v + cost + advection)
+                rhs = -self.problem.discount_rate * old_v + cost + advection
+                if sigma_sq is not None:
+                    rhs += self._apply_diffusion_term(old_v, sigma_sq)
+                new_v = old_v + dt * rhs
 
             # Apply boundary conditions (skip for now to preserve terminal condition)
 
             self.value_function = new_v
 
             # Check inner convergence
-            if np.max(np.abs(new_v - old_v)) < self.config.tolerance / 10:
+            if (
+                np.max(np.abs(new_v - old_v))
+                < self.config.tolerance * self.config.inner_tolerance_factor
+            ):
                 break
 
     def _policy_improvement(self):
-        """Improve policy by maximizing Hamiltonian H(x,u) = f(x,u) + drift(x,u)·∇V(x).
+        """Improve policy by maximizing the Hamiltonian.
+
+        H(x,u) = f(x,u) + drift(x,u)·∇V(x) + ½σ²(x,u)·∇²V(x)
 
         Vectorized over all state points for each control combination to avoid
         the combinatorial explosion of evaluating each state-control pair individually.
@@ -700,6 +792,12 @@ class HJBSolver:
         # Initialize tracking arrays
         best_values = np.full(n_states, -np.inf)
         best_controls = np.zeros((n_states, n_controls))
+
+        # Compute second derivatives for diffusion term (independent of control)
+        d2V_flat = None
+        if self.problem.diffusion is not None:
+            d2V = self._compute_second_derivatives(self.value_function)
+            d2V_flat = d2V.reshape(n_states, -1)
 
         # Get discrete control samples for each control variable
         control_samples = [cv.get_values() for cv in self.problem.control_variables]
@@ -730,8 +828,15 @@ class HJBSolver:
             # Match drift and gradient dimensions
             n_dims = min(drift_flat.shape[1], grad_V_flat.shape[1])
 
-            # Full Hamiltonian: H = f(x,u) + drift(x,u) · ∇V(x)
+            # Full Hamiltonian: H = f(x,u) + drift(x,u)·∇V(x) + ½σ²(x,u)·∇²V(x)
             hamiltonian = cost + np.sum(drift_flat[:, :n_dims] * grad_V_flat[:, :n_dims], axis=1)
+
+            # Add diffusion term to Hamiltonian
+            if self.problem.diffusion is not None and d2V_flat is not None:
+                sigma_sq = self.problem.diffusion(state_points, control_broadcast, 0.0)
+                sigma_sq = np.asarray(sigma_sq).reshape(n_states, -1)
+                n_diff = min(sigma_sq.shape[1], d2V_flat.shape[1], n_dims)
+                hamiltonian += 0.5 * np.sum(sigma_sq[:, :n_diff] * d2V_flat[:, :n_diff], axis=1)
 
             # Update best control where this combo improves the Hamiltonian
             improved = hamiltonian > best_values

@@ -98,17 +98,29 @@ class TestBootstrapVaRCIWeighted:
     """Test bootstrap VaR CI with weighted losses."""
 
     def test_bootstrap_ci_with_weights(self):
-        """Bootstrap CI with importance weights (lines 162-174)."""
+        """Bootstrap CI with importance weights via var_with_ci."""
         np.random.seed(42)
         losses = np.random.normal(1000, 100, 200)
         weights = np.random.uniform(0.5, 1.5, 200)
         metrics = RiskMetrics(losses, weights, seed=42)
 
-        result = metrics.var(0.95, bootstrap_ci=True, n_bootstrap=50)
+        result = metrics.var_with_ci(0.95, n_bootstrap=50)
         assert isinstance(result, RiskMetricsResult)
         assert result.confidence_interval is not None
         assert result.confidence_interval[0] < result.value
         assert result.value < result.confidence_interval[1]
+
+    def test_deprecated_bootstrap_ci_with_weights(self):
+        """Deprecated bootstrap_ci=True with weights still works."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 200)
+        weights = np.random.uniform(0.5, 1.5, 200)
+        metrics = RiskMetrics(losses, weights, seed=42)
+
+        with pytest.warns(DeprecationWarning, match="bootstrap_ci.*deprecated"):
+            result = metrics.var(0.95, bootstrap_ci=True, n_bootstrap=50)
+        assert isinstance(result, RiskMetricsResult)
+        assert result.confidence_interval is not None
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +312,127 @@ class TestRiskAdjustedMetricsWeighted:
         result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=0.02)
         # Sortino should be inf when mean_return > risk_free_rate and no downside
         assert result["sortino_ratio"] == np.inf
+
+
+# ---------------------------------------------------------------------------
+# Issue #386: Sortino downside deviation formula fix
+# ---------------------------------------------------------------------------
+
+
+class TestSortinoDownsideDeviationFix:
+    """Verify correct Sortino downside deviation per Sortino & Price (1994).
+
+    DD = sqrt( (1/N) * sum_{i=1}^{N} min(r_i - target, 0)^2 )
+
+    The key correction: denominator uses ALL N observations, not just
+    the count below the target.
+    """
+
+    def test_acceptance_criteria_example(self):
+        """Issue #386 acceptance criterion 1: known hand-calculated result."""
+        # returns = [10%, 12%, -5%, 8%, -3%], target = 0%
+        returns = np.array([0.10, 0.12, -0.05, 0.08, -0.03])
+        target = 0.0
+        metrics = RiskMetrics(returns)
+
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=target)
+
+        # min(r_i - 0, 0)^2 = [0, 0, 0.0025, 0, 0.0009]
+        # mean = (0 + 0 + 0.0025 + 0 + 0.0009) / 5 = 0.00068
+        # DD = sqrt(0.00068) = 0.02607...
+        expected_dd = np.sqrt(0.00068)
+        mean_return = np.mean(returns)
+        expected_sortino = mean_return / expected_dd  # target is 0
+
+        assert result["sortino_ratio"] == pytest.approx(expected_sortino, rel=1e-6)
+
+    def test_both_locations_agree(self):
+        """Issue #386 acceptance criterion 2: both locations identical."""
+        data = np.array([0.10, 0.12, -0.05, 0.08, -0.03, 0.15, -0.02])
+        rf = 0.03
+
+        # Location 1: RiskMetrics.risk_adjusted_metrics
+        metrics = RiskMetrics(data)
+        loc1 = metrics.risk_adjusted_metrics(returns=data, risk_free_rate=rf)
+
+        # Location 2: ROEAnalyzer.performance_ratios
+        analyzer = ROEAnalyzer(data)
+        loc2 = analyzer.performance_ratios(risk_free_rate=rf)
+
+        assert loc1["sortino_ratio"] == pytest.approx(loc2["sortino_ratio"], rel=1e-6)
+
+    def test_sortino_increases_with_more_positive_returns(self):
+        """Issue #386 acceptance criterion 3: Sortino up when more positives."""
+        # Mostly negative
+        returns_bad = np.array([0.10, -0.05, -0.08, -0.03, -0.07])
+        # Mostly positive
+        returns_good = np.array([0.10, 0.05, 0.08, -0.03, 0.07])
+
+        metrics_bad = RiskMetrics(returns_bad)
+        metrics_good = RiskMetrics(returns_good)
+
+        sortino_bad = metrics_bad.risk_adjusted_metrics(returns=returns_bad, risk_free_rate=0.0)[
+            "sortino_ratio"
+        ]
+        sortino_good = metrics_good.risk_adjusted_metrics(returns=returns_good, risk_free_rate=0.0)[
+            "sortino_ratio"
+        ]
+
+        assert sortino_good > sortino_bad
+
+    def test_downside_deviation_uses_all_observations(self):
+        """Core fix: DD denominator is N, not count of below-target."""
+        # 9 returns above target, 1 below by -0.10
+        returns = np.array([0.05] * 9 + [-0.10])
+        target = 0.0
+        metrics = RiskMetrics(returns)
+
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=target)
+
+        # Correct: DD = sqrt(0.01 / 10) = sqrt(0.001) = 0.03162
+        # Wrong (old code): DD = sqrt(var([-0.10])) = 0  or std([-0.10]) = 0
+        expected_dd = np.sqrt(0.01 / 10)
+        mean_return = np.mean(returns)
+        expected_sortino = mean_return / expected_dd
+
+        assert result["sortino_ratio"] == pytest.approx(expected_sortino, rel=1e-6)
+
+    def test_weighted_sortino_correct_formula(self):
+        """Weighted Sortino uses weighted average of min(r-target,0)^2."""
+        returns = np.array([0.10, -0.05, 0.08, -0.03])
+        weights = np.array([1.0, 2.0, 1.0, 2.0])
+        target = 0.0
+
+        metrics = RiskMetrics(returns, weights)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=target)
+
+        # min(r_i - 0, 0)^2 = [0, 0.0025, 0, 0.0009]
+        # weighted avg = (1*0 + 2*0.0025 + 1*0 + 2*0.0009) / (1+2+1+2)
+        #              = (0.005 + 0.0018) / 6 = 0.00113333...
+        expected_dd = np.sqrt(np.average(np.minimum(returns - target, 0) ** 2, weights=weights))
+        mean_return = np.average(returns, weights=weights)
+        expected_sortino = mean_return / expected_dd
+
+        assert result["sortino_ratio"] == pytest.approx(expected_sortino, rel=1e-6)
+
+    def test_all_returns_equal_target(self):
+        """When all returns equal target, DD=0, Sortino=0."""
+        returns = np.array([0.02, 0.02, 0.02])
+        metrics = RiskMetrics(returns)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=0.02)
+        assert result["sortino_ratio"] == 0
+
+    def test_roe_analyzer_downside_deviation_uses_all_n(self):
+        """ROEAnalyzer.volatility_metrics uses all N in denominator."""
+        # 9 values above mean, 1 below
+        roe = np.array([0.12] * 9 + [0.02])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        mean_roe = np.mean(roe)
+        expected_dd = np.sqrt(np.mean(np.minimum(roe - mean_roe, 0) ** 2))
+
+        assert vol["downside_deviation"] == pytest.approx(expected_dd, rel=1e-6)
 
 
 # ---------------------------------------------------------------------------

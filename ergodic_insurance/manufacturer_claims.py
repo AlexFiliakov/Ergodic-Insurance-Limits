@@ -8,7 +8,8 @@ claim processing, payments, recovery, and accrual methods.
 
 from decimal import Decimal
 import logging
-from typing import TYPE_CHECKING, Dict, Optional, Union
+import random
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 try:
     from ergodic_insurance.claim_development import ClaimDevelopment
@@ -114,6 +115,8 @@ class ClaimProcessingMixin:
         """Reset period insurance cost tracking for new period."""
         self.period_insurance_premiums = ZERO
         self.period_insurance_losses = ZERO
+        self.period_adverse_development = ZERO
+        self.period_favorable_development = ZERO
 
     @property
     def total_claim_liabilities(self) -> Decimal:
@@ -288,21 +291,19 @@ class ClaimProcessingMixin:
                     description="Cash to restricted for insurance claim collateral",
                 )
 
-                year_incurred = (
-                    self.current_year - 1 if self.current_year > 0 else self.current_year
-                )
                 claim_liability = ClaimLiability(
                     original_amount=max_payable,
                     remaining_amount=max_payable,
-                    year_incurred=year_incurred,
+                    year_incurred=self.current_year,
                     is_insured=True,
                 )
+                self._apply_reserve_noise(claim_liability)
                 self.claim_liabilities.append(claim_liability)
                 self.ledger.record_double_entry(
                     date=self.current_year,
                     debit_account=AccountName.INSURANCE_LOSS,
                     credit_account=AccountName.CLAIM_LIABILITIES,
-                    amount=max_payable,
+                    amount=claim_liability.original_amount,
                     transaction_type=TransactionType.INSURANCE_CLAIM,
                     description="Recognize insured claim liability (company portion)",
                 )
@@ -324,21 +325,19 @@ class ClaimProcessingMixin:
                 )
 
                 if max_liability > ZERO:
-                    year_incurred = (
-                        self.current_year - 1 if self.current_year > 0 else self.current_year
-                    )
                     unpayable_claim = ClaimLiability(
                         original_amount=max_liability,
                         remaining_amount=max_liability,
-                        year_incurred=year_incurred,
+                        year_incurred=self.current_year,
                         is_insured=False,
                     )
+                    self._apply_reserve_noise(unpayable_claim)
                     self.claim_liabilities.append(unpayable_claim)
                     self.ledger.record_double_entry(
                         date=self.current_year,
                         debit_account=AccountName.INSURANCE_LOSS,
                         credit_account=AccountName.CLAIM_LIABILITIES,
-                        amount=max_liability,
+                        amount=unpayable_claim.original_amount,
                         transaction_type=TransactionType.INSURANCE_CLAIM,
                         description="Recognize unpayable claim liability",
                     )
@@ -437,18 +436,19 @@ class ClaimProcessingMixin:
                         year_incurred=self.current_year,
                         is_insured=False,
                     )
+                    self._apply_reserve_noise(claim_liability)
                     self.claim_liabilities.append(claim_liability)
                     self.ledger.record_double_entry(
                         date=self.current_year,
                         debit_account=AccountName.INSURANCE_LOSS,
                         credit_account=AccountName.CLAIM_LIABILITIES,
-                        amount=max_liability,
+                        amount=claim_liability.original_amount,
                         transaction_type=TransactionType.INSURANCE_CLAIM,
                         description="Recognize uninsured claim liability (shortfall)",
                     )
                     logger.info(
                         f"LIMITED LIABILITY: Immediate payment ${actual_payment:,.2f}, "
-                        f"created liability for ${max_liability:,.2f} (total claim: ${claim:,.2f})"
+                        f"created liability for ${claim_liability.original_amount:,.2f} (total claim: ${claim:,.2f})"
                     )
 
                 truly_unpayable = shortfall - max_liability
@@ -472,24 +472,24 @@ class ClaimProcessingMixin:
         )
 
         if deferred_max_liability > ZERO:
-            year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
             claim_liability = ClaimLiability(
                 original_amount=deferred_max_liability,
                 remaining_amount=deferred_max_liability,
-                year_incurred=year_incurred,
+                year_incurred=self.current_year,
                 is_insured=False,
             )
+            self._apply_reserve_noise(claim_liability)
             self.claim_liabilities.append(claim_liability)
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.CLAIM_LIABILITIES,
-                amount=deferred_max_liability,
+                amount=claim_liability.original_amount,
                 transaction_type=TransactionType.INSURANCE_CLAIM,
                 description="Recognize uninsured deferred claim liability",
             )
             logger.info(
-                f"Created uninsured claim liability: ${deferred_max_liability:,.2f} (no collateral required)"
+                f"Created uninsured claim liability: ${claim_liability.original_amount:,.2f} (no collateral required)"
             )
 
         unpayable = claim - deferred_max_liability
@@ -654,8 +654,6 @@ class ClaimProcessingMixin:
             development_pattern: Optional ClaimDevelopment strategy for payment timing.
         """
         amount = to_decimal(claim_amount)
-        year_incurred = self.current_year - 1 if self.current_year > 0 else self.current_year
-
         if development_pattern is not None:
             if isinstance(development_pattern, list):
                 development_pattern = ClaimDevelopment(
@@ -665,7 +663,7 @@ class ClaimProcessingMixin:
             new_claim = ClaimLiability(
                 original_amount=amount,
                 remaining_amount=amount,
-                year_incurred=year_incurred,
+                year_incurred=self.current_year,
                 is_insured=False,
                 development_strategy=development_pattern,
             )
@@ -673,9 +671,10 @@ class ClaimProcessingMixin:
             new_claim = ClaimLiability(
                 original_amount=amount,
                 remaining_amount=amount,
-                year_incurred=year_incurred,
+                year_incurred=self.current_year,
                 is_insured=False,
             )
+        self._apply_reserve_noise(new_claim)
         self.claim_liabilities.append(new_claim)
 
         pattern_name = (
@@ -687,3 +686,99 @@ class ClaimProcessingMixin:
             f"Created claim liability via record_claim_accrual: ${amount:,.2f} "
             f"with pattern {pattern_name}"
         )
+
+    def _apply_reserve_noise(self, claim: ClaimLiability) -> None:
+        """Apply initial estimation noise to a claim when reserve development is enabled.
+
+        Stores the true ultimate amount and replaces original/remaining with
+        a noisy estimate. No-op if reserve development is disabled.
+
+        Args:
+            claim: The ClaimLiability to apply noise to (modified in place).
+        """
+        if not getattr(self, "_enable_reserve_development", False):
+            return
+        rng = getattr(self, "_reserve_rng", None)
+        if rng is None:
+            return
+        noise_std = getattr(self.config, "reserve_noise_std", 0.20)
+        true_amount = claim.original_amount
+        claim.true_ultimate = true_amount
+        claim._noise_std = noise_std
+        noise_factor = 1.0 + rng.gauss(0.0, noise_std)
+        noisy_estimate = to_decimal(max(float(true_amount) * noise_factor, 0.0))
+        claim.original_amount = noisy_estimate
+        claim.remaining_amount = noisy_estimate
+
+    def re_estimate_reserves(self) -> None:
+        """Re-estimate all outstanding claim reserves per ASC 944-40-25.
+
+        Iterates over claim liabilities, skips current-year claims, and
+        applies stochastic re-estimation. Tracks adverse and favorable
+        development separately and records ledger entries.
+        """
+        if not getattr(self, "_enable_reserve_development", False):
+            return
+        rng = getattr(self, "_reserve_rng", None)
+        if rng is None:
+            return
+
+        for claim in self.claim_liabilities:
+            # Skip current-year claims (not yet re-estimated)
+            if claim.year_incurred >= self.current_year:
+                continue
+            change = claim.re_estimate(self.current_year, rng)
+            if change > ZERO:
+                # Adverse development: reserve increased
+                self.period_adverse_development += change
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.RESERVE_DEVELOPMENT,
+                    credit_account=AccountName.CLAIM_LIABILITIES,
+                    amount=change,
+                    transaction_type=TransactionType.RESERVE_DEVELOPMENT,
+                    description="Adverse reserve development",
+                    month=self.current_month,
+                )
+            elif change < ZERO:
+                # Favorable development: reserve decreased
+                favorable = abs(change)
+                self.period_favorable_development += favorable
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CLAIM_LIABILITIES,
+                    credit_account=AccountName.RESERVE_DEVELOPMENT,
+                    amount=favorable,
+                    transaction_type=TransactionType.RESERVE_DEVELOPMENT,
+                    description="Favorable reserve development",
+                    month=self.current_month,
+                )
+
+    def get_reserve_reconciliation(self) -> Dict[str, Union[Decimal, int]]:
+        """Generate a reserve reconciliation report.
+
+        Returns:
+            Dict with total_booked_reserves, total_true_residual,
+            total_redundancy, total_deficiency, and claim_count.
+        """
+        total_booked = ZERO
+        total_true_residual = ZERO
+        count = 0
+        for claim in self.claim_liabilities:
+            total_booked += claim.remaining_amount
+            if claim.true_ultimate is not None:
+                true_residual = max(claim.true_ultimate - claim._total_paid, ZERO)
+                total_true_residual += true_residual
+            else:
+                total_true_residual += claim.remaining_amount
+            count += 1
+
+        redundancy = max(total_booked - total_true_residual, ZERO)
+        deficiency = max(total_true_residual - total_booked, ZERO)
+        return {
+            "total_booked_reserves": total_booked,
+            "total_true_residual": total_true_residual,
+            "total_redundancy": redundancy,
+            "total_deficiency": deficiency,
+            "claim_count": count,
+        }

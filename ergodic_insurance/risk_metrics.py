@@ -6,7 +6,8 @@ decisions.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -80,13 +81,33 @@ class RiskMetrics:
             else:
                 self._sorted_weights = None
 
+    @overload
+    def var(
+        self,
+        confidence: float = ...,
+        method: str = ...,
+        *,
+        bootstrap_ci: Literal[False] = ...,
+        n_bootstrap: int = ...,
+    ) -> float: ...
+
+    @overload
+    def var(
+        self,
+        confidence: float = ...,
+        method: str = ...,
+        *,
+        bootstrap_ci: Literal[True],
+        n_bootstrap: int = ...,
+    ) -> "RiskMetricsResult": ...
+
     def var(
         self,
         confidence: float = 0.99,
         method: str = "empirical",
         bootstrap_ci: bool = False,
         n_bootstrap: int = 1000,
-    ) -> Union[float, RiskMetricsResult]:
+    ) -> Union[float, "RiskMetricsResult"]:
         """Calculate Value at Risk (VaR).
 
         VaR represents the loss amount that will not be exceeded with
@@ -95,11 +116,14 @@ class RiskMetrics:
         Args:
             confidence: Confidence level (e.g., 0.99 for 99% VaR).
             method: 'empirical' or 'parametric' (assumes normal distribution).
-            bootstrap_ci: Whether to calculate bootstrap confidence intervals.
-            n_bootstrap: Number of bootstrap samples for CI calculation.
+            bootstrap_ci: Deprecated. Use ``var_with_ci()`` instead.
+                When True, delegates to ``var_with_ci()`` and returns a
+                ``RiskMetricsResult``.  Will be removed in a future release.
+            n_bootstrap: Deprecated. Use ``var_with_ci(n_bootstrap=...)`` instead.
 
         Returns:
-            VaR value or RiskMetricsResult with confidence intervals.
+            VaR value as a float.  (When the deprecated *bootstrap_ci* flag is
+            True, returns ``RiskMetricsResult`` for backward compatibility.)
 
         Raises:
             ValueError: If confidence level is not in (0, 1).
@@ -115,16 +139,56 @@ class RiskMetrics:
             raise ValueError(f"Method must be 'empirical' or 'parametric', got {method}")
 
         if bootstrap_ci:
-            ci = self._bootstrap_var_ci(confidence, n_bootstrap)
-            return RiskMetricsResult(
-                metric_name="VaR",
-                value=var_value,
-                confidence_level=confidence,
-                confidence_interval=ci,
-                metadata={"method": method},
+            warnings.warn(
+                "The 'bootstrap_ci' parameter is deprecated. " "Use var_with_ci() instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self.var_with_ci(
+                confidence=confidence,
+                method=method,
+                n_bootstrap=n_bootstrap,
             )
 
         return var_value
+
+    def var_with_ci(
+        self,
+        confidence: float = 0.99,
+        method: str = "empirical",
+        n_bootstrap: int = 1000,
+    ) -> "RiskMetricsResult":
+        """Calculate Value at Risk (VaR) with bootstrap confidence intervals.
+
+        Args:
+            confidence: Confidence level (e.g., 0.99 for 99% VaR).
+            method: 'empirical' or 'parametric' (assumes normal distribution).
+            n_bootstrap: Number of bootstrap samples for CI calculation.
+
+        Returns:
+            RiskMetricsResult containing the VaR value and confidence interval.
+
+        Raises:
+            ValueError: If confidence level is not in (0, 1).
+        """
+        if not 0 < confidence < 1:
+            raise ValueError(f"Confidence must be in (0, 1), got {confidence}")
+
+        if method == "empirical":
+            var_value = self._empirical_var(confidence)
+        elif method == "parametric":
+            var_value = self._parametric_var(confidence)
+        else:
+            raise ValueError(f"Method must be 'empirical' or 'parametric', got {method}")
+
+        ci = self._bootstrap_var_ci(confidence, n_bootstrap)
+        return RiskMetricsResult(
+            metric_name="VaR",
+            value=var_value,
+            confidence_level=confidence,
+            confidence_interval=ci,
+            metadata={"method": method},
+        )
 
     def _empirical_var(self, confidence: float) -> float:
         """Calculate empirical VaR using percentiles."""
@@ -175,6 +239,38 @@ class RiskMetrics:
         result = np.percentile(var_bootstrap, [2.5, 97.5])
         return (float(result[0]), float(result[1]))
 
+    def _bootstrap_tvar_ci(self, confidence: float, n_bootstrap: int) -> Tuple[float, float]:
+        """Calculate bootstrap confidence interval for TVaR."""
+        n = len(self.losses)
+        tvar_bootstrap = []
+
+        for _ in range(n_bootstrap):
+            idx = self.rng.choice(n, size=n, replace=True)
+            sample = self.losses[idx]
+            if self.weights is None:
+                var_val = float(np.percentile(sample, confidence * 100))
+                tail = sample[sample >= var_val]
+                tvar_bootstrap.append(float(np.mean(tail)) if len(tail) > 0 else var_val)
+            else:
+                weights = self.weights[idx]
+                sort_idx = np.argsort(sample)
+                sorted_sample = sample[sort_idx]
+                sorted_weights = weights[sort_idx]
+                cum_weights = np.cumsum(sorted_weights)
+                cum_weights /= cum_weights[-1]
+                idx_var = np.searchsorted(cum_weights, confidence)
+                if idx_var >= len(sorted_sample):
+                    idx_var = len(sorted_sample) - 1  # type: ignore
+                var_val = float(sorted_sample[idx_var])
+                mask = sample >= var_val
+                if np.any(mask):
+                    tvar_bootstrap.append(float(np.average(sample[mask], weights=weights[mask])))
+                else:
+                    tvar_bootstrap.append(var_val)
+
+        result = np.percentile(tvar_bootstrap, [2.5, 97.5])
+        return (float(result[0]), float(result[1]))
+
     def tvar(
         self,
         confidence: float = 0.99,
@@ -190,14 +286,10 @@ class RiskMetrics:
             var_value: Pre-calculated VaR value (if None, will calculate).
 
         Returns:
-            TVaR value.
+            TVaR value as a float.
         """
         if var_value is None:
-            var_result = self.var(confidence)
-            if isinstance(var_result, RiskMetricsResult):
-                var_value = var_result.value
-            else:
-                var_value = var_result
+            var_value = self.var(confidence)
 
         if self.weights is None:
             tail_losses = self.losses[self.losses >= var_value]
@@ -210,6 +302,29 @@ class RiskMetrics:
         tail_losses = self.losses[mask]
         tail_weights = self.weights[mask]
         return float(np.average(tail_losses, weights=tail_weights))
+
+    def tvar_with_ci(
+        self,
+        confidence: float = 0.99,
+        n_bootstrap: int = 1000,
+    ) -> "RiskMetricsResult":
+        """Calculate Tail Value at Risk (TVaR/CVaR) with bootstrap confidence intervals.
+
+        Args:
+            confidence: Confidence level for VaR threshold.
+            n_bootstrap: Number of bootstrap samples for CI calculation.
+
+        Returns:
+            RiskMetricsResult containing the TVaR value and confidence interval.
+        """
+        tvar_value = self.tvar(confidence)
+        ci = self._bootstrap_tvar_ci(confidence, n_bootstrap)
+        return RiskMetricsResult(
+            metric_name="TVaR",
+            value=tvar_value,
+            confidence_level=confidence,
+            confidence_interval=ci,
+        )
 
     def expected_shortfall(
         self,
@@ -258,10 +373,7 @@ class RiskMetrics:
 
         # PML corresponds to the (1 - 1/return_period) percentile
         confidence = 1 - 1 / return_period
-        var_result = self.var(confidence)
-        if isinstance(var_result, RiskMetricsResult):
-            return var_result.value
-        return var_result
+        return self.var(confidence)
 
     def conditional_tail_expectation(
         self,
@@ -329,16 +441,12 @@ class RiskMetrics:
         Returns:
             Economic capital requirement.
         """
-        var_value = self.var(confidence)
+        var_val = self.var(confidence)
 
         if expected_loss is None:
             expected_loss = np.average(self.losses, weights=self.weights)
 
         # Economic capital = VaR - Expected Loss
-        if isinstance(var_value, RiskMetricsResult):
-            var_val = var_value.value
-        else:
-            var_val = var_value
         return max(0, var_val - expected_loss)
 
     def return_period_curve(
@@ -417,19 +525,16 @@ class RiskMetrics:
         # Sharpe ratio
         sharpe = (mean_return - risk_free_rate) / std_return if std_return > 0 else 0
 
-        # Sortino ratio (downside deviation)
-        downside_returns = returns[returns < risk_free_rate]
-        if len(downside_returns) > 0:
-            if self.weights is None:
-                downside_std = np.std(downside_returns)
-            else:
-                downside_weights = self.weights[returns < risk_free_rate]
-                downside_mean = np.average(downside_returns, weights=downside_weights)
-                downside_var = np.average(
-                    (downside_returns - downside_mean) ** 2, weights=downside_weights
-                )
-                downside_std = np.sqrt(downside_var)
-            sortino = (mean_return - risk_free_rate) / downside_std if downside_std > 0 else 0
+        # Sortino ratio (downside deviation over all observations)
+        # DD = sqrt( (1/N) * sum( min(r_i - target, 0)^2 ) )
+        # Reference: Sortino & Price (1994)
+        downside_deviations = np.minimum(returns - risk_free_rate, 0)
+        if self.weights is None:
+            downside_std = np.sqrt(np.mean(downside_deviations**2))
+        else:
+            downside_std = np.sqrt(np.average(downside_deviations**2, weights=self.weights))
+        if downside_std > 0:
+            sortino = (mean_return - risk_free_rate) / downside_std
         else:
             sortino = np.inf if mean_return > risk_free_rate else 0
 
@@ -612,11 +717,7 @@ class RiskMetrics:
             metrics_text += f"  {period}-year: ${pml_val:,.0f}\n"
 
         var_99 = self.var(0.99)
-        if isinstance(var_99, RiskMetricsResult):
-            var_99_val = var_99.value
-        else:
-            var_99_val = var_99
-        es_99 = self.expected_shortfall(var_99_val)
+        es_99 = self.expected_shortfall(var_99)
         metrics_text += f"\nExpected Shortfall (99%): ${es_99:,.0f}\n"
 
         ec = self.economic_capital(0.999)
@@ -798,9 +899,9 @@ class ROEAnalyzer:
         mean_roe = np.mean(self.valid_roe)
         std_roe = np.std(self.valid_roe)
 
-        # Downside deviation (below mean)
-        below_mean = self.valid_roe[self.valid_roe < mean_roe]
-        downside_dev = np.std(below_mean) if len(below_mean) > 0 else 0.0
+        # Downside deviation (below mean, over all observations)
+        downside_deviations = np.minimum(self.valid_roe - mean_roe, 0)
+        downside_dev = np.sqrt(np.mean(downside_deviations**2))
 
         # Upside deviation (above mean)
         above_mean = self.valid_roe[self.valid_roe > mean_roe]
@@ -851,9 +952,10 @@ class ROEAnalyzer:
         # Sharpe ratio
         sharpe = (mean_roe - risk_free_rate) / std_roe if std_roe > 0 else 0.0
 
-        # Sortino ratio (using downside deviation)
-        below_target = self.valid_roe[self.valid_roe < risk_free_rate] - risk_free_rate
-        downside_dev = np.sqrt(np.mean(below_target**2)) if len(below_target) > 0 else 0.0
+        # Sortino ratio (downside deviation over all observations)
+        # DD = sqrt( (1/N) * sum( min(r_i - target, 0)^2 ) )
+        downside_deviations = np.minimum(self.valid_roe - risk_free_rate, 0)
+        downside_dev = np.sqrt(np.mean(downside_deviations**2))
         sortino = (mean_roe - risk_free_rate) / downside_dev if downside_dev > 0 else 0.0
 
         # Calmar ratio (return over max drawdown)

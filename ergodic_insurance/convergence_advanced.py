@@ -134,11 +134,21 @@ class AdvancedConvergenceDiagnostics:
             if nperseg is None:
                 nperseg = min(n // 8, 256)
             frequencies, psd = signal.welch(
-                chain_centered, fs=1.0, nperseg=nperseg, scaling="density"
+                chain_centered,
+                fs=1.0,
+                nperseg=nperseg,
+                scaling="density",
+                detrend=False,  # chain is already centered; per-segment detrending
+                # suppresses PSD near f=0 for autocorrelated data
             )
         elif method == "periodogram":
             # Simple periodogram
-            frequencies, psd = signal.periodogram(chain_centered, fs=1.0, scaling="density")
+            frequencies, psd = signal.periodogram(
+                chain_centered,
+                fs=1.0,
+                scaling="density",
+                detrend=False,
+            )
         elif method == "multitaper":
             # Multitaper method (more robust but computationally intensive)
             # Using DPSS windows
@@ -148,12 +158,15 @@ class AdvancedConvergenceDiagnostics:
             raise ValueError(f"Unknown spectral method: {method}")
 
         # Calculate integrated autocorrelation time from spectral density
-        # tau = S(0) / (2 * sigma^2) where S(0) is spectral density at zero frequency
+        # tau = S(0) / sigma^2 where S(0) is the one-sided PSD at zero frequency.
+        # scipy.signal.welch returns the one-sided PSD by default, and the DC
+        # component (f=0) is NOT doubled, so PSD_one_sided(0) == S_two_sided(0).
+        # Therefore no factor of 2 is needed.  See Sokal (1997), Eq. 3.19.
         variance = np.var(chain, ddof=1)
         if len(psd) > 0 and variance > 0:
             # Extrapolate to zero frequency if needed
             s_zero = psd[0] if frequencies[0] == 0 else self._extrapolate_to_zero(frequencies, psd)
-            tau = s_zero / (2 * variance)
+            tau = s_zero / variance
         else:
             tau = 1.0
 
@@ -168,7 +181,10 @@ class AdvancedConvergenceDiagnostics:
         )
 
     def calculate_ess_batch_means(
-        self, chain: np.ndarray, batch_size: Optional[int] = None, n_batches: Optional[int] = None
+        self,
+        chain: np.ndarray,
+        batch_size: Optional[int] = None,
+        n_batches: Optional[int] = None,
     ) -> float:
         """Calculate ESS using batch means method.
 
@@ -484,12 +500,15 @@ class AdvancedConvergenceDiagnostics:
         """Find initial monotone sequence in ACF (Geyer, 1992)."""
         n = len(acf)
 
-        # Look at sums of consecutive pairs
+        # Look at sums of non-overlapping consecutive pairs
+        prev_pair_sum = None
         for i in range(1, n - 1, 2):
-            if acf[i] + acf[i + 1] < 0:
+            pair_sum = acf[i] + acf[i + 1]
+            if pair_sum < 0:
                 return i - 1
-            if i > 1 and acf[i - 1] + acf[i] < acf[i] + acf[i + 1]:
+            if prev_pair_sum is not None and prev_pair_sum < pair_sum:
                 return i - 1
+            prev_pair_sum = pair_sum
 
         return n - 1
 
@@ -509,12 +528,12 @@ class AdvancedConvergenceDiagnostics:
             if i + 1 < cutoff:
                 pair_sum = acf[i] + acf[i + 1]
                 if pair_sum > 0:
-                    tau += pair_sum
+                    tau += 2 * pair_sum
                 else:
                     break
             else:
                 if acf[i] > 0:
-                    tau += acf[i]
+                    tau += 2 * acf[i]
 
         return tau
 
@@ -533,7 +552,7 @@ class AdvancedConvergenceDiagnostics:
         psds = []
         for taper in tapers:
             windowed = data_signal * taper
-            freqs, psd = signal.periodogram(windowed, fs=1.0)
+            freqs, psd = signal.periodogram(windowed, fs=1.0, detrend=False)
             psds.append(psd)
 
         # Average PSDs weighted by concentration ratios

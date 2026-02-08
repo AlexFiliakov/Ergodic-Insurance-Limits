@@ -8,6 +8,9 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.hjb_solver import (
+    _DRIFT_THRESHOLD,
+    _GAMMA_TOLERANCE,
+    _MARGINAL_UTILITY_FLOOR,
     BoundaryCondition,
     ControlVariable,
     ExpectedWealth,
@@ -492,3 +495,35 @@ class TestHJBSolver:
 
             assert value_function is not None
             assert policy is not None
+
+
+class TestHJBSolverConfigExtensions:
+    """Test new HJBSolverConfig fields from Issue #517."""
+
+    def test_inner_iteration_defaults(self):
+        """Test default values for inner iteration fields."""
+        config = HJBSolverConfig()
+        assert config.inner_max_iterations == 100
+        assert config.inner_tolerance_factor == 0.1
+
+    def test_custom_inner_iterations(self):
+        """Test custom inner iteration values are stored."""
+        config = HJBSolverConfig(inner_max_iterations=200, inner_tolerance_factor=0.05)
+        assert config.inner_max_iterations == 200
+        assert config.inner_tolerance_factor == 0.05
+
+
+class TestModuleConstants:
+    """Test module-level named constants from Issue #517."""
+
+    def test_drift_threshold_exists(self):
+        """Verify _DRIFT_THRESHOLD constant exists and has expected value."""
+        assert _DRIFT_THRESHOLD == 1e-10
+
+    def test_marginal_utility_floor_exists(self):
+        """Verify _MARGINAL_UTILITY_FLOOR constant exists and has expected value."""
+        assert _MARGINAL_UTILITY_FLOOR == 1e-10
+
+    def test_gamma_tolerance_exists(self):
+        """Verify _GAMMA_TOLERANCE constant exists and has expected value."""
+        assert _GAMMA_TOLERANCE == 1e-10

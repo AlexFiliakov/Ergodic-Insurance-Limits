@@ -85,11 +85,17 @@ class IncomeCalculationMixin:
 
         base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
 
+        # Net reserve development: adverse increases expense, favorable decreases it
+        net_reserve_development = getattr(self, "period_adverse_development", ZERO) - getattr(
+            self, "period_favorable_development", ZERO
+        )
+
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
             - depreciation_decimal
+            - net_reserve_development
         )
 
         logger.debug(

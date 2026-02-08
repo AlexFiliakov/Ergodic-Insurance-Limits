@@ -524,3 +524,45 @@ class TestPerformance:
         # Should complete in reasonable time
         assert elapsed < 1.0, f"Projection took {elapsed:.3f}s"
         assert len(payments) == 11  # 2020-2030
+
+
+class TestCashFlowProjectorIBNRFactors:
+    """Test configurable IBNR factors from Issue #517."""
+
+    def test_default_ibnr_factors(self):
+        """Test that default IBNR factors match previously hardcoded values."""
+        projector = CashFlowProjector()
+        assert projector.ibnr_recent_factor == 1.2
+        assert projector.ibnr_late_factor == 1.05
+
+    def test_custom_ibnr_factors(self):
+        """Test that custom IBNR factors are used in estimation."""
+        projector = CashFlowProjector(
+            ibnr_recent_factor=1.5,
+            ibnr_late_factor=1.10,
+        )
+        assert projector.ibnr_recent_factor == 1.5
+        assert projector.ibnr_late_factor == 1.10
+
+        # Add a recent cohort to verify the custom factor is used
+        cohort = ClaimCohort(accident_year=2023)
+        claim = Claim("CL001", 2023, 2023, 1_000_000)
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+
+        ibnr = projector.estimate_ibnr(evaluation_year=2023, reporting_lag=3)
+        # With factor 1.5, IBNR = 1_000_000 * 1.5 - 1_000_000 = 500_000
+        assert ibnr == pytest.approx(500_000)
+
+    def test_default_ibnr_factor_value(self):
+        """Test that default factor gives the same result as the old hardcoded value."""
+        projector = CashFlowProjector()  # Default factors 1.2 / 1.05
+
+        cohort = ClaimCohort(accident_year=2023)
+        claim = Claim("CL001", 2023, 2023, 1_000_000)
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+
+        ibnr = projector.estimate_ibnr(evaluation_year=2023, reporting_lag=3)
+        # With default 1.2 factor: IBNR = 1_000_000 * 1.2 - 1_000_000 = 200_000
+        assert ibnr == pytest.approx(200_000)

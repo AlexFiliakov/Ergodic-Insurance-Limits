@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
 """Demo script showing stochastic processes in action."""
 
-from pathlib import Path
-import sys
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from src.config import ManufacturerConfig
-from src.manufacturer import WidgetManufacturer
-from src.stochastic_processes import (
+from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
+from ergodic_insurance.stochastic_processes import (
     LognormalVolatility,
     StochasticConfig,
     create_stochastic_process,

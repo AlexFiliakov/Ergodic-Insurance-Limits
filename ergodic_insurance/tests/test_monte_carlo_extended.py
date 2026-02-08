@@ -322,12 +322,12 @@ class TestMonteCarloExtended:
 
         # Test with zero initial assets (edge case)
         original_assets = engine.manufacturer.total_assets
-        engine.manufacturer.total_assets = 0
+        engine.manufacturer._write_off_all_assets("Zero assets for edge case test")
         growth_rates = engine._calculate_growth_rates(np.array([100_000, 200_000]))
         assert np.all(growth_rates == 0)  # Should return zeros for invalid calculation
 
         # Restore
-        engine.manufacturer.total_assets = original_assets
+        engine.manufacturer._record_cash_adjustment(original_assets, "Restore assets after test")
 
         # Test with negative final assets
         growth_rates = engine._calculate_growth_rates(np.array([-100_000, 0, 100_000]))

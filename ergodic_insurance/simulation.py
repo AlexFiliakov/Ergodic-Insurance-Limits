@@ -326,11 +326,9 @@ class SimulationResults:
         mean_roe = np.mean(valid_roe)
         std_roe = np.std(valid_roe, ddof=1)
 
-        # Downside deviation (only negative deviations from mean)
-        negative_deviations = valid_roe[valid_roe < mean_roe] - mean_roe
-        downside_dev = (
-            np.sqrt(np.mean(negative_deviations**2)) if len(negative_deviations) > 0 else 0.0
-        )
+        # Downside deviation (over all observations)
+        downside_deviations = np.minimum(valid_roe - mean_roe, 0)
+        downside_dev = np.sqrt(np.mean(downside_deviations**2))
 
         # Sharpe ratio equivalent for ROE
         risk_free_rate = DEFAULT_RISK_FREE_RATE
@@ -432,7 +430,7 @@ class Simulation:
             manufacturer = WidgetManufacturer(config)
 
             # Create insurance policy
-            policy = InsurancePolicy(
+            policy = InsurancePolicy.from_simple(
                 deductible=500_000,
                 limit=5_000_000,
                 premium_rate=0.02

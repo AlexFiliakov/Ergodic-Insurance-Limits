@@ -145,6 +145,7 @@ class AccountName(Enum):
     INTEREST_EXPENSE = "interest_expense"
     COLLATERAL_EXPENSE = "collateral_expense"
     WAGE_EXPENSE = "wage_expense"
+    RESERVE_DEVELOPMENT = "reserve_development"
 
 
 class EntryType(Enum):
@@ -180,6 +181,7 @@ class TransactionType(Enum):
     TAX_ACCRUAL = "tax_accrual"
     TAX_PAYMENT = "tax_payment"
     DTA_ADJUSTMENT = "dta_adjustment"  # Deferred tax asset recognition/reversal
+    RESERVE_DEVELOPMENT = "reserve_development"  # Reserve re-estimation per ASC 944-40-25
     DEPRECIATION = "depreciation"
     WORKING_CAPITAL = "working_capital"
 
@@ -322,6 +324,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.INTEREST_EXPENSE: AccountType.EXPENSE,
     AccountName.COLLATERAL_EXPENSE: AccountType.EXPENSE,
     AccountName.WAGE_EXPENSE: AccountType.EXPENSE,
+    AccountName.RESERVE_DEVELOPMENT: AccountType.EXPENSE,
 }
 
 # String-keyed version for backward compatibility and internal lookups

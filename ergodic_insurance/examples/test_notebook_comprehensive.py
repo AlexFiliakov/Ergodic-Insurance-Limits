@@ -1,20 +1,21 @@
 """Comprehensive test to verify notebook pricing consistency after fixes."""
 
-from pathlib import Path
-import sys
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from typing import Dict, Optional
 
 import numpy as np
 
-from ergodic_insurance.insurance import InsurancePolicy
-from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle, PricingParameters
-from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.simulation import Simulation, SimulationResults
+from ergodic_insurance import (
+    EnhancedInsuranceLayer,
+    InsurancePolicy,
+    InsurancePricer,
+    InsuranceProgram,
+    ManufacturingLossGenerator,
+    MarketCycle,
+    Simulation,
+    SimulationResults,
+    WidgetManufacturer,
+)
+from ergodic_insurance.insurance_pricing import PricingParameters
 
 print("=" * 80)
 print("COMPREHENSIVE NOTEBOOK PRICING VERIFICATION")
