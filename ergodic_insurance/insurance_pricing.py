@@ -105,6 +105,7 @@ class LayerPricing:
         market_premium: Final premium after market adjustments
         rate_on_line: Premium as percentage of limit
         confidence_interval: (lower, upper) bounds at confidence level
+        lae_loading: LAE component embedded in the expense ratio (Issue #468)
     """
 
     attachment_point: float
@@ -116,6 +117,7 @@ class LayerPricing:
     market_premium: float
     rate_on_line: float
     confidence_interval: Tuple[float, float]
+    lae_loading: float = 0.0
 
 
 class InsurancePricer:
@@ -380,6 +382,9 @@ class InsurancePricer:
         # Calculate rate on line
         rate_on_line = market_premium / limit if limit > 0 else 0.0
 
+        # LAE loading is the portion of expenses attributable to loss adjustment (Issue #468)
+        lae_loading = pure_premium * self.parameters.expense_ratio
+
         return LayerPricing(
             attachment_point=attachment_point,
             limit=limit,
@@ -390,6 +395,7 @@ class InsurancePricer:
             market_premium=market_premium,
             rate_on_line=rate_on_line,
             confidence_interval=stats["confidence_interval"],
+            lae_loading=lae_loading,
         )
 
     def price_insurance_program(
@@ -528,6 +534,9 @@ class InsurancePricer:
 
         results = {}
 
+        # LAE loading is the portion of expenses attributable to loss adjustment (Issue #468)
+        lae_loading = pure_premium * self.parameters.expense_ratio
+
         # Apply different market cycle adjustments to the same technical premium
         for cycle in MarketCycle:
             # Only the market adjustment changes
@@ -544,6 +553,7 @@ class InsurancePricer:
                 market_premium=market_premium,
                 rate_on_line=rate_on_line,
                 confidence_interval=stats["confidence_interval"],
+                lae_loading=lae_loading,
             )
 
         return results

@@ -38,6 +38,7 @@ class IncomeCalculationMixin:
         - self.stochastic_process: Optional[StochasticProcess]
         - self.period_insurance_premiums: Decimal
         - self.period_insurance_losses: Decimal
+        - self.period_insurance_lae: Decimal (Issue #468)
         - self.collateral: Decimal (property from BalanceSheetMixin)
         - self.equity: Decimal (property from BalanceSheetMixin)
         - self.accrual_manager: AccrualManager instance
@@ -92,17 +93,22 @@ class IncomeCalculationMixin:
             self, "period_favorable_development", ZERO
         )
 
+        # LAE tracked separately per ASC 944-40 (Issue #468)
+        period_lae: Decimal = getattr(self, "period_insurance_lae", ZERO)
+
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
+            - period_lae
             - net_reserve_development
         )
 
         logger.debug(
             f"Operating income: ${actual_operating_income:,.2f} "
             f"(base: ${base_operating_income:,.2f}, insurance: "
-            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f})"
+            f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f}, "
+            f"LAE: ${period_lae:,.2f})"
         )
         return actual_operating_income
 

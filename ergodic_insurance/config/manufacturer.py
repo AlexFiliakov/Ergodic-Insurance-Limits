@@ -326,6 +326,16 @@ class ManufacturerConfig(BaseModel):
         "(Damodaran sector data).",
     )
 
+    # Loss adjustment expense configuration (Issue #468, ASC 944-40)
+    lae_ratio: float = Field(
+        default=0.12,
+        ge=0.0,
+        le=1.0,
+        description="Combined ALAE + ULAE as a fraction of indemnity per ASC 944-40. "
+        "Applied at claim inception to each claim's company-retained portion. "
+        "Typical range: 0.08-0.15 for commercial lines.",
+    )
+
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):
         """Set default PPE ratio based on operating margin if not provided."""

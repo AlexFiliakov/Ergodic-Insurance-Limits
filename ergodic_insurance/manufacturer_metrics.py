@@ -105,8 +105,10 @@ class MetricsCalculationMixin:
         # Insurance expenses
         metrics["insurance_premiums"] = self.period_insurance_premiums
         metrics["insurance_losses"] = self.period_insurance_losses
+        period_lae: Decimal = getattr(self, "period_insurance_lae", ZERO)
+        metrics["insurance_lae"] = period_lae
         metrics["total_insurance_costs"] = (
-            self.period_insurance_premiums + self.period_insurance_losses
+            self.period_insurance_premiums + self.period_insurance_losses + period_lae
         )
 
         # Reserve development metrics (Issue #470)

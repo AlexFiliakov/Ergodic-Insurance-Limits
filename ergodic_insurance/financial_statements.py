@@ -911,6 +911,7 @@ class FinancialStatementGenerator:
             metrics["net_income"] = mfr_metrics.get("net_income", 0)
             metrics["insurance_premiums"] = mfr_metrics.get("insurance_premiums", 0)
             metrics["insurance_losses"] = mfr_metrics.get("insurance_losses", 0)
+            metrics["insurance_lae"] = mfr_metrics.get("insurance_lae", 0)
             metrics["total_insurance_costs"] = mfr_metrics.get("total_insurance_costs", 0)
             metrics["dividends_paid"] = mfr_metrics.get("dividends_paid", 0)
             # COGS breakdown (Issue #255)
@@ -948,6 +949,7 @@ class FinancialStatementGenerator:
             metrics["operating_income"] = metrics["revenue"] - cogs - operating_exp - wage_exp
             insurance_exp = self.ledger.get_period_change("insurance_expense", year)
             insurance_loss = self.ledger.get_period_change("insurance_loss", year)
+            lae_exp = self.ledger.get_period_change("lae_expense", year)
             tax_exp = self.ledger.get_period_change("tax_expense", year)
             interest_exp = self.ledger.get_period_change("interest_expense", year)
             collateral_exp = self.ledger.get_period_change("collateral_expense", year)
@@ -960,6 +962,7 @@ class FinancialStatementGenerator:
                 + metrics["depreciation_expense"]
                 + insurance_exp
                 + insurance_loss
+                + lae_exp
                 + tax_exp
                 + interest_exp
                 + collateral_exp
@@ -968,7 +971,8 @@ class FinancialStatementGenerator:
             metrics["net_income"] = total_revenue - total_expenses
             metrics["insurance_premiums"] = insurance_exp
             metrics["insurance_losses"] = insurance_loss
-            metrics["total_insurance_costs"] = insurance_exp + insurance_loss
+            metrics["insurance_lae"] = lae_exp
+            metrics["total_insurance_costs"] = insurance_exp + insurance_loss + lae_exp
             metrics["dividends_paid"] = self.ledger.get_period_change("dividends", year)
 
         # Solvency check
@@ -1494,6 +1498,13 @@ class FinancialStatementGenerator:
         if insurance_claims > 0:
             data.append(("  Insurance Claim Losses", insurance_claims, "", ""))
 
+        # Loss Adjustment Expenses per ASC 944-40 (Issue #468)
+        insurance_lae = to_decimal(metrics.get("insurance_lae", ZERO))
+        if monthly:
+            insurance_lae = insurance_lae / 12
+        if insurance_lae > 0:
+            data.append(("  Loss Adjustment Expenses (LAE)", insurance_lae, "", ""))
+
         # Net reserve development (Issue #475): adverse development increases expenses,
         # favorable development decreases them.  This aligns the GAAP presentation
         # with the manufacturer's operating income calculation.
@@ -1509,6 +1520,7 @@ class FinancialStatementGenerator:
             + admin_depreciation
             + insurance_premium
             + insurance_claims
+            + insurance_lae
             + net_reserve_dev
         )
         data.append(("  Total Operating Expenses", total_operating_expenses, "", "subtotal"))
