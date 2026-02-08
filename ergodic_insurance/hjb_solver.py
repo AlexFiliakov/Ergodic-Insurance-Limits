@@ -399,6 +399,9 @@ class HJBSolver:
         self.value_function: np.ndarray | None = None
         self.optimal_policy: dict[str, np.ndarray] | None = None
 
+        # Boundary values for Dirichlet BCs (captured from initial/terminal condition)
+        self._boundary_values: dict[int, dict[str, np.ndarray]] | None = None
+
         # Set up finite difference operators
         self._setup_operators()
 
@@ -451,22 +454,20 @@ class HJBSolver:
             diagonals[0, -1] = 0
             diagonals[1, -1] = 1
             diagonals[2, -1] = 0
-        elif boundary_type == BoundaryCondition.NEUMANN:
-            # Zero derivative at boundaries
+        elif boundary_type in (BoundaryCondition.NEUMANN, BoundaryCondition.REFLECTING):
+            # Zero first derivative at boundaries (ghost-node reflection)
             diagonals[1, 0] += diagonals[0, 0]
             diagonals[0, 0] = 0
             diagonals[1, -1] += diagonals[2, -1]
             diagonals[2, -1] = 0
         elif boundary_type == BoundaryCondition.ABSORBING:
-            # Absorbing boundaries: value is fixed at boundary
-            # First row: only main diagonal = 1
-            diagonals[1, 0] = 1
-            diagonals[2, 0] = 0  # No upper diagonal from first row
-            # Last row: only main diagonal = 1
-            # Note: For lower diagonal, element at index i goes to matrix[i+1, i]
-            # So to zero out matrix[n-1, n-2], we need diagonals[0, n-2]
-            diagonals[0, n - 2] = 0  # Zero out lower diagonal element going to last row
-            diagonals[1, n - 1] = 1  # Set main diagonal of last row to 1
+            # Absorbing: d²V/dx² = 0 at boundaries.
+            # Zero out boundary rows so diffusion contributes nothing there;
+            # actual value enforcement is done by _apply_boundary_conditions.
+            diagonals[1, 0] = 0
+            diagonals[2, 0] = 0
+            diagonals[0, n - 2] = 0
+            diagonals[1, n - 1] = 0
 
         matrix = sparse.diags(diagonals, offsets=[-1, 0, 1], shape=(n, n))
 
@@ -602,6 +603,24 @@ class HJBSolver:
             # Infinite horizon: initialize with zeros or heuristic
             self.value_function = np.zeros(self.problem.state_space.shape)
 
+        # Capture boundary values for Dirichlet enforcement
+        self._boundary_values = {}
+        ndim = self.problem.state_space.ndim
+        for dim in range(ndim):
+            sv = self.problem.state_space.state_variables[dim]
+            if (
+                sv.boundary_lower == BoundaryCondition.DIRICHLET
+                or sv.boundary_upper == BoundaryCondition.DIRICHLET
+            ):
+                lo_idx: List[Any] = [slice(None)] * ndim
+                hi_idx: List[Any] = [slice(None)] * ndim
+                lo_idx[dim] = 0
+                hi_idx[dim] = -1
+                self._boundary_values[dim] = {
+                    "lower": self.value_function[tuple(lo_idx)].copy(),
+                    "upper": self.value_function[tuple(hi_idx)].copy(),
+                }
+
         # Initialize policy with mid-range controls
         if self.optimal_policy is None:
             self.optimal_policy = {}
@@ -686,6 +705,71 @@ class HJBSolver:
 
         return diffusion
 
+    def _apply_boundary_conditions(self, value: np.ndarray) -> np.ndarray:
+        """Enforce boundary conditions on the value function.
+
+        Applies the prescribed boundary condition for each dimension:
+        - ABSORBING: linear extrapolation so d²V/dx² = 0 at boundary
+        - DIRICHLET: reset boundary to prescribed (initial/terminal) values
+        - NEUMANN / REFLECTING: copy adjacent interior value so dV/dx = 0
+
+        Args:
+            value: Value function on state grid.
+
+        Returns:
+            Value function with boundary conditions enforced.
+        """
+        ndim = self.problem.state_space.ndim
+        result = value.copy()
+
+        for dim in range(ndim):
+            sv = self.problem.state_space.state_variables[dim]
+
+            # --- lower boundary ---
+            lo: List[Any] = [slice(None)] * ndim
+            p1: List[Any] = [slice(None)] * ndim
+            p2: List[Any] = [slice(None)] * ndim
+            lo[dim] = 0
+            p1[dim] = 1
+            p2[dim] = 2
+
+            if sv.boundary_lower == BoundaryCondition.ABSORBING:
+                # V[0] = 2*V[1] - V[2]  →  d²V/dx² = 0
+                result[tuple(lo)] = 2.0 * result[tuple(p1)] - result[tuple(p2)]
+            elif sv.boundary_lower == BoundaryCondition.DIRICHLET:
+                # Reset to initial value (stored during initialization)
+                if self._boundary_values is not None and dim in self._boundary_values:
+                    result[tuple(lo)] = self._boundary_values[dim]["lower"]
+            elif sv.boundary_lower in (
+                BoundaryCondition.NEUMANN,
+                BoundaryCondition.REFLECTING,
+            ):
+                # dV/dx = 0  →  V[0] = V[1]
+                result[tuple(lo)] = result[tuple(p1)]
+
+            # --- upper boundary ---
+            hi: List[Any] = [slice(None)] * ndim
+            m1: List[Any] = [slice(None)] * ndim
+            m2: List[Any] = [slice(None)] * ndim
+            hi[dim] = -1
+            m1[dim] = -2
+            m2[dim] = -3
+
+            if sv.boundary_upper == BoundaryCondition.ABSORBING:
+                # V[-1] = 2*V[-2] - V[-3]  →  d²V/dx² = 0
+                result[tuple(hi)] = 2.0 * result[tuple(m1)] - result[tuple(m2)]
+            elif sv.boundary_upper == BoundaryCondition.DIRICHLET:
+                if self._boundary_values is not None and dim in self._boundary_values:
+                    result[tuple(hi)] = self._boundary_values[dim]["upper"]
+            elif sv.boundary_upper in (
+                BoundaryCondition.NEUMANN,
+                BoundaryCondition.REFLECTING,
+            ):
+                # dV/dx = 0  →  V[-1] = V[-2]
+                result[tuple(hi)] = result[tuple(m1)]
+
+        return result
+
     def _update_value_finite_horizon(self, old_v, cost, drift, dt, sigma_sq=None):
         """Update value function for finite horizon problems."""
         # Backward Euler scheme for parabolic PDE
@@ -759,7 +843,8 @@ class HJBSolver:
                     rhs += self._apply_diffusion_term(old_v, sigma_sq)
                 new_v = old_v + dt * rhs
 
-            # Apply boundary conditions (skip for now to preserve terminal condition)
+            # Enforce boundary conditions after each time step
+            new_v = self._apply_boundary_conditions(new_v)
 
             self.value_function = new_v
 
