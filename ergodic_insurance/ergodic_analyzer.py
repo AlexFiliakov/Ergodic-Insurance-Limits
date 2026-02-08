@@ -823,14 +823,14 @@ class ErgodicAnalyzer:
 
             if metric == "final_value":
                 results["mean"] = np.mean(valid_finals) if len(valid_finals) > 0 else 0.0
-                results["std"] = np.std(valid_finals) if len(valid_finals) > 0 else 0.0
+                results["std"] = np.std(valid_finals, ddof=1) if len(valid_finals) > 1 else 0.0
                 results["median"] = np.median(valid_finals) if len(valid_finals) > 0 else 0.0
             else:  # growth_rate
                 growth_rates = self._calculate_growth_rates(
                     valid_finals, valid_initials, valid_lengths
                 )
                 results["mean"] = np.mean(growth_rates) if len(growth_rates) > 0 else 0.0
-                results["std"] = np.std(growth_rates) if len(growth_rates) > 0 else 0.0
+                results["std"] = np.std(growth_rates, ddof=1) if len(growth_rates) > 1 else 0.0
                 results["median"] = np.median(growth_rates) if len(growth_rates) > 0 else 0.0
         else:  # full trajectory - not well-defined for different lengths
             results["mean_trajectory"] = None
@@ -863,16 +863,16 @@ class ErgodicAnalyzer:
 
             if metric == "final_value":
                 results["mean"] = np.mean(valid_finals) if len(valid_finals) > 0 else 0.0
-                results["std"] = np.std(valid_finals) if len(valid_finals) > 0 else 0.0
+                results["std"] = np.std(valid_finals, ddof=1) if len(valid_finals) > 1 else 0.0
                 results["median"] = np.median(valid_finals) if len(valid_finals) > 0 else 0.0
             else:  # growth_rate
                 growth_rates = np.log(valid_finals / valid_initials) / (n_time - 1)
                 results["mean"] = np.mean(growth_rates) if len(growth_rates) > 0 else 0.0
-                results["std"] = np.std(growth_rates) if len(growth_rates) > 0 else 0.0
+                results["std"] = np.std(growth_rates, ddof=1) if len(growth_rates) > 1 else 0.0
                 results["median"] = np.median(growth_rates) if len(growth_rates) > 0 else 0.0
         else:  # full trajectory
             results["mean_trajectory"] = np.mean(trajectories, axis=0)
-            results["std_trajectory"] = np.std(trajectories, axis=0)
+            results["std_trajectory"] = np.std(trajectories, axis=0, ddof=1)
 
         # Add survival statistics
         survived = np.sum(trajectories[:, -1] > 0)
@@ -1235,7 +1235,7 @@ class ErgodicAnalyzer:
         _rolling_means = np.convolve(values, np.ones(window_size) / window_size, mode="valid")
 
         # Standard error of the mean
-        se = np.std(values[-window_size:]) / np.sqrt(window_size)
+        se = np.std(values[-window_size:], ddof=1) / np.sqrt(window_size)
 
         # Check if SE is below threshold
         converged = bool(se < self.convergence_threshold)
@@ -1485,7 +1485,9 @@ class ErgodicAnalyzer:
                     np.median(insured_time_avg_valid) if insured_time_avg_valid else -np.inf
                 ),
                 "time_average_std": (
-                    np.std(insured_time_avg_valid) if insured_time_avg_valid else 0.0
+                    np.std(insured_time_avg_valid, ddof=1)
+                    if len(insured_time_avg_valid) > 1
+                    else 0.0
                 ),
                 "ensemble_average": insured_ensemble["mean"],
                 "survival_rate": insured_ensemble["survival_rate"],
@@ -1499,7 +1501,9 @@ class ErgodicAnalyzer:
                     np.median(uninsured_time_avg_valid) if uninsured_time_avg_valid else -np.inf
                 ),
                 "time_average_std": (
-                    np.std(uninsured_time_avg_valid) if uninsured_time_avg_valid else 0.0
+                    np.std(uninsured_time_avg_valid, ddof=1)
+                    if len(uninsured_time_avg_valid) > 1
+                    else 0.0
                 ),
                 "ensemble_average": uninsured_ensemble["mean"],
                 "survival_rate": uninsured_ensemble["survival_rate"],
@@ -1926,7 +1930,7 @@ class ErgodicAnalyzer:
             "time_average": {
                 "mean": np.mean(valid_growth) if valid_growth else -np.inf,
                 "median": np.median(valid_growth) if valid_growth else -np.inf,
-                "std": np.std(valid_growth) if valid_growth else 0.0,
+                "std": np.std(valid_growth, ddof=1) if len(valid_growth) > 1 else 0.0,
                 "min": np.min(valid_growth) if valid_growth else -np.inf,
                 "max": np.max(valid_growth) if valid_growth else -np.inf,
             },
