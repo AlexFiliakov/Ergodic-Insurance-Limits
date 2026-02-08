@@ -98,17 +98,29 @@ class TestBootstrapVaRCIWeighted:
     """Test bootstrap VaR CI with weighted losses."""
 
     def test_bootstrap_ci_with_weights(self):
-        """Bootstrap CI with importance weights (lines 162-174)."""
+        """Bootstrap CI with importance weights via var_with_ci."""
         np.random.seed(42)
         losses = np.random.normal(1000, 100, 200)
         weights = np.random.uniform(0.5, 1.5, 200)
         metrics = RiskMetrics(losses, weights, seed=42)
 
-        result = metrics.var(0.95, bootstrap_ci=True, n_bootstrap=50)
+        result = metrics.var_with_ci(0.95, n_bootstrap=50)
         assert isinstance(result, RiskMetricsResult)
         assert result.confidence_interval is not None
         assert result.confidence_interval[0] < result.value
         assert result.value < result.confidence_interval[1]
+
+    def test_deprecated_bootstrap_ci_with_weights(self):
+        """Deprecated bootstrap_ci=True with weights still works."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 200)
+        weights = np.random.uniform(0.5, 1.5, 200)
+        metrics = RiskMetrics(losses, weights, seed=42)
+
+        with pytest.warns(DeprecationWarning, match="bootstrap_ci.*deprecated"):
+            result = metrics.var(0.95, bootstrap_ci=True, n_bootstrap=50)
+        assert isinstance(result, RiskMetricsResult)
+        assert result.confidence_interval is not None
 
 
 # ---------------------------------------------------------------------------
