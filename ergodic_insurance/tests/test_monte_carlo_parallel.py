@@ -524,6 +524,7 @@ class TestCombinedChunkResults:
         insurance_program = Mock(spec=InsuranceProgram)
         manufacturer = Mock(spec=WidgetManufacturer)
         manufacturer.total_assets = 10_000_000
+        manufacturer.equity = 6_000_000
 
         config = SimulationConfig(n_simulations=100, n_years=5)
         engine = MonteCarloEngine(loss_generator, insurance_program, manufacturer, config)
@@ -531,6 +532,7 @@ class TestCombinedChunkResults:
         # Create multiple chunk results
         chunk1 = {
             "final_assets": np.array([10_000_000, 11_000_000]),
+            "final_equity": np.array([6_000_000, 7_000_000]),
             "annual_losses": np.ones((2, 5)) * 100_000,
             "insurance_recoveries": np.ones((2, 5)) * 50_000,
             "retained_losses": np.ones((2, 5)) * 50_000,
@@ -538,6 +540,7 @@ class TestCombinedChunkResults:
 
         chunk2 = {
             "final_assets": np.array([9_000_000, 12_000_000]),
+            "final_equity": np.array([5_000_000, 8_000_000]),
             "annual_losses": np.ones((2, 5)) * 150_000,
             "insurance_recoveries": np.ones((2, 5)) * 75_000,
             "retained_losses": np.ones((2, 5)) * 75_000,
@@ -545,6 +548,7 @@ class TestCombinedChunkResults:
 
         chunk3 = {
             "final_assets": np.array([8_000_000]),
+            "final_equity": np.array([4_000_000]),
             "annual_losses": np.ones((1, 5)) * 200_000,
             "insurance_recoveries": np.ones((1, 5)) * 100_000,
             "retained_losses": np.ones((1, 5)) * 100_000,

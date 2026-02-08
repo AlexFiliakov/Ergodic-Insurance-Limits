@@ -47,6 +47,7 @@ def run_chunk_standalone(
 
     # Pre-allocate arrays
     final_assets = np.zeros(n_sims, dtype=dtype)
+    final_equity = np.zeros(n_sims, dtype=dtype)
     annual_losses = np.zeros((n_sims, n_years), dtype=dtype)
     insurance_recoveries = np.zeros((n_sims, n_years), dtype=dtype)
     retained_losses = np.zeros((n_sims, n_years), dtype=dtype)
@@ -175,6 +176,7 @@ def run_chunk_standalone(
                 break
 
         final_assets[i] = float(sim_manufacturer.total_assets)
+        final_equity[i] = float(sim_manufacturer.equity)
         annual_losses[i] = sim_annual_losses
         insurance_recoveries[i] = sim_insurance_recoveries
         retained_losses[i] = sim_retained_losses
@@ -185,6 +187,7 @@ def run_chunk_standalone(
 
     result: Dict[str, Union[np.ndarray, List[Dict[int, bool]]]] = {
         "final_assets": final_assets,
+        "final_equity": final_equity,
         "annual_losses": annual_losses,
         "insurance_recoveries": insurance_recoveries,
         "retained_losses": retained_losses,
