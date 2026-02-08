@@ -122,6 +122,7 @@ class AccountName(Enum):
     ACCRUED_TAXES = "accrued_taxes"
     ACCRUED_INTEREST = "accrued_interest"
     CLAIM_LIABILITIES = "claim_liabilities"
+    DEFERRED_TAX_LIABILITY = "deferred_tax_liability"  # DTL from depreciation timing per ASC 740
     UNEARNED_REVENUE = "unearned_revenue"
 
     # Equity (credit normal balance)
@@ -181,6 +182,7 @@ class TransactionType(Enum):
     TAX_ACCRUAL = "tax_accrual"
     TAX_PAYMENT = "tax_payment"
     DTA_ADJUSTMENT = "dta_adjustment"  # Deferred tax asset recognition/reversal
+    DTL_ADJUSTMENT = "dtl_adjustment"  # Deferred tax liability recognition/reversal
     RESERVE_DEVELOPMENT = "reserve_development"  # Reserve re-estimation per ASC 944-40-25
     DEPRECIATION = "depreciation"
     WORKING_CAPITAL = "working_capital"
@@ -304,6 +306,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.ACCRUED_TAXES: AccountType.LIABILITY,
     AccountName.ACCRUED_INTEREST: AccountType.LIABILITY,
     AccountName.CLAIM_LIABILITIES: AccountType.LIABILITY,
+    AccountName.DEFERRED_TAX_LIABILITY: AccountType.LIABILITY,
     AccountName.UNEARNED_REVENUE: AccountType.LIABILITY,
     # Equity (credit normal balance)
     AccountName.RETAINED_EARNINGS: AccountType.EQUITY,

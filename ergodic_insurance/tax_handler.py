@@ -117,6 +117,7 @@ class TaxHandler:
     accrual_manager: "AccrualManager"
     nol_carryforward: Decimal = field(default_factory=lambda: Decimal("0"))
     nol_limitation_pct: float = 0.80
+    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: Decimal("0"))
 
     @property
     def deferred_tax_asset(self) -> Decimal:
