@@ -58,6 +58,11 @@ class IncomeCalculationMixin:
             float: Annual revenue in dollars. Always non-negative.
         """
         available_assets = max(ZERO, self.total_assets)
+        # Add back valuation allowance — it's a non-cash accounting adjustment
+        # that reduces net DTA on the balance sheet but doesn't affect the
+        # company's productive (revenue-generating) capacity (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        available_assets = available_assets + va
         revenue = available_assets * to_decimal(self.asset_turnover_ratio)
 
         if apply_stochastic and self.stochastic_process is not None:

@@ -58,7 +58,10 @@ class MetricsCalculationMixin:
         metrics["collateral"] = self.collateral
         metrics["restricted_assets"] = self.restricted_assets
         metrics["available_assets"] = self.available_assets
-        metrics["equity"] = self.equity
+        # Report operational equity — excludes valuation allowance since it's
+        # a non-cash accounting adjustment that doesn't affect going concern (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        metrics["equity"] = self.equity + va
         metrics["net_assets"] = self.net_assets
         metrics["claim_liabilities"] = self.total_claim_liabilities
         metrics["is_solvent"] = not self.is_ruined
