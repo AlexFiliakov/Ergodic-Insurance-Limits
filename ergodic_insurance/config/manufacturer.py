@@ -301,6 +301,18 @@ class ManufacturerConfig(BaseModel):
         "Noise shrinks proportionally to claim maturity.",
     )
 
+    # Accelerated tax depreciation configuration (Issue #367, ASC 740)
+    tax_depreciation_life_years: Optional[float] = Field(
+        default=None,
+        gt=0,
+        le=50,
+        description="Useful life for tax depreciation (MACRS proxy). "
+        "When shorter than ppe_useful_life_years in DepreciationConfig, "
+        "creates a deferred tax liability from the book-tax timing difference. "
+        "None = same as book useful life (no DTL). "
+        "Typical: 5-7 years for equipment under MACRS.",
+    )
+
     # Capital expenditure configuration (Issue #543)
     capex_to_depreciation_ratio: float = Field(
         default=1.0,

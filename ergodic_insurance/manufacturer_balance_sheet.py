@@ -142,6 +142,15 @@ class BalanceSheetMixin:
         return self.ledger.get_balance(AccountName.DEFERRED_TAX_ASSET)
 
     @property
+    def deferred_tax_liability(self) -> Decimal:
+        """Deferred tax liability from depreciation timing differences per ASC 740 (Issue #367).
+
+        Returns:
+            Current deferred tax liability balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.DEFERRED_TAX_LIABILITY)
+
+    @property
     def total_assets(self) -> Decimal:
         """Calculate total assets from all asset components.
 
@@ -199,7 +208,7 @@ class BalanceSheetMixin:
             (liability.remaining_amount for liability in self.claim_liabilities), ZERO
         )
 
-        return current_liabilities + claim_liability_total
+        return current_liabilities + claim_liability_total + self.deferred_tax_liability
 
     @property
     def equity(self) -> Decimal:

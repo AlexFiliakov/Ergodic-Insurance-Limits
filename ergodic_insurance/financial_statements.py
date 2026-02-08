@@ -267,14 +267,24 @@ class CashFlowStatement:
         Returns:
             Dictionary with investing cash flow components
         """
-        # Calculate capital expenditures
+        # Calculate capital expenditures (Issue #383: handle disposals)
         capex = self._calculate_capex(current, prior)
         if period == "monthly":
             capex = capex / 12
 
+        # Separate capital expenditures (outflows) from asset disposals (inflows)
+        # per ASC 230: investing activities must report inflows and outflows separately
+        if capex >= ZERO:
+            capital_expenditures = -capex  # Cash outflow (negative)
+            asset_sales = ZERO
+        else:
+            capital_expenditures = ZERO
+            asset_sales = -capex  # Disposal proceeds (positive)
+
         investing_items = {
-            "capital_expenditures": -capex,  # Cash outflow
-            "total": -capex,
+            "capital_expenditures": capital_expenditures,
+            "asset_sales": asset_sales,
+            "total": capital_expenditures + asset_sales,
         }
 
         return investing_items
@@ -310,10 +320,11 @@ class CashFlowStatement:
         # Capex = Change in Net PP&E + Depreciation
         # Net PP&E falls by depreciation each period, so adding depreciation
         # back recovers the actual capital expenditure (new asset purchases).
+        # A negative result indicates net asset disposals exceeded purchases
+        # (Issue #383: removed max(ZERO, ...) clamp that hid disposals).
         capex = (current_ppe - prior_ppe) + depreciation
 
-        # Capex should not be negative in normal operations
-        return max(ZERO, capex)
+        return capex
 
     def _calculate_financing_cash_flow(
         self, current: MetricsDict, prior: MetricsDict, period: str
@@ -606,7 +617,7 @@ class CashFlowStatement:
         # INVESTING ACTIVITIES SECTION
         cash_flow_data.append(("CASH FLOWS FROM INVESTING ACTIVITIES", "", ""))
         cash_flow_data.append(("  Capital Expenditures", investing["capital_expenditures"], ""))
-        if method == "direct" and investing.get("asset_sales", 0) != 0:
+        if investing.get("asset_sales", 0) != 0:
             cash_flow_data.append(("  Proceeds from Asset Sales", investing["asset_sales"], ""))
         cash_flow_data.append(
             ("  Net Cash Used in Investing Activities", investing["total"], "subtotal")
@@ -1114,6 +1125,13 @@ class FinancialStatementGenerator:
         data.append(("  Net Property, Plant & Equipment", net_ppe, "", "subtotal"))
         data.append(("", "", "", ""))
 
+        # Deferred Tax Assets (Issue #367, ASC 740)
+        deferred_tax_asset = metrics.get("deferred_tax_asset", 0)
+        if deferred_tax_asset > 0:
+            data.append(("Other Non-Current Assets", "", "", ""))
+            data.append(("  Deferred Tax Asset", deferred_tax_asset, "", ""))
+            data.append(("", "", "", ""))
+
         # Restricted Assets
         data.append(("Restricted Assets", "", "", ""))
         collateral = metrics.get("collateral", 0)
@@ -1193,11 +1211,16 @@ class FinancialStatementGenerator:
         data.append(("Non-Current Liabilities", "", "", ""))
         long_term_claims = claim_liabilities - current_claims
         data.append(("  Long-Term Claim Reserves", long_term_claims, "", ""))
-        data.append(("  Total Non-Current Liabilities", long_term_claims, "", "subtotal"))
+        # Deferred Tax Liability (Issue #367, ASC 740)
+        deferred_tax_liability = metrics.get("deferred_tax_liability", 0)
+        if deferred_tax_liability > 0:
+            data.append(("  Deferred Tax Liability", deferred_tax_liability, "", ""))
+        total_non_current = long_term_claims + to_decimal(deferred_tax_liability)
+        data.append(("  Total Non-Current Liabilities", total_non_current, "", "subtotal"))
         data.append(("", "", "", ""))
 
         # Total Liabilities
-        total_liabilities = total_current_liabilities + long_term_claims
+        total_liabilities = total_current_liabilities + total_non_current
         data.append(("TOTAL LIABILITIES", total_liabilities, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
@@ -1592,7 +1615,7 @@ class FinancialStatementGenerator:
             # Calculate tax provision on positive income only
             tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 
-        # Deferred tax from DTA changes (Issue #365: NOL carryforward per ASC 740)
+        # Deferred tax from DTA/DTL changes (Issue #365, #367: ASC 740)
         deferred_tax_expense = ZERO
         if (
             hasattr(self, "manufacturer")
@@ -1601,9 +1624,14 @@ class FinancialStatementGenerator:
             and self.manufacturer.ledger is not None
         ):
             # Positive DTA change = tax benefit (negative deferred expense)
-            deferred_tax_expense = -self.manufacturer.ledger.get_period_change(
+            dta_change = self.manufacturer.ledger.get_period_change(
                 AccountName.DEFERRED_TAX_ASSET, year
             )
+            # Positive DTL change = additional deferred expense (Issue #367)
+            dtl_change = self.manufacturer.ledger.get_period_change(
+                AccountName.DEFERRED_TAX_LIABILITY, year
+            )
+            deferred_tax_expense = -dta_change + dtl_change
 
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
