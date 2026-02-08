@@ -8,7 +8,7 @@ calculations, and cash flow projections.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 import yaml
 
@@ -392,18 +392,27 @@ class CashFlowProjector:
         return min(weighted / total_incurred, 1.0)
 
     def _resolve_elr_for_cohort(
-        self, cohort: ClaimCohort, development_years: int
+        self,
+        cohort: ClaimCohort,
+        development_years: int,
+        earned_premium: Optional[Mapping[int, float]] = None,
     ) -> Optional[float]:
         """Resolve Expected Loss Ratio via tiered fallback.
 
         Tier 1: User-provided a_priori_loss_ratio.
-        Tier 2: Cape Cod from >=2 cohorts with pct_developed > 0.
+        Tier 2: Cape Cod (Stanard-Buhlmann) from >=2 cohorts with per-cohort
+            premium and pct_developed > 0.  Uses the standard formula:
+            ``ELR = sum(Paid_i) / sum(Premium_i * pct_developed_i)``.
+            Requires ``earned_premium`` to be supplied; without it Cape Cod
+            cannot provide an independent exposure measure and is skipped.
         Tier 3: Industry benchmark from ibnr_factors keyed by dominant pattern.
         Tier 4: None (CL-only mode).
 
         Args:
             cohort: Current cohort being evaluated.
             development_years: Years since accident year for the current cohort.
+            earned_premium: Per-cohort earned premium, keyed by accident year.
+                Required for Tier 2 (Cape Cod).
 
         Returns:
             ELR value, or None if no method can produce one.
@@ -412,31 +421,27 @@ class CashFlowProjector:
         if self.a_priori_loss_ratio is not None:
             return self.a_priori_loss_ratio
 
-        # Tier 2: Cape Cod from multiple cohorts
-        eligible = []
-        for ay, c in self.cohorts.items():
-            inc = c.get_total_incurred()
-            if inc <= 0:
-                continue
-            dy = max(development_years, 0)
-            # Use the evaluation context: we approximate dev_years relative
-            # to the cohort being evaluated (same evaluation_year implied).
-            # For Cape Cod we need each cohort's own dev_years, but we only
-            # have the evaluation_year implicitly. Re-derive from the
-            # current cohort's accident_year + development_years.
+        # Tier 2: Cape Cod from multiple cohorts (requires per-cohort premium)
+        if earned_premium:
+            eligible: List[tuple] = []
             eval_year = cohort.accident_year + development_years
-            cohort_dy = eval_year - ay
-            if cohort_dy < 0:
-                continue
-            pct = self._get_cohort_pct_developed(c, cohort_dy)
-            if pct > 0:
-                eligible.append((inc, pct))
+            for ay, c in self.cohorts.items():
+                cohort_premium = earned_premium.get(ay)
+                if cohort_premium is None or cohort_premium <= 0:
+                    continue
+                cohort_dy = eval_year - ay
+                if cohort_dy < 0:
+                    continue
+                paid = c.get_total_paid()
+                pct = self._get_cohort_pct_developed(c, cohort_dy)
+                if pct > 0:
+                    eligible.append((paid, cohort_premium, pct))
 
-        if len(eligible) >= 2:
-            total_inc = sum(inc for inc, _ in eligible)
-            weighted_developed = sum(inc * pct for inc, pct in eligible)
-            if weighted_developed > 0:
-                return total_inc / weighted_developed
+            if len(eligible) >= 2:
+                total_paid = sum(p for p, _, _ in eligible)
+                weighted_premium = sum(prem * pct for _, prem, pct in eligible)
+                if weighted_premium > 0 and total_paid > 0:
+                    return float(total_paid / weighted_premium)
 
         # Tier 3: industry benchmark from ibnr_factors
         if self.ibnr_factors:
@@ -454,20 +459,51 @@ class CashFlowProjector:
         # Tier 4: no ELR available
         return None
 
-    def estimate_ibnr(self, evaluation_year: int, earned_premium: Optional[float] = None) -> float:
+    def estimate_ibnr(
+        self,
+        evaluation_year: int,
+        earned_premium: Optional[Mapping[int, float]] = None,
+    ) -> float:
         """Estimate IBNR using maturity-adaptive Chain-Ladder / Bornhuetter-Ferguson blend.
 
         Per-cohort logic:
-        - Chain-Ladder ultimate = incurred / pct_developed
-        - Bornhuetter-Ferguson ultimate = incurred + ELR * premium * (1 - pct_developed)
+
+        - **Chain-Ladder (CL)** ultimate = paid_to_date / pct_developed.
+          Uses actual cumulative payments as the numerator (not case
+          estimates), which is the standard paid CL projection.
+          ``project_payments()`` should be called before ``estimate_ibnr()``
+          so that claims have recorded payments; otherwise CL degrades
+          gracefully to ``None`` and BF (or no-method) takes over.
+        - **Bornhuetter-Ferguson (BF)** IBNR = ELR * premium * (1 - pct).
+          Requires both an ELR (via tiered fallback) *and* per-cohort
+          ``earned_premium``.  When premium is unavailable, BF is skipped
+          and the blend falls back to CL-only.
         - Blended ultimate uses maturity-adaptive credibility weights:
-          CL weight = pct_developed, BF weight = 1 - pct_developed
+          CL weight = pct_developed, BF weight = 1 - pct_developed.
         - IBNR floored at 0 per cohort (E7).
+
+        .. note:: **CL in deterministic simulation**
+
+           In the current framework, claims follow their
+           ``ClaimDevelopment`` pattern deterministically — actual payments
+           match expected payments exactly.  Chain-Ladder's value comes from
+           projecting *actual experience that deviates from expected*.  In a
+           deterministic world, paid CL always recovers the case estimate as
+           ultimate (``paid / pct = initial_estimate``), producing zero IBNR
+           for known claims.  CL therefore contributes meaningful signal
+           only when actual paid deviates from pattern (e.g. claim
+           re-estimation, litigation delays).  If the simulation is extended
+           to include stochastic development, CL becomes genuinely valuable.
+           Until then, the adaptive blend effectively gives most weight to
+           BF for immature years (where it matters most) and CL for mature
+           years (where both methods converge anyway).
 
         Args:
             evaluation_year: Current evaluation year.
-            earned_premium: Earned premium for BF method. If None, a modified
-                BF using incurred as exposure base is used when ELR is available.
+            earned_premium: Per-cohort earned premium keyed by accident year,
+                e.g. ``{2019: 1_000_000, 2020: 1_100_000}``.  Required for
+                Bornhuetter-Ferguson and Cape Cod methods.  When ``None``,
+                the blend falls back to CL-only.
 
         Returns:
             Total estimated IBNR amount across all cohorts.
@@ -492,18 +528,19 @@ class CashFlowProjector:
             if incurred <= 0:
                 continue
 
-            # Chain-Ladder ultimate
-            cl_ultimate = incurred / pct_developed if pct_developed > 0 else None
+            # Chain-Ladder ultimate (paid CL)
+            paid_to_date = cohort.get_total_paid()
+            if pct_developed > 0 and paid_to_date > 0:
+                cl_ultimate = paid_to_date / pct_developed
+            else:
+                cl_ultimate = None
 
-            # Bornhuetter-Ferguson ultimate
-            elr = self._resolve_elr_for_cohort(cohort, dev_years)
+            # Bornhuetter-Ferguson ultimate (requires premium)
+            elr = self._resolve_elr_for_cohort(cohort, dev_years, earned_premium)
             bf_ultimate: Optional[float] = None
-            if elr is not None and earned_premium is not None:
-                bf_ibnr = elr * earned_premium * (1 - pct_developed)
-                bf_ultimate = incurred + bf_ibnr
-            elif elr is not None:
-                # Modified BF: use ELR as multiplier on incurred (no premium)
-                bf_ibnr = (elr - 1.0) * incurred * (1 - pct_developed)
+            cohort_premium = earned_premium.get(accident_year) if earned_premium else None
+            if elr is not None and cohort_premium is not None:
+                bf_ibnr = elr * cohort_premium * (1 - pct_developed)
                 bf_ultimate = incurred + bf_ibnr
 
             # Maturity-adaptive credibility blend (E2)
@@ -528,14 +565,17 @@ class CashFlowProjector:
         return ibnr
 
     def calculate_total_reserves(
-        self, evaluation_year: int, earned_premium: Optional[float] = None
+        self,
+        evaluation_year: int,
+        earned_premium: Optional[Mapping[int, float]] = None,
     ) -> Dict[str, float]:
         """Calculate total reserve requirements.
 
         Args:
             evaluation_year: Current evaluation year.
-            earned_premium: Earned premium passed through to estimate_ibnr
-                for Bornhuetter-Ferguson calculations.
+            earned_premium: Per-cohort earned premium keyed by accident year,
+                passed through to ``estimate_ibnr`` for Bornhuetter-Ferguson
+                and Cape Cod calculations.
 
         Returns:
             Dictionary with case reserves, IBNR, and total.

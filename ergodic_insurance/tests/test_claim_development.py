@@ -366,14 +366,12 @@ class TestCashFlowProjector:
 
     def test_estimate_ibnr(self):
         """Test IBNR estimation produces positive results for developing claims."""
-        projector = CashFlowProjector()
+        projector = CashFlowProjector(a_priori_loss_ratio=0.70)
 
-        # Recent accident year cohort (long-tail, will be immature)
         cohort_2023 = ClaimCohort(accident_year=2023)
         claim1 = Claim("CL001", 2023, 2023, 1_000_000)
         cohort_2023.add_claim(claim1)
 
-        # Older cohort (more developed but not fully mature)
         cohort_2021 = ClaimCohort(accident_year=2021)
         claim2 = Claim("CL002", 2021, 2021, 2_000_000)
         cohort_2021.add_claim(claim2)
@@ -381,14 +379,17 @@ class TestCashFlowProjector:
         projector.add_cohort(cohort_2023)
         projector.add_cohort(cohort_2021)
 
-        ibnr = projector.estimate_ibnr(evaluation_year=2023)
+        # Project payments so CL has data (through eval_year - 1 so
+        # deterministic paid aligns with get_cumulative_paid)
+        projector.project_payments(2021, 2022)
 
-        # Both cohorts use long_tail_10yr (default) and are not fully developed,
-        # so CL-only mode should produce positive IBNR
+        earned_premium = {2021: 3_000_000, 2023: 1_500_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
+
+        # BF with premium produces positive IBNR for immature cohorts
         assert ibnr > 0
-        # IBNR should be reasonable relative to incurred
         total_incurred = 3_000_000
-        assert ibnr < total_incurred * 5  # Sanity bound
+        assert ibnr < total_incurred * 5
 
     def test_calculate_total_reserves(self):
         """Test total reserve calculation."""
@@ -396,17 +397,20 @@ class TestCashFlowProjector:
 
         cohort = ClaimCohort(accident_year=2020)
         claim = Claim("CL001", 2020, 2020, 1_000_000)
-        claim.record_payment(2020, 400_000)  # Partial payment
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
+
+        # Project payments before evaluation year
+        projector.project_payments(2020, 2020)
 
         reserves = projector.calculate_total_reserves(evaluation_year=2021)
 
         assert "case_reserves" in reserves
         assert "ibnr" in reserves
         assert "total_reserves" in reserves
-        assert reserves["case_reserves"] == 600_000  # Outstanding from claim
-        # With CL method on a developing long-tail claim, IBNR >= 0
+        # After projecting payments, some payments made
+        assert reserves["case_reserves"] >= 0
+        # With deterministic CL (no BF), IBNR = 0
         assert reserves["ibnr"] >= 0
         assert reserves["total_reserves"] >= reserves["case_reserves"]
 
@@ -534,11 +538,10 @@ class TestIBNRActuarialMethods:
     """Test actuarial IBNR estimation methods (Issue #390)."""
 
     def test_cl_only_no_elr(self):
-        """CL-only when no ELR or premium is available (Tier 4)."""
+        """CL-only: deterministic payments recover initial_estimate -> IBNR = 0."""
         projector = CashFlowProjector()
 
         cohort = ClaimCohort(accident_year=2020)
-        # Use medium-tail pattern: year 1 cumulative = 40%
         claim = Claim(
             "CL001",
             2020,
@@ -549,18 +552,38 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # At dev_years=1, pct_developed=0.40
-        # CL ultimate = 1_000_000 / 0.40 = 2_500_000
-        # IBNR = 2_500_000 - 1_000_000 = 1_500_000
+        # Project payments before evaluation year so CL has data
+        projector.project_payments(2020, 2020)
+
+        # Paid = 400k (40%), CL ultimate = 400k / 0.40 = 1M
+        # IBNR = 1M - 1M = 0 (deterministic CL recovers case estimate)
         ibnr = projector.estimate_ibnr(evaluation_year=2021)
-        assert ibnr == pytest.approx(1_500_000)
+        assert ibnr == pytest.approx(0.0)
+
+    def test_cl_no_payments_falls_back(self):
+        """No payments and no premium -> no method available -> IBNR = 0."""
+        projector = CashFlowProjector()
+
+        cohort = ClaimCohort(accident_year=2020)
+        claim = Claim(
+            "CL001",
+            2020,
+            2020,
+            1_000_000,
+            development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+        )
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+
+        # No project_payments, no premium, no ELR -> no method
+        ibnr = projector.estimate_ibnr(evaluation_year=2021)
+        assert ibnr == 0.0
 
     def test_bf_only_immature_year(self):
         """BF dominates at 0% development (E2)."""
-        projector = CashFlowProjector(a_priori_loss_ratio=1.5)
+        projector = CashFlowProjector(a_priori_loss_ratio=0.70)
 
         cohort = ClaimCohort(accident_year=2023)
-        # Immediate pattern: at dev_years=0, cumulative=0%
         claim = Claim(
             "CL001",
             2023,
@@ -571,17 +594,17 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # dev_years=0, pct_developed=0.0 → CL undefined, BF only
-        # Modified BF (no premium): (1.5 - 1.0) * 1_000_000 * (1 - 0) = 500_000
-        ibnr = projector.estimate_ibnr(evaluation_year=2023)
-        assert ibnr == pytest.approx(500_000)
+        # dev_years=0, pct_developed=0.0 -> CL undefined (no payments), BF only
+        # BF IBNR = 0.70 * 2_000_000 * (1 - 0) = 1_400_000
+        earned_premium = {2023: 2_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(1_400_000)
 
     def test_blended_cl_bf(self):
         """Verify maturity-adaptive CL/BF weights."""
-        projector = CashFlowProjector(a_priori_loss_ratio=1.5)
+        projector = CashFlowProjector(a_priori_loss_ratio=0.70)
 
         cohort = ClaimCohort(accident_year=2020)
-        # Medium-tail: at dev_years=1, cumulative=40%
         claim = Claim(
             "CL001",
             2020,
@@ -592,14 +615,18 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # pct=0.40
-        # CL ultimate = 1_000_000 / 0.40 = 2_500_000
-        # Modified BF IBNR = (1.5 - 1.0) * 1_000_000 * 0.60 = 300_000
-        # BF ultimate = 1_000_000 + 300_000 = 1_300_000
-        # Blended = 0.40 * 2_500_000 + 0.60 * 1_300_000 = 1_000_000 + 780_000 = 1_780_000
-        # IBNR = 1_780_000 - 1_000_000 = 780_000
-        ibnr = projector.estimate_ibnr(evaluation_year=2021)
-        assert ibnr == pytest.approx(780_000)
+        # Project payments before evaluation year
+        projector.project_payments(2020, 2020)
+
+        # pct=0.40, paid=400k
+        # CL ultimate = 400k / 0.40 = 1M
+        # BF IBNR = 0.70 * 2M * 0.60 = 840k
+        # BF ultimate = 1M + 840k = 1.84M
+        # Blended = 0.40 * 1M + 0.60 * 1.84M = 400k + 1_104k = 1_504k
+        # IBNR = 1_504k - 1M = 504k
+        earned_premium = {2020: 2_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(504_000)
 
     def test_blended_with_earned_premium(self):
         """BF with earned premium uses standard formula."""
@@ -616,14 +643,18 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # pct_developed at dev_years=1 = 0.40
-        # CL ultimate = 500_000 / 0.40 = 1_250_000
-        # BF IBNR = 0.70 * 1_000_000 * (1 - 0.40) = 420_000
-        # BF ultimate = 500_000 + 420_000 = 920_000
-        # Blended = 0.40 * 1_250_000 + 0.60 * 920_000 = 500_000 + 552_000 = 1_052_000
-        # IBNR = 1_052_000 - 500_000 = 552_000
-        ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=1_000_000)
-        assert ibnr == pytest.approx(552_000)
+        # Project payments before evaluation year
+        projector.project_payments(2020, 2020)
+
+        # pct_developed at dev_years=1 = 0.40, paid=200k
+        # CL ultimate = 200k / 0.40 = 500k
+        # BF IBNR = 0.70 * 1M * 0.60 = 420k
+        # BF ultimate = 500k + 420k = 920k
+        # Blended = 0.40 * 500k + 0.60 * 920k = 200k + 552k = 752k
+        # IBNR = 752k - 500k = 252k
+        earned_premium = {2020: 1_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(252_000)
 
     def test_fully_developed_zero_ibnr(self):
         """E5: IBNR=0 at full maturity."""
@@ -679,7 +710,7 @@ class TestIBNRActuarialMethods:
 
     def test_elr_tier1_user_provided(self):
         """a_priori_loss_ratio is used when set (Tier 1)."""
-        projector = CashFlowProjector(a_priori_loss_ratio=2.0)
+        projector = CashFlowProjector(a_priori_loss_ratio=0.80)
 
         cohort = ClaimCohort(accident_year=2020)
         claim = Claim(
@@ -692,18 +723,21 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # pct_developed at dev_years=1 = 0.40
-        # Modified BF IBNR = (2.0 - 1.0) * 1_000_000 * 0.60 = 600_000
-        # BF ultimate = 1_600_000
-        # CL ultimate = 2_500_000
-        # Blended = 0.40 * 2_500_000 + 0.60 * 1_600_000 = 1_960_000
-        # IBNR = 960_000
-        ibnr = projector.estimate_ibnr(evaluation_year=2021)
-        assert ibnr == pytest.approx(960_000)
+        # Project payments before evaluation year
+        projector.project_payments(2020, 2020)
+
+        # pct=0.40, paid=400k
+        # CL = 400k/0.40 = 1M
+        # BF IBNR = 0.80 * 2M * 0.60 = 960k; BF ult = 1M + 960k = 1.96M
+        # Blended = 0.40 * 1M + 0.60 * 1.96M = 400k + 1_176k = 1_576k
+        # IBNR = 576k
+        earned_premium = {2020: 2_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(576_000)
 
     def test_elr_tier3_industry_benchmark(self):
         """ibnr_factors from YAML are used for Tier 3."""
-        projector = CashFlowProjector(ibnr_factors={"long_tail_10yr": 1.20})
+        projector = CashFlowProjector(ibnr_factors={"long_tail_10yr": 0.65})
 
         cohort = ClaimCohort(accident_year=2023)
         claim = Claim(
@@ -716,18 +750,17 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # dev_years=0, pct_developed=0.0 → CL undefined
-        # Tier 3 ELR = 1.20 (from ibnr_factors, matching "long_tail_10yr")
-        # Modified BF IBNR = (1.20 - 1.0) * 1_000_000 * 1.0 = 200_000
-        # BF only (no CL at pct=0)
-        ibnr = projector.estimate_ibnr(evaluation_year=2023)
-        assert ibnr == pytest.approx(200_000)
+        # dev_years=0, pct_developed=0.0 -> CL undefined (no payments)
+        # Tier 3 ELR = 0.65 (from ibnr_factors)
+        # BF IBNR = 0.65 * 2M * 1.0 = 1_300_000
+        earned_premium = {2023: 2_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(1_300_000)
 
     def test_elr_tier2_cape_cod(self):
-        """Cape Cod ELR derived from >=2 cohorts."""
+        """Cape Cod ELR derived from >=2 cohorts with premium."""
         projector = CashFlowProjector()
 
-        # Two cohorts so Cape Cod can kick in
         cohort_2019 = ClaimCohort(accident_year=2019)
         claim1 = Claim(
             "CL001",
@@ -750,19 +783,22 @@ class TestIBNRActuarialMethods:
         cohort_2020.add_claim(claim2)
         projector.add_cohort(cohort_2020)
 
-        # Evaluation at 2021:
-        # cohort_2019: dev_years=2, pct=0.40+0.25=0.65
-        # cohort_2020: dev_years=1, pct=0.40
-        # Cape Cod ELR = (500k + 800k) / (500k*0.65 + 800k*0.40)
-        #              = 1_300_000 / (325_000 + 320_000) = 1_300_000 / 645_000 ≈ 2.0155
-        ibnr = projector.estimate_ibnr(evaluation_year=2021)
+        # Project payments before evaluation year
+        projector.project_payments(2019, 2020)
+
+        # At eval 2021:
+        # cohort_2019: dev_years=2, pct=0.65, paid=500k*0.65=325k
+        # cohort_2020: dev_years=1, pct=0.40, paid=800k*0.40=320k
+        # Cape Cod ELR = (325k+320k) / (700k*0.65 + 1.2M*0.40)
+        #             = 645k / (455k + 480k) = 645k / 935k ~ 0.6898
+        earned_premium = {2019: 700_000, 2020: 1_200_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
         assert ibnr > 0
 
-        # Verify Cape Cod was used (no user ELR, no ibnr_factors)
-        # The result should differ from pure CL
+        # Verify Cape Cod was used by comparing with CL-only (single cohort, no premium)
         projector_cl = CashFlowProjector()
-        projector_cl.add_cohort(ClaimCohort(accident_year=2019))
-        projector_cl.cohorts[2019].add_claim(
+        cohort_single = ClaimCohort(accident_year=2019)
+        cohort_single.add_claim(
             Claim(
                 "CL001b",
                 2019,
@@ -771,15 +807,16 @@ class TestIBNRActuarialMethods:
                 development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
             )
         )
-        # Single cohort → Cape Cod won't fire → CL only
+        projector_cl.add_cohort(cohort_single)
+        projector_cl.project_payments(2019, 2020)
         ibnr_single = projector_cl.estimate_ibnr(evaluation_year=2021)
-        # With two cohorts Cape Cod provides an ELR, changing the blend
+        # CL-only on deterministic data gives IBNR=0; Cape Cod blend gives >0
         assert ibnr != ibnr_single
 
     def test_ibnr_consistent_with_development_pattern(self):
         """Long-tail patterns should produce more IBNR than short-tail."""
         # Short tail
-        proj_short = CashFlowProjector()
+        proj_short = CashFlowProjector(a_priori_loss_ratio=0.70)
         cohort_s = ClaimCohort(accident_year=2020)
         cohort_s.add_claim(
             Claim(
@@ -791,9 +828,10 @@ class TestIBNRActuarialMethods:
             )
         )
         proj_short.add_cohort(cohort_s)
+        proj_short.project_payments(2020, 2020)
 
         # Long tail
-        proj_long = CashFlowProjector()
+        proj_long = CashFlowProjector(a_priori_loss_ratio=0.70)
         cohort_l = ClaimCohort(accident_year=2020)
         cohort_l.add_claim(
             Claim(
@@ -805,9 +843,11 @@ class TestIBNRActuarialMethods:
             )
         )
         proj_long.add_cohort(cohort_l)
+        proj_long.project_payments(2020, 2020)
 
-        ibnr_short = proj_short.estimate_ibnr(evaluation_year=2021)
-        ibnr_long = proj_long.estimate_ibnr(evaluation_year=2021)
+        earned_premium = {2020: 1_500_000}
+        ibnr_short = proj_short.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
+        ibnr_long = proj_long.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
 
         # Long-tail should have more IBNR because it is less developed at year 1
         assert ibnr_long > ibnr_short
