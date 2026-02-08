@@ -992,17 +992,20 @@ class HJBSolver:
             [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables], axis=-1
         )
 
-        # Evaluate HJB residual
-        _drift = self.problem.dynamics(state_points, control_array, 0.0)
+        # Evaluate HJB residual: |−ρV + f(x,u) + drift·∇V|
+        drift = self.problem.dynamics(state_points, control_array, 0.0)
         cost = self.problem.running_cost(state_points, control_array, 0.0)
 
-        # Approximate time derivative (backward difference)
-        _dt = self.config.time_step
         v_flat = self.value_function.ravel()
-
-        # Simplified residual (would compute full PDE residual in production)
         cost_flat = cost.ravel() if hasattr(cost, "ravel") else cost
-        residual = np.abs(-self.problem.discount_rate * v_flat + cost_flat)
+
+        # Compute drift·∇V (advection term)
+        grad_v = self._compute_gradient()  # shape: state_shape + (ndim,)
+        drift_reshaped = drift.reshape(self.problem.state_space.shape + (-1,))
+        advection = np.sum(drift_reshaped * grad_v, axis=-1)
+        advection_flat = advection.ravel()
+
+        residual = np.abs(-self.problem.discount_rate * v_flat + cost_flat + advection_flat)
 
         return {
             "max_residual": float(np.max(residual)),

@@ -235,12 +235,6 @@ class TestBoundaryConditions:
 
         for bc_lower in boundary_types:
             for bc_upper in boundary_types:
-                # Skip reflecting for now as it's same as Neumann
-                if bc_lower == BoundaryCondition.REFLECTING:
-                    bc_lower = BoundaryCondition.NEUMANN
-                if bc_upper == BoundaryCondition.REFLECTING:
-                    bc_upper = BoundaryCondition.NEUMANN
-
                 state_var = StateVariable(
                     "x", 0, 1, 7, boundary_lower=bc_lower, boundary_upper=bc_upper
                 )
@@ -1511,3 +1505,128 @@ class TestDiffusionTerm:
         assert np.all(np.isfinite(policy["u"]))
         # Value should not be all zeros (solver should have updated it)
         assert not np.allclose(value, 0)
+
+
+class TestResidualDriftTerm:
+    """Regression tests for issue #449: residual must include drift·∇V."""
+
+    def test_zero_drift_residual_unchanged(self):
+        """With zero drift, residual equals |−ρV + f|."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 5)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        metrics = solver.compute_convergence_metrics()
+        assert metrics["max_residual"] >= 0
+        assert metrics["mean_residual"] >= 0
+        assert np.isfinite(metrics["max_residual"])
+
+    def test_nonzero_drift_increases_residual(self):
+        """With non-zero drift, residual includes drift·∇V contribution."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 7)])
+
+        # Problem with zero drift
+        problem_no_drift = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=10, verbose=False)
+        solver_no_drift = HJBSolver(problem_no_drift, config)
+        solver_no_drift.solve()
+        metrics_no_drift = solver_no_drift.compute_convergence_metrics()
+
+        # Same problem but with significant drift
+        problem_drift = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.5,  # significant positive drift
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        solver_drift = HJBSolver(problem_drift, config)
+        solver_drift.solve()
+        metrics_drift = solver_drift.compute_convergence_metrics()
+
+        # Drift problem should have different residuals (drift term contributes)
+        assert metrics_drift["max_residual"] != metrics_no_drift["max_residual"]
+        assert np.isfinite(metrics_drift["max_residual"])
+        assert np.isfinite(metrics_drift["mean_residual"])
+
+
+class TestReflectingBoundaryDirect:
+    """Regression tests for issue #450: REFLECTING BC must be handled directly."""
+
+    def test_reflecting_produces_same_matrix_as_neumann(self):
+        """REFLECTING and NEUMANN produce identical difference matrices."""
+        sv = StateVariable(
+            "x",
+            0,
+            1,
+            10,
+            boundary_lower=BoundaryCondition.REFLECTING,
+            boundary_upper=BoundaryCondition.REFLECTING,
+        )
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        config = HJBSolverConfig(max_iterations=2, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        mat_reflecting = solver._build_difference_matrix(0, BoundaryCondition.REFLECTING)
+        mat_neumann = solver._build_difference_matrix(0, BoundaryCondition.NEUMANN)
+
+        diff = (mat_reflecting - mat_neumann).toarray()
+        assert np.allclose(diff, 0), "REFLECTING and NEUMANN matrices should be identical"
+
+    def test_reflecting_full_solve(self):
+        """REFLECTING BC works through the full solver without manual swap."""
+        sv = StateVariable(
+            "x",
+            1,
+            5,
+            7,
+            boundary_lower=BoundaryCondition.REFLECTING,
+            boundary_upper=BoundaryCondition.REFLECTING,
+        )
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.1,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=10, verbose=False)
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value))
+        assert np.all(np.isfinite(policy["u"]))
+
+        # Verify reflecting BC: dV/dx ≈ 0 at boundaries
+        dx = solver.dx[0]
+        grad_lower = (value[1] - value[0]) / dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+        assert abs(grad_lower) < 1e-6, f"Reflecting lower BC violated: dV/dx = {grad_lower}"
+        assert abs(grad_upper) < 1e-6, f"Reflecting upper BC violated: dV/dx = {grad_upper}"
