@@ -884,10 +884,6 @@ class HJBSolver:
         n_states = state_points.shape[0]
         n_controls = len(self.problem.control_variables)
 
-        # Compute value function gradient at all state points
-        grad_V = self._compute_gradient()
-        grad_V_flat = grad_V.reshape(n_states, -1)
-
         # Initialize tracking arrays
         best_values = np.full(n_states, -np.inf)
         best_controls = np.zeros((n_states, n_controls))
@@ -921,14 +917,18 @@ class HJBSolver:
                     cost = cost[..., 0]
             cost = cost.flatten()
 
-            # Flatten drift for dot product with gradient
-            drift_flat = np.asarray(drift).reshape(n_states, -1)
+            # Compute advection term (drift * grad_V) using upwind scheme,
+            # consistent with PDE discretization in _policy_evaluation (#454).
+            drift_grid = np.asarray(drift).reshape(self.problem.state_space.shape + (-1,))
+            advection = np.zeros(self.problem.state_space.shape)
+            n_dims = min(drift_grid.shape[-1], len(self.problem.state_space.state_variables))
+            for dim in range(n_dims):
+                drift_component = drift_grid[..., dim]
+                advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
+            advection_flat = advection.flatten()
 
-            # Match drift and gradient dimensions
-            n_dims = min(drift_flat.shape[1], grad_V_flat.shape[1])
-
-            # Full Hamiltonian: H = f(x,u) + drift(x,u)·∇V(x) + ½σ²(x,u)·∇²V(x)
-            hamiltonian = cost + np.sum(drift_flat[:, :n_dims] * grad_V_flat[:, :n_dims], axis=1)
+            # Full Hamiltonian: H = f(x,u) + drift(x,u) * grad_V(x) + 0.5*sigma^2(x,u) * d2V(x)
+            hamiltonian = cost + advection_flat
 
             # Add diffusion term to Hamiltonian
             if self.problem.diffusion is not None and d2V_flat is not None:
@@ -999,10 +999,13 @@ class HJBSolver:
         v_flat = self.value_function.ravel()
         cost_flat = cost.ravel() if hasattr(cost, "ravel") else cost
 
-        # Compute drift·∇V (advection term)
-        grad_v = self._compute_gradient()  # shape: state_shape + (ndim,)
+        # Compute drift * grad_V using upwind scheme (consistent with PDE)
         drift_reshaped = drift.reshape(self.problem.state_space.shape + (-1,))
-        advection = np.sum(drift_reshaped * grad_v, axis=-1)
+        advection = np.zeros(self.problem.state_space.shape)
+        n_dims = min(drift_reshaped.shape[-1], len(self.problem.state_space.state_variables))
+        for dim in range(n_dims):
+            drift_component = drift_reshaped[..., dim]
+            advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
         advection_flat = advection.ravel()
 
         residual = np.abs(-self.problem.discount_rate * v_flat + cost_flat + advection_flat)
