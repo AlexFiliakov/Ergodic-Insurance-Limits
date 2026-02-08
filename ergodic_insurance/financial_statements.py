@@ -1418,8 +1418,21 @@ class FinancialStatementGenerator:
         if insurance_premium > 0:
             data.append(("  Insurance Premiums", insurance_premium, "", ""))
 
+        # Insurance claim losses are operating expenses per ASC 944 (Issue #364)
+        # For a policyholder, claim losses from operational risks (property damage,
+        # liability, workers' comp) are inherently operational in nature.
+        insurance_claims = to_decimal(metrics.get("insurance_losses", ZERO))
+        if monthly:
+            insurance_claims = insurance_claims / 12
+        if insurance_claims > 0:
+            data.append(("  Insurance Claim Losses", insurance_claims, "", ""))
+
         total_operating_expenses = (
-            selling_expenses + general_admin + admin_depreciation + insurance_premium
+            selling_expenses
+            + general_admin
+            + admin_depreciation
+            + insurance_premium
+            + insurance_claims
         )
         data.append(("  Total Operating Expenses", total_operating_expenses, "", "subtotal"))
         data.append(("", "", "", ""))
@@ -1475,18 +1488,11 @@ class FinancialStatementGenerator:
         if monthly:
             interest_expense = interest_expense / 12
 
-        # Insurance claim losses (non-operating)
-        insurance_claims = to_decimal(metrics.get("insurance_losses", ZERO))
-        if monthly:
-            insurance_claims = insurance_claims / 12
-
         data.append(("  Interest Income", interest_income, "", ""))
         if interest_expense > 0:
             data.append(("  Interest Expense", -interest_expense, "", ""))
-        if insurance_claims > 0:
-            data.append(("  Insurance Claim Losses", -insurance_claims, "", ""))
 
-        total_non_operating = interest_income - interest_expense - insurance_claims
+        total_non_operating = interest_income - interest_expense
         data.append(("  Total Non-Operating", total_non_operating, "", "subtotal"))
         data.append(("", "", "", ""))
 

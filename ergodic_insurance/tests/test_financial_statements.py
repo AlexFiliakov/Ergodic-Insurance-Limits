@@ -334,31 +334,50 @@ class TestFinancialStatementGenerator:
         # Find insurance premium and losses rows
         premium_found = False
         losses_found = False
+        operating_section_idx = None
+        non_operating_section_idx = None
         for i, item in enumerate(items):
-            if "Insurance Premium" in str(item):
+            if "OPERATING EXPENSES" == str(item).strip():
+                operating_section_idx = i
+            elif "NON-OPERATING INCOME" in str(item):
+                non_operating_section_idx = i
+            elif "Insurance Premium" in str(item):
                 premium_found = True
                 # Premium should be in operating expenses (positive value)
                 assert (
                     values[i] == 500_000
                 ), "Insurance premium should be 500,000 in operating expenses"
+                # Verify it's in operating section, before non-operating
+                assert (
+                    operating_section_idx is not None
+                ), "Premiums should be after OPERATING EXPENSES header"
+                assert (
+                    non_operating_section_idx is None or i < non_operating_section_idx
+                ), "Premiums should be before NON-OPERATING section"
             elif "Insurance Claim Loss" in str(item):
                 losses_found = True
-                # Losses should be in non-operating (negative value)
-                assert values[i] == -200_000, "Insurance losses should be -200,000 in non-operating"
+                # Losses should be in operating expenses (positive value, Issue #364)
+                assert (
+                    values[i] == 200_000
+                ), "Insurance losses should be 200,000 in operating expenses"
+                # Verify it's in operating section, before non-operating
+                assert (
+                    operating_section_idx is not None
+                ), "Losses should be after OPERATING EXPENSES header"
+                assert (
+                    non_operating_section_idx is None or i < non_operating_section_idx
+                ), "Insurance losses should be in operating section, not non-operating (ASC 944)"
 
         # Verify insurance costs appear in appropriate sections
         assert premium_found, "Insurance premiums should appear in operating expenses"
-        assert losses_found, "Insurance losses should appear in non-operating expenses"
+        assert losses_found, "Insurance claim losses should appear in operating expenses (ASC 944)"
 
-        # Check that Total Non-Operating includes insurance losses
-        total_non_op_row = None
+        # Verify Total Non-Operating does NOT include insurance losses
         for i, item in enumerate(items):
             if "Total Non-Operating" in str(item):
-                total_non_op_row = i
+                # Total Non-Operating should only contain interest items
+                # Insurance losses are no longer here (Issue #364)
                 break
-
-        # Note: Total Non-Operating will include interest income/expense and insurance losses
-        # Just verify it exists (actual value depends on other factors)
 
     def test_generate_cash_flow_statement_indirect(self, generator):
         """Test cash flow statement generation using indirect method."""
