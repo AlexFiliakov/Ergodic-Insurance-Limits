@@ -220,10 +220,9 @@ class WidgetManufacturer(
         self._initial_equity: Decimal = to_decimal(config.initial_assets)
 
         # Compute initial balance sheet values
-        # Type ignore: ppe_ratio is guaranteed non-None after model_validator
-        initial_gross_ppe: Decimal = to_decimal(
-            config.initial_assets * config.ppe_ratio
-        )  # type: ignore
+        # ppe_ratio is guaranteed non-None after model_validator
+        assert config.ppe_ratio is not None
+        initial_gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)
         initial_accumulated_depreciation: Decimal = ZERO
 
         # Current Assets - initialize working capital to steady state
@@ -237,7 +236,7 @@ class WidgetManufacturer(
         working_capital_assets = initial_accounts_receivable + initial_inventory
         initial_cash: Decimal = (
             to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets
-        )  # type: ignore
+        )
 
         initial_accounts_payable: Decimal = ZERO
         initial_collateral: Decimal = ZERO
