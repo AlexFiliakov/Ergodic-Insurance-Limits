@@ -596,47 +596,6 @@ class HJBSolver:
 
         return np.stack(components, axis=-1)
 
-    def _apply_boundary_conditions(self, value: np.ndarray) -> np.ndarray:
-        """Enforce boundary conditions on the value function.
-
-        For absorbing boundaries (d²V/dx² = 0), linearly extrapolates the
-        value function from the interior so that the second derivative
-        vanishes at each boundary.
-
-        Args:
-            value: Value function on state grid
-
-        Returns:
-            Value function with boundary conditions enforced
-        """
-        ndim = self.problem.state_space.ndim
-        result = value.copy()
-
-        for dim in range(ndim):
-            sv = self.problem.state_space.state_variables[dim]
-
-            if sv.boundary_lower == BoundaryCondition.ABSORBING:
-                # V[0] = 2*V[1] - V[2] (linear extrapolation)
-                lo: List[Any] = [slice(None)] * ndim
-                p1: List[Any] = [slice(None)] * ndim
-                p2: List[Any] = [slice(None)] * ndim
-                lo[dim] = 0
-                p1[dim] = 1
-                p2[dim] = 2
-                result[tuple(lo)] = 2.0 * result[tuple(p1)] - result[tuple(p2)]
-
-            if sv.boundary_upper == BoundaryCondition.ABSORBING:
-                # V[-1] = 2*V[-2] - V[-3] (linear extrapolation)
-                hi: List[Any] = [slice(None)] * ndim
-                m1: List[Any] = [slice(None)] * ndim
-                m2: List[Any] = [slice(None)] * ndim
-                hi[dim] = -1
-                m1[dim] = -2
-                m2[dim] = -3
-                result[tuple(hi)] = 2.0 * result[tuple(m1)] - result[tuple(m2)]
-
-        return result
-
     def solve(self) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         """Solve the HJB equation using policy iteration.
 
