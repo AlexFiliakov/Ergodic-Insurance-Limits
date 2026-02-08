@@ -58,6 +58,11 @@ class IncomeCalculationMixin:
             float: Annual revenue in dollars. Always non-negative.
         """
         available_assets = max(ZERO, self.total_assets)
+        # Add back valuation allowance — it's a non-cash accounting adjustment
+        # that reduces net DTA on the balance sheet but doesn't affect the
+        # company's productive (revenue-generating) capacity (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        available_assets = available_assets + va
         revenue = available_assets * to_decimal(self.asset_turnover_ratio)
 
         if apply_stochastic and self.stochastic_process is not None:
@@ -211,6 +216,35 @@ class IncomeCalculationMixin:
                     amount=abs(dta_change),
                     transaction_type=TransactionType.DTA_ADJUSTMENT,
                     description=f"Year {self.current_year} DTA reversal from NOL utilization",
+                    month=self.current_month,
+                )
+
+            # Record valuation allowance changes per ASC 740-10-30-5 (Issue #464)
+            target_va = self.tax_handler.valuation_allowance
+            current_va = abs(self.ledger.get_balance(AccountName.DTA_VALUATION_ALLOWANCE))
+            va_change = target_va - current_va
+            if va_change > ZERO:
+                # Allowance increased — recognize additional tax expense
+                # Dr TAX_EXPENSE, Cr DTA_VALUATION_ALLOWANCE
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.TAX_EXPENSE,
+                    credit_account=AccountName.DTA_VALUATION_ALLOWANCE,
+                    amount=va_change,
+                    transaction_type=TransactionType.DTA_ADJUSTMENT,
+                    description=f"Year {self.current_year} DTA valuation allowance increase (ASC 740-10-30-5)",
+                    month=self.current_month,
+                )
+            elif va_change < ZERO:
+                # Allowance decreased (reversal) — recognize tax benefit
+                # Dr DTA_VALUATION_ALLOWANCE, Cr TAX_EXPENSE
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.DTA_VALUATION_ALLOWANCE,
+                    credit_account=AccountName.TAX_EXPENSE,
+                    amount=abs(va_change),
+                    transaction_type=TransactionType.DTA_ADJUSTMENT,
+                    description=f"Year {self.current_year} DTA valuation allowance reversal (ASC 740-10-30-5)",
                     month=self.current_month,
                 )
 

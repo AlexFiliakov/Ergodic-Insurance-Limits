@@ -58,7 +58,10 @@ class MetricsCalculationMixin:
         metrics["collateral"] = self.collateral
         metrics["restricted_assets"] = self.restricted_assets
         metrics["available_assets"] = self.available_assets
-        metrics["equity"] = self.equity
+        # Report operational equity — excludes valuation allowance since it's
+        # a non-cash accounting adjustment that doesn't affect going concern (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        metrics["equity"] = self.equity + va
         metrics["net_assets"] = self.net_assets
         metrics["claim_liabilities"] = self.total_claim_liabilities
         metrics["is_solvent"] = not self.is_ruined
@@ -116,8 +119,9 @@ class MetricsCalculationMixin:
         metrics["favorable_development"] = favorable_dev
         metrics["net_reserve_development"] = adverse_dev - favorable_dev
 
-        # Deferred tax balances (Issue #367, ASC 740)
+        # Deferred tax balances (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5)
         metrics["deferred_tax_asset"] = self.deferred_tax_asset
+        metrics["dta_valuation_allowance"] = self.dta_valuation_allowance
         metrics["deferred_tax_liability"] = self.deferred_tax_liability
 
         # Dividends and depreciation

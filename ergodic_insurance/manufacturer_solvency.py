@@ -99,7 +99,12 @@ class SolvencyMixin:
                 f"Company is insolvent — limited liability applies."
             )
 
-        if self.equity <= ZERO:
+        # Use operational equity for solvency — add back valuation allowance
+        # since it's a non-cash accounting adjustment that doesn't affect the
+        # company's ability to continue operations (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        operational_equity = self.equity + va
+        if operational_equity <= ZERO:
             self.handle_insolvency()
             return False
 

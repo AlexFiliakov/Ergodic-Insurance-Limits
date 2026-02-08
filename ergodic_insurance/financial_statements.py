@@ -1125,11 +1125,18 @@ class FinancialStatementGenerator:
         data.append(("  Net Property, Plant & Equipment", net_ppe, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Deferred Tax Assets (Issue #367, ASC 740)
+        # Deferred Tax Assets (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5)
         deferred_tax_asset = metrics.get("deferred_tax_asset", 0)
-        if deferred_tax_asset > 0:
+        dta_valuation_allowance = metrics.get("dta_valuation_allowance", 0)
+        if deferred_tax_asset > 0 or dta_valuation_allowance > 0:
             data.append(("Other Non-Current Assets", "", "", ""))
-            data.append(("  Deferred Tax Asset", deferred_tax_asset, "", ""))
+            data.append(("  Deferred Tax Asset (Gross)", deferred_tax_asset, "", ""))
+            if dta_valuation_allowance > 0:
+                data.append(
+                    ("  Less: Valuation Allowance", -to_decimal(dta_valuation_allowance), "", "")
+                )
+            net_dta = to_decimal(deferred_tax_asset) - to_decimal(dta_valuation_allowance)
+            data.append(("  Deferred Tax Asset (Net)", net_dta, "", "subtotal"))
             data.append(("", "", "", ""))
 
         # Restricted Assets
@@ -1615,8 +1622,9 @@ class FinancialStatementGenerator:
             # Calculate tax provision on positive income only
             tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 
-        # Deferred tax from DTA/DTL changes (Issue #365, #367: ASC 740)
+        # Deferred tax from DTA/DTL changes (Issue #365, #367, #464: ASC 740)
         deferred_tax_expense = ZERO
+        valuation_allowance_expense = ZERO
         if (
             hasattr(self, "manufacturer")
             and self.manufacturer is not None
@@ -1631,15 +1639,24 @@ class FinancialStatementGenerator:
             dtl_change = self.manufacturer.ledger.get_period_change(
                 AccountName.DEFERRED_TAX_LIABILITY, year
             )
+            # Valuation allowance change (Issue #464, ASC 740-10-30-5)
+            # Positive VA change (credit-normal contra-asset) = more allowance = more expense
+            va_change = self.manufacturer.ledger.get_period_change(
+                AccountName.DTA_VALUATION_ALLOWANCE, year
+            )
+            # VA is contra-asset: a negative balance change means allowance increased
+            valuation_allowance_expense = -va_change
             deferred_tax_expense = -dta_change + dtl_change
 
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
         data.append(("  Deferred Tax Expense", deferred_tax_expense, "", ""))
+        if valuation_allowance_expense != ZERO:
+            data.append(("  Valuation Allowance Change", valuation_allowance_expense, "", ""))
         data.append(
             (
                 "  Total Tax Provision",
-                tax_provision + deferred_tax_expense,
+                tax_provision + deferred_tax_expense + valuation_allowance_expense,
                 "",
                 "subtotal",
             )
@@ -1649,7 +1666,7 @@ class FinancialStatementGenerator:
         # NET INCOME (Issue #475: compute from GAAP line items, no override)
         # Net income must equal the sum of its component line items for GAAP
         # presentation integrity per ASC 220-10-45.
-        total_tax = tax_provision + deferred_tax_expense
+        total_tax = tax_provision + deferred_tax_expense + valuation_allowance_expense
         net_income = to_decimal(pretax_income) - total_tax
         data.append(("NET INCOME", net_income, "", "total"))
         data.append(("", "", "", ""))
