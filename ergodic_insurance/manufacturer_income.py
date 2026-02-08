@@ -134,18 +134,19 @@ class IncomeCalculationMixin:
         self,
         operating_income: Union[Decimal, float],
         collateral_costs: Union[Decimal, float],
-        insurance_premiums: Union[Decimal, float] = ZERO,
-        insurance_losses: Union[Decimal, float] = ZERO,
         use_accrual: bool = True,
         time_resolution: str = "annual",
     ) -> Decimal:
         """Calculate net income after collateral costs and taxes.
 
+        Insurance costs (premiums and losses) are already deducted in
+        calculate_operating_income() and must NOT be passed here to avoid
+        double-counting (Issue #374).
+
         Args:
-            operating_income: Operating income (EBIT).
+            operating_income: Operating income after insurance costs (from
+                calculate_operating_income).
             collateral_costs: Financing costs for letter of credit collateral.
-            insurance_premiums: Insurance premium costs to deduct.
-            insurance_losses: Insurance loss/deductible costs to deduct.
             use_accrual: Whether to use accrual accounting for taxes.
             time_resolution: Time resolution for tax accrual calculation.
 
@@ -155,13 +156,8 @@ class IncomeCalculationMixin:
         # Convert inputs to Decimal
         operating_income_decimal = to_decimal(operating_income)
         collateral_costs_decimal = to_decimal(collateral_costs)
-        insurance_premiums_decimal = to_decimal(insurance_premiums)
-        insurance_losses_decimal = to_decimal(insurance_losses)
 
-        total_insurance_costs = insurance_premiums_decimal + insurance_losses_decimal
-        income_before_tax = (
-            operating_income_decimal - collateral_costs_decimal - total_insurance_costs
-        )
+        income_before_tax = operating_income_decimal - collateral_costs_decimal
 
         # Capture DTA before tax calculation for journal entry delta (Issue #365)
         old_dta = self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else ZERO
@@ -219,10 +215,6 @@ class IncomeCalculationMixin:
         # Enhanced profit waterfall logging
         logger.info("===== PROFIT WATERFALL =====")
         logger.info(f"Operating Income:        ${operating_income_decimal:,.2f}")
-        if insurance_premiums_decimal > ZERO:
-            logger.info(f"  - Insurance Premiums:  ${insurance_premiums_decimal:,.2f}")
-        if insurance_losses_decimal > ZERO:
-            logger.info(f"  - Insurance Losses:    ${insurance_losses_decimal:,.2f}")
         if collateral_costs_decimal > ZERO:
             logger.info(f"  - Collateral Costs:    ${collateral_costs_decimal:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
@@ -246,7 +238,7 @@ class IncomeCalculationMixin:
 
         # Validation assertion
         epsilon = to_decimal("0.000000001")
-        if total_insurance_costs + collateral_costs_decimal > epsilon:
+        if collateral_costs_decimal > epsilon:
             assert (
                 net_income <= operating_income_decimal + epsilon
             ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income_decimal}) when costs exist"

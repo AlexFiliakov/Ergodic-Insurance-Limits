@@ -154,8 +154,6 @@ def run_basic_simulation(
     cur_net_income = base_manufacturer.calculate_net_income(
         operating_income=cur_operating_income,
         collateral_costs=0.0,
-        insurance_premiums=annual_premium,
-        insurance_losses=average_annual_retained_loss,
         use_accrual=True,
         time_resolution="annual",
     )

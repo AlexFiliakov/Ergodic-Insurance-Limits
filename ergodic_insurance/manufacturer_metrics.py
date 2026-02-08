@@ -94,8 +94,6 @@ class MetricsCalculationMixin:
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            0,
-            0,
             use_accrual=False,
         )
 

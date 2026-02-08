@@ -752,31 +752,35 @@ class TestWidgetManufacturer:
             # Company survived - should have positive equity
             assert manufacturer.equity > 0
 
-    def test_insurance_premium_tax_treatment(self, manufacturer):
-        """Test that insurance premiums are properly tax-deductible.
+    def test_premium_reduces_taxable_income(self, manufacturer):
+        """Premium should reduce operating income and flow to net income.
 
         Regression test for issue where premiums weren't reducing taxable income.
+        Insurance premiums are deducted in calculate_operating_income() (Issue #374).
         """
-        # Calculate baseline metrics
         revenue = manufacturer.calculate_revenue()
-        operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Calculate net income without insurance premium
-        net_income_no_premium = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+        # Baseline operating income (no premium recorded)
+        operating_income_no_premium = manufacturer.calculate_operating_income(revenue)
 
-        # Calculate net income with insurance premium
+        # Record a premium and recalculate
         premium = 300_000
-        net_income_with_premium = manufacturer.calculate_net_income(operating_income, 0, premium, 0)
+        manufacturer.record_insurance_premium(premium)
+        operating_income_with_premium = manufacturer.calculate_operating_income(revenue)
 
-        # Premium should reduce net income by (premium * (1 - tax_rate))
+        # Premium should reduce operating income by exactly the premium amount
+        assert operating_income_no_premium - operating_income_with_premium == pytest.approx(premium)
+
+        # The net income reduction equals premium * (1 - tax_rate)
+        net_income_no_premium = manufacturer.calculate_net_income(operating_income_no_premium, 0)
+        net_income_with_premium = manufacturer.calculate_net_income(
+            operating_income_with_premium, 0
+        )
+
         expected_reduction = premium * (1 - manufacturer.tax_rate)
         actual_reduction = net_income_no_premium - net_income_with_premium
 
         assert actual_reduction == pytest.approx(expected_reduction)
-
-        # Verify tax savings
-        tax_savings = premium * manufacturer.tax_rate
-        assert tax_savings == pytest.approx(75_000)  # 25% of 300K
 
     def test_deductible_tax_treatment_on_incurrence(self, manufacturer):
         """Test that deductibles create liabilities that reduce equity.
@@ -875,7 +879,7 @@ class TestWidgetManufacturer:
         collateral_costs = manufacturer.calculate_collateral_costs(0.015)
 
         # Operating income already includes premium deduction
-        net_income = manufacturer.calculate_net_income(operating_income, collateral_costs, 0, 0)
+        net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
 
         # Premium should reduce net income by (premium * (1 - tax_rate))
         # Note: Cannot directly compare because operating income already includes the premium
@@ -973,12 +977,10 @@ class TestWidgetManufacturer:
         operating_income = manufacturer.calculate_operating_income(revenue)
 
         net_income_with_costs = manufacturer.calculate_net_income(
-            operating_income, collateral_costs, ZERO, ZERO
+            operating_income, collateral_costs
         )
 
-        net_income_without_costs = manufacturer.calculate_net_income(
-            operating_income, ZERO, ZERO, ZERO
-        )
+        net_income_without_costs = manufacturer.calculate_net_income(operating_income, ZERO)
 
         # Collateral costs should reduce net income by (costs * (1 - tax_rate))
         tax_rate = to_decimal(manufacturer.tax_rate)
@@ -1041,19 +1043,19 @@ class TestWidgetManufacturer:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Net income without considering the premium
-        net_income_no_premium = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+        # Net income already reflects the premium through operating_income
+        # (calculate_operating_income deducts period_insurance_premiums)
+        net_income = manufacturer.calculate_net_income(operating_income, 0)
 
-        # Net income with the premium expense
-        net_income_with_premium = manufacturer.calculate_net_income(
-            operating_income, 0, manufacturer.period_insurance_premiums, 0
-        )
+        # Verify premium was included in operating income
+        expected_operating_income = revenue * to_decimal(
+            manufacturer.base_operating_margin
+        ) - to_decimal(premium)
+        assert operating_income == pytest.approx(expected_operating_income)
 
-        # Premium should reduce net income by (premium × (1 - tax_rate))
-        expected_reduction = premium * (1 - manufacturer.tax_rate)
-        actual_reduction = net_income_no_premium - net_income_with_premium
-
-        assert actual_reduction == pytest.approx(expected_reduction)
+        # Net income should reflect the premium deduction via operating income
+        expected_net = operating_income * (1 - to_decimal(manufacturer.tax_rate))
+        assert net_income == pytest.approx(expected_net, rel=1e-6)
 
     def test_comparative_scenarios_with_premiums(self, manufacturer):
         """Test that insurance scenarios maintain revenue capacity.

@@ -44,7 +44,7 @@ class TestTaxHandling:
         """
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
-        net_income = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
+        net_income = manufacturer.calculate_net_income(operating_income, 0)
 
         # Expected: Operating income = $1.5M, taxes = $375K, net = $1.125M
         expected_taxes = operating_income * to_decimal(manufacturer.tax_rate)
@@ -56,138 +56,141 @@ class TestTaxHandling:
     def test_premium_tax_deductibility(self, manufacturer):
         """Test that insurance premiums are properly tax-deductible.
 
-        Verifies that insurance premium payments reduce taxable income
-        and provide appropriate tax savings.
+        Premiums are deducted in calculate_operating_income() and flow
+        through to net income. Verifies the single-deduction income waterfall.
         """
         revenue = manufacturer.calculate_revenue()
-        operating_income = manufacturer.calculate_operating_income(revenue)
 
+        # Baseline operating income (no premium recorded yet)
+        operating_income_baseline = manufacturer.calculate_operating_income(revenue)
+
+        # Record a premium and recalculate operating income
         premium = 500_000
-        net_income_with_premium = manufacturer.calculate_net_income(operating_income, 0, premium, 0)
+        manufacturer.record_insurance_premium(premium)
+        operating_income_with_premium = manufacturer.calculate_operating_income(revenue)
 
-        # Expected calculation
-        income_before_tax = operating_income - to_decimal(premium)  # $1M
-        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $250K
-        expected_net = income_before_tax - expected_taxes  # $750K
+        # Premium should reduce operating income by exactly the premium amount
+        assert operating_income_baseline - operating_income_with_premium == pytest.approx(premium)
 
-        assert abs(float(net_income_with_premium) - float(expected_net)) < 0.01
-        assert float(expected_net) == pytest.approx(750_000)
+        # Net income reflects the premium through operating income
+        net_income = manufacturer.calculate_net_income(operating_income_with_premium, 0)
+        income_before_tax = operating_income_with_premium
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)
+        expected_net = income_before_tax - expected_taxes
 
-        # Verify tax savings
-        baseline_taxes = operating_income * to_decimal(manufacturer.tax_rate)
-        tax_savings = baseline_taxes - expected_taxes
-        assert tax_savings == pytest.approx(125_000)  # 25% of $500K
+        assert abs(float(net_income) - float(expected_net)) < 0.01
 
     def test_loss_tax_deductibility(self, manufacturer):
         """Test that insurance losses are properly tax-deductible.
 
-        Verifies that company-paid insurance losses (deductibles)
-        reduce taxable income and provide appropriate tax savings.
+        Losses are deducted in calculate_operating_income() via
+        period_insurance_losses and flow through to net income.
         """
         revenue = manufacturer.calculate_revenue()
-        operating_income = manufacturer.calculate_operating_income(revenue)
 
+        # Baseline operating income (no losses recorded yet)
+        operating_income_baseline = manufacturer.calculate_operating_income(revenue)
+
+        # Record a loss and recalculate operating income
         loss = 300_000
-        net_income_with_loss = manufacturer.calculate_net_income(operating_income, 0, 0, loss)
+        manufacturer.period_insurance_losses = to_decimal(loss)
+        operating_income_with_loss = manufacturer.calculate_operating_income(revenue)
 
-        # Expected calculation
-        income_before_tax = operating_income - to_decimal(loss)  # $1.2M
-        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $300K
-        expected_net = income_before_tax - expected_taxes  # $900K
+        # Loss should reduce operating income by exactly the loss amount
+        assert operating_income_baseline - operating_income_with_loss == pytest.approx(loss)
 
-        assert abs(float(net_income_with_loss) - float(expected_net)) < 0.01
-        assert float(expected_net) == pytest.approx(900_000)
+        # Net income reflects the loss through operating income
+        net_income = manufacturer.calculate_net_income(operating_income_with_loss, 0)
+        income_before_tax = operating_income_with_loss
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)
+        expected_net = income_before_tax - expected_taxes
 
-        # Verify tax savings
-        baseline_taxes = operating_income * to_decimal(manufacturer.tax_rate)
-        tax_savings = baseline_taxes - expected_taxes
-        assert tax_savings == pytest.approx(75_000)  # 25% of $300K
+        assert abs(float(net_income) - float(expected_net)) < 0.01
 
     def test_combined_premium_and_loss_deductibility(self, manufacturer):
         """Test combined premium and loss tax deductibility.
 
-        Verifies that both premiums and losses together are properly
-        tax-deductible and provide combined tax savings.
+        Both premiums and losses are deducted in calculate_operating_income()
+        and flow through to net income correctly.
         """
         revenue = manufacturer.calculate_revenue()
-        operating_income = manufacturer.calculate_operating_income(revenue)
 
+        # Baseline operating income
+        operating_income_baseline = manufacturer.calculate_operating_income(revenue)
+
+        # Record both premium and loss
         premium = 400_000
         loss = 200_000
-        net_income_combined = manufacturer.calculate_net_income(operating_income, 0, premium, loss)
+        manufacturer.record_insurance_premium(premium)
+        manufacturer.period_insurance_losses = to_decimal(loss)
+        operating_income_with_costs = manufacturer.calculate_operating_income(revenue)
 
-        # Expected calculation
-        total_insurance_costs = to_decimal(premium + loss)  # $600K
-        income_before_tax = operating_income - total_insurance_costs  # $900K
-        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $225K
-        expected_net = income_before_tax - expected_taxes  # $675K
+        # Both should reduce operating income
+        total_insurance = premium + loss
+        assert operating_income_baseline - operating_income_with_costs == pytest.approx(
+            total_insurance
+        )
 
-        assert abs(float(net_income_combined) - float(expected_net)) < 0.01
-        assert float(expected_net) == pytest.approx(675_000)
+        # Net income reflects combined costs through operating income
+        net_income = manufacturer.calculate_net_income(operating_income_with_costs, 0)
+        income_before_tax = operating_income_with_costs
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)
+        expected_net = income_before_tax - expected_taxes
 
-        # Verify combined tax savings
-        baseline_taxes = operating_income * to_decimal(manufacturer.tax_rate)
-        tax_savings = baseline_taxes - expected_taxes
-        assert tax_savings == pytest.approx(150_000)  # 25% of $600K
+        assert abs(float(net_income) - float(expected_net)) < 0.01
 
-    def test_collateral_costs_with_insurance_costs(self, manufacturer):
-        """Test that collateral costs work properly with insurance costs.
+    def test_collateral_costs_deduction(self, manufacturer):
+        """Test that collateral costs are properly deducted below operating income.
 
-        Verifies that collateral costs, insurance premiums, and losses
-        all work together properly in the tax calculation.
+        Collateral costs are the only below-the-line deduction in
+        calculate_net_income() after insurance was moved to operating income.
         """
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
         collateral_costs = 50_000
-        premium = 300_000
-        loss = 100_000
 
-        net_income = manufacturer.calculate_net_income(
-            operating_income, collateral_costs, premium, loss
-        )
+        net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
 
         # Expected calculation
-        total_deductible_costs = to_decimal(collateral_costs + premium + loss)  # $450K
-        income_before_tax = operating_income - total_deductible_costs  # $1.05M
-        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)  # $262.5K
-        expected_net = income_before_tax - expected_taxes  # $787.5K
+        income_before_tax = operating_income - to_decimal(collateral_costs)
+        expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)
+        expected_net = income_before_tax - expected_taxes
 
         assert abs(float(net_income) - float(expected_net)) < 0.01
-        assert float(expected_net) == pytest.approx(787_500)
 
-    def test_zero_insurance_costs(self, manufacturer):
-        """Test that zero insurance costs work correctly.
+    def test_zero_collateral_costs(self, manufacturer):
+        """Test that zero collateral costs work correctly.
 
-        Verifies that when no insurance premiums or losses are provided,
-        the calculation works the same as the baseline.
+        Verifies that calling with zero collateral produces correct results.
         """
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        net_income_zeros = manufacturer.calculate_net_income(operating_income, 0, 0, 0)
-        net_income_default = manufacturer.calculate_net_income(operating_income, 0)
+        net_income = manufacturer.calculate_net_income(operating_income, 0)
 
-        # Both should give the same result
-        assert abs(net_income_zeros - net_income_default) < 0.01
+        # Should just be operating income minus taxes
+        expected_taxes = operating_income * to_decimal(manufacturer.tax_rate)
+        expected_net = operating_income - expected_taxes
+
+        assert abs(net_income - expected_net) < 0.01
 
     def test_negative_income_no_tax_benefit(self, manufacturer):
         """Test that negative pre-tax income generates no tax benefit.
 
-        Verifies that when insurance costs exceed operating income,
+        Verifies that when collateral costs exceed operating income,
         no tax benefit is generated (no negative taxes).
         """
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Large insurance costs that exceed operating income
-        premium = operating_income + 100_000  # More than operating income
-        loss = 200_000
+        # Large collateral costs that exceed operating income
+        excessive_collateral = operating_income + 100_000
 
-        net_income = manufacturer.calculate_net_income(operating_income, 0, premium, loss)
+        net_income = manufacturer.calculate_net_income(operating_income, excessive_collateral)
 
         # Expected: negative income before tax, zero taxes
-        income_before_tax = operating_income - premium - loss
+        income_before_tax = operating_income - excessive_collateral
         assert income_before_tax < 0
 
         # Net income should equal income before tax (no taxes paid)
@@ -345,59 +348,49 @@ class TestTaxHandling:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        insurance_costs = 600_000
-        net_income = manufacturer.calculate_net_income(operating_income, 0, insurance_costs, 0)
+        collateral_costs = 600_000
+        net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
 
         # Calculate expected values
-        income_before_tax = operating_income - to_decimal(insurance_costs)
+        income_before_tax = operating_income - to_decimal(collateral_costs)
         expected_taxes = max(to_decimal(0), income_before_tax * to_decimal(tax_rate))
         expected_net = income_before_tax - expected_taxes
 
         assert abs(float(net_income) - float(expected_net)) < 0.01
 
-        # Calculate tax savings
-        baseline_taxes = max(to_decimal(0), operating_income * to_decimal(tax_rate))
-        tax_savings = baseline_taxes - expected_taxes
-        expected_savings = to_decimal(insurance_costs) * to_decimal(tax_rate)
+    def test_large_collateral_costs_edge_case(self, manufacturer):
+        """Test handling of collateral costs larger than operating income.
 
-        assert abs(float(tax_savings) - float(expected_savings)) < 0.01
-
-    def test_large_insurance_costs_edge_case(self, manufacturer):
-        """Test handling of insurance costs larger than operating income.
-
-        Verifies proper handling when insurance costs exceed operating income,
+        Verifies proper handling when collateral costs exceed operating income,
         resulting in zero taxes but significant losses.
         """
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Insurance costs exceed operating income
-        excessive_premium = operating_income * 2
-        net_income = manufacturer.calculate_net_income(operating_income, 0, excessive_premium, 0)
+        # Collateral costs exceed operating income
+        excessive_collateral = operating_income * 2
+        net_income = manufacturer.calculate_net_income(operating_income, excessive_collateral)
 
         # Should result in negative net income with no taxes
-        expected_net = operating_income - excessive_premium
+        expected_net = operating_income - excessive_collateral
         assert expected_net < 0
         assert abs(net_income - expected_net) < 0.01
 
-    def test_insurance_cost_precision(self, manufacturer):
-        """Test precision of insurance cost calculations.
+    def test_cost_precision(self, manufacturer):
+        """Test precision of cost calculations.
 
-        Verifies that small insurance amounts are handled with
+        Verifies that small amounts are handled with
         appropriate precision in tax calculations.
         """
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Test with small amounts
-        small_premium = 1.50
-        small_loss = 2.75
+        # Test with small collateral amount
+        small_collateral = 4.25
 
-        net_income = manufacturer.calculate_net_income(
-            operating_income, 0, small_premium, small_loss
-        )
+        net_income = manufacturer.calculate_net_income(operating_income, small_collateral)
 
-        income_before_tax = operating_income - to_decimal(small_premium) - to_decimal(small_loss)
+        income_before_tax = operating_income - to_decimal(small_collateral)
         expected_taxes = income_before_tax * to_decimal(manufacturer.tax_rate)
         expected_net = income_before_tax - expected_taxes
 
