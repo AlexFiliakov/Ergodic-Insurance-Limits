@@ -96,13 +96,14 @@ class TestVaR:
         with pytest.raises(ValueError, match="Confidence must be in"):
             metrics.var(1.0)
 
-    def test_var_with_bootstrap_ci(self):
-        """Test VaR with bootstrap confidence intervals."""
+    def test_var_with_bootstrap_ci_deprecated(self):
+        """Test VaR with deprecated bootstrap_ci emits warning and still works."""
         np.random.seed(42)
         losses = np.random.normal(1000, 100, 1000)
         metrics = RiskMetrics(losses, seed=42)
 
-        result = metrics.var(0.95, bootstrap_ci=True, n_bootstrap=100)
+        with pytest.warns(DeprecationWarning, match="bootstrap_ci.*deprecated"):
+            result = metrics.var(0.95, bootstrap_ci=True, n_bootstrap=100)
 
         assert isinstance(result, RiskMetricsResult)
         assert result.metric_name == "VaR"
@@ -110,6 +111,82 @@ class TestVaR:
         assert result.confidence_interval is not None
         assert len(result.confidence_interval) == 2
         assert result.confidence_interval[0] < result.value < result.confidence_interval[1]
+
+
+class TestVarWithCI:
+    """Test var_with_ci() method."""
+
+    def test_var_with_ci_returns_risk_metrics_result(self):
+        """Test var_with_ci returns RiskMetricsResult."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 1000)
+        metrics = RiskMetrics(losses, seed=42)
+
+        result = metrics.var_with_ci(0.95, n_bootstrap=100)
+
+        assert isinstance(result, RiskMetricsResult)
+        assert result.metric_name == "VaR"
+        assert result.confidence_level == 0.95
+        assert result.confidence_interval is not None
+        assert len(result.confidence_interval) == 2
+        assert result.confidence_interval[0] < result.value < result.confidence_interval[1]
+
+    def test_var_with_ci_parametric(self):
+        """Test var_with_ci with parametric method."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 1000)
+        metrics = RiskMetrics(losses, seed=42)
+
+        result = metrics.var_with_ci(0.99, method="parametric", n_bootstrap=50)
+
+        assert isinstance(result, RiskMetricsResult)
+        assert result.metadata == {"method": "parametric"}
+
+    def test_var_with_ci_invalid_confidence(self):
+        """Test var_with_ci raises on invalid confidence."""
+        losses = np.array([100, 200, 300])
+        metrics = RiskMetrics(losses)
+
+        with pytest.raises(ValueError, match="Confidence must be in"):
+            metrics.var_with_ci(0.0)
+
+    def test_var_with_ci_invalid_method(self):
+        """Test var_with_ci raises on invalid method."""
+        losses = np.array([100, 200, 300])
+        metrics = RiskMetrics(losses)
+
+        with pytest.raises(ValueError, match="Method must be"):
+            metrics.var_with_ci(0.95, method="invalid")
+
+
+class TestTVarWithCI:
+    """Test tvar_with_ci() method."""
+
+    def test_tvar_with_ci_returns_risk_metrics_result(self):
+        """Test tvar_with_ci returns RiskMetricsResult."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 1000)
+        metrics = RiskMetrics(losses, seed=42)
+
+        result = metrics.tvar_with_ci(0.95, n_bootstrap=100)
+
+        assert isinstance(result, RiskMetricsResult)
+        assert result.metric_name == "TVaR"
+        assert result.confidence_level == 0.95
+        assert result.confidence_interval is not None
+        assert len(result.confidence_interval) == 2
+        assert result.confidence_interval[0] <= result.value <= result.confidence_interval[1]
+
+    def test_tvar_with_ci_value_matches_tvar(self):
+        """Test tvar_with_ci value matches plain tvar."""
+        np.random.seed(42)
+        losses = np.random.normal(1000, 100, 1000)
+        metrics = RiskMetrics(losses, seed=42)
+
+        tvar_plain = metrics.tvar(0.95)
+        result = metrics.tvar_with_ci(0.95, n_bootstrap=50)
+
+        assert result.value == pytest.approx(tvar_plain, rel=1e-10)
 
 
 class TestTVaR:

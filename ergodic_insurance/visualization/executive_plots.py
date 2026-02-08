@@ -137,8 +137,7 @@ def plot_loss_distribution(  # pylint: disable=too-many-locals,too-many-statemen
 
         colors = [WSJ_COLORS["red"], WSJ_COLORS["orange"]]
         for i, level in enumerate(var_levels):
-            var = metrics.var(level)
-            var_value = var if isinstance(var, float) else var.value
+            var_value = metrics.var(level)
             ax1.axvline(
                 var_value,
                 color=colors[i % len(colors)],
