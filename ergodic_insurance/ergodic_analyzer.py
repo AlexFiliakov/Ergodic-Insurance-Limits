@@ -1683,10 +1683,10 @@ class ErgodicAnalyzer:
             - ``|t| < 1``: Small effect
 
         Assumptions and Limitations:
-            **t-test Assumptions**:
+            **t-test Assumptions** (Welch's t-test):
             1. Samples are independent
             2. Data approximately normally distributed (robust to violations with large n)
-            3. Equal variances (Welch's t-test used automatically if needed)
+            3. Variances need not be equal (Welch's t-test is used)
 
             **Handling of Infinite Values**: The method automatically excludes
             infinite values (from bankruptcy scenarios) using scipy's nan_policy='omit'.
@@ -1707,9 +1707,9 @@ class ErgodicAnalyzer:
             :meth:`check_convergence`: For determining adequate sample sizes
             scipy.stats.ttest_ind: Underlying statistical test implementation
         """
-        # Perform independent samples t-test
+        # Perform Welch's t-test (does not assume equal variances)
         t_stat, p_value = stats.ttest_ind(
-            sample1, sample2, alternative=test_type, nan_policy="omit"
+            sample1, sample2, equal_var=False, alternative=test_type, nan_policy="omit"
         )
 
         return t_stat, p_value
