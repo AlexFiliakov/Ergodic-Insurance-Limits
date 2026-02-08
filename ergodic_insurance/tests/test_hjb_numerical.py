@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Advanced numerical tests for Hamilton-Jacobi-Bellman solver.
 
 This module tests numerical stability, boundary conditions, and accuracy
@@ -1779,3 +1780,453 @@ class TestReflectingBoundaryDirect:
         grad_upper = (value[-1] - value[-2]) / dx[-1]
         assert abs(grad_lower) < 1e-6, f"Reflecting lower BC violated: dV/dx = {grad_lower}"
         assert abs(grad_upper) < 1e-6, f"Reflecting upper BC violated: dV/dx = {grad_upper}"
+
+
+class TestNaNInfDetection:
+    """Tests for NaN/Inf detection during solve (#453)."""
+
+    def _make_1d_problem(self, drift_fn=None, discount_rate=0.05, num_points=20):
+        """Helper to create a simple 1D HJB problem."""
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        if drift_fn is None:
+
+            def drift_fn(x, u, t):
+                return x * 0.05
+
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=drift_fn,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=discount_rate,
+        )
+
+    def test_nan_inf_raises_in_policy_evaluation(self):
+        """Solver raises NumericalDivergenceError when value function contains NaN."""
+        from ergodic_insurance.hjb_solver import NumericalDivergenceError
+
+        # A running cost that returns NaN propagates directly into new_v:
+        # rhs = -rho*V + NaN + advection = NaN → new_v = V + dt*NaN = NaN
+        sv = StateVariable("x", 1.0, 5.0, 20)
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.05,
+            running_cost=lambda x, u, t: np.full(x.shape[0], np.nan),
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=5,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        with pytest.raises(NumericalDivergenceError, match="diverged"):
+            solver.solve()
+
+    def test_convergence_metrics_has_nan_inf_flag(self):
+        """compute_convergence_metrics returns has_nan_inf field."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        metrics = solver.compute_convergence_metrics()
+        assert "has_nan_inf" in metrics
+        assert metrics["has_nan_inf"] is False
+
+    def test_convergence_metrics_includes_diffusion_in_residual(self):
+        """Residual computation includes diffusion term when diffusion is present."""
+        sv = StateVariable("x", 1.0, 5.0, 20)
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.05,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=lambda x, u, t: np.full_like(x, 0.04),
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=20, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        metrics = solver.compute_convergence_metrics()
+        assert "has_nan_inf" in metrics
+        assert metrics["has_nan_inf"] is False
+        # Residual should be finite
+        assert np.isfinite(metrics["max_residual"])
+
+
+class TestCFLStabilityCheck:
+    """Tests for CFL stability checking and auto-adaptation (#452)."""
+
+    def _make_1d_problem(self, drift_scale=0.05, sigma_sq=None):
+        sv = StateVariable("x", 1.0, 5.0, 20)
+        state_space = StateSpace([sv])
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+
+    def test_cfl_computation(self):
+        """_compute_cfl_number returns correct CFL numbers."""
+        problem = self._make_1d_problem(drift_scale=1.0)
+        config = HJBSolverConfig(time_step=0.5, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        # Create dummy drift on grid
+        grid = problem.state_space.grids[0]
+        drift = (grid * 1.0).reshape(-1, 1)
+        adv_cfl, diff_cfl = solver._compute_cfl_number(drift, None, 0.5)
+
+        assert adv_cfl > 0, "Advection CFL should be positive with non-zero drift"
+        assert diff_cfl == 0.0, "Diffusion CFL should be zero without diffusion"
+
+    def test_cfl_auto_reduces_dt(self):
+        """Solver auto-reduces dt when CFL is violated for explicit scheme."""
+        # Large drift + large dt → CFL violation
+        problem = self._make_1d_problem(drift_scale=50.0)
+        config = HJBSolverConfig(
+            time_step=1.0,  # Very large dt
+            max_iterations=5,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        # Should not raise — CFL auto-reduction prevents divergence
+        import logging
+
+        with patch("ergodic_insurance.hjb_solver.logger") as mock_logger:
+            solver.solve()
+            # Verify CFL warning was issued
+            warning_calls = [
+                call for call in mock_logger.warning.call_args_list if "CFL" in str(call)
+            ]
+            assert len(warning_calls) > 0, "Expected CFL warning"
+
+    def test_cfl_not_checked_for_implicit(self):
+        """CFL check is skipped for implicit scheme (unconditionally stable)."""
+        problem = self._make_1d_problem(drift_scale=50.0)
+        config = HJBSolverConfig(
+            time_step=1.0,
+            max_iterations=5,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        with patch("ergodic_insurance.hjb_solver.logger") as mock_logger:
+            solver.solve()
+            # Should NOT have CFL warnings for implicit scheme
+            warning_calls = [
+                call for call in mock_logger.warning.call_args_list if "CFL" in str(call)
+            ]
+            assert len(warning_calls) == 0, "Implicit scheme should not trigger CFL warnings"
+
+    def test_solver_produces_finite_after_cfl_adaptation(self):
+        """After CFL auto-adaptation, solution should remain finite."""
+        problem = self._make_1d_problem(drift_scale=10.0)
+        config = HJBSolverConfig(
+            time_step=0.5,
+            max_iterations=20,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Value function should be finite after CFL adaptation"
+        assert np.all(np.isfinite(policy["u"])), "Policy should be finite after CFL adaptation"
+
+
+class TestImplicitScheme:
+    """Tests for implicit (backward Euler) time-stepping scheme (#451)."""
+
+    def _make_1d_problem(self, drift_scale=0.05, sigma_sq=None, num_points=20):
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+
+    def test_implicit_scheme_converges(self):
+        """Implicit scheme should converge to a valid solution."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Implicit solution should be finite"
+        assert np.all(np.isfinite(policy["u"])), "Implicit policy should be finite"
+
+    def test_implicit_matches_explicit_small_dt(self):
+        """Implicit and explicit should give similar results with small dt."""
+        problem_exp = self._make_1d_problem()
+        problem_imp = self._make_1d_problem()
+
+        config_exp = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        config_imp = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+
+        solver_exp = HJBSolver(problem_exp, config_exp)
+        solver_imp = HJBSolver(problem_imp, config_imp)
+
+        v_exp, _ = solver_exp.solve()
+        v_imp, _ = solver_imp.solve()
+
+        # With same small dt, solutions should be close
+        rel_diff = np.max(np.abs(v_exp - v_imp)) / (np.max(np.abs(v_exp)) + 1e-10)
+        assert rel_diff < 0.1, (
+            f"Implicit and explicit should agree with small dt, " f"relative diff = {rel_diff:.4f}"
+        )
+
+    def test_implicit_stable_with_large_dt(self):
+        """Implicit scheme should remain stable with dt much larger than CFL limit."""
+        problem = self._make_1d_problem(drift_scale=1.0)
+        # For explicit, CFL would require dt ~ 0.01 or less
+        # Implicit should handle dt = 0.1 (10x larger)
+        config = HJBSolverConfig(
+            time_step=0.1,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Implicit scheme should be stable with large dt"
+
+    def test_implicit_with_diffusion(self):
+        """Implicit scheme handles diffusion term correctly."""
+        problem = self._make_1d_problem(drift_scale=0.05, sigma_sq=0.04)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Implicit with diffusion should be finite"
+
+    def test_default_scheme_is_explicit(self):
+        """Default HJBSolverConfig.scheme should be EXPLICIT (#451 Phase 0)."""
+        config = HJBSolverConfig()
+        assert config.scheme == TimeSteppingScheme.EXPLICIT
+
+    def test_spatial_operator_tridiagonal(self):
+        """_build_spatial_operator_1d produces a tridiagonal matrix."""
+        problem = self._make_1d_problem(num_points=10)
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+
+        N = 10
+        drift_1d = np.ones(N) * 0.1
+        sigma_sq_1d = np.ones(N) * 0.04
+        L = solver._build_spatial_operator_1d(drift_1d, sigma_sq_1d)
+
+        L_dense = L.toarray()
+        # Interior rows should be tridiagonal
+        for i in range(2, N - 2):
+            for j in range(N):
+                if abs(i - j) > 1:
+                    assert L_dense[i, j] == 0.0, f"L[{i},{j}] should be zero for tridiagonal matrix"
+
+    def test_implicit_operator_m_matrix(self):
+        """(I - dt*L) should be an M-matrix: positive diagonal, non-positive off-diagonal."""
+        problem = self._make_1d_problem(num_points=10)
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+
+        N = 10
+        drift_1d = np.linspace(-0.5, 0.5, N)
+        sigma_sq_1d = np.ones(N) * 0.04
+        dt = 0.01
+
+        L = solver._build_spatial_operator_1d(drift_1d, sigma_sq_1d)
+        I_mat = sparse.eye(N)
+        A = (I_mat - dt * L).toarray()
+
+        # Interior rows: check M-matrix property
+        for i in range(1, N - 1):
+            assert A[i, i] >= 1.0, f"Diagonal A[{i},{i}]={A[i,i]} should be >= 1"
+            for j in range(N):
+                if j != i:
+                    assert (
+                        A[i, j] <= 0.0 + 1e-15
+                    ), f"Off-diagonal A[{i},{j}]={A[i,j]} should be <= 0"
+
+
+class TestCrankNicolsonScheme:
+    """Tests for Crank-Nicolson time-stepping scheme (#451)."""
+
+    def _make_1d_problem(self, drift_scale=0.05, sigma_sq=None, num_points=20):
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+
+    def test_crank_nicolson_converges(self):
+        """Crank-Nicolson scheme should converge to a valid solution."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "CN solution should be finite"
+        assert np.all(np.isfinite(policy["u"])), "CN policy should be finite"
+
+    def test_crank_nicolson_with_diffusion(self):
+        """CN scheme handles diffusion correctly."""
+        problem = self._make_1d_problem(drift_scale=0.05, sigma_sq=0.04)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "CN with diffusion should be finite"
+
+    def test_rannacher_startup(self):
+        """CN with Rannacher smoothing should produce stable results."""
+        problem = self._make_1d_problem()
+        # Rannacher steps = 2 (default)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            rannacher_steps=2,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, _ = solver.solve()
+
+        assert np.all(np.isfinite(value)), "CN with Rannacher should be finite"
+
+    def test_rannacher_zero_disables_startup(self):
+        """Setting rannacher_steps=0 disables the implicit startup."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            rannacher_steps=0,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, _ = solver.solve()
+
+        # Should still produce finite results with small dt
+        assert np.all(np.isfinite(value)), "CN without Rannacher should still work with small dt"
+
+    def test_cn_matches_explicit_small_dt(self):
+        """CN and explicit should give similar results with small dt."""
+        problem_exp = self._make_1d_problem()
+        problem_cn = self._make_1d_problem()
+
+        config_exp = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        config_cn = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            verbose=False,
+        )
+
+        solver_exp = HJBSolver(problem_exp, config_exp)
+        solver_cn = HJBSolver(problem_cn, config_cn)
+
+        v_exp, _ = solver_exp.solve()
+        v_cn, _ = solver_cn.solve()
+
+        rel_diff = np.max(np.abs(v_exp - v_cn)) / (np.max(np.abs(v_exp)) + 1e-10)
+        assert (
+            rel_diff < 0.1
+        ), f"CN and explicit should agree with small dt, relative diff = {rel_diff:.4f}"
+
+    def test_multid_falls_back_to_explicit(self):
+        """Multi-D problems should fall back to explicit with warning."""
+        sv_x = StateVariable("x", 1.0, 5.0, 5)
+        sv_y = StateVariable("y", 1.0, 5.0, 5)
+        state_space = StateSpace([sv_x, sv_y])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=3,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        with patch("ergodic_insurance.hjb_solver.logger") as mock_logger:
+            value, _ = solver.solve()
+            # Should warn about fallback
+            warning_calls = [
+                call
+                for call in mock_logger.warning.call_args_list
+                if "falling back" in str(call).lower()
+            ]
+            assert len(warning_calls) > 0, "Should warn about multi-D fallback"
+
+        assert np.all(np.isfinite(value)), "Multi-D fallback should produce finite results"
