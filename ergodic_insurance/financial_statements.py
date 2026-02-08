@@ -207,7 +207,10 @@ class CashFlowStatement:
 
         # Calculate total operating cash flow
         operating_items["total"] = (
-            sum((to_decimal(v) for k, v in operating_items.items() if k != "net_income"), ZERO)
+            sum(
+                (to_decimal(v) for k, v in operating_items.items() if k != "net_income"),
+                ZERO,
+            )
             + net_income
         )
 
@@ -527,11 +530,19 @@ class CashFlowStatement:
             # Direct method shows actual cash receipts and payments
             if operating.get("cash_from_customers", 0) != 0:
                 cash_flow_data.append(
-                    ("  Cash Received from Customers", operating["cash_from_customers"], "")
+                    (
+                        "  Cash Received from Customers",
+                        operating["cash_from_customers"],
+                        "",
+                    )
                 )
             if operating.get("cash_from_insurance", 0) != 0:
                 cash_flow_data.append(
-                    ("  Cash Received from Insurance", operating["cash_from_insurance"], "")
+                    (
+                        "  Cash Received from Insurance",
+                        operating["cash_from_insurance"],
+                        "",
+                    )
                 )
             if operating.get("cash_to_suppliers", 0) != 0:
                 cash_flow_data.append(
@@ -543,7 +554,11 @@ class CashFlowStatement:
                 )
             if operating.get("cash_for_claim_losses", 0) != 0:
                 cash_flow_data.append(
-                    ("  Cash Paid for Claim Losses", operating["cash_for_claim_losses"], "")
+                    (
+                        "  Cash Paid for Claim Losses",
+                        operating["cash_for_claim_losses"],
+                        "",
+                    )
                 )
             if operating.get("cash_for_taxes", 0) != 0:
                 cash_flow_data.append(("  Cash Paid for Taxes", operating["cash_for_taxes"], ""))
@@ -565,7 +580,11 @@ class CashFlowStatement:
             cash_flow_data.append(("  Changes in operating assets and liabilities:", "", ""))
             if operating["accounts_receivable_change"] != 0:
                 cash_flow_data.append(
-                    ("    Accounts Receivable", operating["accounts_receivable_change"], "")
+                    (
+                        "    Accounts Receivable",
+                        operating["accounts_receivable_change"],
+                        "",
+                    )
                 )
             if operating["inventory_change"] != 0:
                 cash_flow_data.append(("    Inventory", operating["inventory_change"], ""))
@@ -587,7 +606,11 @@ class CashFlowStatement:
                 )
 
         cash_flow_data.append(
-            ("  Net Cash Provided by Operating Activities", operating["total"], "subtotal")
+            (
+                "  Net Cash Provided by Operating Activities",
+                operating["total"],
+                "subtotal",
+            )
         )
         cash_flow_data.append(("", "", ""))
 
@@ -641,7 +664,9 @@ class CashFlowStatement:
 
         # Create DataFrame
         df = pd.DataFrame(
-            cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"], dtype=object
+            cash_flow_data,
+            columns=["Item", f"{period_label} {year}", "Type"],
+            dtype=object,
         )
         return df
 
@@ -905,6 +930,11 @@ class FinancialStatementGenerator:
             # Tax expense (Issue #257)
             if "tax_expense" in mfr_metrics:
                 metrics["tax_expense"] = mfr_metrics["tax_expense"]
+            # Non-operating items (Issue #475)
+            if "interest_expense" in mfr_metrics:
+                metrics["interest_expense"] = mfr_metrics["interest_expense"]
+            if "net_reserve_development" in mfr_metrics:
+                metrics["net_reserve_development"] = mfr_metrics["net_reserve_development"]
         else:
             # Fallback: use ledger period changes (may be 0 if not recorded)
             metrics["revenue"] = self.ledger.get_period_change("revenue", year)
@@ -1029,7 +1059,9 @@ class FinancialStatementGenerator:
         return df
 
     def _build_assets_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> Decimal:
         """Build assets section of balance sheet with GAAP structure.
 
@@ -1122,7 +1154,9 @@ class FinancialStatementGenerator:
         return total_assets
 
     def _build_liabilities_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> Decimal:
         """Build liabilities section of balance sheet with GAAP structure.
 
@@ -1237,7 +1271,10 @@ class FinancialStatementGenerator:
         )
 
     def generate_income_statement(
-        self, year: int, compare_years: Optional[List[int]] = None, monthly: bool = False
+        self,
+        year: int,
+        compare_years: Optional[List[int]] = None,
+        monthly: bool = False,
     ) -> pd.DataFrame:
         """Generate income statement for specified year with proper GAAP structure.
 
@@ -1288,7 +1325,9 @@ class FinancialStatementGenerator:
         # Create DataFrame
         period_label = "Month" if monthly else "Year"
         df = pd.DataFrame(
-            income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"], dtype=object
+            income_data,
+            columns=["Item", f"{period_label} {year}", "Unit", "Type"],
+            dtype=object,
         )
 
         # Add year-over-year comparison if requested
@@ -1455,12 +1494,22 @@ class FinancialStatementGenerator:
         if insurance_claims > 0:
             data.append(("  Insurance Claim Losses", insurance_claims, "", ""))
 
+        # Net reserve development (Issue #475): adverse development increases expenses,
+        # favorable development decreases them.  This aligns the GAAP presentation
+        # with the manufacturer's operating income calculation.
+        net_reserve_dev = to_decimal(metrics.get("net_reserve_development", ZERO))
+        if monthly:
+            net_reserve_dev = net_reserve_dev / 12
+        if net_reserve_dev != ZERO:
+            data.append(("  Net Reserve Development", net_reserve_dev, "", ""))
+
         total_operating_expenses = (
             selling_expenses
             + general_admin
             + admin_depreciation
             + insurance_premium
             + insurance_claims
+            + net_reserve_dev
         )
         data.append(("  Total Operating Expenses", total_operating_expenses, "", "subtotal"))
         data.append(("", "", "", ""))
@@ -1587,15 +1636,21 @@ class FinancialStatementGenerator:
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
         data.append(("  Deferred Tax Expense", deferred_tax_expense, "", ""))
-        data.append(("  Total Tax Provision", tax_provision + deferred_tax_expense, "", "subtotal"))
+        data.append(
+            (
+                "  Total Tax Provision",
+                tax_provision + deferred_tax_expense,
+                "",
+                "subtotal",
+            )
+        )
         data.append(("", "", "", ""))
 
-        # NET INCOME
-        # Issue #301: Use manufacturer's net_income directly to ensure consistency
-        # between income statement and balance sheet (which uses manufacturer's equity).
-        # The income statement presentation above may compute a different operating_income
-        # due to GAAP categorization differences, but the bottom line must match.
-        net_income = metrics.get("net_income", to_decimal(pretax_income) - tax_provision)
+        # NET INCOME (Issue #475: compute from GAAP line items, no override)
+        # Net income must equal the sum of its component line items for GAAP
+        # presentation integrity per ASC 220-10-45.
+        total_tax = tax_provision + deferred_tax_expense
+        net_income = to_decimal(pretax_income) - total_tax
         data.append(("NET INCOME", net_income, "", "total"))
         data.append(("", "", "", ""))
 
@@ -1703,7 +1758,9 @@ class FinancialStatementGenerator:
         return df
 
     def _check_balance_sheet_equation(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check if balance sheet equation balances.
 
@@ -1738,7 +1795,9 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_net_assets(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check net assets reconciliation.
 
@@ -1761,7 +1820,9 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_collateral(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check collateral reconciliation."""
         data.append(("COLLATERAL RECONCILIATION", "", "", ""))
@@ -1775,7 +1836,9 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_solvency(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check solvency status."""
         data.append(("SOLVENCY CHECK", "", "", ""))
