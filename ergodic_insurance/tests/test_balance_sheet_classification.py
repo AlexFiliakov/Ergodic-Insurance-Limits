@@ -21,6 +21,7 @@ class TestBalanceSheetClassification:
             base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
+            capex_to_depreciation_ratio=0.0,
         )
         return WidgetManufacturer(config)
 

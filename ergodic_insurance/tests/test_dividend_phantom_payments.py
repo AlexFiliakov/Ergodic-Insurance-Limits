@@ -32,6 +32,7 @@ class TestDividendPhantomPayments:
             retention_ratio=0.7,  # 70% retained, 30% dividends
             asset_turnover_ratio=0.8,
             insolvency_tolerance=100,
+            capex_to_depreciation_ratio=0.0,
         )
 
     def test_full_dividends_when_cash_sufficient(self):
