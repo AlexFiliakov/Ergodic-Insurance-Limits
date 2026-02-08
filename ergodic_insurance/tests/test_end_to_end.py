@@ -41,6 +41,7 @@ class TestCompleteManufacturerLifecycle:
             asset_turnover=0.8,  # Lower efficiency initially
             base_operating_margin=0.18,  # 18% margin needed to cover depreciation, insurance, and grow
             ppe_ratio=0.4,  # Explicitly set PPE ratio to limit depreciation expense
+            capex_to_depreciation_ratio=0.0,
         )
 
         # Phase 2: Create realistic loss environment

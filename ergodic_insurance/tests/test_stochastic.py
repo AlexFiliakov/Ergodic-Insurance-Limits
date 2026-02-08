@@ -245,6 +245,7 @@ class TestStochasticManufacturer:
             base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=1.0,
+            capex_to_depreciation_ratio=0.0,
         )
 
         stoch_config = StochasticConfig(volatility=0.15, drift=0.0, random_seed=42)
