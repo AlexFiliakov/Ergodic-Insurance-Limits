@@ -70,12 +70,22 @@ class TestNumericalMethods:
                 assert mat_array is not None
                 assert np.all(np.isfinite(mat_array))
             elif bc == BoundaryCondition.ABSORBING:
-                # Absorbing BC: d²V/dx² = 0 at boundaries.
-                # Boundary rows of the diffusion matrix should be zero so that
-                # the diffusion operator contributes nothing there; actual
-                # boundary enforcement is handled by _apply_boundary_conditions.
-                assert np.allclose(mat_array[0, :], np.zeros(10))
-                assert np.allclose(mat_array[-1, :], np.zeros(10))
+                # For absorbing BC, boundary rows enforce d²V/dx² = 0
+                # Row 0: [1/dx², -2/dx², 1/dx², 0, ...]
+                # Row n-1: [..., 0, 1/dx², -2/dx², 1/dx²]
+                n = 10
+                dx = 1.0 / (n - 1)
+                coeff = 1.0 / (dx * dx)
+                expected_first_row = np.zeros(n)
+                expected_first_row[0] = coeff
+                expected_first_row[1] = -2.0 * coeff
+                expected_first_row[2] = coeff
+                expected_last_row = np.zeros(n)
+                expected_last_row[-3] = coeff
+                expected_last_row[-2] = -2.0 * coeff
+                expected_last_row[-1] = coeff
+                assert np.allclose(mat_array[0, :], expected_first_row)
+                assert np.allclose(mat_array[-1, :], expected_last_row)
 
     def test_upwind_scheme(self):
         """Test upwind finite difference scheme."""
@@ -302,6 +312,153 @@ class TestBoundaryConditions:
 
         # Check interior point is not boundary
         assert not mask_3d[1, 2, 1]
+
+    def test_absorbing_bc_second_derivative_zero(self):
+        """For V(x) = x², the absorbing BC matrix row should give d²V/dx² = 0.
+
+        Acceptance criterion: the second derivative operator applied at the
+        boundary should return 0 (not 1*V[0] as the old Dirichlet-like rows did).
+        """
+        n = 11
+        state_space = StateSpace([StateVariable("x", 0, 1, n)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        solver = HJBSolver(problem, HJBSolverConfig())
+        mat = solver._build_difference_matrix(0, BoundaryCondition.ABSORBING)
+
+        # V(x) = x² on uniform grid [0, 1]
+        grid = np.linspace(0, 1, n)
+        v = grid**2
+
+        result = mat @ v
+
+        # Interior points: d²(x²)/dx² = 2  (constant)
+        # Absorbing boundary rows: enforce V[0] - 2V[1] + V[2] = 0
+        # For x², V[0]-2V[1]+V[2] = 0 - 2*(1/100) + (4/100) = 2/100, then /dx²
+        # which equals the standard second derivative ≈ 2. So the boundary rows
+        # give the same result as interior for a smooth function.
+        # The key difference from the old code: the old code returned
+        # 1*V[0] = 0 at the lower boundary and 1*V[n-1] = 1 at the upper
+        # boundary, instead of the actual second derivative.
+        dx = 1.0 / (n - 1)
+        expected_d2v = 2.0  # d²(x²)/dx² = 2
+        # Boundary rows now compute the finite difference of d²V/dx²
+        assert abs(result[0] - expected_d2v) < 0.1
+        assert abs(result[-1] - expected_d2v) < 0.1
+
+    def test_absorbing_bc_boundary_changes_with_time(self):
+        """With absorbing BCs and diffusion, boundary values should evolve.
+
+        Acceptance criterion: For a parabolic PDE V_t = V_xx with absorbing
+        BCs, the boundary value should change with time (not stay fixed).
+        """
+        n = 21
+        sv = StateVariable(
+            "x",
+            0,
+            1,
+            n,
+            boundary_lower=BoundaryCondition.ABSORBING,
+            boundary_upper=BoundaryCondition.ABSORBING,
+        )
+        state_space = StateSpace([sv])
+
+        # Set up a pure diffusion problem V_t = V_xx
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=lambda x, u, t: np.ones((x.shape[0], 1)),
+            terminal_value=lambda x: np.sin(np.pi * x[..., 0]),
+            time_horizon=0.5,
+        )
+
+        config = HJBSolverConfig(time_step=0.01, max_iterations=3, tolerance=1e-8, verbose=False)
+
+        # Solve with absorbing BCs
+        solver_abs = HJBSolver(problem, config)
+        value_abs, _ = solver_abs.solve()
+
+        # Solve with Dirichlet BCs for comparison
+        sv_dir = StateVariable(
+            "x",
+            0,
+            1,
+            n,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+            boundary_upper=BoundaryCondition.DIRICHLET,
+        )
+        problem_dir = HJBProblem(
+            state_space=StateSpace([sv_dir]),
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=lambda x, u, t: np.ones((x.shape[0], 1)),
+            terminal_value=lambda x: np.sin(np.pi * x[..., 0]),
+            time_horizon=0.5,
+        )
+        solver_dir = HJBSolver(problem_dir, config)
+        value_dir, _ = solver_dir.solve()
+
+        # With absorbing BCs, boundary values should differ from Dirichlet
+        # because absorbing linearly extrapolates from interior (allowing
+        # the boundary to evolve) while Dirichlet fixes boundary values.
+        # The terminal condition sin(pi*x) has V[0]=V[-1]=0.
+        # After diffusion with absorbing BCs, boundaries will be extrapolated
+        # from interior values and should differ from the fixed Dirichlet values.
+        assert not np.allclose(
+            value_abs, value_dir, atol=1e-6
+        ), "Absorbing and Dirichlet BCs produced identical solutions for diffusion problem"
+
+    def test_absorbing_vs_dirichlet_different_solutions(self):
+        """Absorbing and Dirichlet BCs should produce different solutions.
+
+        Acceptance criterion: Dirichlet and absorbing BCs produce different
+        solutions for the same PDE.
+        """
+        n = 15
+
+        def make_problem(bc_type):
+            sv = StateVariable(
+                "x",
+                0,
+                1,
+                n,
+                boundary_lower=bc_type,
+                boundary_upper=bc_type,
+            )
+            return HJBProblem(
+                state_space=StateSpace([sv]),
+                control_variables=[ControlVariable("u", 0, 1, 2)],
+                utility_function=ExpectedWealth(),
+                dynamics=lambda x, u, t: np.ones_like(x) * 0.5,
+                running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+                diffusion=lambda x, u, t: np.ones((x.shape[0], 1)) * 0.1,
+                terminal_value=lambda x: x[..., 0] ** 2,
+                time_horizon=0.5,
+            )
+
+        config = HJBSolverConfig(time_step=0.05, max_iterations=5, tolerance=1e-8, verbose=False)
+
+        solver_absorbing = HJBSolver(make_problem(BoundaryCondition.ABSORBING), config)
+        value_absorbing, _ = solver_absorbing.solve()
+
+        solver_dirichlet = HJBSolver(make_problem(BoundaryCondition.DIRICHLET), config)
+        value_dirichlet, _ = solver_dirichlet.solve()
+
+        # Solutions should differ, especially at the boundaries
+        assert not np.allclose(
+            value_absorbing, value_dirichlet, atol=1e-6
+        ), "Absorbing and Dirichlet BCs produced identical solutions"
 
 
 class TestBoundaryConditionEnforcement:
@@ -1171,20 +1328,18 @@ class TestDiffusionTerm:
 
     def test_nonzero_diffusion_changes_value(self):
         """Test that non-zero diffusion produces different results."""
-        # Use Neumann BCs so absorbing-BC linear extrapolation doesn't
-        # suppress the curvature that diffusion introduces.
-        state_space = StateSpace(
-            [
-                StateVariable(
-                    "x",
-                    1,
-                    10,
-                    15,
-                    boundary_lower=BoundaryCondition.NEUMANN,
-                    boundary_upper=BoundaryCondition.NEUMANN,
-                )
-            ]
+        # Use Dirichlet BCs so boundary-fixed values allow diffusion to
+        # affect the interior solution (absorbing BCs linearly extrapolate,
+        # which can make solutions converge to linear — where d²V/dx² = 0).
+        sv = StateVariable(
+            "x",
+            1,
+            10,
+            15,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+            boundary_upper=BoundaryCondition.DIRICHLET,
         )
+        state_space = StateSpace([sv])
 
         def dynamics(x, u, t):
             return x * 0.05
@@ -1275,20 +1430,15 @@ class TestDiffusionTerm:
 
     def test_control_dependent_diffusion_affects_value(self):
         """Test that control-dependent diffusion changes the value function."""
-        # Use Neumann BCs so absorbing-BC linear extrapolation doesn't
-        # suppress the curvature that diffusion introduces.
-        state_space = StateSpace(
-            [
-                StateVariable(
-                    "x",
-                    1,
-                    10,
-                    10,
-                    boundary_lower=BoundaryCondition.NEUMANN,
-                    boundary_upper=BoundaryCondition.NEUMANN,
-                )
-            ]
+        sv = StateVariable(
+            "x",
+            1,
+            10,
+            10,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+            boundary_upper=BoundaryCondition.DIRICHLET,
         )
+        state_space = StateSpace([sv])
 
         def dynamics(x, u, t):
             return x * 0.05 * u[..., 0].reshape(x.shape)

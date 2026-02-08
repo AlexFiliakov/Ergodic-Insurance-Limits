@@ -461,15 +461,29 @@ class HJBSolver:
             diagonals[1, -1] += diagonals[2, -1]
             diagonals[2, -1] = 0
         elif boundary_type == BoundaryCondition.ABSORBING:
-            # Absorbing: d²V/dx² = 0 at boundaries.
-            # Zero out boundary rows so diffusion contributes nothing there;
-            # actual value enforcement is done by _apply_boundary_conditions.
-            diagonals[1, 0] = 0
-            diagonals[2, 0] = 0
-            diagonals[0, n - 2] = 0
-            diagonals[1, n - 1] = 0
+            # Absorbing boundary: enforce d²V/dx² = 0 (linear extrapolation)
+            # Lower boundary: V[0] - 2*V[1] + V[2] = 0
+            # Upper boundary: V[n-3] - 2*V[n-2] + V[n-1] = 0
+            # Row 0 needs entry at column 2 (offset +2), and row n-1 needs
+            # entry at column n-3 (offset -2), so we build as tridiagonal
+            # then add the extra entries.
+            coeff = 1.0 / (dx * dx)
+            # Row 0: [coeff, -2*coeff, 0, ..., 0] (tridiagonal part)
+            diagonals[1, 0] = coeff
+            diagonals[2, 0] = -2.0 * coeff
+            # Row n-1: [0, ..., 0, -2*coeff, coeff] (tridiagonal part)
+            diagonals[0, n - 2] = -2.0 * coeff
+            diagonals[1, n - 1] = coeff
 
         matrix = sparse.diags(diagonals, offsets=[-1, 0, 1], shape=(n, n))
+
+        if boundary_type == BoundaryCondition.ABSORBING:
+            # Add the off-tridiagonal entries for absorbing BCs
+            coeff = 1.0 / (dx * dx)
+            matrix = matrix.tolil()
+            matrix[0, 2] = coeff  # V[2] coefficient in lower boundary row
+            matrix[n - 1, n - 3] = coeff  # V[n-3] coefficient in upper boundary row
+            matrix = matrix.tocsr()
 
         return matrix
 
@@ -581,6 +595,47 @@ class HJBSolver:
             components.append(d2v)
 
         return np.stack(components, axis=-1)
+
+    def _apply_boundary_conditions(self, value: np.ndarray) -> np.ndarray:
+        """Enforce boundary conditions on the value function.
+
+        For absorbing boundaries (d²V/dx² = 0), linearly extrapolates the
+        value function from the interior so that the second derivative
+        vanishes at each boundary.
+
+        Args:
+            value: Value function on state grid
+
+        Returns:
+            Value function with boundary conditions enforced
+        """
+        ndim = self.problem.state_space.ndim
+        result = value.copy()
+
+        for dim in range(ndim):
+            sv = self.problem.state_space.state_variables[dim]
+
+            if sv.boundary_lower == BoundaryCondition.ABSORBING:
+                # V[0] = 2*V[1] - V[2] (linear extrapolation)
+                lo: List[Any] = [slice(None)] * ndim
+                p1: List[Any] = [slice(None)] * ndim
+                p2: List[Any] = [slice(None)] * ndim
+                lo[dim] = 0
+                p1[dim] = 1
+                p2[dim] = 2
+                result[tuple(lo)] = 2.0 * result[tuple(p1)] - result[tuple(p2)]
+
+            if sv.boundary_upper == BoundaryCondition.ABSORBING:
+                # V[-1] = 2*V[-2] - V[-3] (linear extrapolation)
+                hi: List[Any] = [slice(None)] * ndim
+                m1: List[Any] = [slice(None)] * ndim
+                m2: List[Any] = [slice(None)] * ndim
+                hi[dim] = -1
+                m1[dim] = -2
+                m2[dim] = -3
+                result[tuple(hi)] = 2.0 * result[tuple(m1)] - result[tuple(m2)]
+
+        return result
 
     def solve(self) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         """Solve the HJB equation using policy iteration.
