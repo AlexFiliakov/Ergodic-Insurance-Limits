@@ -301,6 +301,19 @@ class ManufacturerConfig(BaseModel):
         "Noise shrinks proportionally to claim maturity.",
     )
 
+    # Capital expenditure configuration (Issue #543)
+    capex_to_depreciation_ratio: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=5.0,
+        description="Capital expenditure as a multiple of depreciation expense. "
+        "1.0 = maintenance capex (replace depreciated assets). "
+        ">1.0 = growth capex (expand capacity). "
+        "0.0 = no reinvestment (legacy behavior). "
+        "Typical range: 1.0-2.5 for manufacturers "
+        "(Damodaran sector data).",
+    )
+
     @model_validator(mode="after")
     def set_default_ppe_ratio(self):
         """Set default PPE ratio based on operating margin if not provided."""

@@ -666,6 +666,13 @@ class WidgetManufacturer(
         else:
             depreciation_expense = ZERO
 
+        # Record capital expenditure (reinvestment in PP&E) (Issue #543)
+        # Capex is capitalized (Dr GROSS_PPE, Cr CASH) — does not affect income.
+        capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
+        if capex_ratio > ZERO and depreciation_expense > ZERO:
+            capex_amount = depreciation_expense * capex_ratio
+            self.record_capex(capex_amount)
+
         # Calculate operating income including depreciation
         operating_income = self.calculate_operating_income(revenue, depreciation_expense)
 

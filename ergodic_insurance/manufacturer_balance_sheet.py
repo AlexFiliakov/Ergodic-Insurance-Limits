@@ -800,6 +800,57 @@ class BalanceSheetMixin:
                 return depreciation_expense
         return ZERO
 
+    def record_capex(self, capex_amount: Union[Decimal, float]) -> Decimal:
+        """Record capital expenditure (reinvestment in PP&E).
+
+        Capitalizes the expenditure by debiting Gross PP&E and crediting Cash.
+        Capex is not an expense — it increases the asset base rather than
+        reducing net income (ASC 360-10).
+
+        Args:
+            capex_amount: Capital expenditure amount to record.
+
+        Returns:
+            Decimal: Actual capex recorded (may be less than requested if
+            constrained by available cash).
+        """
+        amount = to_decimal(capex_amount)
+        if amount <= ZERO:
+            return ZERO
+
+        # Cannot spend more cash than available (Issue #543)
+        available_cash = self.cash
+        if available_cash <= ZERO:
+            logger.warning(
+                f"Skipping capex: no cash available "
+                f"(cash={available_cash:,.2f}, requested={amount:,.2f})"
+            )
+            return ZERO
+
+        actual_capex = min(amount, available_cash)
+        if actual_capex < amount:
+            logger.warning(
+                f"Capex constrained by cash: requested=${amount:,.2f}, "
+                f"available=${available_cash:,.2f}, recording=${actual_capex:,.2f}"
+            )
+
+        self.ledger.record_double_entry(
+            date=self.current_year,
+            debit_account=AccountName.GROSS_PPE,
+            credit_account=AccountName.CASH,
+            amount=actual_capex,
+            transaction_type=TransactionType.CAPEX,
+            description=f"Year {self.current_year} capital expenditure",
+            month=self.current_month,
+        )
+
+        logger.debug(
+            f"Recorded capex: ${actual_capex:,.2f}, "
+            f"Gross PP&E: ${self.gross_ppe:,.2f}, "
+            f"Cash: ${self.cash:,.2f}"
+        )
+        return actual_capex
+
     def _apply_growth(
         self, growth_rate: Union[Decimal, float], time_resolution: str, apply_stochastic: bool
     ) -> None:
