@@ -429,10 +429,38 @@ class AdaptiveStoppingMonitor:
 
         return acf
 
+    @staticmethod
+    def _spectral_density_at_zero(segment: np.ndarray) -> float:
+        """Estimate spectral density at zero using Bartlett kernel.
+
+        Computes S(0) via windowed autocovariance per Geweke (1992).
+
+        Args:
+            segment: 1D array of samples
+
+        Returns:
+            Estimated spectral density at zero frequency (non-negative)
+        """
+        n = len(segment)
+        centered = segment - np.mean(segment)
+
+        gamma_0 = np.dot(centered, centered) / n
+        if gamma_0 == 0:
+            return 0.0
+
+        bandwidth = max(int(np.sqrt(n)), 1)
+        s_zero = gamma_0
+        for k in range(1, min(bandwidth + 1, n)):
+            gamma_k = np.dot(centered[:-k], centered[k:]) / n
+            weight = 1 - k / (bandwidth + 1)  # Bartlett taper
+            s_zero += 2 * weight * gamma_k
+
+        return float(max(s_zero, 0.0))
+
     def _geweke_test(
         self, chain: np.ndarray, first_frac: float = 0.1, last_frac: float = 0.5
     ) -> Tuple[float, float]:
-        """Perform Geweke convergence test."""
+        """Perform Geweke convergence test using spectral density at zero."""
         n = len(chain)
         n_first = int(n * first_frac)
         n_last = int(n * last_frac)
@@ -443,8 +471,8 @@ class AdaptiveStoppingMonitor:
         mean_first = np.mean(first_portion)
         mean_last = np.mean(last_portion)
 
-        var_first = np.var(first_portion, ddof=1) / n_first
-        var_last = np.var(last_portion, ddof=1) / n_last
+        var_first = self._spectral_density_at_zero(first_portion) / n_first
+        var_last = self._spectral_density_at_zero(last_portion) / n_last
 
         z_score = (mean_first - mean_last) / np.sqrt(var_first + var_last)
         p_value = 2 * (1 - stats.norm.cdf(abs(z_score)))
