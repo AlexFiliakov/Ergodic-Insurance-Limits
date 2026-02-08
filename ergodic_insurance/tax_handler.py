@@ -4,12 +4,13 @@ This module contains the TaxHandler dataclass, extracted from manufacturer.py
 as part of the decomposition refactor (Issue #305).
 
 Issue #365: Added NOL carryforward tracking per ASC 740 / IRC §172.
+Issue #464: Added DTA valuation allowance per ASC 740-10-30-5.
 """
 
 from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
-from typing import Union
+from typing import Dict, Union
 
 try:
     from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
@@ -79,6 +80,18 @@ class TaxHandler:
     - NOL deduction limited to 80% of taxable income per IRC §172(a)(2)
     - DTA = cumulative unused NOL x enacted tax rate
 
+    Valuation Allowance (Issue #464):
+    ---------------------------------
+    Per ASC 740-10-30-5, a valuation allowance reduces the DTA when it is
+    "more likely than not" (>50% probability) that some or all of the DTA
+    will not be realized. This implementation uses consecutive loss years as
+    negative evidence:
+    - < 3 consecutive loss years: 0% allowance
+    - 3 consecutive loss years: 50% allowance
+    - 4 consecutive loss years: 75% allowance
+    - 5+ consecutive loss years: 100% allowance
+    The allowance reverses when the company returns to profitability.
+
     Integration Points:
     -------------------
     - ``calculate_net_income()``: Calls calculate_and_accrue_tax() to handle taxes
@@ -91,6 +104,7 @@ class TaxHandler:
         accrual_manager: Reference to the AccrualManager for recording accruals
         nol_carryforward: Cumulative unused NOL per IRC §172
         nol_limitation_pct: 80% limitation per IRC §172(a)(2), post-TCJA
+        consecutive_loss_years: Count of consecutive loss years for valuation allowance
 
     Example:
         Within WidgetManufacturer.calculate_net_income()::
@@ -118,14 +132,57 @@ class TaxHandler:
     nol_carryforward: Decimal = field(default_factory=lambda: Decimal("0"))
     nol_limitation_pct: float = 0.80
     tax_accumulated_depreciation: Decimal = field(default_factory=lambda: Decimal("0"))
+    consecutive_loss_years: int = 0
+
+    # Valuation allowance thresholds per ASC 740-10-30-5 (Issue #464)
+    _VA_THRESHOLD: int = 3  # Consecutive loss years to trigger allowance
+    _VA_RATES: Dict[int, Decimal] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Initialize graduated valuation allowance rate schedule."""
+        self._VA_RATES = {3: Decimal("0.50"), 4: Decimal("0.75")}
+        # 5+ years: 100% (handled by default in valuation_allowance_rate)
 
     @property
     def deferred_tax_asset(self) -> Decimal:
-        """Deferred tax asset from NOL carryforward per ASC 740-10-25-3.
+        """Gross deferred tax asset from NOL carryforward per ASC 740-10-25-3.
 
         DTA = cumulative unused NOL x enacted tax rate.
+        This is the gross DTA before any valuation allowance.
         """
         return self.nol_carryforward * to_decimal(self.tax_rate)
+
+    @property
+    def valuation_allowance_rate(self) -> Decimal:
+        """Valuation allowance rate based on consecutive loss years.
+
+        Per ASC 740-10-30-5, graduated based on negative evidence:
+        - < 3 years: 0% (sufficient positive evidence)
+        - 3 years: 50% (more likely than not partial non-realization)
+        - 4 years: 75% (significant doubt about realization)
+        - 5+ years: 100% (full allowance, sustained losses)
+        """
+        if self.consecutive_loss_years < self._VA_THRESHOLD:
+            return ZERO
+        rate: Decimal = self._VA_RATES.get(self.consecutive_loss_years, to_decimal("1.00"))
+        return rate
+
+    @property
+    def valuation_allowance(self) -> Decimal:
+        """Valuation allowance amount per ASC 740-10-30-5.
+
+        Reduces the gross DTA when realization is not more likely than not.
+        """
+        return self.deferred_tax_asset * self.valuation_allowance_rate
+
+    @property
+    def net_deferred_tax_asset(self) -> Decimal:
+        """Net DTA after valuation allowance per ASC 740-10-30-5.
+
+        Net DTA = Gross DTA - Valuation Allowance.
+        This is the amount reported on the balance sheet.
+        """
+        return self.deferred_tax_asset - self.valuation_allowance
 
     def calculate_tax_liability(
         self, income_before_tax: Union[Decimal, float]
@@ -149,7 +206,12 @@ class TaxHandler:
         if income <= ZERO:
             # Loss year: accumulate NOL per IRC §172(b)(1)(A)(ii)
             self.nol_carryforward += abs(income)
+            # Track consecutive loss years for valuation allowance (Issue #464)
+            self.consecutive_loss_years += 1
             return ZERO, ZERO
+
+        # Profit year: reset consecutive loss counter (Issue #464)
+        self.consecutive_loss_years = 0
 
         if self.nol_carryforward <= ZERO:
             # No NOL available — standard tax

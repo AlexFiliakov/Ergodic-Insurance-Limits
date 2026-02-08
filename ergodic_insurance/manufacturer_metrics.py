@@ -116,8 +116,9 @@ class MetricsCalculationMixin:
         metrics["favorable_development"] = favorable_dev
         metrics["net_reserve_development"] = adverse_dev - favorable_dev
 
-        # Deferred tax balances (Issue #367, ASC 740)
+        # Deferred tax balances (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5)
         metrics["deferred_tax_asset"] = self.deferred_tax_asset
+        metrics["dta_valuation_allowance"] = self.dta_valuation_allowance
         metrics["deferred_tax_liability"] = self.deferred_tax_liability
 
         # Dividends and depreciation

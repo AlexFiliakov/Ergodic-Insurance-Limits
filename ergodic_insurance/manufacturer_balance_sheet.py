@@ -142,6 +142,19 @@ class BalanceSheetMixin:
         return self.ledger.get_balance(AccountName.DEFERRED_TAX_ASSET)
 
     @property
+    def dta_valuation_allowance(self) -> Decimal:
+        """Valuation allowance against DTA per ASC 740-10-30-5 (Issue #464).
+
+        This is a contra-asset that reduces the gross DTA when realization
+        is not more likely than not. Stored as a credit balance in the ledger
+        (contra-asset), returned here as a positive value.
+
+        Returns:
+            Current valuation allowance balance as a positive Decimal.
+        """
+        return abs(self.ledger.get_balance(AccountName.DTA_VALUATION_ALLOWANCE))
+
+    @property
     def deferred_tax_liability(self) -> Decimal:
         """Deferred tax liability from depreciation timing differences per ASC 740 (Issue #367).
 
@@ -164,8 +177,10 @@ class BalanceSheetMixin:
         current = self.cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
         # Non-current assets
         net_ppe = self.gross_ppe - self.accumulated_depreciation
-        # Total (includes DTA per ASC 740, Issue #365)
-        return current + net_ppe + self.restricted_assets + self.deferred_tax_asset
+        # Net DTA = Gross DTA - Valuation Allowance (ASC 740-10-30-5, Issue #464)
+        net_dta = self.deferred_tax_asset - self.dta_valuation_allowance
+        # Total (includes net DTA per ASC 740, Issue #365, #464)
+        return current + net_ppe + self.restricted_assets + net_dta
 
     @property
     def total_liabilities(self) -> Decimal:

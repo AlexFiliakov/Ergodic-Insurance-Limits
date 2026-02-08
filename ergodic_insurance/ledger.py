@@ -114,6 +114,7 @@ class AccountName(Enum):
     RESTRICTED_CASH = "restricted_cash"
     COLLATERAL = "collateral"  # Deprecated: tracked via RESTRICTED_CASH (Issue #302/#319)
     DEFERRED_TAX_ASSET = "deferred_tax_asset"  # DTA from NOL carryforward per ASC 740
+    DTA_VALUATION_ALLOWANCE = "dta_valuation_allowance"  # Contra-asset per ASC 740-10-30-5
 
     # Liabilities (credit normal balance)
     ACCOUNTS_PAYABLE = "accounts_payable"
@@ -299,6 +300,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.RESTRICTED_CASH: AccountType.ASSET,
     AccountName.COLLATERAL: AccountType.ASSET,  # Deprecated: tracked via RESTRICTED_CASH (#302/#319)
     AccountName.DEFERRED_TAX_ASSET: AccountType.ASSET,
+    AccountName.DTA_VALUATION_ALLOWANCE: AccountType.ASSET,  # Contra-asset (ASC 740-10-30-5)
     # Liabilities (credit normal balance)
     AccountName.ACCOUNTS_PAYABLE: AccountType.LIABILITY,
     AccountName.ACCRUED_EXPENSES: AccountType.LIABILITY,
