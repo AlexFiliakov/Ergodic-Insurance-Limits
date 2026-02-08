@@ -516,10 +516,18 @@ class RiskMetrics:
 
         if self.weights is None:
             mean_return = np.mean(returns)
-            std_return = np.std(returns)
+            std_return = np.std(returns, ddof=1)
         else:
             mean_return = np.average(returns, weights=self.weights)
             variance = np.average((returns - mean_return) ** 2, weights=self.weights)
+            # Bessel correction for reliability weights:
+            # corrected = pop_variance * V1^2 / (V1^2 - V2)
+            # where V1 = sum(w), V2 = sum(w^2)
+            v1 = np.sum(self.weights)
+            v2 = np.sum(self.weights**2)
+            denom = v1**2 - v2
+            if denom > 0:
+                variance = variance * v1**2 / denom
             std_return = np.sqrt(variance)
 
         # Sharpe ratio
