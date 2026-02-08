@@ -32,6 +32,7 @@ class TestCashFlowStatement:
                 "accrued_expenses": 50000.0,
                 "claim_liabilities": 0.0,
                 "gross_ppe": 1000000.0,
+                "net_ppe": 900000.0,
                 "dividends_paid": 300000.0,  # 30% payout ratio
                 "assets": 2000000.0,
                 "equity": 1500000.0,
@@ -41,13 +42,13 @@ class TestCashFlowStatement:
                 # Cash flow calculation:
                 #   Operating: 1,200k NI + 110k Dep - 50k AR - 30k Inv - 5k Prepaid
                 #              + 20k AP + 10k Accrued + 50k Claims = 1,305k
-                #   Investing: -(200k PP&E change + 110k Dep) = -310k
+                #   Investing: -(90k net PP&E change + 110k Dep) = -200k
                 #   Financing: -360k dividends
-                #   Net: 1,305k - 310k - 360k = 635k
-                # Ending cash = 500k + 635k = 1,135k
+                #   Net: 1,305k - 200k - 360k = 745k
+                # Ending cash = 500k + 745k = 1,245k
                 "net_income": 1200000.0,
                 "depreciation_expense": 110000.0,
-                "cash": 1135000.0,  # Consistent with cash flow calculation
+                "cash": 1245000.0,  # Consistent with cash flow calculation
                 "accounts_receivable": 250000.0,  # Increased by 50k
                 "inventory": 180000.0,  # Increased by 30k
                 "prepaid_insurance": 25000.0,  # Increased by 5k
@@ -55,6 +56,7 @@ class TestCashFlowStatement:
                 "accrued_expenses": 60000.0,  # Increased by 10k
                 "claim_liabilities": 50000.0,  # New claims
                 "gross_ppe": 1200000.0,  # Increased by 200k
+                "net_ppe": 990000.0,
                 "dividends_paid": 360000.0,  # 30% of 1.2M
                 "assets": 2500000.0,
                 "equity": 1900000.0,
@@ -131,9 +133,9 @@ class TestCashFlowStatement:
 
         investing_cf = self.cash_flow._calculate_investing_cash_flow(current, prior, "annual")
 
-        # Capex = Change in PP&E + Depreciation
-        # (1,200,000 - 1,000,000) + 110,000 = 310,000
-        expected_capex = 310000
+        # Capex = Change in Net PP&E + Depreciation
+        # (990,000 - 900,000) + 110,000 = 200,000
+        expected_capex = 200000
         assert investing_cf["capital_expenditures"] == -expected_capex
         assert investing_cf["total"] == -expected_capex
 
@@ -167,8 +169,8 @@ class TestCashFlowStatement:
         # Beginning cash (Year 0) = 500,000
         assert values["beginning"] == 500000
 
-        # Ending cash (Year 1) = 1,135,000 (consistent with cash flow calculation)
-        assert values["ending"] == 1135000
+        # Ending cash (Year 1) = 1,245,000 (consistent with cash flow calculation)
+        assert values["ending"] == 1245000
 
         # The calculated cash flow must equal the actual cash change
         # This is a critical integrity check - no "plug" allowed
@@ -225,9 +227,9 @@ class TestCashFlowStatement:
 
         capex = self.cash_flow._calculate_capex(current, prior)
 
-        # Capex = (Ending PP&E - Beginning PP&E) + Depreciation
-        # (1,200,000 - 1,000,000) + 110,000 = 310,000
-        assert capex == 310000
+        # Capex = (Ending Net PP&E - Beginning Net PP&E) + Depreciation
+        # (990,000 - 900,000) + 110,000 = 200,000
+        assert capex == 200000
 
     def test_capex_with_no_prior_period(self):
         """Test capex calculation for first period."""
@@ -236,9 +238,9 @@ class TestCashFlowStatement:
 
         capex = self.cash_flow._calculate_capex(current, prior)
 
-        # First period capex = Current PP&E + Depreciation
-        # 1,000,000 + 100,000 = 1,100,000
-        assert capex == 1100000
+        # First period capex = Current Net PP&E + Depreciation
+        # 900,000 + 100,000 = 1,000,000
+        assert capex == 1000000
 
     def test_invalid_year_raises_error(self):
         """Test that invalid year raises IndexError."""
@@ -298,6 +300,7 @@ class TestCashFlowStatement:
                 "accrued_expenses": 50000.0,
                 "claim_liabilities": 0.0,
                 "gross_ppe": 1000000.0,
+                "net_ppe": 900000.0,
                 "assets": 2000000.0,
                 "equity": 1500000.0,
                 "insurance_premiums_paid": 200000.0,  # This should NOT appear in financing

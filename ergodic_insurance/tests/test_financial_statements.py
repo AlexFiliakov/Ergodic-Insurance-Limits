@@ -160,6 +160,7 @@ class TestFinancialStatementGenerator:
                     "asset_turnover": 0.5,
                     "gross_ppe": 7_000_000,
                     "accumulated_depreciation": 0,
+                    "net_ppe": 7_000_000,
                     "depreciation_expense": 700_000,  # 10-year useful life
                     "cash": 3_000_000,  # Current assets to make total = 10M
                 }
@@ -183,6 +184,7 @@ class TestFinancialStatementGenerator:
                     "asset_turnover": 0.5,
                     "gross_ppe": 7_200_000,
                     "accumulated_depreciation": 700_000,
+                    "net_ppe": 6_500_000,
                     "depreciation_expense": 720_000,
                     "cash": 3_300_000,  # Year 1: 3.3M cash + 6.5M net_ppe + 0.5M restricted
                 }
@@ -206,6 +208,7 @@ class TestFinancialStatementGenerator:
                     "asset_turnover": 0.5,
                     "gross_ppe": 7_400_000,
                     "accumulated_depreciation": 1_420_000,
+                    "net_ppe": 5_980_000,
                     "depreciation_expense": 740_000,
                     "cash": 4_429_000,  # Year 2: 4.429M cash + 5.98M net_ppe + 0.2M restricted
                 }
