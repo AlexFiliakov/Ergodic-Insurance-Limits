@@ -1349,10 +1349,13 @@ class InsuranceDecisionEngine:
                         if remaining_loss <= 0:
                             break
 
-                # Calculate net income
+                # Calculate net income with tax per ASC 740 (Issue #500)
                 operating_income = revenue * self.manufacturer.base_operating_margin
                 net_losses = retained_losses + max(annual_losses - decision.total_coverage, 0)
-                net_income = operating_income - net_losses - decision.total_premium
+                income_before_tax = operating_income - net_losses - decision.total_premium
+                tax_rate = getattr(self.manufacturer, "tax_rate", 0.25)
+                tax_expense = max(0.0, income_before_tax * tax_rate)
+                net_income = income_before_tax - tax_expense
 
                 # Calculate ROE before updating equity
                 if equity > 0:

@@ -242,6 +242,7 @@ class TestInsuranceDecisionEngine:
         manufacturer.equity = 10_000_000
         manufacturer.asset_turnover_ratio = 1.0
         manufacturer.base_operating_margin = 0.15  # Higher margin for positive growth
+        manufacturer.tax_rate = 0.25
         manufacturer.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
         manufacturer.reset = Mock()
 
@@ -252,6 +253,7 @@ class TestInsuranceDecisionEngine:
         manufacturer_copy.equity = 10_000_000
         manufacturer_copy.asset_turnover_ratio = 1.0
         manufacturer_copy.base_operating_margin = 0.15
+        manufacturer_copy.tax_rate = 0.25
         manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
         manufacturer_copy.reset = Mock()
         manufacturer.copy = Mock(return_value=manufacturer_copy)
@@ -964,3 +966,152 @@ class TestDecisionEngineConfigNewFields:
         assert cfg.loss_cv == 0.8
         assert cfg.default_optimization_weights == {"growth": 0.6, "risk": 0.3, "cost": 0.1}
         assert cfg.layer_attachment_thresholds == (3_000_000, 20_000_000)
+
+
+class TestSimulationTaxApplication:
+    """Test that Monte Carlo simulation applies taxes per ASC 740 (Issue #500)."""
+
+    def _make_engine(self, tax_rate=0.25, operating_margin=0.15):
+        """Helper to create a decision engine with configurable tax rate."""
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.current_assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
+        manufacturer.equity = 10_000_000
+        manufacturer.asset_turnover_ratio = 1.0
+        manufacturer.base_operating_margin = operating_margin
+        manufacturer.tax_rate = tax_rate
+        manufacturer.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer.reset = Mock()
+        manufacturer_copy = Mock(spec=WidgetManufacturer)
+        manufacturer_copy.current_assets = 10_000_000
+        manufacturer_copy.total_assets = 10_000_000
+        manufacturer_copy.equity = 10_000_000
+        manufacturer_copy.asset_turnover_ratio = 1.0
+        manufacturer_copy.base_operating_margin = operating_margin
+        manufacturer_copy.tax_rate = tax_rate
+        manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer_copy.reset = Mock()
+        manufacturer.copy = Mock(return_value=manufacturer_copy)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.rvs = Mock(return_value=100_000)
+        loss_dist.ppf = Mock(side_effect=lambda p: p * 10_000_000)
+        loss_dist.expected_value = Mock(return_value=500_000)
+
+        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
+            mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
+                primary_layer_rate=0.01,
+                first_excess_rate=0.005,
+                higher_excess_rate=0.002,
+            )
+            engine = InsuranceDecisionEngine(
+                manufacturer=manufacturer,
+                loss_distribution=loss_dist,
+                pricing_scenario="baseline",
+            )
+        return engine
+
+    def _make_decision(self):
+        """Helper to create a simple insurance decision."""
+        return InsuranceDecision(
+            retained_limit=500_000,
+            layers=[Layer(attachment_point=500_000, limit=5_000_000, base_premium_rate=0.01)],
+            total_premium=50_000,
+            total_coverage=5_500_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+    def test_tax_reduces_simulation_growth_rates(self):
+        """Simulation with higher tax rate should produce lower growth rates."""
+        decision = self._make_decision()
+
+        engine_low_tax = self._make_engine(tax_rate=0.10)
+        engine_high_tax = self._make_engine(tax_rate=0.40)
+
+        results_low = engine_low_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_high = engine_high_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+
+        assert np.mean(results_low["growth_rates"]) > np.mean(
+            results_high["growth_rates"]
+        ), "Higher tax rate should reduce average growth rate"
+
+    def test_tax_reduces_simulation_roe(self):
+        """Simulation with higher tax rate should produce lower ROE."""
+        decision = self._make_decision()
+
+        engine_low_tax = self._make_engine(tax_rate=0.10)
+        engine_high_tax = self._make_engine(tax_rate=0.40)
+
+        results_low = engine_low_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_high = engine_high_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+
+        assert np.mean(results_low["roe"]) > np.mean(
+            results_high["roe"]
+        ), "Higher tax rate should reduce average ROE"
+
+    def test_zero_tax_matches_pretax_income(self):
+        """With tax_rate=0, results should match original pretax behavior."""
+        decision = self._make_decision()
+
+        engine_zero = self._make_engine(tax_rate=0.0)
+        engine_25 = self._make_engine(tax_rate=0.25)
+
+        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_25 = engine_25._run_simulation(decision, n_simulations=200, time_horizon=5)
+
+        # Zero tax should give higher terminal equity than 25% tax
+        assert np.mean(results_zero["value"]) > np.mean(
+            results_25["value"]
+        ), "Zero tax rate should produce higher terminal equity than 25% tax"
+
+    def test_tax_not_applied_to_losses(self):
+        """Tax expense should be zero when income_before_tax is negative."""
+        # Very high loss scenario: operating margin = 1%, losses dominate
+        decision = self._make_decision()
+        engine = self._make_engine(tax_rate=0.25, operating_margin=0.001)
+
+        # With tiny margin and substantial losses/premium, income_before_tax < 0
+        # Tax should not make losses worse (no negative tax expense)
+        results = engine._run_simulation(decision, n_simulations=100, time_horizon=3)
+
+        # The key assertion: bankruptcy rate shouldn't be worse than with 0% tax
+        engine_zero = self._make_engine(tax_rate=0.0, operating_margin=0.001)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=100, time_horizon=3)
+
+        # Bankruptcy rates should be the same because tax doesn't apply to losses
+        assert np.mean(results["bankruptcies"]) == np.mean(
+            results_zero["bankruptcies"]
+        ), "Tax should not apply to negative income; bankruptcy rates should match"
+
+    def test_tax_rate_sourced_from_manufacturer(self):
+        """Tax rate should come from manufacturer, not be hardcoded."""
+        decision = self._make_decision()
+
+        # Use a distinctive tax rate
+        engine_custom = self._make_engine(tax_rate=0.42)
+        engine_zero = self._make_engine(tax_rate=0.0)
+
+        results_custom = engine_custom._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=5)
+
+        # The 42% rate should produce noticeably lower equity
+        ratio = np.mean(results_custom["value"]) / np.mean(results_zero["value"])
+        assert (
+            ratio < 0.90
+        ), f"42% tax should reduce terminal equity substantially vs 0%, got ratio={ratio:.3f}"
+
+    def test_tax_increases_bankruptcy_probability(self):
+        """Tax reduces net income, which should increase bankruptcy probability."""
+        decision = self._make_decision()
+
+        # Use a margin that's barely profitable so tax can tip into bankruptcy
+        engine_zero = self._make_engine(tax_rate=0.0, operating_margin=0.02)
+        engine_high = self._make_engine(tax_rate=0.50, operating_margin=0.02)
+
+        results_zero = engine_zero._run_simulation(decision, n_simulations=500, time_horizon=10)
+        results_high = engine_high._run_simulation(decision, n_simulations=500, time_horizon=10)
+
+        assert np.mean(results_high["bankruptcies"]) >= np.mean(
+            results_zero["bankruptcies"]
+        ), "Higher tax rate should increase or maintain bankruptcy probability"
