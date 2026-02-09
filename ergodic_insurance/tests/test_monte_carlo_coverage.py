@@ -304,6 +304,8 @@ class TestSimulatePathEnhanced:
         )
         huge_loss_gen.reseed = Mock()
 
+        # Disable LAE so catastrophic loss hits full equity (test validates ruin, not LAE)
+        shared_data["manufacturer_config"]["config"].lae_ratio = 0.0
         shared_data["loss_generator"] = huge_loss_gen
         shared_data["ruin_evaluation"] = [1, 2, 3]
         shared_data["insolvency_tolerance"] = 10_000

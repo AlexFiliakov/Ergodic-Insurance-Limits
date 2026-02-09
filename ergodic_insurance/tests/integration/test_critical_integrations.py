@@ -1150,6 +1150,7 @@ class TestClaimPaymentTiming:
         Verifies that all scheduled payments sum to the original claim amount.
         """
         config = default_config_v2.model_copy()
+        config.manufacturer.lae_ratio = 0.0
         manufacturer = WidgetManufacturer(config.manufacturer)
 
         # Create an uninsured claim with scheduled payments

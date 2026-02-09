@@ -27,6 +27,7 @@ def basic_config():
         base_operating_margin=0.10,
         tax_rate=0.25,
         retention_ratio=0.70,
+        lae_ratio=0.0,
     )
 
 

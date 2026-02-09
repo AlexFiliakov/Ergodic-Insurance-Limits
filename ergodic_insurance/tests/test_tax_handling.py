@@ -29,6 +29,7 @@ class TestTaxHandling:
             base_operating_margin=0.15,
             tax_rate=0.25,
             retention_ratio=0.7,
+            lae_ratio=0.0,
         )
 
     @pytest.fixture
