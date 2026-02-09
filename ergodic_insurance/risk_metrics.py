@@ -6,6 +6,7 @@ decisions.
 """
 
 from dataclasses import dataclass
+import logging
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload
 import warnings
 
@@ -15,6 +16,8 @@ import pandas as pd
 from scipy import stats
 
 from .config import DEFAULT_RISK_FREE_RATE
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,7 +60,7 @@ class RiskMetrics:
         # Handle NaN and infinite values
         valid_mask = np.isfinite(losses)
         if not np.all(valid_mask):
-            print(f"Warning: Removing {np.sum(~valid_mask)} non-finite values")
+            logger.warning("Removing %d non-finite values", np.sum(~valid_mask))
             losses = losses[valid_mask]
             if weights is not None:
                 weights = weights[valid_mask]
@@ -394,13 +397,16 @@ class RiskMetrics:
         return self.tvar(confidence)
 
     def maximum_drawdown(self) -> float:
-        """Calculate Maximum Drawdown.
+        """Calculate Maximum Drawdown on cumulative losses.
 
-        Maximum drawdown measures the largest peak-to-trough decline
-        in cumulative value.
+        Computes the largest peak-to-trough decline in the **cumulative sum
+        of losses**, not in portfolio value.  This measures the worst
+        stretch of accumulated losses and is useful for sizing reserves.
+        It is *not* the same as the standard portfolio-return drawdown
+        commonly used in asset management.
 
         Returns:
-            Maximum drawdown value.
+            Maximum drawdown value (non-negative).
         """
         # Calculate cumulative sum with overflow protection
         with np.errstate(over="ignore"):
@@ -611,7 +617,8 @@ class RiskMetrics:
             m4 = np.average((self.losses - mean) ** 4, weights=self.weights)
             kurt = (m4 / (std**4) - 3) if std > 0 else 0
             # Weighted median
-            idx = np.searchsorted(self._cumulative_weights, 0.5)
+            idx = int(np.searchsorted(self._cumulative_weights, 0.5))
+            idx = min(idx, len(self._sorted_losses) - 1)
             median = self._sorted_losses[idx]
 
         return {
@@ -901,7 +908,6 @@ class ROEAnalyzer:
                 "upside_deviation": 0.0,
                 "semi_variance": 0.0,
                 "coefficient_variation": 0.0,
-                "tracking_error": 0.0,
             }
 
         mean_roe = np.mean(self.valid_roe)
@@ -915,15 +921,12 @@ class ROEAnalyzer:
         above_mean = self.valid_roe[self.valid_roe > mean_roe]
         upside_dev = np.std(above_mean) if len(above_mean) > 0 else 0.0
 
-        # Semi-variance (below target, using 0 as target)
-        below_zero = self.valid_roe[self.valid_roe < 0]
-        semi_var = np.var(below_zero) if len(below_zero) > 0 else 0.0
+        # Semi-variance (below target, using 0 as target, over ALL observations)
+        # SV = (1/N) * sum( min(r_i - target, 0)^2 )
+        semi_var = float(np.mean(np.minimum(self.valid_roe, 0) ** 2))
 
         # Coefficient of variation
         cv = std_roe / abs(mean_roe) if mean_roe != 0 else float("inf")
-
-        # Tracking error (vs benchmark, using mean as benchmark)
-        tracking_error = np.std(self.valid_roe - mean_roe)
 
         return {
             "standard_deviation": std_roe,
@@ -931,7 +934,6 @@ class ROEAnalyzer:
             "upside_deviation": upside_dev,
             "semi_variance": semi_var,
             "coefficient_variation": cv,
-            "tracking_error": tracking_error,
         }
 
     def performance_ratios(

@@ -693,3 +693,156 @@ class TestROEAnalyzerEdgeCases:
         assert "2yr" in stability
         assert "5yr" not in stability
         assert "10yr" not in stability
+
+
+# ---------------------------------------------------------------------------
+# Issue #307: weighted median bounds check
+# ---------------------------------------------------------------------------
+
+
+class TestWeightedMedianBoundsCheck:
+    """Ensure searchsorted index is clamped to valid range."""
+
+    def test_weighted_median_no_oob(self):
+        """Weighted median with extreme weights doesn't access out of bounds."""
+        # All weight concentrated on the first element: cumulative weights
+        # reach 1.0 at index 0, so searchsorted(0.5) = 0 — no issue.
+        # But if weights are such that 0.5 is never reached (float edge case),
+        # searchsorted could return len(array).  We exercise the bounds clamp.
+        losses = np.array([1.0, 2.0, 3.0])
+        # Weights that sum to a value where float rounding may push searchsorted
+        # past the end (edge case: all cumulative weights < 0.5)
+        weights = np.array([1e-15, 1e-15, 1.0])
+        rm = RiskMetrics(losses, weights=weights)
+        stats = rm.summary_statistics()
+        # Should not raise; median should be the last element
+        assert np.isfinite(stats["median"])
+
+    def test_weighted_median_single_element(self):
+        """Weighted median with a single element is that element."""
+        losses = np.array([42.0])
+        weights = np.array([1.0])
+        rm = RiskMetrics(losses, weights=weights)
+        stats = rm.summary_statistics()
+        assert stats["median"] == pytest.approx(42.0)
+
+
+# ---------------------------------------------------------------------------
+# Issue #307: maximum_drawdown docstring semantics
+# ---------------------------------------------------------------------------
+
+
+class TestMaximumDrawdownSemantics:
+    """Verify maximum drawdown operates on cumulative losses."""
+
+    def test_drawdown_is_on_cumulative_losses(self):
+        """Confirm drawdown measures worst accumulated-loss stretch."""
+        # Losses: [0, 10, 0, 0] → cumsum = [0, 10, 10, 10]
+        # running_max - cumsum = [0, 0, 0, 0] — no decline from peak
+        losses = np.array([0.0, 10.0, 0.0, 0.0])
+        rm = RiskMetrics(losses)
+        assert rm.maximum_drawdown() == pytest.approx(0.0)
+
+        # Losses: [10, 0, 0, 0] → cumsum = [10, 10, 10, 10], dd = 0
+        losses2 = np.array([10.0, 0.0, 0.0, 0.0])
+        rm2 = RiskMetrics(losses2)
+        assert rm2.maximum_drawdown() == pytest.approx(0.0)
+
+        # Losses: [10, -5, 10, -5] → cumsum = [10, 5, 15, 10]
+        # running_max = [10, 10, 15, 15], dd = [0, 5, 0, 5] → max 5
+        losses3 = np.array([10.0, -5.0, 10.0, -5.0])
+        rm3 = RiskMetrics(losses3)
+        assert rm3.maximum_drawdown() == pytest.approx(5.0)
+
+
+# ---------------------------------------------------------------------------
+# Issue #307: print() replaced with logging
+# ---------------------------------------------------------------------------
+
+
+class TestLoggingReplacedPrint:
+    """Verify non-finite value warning uses logging, not print()."""
+
+    def test_nonfinite_warning_uses_logger(self):
+        """Removing non-finite values logs a warning, not print()."""
+        import logging
+
+        with patch("ergodic_insurance.risk_metrics.logger") as mock_logger:
+            losses = np.array([1.0, np.nan, 3.0, np.inf])
+            RiskMetrics(losses)
+            mock_logger.warning.assert_called_once()
+            assert "non-finite" in mock_logger.warning.call_args[0][0].lower()
+
+
+# ---------------------------------------------------------------------------
+# Issue #353: semi-variance uses correct formula over all observations
+# ---------------------------------------------------------------------------
+
+
+class TestSemiVarianceFix:
+    """Semi-variance = (1/N) * sum(min(r_i - target, 0)^2) over ALL returns."""
+
+    def test_semi_variance_known_values(self):
+        """Hand-calculated semi-variance with target = 0."""
+        # roe = [0.10, 0.05, -0.03, 0.15, -0.08]
+        # min(r_i, 0)^2 = [0, 0, 0.0009, 0, 0.0064]
+        # mean = (0 + 0 + 0.0009 + 0 + 0.0064) / 5 = 0.00146
+        roe = np.array([0.10, 0.05, -0.03, 0.15, -0.08])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        expected_sv = (0.0009 + 0.0064) / 5
+        assert vol["semi_variance"] == pytest.approx(expected_sv, rel=1e-6)
+
+    def test_semi_variance_all_positive(self):
+        """All positive returns → semi-variance = 0."""
+        roe = np.array([0.05, 0.10, 0.15])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+        assert vol["semi_variance"] == pytest.approx(0.0)
+
+    def test_semi_variance_all_negative(self):
+        """All negative returns → semi-variance = mean(r^2)."""
+        roe = np.array([-0.10, -0.20, -0.30])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        expected_sv = np.mean(roe**2)
+        assert vol["semi_variance"] == pytest.approx(expected_sv, rel=1e-6)
+
+    def test_semi_variance_denominator_is_total_n(self):
+        """Old bug: subset np.var divided by subset count, not total count."""
+        # 9 positive returns, 1 negative
+        roe = np.array([0.10] * 9 + [-0.05])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        # Correct: (0.05^2) / 10 = 0.00025
+        expected_sv = 0.0025 / 10
+        assert vol["semi_variance"] == pytest.approx(expected_sv, rel=1e-6)
+
+        # Old wrong answer: np.var([-0.05]) = 0.0
+        assert vol["semi_variance"] != 0.0
+
+
+# ---------------------------------------------------------------------------
+# Issue #353: tracking_error removed from volatility_metrics
+# ---------------------------------------------------------------------------
+
+
+class TestTrackingErrorRemoved:
+    """tracking_error was trivially equal to std; verify it is removed."""
+
+    def test_volatility_metrics_no_tracking_error_key(self):
+        """volatility_metrics() should not contain tracking_error."""
+        roe = np.array([0.05, 0.10, 0.15, 0.08])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+        assert "tracking_error" not in vol
+
+    def test_volatility_metrics_short_series_no_tracking_error(self):
+        """Early-return path for < 2 values should also omit tracking_error."""
+        roe = np.array([0.10])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+        assert "tracking_error" not in vol
