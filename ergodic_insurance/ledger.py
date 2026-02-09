@@ -72,7 +72,8 @@ class AccountName(Enum):
 
     Liabilities (credit normal balance):
         ACCOUNTS_PAYABLE, ACCRUED_EXPENSES, ACCRUED_WAGES, ACCRUED_TAXES,
-        ACCRUED_INTEREST, CLAIM_LIABILITIES, UNEARNED_REVENUE
+        ACCRUED_INTEREST, CLAIM_LIABILITIES, SHORT_TERM_BORROWINGS,
+        UNEARNED_REVENUE
 
     Equity (credit normal balance):
         RETAINED_EARNINGS, COMMON_STOCK, DIVIDENDS
@@ -123,6 +124,7 @@ class AccountName(Enum):
     ACCRUED_TAXES = "accrued_taxes"
     ACCRUED_INTEREST = "accrued_interest"
     CLAIM_LIABILITIES = "claim_liabilities"
+    SHORT_TERM_BORROWINGS = "short_term_borrowings"  # Working capital facility per ASC 470-10
     DEFERRED_TAX_LIABILITY = "deferred_tax_liability"  # DTL from depreciation timing per ASC 740
     UNEARNED_REVENUE = "unearned_revenue"
 
@@ -309,6 +311,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.ACCRUED_TAXES: AccountType.LIABILITY,
     AccountName.ACCRUED_INTEREST: AccountType.LIABILITY,
     AccountName.CLAIM_LIABILITIES: AccountType.LIABILITY,
+    AccountName.SHORT_TERM_BORROWINGS: AccountType.LIABILITY,  # Working capital facility (ASC 470-10)
     AccountName.DEFERRED_TAX_LIABILITY: AccountType.LIABILITY,
     AccountName.UNEARNED_REVENUE: AccountType.LIABILITY,
     # Equity (credit normal balance)

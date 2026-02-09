@@ -98,7 +98,7 @@ class TestAssetExposure:
     """Tests for asset-based exposure with state provider."""
 
     def test_asset_exposure_tracks_actual_assets(self):
-        """Asset exposure should use actual assets from manufacturer."""
+        """Asset exposure tracks changes when cash stays positive."""
         # GIVEN: Manufacturer with $50M assets
         config = ManufacturerConfig(
             initial_assets=50_000_000,
@@ -114,14 +114,38 @@ class TestAssetExposure:
         assert float(exposure.get_exposure(1.0)) == 50_000_000
         assert float(exposure.get_frequency_multiplier(1.0)) == 1.0
 
-        # WHEN: Large claim reduces assets to $30M
+        # WHEN: Moderate reduction keeps cash positive (within cash balance)
         manufacturer._record_cash_adjustment(
-            to_decimal(30_000_000) - manufacturer.total_assets, "Reduce assets for test"
+            to_decimal(45_000_000) - manufacturer.total_assets, "Reduce assets for test"
         )
 
-        # THEN: Frequency multiplier should be 0.6 (30M/50M)
-        assert float(exposure.get_exposure(1.0)) == 30_000_000
-        assert float(exposure.get_frequency_multiplier(1.0)) == 0.6
+        # THEN: Frequency multiplier should be 0.9 (45M/50M)
+        assert float(exposure.get_exposure(1.0)) == 45_000_000
+        assert float(exposure.get_frequency_multiplier(1.0)) == 0.9
+
+    def test_asset_exposure_with_negative_cash_reclassification(self):
+        """When cash goes negative, total_assets floors cash at 0 per ASC 210-10-45-1."""
+        # GIVEN: Manufacturer with $50M assets
+        config = ManufacturerConfig(
+            initial_assets=50_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.12,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        manufacturer = WidgetManufacturer(config)
+        exposure = AssetExposure(state_provider=manufacturer)
+
+        # WHEN: Large claim pushes cash negative
+        manufacturer._record_cash_adjustment(
+            to_decimal(30_000_000) - manufacturer.total_assets, "Large claim for test"
+        )
+
+        # THEN: total_assets floors cash at 0 — exposure reflects GAAP presentation
+        # Non-cash assets are preserved, so total_assets > 30M
+        assert float(exposure.get_exposure(1.0)) > 30_000_000
+        # Overdraft is reclassified as short-term borrowings (ASC 470-10)
+        assert float(manufacturer.short_term_borrowings) > 0
 
     def test_asset_exposure_reflects_operations(self):
         """Asset exposure tracks real operational changes."""
