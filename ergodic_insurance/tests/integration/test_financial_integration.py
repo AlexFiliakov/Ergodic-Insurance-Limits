@@ -218,6 +218,7 @@ class TestFinancialIntegration:
         - Developed claims are properly tracked
         - Growth dynamics work with losses
         """
+        base_manufacturer.config.lae_ratio = 0.0
         manufacturer = base_manufacturer.copy()
         simulation = Simulation(
             manufacturer=manufacturer,
@@ -337,6 +338,7 @@ class TestFinancialIntegration:
         - Cash impacts occur at the right time
         - Reserves are properly maintained
         """
+        base_manufacturer.config.lae_ratio = 0.0
         manufacturer = base_manufacturer.copy()
 
         # Create losses with different payment patterns

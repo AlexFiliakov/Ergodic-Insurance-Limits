@@ -3,7 +3,7 @@
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.decimal_utils import to_decimal
+from ergodic_insurance.decimal_utils import ONE, to_decimal
 from ergodic_insurance.ledger import AccountName, TransactionType
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
@@ -150,12 +150,15 @@ class TestProcessInsuranceClaim:
         assert company_payment == deductible
         # Assets remain unchanged (collateral posted, paid over time)
         assert manufacturer.total_assets == 50_000
-        # LIMITED LIABILITY: Collateral capped at available cash/equity ($50K), not full deductible
-        assert manufacturer.collateral == 50_000
-        # Remaining $50K of deductible cannot be paid (limited liability violation)
+        # LIMITED LIABILITY: Collateral capped at equity / (1 + lae_ratio) to leave room for LAE
+        # equity_cap = 50K / 1.12 ≈ 44,643; total liability = 44,643 * 1.12 = 50K = equity
+        lae_ratio = to_decimal(manufacturer.config.lae_ratio)
+        expected_collateral = to_decimal(50_000) / (ONE + lae_ratio)
+        assert manufacturer.collateral == pytest.approx(expected_collateral)
+        # Remaining deductible cannot be paid (limited liability violation)
         # Company should be marked as insolvent
         assert manufacturer.is_ruined is True
-        assert manufacturer.equity == 0
+        assert manufacturer.equity == pytest.approx(0, abs=1)
         # Insurance still covers its portion
         assert insurance_payment == claim_amount - deductible
 
@@ -240,16 +243,19 @@ class TestProcessInsuranceClaim:
 
         assert processed_amount == claim_amount
         assert manufacturer.total_assets == initial_assets
-        # Equity decreases by claim amount due to new liability (Assets = Liabilities + Equity)
-        assert manufacturer.equity == initial_equity - claim_amount
+        # Equity decreases by claim amount * (1 + lae_ratio) due to new liability including LAE
+        lae_ratio = to_decimal(manufacturer.config.lae_ratio)
+        lae_factor = ONE + lae_ratio
+        expected_liability = to_decimal(claim_amount) * lae_factor
+        assert manufacturer.equity == pytest.approx(initial_equity - expected_liability)
         assert manufacturer.period_insurance_losses == 0
         assert len(manufacturer.claim_liabilities) == 1
         assert manufacturer.collateral == 0
         assert manufacturer.restricted_assets == 0
 
         claim = manufacturer.claim_liabilities[0]
-        assert claim.original_amount == claim_amount
-        assert claim.remaining_amount == claim_amount
+        assert claim.original_amount == pytest.approx(expected_liability)
+        assert claim.remaining_amount == pytest.approx(expected_liability)
         assert claim.year_incurred == manufacturer.current_year
         assert claim.is_insured is False
 
@@ -265,8 +271,12 @@ class TestProcessInsuranceClaim:
         assert manufacturer.collateral == 0
         assert manufacturer.restricted_assets == 0
 
+        # Liabilities include LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
         total_liability = manufacturer.total_claim_liabilities
-        assert total_liability == claim_amount_1 + claim_amount_2
+        assert total_liability == pytest.approx(
+            (to_decimal(claim_amount_1) + to_decimal(claim_amount_2)) * lae_factor
+        )
 
         for claim in manufacturer.claim_liabilities:
             assert claim.is_insured is False

@@ -82,8 +82,8 @@ class AccountName(Enum):
 
     Expenses (debit normal balance):
         COST_OF_GOODS_SOLD, OPERATING_EXPENSES, DEPRECIATION_EXPENSE,
-        INSURANCE_EXPENSE, INSURANCE_LOSS, TAX_EXPENSE, INTEREST_EXPENSE,
-        COLLATERAL_EXPENSE, WAGE_EXPENSE
+        INSURANCE_EXPENSE, INSURANCE_LOSS, LAE_EXPENSE, TAX_EXPENSE,
+        INTEREST_EXPENSE, COLLATERAL_EXPENSE, WAGE_EXPENSE
 
     Example:
         Use AccountName instead of strings to prevent typos::
@@ -147,6 +147,7 @@ class AccountName(Enum):
     INTEREST_EXPENSE = "interest_expense"
     COLLATERAL_EXPENSE = "collateral_expense"
     WAGE_EXPENSE = "wage_expense"
+    LAE_EXPENSE = "lae_expense"  # Loss adjustment expenses per ASC 944-40
     RESERVE_DEVELOPMENT = "reserve_development"
 
 
@@ -329,6 +330,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.INTEREST_EXPENSE: AccountType.EXPENSE,
     AccountName.COLLATERAL_EXPENSE: AccountType.EXPENSE,
     AccountName.WAGE_EXPENSE: AccountType.EXPENSE,
+    AccountName.LAE_EXPENSE: AccountType.EXPENSE,
     AccountName.RESERVE_DEVELOPMENT: AccountType.EXPENSE,
 }
 

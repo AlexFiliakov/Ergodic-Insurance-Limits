@@ -256,6 +256,7 @@ class TestInsuranceProgramEvaluation:
         """
         # Setup optimization scenario
         scenario = ScenarioBuilder.build_growth_scenario()
+        scenario.manufacturer.config.lae_ratio = 0.0
 
         # Define optimization constraints
         constraints = {

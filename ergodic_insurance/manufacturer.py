@@ -196,6 +196,7 @@ class WidgetManufacturer(
         # Insurance cost tracking for tax purposes
         self.period_insurance_premiums: Decimal = ZERO
         self.period_insurance_losses: Decimal = ZERO
+        self.period_insurance_lae: Decimal = ZERO  # LAE per ASC 944-40 (Issue #468)
 
         # Track actual dividends paid
         self._last_dividends_paid: Decimal = ZERO
@@ -833,6 +834,7 @@ class WidgetManufacturer(
         # Reset period insurance cost tracking
         self.period_insurance_premiums = ZERO
         self.period_insurance_losses = ZERO
+        self.period_insurance_lae = ZERO
 
         # Reset reserve development tracking (Issue #470)
         self.period_adverse_development = ZERO

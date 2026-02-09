@@ -161,6 +161,7 @@ class TestReserveNoiseAtCreation:
             initial_assets=10_000_000,
             enable_reserve_development=enable,
             reserve_noise_std=noise_std,
+            lae_ratio=0.0,
         )
         return WidgetManufacturer(config)
 

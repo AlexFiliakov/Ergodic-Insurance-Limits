@@ -13,7 +13,7 @@ import pytest
 
 from ergodic_insurance.claim_development import ClaimDevelopment
 from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.decimal_utils import ZERO, to_decimal
+from ergodic_insurance.decimal_utils import ONE, ZERO, to_decimal
 from ergodic_insurance.ledger import AccountName, TransactionType
 from ergodic_insurance.manufacturer import ClaimLiability, WidgetManufacturer
 
@@ -345,7 +345,9 @@ class TestWidgetManufacturer:
         assert manufacturer.collateral == 500_000  # Only company portion collateralized
         assert manufacturer.restricted_assets == 500_000
         assert len(manufacturer.claim_liabilities) == 1
-        assert manufacturer.claim_liabilities[0].original_amount == 500_000  # Company portion only
+        # Liability includes LAE (Issue #468): indemnity * (1 + lae_ratio)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        assert manufacturer.claim_liabilities[0].original_amount == 500_000 * lae_factor
 
     def test_process_large_insurance_claim(self, manufacturer):
         """Test processing large claim with high deductible."""
@@ -362,9 +364,9 @@ class TestWidgetManufacturer:
         assert manufacturer.collateral == 5_000_000  # Only company portion collateralized
         assert manufacturer.restricted_assets == 5_000_000
         assert len(manufacturer.claim_liabilities) == 1
-        assert (
-            manufacturer.claim_liabilities[0].original_amount == 5_000_000
-        )  # Company portion only
+        # Liability includes LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        assert manufacturer.claim_liabilities[0].original_amount == 5_000_000 * lae_factor
 
     def test_pay_claim_liabilities_single_claim(self, manufacturer):
         """Test paying scheduled claim liabilities."""
@@ -375,20 +377,31 @@ class TestWidgetManufacturer:
             insurance_limit=2_000_000,
         )
 
-        # Pay first year payment (year 0 of claim = 10% of company portion = 100k)
+        # Pay first year payment (year 0 of claim = 10% of liability including LAE)
+        # Company portion = 1M, liability = 1M * (1 + lae_ratio)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        liability = to_decimal(1_000_000) * lae_factor  # 1,120,000
         total_paid = manufacturer.pay_claim_liabilities()
 
-        assert total_paid == 100_000
-        assert manufacturer.total_assets == 9_900_000  # 10M - 100k
-        assert manufacturer.claim_liabilities[0].remaining_amount == 900_000
+        year0_payment = liability * to_decimal("0.10")  # 112,000
+        assert total_paid == pytest.approx(year0_payment)
+        assert manufacturer.total_assets == pytest.approx(10_000_000 - year0_payment)
+        assert manufacturer.claim_liabilities[0].remaining_amount == pytest.approx(
+            liability - year0_payment
+        )
 
-        # Move to year 1 for second payment (20% of company portion = 200k)
+        # Move to year 1 for second payment (20% of liability = 224k)
         manufacturer.current_year = 1
         total_paid = manufacturer.pay_claim_liabilities()
 
-        assert total_paid == 200_000
-        assert manufacturer.total_assets == 9_700_000  # 9.9M - 200k
-        assert manufacturer.claim_liabilities[0].remaining_amount == 700_000
+        year1_payment = liability * to_decimal("0.20")  # 224,000
+        assert total_paid == pytest.approx(year1_payment)
+        assert manufacturer.total_assets == pytest.approx(
+            10_000_000 - year0_payment - year1_payment
+        )
+        assert manufacturer.claim_liabilities[0].remaining_amount == pytest.approx(
+            liability - year0_payment - year1_payment
+        )
 
     def test_pay_claim_liabilities_insufficient_cash(self, manufacturer):
         """Test partial payment when insufficient cash."""
@@ -415,14 +428,19 @@ class TestWidgetManufacturer:
             )
         manufacturer.current_year = 1
 
-        # Try to pay year 1 payment (20% of company portion = 200k)
+        # Try to pay year 1 payment (20% of liability including LAE)
         # Payment from restricted assets (collateral), not cash
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        liability = to_decimal(1_000_000) * lae_factor  # 1,120,000
         total_paid = manufacturer.pay_claim_liabilities()
 
         # Should pay from restricted assets
-        assert total_paid == 200_000  # Full payment from collateral
-        assert manufacturer.restricted_assets == 800_000  # 1M - 200k
-        assert manufacturer.claim_liabilities[0].remaining_amount == 800_000
+        year1_payment = liability * to_decimal("0.20")  # 224,000
+        assert total_paid == pytest.approx(year1_payment)  # Full payment from collateral
+        assert manufacturer.restricted_assets == pytest.approx(1_000_000 - year1_payment)
+        assert manufacturer.claim_liabilities[0].remaining_amount == pytest.approx(
+            liability - year1_payment  # Only year 1 payment made (no year 0 payment in this test)
+        )
 
     def test_pay_claim_liabilities_removes_paid_claims(self, manufacturer):
         """Test that fully paid claims are removed."""
@@ -471,13 +489,15 @@ class TestWidgetManufacturer:
 
         metrics = manufacturer.calculate_metrics()
 
+        # Collateral is indemnity only, liabilities include LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_liability = to_decimal(500_000) * lae_factor  # 560,000
         assert metrics["collateral"] == to_decimal(500_000)
         assert metrics["restricted_assets"] == to_decimal(500_000)
-        assert metrics["claim_liabilities"] == to_decimal(500_000)
-        # When claim is processed, equity = Assets - Liabilities = 10M - 500k = 9.5M
-        assert float(metrics["collateral_to_equity"]) == pytest.approx(
-            500_000 / 9_500_000
-        )  # 500k / 9.5M
+        assert metrics["claim_liabilities"] == pytest.approx(expected_liability)
+        # equity = Assets - Liabilities = 10M - 560K = 9,440K
+        expected_equity = 10_000_000 - float(expected_liability)
+        assert float(metrics["collateral_to_equity"]) == pytest.approx(500_000 / expected_equity)
         assert float(metrics["collateral_to_assets"]) == pytest.approx(0.05)  # 500k / 10M
 
     def test_calculate_metrics_zero_equity(self, manufacturer):
@@ -689,18 +709,26 @@ class TestWidgetManufacturer:
         claim_amount = manufacturer.process_uninsured_claim(1_000_000)
 
         # Should create liability without affecting assets immediately
+        # Liability includes LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_liability = to_decimal(1_000_000) * lae_factor  # 1,120,000
         assert claim_amount == 1_000_000
         assert manufacturer.total_assets == 10_000_000  # No immediate impact
         assert manufacturer.collateral == 0  # No collateral required
         assert len(manufacturer.claim_liabilities) == 1
-        assert manufacturer.claim_liabilities[0].original_amount == 1_000_000
-        assert manufacturer.claim_liabilities[0].remaining_amount == 1_000_000
+        assert manufacturer.claim_liabilities[0].original_amount == pytest.approx(
+            expected_liability
+        )
+        assert manufacturer.claim_liabilities[0].remaining_amount == pytest.approx(
+            expected_liability
+        )
         assert not manufacturer.claim_liabilities[0].is_insured  # Uninsured claim
 
-        # Pay first year payment (10% = $100K)
+        # Pay first year payment (10% of liability including LAE)
         total_paid = manufacturer.pay_claim_liabilities()
-        assert total_paid == 100_000
-        assert manufacturer.total_assets == 9_900_000  # Assets reduced by payment
+        year0_payment = expected_liability * to_decimal("0.10")
+        assert total_paid == pytest.approx(year0_payment)
+        assert manufacturer.total_assets == pytest.approx(10_000_000 - year0_payment)
 
     def test_process_uninsured_claim_immediate(self, manufacturer):
         """Test processing uninsured claims with immediate payment."""
@@ -811,16 +839,19 @@ class TestWidgetManufacturer:
         )
 
         # Verify deductible creates a liability (not an expense)
+        # Liability includes LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_liability = to_decimal(deductible) * lae_factor
         assert manufacturer.period_insurance_losses == 0  # No expense recorded
-        assert manufacturer.total_claim_liabilities == deductible  # Liability created
+        assert manufacturer.total_claim_liabilities == pytest.approx(expected_liability)
 
         # Assets should not be reduced immediately (only collateralized)
         assert manufacturer.total_assets == initial_assets
         assert manufacturer.collateral == deductible
         assert manufacturer.restricted_assets == deductible
 
-        # Equity should be reduced by the liability amount (via accounting equation)
-        expected_equity = initial_equity - deductible
+        # Equity should be reduced by the full liability including LAE
+        expected_equity = initial_equity - expected_liability
         assert manufacturer.equity == pytest.approx(expected_equity)
 
     def test_no_double_counting_of_deductibles(self, manufacturer):
@@ -839,8 +870,11 @@ class TestWidgetManufacturer:
         )
 
         # Verify no expense is recorded (only liability)
+        # Liability includes LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_liability = to_decimal(deductible) * lae_factor
         assert manufacturer.period_insurance_losses == 0  # No expense
-        assert manufacturer.total_claim_liabilities == deductible  # Liability created
+        assert manufacturer.total_claim_liabilities == pytest.approx(expected_liability)
 
         # Reset period costs (as would happen at end of step)
         manufacturer.reset_period_insurance_costs()
@@ -881,12 +915,15 @@ class TestWidgetManufacturer:
         manufacturer.record_insurance_premium(premium)
 
         # Verify premium is recorded as expense, deductible creates liability
+        # Liability includes LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_liability = to_decimal(deductible) * lae_factor
         assert manufacturer.period_insurance_premiums == premium
         assert manufacturer.period_insurance_losses == 0  # No expense from deductible
-        assert manufacturer.total_claim_liabilities == deductible  # Liability created
+        assert manufacturer.total_claim_liabilities == pytest.approx(expected_liability)
 
-        # Equity should be reduced by the liability
-        expected_equity_after_liability = initial_equity - deductible
+        # Equity should be reduced by the full liability including LAE
+        expected_equity_after_liability = initial_equity - expected_liability
         assert manufacturer.equity == pytest.approx(expected_equity_after_liability)
 
         # Calculate net income - premium should reduce it with tax benefits
@@ -928,7 +965,10 @@ class TestWidgetManufacturer:
 
         # Verify metrics include the insurance impact
         # After step, first year payment has been made, so collateral is reduced
-        first_year_payment = deductible * 0.10  # 10% first year payment
+        # Liability includes LAE (Issue #468), payments are % of liability
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        liability = to_decimal(deductible) * lae_factor
+        first_year_payment = float(liability * to_decimal("0.10"))  # 10% of liability
         assert metrics["collateral"] == pytest.approx(deductible - first_year_payment)
         assert metrics["restricted_assets"] == pytest.approx(deductible - first_year_payment)
 
@@ -966,13 +1006,23 @@ class TestWidgetManufacturer:
         manufacturer_uninsured.process_uninsured_claim(100_000, immediate_payment=False)
 
         # Both should create liabilities without recording expenses
+        # Liabilities include LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_insured_liability = to_decimal(deductible) * lae_factor
+        expected_uninsured_liability = to_decimal(100_000) * lae_factor
         assert manufacturer_insured.period_insurance_losses == 0
         assert manufacturer_uninsured.period_insurance_losses == 0
-        assert manufacturer_insured.total_claim_liabilities == deductible
-        assert manufacturer_uninsured.total_claim_liabilities == 100_000
+        assert manufacturer_insured.total_claim_liabilities == pytest.approx(
+            expected_insured_liability
+        )
+        assert manufacturer_uninsured.total_claim_liabilities == pytest.approx(
+            expected_uninsured_liability
+        )
 
-        # Both should have reduced equity by the liability amount
-        expected_equity = manufacturer.config.initial_assets - 100_000
+        # Both should have reduced equity by the liability amount (including LAE)
+        expected_equity = (
+            to_decimal(manufacturer.config.initial_assets) - expected_uninsured_liability
+        )
         assert manufacturer_insured.equity == pytest.approx(expected_equity)
         assert manufacturer_uninsured.equity == pytest.approx(expected_equity)
 
@@ -1178,9 +1228,12 @@ class TestWidgetManufacturer:
         manufacturer.record_insurance_premium(premium)
 
         # Premium recorded as expense, deductible creates liability
+        # Liability includes LAE (Issue #468)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
+        expected_liability = to_decimal(deductible) * lae_factor
         assert manufacturer.period_insurance_premiums == premium
         assert manufacturer.period_insurance_losses == 0  # No expense from deductible
-        assert manufacturer.total_claim_liabilities == deductible  # Liability created
+        assert manufacturer.total_claim_liabilities == pytest.approx(expected_liability)
 
         # Assets should not be reduced by premium (it's just an expense)
         # Deductible creates collateral (cash moved to restricted)
@@ -1255,11 +1308,14 @@ class TestWidgetManufacturer:
         target_equity = tolerance + 50_000  # Equity at $60K (just above threshold)
 
         # Reduce equity to target level by creating liabilities
+        # With LAE, total liability = claim * (1 + lae_ratio), so claim = equity_reduction / (1 + lae_ratio)
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
         equity_reduction = manufacturer.equity - target_equity
-        manufacturer.process_uninsured_claim(equity_reduction, immediate_payment=False)
+        claim_amount = equity_reduction / lae_factor
+        manufacturer.process_uninsured_claim(claim_amount, immediate_payment=False)
 
         # Verify starting state
-        assert manufacturer.equity == pytest.approx(target_equity)
+        assert manufacturer.equity == pytest.approx(target_equity, rel=1e-6)
         assert manufacturer.cash > 100_000  # Has sufficient cash
         assert not manufacturer.is_ruined
 
@@ -1281,12 +1337,15 @@ class TestWidgetManufacturer:
         it doesn't attempt to absorb further losses.
         """
         # Reduce equity to exactly the tolerance level
+        # With LAE, total liability = claim * (1 + lae_ratio), so claim = equity_reduction / (1 + lae_ratio)
         tolerance = manufacturer.config.insolvency_tolerance  # $10,000
+        lae_factor = ONE + to_decimal(manufacturer.config.lae_ratio)
         equity_reduction = manufacturer.equity - tolerance
-        manufacturer.process_uninsured_claim(equity_reduction, immediate_payment=False)
+        claim_amount = equity_reduction / lae_factor
+        manufacturer.process_uninsured_claim(claim_amount, immediate_payment=False)
 
         # Verify at tolerance
-        assert manufacturer.equity == pytest.approx(tolerance)
+        assert manufacturer.equity == pytest.approx(tolerance, rel=1e-6)
         initial_cash = manufacturer.cash
         assert not manufacturer.is_ruined
 
