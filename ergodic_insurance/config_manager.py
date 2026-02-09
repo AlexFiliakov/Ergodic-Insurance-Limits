@@ -250,15 +250,29 @@ class ConfigManager:
 
         return config
 
-    def _load_with_inheritance(self, profile_path: Path) -> ConfigV2:
+    def _load_with_inheritance(
+        self, profile_path: Path, _visited: frozenset | None = None
+    ) -> ConfigV2:
         """Load a profile with inheritance support.
 
         Args:
             profile_path: Path to the profile file.
+            _visited: Internal set of already-visited profile paths for
+                cycle detection.  Callers should not pass this argument.
 
         Returns:
             Loaded ConfigV2 with inheritance applied.
+
+        Raises:
+            ValueError: If circular inheritance is detected.
         """
+        resolved = profile_path.resolve()
+        visited = _visited or frozenset()
+        if resolved in visited:
+            chain = " -> ".join(str(p) for p in visited)
+            raise ValueError(f"Circular profile inheritance detected: {chain} -> {resolved}")
+        visited = visited | {resolved}
+
         with open(profile_path, "r") as f:
             data = yaml.safe_load(f)
 
@@ -274,7 +288,7 @@ class ConfigManager:
                 parent_path = self.profiles_dir / "custom" / f"{parent_name}.yaml"
 
             if parent_path.exists():
-                parent_config = self._load_with_inheritance(parent_path)
+                parent_config = self._load_with_inheritance(parent_path, _visited=visited)
                 parent_data = parent_config.model_dump()
 
                 # Deep merge parent with child

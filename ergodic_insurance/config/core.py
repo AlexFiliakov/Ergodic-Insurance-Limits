@@ -331,16 +331,33 @@ class ConfigV2(BaseModel):
         return cls(**data)
 
     @classmethod
-    def with_inheritance(cls, profile_path: Path, config_dir: Path) -> "ConfigV2":
+    def with_inheritance(
+        cls,
+        profile_path: Path,
+        config_dir: Path,
+        _visited: Optional[frozenset] = None,
+    ) -> "ConfigV2":
         """Load configuration with profile inheritance.
 
         Args:
             profile_path: Path to the profile YAML file.
             config_dir: Root configuration directory.
+            _visited: Internal set of already-visited profile paths for
+                cycle detection.  Callers should not pass this argument.
 
         Returns:
             Loaded ConfigV2 with inheritance applied.
+
+        Raises:
+            ValueError: If circular inheritance is detected.
         """
+        resolved = profile_path.resolve()
+        visited = _visited or frozenset()
+        if resolved in visited:
+            chain = " -> ".join(str(p) for p in visited)
+            raise ValueError(f"Circular profile inheritance detected: {chain} -> {resolved}")
+        visited = visited | {resolved}
+
         with open(profile_path, "r") as f:
             data = yaml.safe_load(f)
 
@@ -350,7 +367,7 @@ class ConfigV2(BaseModel):
             parent_path = config_dir / "profiles" / f"{parent_name}.yaml"
 
             if parent_path.exists():
-                parent_config = cls.with_inheritance(parent_path, config_dir)
+                parent_config = cls.with_inheritance(parent_path, config_dir, _visited=visited)
                 parent_data = parent_config.model_dump()
 
                 # Deep merge parent with child
@@ -441,7 +458,7 @@ class ConfigV2(BaseModel):
                 # For nested objects, merge instead of replace
                 if isinstance(value, dict) and key in data and isinstance(data[key], dict):
                     # Merge dictionaries recursively
-                    data[key] = {**data[key], **value}
+                    data[key] = deep_merge(data[key], value)
                 else:
                     data[key] = value
 
