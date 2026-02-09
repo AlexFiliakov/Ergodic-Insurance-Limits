@@ -64,6 +64,16 @@ class MetricsCalculationMixin:
         metrics["equity"] = self.equity + va
         metrics["net_assets"] = self.net_assets
         metrics["claim_liabilities"] = self.total_claim_liabilities
+
+        # Current/non-current claim split from development schedules (Issue #466, ASC 450)
+        current_claims = ZERO
+        for claim in self.claim_liabilities:
+            years_since = self.current_year - claim.year_incurred
+            next_year_payment = claim.get_payment(years_since + 1)
+            current_claims += min(next_year_payment, claim.remaining_amount)
+        metrics["current_claim_liabilities"] = current_claims
+        metrics["non_current_claim_liabilities"] = self.total_claim_liabilities - current_claims
+
         metrics["is_solvent"] = not self.is_ruined
 
         # Enhanced balance sheet components
