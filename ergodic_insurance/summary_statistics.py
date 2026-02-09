@@ -507,7 +507,12 @@ class TDigest:
 
         Args:
             value: The value to add.
+
+        Raises:
+            ValueError: If the value is NaN or infinity.
         """
+        if not math.isfinite(value):
+            raise ValueError(f"TDigest does not accept non-finite values: {value}")
         self._buffer.append(value)
         self._min_val = min(self._min_val, value)
         self._max_val = max(self._max_val, value)
@@ -520,10 +525,15 @@ class TDigest:
 
         Args:
             values: Array of values to add.
+
+        Raises:
+            ValueError: If any value is NaN or infinity.
         """
         if len(values) == 0:
             return
         flat = values.ravel()
+        if not np.all(np.isfinite(flat)):
+            raise ValueError("TDigest does not accept non-finite values (NaN or inf)")
         self._buffer.extend(flat.tolist())
         min_v = float(np.min(flat))
         max_v = float(np.max(flat))
@@ -542,23 +552,33 @@ class TDigest:
         Args:
             other: Another TDigest to merge into this one.
         """
-        other._flush()
-        if len(other._means) == 0 and other._count == 0:
+        # Read other's centroids and buffer without mutating it (#335)
+        other_means = other._means.copy()
+        other_weights = other._weights.copy()
+        if other._buffer:
+            buf = np.array(other._buffer, dtype=np.float64)
+            if len(other_means) > 0:
+                other_means = np.concatenate([other_means, buf])
+                other_weights = np.concatenate([other_weights, np.ones(len(buf), dtype=np.float64)])
+            else:
+                other_means = buf
+                other_weights = np.ones(len(buf), dtype=np.float64)
+
+        if len(other_means) == 0 and other._count == 0:
             return
 
         self._flush()
 
         if len(self._means) == 0 and self._count == 0:
-            self._means = other._means.copy()
-            self._weights = other._weights.copy()
-            self._total_weight = other._total_weight
+            # Bootstrap self from the other's data by merging centroids
             self._min_val = other._min_val
             self._max_val = other._max_val
             self._count = other._count
+            self._merge_centroids(other_means, other_weights)
             return
 
-        all_means = np.concatenate([self._means, other._means])
-        all_weights = np.concatenate([self._weights, other._weights])
+        all_means = np.concatenate([self._means, other_means])
+        all_weights = np.concatenate([self._weights, other_weights])
         self._count += other._count
         self._min_val = min(self._min_val, other._min_val)
         self._max_val = max(self._max_val, other._max_val)

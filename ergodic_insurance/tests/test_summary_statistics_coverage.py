@@ -536,6 +536,134 @@ class TestTDigestProperties:
 
 
 # ---------------------------------------------------------------------------
+# TDigest NaN/infinity validation (#337)
+# ---------------------------------------------------------------------------
+class TestTDigestNonFiniteValidation:
+    """Verify that NaN and infinity values are rejected."""
+
+    def test_update_rejects_nan(self):
+        td = TDigest()
+        with pytest.raises(ValueError, match="non-finite"):
+            td.update(float("nan"))
+
+    def test_update_rejects_positive_inf(self):
+        td = TDigest()
+        with pytest.raises(ValueError, match="non-finite"):
+            td.update(float("inf"))
+
+    def test_update_rejects_negative_inf(self):
+        td = TDigest()
+        with pytest.raises(ValueError, match="non-finite"):
+            td.update(float("-inf"))
+
+    def test_update_batch_rejects_nan(self):
+        td = TDigest()
+        with pytest.raises(ValueError, match="non-finite"):
+            td.update_batch(np.array([1.0, float("nan"), 3.0]))
+
+    def test_update_batch_rejects_inf(self):
+        td = TDigest()
+        with pytest.raises(ValueError, match="non-finite"):
+            td.update_batch(np.array([float("inf"), 2.0]))
+
+    def test_update_batch_rejects_negative_inf(self):
+        td = TDigest()
+        with pytest.raises(ValueError, match="non-finite"):
+            td.update_batch(np.array([1.0, float("-inf")]))
+
+    def test_update_accepts_normal_values(self):
+        td = TDigest()
+        td.update(0.0)
+        td.update(-1e10)
+        td.update(1e10)
+        assert td._count == 3
+
+    def test_update_batch_accepts_normal_values(self):
+        td = TDigest()
+        td.update_batch(np.array([0.0, -1e10, 1e10]))
+        assert td._count == 3
+
+
+# ---------------------------------------------------------------------------
+# TDigest merge does not mutate other (#335)
+# ---------------------------------------------------------------------------
+class TestTDigestMergeNoMutation:
+    """Verify that merge() does not modify the other digest."""
+
+    def test_merge_preserves_other_merge_direction(self):
+        """other._merge_direction must not be toggled by merge()."""
+        d1 = TDigest()
+        d2 = TDigest()
+        d2.update_batch(np.array([1.0, 2.0, 3.0]))
+        direction_before = d2._merge_direction
+
+        main = TDigest()
+        main.merge(d2)
+
+        assert d2._merge_direction == direction_before
+
+    def test_merge_preserves_other_buffer(self):
+        """other._buffer must not be flushed by merge()."""
+        d2 = TDigest()
+        d2.update(10.0)
+        d2.update(20.0)
+        buffer_before = list(d2._buffer)
+
+        main = TDigest()
+        main.merge(d2)
+
+        assert d2._buffer == buffer_before
+
+    def test_merge_preserves_other_means(self):
+        """other._means must not be restructured by merge()."""
+        d2 = TDigest()
+        d2.update_batch(np.array([1.0, 2.0, 3.0]))
+        means_before = d2._means.copy()
+        weights_before = d2._weights.copy()
+
+        main = TDigest()
+        main.merge(d2)
+
+        np.testing.assert_array_equal(d2._means, means_before)
+        np.testing.assert_array_equal(d2._weights, weights_before)
+
+    def test_merge_still_produces_correct_result(self):
+        """Merged digest should still produce correct quantile estimates."""
+        d1 = TDigest()
+        d1.update_batch(np.array([1.0, 2.0, 3.0, 4.0, 5.0]))
+
+        d2 = TDigest()
+        d2.update_batch(np.array([6.0, 7.0, 8.0, 9.0, 10.0]))
+
+        d1.merge(d2)
+
+        assert d1._count == 10
+        assert d1._min_val == 1.0
+        assert d1._max_val == 10.0
+        median = d1.quantile(0.5)
+        assert 4.0 <= median <= 7.0
+
+    def test_merge_with_buffered_other(self):
+        """Merge correctly incorporates other's unflushed buffer data."""
+        main = TDigest()
+        main.update_batch(np.array([1.0, 2.0]))
+
+        other = TDigest()
+        # Add just a few values so they stay in the buffer (not flushed)
+        other.update(10.0)
+        other.update(20.0)
+        assert len(other._buffer) == 2  # still in buffer
+
+        main.merge(other)
+
+        assert main._count == 4
+        assert main._max_val == 20.0
+        # other is not mutated
+        assert len(other._buffer) == 2
+        assert other._count == 2
+
+
+# ---------------------------------------------------------------------------
 # QuantileCalculator coverage (lines 819, 836, 878)
 # ---------------------------------------------------------------------------
 class TestQuantileCalculatorCoverage:
