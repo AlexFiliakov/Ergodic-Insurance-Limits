@@ -464,7 +464,6 @@ classDiagram
         +include_percentages: bool
         +fiscal_year_end: int
         +consolidate_monthly: bool
-        +current_claims_ratio: float
     }
 
     FinancialStatementGenerator --> CashFlowStatement : delegates to

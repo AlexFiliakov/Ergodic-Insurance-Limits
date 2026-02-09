@@ -50,9 +50,6 @@ class FinancialStatementConfig:
             the central Config.simulation.fiscal_year_end setting. Defaults to 12
             (December) if neither is set, for calendar year alignment.
         consolidate_monthly: Whether to consolidate monthly data into annual
-        current_claims_ratio: Fraction of claim liabilities classified as current
-            (due within one year). Defaults to 0.1 (10%). Should be derived from
-            actual claim payment schedules when available.
     """
 
     currency_symbol: str = "$"
@@ -61,7 +58,6 @@ class FinancialStatementConfig:
     include_percentages: bool = True
     fiscal_year_end: Optional[int] = None
     consolidate_monthly: bool = True
-    current_claims_ratio: float = 0.1
 
 
 class CashFlowStatement:
@@ -1190,10 +1186,9 @@ class FinancialStatementGenerator:
         accrued_taxes = metrics.get("accrued_taxes", 0)
         accrued_interest = metrics.get("accrued_interest", 0)
 
-        # Current portion of claims (configurable via FinancialStatementConfig)
+        # Current portion of claims from development schedules (Issue #466, ASC 450)
         claim_liabilities = metrics.get("claim_liabilities", 0)
-        claims_ratio = to_decimal(self.config.current_claims_ratio)
-        current_claims = claim_liabilities * claims_ratio if claim_liabilities > 0 else ZERO
+        current_claims = to_decimal(metrics.get("current_claim_liabilities", 0))
 
         data.append(("  Accounts Payable", accounts_payable, "", ""))
 
@@ -1799,10 +1794,9 @@ class FinancialStatementGenerator:
         """
         data.append(("BALANCE SHEET RECONCILIATION", "", "", ""))
         assets = to_decimal(metrics.get("assets", 0))
-        # Issue #301: Use full total liabilities matching _build_liabilities_section
-        claims_ratio = to_decimal(self.config.current_claims_ratio)
+        # Issue #466: Use development-schedule-based split matching _build_liabilities_section
         claim_liabilities = to_decimal(metrics.get("claim_liabilities", 0))
-        current_claims = claim_liabilities * claims_ratio if claim_liabilities > 0 else ZERO
+        current_claims = to_decimal(metrics.get("current_claim_liabilities", 0))
         long_term_claims = claim_liabilities - current_claims
         total_current = (
             to_decimal(metrics.get("accounts_payable", 0))

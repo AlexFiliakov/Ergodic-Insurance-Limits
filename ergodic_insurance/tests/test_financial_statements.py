@@ -1270,11 +1270,11 @@ class TestFinancialStatementGenerator:
                 )
                 break  # Found and checked the balance sheet status
 
-    def test_configurable_current_claims_ratio(self):
-        """Test that current claims ratio is configurable.
+    def test_current_claims_from_development_schedule(self):
+        """Test that current/non-current claims use development schedule metrics.
 
-        Issue #301: current_claims was hardcoded as claim_liabilities * 0.1.
-        Now configurable via FinancialStatementConfig.current_claims_ratio.
+        Issue #466: current_claims_ratio removed. The manufacturer now computes
+        current_claim_liabilities from actual development schedules (ASC 450).
         """
         manufacturer = Mock(spec=WidgetManufacturer)
         manufacturer.config = ManufacturerConfig(
@@ -1285,6 +1285,8 @@ class TestFinancialStatementGenerator:
             tax_rate=0.25,
         )
 
+        # Manufacturer provides development-schedule-based split:
+        # 200K current (next year's scheduled payments), 800K non-current
         manufacturer.metrics_history = [
             _add_cogs_sga_breakdown(
                 {
@@ -1298,6 +1300,8 @@ class TestFinancialStatementGenerator:
                     "restricted_assets": 0,
                     "available_assets": 10_000_000,
                     "claim_liabilities": 1_000_000,
+                    "current_claim_liabilities": 200_000,
+                    "non_current_claim_liabilities": 800_000,
                     "is_solvent": True,
                     "base_operating_margin": 0.08,
                     "roe": 0.03,
@@ -1311,25 +1315,31 @@ class TestFinancialStatementGenerator:
             ),
         ]
 
-        # Use custom current_claims_ratio of 0.25 (25% current)
-        config = FinancialStatementConfig(current_claims_ratio=0.25)
-        generator = FinancialStatementGenerator(manufacturer=manufacturer, config=config)
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
 
         df = generator.generate_balance_sheet(year=0)
 
-        # Find the current portion of claim liabilities
         items = df["Item"].values
         values = df["Year 0"].values
 
         for i, item in enumerate(items):
             if "Current Portion of Claim Liabilities" in str(item):
-                # With 1M claim liabilities and 0.25 ratio, current should be 250K
                 assert (
-                    abs(float(values[i]) - 250_000) < 1
-                ), f"Current claims should be 250,000 (25% of 1M), got {values[i]}"
+                    abs(float(values[i]) - 200_000) < 1
+                ), f"Current claims should be 200,000 from dev schedule, got {values[i]}"
                 break
         else:
             pytest.fail("Current Portion of Claim Liabilities row not found")
+
+        # Verify non-current portion
+        for i, item in enumerate(items):
+            if "Long-Term Claim Reserves" in str(item):
+                assert (
+                    abs(float(values[i]) - 800_000) < 1
+                ), f"Non-current claims should be 800,000, got {values[i]}"
+                break
+        else:
+            pytest.fail("Long-Term Claim Reserves row not found")
 
 
 class TestMonteCarloStatementAggregator:
