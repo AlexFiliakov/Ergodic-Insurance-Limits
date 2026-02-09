@@ -285,6 +285,45 @@ class ManufacturerConfig(BaseModel):
         "the lowest cash point and triggers insolvency if it goes negative.",
     )
 
+    # Going concern assessment configuration (Issue #489, ASC 205-40)
+    going_concern_min_current_ratio: float = Field(
+        default=1.0,
+        gt=0,
+        description="Minimum current ratio (current assets / current liabilities). "
+        "Below 1.0 means current liabilities exceed current assets. "
+        "Lending covenants typically require 1.2-1.5x.",
+    )
+    going_concern_min_dscr: float = Field(
+        default=1.0,
+        gt=0,
+        description="Minimum debt service coverage ratio (operating income / debt service). "
+        "Below 1.0 means operating income cannot cover debt payments. "
+        "Lending covenants typically require 1.25x.",
+    )
+    going_concern_min_equity_ratio: float = Field(
+        default=0.05,
+        ge=0,
+        le=1,
+        description="Minimum equity ratio (equity / total assets). "
+        "Default 5%% represents near-zero buffer against losses. "
+        "Banking minimum is 8%% (Basel III).",
+    )
+    going_concern_min_cash_runway_months: float = Field(
+        default=3.0,
+        gt=0,
+        description="Minimum months of operating expenses covered by cash. "
+        "Below 3 months indicates inability to sustain operations "
+        "while pursuing mitigation plans per ASC 205-40.",
+    )
+    going_concern_min_indicators_breached: int = Field(
+        default=2,
+        ge=1,
+        le=4,
+        description="Number of going concern indicators that must be simultaneously "
+        "breached to trigger insolvency. Default 2 aligns with ASC 205-40 "
+        "requirement to assess conditions in the aggregate.",
+    )
+
     # Reserve re-estimation configuration (Issue #470, ASC 944-40-25)
     enable_reserve_development: bool = Field(
         default=False,
