@@ -93,10 +93,13 @@ class SolvencyMixin:
         Returns:
             bool: True if company is solvent, False if insolvent.
         """
+        # Per ASC 470-10 (Issue #496), negative cash represents a draw on the
+        # working capital facility and is reclassified as short-term borrowings.
+        # It is NOT an insolvency signal — solvency is determined by equity below.
         if self.cash < ZERO:
-            logger.warning(
-                f"Cash is negative (${self.cash:,.2f}). "
-                f"Company is insolvent — limited liability applies."
+            logger.info(
+                f"Working capital facility in use: cash balance ${self.cash:,.2f}. "
+                f"Reclassified as ${-self.cash:,.2f} short-term borrowings (ASC 470-10)."
             )
 
         # Use operational equity for solvency — add back valuation allowance

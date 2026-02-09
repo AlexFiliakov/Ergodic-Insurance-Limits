@@ -67,11 +67,14 @@ class MetricsCalculationMixin:
         metrics["is_solvent"] = not self.is_ruined
 
         # Enhanced balance sheet components
-        metrics["cash"] = self.cash
+        # Per ASC 210-10-45-1 (Issue #496), negative cash is reclassified as
+        # short-term borrowings for presentation purposes.
+        metrics["cash"] = max(self.cash, ZERO)
         metrics["accounts_receivable"] = self.accounts_receivable
         metrics["inventory"] = self.inventory
         metrics["prepaid_insurance"] = self.prepaid_insurance
         metrics["accounts_payable"] = self.accounts_payable
+        metrics["short_term_borrowings"] = self.short_term_borrowings
 
         # Accrual breakdown from AccrualManager
         accrual_items = self.accrual_manager.get_balance_sheet_items()

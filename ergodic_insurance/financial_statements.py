@@ -201,6 +201,9 @@ class CashFlowStatement:
             "inventory_change": -to_decimal(wc_changes.get("inventory", ZERO)),
             "prepaid_insurance_change": -to_decimal(wc_changes.get("prepaid_insurance", ZERO)),
             "accounts_payable_change": to_decimal(wc_changes.get("accounts_payable", ZERO)),
+            "short_term_borrowings_change": to_decimal(
+                wc_changes.get("short_term_borrowings", ZERO)
+            ),
             "accrued_expenses_change": to_decimal(wc_changes.get("accrued_expenses", ZERO)),
             "claim_liabilities_change": to_decimal(wc_changes.get("claim_liabilities", ZERO)),
         }
@@ -245,6 +248,9 @@ class CashFlowStatement:
         wc_changes["accounts_payable"] = to_decimal(
             current.get("accounts_payable", ZERO)
         ) - to_decimal(prior.get("accounts_payable", ZERO))
+        wc_changes["short_term_borrowings"] = to_decimal(
+            current.get("short_term_borrowings", ZERO)
+        ) - to_decimal(prior.get("short_term_borrowings", ZERO))
         wc_changes["accrued_expenses"] = to_decimal(
             current.get("accrued_expenses", ZERO)
         ) - to_decimal(prior.get("accrued_expenses", ZERO))
@@ -595,6 +601,14 @@ class CashFlowStatement:
             if operating["accounts_payable_change"] != 0:
                 cash_flow_data.append(
                     ("    Accounts Payable", operating["accounts_payable_change"], "")
+                )
+            if operating.get("short_term_borrowings_change", 0) != 0:
+                cash_flow_data.append(
+                    (
+                        "    Short-Term Borrowings",
+                        operating["short_term_borrowings_change"],
+                        "",
+                    )
                 )
             if operating["accrued_expenses_change"] != 0:
                 cash_flow_data.append(
@@ -1197,6 +1211,11 @@ class FinancialStatementGenerator:
 
         data.append(("  Accounts Payable", accounts_payable, "", ""))
 
+        # Short-term borrowings from working capital facility (ASC 470-10, Issue #496)
+        short_term_borrowings = to_decimal(metrics.get("short_term_borrowings", 0))
+        if short_term_borrowings > 0:
+            data.append(("  Short-Term Borrowings", short_term_borrowings, "", ""))
+
         # Show accrual detail if available
         if accrued_wages > 0 or accrued_taxes > 0 or accrued_interest > 0:
             data.append(("  Accrued Expenses:", accrued_expenses, "", ""))
@@ -1214,7 +1233,9 @@ class FinancialStatementGenerator:
 
         data.append(("  Current Portion of Claim Liabilities", current_claims, "", ""))
 
-        total_current_liabilities = accounts_payable + accrued_expenses + current_claims
+        total_current_liabilities = (
+            accounts_payable + short_term_borrowings + accrued_expenses + current_claims
+        )
         data.append(("  Total Current Liabilities", total_current_liabilities, "", "subtotal"))
         data.append(("", "", "", ""))
 
