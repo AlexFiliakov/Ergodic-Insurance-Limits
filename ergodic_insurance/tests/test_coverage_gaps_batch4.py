@@ -5,7 +5,7 @@ Covers gaps in:
 - walk_forward_validator.py (analysis branches, visualization, heatmap edge cases)
 - excel_reporter.py (engine selection fallbacks, reconciliation formatting, pandas engine)
 - reporting/report_builder.py (figure caching, data loading, PDF save, template fallback)
-- manufacturer_solvency.py (payment burden insolvency path)
+- manufacturer_solvency.py (ASC 205-40 going concern multi-factor assessment)
 
 Author: Alex Filiakov
 """
@@ -917,11 +917,11 @@ class TestReportBuilderGaps:
 # ---------------------------------------------------------------------------
 
 
-class TestManufacturerSolvencyPaymentBurden:
-    """Test payment-burden insolvency path in check_solvency().
+class TestManufacturerSolvencyGoingConcern:
+    """Test ASC 205-40 multi-factor going concern assessment in check_solvency().
 
-    Targets lines 126-133 in manufacturer_solvency.py:
-    the branch where payment_burden_ratio > 0.80 triggers insolvency.
+    Targets the Tier 2 going concern path in manufacturer_solvency.py
+    where breaching N-of-4 indicators triggers insolvency (Issue #489).
     """
 
     @pytest.fixture
@@ -938,7 +938,7 @@ class TestManufacturerSolvencyPaymentBurden:
         """Create a ClaimLiability with a heavily front-loaded development strategy.
 
         Uses 60% payment in year 0 so a moderate total amount can still
-        produce payment burden > 80% of revenue while keeping equity positive.
+        produce large debt service while keeping equity positive.
         """
         front_loaded = ClaimDevelopment(
             pattern_name="FRONT_LOADED",
@@ -951,50 +951,66 @@ class TestManufacturerSolvencyPaymentBurden:
             development_strategy=front_loaded,
         )
 
-    def test_payment_burden_triggers_insolvency(self, config: ManufacturerConfig):
-        """Lines 126-133: payment burden > 80% of revenue marks company as ruined.
+    def test_multi_factor_triggers_insolvency(self, config: ManufacturerConfig):
+        """Multi-factor going concern: breaching 2+ indicators triggers insolvency.
 
-        Revenue = 5M (10M assets * 0.5 turnover).
-        Front-loaded claim of 8M pays 60% in year 0 = 4.8M.
-        Payment burden = 4.8M / 5M = 96% > 80%.
-        Total liabilities = 8M < 10M assets, so equity = 2M > 0.
-        This triggers the payment insolvency branch (not the equity branch).
+        Uses configurable thresholds to create a scenario where DSCR and
+        equity ratio are both breached while equity remains positive
+        (so the Tier 1 hard stop does not fire first).
+
+        Scenario with 2M assets, 1.8M claim:
+        - DSCR = 100K / 1.08M = 0.093 < 1.0 (BREACH)
+        - Equity ratio = 200K / 2M = 10% < 15% (BREACH with raised threshold)
+        - 2-of-4 default triggers insolvency.
         """
-        manufacturer = WidgetManufacturer(config)
+        tight_config = ManufacturerConfig(
+            initial_assets=2_000_000,
+            asset_turnover_ratio=0.5,  # revenue = 1M
+            base_operating_margin=0.10,  # operating income = 100K
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            # Raise equity ratio threshold so 10% equity ratio breaches
+            going_concern_min_equity_ratio=0.15,
+        )
+        manufacturer = WidgetManufacturer(tight_config)
         assert manufacturer.check_solvency()
         assert not manufacturer.is_ruined
 
-        claim = self._make_front_loaded_claim(8_000_000)
+        claim = self._make_front_loaded_claim(1_800_000)
         manufacturer.claim_liabilities.append(claim)
 
-        # Record the liability in the ledger so equity is properly calculated
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
             debit_account=AccountName.INSURANCE_LOSS,
             credit_account=AccountName.CLAIM_LIABILITIES,
-            amount=to_decimal(8_000_000),
+            amount=to_decimal(1_800_000),
             transaction_type=TransactionType.INSURANCE_CLAIM,
-            description="Test claim liability for payment burden",
+            description="Test claim liability for going concern assessment",
         )
 
-        # Verify equity is still positive (assets=10M, liabilities=8M => equity=2M)
+        # Equity should still be positive (not a Tier 1 hard stop)
         assert (
             manufacturer.equity > ZERO
         ), f"Equity should be positive for this test, got {manufacturer.equity}"
 
-        # Now check_solvency should trigger the payment burden path
+        # Multi-factor assessment should trigger insolvency (2+ indicators breached)
         result = manufacturer.check_solvency()
         assert result is False
         assert manufacturer.is_ruined is True
 
-    def test_payment_burden_already_ruined(self, config: ManufacturerConfig):
-        """Lines 126-127: if already ruined, no duplicate warning, still returns False.
+    def test_single_indicator_breach_remains_solvent(self, config: ManufacturerConfig):
+        """Single indicator breach does not trigger insolvency under 2-of-4 default.
 
-        Tests that when is_ruined is already True and payment burden > 80%,
-        the method returns False without re-logging the warning.
+        A large claim breaches DSCR but other indicators remain healthy,
+        so the company stays solvent.
         """
         manufacturer = WidgetManufacturer(config)
 
+        # Claim of 8M: DSCR = 500K / 4.8M = 0.10 < 1.0 (BREACH)
+        # But equity ratio = 2M/10M = 20% > 5% (OK)
+        # Current ratio: no current liabilities (claim offsets total) => Inf (OK)
+        # Cash runway: high assets keep cash healthy (OK)
+        # Only 1-of-4 breached => remains solvent
         claim = self._make_front_loaded_claim(8_000_000)
         manufacturer.claim_liabilities.append(claim)
 
@@ -1004,7 +1020,41 @@ class TestManufacturerSolvencyPaymentBurden:
             credit_account=AccountName.CLAIM_LIABILITIES,
             amount=to_decimal(8_000_000),
             transaction_type=TransactionType.INSURANCE_CLAIM,
-            description="Test claim liability for payment burden",
+            description="Test claim liability for single indicator breach",
+        )
+
+        assert manufacturer.equity > ZERO
+
+        result = manufacturer.check_solvency()
+        assert result is True
+        assert manufacturer.is_ruined is False
+
+    def test_already_ruined_multi_factor(self, config: ManufacturerConfig):
+        """When is_ruined is already True and multi-factor triggers, returns False.
+
+        Tests that a pre-ruined company with 2+ indicator breaches still
+        returns False without duplicate warning logging.
+        """
+        tight_config = ManufacturerConfig(
+            initial_assets=2_000_000,
+            asset_turnover_ratio=0.5,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            going_concern_min_equity_ratio=0.15,
+        )
+        manufacturer = WidgetManufacturer(tight_config)
+
+        claim = self._make_front_loaded_claim(1_800_000)
+        manufacturer.claim_liabilities.append(claim)
+
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.INSURANCE_LOSS,
+            credit_account=AccountName.CLAIM_LIABILITIES,
+            amount=to_decimal(1_800_000),
+            transaction_type=TransactionType.INSURANCE_CLAIM,
+            description="Test claim liability for already-ruined going concern",
         )
 
         # Pre-set is_ruined
