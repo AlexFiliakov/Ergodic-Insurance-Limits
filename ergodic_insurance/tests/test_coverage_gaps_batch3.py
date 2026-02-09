@@ -72,18 +72,17 @@ from ergodic_insurance.trajectory_storage import SimulationSummary, StorageConfi
 class TestManufacturerConfigNegativeMargin:
     """Test negative operating margin warning (config.py line 293)."""
 
-    def test_negative_operating_margin_warning(self, capsys):
-        """Verify that a negative base operating margin prints a warning."""
-        ManufacturerConfig(
-            initial_assets=10_000_000,
-            asset_turnover_ratio=1.0,
-            base_operating_margin=-0.05,
-            tax_rate=0.25,
-            retention_ratio=1.0,
-        )
-        captured = capsys.readouterr()
-        assert "Warning" in captured.out
-        assert "negative" in captured.out
+    def test_negative_operating_margin_warning(self, caplog):
+        """Verify that a negative base operating margin logs a warning."""
+        with caplog.at_level(logging.WARNING):
+            ManufacturerConfig(
+                initial_assets=10_000_000,
+                asset_turnover_ratio=1.0,
+                base_operating_margin=-0.05,
+                tax_rate=0.25,
+                retention_ratio=1.0,
+            )
+        assert "negative" in caplog.text
 
 
 class TestSimulationConfigHorizonExceedsMax:

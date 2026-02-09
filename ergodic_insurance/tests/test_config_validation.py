@@ -1,5 +1,6 @@
 """Tests for configuration validation logic."""
 
+from pydantic import ValidationError
 import pytest
 
 from ergodic_insurance.config import (
@@ -30,19 +31,19 @@ class TestParameterBounds:
     def test_invalid_margin_ranges(self):
         """Test that invalid margins are rejected."""
         # Negative gross margin
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValidationError):
             IndustryConfig(gross_margin=-0.1)
 
         # Gross margin > 1
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValidationError):
             IndustryConfig(gross_margin=1.1)
 
         # Negative operating expense ratio
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValidationError):
             IndustryConfig(operating_expense_ratio=-0.05)
 
         # Operating expense ratio > 1
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValidationError):
             IndustryConfig(operating_expense_ratio=1.5)
 
     def test_asset_ratio_validation(self):
@@ -52,13 +53,13 @@ class TestParameterBounds:
         assert config.current_asset_ratio == 0.3
 
         # Invalid - sums to less than 1.0
-        with pytest.raises(AssertionError, match="Asset ratios must sum to 1.0"):
+        with pytest.raises(ValidationError, match="Asset ratios must sum to 1.0"):
             IndustryConfig(
                 current_asset_ratio=0.2, ppe_ratio=0.3, intangible_ratio=0.4  # Sum = 0.9
             )
 
         # Invalid - sums to more than 1.0
-        with pytest.raises(AssertionError, match="Asset ratios must sum to 1.0"):
+        with pytest.raises(ValidationError, match="Asset ratios must sum to 1.0"):
             IndustryConfig(
                 current_asset_ratio=0.4, ppe_ratio=0.4, intangible_ratio=0.3  # Sum = 1.1
             )
@@ -76,13 +77,13 @@ class TestParameterBounds:
         assert config.days_inventory_outstanding == 0
 
         # Negative values should be invalid
-        with pytest.raises(AssertionError, match="Days sales outstanding must be non-negative"):
+        with pytest.raises(ValidationError):
             IndustryConfig(days_sales_outstanding=-10)
 
-        with pytest.raises(AssertionError, match="Days inventory outstanding must be non-negative"):
+        with pytest.raises(ValidationError):
             IndustryConfig(days_inventory_outstanding=-5)
 
-        with pytest.raises(AssertionError, match="Days payables outstanding must be non-negative"):
+        with pytest.raises(ValidationError):
             IndustryConfig(days_payables_outstanding=-15)
 
     def test_depreciation_validation(self):
@@ -92,11 +93,11 @@ class TestParameterBounds:
         assert config.ppe_useful_life == 15
 
         # Zero useful life should be invalid
-        with pytest.raises(AssertionError, match="PPE useful life must be positive"):
+        with pytest.raises(ValidationError):
             IndustryConfig(ppe_useful_life=0)
 
         # Negative useful life should be invalid
-        with pytest.raises(AssertionError, match="PPE useful life must be positive"):
+        with pytest.raises(ValidationError):
             IndustryConfig(ppe_useful_life=-5)
 
         # Valid depreciation methods
@@ -107,8 +108,8 @@ class TestParameterBounds:
         assert config_db.depreciation_method == "declining_balance"
 
         # Invalid depreciation method
-        with pytest.raises(AssertionError, match="Unknown depreciation method"):
-            IndustryConfig(depreciation_method="sum_of_years")
+        with pytest.raises(ValidationError):
+            IndustryConfig(depreciation_method="sum_of_years")  # type: ignore[arg-type]
 
 
 class TestIndustrySpecificValidation:
@@ -156,21 +157,23 @@ class TestValidationErrorMessages:
 
     def test_asset_ratio_error_message(self):
         """Test asset ratio validation error message."""
-        with pytest.raises(AssertionError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             IndustryConfig(current_asset_ratio=0.2, ppe_ratio=0.2, intangible_ratio=0.2)
-        assert "0.6" in str(exc_info.value)  # Should show actual sum
+        assert "Asset ratios must sum to 1.0" in str(exc_info.value)
 
     def test_margin_error_message(self):
         """Test margin validation error message."""
-        with pytest.raises(AssertionError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             IndustryConfig(gross_margin=1.5)
-        assert "1.5" in str(exc_info.value)  # Should show invalid value
+        error_str = str(exc_info.value)
+        assert "gross_margin" in error_str or "less than or equal to 1" in error_str
 
     def test_depreciation_error_message(self):
         """Test depreciation validation error message."""
-        with pytest.raises(AssertionError) as exc_info:
-            IndustryConfig(depreciation_method="invalid")
-        assert "invalid" in str(exc_info.value)  # Should show invalid method
+        with pytest.raises(ValidationError) as exc_info:
+            IndustryConfig(depreciation_method="invalid")  # type: ignore[arg-type]
+        error_str = str(exc_info.value)
+        assert "invalid" in error_str.lower()
 
 
 class TestConfigurationCompleteness:

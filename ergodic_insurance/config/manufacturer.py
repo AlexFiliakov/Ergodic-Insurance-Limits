@@ -8,10 +8,12 @@ Since:
     Version 0.9.0 (Issue #458)
 """
 
-from dataclasses import dataclass
+import logging
 from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class ExpenseRatioConfig(BaseModel):
@@ -364,9 +366,9 @@ class ManufacturerConfig(BaseModel):
             Negative margins indicate unprofitable operations before insurance.
         """
         if v > 0.3:
-            print(f"Warning: Base operating margin {v:.1%} is unusually high")
+            logger.warning("Base operating margin %s is unusually high", f"{v:.1%}")
         elif v < 0:
-            print(f"Warning: Base operating margin {v:.1%} is negative")
+            logger.warning("Base operating margin %s is negative", f"{v:.1%}")
         return v
 
     @classmethod
@@ -405,8 +407,7 @@ class ManufacturerConfig(BaseModel):
         return cls(**config_params)
 
 
-@dataclass
-class IndustryConfig:
+class IndustryConfig(BaseModel):
     """Base configuration for different industry types.
 
     This class defines industry-specific financial parameters that determine
@@ -438,54 +439,30 @@ class IndustryConfig:
     industry_type: str = "manufacturing"
 
     # Working capital ratios (in days)
-    days_sales_outstanding: float = 45
-    days_inventory_outstanding: float = 60
-    days_payables_outstanding: float = 30
+    days_sales_outstanding: float = Field(default=45, ge=0)
+    days_inventory_outstanding: float = Field(default=60, ge=0)
+    days_payables_outstanding: float = Field(default=30, ge=0)
 
     # Margin structure (as percentages)
-    gross_margin: float = 0.35
-    operating_expense_ratio: float = 0.25
+    gross_margin: float = Field(default=0.35, ge=0, le=1)
+    operating_expense_ratio: float = Field(default=0.25, ge=0, le=1)
 
     # Asset composition (must sum to 1.0)
-    current_asset_ratio: float = 0.4
-    ppe_ratio: float = 0.5
-    intangible_ratio: float = 0.1
+    current_asset_ratio: float = Field(default=0.4, ge=0, le=1)
+    ppe_ratio: float = Field(default=0.5, ge=0, le=1)
+    intangible_ratio: float = Field(default=0.1, ge=0, le=1)
 
     # Depreciation settings
-    ppe_useful_life: int = 10  # years
-    depreciation_method: str = "straight_line"
+    ppe_useful_life: int = Field(default=10, gt=0)
+    depreciation_method: Literal["straight_line", "declining_balance"] = "straight_line"
 
-    def __post_init__(self):
-        """Validate configuration after initialization."""
-        self.validate()
-
-    def validate(self):
-        """Validate that all parameters are within reasonable bounds."""
-        # Validate margins
-        assert (
-            0 <= self.gross_margin <= 1
-        ), f"Gross margin must be between 0 and 1, got {self.gross_margin}"
-        assert (
-            0 <= self.operating_expense_ratio <= 1
-        ), f"Operating expense ratio must be between 0 and 1, got {self.operating_expense_ratio}"
-
-        # Validate asset composition
+    @model_validator(mode="after")
+    def validate_asset_composition(self):
+        """Validate that asset ratios sum to 1.0."""
         asset_sum = self.current_asset_ratio + self.ppe_ratio + self.intangible_ratio
-        assert abs(asset_sum - 1.0) < 0.01, f"Asset ratios must sum to 1.0, got {asset_sum}"
-
-        # Validate working capital days
-        assert self.days_sales_outstanding >= 0, "Days sales outstanding must be non-negative"
-        assert (
-            self.days_inventory_outstanding >= 0
-        ), "Days inventory outstanding must be non-negative"
-        assert self.days_payables_outstanding >= 0, "Days payables outstanding must be non-negative"
-
-        # Validate depreciation
-        assert self.ppe_useful_life > 0, "PPE useful life must be positive"
-        assert self.depreciation_method in [
-            "straight_line",
-            "declining_balance",
-        ], f"Unknown depreciation method: {self.depreciation_method}"
+        if abs(asset_sum - 1.0) >= 0.01:
+            raise ValueError(f"Asset ratios must sum to 1.0, got {asset_sum}")
+        return self
 
     @property
     def working_capital_days(self) -> float:
@@ -512,24 +489,17 @@ class ManufacturingConfig(IndustryConfig):
     - Gross margins of 25-40%
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize with manufacturing-specific defaults."""
-        defaults: Dict[str, Any] = {
-            "industry_type": "manufacturing",
-            "days_sales_outstanding": 45,
-            "days_inventory_outstanding": 60,
-            "days_payables_outstanding": 30,
-            "gross_margin": 0.35,
-            "operating_expense_ratio": 0.25,
-            "current_asset_ratio": 0.4,
-            "ppe_ratio": 0.5,
-            "intangible_ratio": 0.1,
-            "ppe_useful_life": 10,
-            "depreciation_method": "straight_line",
-        }
-        # Override defaults with any provided kwargs
-        defaults.update(kwargs)
-        super().__init__(**defaults)
+    industry_type: str = "manufacturing"
+    days_sales_outstanding: float = Field(default=45, ge=0)
+    days_inventory_outstanding: float = Field(default=60, ge=0)
+    days_payables_outstanding: float = Field(default=30, ge=0)
+    gross_margin: float = Field(default=0.35, ge=0, le=1)
+    operating_expense_ratio: float = Field(default=0.25, ge=0, le=1)
+    current_asset_ratio: float = Field(default=0.4, ge=0, le=1)
+    ppe_ratio: float = Field(default=0.5, ge=0, le=1)
+    intangible_ratio: float = Field(default=0.1, ge=0, le=1)
+    ppe_useful_life: int = Field(default=10, gt=0)
+    depreciation_method: Literal["straight_line", "declining_balance"] = "straight_line"
 
 
 class ServiceConfig(IndustryConfig):
@@ -542,23 +512,17 @@ class ServiceConfig(IndustryConfig):
     - Higher gross margins but also higher operating expenses
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize with service-specific defaults."""
-        defaults: Dict[str, Any] = {
-            "industry_type": "services",
-            "days_sales_outstanding": 30,
-            "days_inventory_outstanding": 0,  # No inventory for services
-            "days_payables_outstanding": 20,
-            "gross_margin": 0.60,
-            "operating_expense_ratio": 0.45,
-            "current_asset_ratio": 0.6,
-            "ppe_ratio": 0.2,  # Less capital intensive
-            "intangible_ratio": 0.2,  # More intangibles (brand, IP)
-            "ppe_useful_life": 5,
-            "depreciation_method": "straight_line",
-        }
-        defaults.update(kwargs)
-        super().__init__(**defaults)
+    industry_type: str = "services"
+    days_sales_outstanding: float = Field(default=30, ge=0)
+    days_inventory_outstanding: float = Field(default=0, ge=0)
+    days_payables_outstanding: float = Field(default=20, ge=0)
+    gross_margin: float = Field(default=0.60, ge=0, le=1)
+    operating_expense_ratio: float = Field(default=0.45, ge=0, le=1)
+    current_asset_ratio: float = Field(default=0.6, ge=0, le=1)
+    ppe_ratio: float = Field(default=0.2, ge=0, le=1)
+    intangible_ratio: float = Field(default=0.2, ge=0, le=1)
+    ppe_useful_life: int = Field(default=5, gt=0)
+    depreciation_method: Literal["straight_line", "declining_balance"] = "straight_line"
 
 
 class RetailConfig(IndustryConfig):
@@ -571,20 +535,14 @@ class RetailConfig(IndustryConfig):
     - Lower gross margins but efficient operations
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize with retail-specific defaults."""
-        defaults: Dict[str, Any] = {
-            "industry_type": "retail",
-            "days_sales_outstanding": 5,  # Mostly cash/credit card sales
-            "days_inventory_outstanding": 45,
-            "days_payables_outstanding": 35,
-            "gross_margin": 0.30,
-            "operating_expense_ratio": 0.22,
-            "current_asset_ratio": 0.5,
-            "ppe_ratio": 0.4,
-            "intangible_ratio": 0.1,
-            "ppe_useful_life": 7,
-            "depreciation_method": "straight_line",
-        }
-        defaults.update(kwargs)
-        super().__init__(**defaults)
+    industry_type: str = "retail"
+    days_sales_outstanding: float = Field(default=5, ge=0)
+    days_inventory_outstanding: float = Field(default=45, ge=0)
+    days_payables_outstanding: float = Field(default=35, ge=0)
+    gross_margin: float = Field(default=0.30, ge=0, le=1)
+    operating_expense_ratio: float = Field(default=0.22, ge=0, le=1)
+    current_asset_ratio: float = Field(default=0.5, ge=0, le=1)
+    ppe_ratio: float = Field(default=0.4, ge=0, le=1)
+    intangible_ratio: float = Field(default=0.1, ge=0, le=1)
+    ppe_useful_life: int = Field(default=7, gt=0)
+    depreciation_method: Literal["straight_line", "declining_balance"] = "straight_line"

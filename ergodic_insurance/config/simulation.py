@@ -8,9 +8,12 @@ Since:
     Version 0.9.0 (Issue #458)
 """
 
+import logging
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class WorkingCapitalConfig(BaseModel):
@@ -298,7 +301,7 @@ class WorkingCapitalRatiosConfig(BaseModel):
             - self.days_payable_outstanding
         )
         if ccc < 0:
-            print(f"Warning: Negative cash conversion cycle ({ccc:.0f} days)")
+            logger.warning("Negative cash conversion cycle (%.0f days)", ccc)
         elif ccc > 180:
-            print(f"Warning: Very long cash conversion cycle ({ccc:.0f} days)")
+            logger.warning("Very long cash conversion cycle (%.0f days)", ccc)
         return self

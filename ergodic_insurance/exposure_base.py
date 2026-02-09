@@ -39,9 +39,12 @@ Since:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
+import logging
 from typing import Callable, Dict, List, Optional, Protocol, runtime_checkable
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -522,13 +525,22 @@ class ScenarioExposure(ExposureBase):
         return self._cubic_interpolate(path, time)
 
     def _cubic_interpolate(self, path: List[float], time: float) -> float:
-        """Simple cubic interpolation implementation."""
-        # For now, fall back to linear
-        # A full implementation would use scipy.interpolate.interp1d
-        lower = int(time)
-        upper = lower + 1
-        weight = time - lower
-        return path[lower] * (1 - weight) + path[upper] * weight
+        """Cubic interpolation with scipy fallback to linear.
+
+        Falls back to linear interpolation when scipy is not available.
+        """
+        try:
+            from scipy.interpolate import interp1d
+
+            x = list(range(len(path)))
+            f = interp1d(x, path, kind="cubic", fill_value="extrapolate")
+            return float(f(time))
+        except ImportError:
+            logger.warning("scipy not available; cubic interpolation falling back to linear")
+            lower = int(time)
+            upper = lower + 1
+            weight = time - lower
+            return path[lower] * (1 - weight) + path[upper] * weight
 
     def get_frequency_multiplier(self, time: float) -> float:
         """Derive multiplier from exposure level."""

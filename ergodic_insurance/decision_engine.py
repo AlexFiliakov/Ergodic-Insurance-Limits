@@ -10,12 +10,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
+import warnings
 
 import numpy as np
 from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
 
-from .config import DEFAULT_RISK_FREE_RATE, DecisionEngineConfig
-from .config_loader import ConfigLoader
+from .config import DEFAULT_RISK_FREE_RATE, DecisionEngineConfig, PricingScenarioConfig
+from .config_manager import ConfigManager
 from .ergodic_analyzer import ErgodicAnalyzer
 from .insurance_program import EnhancedInsuranceLayer as Layer
 from .loss_distributions import LossDistribution
@@ -179,8 +180,10 @@ class InsuranceDecisionEngine:
         manufacturer: WidgetManufacturer,
         loss_distribution: LossDistribution,
         pricing_scenario: str = "baseline",
-        config_loader: Optional[ConfigLoader] = None,
+        config_manager: Optional[ConfigManager] = None,
         engine_config: Optional[DecisionEngineConfig] = None,
+        # Deprecated parameter kept for backward compatibility
+        config_loader: Optional[Any] = None,
     ):
         """Initialize decision engine with company context.
 
@@ -188,17 +191,24 @@ class InsuranceDecisionEngine:
             manufacturer: Company profile and financials
             loss_distribution: Loss model for the company
             pricing_scenario: Market pricing scenario to use
-            config_loader: Configuration loader (creates default if None)
+            config_manager: Configuration manager (creates default if None)
             engine_config: Decision engine calibration parameters (creates default if None)
+            config_loader: Deprecated. Use config_manager instead.
         """
+        if config_loader is not None:
+            warnings.warn(
+                "config_loader parameter is deprecated. Use config_manager instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self.manufacturer = manufacturer
         self.loss_distribution = loss_distribution
         self.pricing_scenario = pricing_scenario
-        self.config_loader = config_loader or ConfigLoader()
+        self.config_manager = config_manager or ConfigManager()
         self.engine_config = engine_config or DecisionEngineConfig()
 
-        # Load pricing scenarios
-        self.pricing_config = self.config_loader.load_pricing_scenarios()
+        # Load pricing scenarios directly from YAML
+        self.pricing_config = self._load_pricing_scenarios()
         self.current_scenario = self.pricing_config.get_scenario(pricing_scenario)
 
         # Initialize components
@@ -209,6 +219,32 @@ class InsuranceDecisionEngine:
         # Cache for performance
         self._decision_cache: Dict[str, InsuranceDecision] = {}
         self._metrics_cache: Dict[str, DecisionMetrics] = {}
+
+    def _load_pricing_scenarios(
+        self, scenario_file: str = "insurance_pricing_scenarios"
+    ) -> PricingScenarioConfig:
+        """Load pricing scenario configuration from YAML.
+
+        Args:
+            scenario_file: Name of scenario file (without .yaml extension).
+
+        Returns:
+            Loaded and validated pricing scenario configuration.
+        """
+        from pathlib import Path
+
+        import yaml
+
+        config_dir = Path(__file__).parent / "data" / "parameters"
+        file_path = config_dir / f"{scenario_file}.yaml"
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"Scenario file not found: {file_path}")
+
+        with open(file_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        return PricingScenarioConfig(**data)
 
     # Ordered fallback sequence for optimization methods
     _FALLBACK_SEQUENCE: List[OptimizationMethod] = [

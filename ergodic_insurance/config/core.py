@@ -30,6 +30,7 @@ from .simulation import (
     WorkingCapitalConfig,
     WorkingCapitalRatiosConfig,
 )
+from .utils import deep_merge
 
 
 class Config(BaseModel):
@@ -197,24 +198,6 @@ class Config(BaseModel):
         config_dict = base_config.model_dump()
 
         # Deep merge the override data
-        def deep_merge(base: dict, override: dict) -> dict:
-            """Recursively merge override into base.
-
-            Args:
-                base: Base dictionary to merge into.
-                override: Override dictionary to merge from.
-
-            Returns:
-                Merged dictionary with overrides applied.
-            """
-            result = base.copy()
-            for key, value in override.items():
-                if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                    result[key] = deep_merge(result[key], value)
-                else:
-                    result[key] = value
-            return result
-
         merged = deep_merge(config_dict, data)
         return cls(**merged)
 
@@ -387,18 +370,13 @@ class ConfigV2(BaseModel):
         Returns:
             Merged dictionary.
         """
-        result = base.copy()
-
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = ConfigV2._deep_merge(result[key], value)
-            else:
-                result[key] = value
-
-        return result
+        return deep_merge(base, override)
 
     def apply_module(self, module_path: Path) -> None:
         """Apply a configuration module.
+
+        Merges module data via dict-dump-merge-reconstruct so that every
+        field change goes through Pydantic validation.
 
         Args:
             module_path: Path to the module YAML file.
@@ -406,44 +384,35 @@ class ConfigV2(BaseModel):
         with open(module_path, "r") as f:
             module_data = yaml.safe_load(f)
 
-        # Apply module data to current config
-        for key, value in module_data.items():
-            if hasattr(self, key):
-                if isinstance(value, dict):
-                    current = getattr(self, key)
-                    if isinstance(current, BaseModel):
-                        # Update Pydantic model
-                        updated = current.model_dump()
-                        updated.update(value)
-                        setattr(self, key, type(current)(**updated))
-                    else:
-                        setattr(self, key, value)
-                else:
-                    setattr(self, key, value)
+        # Dump → merge → reconstruct to enforce Pydantic validation
+        current_data = self.model_dump()
+        merged = deep_merge(current_data, module_data)
+        updated = self.model_validate(merged)
+
+        # Copy all validated fields back
+        for field_name in type(self).model_fields:
+            object.__setattr__(self, field_name, getattr(updated, field_name))
 
     def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> None:
         """Apply a preset to the configuration.
+
+        Merges preset data via dict-dump-merge-reconstruct so that every
+        field change goes through Pydantic validation.
 
         Args:
             preset_name: Name of the preset.
             preset_data: Preset parameters to apply.
         """
-        # Track applied preset
-        self.applied_presets.append(preset_name)
+        # Dump → merge → reconstruct to enforce Pydantic validation
+        current_data = self.model_dump()
+        current_data.setdefault("applied_presets", [])
+        current_data["applied_presets"].append(preset_name)
+        merged = deep_merge(current_data, preset_data)
+        updated = self.model_validate(merged)
 
-        # Apply preset data
-        for key, value in preset_data.items():
-            if hasattr(self, key):
-                if isinstance(value, dict):
-                    current = getattr(self, key)
-                    if isinstance(current, BaseModel):
-                        updated = current.model_dump()
-                        updated.update(value)
-                        setattr(self, key, type(current)(**updated))
-                    else:
-                        setattr(self, key, value)
-                else:
-                    setattr(self, key, value)
+        # Copy all validated fields back
+        for field_name in type(self).model_fields:
+            object.__setattr__(self, field_name, getattr(updated, field_name))
 
     def with_overrides(self, **kwargs) -> "ConfigV2":
         """Create a new config with runtime overrides.
