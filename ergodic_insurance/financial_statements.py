@@ -50,9 +50,6 @@ class FinancialStatementConfig:
             the central Config.simulation.fiscal_year_end setting. Defaults to 12
             (December) if neither is set, for calendar year alignment.
         consolidate_monthly: Whether to consolidate monthly data into annual
-        current_claims_ratio: Fraction of claim liabilities classified as current
-            (due within one year). Defaults to 0.1 (10%). Should be derived from
-            actual claim payment schedules when available.
     """
 
     currency_symbol: str = "$"
@@ -61,7 +58,6 @@ class FinancialStatementConfig:
     include_percentages: bool = True
     fiscal_year_end: Optional[int] = None
     consolidate_monthly: bool = True
-    current_claims_ratio: float = 0.1
 
 
 class CashFlowStatement:
@@ -201,13 +197,19 @@ class CashFlowStatement:
             "inventory_change": -to_decimal(wc_changes.get("inventory", ZERO)),
             "prepaid_insurance_change": -to_decimal(wc_changes.get("prepaid_insurance", ZERO)),
             "accounts_payable_change": to_decimal(wc_changes.get("accounts_payable", ZERO)),
+            "short_term_borrowings_change": to_decimal(
+                wc_changes.get("short_term_borrowings", ZERO)
+            ),
             "accrued_expenses_change": to_decimal(wc_changes.get("accrued_expenses", ZERO)),
             "claim_liabilities_change": to_decimal(wc_changes.get("claim_liabilities", ZERO)),
         }
 
         # Calculate total operating cash flow
         operating_items["total"] = (
-            sum((to_decimal(v) for k, v in operating_items.items() if k != "net_income"), ZERO)
+            sum(
+                (to_decimal(v) for k, v in operating_items.items() if k != "net_income"),
+                ZERO,
+            )
             + net_income
         )
 
@@ -242,6 +244,9 @@ class CashFlowStatement:
         wc_changes["accounts_payable"] = to_decimal(
             current.get("accounts_payable", ZERO)
         ) - to_decimal(prior.get("accounts_payable", ZERO))
+        wc_changes["short_term_borrowings"] = to_decimal(
+            current.get("short_term_borrowings", ZERO)
+        ) - to_decimal(prior.get("short_term_borrowings", ZERO))
         wc_changes["accrued_expenses"] = to_decimal(
             current.get("accrued_expenses", ZERO)
         ) - to_decimal(prior.get("accrued_expenses", ZERO))
@@ -264,32 +269,46 @@ class CashFlowStatement:
         Returns:
             Dictionary with investing cash flow components
         """
-        # Calculate capital expenditures
+        # Calculate capital expenditures (Issue #383: handle disposals)
         capex = self._calculate_capex(current, prior)
         if period == "monthly":
             capex = capex / 12
 
+        # Separate capital expenditures (outflows) from asset disposals (inflows)
+        # per ASC 230: investing activities must report inflows and outflows separately
+        if capex >= ZERO:
+            capital_expenditures = -capex  # Cash outflow (negative)
+            asset_sales = ZERO
+        else:
+            capital_expenditures = ZERO
+            asset_sales = -capex  # Disposal proceeds (positive)
+
         investing_items = {
-            "capital_expenditures": -capex,  # Cash outflow
-            "total": -capex,
+            "capital_expenditures": capital_expenditures,
+            "asset_sales": asset_sales,
+            "total": capital_expenditures + asset_sales,
         }
 
         return investing_items
 
     def _calculate_capex(self, current: MetricsDict, prior: MetricsDict) -> Decimal:
-        """Calculate capital expenditures from PP&E changes.
+        """Calculate capital expenditures from net PP&E changes.
 
-        Capex = Ending PP&E - Beginning PP&E + Depreciation
+        Capex = Ending Net PP&E - Beginning Net PP&E + Depreciation
+
+        This formula must use **net** PP&E (gross PP&E minus accumulated
+        depreciation).  Using gross PP&E would double-count depreciation
+        because gross PP&E is *not* reduced by depreciation.
 
         Args:
-            current: Current period metrics
+            current: Current period metrics (must include ``net_ppe``)
             prior: Prior period metrics
 
         Returns:
             Capital expenditures amount
         """
-        current_ppe = to_decimal(current.get("gross_ppe", ZERO))
-        prior_ppe = to_decimal(prior.get("gross_ppe", ZERO)) if prior else ZERO
+        current_ppe = to_decimal(current.get("net_ppe", ZERO))
+        prior_ppe = to_decimal(prior.get("net_ppe", ZERO)) if prior else ZERO
 
         # Get depreciation for the period
         # Depreciation expense MUST be provided by the Manufacturer class
@@ -300,12 +319,14 @@ class CashFlowStatement:
             )
         depreciation = to_decimal(current["depreciation_expense"])
 
-        # Capex = Change in PP&E + Depreciation
-        # (Since depreciation reduces net PP&E, we add it back)
+        # Capex = Change in Net PP&E + Depreciation
+        # Net PP&E falls by depreciation each period, so adding depreciation
+        # back recovers the actual capital expenditure (new asset purchases).
+        # A negative result indicates net asset disposals exceeded purchases
+        # (Issue #383: removed max(ZERO, ...) clamp that hid disposals).
         capex = (current_ppe - prior_ppe) + depreciation
 
-        # Capex should not be negative in normal operations
-        return max(ZERO, capex)
+        return capex
 
     def _calculate_financing_cash_flow(
         self, current: MetricsDict, prior: MetricsDict, period: str
@@ -511,11 +532,19 @@ class CashFlowStatement:
             # Direct method shows actual cash receipts and payments
             if operating.get("cash_from_customers", 0) != 0:
                 cash_flow_data.append(
-                    ("  Cash Received from Customers", operating["cash_from_customers"], "")
+                    (
+                        "  Cash Received from Customers",
+                        operating["cash_from_customers"],
+                        "",
+                    )
                 )
             if operating.get("cash_from_insurance", 0) != 0:
                 cash_flow_data.append(
-                    ("  Cash Received from Insurance", operating["cash_from_insurance"], "")
+                    (
+                        "  Cash Received from Insurance",
+                        operating["cash_from_insurance"],
+                        "",
+                    )
                 )
             if operating.get("cash_to_suppliers", 0) != 0:
                 cash_flow_data.append(
@@ -527,7 +556,11 @@ class CashFlowStatement:
                 )
             if operating.get("cash_for_claim_losses", 0) != 0:
                 cash_flow_data.append(
-                    ("  Cash Paid for Claim Losses", operating["cash_for_claim_losses"], "")
+                    (
+                        "  Cash Paid for Claim Losses",
+                        operating["cash_for_claim_losses"],
+                        "",
+                    )
                 )
             if operating.get("cash_for_taxes", 0) != 0:
                 cash_flow_data.append(("  Cash Paid for Taxes", operating["cash_for_taxes"], ""))
@@ -549,7 +582,11 @@ class CashFlowStatement:
             cash_flow_data.append(("  Changes in operating assets and liabilities:", "", ""))
             if operating["accounts_receivable_change"] != 0:
                 cash_flow_data.append(
-                    ("    Accounts Receivable", operating["accounts_receivable_change"], "")
+                    (
+                        "    Accounts Receivable",
+                        operating["accounts_receivable_change"],
+                        "",
+                    )
                 )
             if operating["inventory_change"] != 0:
                 cash_flow_data.append(("    Inventory", operating["inventory_change"], ""))
@@ -561,6 +598,14 @@ class CashFlowStatement:
                 cash_flow_data.append(
                     ("    Accounts Payable", operating["accounts_payable_change"], "")
                 )
+            if operating.get("short_term_borrowings_change", 0) != 0:
+                cash_flow_data.append(
+                    (
+                        "    Short-Term Borrowings",
+                        operating["short_term_borrowings_change"],
+                        "",
+                    )
+                )
             if operating["accrued_expenses_change"] != 0:
                 cash_flow_data.append(
                     ("    Accrued Expenses", operating["accrued_expenses_change"], "")
@@ -571,14 +616,18 @@ class CashFlowStatement:
                 )
 
         cash_flow_data.append(
-            ("  Net Cash Provided by Operating Activities", operating["total"], "subtotal")
+            (
+                "  Net Cash Provided by Operating Activities",
+                operating["total"],
+                "subtotal",
+            )
         )
         cash_flow_data.append(("", "", ""))
 
         # INVESTING ACTIVITIES SECTION
         cash_flow_data.append(("CASH FLOWS FROM INVESTING ACTIVITIES", "", ""))
         cash_flow_data.append(("  Capital Expenditures", investing["capital_expenditures"], ""))
-        if method == "direct" and investing.get("asset_sales", 0) != 0:
+        if investing.get("asset_sales", 0) != 0:
             cash_flow_data.append(("  Proceeds from Asset Sales", investing["asset_sales"], ""))
         cash_flow_data.append(
             ("  Net Cash Used in Investing Activities", investing["total"], "subtotal")
@@ -625,7 +674,9 @@ class CashFlowStatement:
 
         # Create DataFrame
         df = pd.DataFrame(
-            cash_flow_data, columns=["Item", f"{period_label} {year}", "Type"], dtype=object
+            cash_flow_data,
+            columns=["Item", f"{period_label} {year}", "Type"],
+            dtype=object,
         )
         return df
 
@@ -870,6 +921,7 @@ class FinancialStatementGenerator:
             metrics["net_income"] = mfr_metrics.get("net_income", 0)
             metrics["insurance_premiums"] = mfr_metrics.get("insurance_premiums", 0)
             metrics["insurance_losses"] = mfr_metrics.get("insurance_losses", 0)
+            metrics["insurance_lae"] = mfr_metrics.get("insurance_lae", 0)
             metrics["total_insurance_costs"] = mfr_metrics.get("total_insurance_costs", 0)
             metrics["dividends_paid"] = mfr_metrics.get("dividends_paid", 0)
             # COGS breakdown (Issue #255)
@@ -889,6 +941,11 @@ class FinancialStatementGenerator:
             # Tax expense (Issue #257)
             if "tax_expense" in mfr_metrics:
                 metrics["tax_expense"] = mfr_metrics["tax_expense"]
+            # Non-operating items (Issue #475)
+            if "interest_expense" in mfr_metrics:
+                metrics["interest_expense"] = mfr_metrics["interest_expense"]
+            if "net_reserve_development" in mfr_metrics:
+                metrics["net_reserve_development"] = mfr_metrics["net_reserve_development"]
         else:
             # Fallback: use ledger period changes (may be 0 if not recorded)
             metrics["revenue"] = self.ledger.get_period_change("revenue", year)
@@ -902,6 +959,7 @@ class FinancialStatementGenerator:
             metrics["operating_income"] = metrics["revenue"] - cogs - operating_exp - wage_exp
             insurance_exp = self.ledger.get_period_change("insurance_expense", year)
             insurance_loss = self.ledger.get_period_change("insurance_loss", year)
+            lae_exp = self.ledger.get_period_change("lae_expense", year)
             tax_exp = self.ledger.get_period_change("tax_expense", year)
             interest_exp = self.ledger.get_period_change("interest_expense", year)
             collateral_exp = self.ledger.get_period_change("collateral_expense", year)
@@ -914,6 +972,7 @@ class FinancialStatementGenerator:
                 + metrics["depreciation_expense"]
                 + insurance_exp
                 + insurance_loss
+                + lae_exp
                 + tax_exp
                 + interest_exp
                 + collateral_exp
@@ -922,7 +981,8 @@ class FinancialStatementGenerator:
             metrics["net_income"] = total_revenue - total_expenses
             metrics["insurance_premiums"] = insurance_exp
             metrics["insurance_losses"] = insurance_loss
-            metrics["total_insurance_costs"] = insurance_exp + insurance_loss
+            metrics["insurance_lae"] = lae_exp
+            metrics["total_insurance_costs"] = insurance_exp + insurance_loss + lae_exp
             metrics["dividends_paid"] = self.ledger.get_period_change("dividends", year)
 
         # Solvency check
@@ -1013,7 +1073,9 @@ class FinancialStatementGenerator:
         return df
 
     def _build_assets_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> Decimal:
         """Build assets section of balance sheet with GAAP structure.
 
@@ -1077,6 +1139,20 @@ class FinancialStatementGenerator:
         data.append(("  Net Property, Plant & Equipment", net_ppe, "", "subtotal"))
         data.append(("", "", "", ""))
 
+        # Deferred Tax Assets (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5)
+        deferred_tax_asset = metrics.get("deferred_tax_asset", 0)
+        dta_valuation_allowance = metrics.get("dta_valuation_allowance", 0)
+        if deferred_tax_asset > 0 or dta_valuation_allowance > 0:
+            data.append(("Other Non-Current Assets", "", "", ""))
+            data.append(("  Deferred Tax Asset (Gross)", deferred_tax_asset, "", ""))
+            if dta_valuation_allowance > 0:
+                data.append(
+                    ("  Less: Valuation Allowance", -to_decimal(dta_valuation_allowance), "", "")
+                )
+            net_dta = to_decimal(deferred_tax_asset) - to_decimal(dta_valuation_allowance)
+            data.append(("  Deferred Tax Asset (Net)", net_dta, "", "subtotal"))
+            data.append(("", "", "", ""))
+
         # Restricted Assets
         data.append(("Restricted Assets", "", "", ""))
         collateral = metrics.get("collateral", 0)
@@ -1099,7 +1175,9 @@ class FinancialStatementGenerator:
         return total_assets
 
     def _build_liabilities_section(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> Decimal:
         """Build liabilities section of balance sheet with GAAP structure.
 
@@ -1122,12 +1200,16 @@ class FinancialStatementGenerator:
         accrued_taxes = metrics.get("accrued_taxes", 0)
         accrued_interest = metrics.get("accrued_interest", 0)
 
-        # Current portion of claims (configurable via FinancialStatementConfig)
+        # Current portion of claims from development schedules (Issue #466, ASC 450)
         claim_liabilities = metrics.get("claim_liabilities", 0)
-        claims_ratio = to_decimal(self.config.current_claims_ratio)
-        current_claims = claim_liabilities * claims_ratio if claim_liabilities > 0 else ZERO
+        current_claims = to_decimal(metrics.get("current_claim_liabilities", 0))
 
         data.append(("  Accounts Payable", accounts_payable, "", ""))
+
+        # Short-term borrowings from working capital facility (ASC 470-10, Issue #496)
+        short_term_borrowings = to_decimal(metrics.get("short_term_borrowings", 0))
+        if short_term_borrowings > 0:
+            data.append(("  Short-Term Borrowings", short_term_borrowings, "", ""))
 
         # Show accrual detail if available
         if accrued_wages > 0 or accrued_taxes > 0 or accrued_interest > 0:
@@ -1146,7 +1228,9 @@ class FinancialStatementGenerator:
 
         data.append(("  Current Portion of Claim Liabilities", current_claims, "", ""))
 
-        total_current_liabilities = accounts_payable + accrued_expenses + current_claims
+        total_current_liabilities = (
+            accounts_payable + short_term_borrowings + accrued_expenses + current_claims
+        )
         data.append(("  Total Current Liabilities", total_current_liabilities, "", "subtotal"))
         data.append(("", "", "", ""))
 
@@ -1154,11 +1238,16 @@ class FinancialStatementGenerator:
         data.append(("Non-Current Liabilities", "", "", ""))
         long_term_claims = claim_liabilities - current_claims
         data.append(("  Long-Term Claim Reserves", long_term_claims, "", ""))
-        data.append(("  Total Non-Current Liabilities", long_term_claims, "", "subtotal"))
+        # Deferred Tax Liability (Issue #367, ASC 740)
+        deferred_tax_liability = metrics.get("deferred_tax_liability", 0)
+        if deferred_tax_liability > 0:
+            data.append(("  Deferred Tax Liability", deferred_tax_liability, "", ""))
+        total_non_current = long_term_claims + to_decimal(deferred_tax_liability)
+        data.append(("  Total Non-Current Liabilities", total_non_current, "", "subtotal"))
         data.append(("", "", "", ""))
 
         # Total Liabilities
-        total_liabilities = total_current_liabilities + long_term_claims
+        total_liabilities = total_current_liabilities + total_non_current
         data.append(("TOTAL LIABILITIES", total_liabilities, "", "total"))
         data.append(("", "", "", ""))
         data.append(("", "", "", ""))
@@ -1209,7 +1298,10 @@ class FinancialStatementGenerator:
         )
 
     def generate_income_statement(
-        self, year: int, compare_years: Optional[List[int]] = None, monthly: bool = False
+        self,
+        year: int,
+        compare_years: Optional[List[int]] = None,
+        monthly: bool = False,
     ) -> pd.DataFrame:
         """Generate income statement for specified year with proper GAAP structure.
 
@@ -1260,7 +1352,9 @@ class FinancialStatementGenerator:
         # Create DataFrame
         period_label = "Month" if monthly else "Year"
         df = pd.DataFrame(
-            income_data, columns=["Item", f"{period_label} {year}", "Unit", "Type"], dtype=object
+            income_data,
+            columns=["Item", f"{period_label} {year}", "Unit", "Type"],
+            dtype=object,
         )
 
         # Add year-over-year comparison if requested
@@ -1418,8 +1512,39 @@ class FinancialStatementGenerator:
         if insurance_premium > 0:
             data.append(("  Insurance Premiums", insurance_premium, "", ""))
 
+        # Insurance claim losses are operating expenses per ASC 944 (Issue #364)
+        # For a policyholder, claim losses from operational risks (property damage,
+        # liability, workers' comp) are inherently operational in nature.
+        insurance_claims = to_decimal(metrics.get("insurance_losses", ZERO))
+        if monthly:
+            insurance_claims = insurance_claims / 12
+        if insurance_claims > 0:
+            data.append(("  Insurance Claim Losses", insurance_claims, "", ""))
+
+        # Loss Adjustment Expenses per ASC 944-40 (Issue #468)
+        insurance_lae = to_decimal(metrics.get("insurance_lae", ZERO))
+        if monthly:
+            insurance_lae = insurance_lae / 12
+        if insurance_lae > 0:
+            data.append(("  Loss Adjustment Expenses (LAE)", insurance_lae, "", ""))
+
+        # Net reserve development (Issue #475): adverse development increases expenses,
+        # favorable development decreases them.  This aligns the GAAP presentation
+        # with the manufacturer's operating income calculation.
+        net_reserve_dev = to_decimal(metrics.get("net_reserve_development", ZERO))
+        if monthly:
+            net_reserve_dev = net_reserve_dev / 12
+        if net_reserve_dev != ZERO:
+            data.append(("  Net Reserve Development", net_reserve_dev, "", ""))
+
         total_operating_expenses = (
-            selling_expenses + general_admin + admin_depreciation + insurance_premium
+            selling_expenses
+            + general_admin
+            + admin_depreciation
+            + insurance_premium
+            + insurance_claims
+            + insurance_lae
+            + net_reserve_dev
         )
         data.append(("  Total Operating Expenses", total_operating_expenses, "", "subtotal"))
         data.append(("", "", "", ""))
@@ -1475,18 +1600,11 @@ class FinancialStatementGenerator:
         if monthly:
             interest_expense = interest_expense / 12
 
-        # Insurance claim losses (non-operating)
-        insurance_claims = to_decimal(metrics.get("insurance_losses", ZERO))
-        if monthly:
-            insurance_claims = insurance_claims / 12
-
         data.append(("  Interest Income", interest_income, "", ""))
         if interest_expense > 0:
             data.append(("  Interest Expense", -interest_expense, "", ""))
-        if insurance_claims > 0:
-            data.append(("  Insurance Claim Losses", -insurance_claims, "", ""))
 
-        total_non_operating = interest_income - interest_expense - insurance_claims
+        total_non_operating = interest_income - interest_expense
         data.append(("  Total Non-Operating", total_non_operating, "", "subtotal"))
         data.append(("", "", "", ""))
 
@@ -1532,8 +1650,9 @@ class FinancialStatementGenerator:
             # Calculate tax provision on positive income only
             tax_provision = max(ZERO, to_decimal(pretax_income) * tax_rate)
 
-        # Deferred tax from DTA changes (Issue #365: NOL carryforward per ASC 740)
+        # Deferred tax from DTA/DTL changes (Issue #365, #367, #464: ASC 740)
         deferred_tax_expense = ZERO
+        valuation_allowance_expense = ZERO
         if (
             hasattr(self, "manufacturer")
             and self.manufacturer is not None
@@ -1541,22 +1660,42 @@ class FinancialStatementGenerator:
             and self.manufacturer.ledger is not None
         ):
             # Positive DTA change = tax benefit (negative deferred expense)
-            deferred_tax_expense = -self.manufacturer.ledger.get_period_change(
+            dta_change = self.manufacturer.ledger.get_period_change(
                 AccountName.DEFERRED_TAX_ASSET, year
             )
+            # Positive DTL change = additional deferred expense (Issue #367)
+            dtl_change = self.manufacturer.ledger.get_period_change(
+                AccountName.DEFERRED_TAX_LIABILITY, year
+            )
+            # Valuation allowance change (Issue #464, ASC 740-10-30-5)
+            # Positive VA change (credit-normal contra-asset) = more allowance = more expense
+            va_change = self.manufacturer.ledger.get_period_change(
+                AccountName.DTA_VALUATION_ALLOWANCE, year
+            )
+            # VA is contra-asset: a negative balance change means allowance increased
+            valuation_allowance_expense = -va_change
+            deferred_tax_expense = -dta_change + dtl_change
 
         data.append(("INCOME TAX PROVISION", "", "", ""))
         data.append(("  Current Tax Expense", tax_provision, "", ""))
         data.append(("  Deferred Tax Expense", deferred_tax_expense, "", ""))
-        data.append(("  Total Tax Provision", tax_provision + deferred_tax_expense, "", "subtotal"))
+        if valuation_allowance_expense != ZERO:
+            data.append(("  Valuation Allowance Change", valuation_allowance_expense, "", ""))
+        data.append(
+            (
+                "  Total Tax Provision",
+                tax_provision + deferred_tax_expense + valuation_allowance_expense,
+                "",
+                "subtotal",
+            )
+        )
         data.append(("", "", "", ""))
 
-        # NET INCOME
-        # Issue #301: Use manufacturer's net_income directly to ensure consistency
-        # between income statement and balance sheet (which uses manufacturer's equity).
-        # The income statement presentation above may compute a different operating_income
-        # due to GAAP categorization differences, but the bottom line must match.
-        net_income = metrics.get("net_income", to_decimal(pretax_income) - tax_provision)
+        # NET INCOME (Issue #475: compute from GAAP line items, no override)
+        # Net income must equal the sum of its component line items for GAAP
+        # presentation integrity per ASC 220-10-45.
+        total_tax = tax_provision + deferred_tax_expense + valuation_allowance_expense
+        net_income = to_decimal(pretax_income) - total_tax
         data.append(("NET INCOME", net_income, "", "total"))
         data.append(("", "", "", ""))
 
@@ -1664,7 +1803,9 @@ class FinancialStatementGenerator:
         return df
 
     def _check_balance_sheet_equation(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check if balance sheet equation balances.
 
@@ -1674,10 +1815,9 @@ class FinancialStatementGenerator:
         """
         data.append(("BALANCE SHEET RECONCILIATION", "", "", ""))
         assets = to_decimal(metrics.get("assets", 0))
-        # Issue #301: Use full total liabilities matching _build_liabilities_section
-        claims_ratio = to_decimal(self.config.current_claims_ratio)
+        # Issue #466: Use development-schedule-based split matching _build_liabilities_section
         claim_liabilities = to_decimal(metrics.get("claim_liabilities", 0))
-        current_claims = claim_liabilities * claims_ratio if claim_liabilities > 0 else ZERO
+        current_claims = to_decimal(metrics.get("current_claim_liabilities", 0))
         long_term_claims = claim_liabilities - current_claims
         total_current = (
             to_decimal(metrics.get("accounts_payable", 0))
@@ -1699,7 +1839,9 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_net_assets(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check net assets reconciliation.
 
@@ -1722,7 +1864,9 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_collateral(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check collateral reconciliation."""
         data.append(("COLLATERAL RECONCILIATION", "", "", ""))
@@ -1736,7 +1880,9 @@ class FinancialStatementGenerator:
         data.append(("", "", "", ""))
 
     def _check_solvency(
-        self, data: List[Tuple[str, Union[str, float, int], str, str]], metrics: MetricsDict
+        self,
+        data: List[Tuple[str, Union[str, float, int], str, str]],
+        metrics: MetricsDict,
     ) -> None:
         """Check solvency status."""
         data.append(("SOLVENCY CHECK", "", "", ""))

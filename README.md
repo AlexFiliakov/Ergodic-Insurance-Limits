@@ -240,6 +240,8 @@ Ergodic-Insurance-Limits/
 
 ## Contributing
 
+See the [Codebase Onboarding Guide](docs/Codebase%20Onboarding%20Guide.md) for the project preliminaries.
+
 See the list of [Open Issues](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues) for improvement ideas.
 
 ### Code Quality Tools

@@ -32,6 +32,12 @@ _MARGINAL_UTILITY_FLOOR = 1e-10
 _GAMMA_TOLERANCE = 1e-10
 
 
+class NumericalDivergenceError(RuntimeError):
+    """Raised when the HJB solver detects NaN or Inf in the value function."""
+
+    pass
+
+
 class TimeSteppingScheme(Enum):
     """Time stepping schemes for PDE integration."""
 
@@ -370,11 +376,12 @@ class HJBSolverConfig:
     time_step: float = 0.01
     max_iterations: int = 1000
     tolerance: float = 1e-6
-    scheme: TimeSteppingScheme = TimeSteppingScheme.IMPLICIT
+    scheme: TimeSteppingScheme = TimeSteppingScheme.EXPLICIT
     use_sparse: bool = True
     verbose: bool = True
     inner_max_iterations: int = 100
     inner_tolerance_factor: float = 0.1  # inner_tol = tolerance * this
+    rannacher_steps: int = 2  # Number of implicit half-step pairs for CN startup
 
 
 class HJBSolver:
@@ -399,6 +406,9 @@ class HJBSolver:
         self.value_function: np.ndarray | None = None
         self.optimal_policy: dict[str, np.ndarray] | None = None
 
+        # Boundary values for Dirichlet BCs (captured from initial/terminal condition)
+        self._boundary_values: dict[int, dict[str, np.ndarray]] | None = None
+
         # Set up finite difference operators
         self._setup_operators()
 
@@ -417,6 +427,171 @@ class HJBSolver:
 
         # Will construct operators during solve based on current policy
         self.operators_initialized = True
+
+    def _compute_cfl_number(
+        self,
+        drift: np.ndarray,
+        sigma_sq: np.ndarray | None,
+        dt: float,
+    ) -> tuple[float, float]:
+        """Compute CFL numbers for advection and diffusion stability.
+
+        Args:
+            drift: Drift values on the state grid, shape state_shape + (ndim,)
+            sigma_sq: Diffusion coefficients on state grid, shape state_shape + (ndim,),
+                or None if no diffusion.
+            dt: Time step size.
+
+        Returns:
+            Tuple of (advection_cfl, diffusion_cfl).
+        """
+        advection_cfl = 0.0
+        diffusion_cfl = 0.0
+
+        n_dims = min(drift.shape[-1], len(self.problem.state_space.state_variables))
+        for dim in range(n_dims):
+            dx_arr = self.dx[dim]
+            dx_min = float(np.min(dx_arr))
+            dx_mean = float(np.mean(dx_arr))
+
+            drift_max = float(np.max(np.abs(drift[..., dim])))
+            if dx_min > 0:
+                advection_cfl = max(advection_cfl, drift_max * dt / dx_min)
+
+            if sigma_sq is not None and dx_mean > 0:
+                # Effective diffusion coefficient is D = 0.5 * sigma_sq
+                sigma_sq_max = float(np.max(np.abs(sigma_sq[..., dim])))
+                diffusion_cfl = max(diffusion_cfl, 0.5 * sigma_sq_max * dt / (dx_mean**2))
+
+        return advection_cfl, diffusion_cfl
+
+    def _build_spatial_operator_1d(
+        self,
+        drift_1d: np.ndarray,
+        sigma_sq_1d: np.ndarray | None,
+        dim: int = 0,
+    ) -> sparse.spmatrix:
+        """Build the 1D spatial operator L as a sparse tridiagonal matrix.
+
+        The operator represents: L(V)[i] = -rho*V[i] + drift*dV/dx + 0.5*sigma^2*d2V/dx2
+        using upwind first derivatives and central second derivatives, consistent
+        with the explicit scheme.
+
+        Args:
+            drift_1d: Drift values at each grid point, shape (N,).
+            sigma_sq_1d: Diffusion coefficient sigma^2 at each grid point, shape (N,),
+                or None for pure advection.
+            dim: Dimension index (for grid spacing lookup).
+
+        Returns:
+            Sparse CSR matrix of shape (N, N).
+        """
+        N = len(drift_1d)
+        dx_arr = self.dx[dim]
+        dx_mean = float(np.mean(dx_arr))
+        rho = self.problem.discount_rate
+
+        # Sub-diagonal (V[i-1] coefficients), super-diagonal (V[i+1] coefficients),
+        # main diagonal (V[i] coefficients) — all for interior points
+        sub = np.zeros(N)
+        main = np.zeros(N)
+        sup = np.zeros(N)
+
+        # Interior points: i = 1, ..., N-2
+        interior = slice(1, N - 1)
+        drift_int = drift_1d[interior]
+        drift_pos = np.maximum(drift_int, 0.0)
+        drift_neg = np.minimum(drift_int, 0.0)
+
+        # dx for backward diff at point i: dx_arr[i-1]
+        dx_back = dx_arr[0 : N - 2]
+        # dx for forward diff at point i: dx_arr[i]
+        dx_fwd = dx_arr[1 : N - 1]
+
+        # Diffusion coefficient at interior points
+        if sigma_sq_1d is not None:
+            D = 0.5 * sigma_sq_1d[interior]
+        else:
+            D = np.zeros(N - 2)
+
+        dx_sq = dx_mean**2
+
+        # Operator coefficients (consistent with _apply_upwind_scheme)
+        # drift > 0: forward diff drift*(V[i+1]-V[i])/dx_fwd
+        # drift < 0: backward diff drift*(V[i]-V[i-1])/dx_back
+        sub[interior] = -drift_neg / dx_back + D / dx_sq
+        main[interior] = -drift_pos / dx_fwd + drift_neg / dx_back - 2.0 * D / dx_sq - rho
+        sup[interior] = drift_pos / dx_fwd + D / dx_sq
+
+        # Boundary rows are zero (will be handled after solve)
+
+        L = sparse.diags(
+            [sub[1:], main, sup[:-1]],
+            offsets=[-1, 0, 1],
+            shape=(N, N),
+            format="csr",
+        )
+        return L
+
+    def _theta_step_1d(
+        self,
+        old_v: np.ndarray,
+        cost: np.ndarray,
+        drift_1d: np.ndarray,
+        sigma_sq_1d: np.ndarray | None,
+        dt: float,
+        theta: float,
+        dim: int = 0,
+    ) -> np.ndarray:
+        """Perform one theta-scheme time step for a 1D problem.
+
+        Solves: (I - theta*dt*L)*V_new = (I + (1-theta)*dt*L)*V_old + dt*cost
+
+        For theta=1: fully implicit (backward Euler).
+        For theta=0.5: Crank-Nicolson.
+        For theta=0: explicit (forward Euler).
+
+        Args:
+            old_v: Current value function, shape (N,).
+            cost: Running cost at each grid point, shape (N,).
+            drift_1d: Drift at each grid point, shape (N,).
+            sigma_sq_1d: Diffusion coefficient sigma^2, shape (N,) or None.
+            dt: Time step.
+            theta: Implicitness parameter in [0, 1].
+            dim: Dimension index.
+
+        Returns:
+            Updated value function, shape (N,).
+        """
+        N = len(old_v)
+        L = self._build_spatial_operator_1d(drift_1d, sigma_sq_1d, dim)
+        I_mat = sparse.eye(N, format="csr")
+
+        # LHS: A = I - theta*dt*L
+        A = I_mat - theta * dt * L
+
+        # RHS: B @ old_v + dt * cost
+        if theta < 1.0:
+            B = I_mat + (1.0 - theta) * dt * L
+            rhs = B @ old_v + dt * cost
+        else:
+            rhs = old_v + dt * cost
+
+        # Set boundary rows to identity (boundary values handled by
+        # _apply_boundary_conditions after return)
+        A = A.tolil()
+        A[0, :] = 0
+        A[0, 0] = 1.0
+        A[N - 1, :] = 0
+        A[N - 1, N - 1] = 1.0
+        A = A.tocsr()
+
+        # Preserve old boundary values in RHS (will be overwritten by BCs)
+        rhs[0] = old_v[0]
+        rhs[N - 1] = old_v[N - 1]
+
+        new_v: np.ndarray = sparse.linalg.spsolve(A, rhs)
+        return new_v
 
     def _build_difference_matrix(
         self, dim: int, boundary_type: BoundaryCondition
@@ -451,24 +626,36 @@ class HJBSolver:
             diagonals[0, -1] = 0
             diagonals[1, -1] = 1
             diagonals[2, -1] = 0
-        elif boundary_type == BoundaryCondition.NEUMANN:
-            # Zero derivative at boundaries
+        elif boundary_type in (BoundaryCondition.NEUMANN, BoundaryCondition.REFLECTING):
+            # Zero first derivative at boundaries (ghost-node reflection)
             diagonals[1, 0] += diagonals[0, 0]
             diagonals[0, 0] = 0
             diagonals[1, -1] += diagonals[2, -1]
             diagonals[2, -1] = 0
         elif boundary_type == BoundaryCondition.ABSORBING:
-            # Absorbing boundaries: value is fixed at boundary
-            # First row: only main diagonal = 1
-            diagonals[1, 0] = 1
-            diagonals[2, 0] = 0  # No upper diagonal from first row
-            # Last row: only main diagonal = 1
-            # Note: For lower diagonal, element at index i goes to matrix[i+1, i]
-            # So to zero out matrix[n-1, n-2], we need diagonals[0, n-2]
-            diagonals[0, n - 2] = 0  # Zero out lower diagonal element going to last row
-            diagonals[1, n - 1] = 1  # Set main diagonal of last row to 1
+            # Absorbing boundary: enforce d²V/dx² = 0 (linear extrapolation)
+            # Lower boundary: V[0] - 2*V[1] + V[2] = 0
+            # Upper boundary: V[n-3] - 2*V[n-2] + V[n-1] = 0
+            # Row 0 needs entry at column 2 (offset +2), and row n-1 needs
+            # entry at column n-3 (offset -2), so we build as tridiagonal
+            # then add the extra entries.
+            coeff = 1.0 / (dx * dx)
+            # Row 0: [coeff, -2*coeff, 0, ..., 0] (tridiagonal part)
+            diagonals[1, 0] = coeff
+            diagonals[2, 0] = -2.0 * coeff
+            # Row n-1: [0, ..., 0, -2*coeff, coeff] (tridiagonal part)
+            diagonals[0, n - 2] = -2.0 * coeff
+            diagonals[1, n - 1] = coeff
 
         matrix = sparse.diags(diagonals, offsets=[-1, 0, 1], shape=(n, n))
+
+        if boundary_type == BoundaryCondition.ABSORBING:
+            # Add the off-tridiagonal entries for absorbing BCs
+            coeff = 1.0 / (dx * dx)
+            matrix = matrix.tolil()
+            matrix[0, 2] = coeff  # V[2] coefficient in lower boundary row
+            matrix[n - 1, n - 3] = coeff  # V[n-3] coefficient in upper boundary row
+            matrix = matrix.tocsr()
 
         return matrix
 
@@ -602,6 +789,24 @@ class HJBSolver:
             # Infinite horizon: initialize with zeros or heuristic
             self.value_function = np.zeros(self.problem.state_space.shape)
 
+        # Capture boundary values for Dirichlet enforcement
+        self._boundary_values = {}
+        ndim = self.problem.state_space.ndim
+        for dim in range(ndim):
+            sv = self.problem.state_space.state_variables[dim]
+            if (
+                sv.boundary_lower == BoundaryCondition.DIRICHLET
+                or sv.boundary_upper == BoundaryCondition.DIRICHLET
+            ):
+                lo_idx: List[Any] = [slice(None)] * ndim
+                hi_idx: List[Any] = [slice(None)] * ndim
+                lo_idx[dim] = 0
+                hi_idx[dim] = -1
+                self._boundary_values[dim] = {
+                    "lower": self.value_function[tuple(lo_idx)].copy(),
+                    "upper": self.value_function[tuple(hi_idx)].copy(),
+                }
+
         # Initialize policy with mid-range controls
         if self.optimal_policy is None:
             self.optimal_policy = {}
@@ -616,6 +821,17 @@ class HJBSolver:
 
             # Policy evaluation step
             self._policy_evaluation()
+
+            # Check for NaN/Inf after policy evaluation (#453)
+            if not np.all(np.isfinite(self.value_function)):
+                n_nan = int(np.sum(np.isnan(self.value_function)))
+                n_inf = int(np.sum(np.isinf(self.value_function)))
+                raise NumericalDivergenceError(
+                    f"HJB solver diverged at outer iteration {iteration}: "
+                    f"value function contains {n_nan} NaN and {n_inf} Inf values. "
+                    f"Consider reducing time_step (current: {self.config.time_step}) "
+                    f"or using an implicit scheme."
+                )
 
             # Policy improvement step
             self._policy_improvement()
@@ -686,6 +902,71 @@ class HJBSolver:
 
         return diffusion
 
+    def _apply_boundary_conditions(self, value: np.ndarray) -> np.ndarray:
+        """Enforce boundary conditions on the value function.
+
+        Applies the prescribed boundary condition for each dimension:
+        - ABSORBING: linear extrapolation so d²V/dx² = 0 at boundary
+        - DIRICHLET: reset boundary to prescribed (initial/terminal) values
+        - NEUMANN / REFLECTING: copy adjacent interior value so dV/dx = 0
+
+        Args:
+            value: Value function on state grid.
+
+        Returns:
+            Value function with boundary conditions enforced.
+        """
+        ndim = self.problem.state_space.ndim
+        result = value.copy()
+
+        for dim in range(ndim):
+            sv = self.problem.state_space.state_variables[dim]
+
+            # --- lower boundary ---
+            lo: List[Any] = [slice(None)] * ndim
+            p1: List[Any] = [slice(None)] * ndim
+            p2: List[Any] = [slice(None)] * ndim
+            lo[dim] = 0
+            p1[dim] = 1
+            p2[dim] = 2
+
+            if sv.boundary_lower == BoundaryCondition.ABSORBING:
+                # V[0] = 2*V[1] - V[2]  →  d²V/dx² = 0
+                result[tuple(lo)] = 2.0 * result[tuple(p1)] - result[tuple(p2)]
+            elif sv.boundary_lower == BoundaryCondition.DIRICHLET:
+                # Reset to initial value (stored during initialization)
+                if self._boundary_values is not None and dim in self._boundary_values:
+                    result[tuple(lo)] = self._boundary_values[dim]["lower"]
+            elif sv.boundary_lower in (
+                BoundaryCondition.NEUMANN,
+                BoundaryCondition.REFLECTING,
+            ):
+                # dV/dx = 0  →  V[0] = V[1]
+                result[tuple(lo)] = result[tuple(p1)]
+
+            # --- upper boundary ---
+            hi: List[Any] = [slice(None)] * ndim
+            m1: List[Any] = [slice(None)] * ndim
+            m2: List[Any] = [slice(None)] * ndim
+            hi[dim] = -1
+            m1[dim] = -2
+            m2[dim] = -3
+
+            if sv.boundary_upper == BoundaryCondition.ABSORBING:
+                # V[-1] = 2*V[-2] - V[-3]  →  d²V/dx² = 0
+                result[tuple(hi)] = 2.0 * result[tuple(m1)] - result[tuple(m2)]
+            elif sv.boundary_upper == BoundaryCondition.DIRICHLET:
+                if self._boundary_values is not None and dim in self._boundary_values:
+                    result[tuple(hi)] = self._boundary_values[dim]["upper"]
+            elif sv.boundary_upper in (
+                BoundaryCondition.NEUMANN,
+                BoundaryCondition.REFLECTING,
+            ):
+                # dV/dx = 0  →  V[-1] = V[-2]
+                result[tuple(hi)] = result[tuple(m1)]
+
+        return result
+
     def _update_value_finite_horizon(self, old_v, cost, drift, dt, sigma_sq=None):
         """Update value function for finite horizon problems."""
         # Backward Euler scheme for parabolic PDE
@@ -705,14 +986,16 @@ class HJBSolver:
         return new_v
 
     def _policy_evaluation(self):
-        """Evaluate current policy by solving linear PDE."""
-        # For now, implement a simple iterative scheme
-        # In production, would use sparse linear solver
+        """Evaluate current policy by solving linear PDE.
 
+        Supports explicit, implicit, and Crank-Nicolson time-stepping schemes.
+        For explicit scheme, performs CFL stability check and auto-adapts dt.
+        """
         if self.value_function is None or self.optimal_policy is None:
             return
 
         dt = self.config.time_step
+        scheme = self.config.scheme
 
         for _ in range(self.config.inner_max_iterations):  # Inner iterations for policy evaluation
             # Type guard ensures value_function is not None after the check above
@@ -740,26 +1023,131 @@ class HJBSolver:
                 sigma_sq_raw = self.problem.diffusion(state_points, control_array, 0.0)
                 sigma_sq = sigma_sq_raw.reshape(self.problem.state_space.shape + (-1,))
 
-            # Apply finite differences with upwind scheme
-            # For finite horizon problems, integrate backwards from terminal condition
-            if self.problem.time_horizon is not None:
-                new_v = self._update_value_finite_horizon(old_v, cost, drift, dt, sigma_sq)
+            # CFL stability check for explicit scheme (#452)
+            if scheme == TimeSteppingScheme.EXPLICIT and _ == 0:
+                adv_cfl, diff_cfl = self._compute_cfl_number(drift, sigma_sq, dt)
+                if adv_cfl > 1.0 or diff_cfl > 1.0:
+                    # Compute safe dt
+                    max_rate = 0.0
+                    n_dims = min(drift.shape[-1], len(self.problem.state_space.state_variables))
+                    for dim in range(n_dims):
+                        dx_arr = self.dx[dim]
+                        dx_min = float(np.min(dx_arr))
+                        dx_mean = float(np.mean(dx_arr))
+                        drift_max = float(np.max(np.abs(drift[..., dim])))
+                        if dx_min > 0:
+                            max_rate += drift_max / dx_min
+                        if sigma_sq is not None and dx_mean > 0:
+                            max_rate += (
+                                0.5 * float(np.max(np.abs(sigma_sq[..., dim]))) / (dx_mean**2)
+                            )
+                    max_rate += self.problem.discount_rate
+                    if max_rate > 0:
+                        dt_safe = 0.9 / max_rate
+                        logger.warning(
+                            f"CFL condition violated (advection CFL={adv_cfl:.2f}, "
+                            f"diffusion CFL={diff_cfl:.2f}). "
+                            f"Auto-reducing dt from {dt:.4e} to {dt_safe:.4e}."
+                        )
+                        dt = dt_safe
+
+            # Time-stepping: branch on scheme (#451)
+            use_implicit = scheme in (
+                TimeSteppingScheme.IMPLICIT,
+                TimeSteppingScheme.CRANK_NICOLSON,
+            )
+            can_use_implicit = use_implicit and self.problem.state_space.ndim == 1
+
+            if use_implicit and not can_use_implicit:
+                if _ == 0:
+                    logger.warning(
+                        f"Implicit/CN schemes not yet supported for "
+                        f"{self.problem.state_space.ndim}D problems; "
+                        f"falling back to explicit."
+                    )
+
+            if can_use_implicit:
+                # Implicit or Crank-Nicolson 1D step
+                drift_1d = drift[:, 0] if drift.ndim > 1 else drift
+                sigma_sq_1d = (
+                    sigma_sq[:, 0] if sigma_sq is not None and sigma_sq.ndim > 1 else sigma_sq
+                )
+                cost_1d = cost.ravel()
+
+                if scheme == TimeSteppingScheme.CRANK_NICOLSON:
+                    if _ < self.config.rannacher_steps:
+                        # Rannacher startup: two implicit half-steps
+                        half_v = self._theta_step_1d(
+                            old_v.ravel(),
+                            cost_1d,
+                            drift_1d,
+                            sigma_sq_1d,
+                            dt / 2.0,
+                            theta=1.0,
+                        )
+                        half_v = self._apply_boundary_conditions(
+                            half_v.reshape(old_v.shape)
+                        ).ravel()
+                        new_v = self._theta_step_1d(
+                            half_v,
+                            cost_1d,
+                            drift_1d,
+                            sigma_sq_1d,
+                            dt / 2.0,
+                            theta=1.0,
+                        )
+                    else:
+                        # Crank-Nicolson step (theta=0.5)
+                        new_v = self._theta_step_1d(
+                            old_v.ravel(),
+                            cost_1d,
+                            drift_1d,
+                            sigma_sq_1d,
+                            dt,
+                            theta=0.5,
+                        )
+                else:
+                    # Fully implicit step (theta=1)
+                    new_v = self._theta_step_1d(
+                        old_v.ravel(),
+                        cost_1d,
+                        drift_1d,
+                        sigma_sq_1d,
+                        dt,
+                        theta=1.0,
+                    )
+                new_v = new_v.reshape(old_v.shape)
             else:
-                # For infinite horizon: 0 = -ρV + f(x,u) + drift·∇V + ½σ²·∇²V
-                # Time-step: V_new = V_old + dt * (-ρ*V_old + cost + drift·∇V + ½σ²·∇²V)
-                advection = np.zeros_like(old_v)
-                for dim in range(drift.shape[-1]):
-                    if dim >= len(self.problem.state_space.state_variables):
-                        continue
-                    drift_component = drift[..., dim]
-                    advection += self._apply_upwind_scheme(old_v, drift_component, dim)
+                # Explicit scheme (or fallback for multi-D)
+                if self.problem.time_horizon is not None:
+                    new_v = self._update_value_finite_horizon(old_v, cost, drift, dt, sigma_sq)
+                else:
+                    advection = np.zeros_like(old_v)
+                    for dim in range(drift.shape[-1]):
+                        if dim >= len(self.problem.state_space.state_variables):
+                            continue
+                        drift_component = drift[..., dim]
+                        advection += self._apply_upwind_scheme(old_v, drift_component, dim)
 
-                rhs = -self.problem.discount_rate * old_v + cost + advection
-                if sigma_sq is not None:
-                    rhs += self._apply_diffusion_term(old_v, sigma_sq)
-                new_v = old_v + dt * rhs
+                    rhs = -self.problem.discount_rate * old_v + cost + advection
+                    if sigma_sq is not None:
+                        rhs += self._apply_diffusion_term(old_v, sigma_sq)
+                    new_v = old_v + dt * rhs
 
-            # Apply boundary conditions (skip for now to preserve terminal condition)
+            # Enforce boundary conditions after each time step
+            new_v = self._apply_boundary_conditions(new_v)
+
+            # Check for NaN/Inf after each inner step (#453)
+            if not np.all(np.isfinite(new_v)):
+                n_nan = int(np.sum(np.isnan(new_v)))
+                n_inf = int(np.sum(np.isinf(new_v)))
+                raise NumericalDivergenceError(
+                    f"HJB solver diverged during policy evaluation "
+                    f"(inner iteration {_}): "
+                    f"{n_nan} NaN and {n_inf} Inf values detected. "
+                    f"Value function range before step: "
+                    f"[{float(np.nanmin(old_v)):.4e}, {float(np.nanmax(old_v)):.4e}]."
+                )
 
             self.value_function = new_v
 
@@ -785,10 +1173,6 @@ class HJBSolver:
         n_states = state_points.shape[0]
         n_controls = len(self.problem.control_variables)
 
-        # Compute value function gradient at all state points
-        grad_V = self._compute_gradient()
-        grad_V_flat = grad_V.reshape(n_states, -1)
-
         # Initialize tracking arrays
         best_values = np.full(n_states, -np.inf)
         best_controls = np.zeros((n_states, n_controls))
@@ -797,6 +1181,13 @@ class HJBSolver:
         d2V_flat = None
         if self.problem.diffusion is not None:
             d2V = self._compute_second_derivatives(self.value_function)
+            # Check for NaN in second derivatives (#453)
+            if not np.all(np.isfinite(d2V)):
+                logger.warning(
+                    "NaN/Inf detected in second derivatives during policy improvement; "
+                    "skipping policy update."
+                )
+                return
             d2V_flat = d2V.reshape(n_states, -1)
 
         # Get discrete control samples for each control variable
@@ -822,14 +1213,18 @@ class HJBSolver:
                     cost = cost[..., 0]
             cost = cost.flatten()
 
-            # Flatten drift for dot product with gradient
-            drift_flat = np.asarray(drift).reshape(n_states, -1)
+            # Compute advection term (drift * grad_V) using upwind scheme,
+            # consistent with PDE discretization in _policy_evaluation (#454).
+            drift_grid = np.asarray(drift).reshape(self.problem.state_space.shape + (-1,))
+            advection = np.zeros(self.problem.state_space.shape)
+            n_dims = min(drift_grid.shape[-1], len(self.problem.state_space.state_variables))
+            for dim in range(n_dims):
+                drift_component = drift_grid[..., dim]
+                advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
+            advection_flat = advection.flatten()
 
-            # Match drift and gradient dimensions
-            n_dims = min(drift_flat.shape[1], grad_V_flat.shape[1])
-
-            # Full Hamiltonian: H = f(x,u) + drift(x,u)·∇V(x) + ½σ²(x,u)·∇²V(x)
-            hamiltonian = cost + np.sum(drift_flat[:, :n_dims] * grad_V_flat[:, :n_dims], axis=1)
+            # Full Hamiltonian: H = f(x,u) + drift(x,u) * grad_V(x) + 0.5*sigma^2(x,u) * d2V(x)
+            hamiltonian = cost + advection_flat
 
             # Add diffusion term to Hamiltonian
             if self.problem.diffusion is not None and d2V_flat is not None:
@@ -893,19 +1288,39 @@ class HJBSolver:
             [self.optimal_policy[cv.name].ravel() for cv in self.problem.control_variables], axis=-1
         )
 
-        # Evaluate HJB residual
-        _drift = self.problem.dynamics(state_points, control_array, 0.0)
+        # Evaluate HJB residual: |−ρV + f(x,u) + drift·∇V|
+        drift = self.problem.dynamics(state_points, control_array, 0.0)
         cost = self.problem.running_cost(state_points, control_array, 0.0)
 
-        # Approximate time derivative (backward difference)
-        _dt = self.config.time_step
         v_flat = self.value_function.ravel()
-
-        # Simplified residual (would compute full PDE residual in production)
         cost_flat = cost.ravel() if hasattr(cost, "ravel") else cost
-        residual = np.abs(-self.problem.discount_rate * v_flat + cost_flat)
+
+        # Compute drift * grad_V using upwind scheme (consistent with PDE)
+        drift_reshaped = drift.reshape(self.problem.state_space.shape + (-1,))
+        advection = np.zeros(self.problem.state_space.shape)
+        n_dims = min(drift_reshaped.shape[-1], len(self.problem.state_space.state_variables))
+        for dim in range(n_dims):
+            drift_component = drift_reshaped[..., dim]
+            advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
+        advection_flat = advection.ravel()
+
+        # Include diffusion in residual if present
+        diffusion_flat = np.zeros_like(v_flat)
+        if self.problem.diffusion is not None:
+            sigma_sq = self.problem.diffusion(state_points, control_array, 0.0)
+            sigma_sq_reshaped = sigma_sq.reshape(self.problem.state_space.shape + (-1,))
+            diffusion_term = self._apply_diffusion_term(self.value_function, sigma_sq_reshaped)
+            diffusion_flat = diffusion_term.ravel()
+
+        residual = np.abs(
+            -self.problem.discount_rate * v_flat + cost_flat + advection_flat + diffusion_flat
+        )
+
+        # Check for NaN/Inf (#453)
+        has_nan_inf = not np.all(np.isfinite(self.value_function))
 
         return {
+            "has_nan_inf": has_nan_inf,
             "max_residual": float(np.max(residual)),
             "mean_residual": float(np.mean(residual)),
             "value_function_range": (

@@ -165,10 +165,14 @@ class RuinProbabilityAnalyzer:
             config.time_horizons,
             config.n_bootstrap,
             config.bootstrap_confidence_level,
+            seed=config.seed,
         )
 
         # Check convergence
-        convergence_achieved = self._check_ruin_convergence(simulation_results["bankruptcy_years"])
+        convergence_achieved = self._check_ruin_convergence(
+            simulation_results["bankruptcy_years"],
+            time_horizons=config.time_horizons,
+        )
 
         # Convert survival curves to padded array
         padded_curves = self._pad_survival_curves(horizon_analysis["survival_curves"])
@@ -211,10 +215,21 @@ class RuinProbabilityAnalyzer:
             horizon_data = simulation_results["bankruptcy_years"] <= horizon
             ruin_probs[i] = np.mean(horizon_data)
 
-            # Track bankruptcy causes
+            # Track bankruptcy causes — read each simulation's cause at its
+            # actual bankruptcy year, not at the horizon.  With early stopping
+            # the cause array is only populated up to the bankruptcy year, so
+            # reading at ``horizon - 1`` would return the default ``False`` for
+            # simulations that went bankrupt before the horizon (#355).
+            bankruptcy_yrs = simulation_results["bankruptcy_years"]
+            n_sims = len(bankruptcy_yrs)
+            max_cause_year = simulation_results["bankruptcy_causes"]["asset_threshold"].shape[1]
+            cause_year_idx = np.clip(bankruptcy_yrs - 1, 0, max_cause_year - 1)
+            sim_indices = np.arange(n_sims)
+
             for cause, cause_data in bankruptcy_causes.items():
-                cause_mask = simulation_results["bankruptcy_causes"][cause][:, horizon - 1]
-                # Handle empty array when no bankruptcies occurred
+                cause_mask = simulation_results["bankruptcy_causes"][cause][
+                    sim_indices, cause_year_idx
+                ]
                 bankrupted_subset = cause_mask[horizon_data]
                 if len(bankrupted_subset) > 0:
                     cause_data[i] = np.mean(bankrupted_subset)
@@ -552,9 +567,10 @@ class RuinProbabilityAnalyzer:
         time_horizons: List[int],
         n_bootstrap: int,
         confidence_level: float,
+        seed: Optional[int] = None,
     ) -> np.ndarray:
         """Calculate bootstrap confidence intervals for ruin probabilities."""
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed)
         n_sims = len(bankruptcy_years)
         confidence_intervals = np.zeros((len(time_horizons), 2))
 
@@ -578,17 +594,20 @@ class RuinProbabilityAnalyzer:
         self,
         bankruptcy_years: np.ndarray,
         n_chains: int = 4,
+        time_horizons: Optional[List[int]] = None,
     ) -> bool:
         """Check convergence using R-hat statistic."""
         if len(bankruptcy_years) < n_chains * 100:
             return False
 
+        # Use the maximum configured horizon instead of hard-coded 10 (#355)
+        max_horizon = max(time_horizons) if time_horizons else 10
+
         chain_size = len(bankruptcy_years) // n_chains
         chains = []
         for i in range(n_chains):
             chain_data = bankruptcy_years[i * chain_size : (i + 1) * chain_size]
-            # Convert to binary (bankrupt within 10 years)
-            chain_binary = (chain_data <= 10).astype(float)
+            chain_binary = (chain_data <= max_horizon).astype(float)
             chains.append(chain_binary)
 
         chains = np.array(chains)  # type: ignore

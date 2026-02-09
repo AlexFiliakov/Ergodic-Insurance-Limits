@@ -436,6 +436,120 @@ class TestSortinoDownsideDeviationFix:
 
 
 # ---------------------------------------------------------------------------
+# Issue #488: Sharpe ratio uses sample std (ddof=1)
+# ---------------------------------------------------------------------------
+
+
+class TestSharpeRatioSampleStd:
+    """Verify Sharpe ratio uses sample standard deviation (ddof=1).
+
+    SR = (R_bar - R_f) / s
+
+    where s = sqrt(sum((R_i - R_bar)^2) / (n-1)) is the sample std.
+
+    Reference: Sharpe, W. F. (1994). "The Sharpe Ratio."
+    Journal of Portfolio Management, 21(1), 49-58.
+    """
+
+    def test_unweighted_sharpe_hand_calculated(self):
+        """Issue #488 AC: hand-calculated Sharpe with known unweighted data."""
+        returns = np.array([0.10, 0.12, -0.05, 0.08, -0.03])
+        risk_free_rate = 0.02
+
+        # Hand calculation:
+        # mean = (0.10 + 0.12 - 0.05 + 0.08 - 0.03) / 5 = 0.044
+        mean_r = 0.044
+        # deviations from mean: [0.056, 0.076, -0.094, 0.036, -0.074]
+        # squared: [0.003136, 0.005776, 0.008836, 0.001296, 0.005476]
+        # sum = 0.02452
+        # sample variance (ddof=1) = 0.02452 / 4 = 0.00613
+        # sample std = sqrt(0.00613)
+        sample_std = np.sqrt(0.02452 / 4)
+        expected_sharpe = (mean_r - risk_free_rate) / sample_std
+
+        metrics = RiskMetrics(returns)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=risk_free_rate)
+
+        assert result["sharpe_ratio"] == pytest.approx(expected_sharpe, rel=1e-10)
+        assert result["volatility"] == pytest.approx(sample_std, rel=1e-10)
+
+    def test_unweighted_sharpe_matches_numpy_ddof1(self):
+        """Sharpe volatility must equal np.std(returns, ddof=1)."""
+        np.random.seed(123)
+        returns = np.random.normal(0.05, 0.10, 50)
+        expected_std = np.std(returns, ddof=1)
+
+        metrics = RiskMetrics(returns)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=0.0)
+
+        assert result["volatility"] == pytest.approx(expected_std, rel=1e-12)
+
+    def test_unweighted_sharpe_not_population_std(self):
+        """Sharpe volatility must NOT equal np.std(returns, ddof=0)."""
+        # Use small sample where ddof=0 vs ddof=1 difference is large
+        returns = np.array([0.10, 0.20, 0.30])
+        pop_std = np.std(returns, ddof=0)
+
+        metrics = RiskMetrics(returns)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=0.0)
+
+        assert result["volatility"] != pytest.approx(pop_std, rel=1e-6)
+
+    def test_weighted_sharpe_hand_calculated(self):
+        """Issue #488 AC: hand-calculated Sharpe with known weighted data."""
+        returns = np.array([0.10, -0.05, 0.08, -0.03])
+        weights = np.array([1.0, 2.0, 1.0, 2.0])
+        risk_free_rate = 0.02
+
+        # Hand calculation:
+        # weighted mean = (1*0.10 + 2*(-0.05) + 1*0.08 + 2*(-0.03)) / 6
+        #               = (0.10 - 0.10 + 0.08 - 0.06) / 6 = 0.02 / 6
+        w_mean = np.average(returns, weights=weights)
+        # weighted population variance = sum(w_i*(x_i-mean)^2) / sum(w_i)
+        pop_var = np.average((returns - w_mean) ** 2, weights=weights)
+        # Bessel correction: V1^2 / (V1^2 - V2)
+        v1 = np.sum(weights)  # 6.0
+        v2 = np.sum(weights**2)  # 1+4+1+4 = 10.0
+        bessel = v1**2 / (v1**2 - v2)  # 36 / 26
+        sample_var = pop_var * bessel
+        sample_std = np.sqrt(sample_var)
+        expected_sharpe = (w_mean - risk_free_rate) / sample_std
+
+        metrics = RiskMetrics(returns, weights)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=risk_free_rate)
+
+        assert result["sharpe_ratio"] == pytest.approx(expected_sharpe, rel=1e-10)
+        assert result["volatility"] == pytest.approx(sample_std, rel=1e-10)
+
+    def test_weighted_bessel_reduces_to_unweighted(self):
+        """Uniform weights must produce the same result as unweighted ddof=1."""
+        returns = np.array([0.10, 0.12, -0.05, 0.08, -0.03])
+        uniform_weights = np.ones(5)
+
+        metrics_unw = RiskMetrics(returns)
+        metrics_w = RiskMetrics(returns, uniform_weights)
+
+        result_unw = metrics_unw.risk_adjusted_metrics(returns=returns, risk_free_rate=0.02)
+        result_w = metrics_w.risk_adjusted_metrics(returns=returns, risk_free_rate=0.02)
+
+        assert result_w["sharpe_ratio"] == pytest.approx(result_unw["sharpe_ratio"], rel=1e-10)
+        assert result_w["volatility"] == pytest.approx(result_unw["volatility"], rel=1e-10)
+
+    def test_small_sample_ddof_difference_significant(self):
+        """For n=5, ddof=0 vs ddof=1 differs by ~12%, verifying correction matters."""
+        returns = np.array([0.10, 0.12, -0.05, 0.08, -0.03])
+        pop_std = np.std(returns, ddof=0)
+        sample_std = np.std(returns, ddof=1)
+
+        # Ratio should be sqrt(n/(n-1)) = sqrt(5/4) ≈ 1.118
+        assert sample_std / pop_std == pytest.approx(np.sqrt(5.0 / 4.0), rel=1e-10)
+
+        metrics = RiskMetrics(returns)
+        result = metrics.risk_adjusted_metrics(returns=returns, risk_free_rate=0.0)
+        assert result["volatility"] == pytest.approx(sample_std, rel=1e-10)
+
+
+# ---------------------------------------------------------------------------
 # Plot distribution with weighted data (lines 544, 574-584, 617)
 # ---------------------------------------------------------------------------
 
@@ -579,3 +693,156 @@ class TestROEAnalyzerEdgeCases:
         assert "2yr" in stability
         assert "5yr" not in stability
         assert "10yr" not in stability
+
+
+# ---------------------------------------------------------------------------
+# Issue #307: weighted median bounds check
+# ---------------------------------------------------------------------------
+
+
+class TestWeightedMedianBoundsCheck:
+    """Ensure searchsorted index is clamped to valid range."""
+
+    def test_weighted_median_no_oob(self):
+        """Weighted median with extreme weights doesn't access out of bounds."""
+        # All weight concentrated on the first element: cumulative weights
+        # reach 1.0 at index 0, so searchsorted(0.5) = 0 — no issue.
+        # But if weights are such that 0.5 is never reached (float edge case),
+        # searchsorted could return len(array).  We exercise the bounds clamp.
+        losses = np.array([1.0, 2.0, 3.0])
+        # Weights that sum to a value where float rounding may push searchsorted
+        # past the end (edge case: all cumulative weights < 0.5)
+        weights = np.array([1e-15, 1e-15, 1.0])
+        rm = RiskMetrics(losses, weights=weights)
+        stats = rm.summary_statistics()
+        # Should not raise; median should be the last element
+        assert np.isfinite(stats["median"])
+
+    def test_weighted_median_single_element(self):
+        """Weighted median with a single element is that element."""
+        losses = np.array([42.0])
+        weights = np.array([1.0])
+        rm = RiskMetrics(losses, weights=weights)
+        stats = rm.summary_statistics()
+        assert stats["median"] == pytest.approx(42.0)
+
+
+# ---------------------------------------------------------------------------
+# Issue #307: maximum_drawdown docstring semantics
+# ---------------------------------------------------------------------------
+
+
+class TestMaximumDrawdownSemantics:
+    """Verify maximum drawdown operates on cumulative losses."""
+
+    def test_drawdown_is_on_cumulative_losses(self):
+        """Confirm drawdown measures worst accumulated-loss stretch."""
+        # Losses: [0, 10, 0, 0] → cumsum = [0, 10, 10, 10]
+        # running_max - cumsum = [0, 0, 0, 0] — no decline from peak
+        losses = np.array([0.0, 10.0, 0.0, 0.0])
+        rm = RiskMetrics(losses)
+        assert rm.maximum_drawdown() == pytest.approx(0.0)
+
+        # Losses: [10, 0, 0, 0] → cumsum = [10, 10, 10, 10], dd = 0
+        losses2 = np.array([10.0, 0.0, 0.0, 0.0])
+        rm2 = RiskMetrics(losses2)
+        assert rm2.maximum_drawdown() == pytest.approx(0.0)
+
+        # Losses: [10, -5, 10, -5] → cumsum = [10, 5, 15, 10]
+        # running_max = [10, 10, 15, 15], dd = [0, 5, 0, 5] → max 5
+        losses3 = np.array([10.0, -5.0, 10.0, -5.0])
+        rm3 = RiskMetrics(losses3)
+        assert rm3.maximum_drawdown() == pytest.approx(5.0)
+
+
+# ---------------------------------------------------------------------------
+# Issue #307: print() replaced with logging
+# ---------------------------------------------------------------------------
+
+
+class TestLoggingReplacedPrint:
+    """Verify non-finite value warning uses logging, not print()."""
+
+    def test_nonfinite_warning_uses_logger(self):
+        """Removing non-finite values logs a warning, not print()."""
+        import logging
+
+        with patch("ergodic_insurance.risk_metrics.logger") as mock_logger:
+            losses = np.array([1.0, np.nan, 3.0, np.inf])
+            RiskMetrics(losses)
+            mock_logger.warning.assert_called_once()
+            assert "non-finite" in mock_logger.warning.call_args[0][0].lower()
+
+
+# ---------------------------------------------------------------------------
+# Issue #353: semi-variance uses correct formula over all observations
+# ---------------------------------------------------------------------------
+
+
+class TestSemiVarianceFix:
+    """Semi-variance = (1/N) * sum(min(r_i - target, 0)^2) over ALL returns."""
+
+    def test_semi_variance_known_values(self):
+        """Hand-calculated semi-variance with target = 0."""
+        # roe = [0.10, 0.05, -0.03, 0.15, -0.08]
+        # min(r_i, 0)^2 = [0, 0, 0.0009, 0, 0.0064]
+        # mean = (0 + 0 + 0.0009 + 0 + 0.0064) / 5 = 0.00146
+        roe = np.array([0.10, 0.05, -0.03, 0.15, -0.08])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        expected_sv = (0.0009 + 0.0064) / 5
+        assert vol["semi_variance"] == pytest.approx(expected_sv, rel=1e-6)
+
+    def test_semi_variance_all_positive(self):
+        """All positive returns → semi-variance = 0."""
+        roe = np.array([0.05, 0.10, 0.15])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+        assert vol["semi_variance"] == pytest.approx(0.0)
+
+    def test_semi_variance_all_negative(self):
+        """All negative returns → semi-variance = mean(r^2)."""
+        roe = np.array([-0.10, -0.20, -0.30])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        expected_sv = np.mean(roe**2)
+        assert vol["semi_variance"] == pytest.approx(expected_sv, rel=1e-6)
+
+    def test_semi_variance_denominator_is_total_n(self):
+        """Old bug: subset np.var divided by subset count, not total count."""
+        # 9 positive returns, 1 negative
+        roe = np.array([0.10] * 9 + [-0.05])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+
+        # Correct: (0.05^2) / 10 = 0.00025
+        expected_sv = 0.0025 / 10
+        assert vol["semi_variance"] == pytest.approx(expected_sv, rel=1e-6)
+
+        # Old wrong answer: np.var([-0.05]) = 0.0
+        assert vol["semi_variance"] != 0.0
+
+
+# ---------------------------------------------------------------------------
+# Issue #353: tracking_error removed from volatility_metrics
+# ---------------------------------------------------------------------------
+
+
+class TestTrackingErrorRemoved:
+    """tracking_error was trivially equal to std; verify it is removed."""
+
+    def test_volatility_metrics_no_tracking_error_key(self):
+        """volatility_metrics() should not contain tracking_error."""
+        roe = np.array([0.05, 0.10, 0.15, 0.08])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+        assert "tracking_error" not in vol
+
+    def test_volatility_metrics_short_series_no_tracking_error(self):
+        """Early-return path for < 2 values should also omit tracking_error."""
+        roe = np.array([0.10])
+        analyzer = ROEAnalyzer(roe)
+        vol = analyzer.volatility_metrics()
+        assert "tracking_error" not in vol

@@ -95,6 +95,30 @@ class TestBootstrapAnalyzer:
         assert result.acceleration is not None
         assert result.confidence_interval[0] < np.mean(data) < result.confidence_interval[1]
 
+    def test_bca_extreme_statistic_no_nan(self):
+        """Test BCa CI with extreme statistic that previously produced NaN (#482)."""
+        np.random.seed(42)
+        data = np.random.uniform(0, 10, 200)
+
+        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        result = analyzer.confidence_interval(data, np.max, method="bca")
+
+        assert np.isfinite(result.confidence_interval[0]), "Lower CI bound is not finite"
+        assert np.isfinite(result.confidence_interval[1]), "Upper CI bound is not finite"
+        assert isinstance(result.confidence_interval[0], float)
+        assert isinstance(result.confidence_interval[1], float)
+
+    def test_bca_small_sample_no_nan(self):
+        """Test BCa CI with small skewed sample produces finite bounds (#482)."""
+        np.random.seed(42)
+        data = np.random.exponential(scale=5.0, size=10)
+
+        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        result = analyzer.confidence_interval(data, np.mean, method="bca")
+
+        assert np.isfinite(result.confidence_interval[0]), "Lower CI bound is not finite"
+        assert np.isfinite(result.confidence_interval[1]), "Upper CI bound is not finite"
+
     def test_parallel_bootstrap(self):
         """Test parallel bootstrap computation."""
         np.random.seed(42)

@@ -49,9 +49,29 @@ class BalanceSheetMixin:
         """Cash balance derived from ledger (single source of truth).
 
         Returns:
-            Current cash balance from the ledger.
+            Current cash balance from the ledger.  May be negative when the
+            working capital facility has been drawn.  For balance-sheet
+            presentation the negative portion is reclassified to
+            :pyattr:`short_term_borrowings` — see :pyattr:`total_assets`
+            and :pyattr:`total_liabilities` (Issue #496).
         """
         return self.ledger.get_balance(AccountName.CASH)
+
+    @property
+    def short_term_borrowings(self) -> Decimal:
+        """Short-term borrowings from working capital facility per ASC 470-10 (Issue #496).
+
+        Per ASC 210-10-45-1, a negative cash balance represents an obligation
+        to the bank and must be classified as a current liability.  This
+        property returns the reclassified overdraft plus any explicit
+        short-term borrowing balance in the ledger.
+
+        Returns:
+            Total short-term borrowings as a non-negative Decimal.
+        """
+        explicit = self.ledger.get_balance(AccountName.SHORT_TERM_BORROWINGS)
+        overdraft = max(-self.cash, ZERO)
+        return explicit + overdraft
 
     @property
     def accounts_receivable(self) -> Decimal:
@@ -142,6 +162,28 @@ class BalanceSheetMixin:
         return self.ledger.get_balance(AccountName.DEFERRED_TAX_ASSET)
 
     @property
+    def dta_valuation_allowance(self) -> Decimal:
+        """Valuation allowance against DTA per ASC 740-10-30-5 (Issue #464).
+
+        This is a contra-asset that reduces the gross DTA when realization
+        is not more likely than not. Stored as a credit balance in the ledger
+        (contra-asset), returned here as a positive value.
+
+        Returns:
+            Current valuation allowance balance as a positive Decimal.
+        """
+        return abs(self.ledger.get_balance(AccountName.DTA_VALUATION_ALLOWANCE))
+
+    @property
+    def deferred_tax_liability(self) -> Decimal:
+        """Deferred tax liability from depreciation timing differences per ASC 740 (Issue #367).
+
+        Returns:
+            Current deferred tax liability balance from the ledger.
+        """
+        return self.ledger.get_balance(AccountName.DEFERRED_TAX_LIABILITY)
+
+    @property
     def total_assets(self) -> Decimal:
         """Calculate total assets from all asset components.
 
@@ -151,12 +193,16 @@ class BalanceSheetMixin:
         Returns:
             Decimal: Total assets in dollars, sum of all asset components.
         """
-        # Current assets
-        current = self.cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
+        # Current assets — per ASC 210-10-45-1 (Issue #496), negative cash is
+        # reclassified to short-term borrowings so it never reduces total assets.
+        reported_cash = max(self.cash, ZERO)
+        current = reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
         # Non-current assets
         net_ppe = self.gross_ppe - self.accumulated_depreciation
-        # Total (includes DTA per ASC 740, Issue #365)
-        return current + net_ppe + self.restricted_assets + self.deferred_tax_asset
+        # Net DTA = Gross DTA - Valuation Allowance (ASC 740-10-30-5, Issue #464)
+        net_dta = self.deferred_tax_asset - self.dta_valuation_allowance
+        # Total (includes net DTA per ASC 740, Issue #365, #464)
+        return current + net_ppe + self.restricted_assets + net_dta
 
     @property
     def total_liabilities(self) -> Decimal:
@@ -192,14 +238,17 @@ class BalanceSheetMixin:
         adjusted_accrued_expenses = total_accrued_expenses - insurance_claims_in_accrual
 
         # Current liabilities - AccrualManager is single source of truth (issue #238)
-        current_liabilities = self.accounts_payable + adjusted_accrued_expenses
+        # Short-term borrowings from working capital facility (ASC 470-10, Issue #496)
+        current_liabilities = (
+            self.accounts_payable + adjusted_accrued_expenses + self.short_term_borrowings
+        )
 
         # Long-term liabilities (claim liabilities) - single source of truth
         claim_liability_total = sum(
             (liability.remaining_amount for liability in self.claim_liabilities), ZERO
         )
 
-        return current_liabilities + claim_liability_total
+        return current_liabilities + claim_liability_total + self.deferred_tax_liability
 
     @property
     def equity(self) -> Decimal:
@@ -581,21 +630,17 @@ class BalanceSheetMixin:
                 month=self.current_month,
             )
 
-        # LIMITED LIABILITY: Check if ledger-based changes would make cash negative
-        if self.cash < ZERO:
-            shortfall = -self.cash
+        # WORKING CAPITAL FACILITY (ASC 470-10, Issue #496):
+        # When working capital changes push the ledger cash negative, record the
+        # shortfall as a short-term borrowing (credit-line draw) rather than
+        # inflating accounts payable.  The negative cash is reclassified on the
+        # balance sheet by the cash/short_term_borrowings properties.
+        raw_cash = self.cash
+        if raw_cash < ZERO:
             logger.warning(
-                f"WORKING CAPITAL FACILITY: Working capital changes pushed cash to ${self.cash:,.2f}. "
-                f"Recording ${shortfall:,.2f} as accounts payable (vendor financing)."
-            )
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.CASH,
-                credit_account=AccountName.ACCOUNTS_PAYABLE,
-                amount=shortfall,
-                transaction_type=TransactionType.WORKING_CAPITAL,
-                description="Working capital facility - vendor financing for cash shortfall",
-                month=self.current_month,
+                f"WORKING CAPITAL FACILITY: Working capital changes pushed cash to "
+                f"${raw_cash:,.2f}. Negative balance will be presented as short-term "
+                f"borrowings per ASC 470-10 (Issue #496)."
             )
 
         # Calculate net working capital and cash conversion cycle
@@ -799,6 +844,57 @@ class BalanceSheetMixin:
                 )
                 return depreciation_expense
         return ZERO
+
+    def record_capex(self, capex_amount: Union[Decimal, float]) -> Decimal:
+        """Record capital expenditure (reinvestment in PP&E).
+
+        Capitalizes the expenditure by debiting Gross PP&E and crediting Cash.
+        Capex is not an expense — it increases the asset base rather than
+        reducing net income (ASC 360-10).
+
+        Args:
+            capex_amount: Capital expenditure amount to record.
+
+        Returns:
+            Decimal: Actual capex recorded (may be less than requested if
+            constrained by available cash).
+        """
+        amount = to_decimal(capex_amount)
+        if amount <= ZERO:
+            return ZERO
+
+        # Cannot spend more cash than available (Issue #543)
+        available_cash = self.cash
+        if available_cash <= ZERO:
+            logger.warning(
+                f"Skipping capex: no cash available "
+                f"(cash={available_cash:,.2f}, requested={amount:,.2f})"
+            )
+            return ZERO
+
+        actual_capex = min(amount, available_cash)
+        if actual_capex < amount:
+            logger.warning(
+                f"Capex constrained by cash: requested=${amount:,.2f}, "
+                f"available=${available_cash:,.2f}, recording=${actual_capex:,.2f}"
+            )
+
+        self.ledger.record_double_entry(
+            date=self.current_year,
+            debit_account=AccountName.GROSS_PPE,
+            credit_account=AccountName.CASH,
+            amount=actual_capex,
+            transaction_type=TransactionType.CAPEX,
+            description=f"Year {self.current_year} capital expenditure",
+            month=self.current_month,
+        )
+
+        logger.debug(
+            f"Recorded capex: ${actual_capex:,.2f}, "
+            f"Gross PP&E: ${self.gross_ppe:,.2f}, "
+            f"Cash: ${self.cash:,.2f}"
+        )
+        return actual_capex
 
     def _apply_growth(
         self, growth_rate: Union[Decimal, float], time_resolution: str, apply_stochastic: bool

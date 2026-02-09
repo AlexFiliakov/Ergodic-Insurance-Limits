@@ -72,7 +72,8 @@ class AccountName(Enum):
 
     Liabilities (credit normal balance):
         ACCOUNTS_PAYABLE, ACCRUED_EXPENSES, ACCRUED_WAGES, ACCRUED_TAXES,
-        ACCRUED_INTEREST, CLAIM_LIABILITIES, UNEARNED_REVENUE
+        ACCRUED_INTEREST, CLAIM_LIABILITIES, SHORT_TERM_BORROWINGS,
+        UNEARNED_REVENUE
 
     Equity (credit normal balance):
         RETAINED_EARNINGS, COMMON_STOCK, DIVIDENDS
@@ -82,8 +83,8 @@ class AccountName(Enum):
 
     Expenses (debit normal balance):
         COST_OF_GOODS_SOLD, OPERATING_EXPENSES, DEPRECIATION_EXPENSE,
-        INSURANCE_EXPENSE, INSURANCE_LOSS, TAX_EXPENSE, INTEREST_EXPENSE,
-        COLLATERAL_EXPENSE, WAGE_EXPENSE
+        INSURANCE_EXPENSE, INSURANCE_LOSS, LAE_EXPENSE, TAX_EXPENSE,
+        INTEREST_EXPENSE, COLLATERAL_EXPENSE, WAGE_EXPENSE
 
     Example:
         Use AccountName instead of strings to prevent typos::
@@ -114,6 +115,7 @@ class AccountName(Enum):
     RESTRICTED_CASH = "restricted_cash"
     COLLATERAL = "collateral"  # Deprecated: tracked via RESTRICTED_CASH (Issue #302/#319)
     DEFERRED_TAX_ASSET = "deferred_tax_asset"  # DTA from NOL carryforward per ASC 740
+    DTA_VALUATION_ALLOWANCE = "dta_valuation_allowance"  # Contra-asset per ASC 740-10-30-5
 
     # Liabilities (credit normal balance)
     ACCOUNTS_PAYABLE = "accounts_payable"
@@ -122,6 +124,8 @@ class AccountName(Enum):
     ACCRUED_TAXES = "accrued_taxes"
     ACCRUED_INTEREST = "accrued_interest"
     CLAIM_LIABILITIES = "claim_liabilities"
+    SHORT_TERM_BORROWINGS = "short_term_borrowings"  # Working capital facility per ASC 470-10
+    DEFERRED_TAX_LIABILITY = "deferred_tax_liability"  # DTL from depreciation timing per ASC 740
     UNEARNED_REVENUE = "unearned_revenue"
 
     # Equity (credit normal balance)
@@ -145,6 +149,7 @@ class AccountName(Enum):
     INTEREST_EXPENSE = "interest_expense"
     COLLATERAL_EXPENSE = "collateral_expense"
     WAGE_EXPENSE = "wage_expense"
+    LAE_EXPENSE = "lae_expense"  # Loss adjustment expenses per ASC 944-40
     RESERVE_DEVELOPMENT = "reserve_development"
 
 
@@ -181,6 +186,7 @@ class TransactionType(Enum):
     TAX_ACCRUAL = "tax_accrual"
     TAX_PAYMENT = "tax_payment"
     DTA_ADJUSTMENT = "dta_adjustment"  # Deferred tax asset recognition/reversal
+    DTL_ADJUSTMENT = "dtl_adjustment"  # Deferred tax liability recognition/reversal
     RESERVE_DEVELOPMENT = "reserve_development"  # Reserve re-estimation per ASC 944-40-25
     DEPRECIATION = "depreciation"
     WORKING_CAPITAL = "working_capital"
@@ -297,6 +303,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.RESTRICTED_CASH: AccountType.ASSET,
     AccountName.COLLATERAL: AccountType.ASSET,  # Deprecated: tracked via RESTRICTED_CASH (#302/#319)
     AccountName.DEFERRED_TAX_ASSET: AccountType.ASSET,
+    AccountName.DTA_VALUATION_ALLOWANCE: AccountType.ASSET,  # Contra-asset (ASC 740-10-30-5)
     # Liabilities (credit normal balance)
     AccountName.ACCOUNTS_PAYABLE: AccountType.LIABILITY,
     AccountName.ACCRUED_EXPENSES: AccountType.LIABILITY,
@@ -304,6 +311,8 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.ACCRUED_TAXES: AccountType.LIABILITY,
     AccountName.ACCRUED_INTEREST: AccountType.LIABILITY,
     AccountName.CLAIM_LIABILITIES: AccountType.LIABILITY,
+    AccountName.SHORT_TERM_BORROWINGS: AccountType.LIABILITY,  # Working capital facility (ASC 470-10)
+    AccountName.DEFERRED_TAX_LIABILITY: AccountType.LIABILITY,
     AccountName.UNEARNED_REVENUE: AccountType.LIABILITY,
     # Equity (credit normal balance)
     AccountName.RETAINED_EARNINGS: AccountType.EQUITY,
@@ -324,6 +333,7 @@ CHART_OF_ACCOUNTS: Dict[AccountName, AccountType] = {
     AccountName.INTEREST_EXPENSE: AccountType.EXPENSE,
     AccountName.COLLATERAL_EXPENSE: AccountType.EXPENSE,
     AccountName.WAGE_EXPENSE: AccountType.EXPENSE,
+    AccountName.LAE_EXPENSE: AccountType.EXPENSE,
     AccountName.RESERVE_DEVELOPMENT: AccountType.EXPENSE,
 }
 

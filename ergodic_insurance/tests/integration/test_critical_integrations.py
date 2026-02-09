@@ -665,7 +665,7 @@ class TestEndToEndScenarios:
         config.manufacturer.initial_assets = 1_000_000
         config.manufacturer.asset_turnover_ratio = 1.0  # Slightly higher turnover
         config.manufacturer.base_operating_margin = 0.12  # Higher margin for viability
-        # Note: growth_capex_ratio not available in current config
+        config.manufacturer.capex_to_depreciation_ratio = 0.0  # No capex for startup survival test
 
         config.insurance.deductible = 25_000  # Moderate deductible
         config.insurance.layers[0].limit = 500_000
@@ -1150,6 +1150,7 @@ class TestClaimPaymentTiming:
         Verifies that all scheduled payments sum to the original claim amount.
         """
         config = default_config_v2.model_copy()
+        config.manufacturer.lae_ratio = 0.0
         manufacturer = WidgetManufacturer(config.manufacturer)
 
         # Create an uninsured claim with scheduled payments

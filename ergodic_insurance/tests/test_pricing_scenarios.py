@@ -225,8 +225,10 @@ class TestMarketCycles:
         assert cycles.soft_market_duration == 3.5
         assert cycles.transition_probabilities.soft_to_normal == 0.35
 
-    def test_duration_validation_warning(self, capsys):
+    def test_duration_validation_warning(self, caplog):
         """Test that duration validation produces warning."""
+        import logging
+
         transitions = TransitionProbabilities(
             soft_to_soft=0.6,
             soft_to_normal=0.35,
@@ -240,17 +242,17 @@ class TestMarketCycles:
         )
 
         # Create cycles with mismatched durations
-        cycles = MarketCycles(
-            average_duration_years=15,  # Much higher than component average
-            soft_market_duration=3.0,
-            normal_market_duration=3.0,
-            hard_market_duration=2.0,  # Component avg = 8/3 = 2.67
-            transition_probabilities=transitions,
-        )
+        with caplog.at_level(logging.WARNING):
+            cycles = MarketCycles(
+                average_duration_years=15,  # Much higher than component average
+                soft_market_duration=3.0,
+                normal_market_duration=3.0,
+                hard_market_duration=2.0,  # Component avg = 8/3 = 2.67
+                transition_probabilities=transitions,
+            )
 
-        # Check warning was printed
-        captured = capsys.readouterr()
-        assert "Warning: Average duration" in captured.out
+        # Check warning was logged
+        assert "Average duration" in caplog.text
 
 
 class TestPricingScenarioConfig:

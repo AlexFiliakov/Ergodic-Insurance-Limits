@@ -13,6 +13,7 @@ from ergodic_insurance.claim_development import (
     ClaimCohort,
     ClaimDevelopment,
     load_development_patterns,
+    load_ibnr_factors,
 )
 
 
@@ -94,7 +95,11 @@ def demo_cash_flow_projection():
     print("CASH FLOW PROJECTIONS")
     print("=" * 60)
 
-    projector = CashFlowProjector(discount_rate=0.03)
+    # Load industry-benchmark IBNR factors from YAML (Tier 3 ELR)
+    config_path = Path(__file__).parent.parent / "data" / "parameters" / "development_patterns.yaml"
+    ibnr_factors = load_ibnr_factors(str(config_path)) if config_path.exists() else {}
+
+    projector = CashFlowProjector(discount_rate=0.03, ibnr_factors=ibnr_factors)
 
     # Create multiple accident year cohorts
     for accident_year in [2018, 2019, 2020]:

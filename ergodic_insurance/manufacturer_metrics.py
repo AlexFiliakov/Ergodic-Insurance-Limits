@@ -58,17 +58,33 @@ class MetricsCalculationMixin:
         metrics["collateral"] = self.collateral
         metrics["restricted_assets"] = self.restricted_assets
         metrics["available_assets"] = self.available_assets
-        metrics["equity"] = self.equity
+        # Report operational equity — excludes valuation allowance since it's
+        # a non-cash accounting adjustment that doesn't affect going concern (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        metrics["equity"] = self.equity + va
         metrics["net_assets"] = self.net_assets
         metrics["claim_liabilities"] = self.total_claim_liabilities
+
+        # Current/non-current claim split from development schedules (Issue #466, ASC 450)
+        current_claims = ZERO
+        for claim in self.claim_liabilities:
+            years_since = self.current_year - claim.year_incurred
+            next_year_payment = claim.get_payment(years_since + 1)
+            current_claims += min(next_year_payment, claim.remaining_amount)
+        metrics["current_claim_liabilities"] = current_claims
+        metrics["non_current_claim_liabilities"] = self.total_claim_liabilities - current_claims
+
         metrics["is_solvent"] = not self.is_ruined
 
         # Enhanced balance sheet components
-        metrics["cash"] = self.cash
+        # Per ASC 210-10-45-1 (Issue #496), negative cash is reclassified as
+        # short-term borrowings for presentation purposes.
+        metrics["cash"] = max(self.cash, ZERO)
         metrics["accounts_receivable"] = self.accounts_receivable
         metrics["inventory"] = self.inventory
         metrics["prepaid_insurance"] = self.prepaid_insurance
         metrics["accounts_payable"] = self.accounts_payable
+        metrics["short_term_borrowings"] = self.short_term_borrowings
 
         # Accrual breakdown from AccrualManager
         accrual_items = self.accrual_manager.get_balance_sheet_items()
@@ -89,25 +105,26 @@ class MetricsCalculationMixin:
             to_decimal(period_revenue) if period_revenue is not None else self.calculate_revenue()
         )
         annual_depreciation = self.gross_ppe / to_decimal(10) if self.gross_ppe > ZERO else ZERO
-        operating_income = self.calculate_operating_income(revenue, annual_depreciation)
+        operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            0,
-            0,
             use_accrual=False,
         )
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income
         metrics["net_income"] = net_income
+        metrics["interest_expense"] = collateral_costs
 
         # Insurance expenses
         metrics["insurance_premiums"] = self.period_insurance_premiums
         metrics["insurance_losses"] = self.period_insurance_losses
+        period_lae: Decimal = getattr(self, "period_insurance_lae", ZERO)
+        metrics["insurance_lae"] = period_lae
         metrics["total_insurance_costs"] = (
-            self.period_insurance_premiums + self.period_insurance_losses
+            self.period_insurance_premiums + self.period_insurance_losses + period_lae
         )
 
         # Reserve development metrics (Issue #470)
@@ -116,6 +133,11 @@ class MetricsCalculationMixin:
         metrics["adverse_development"] = adverse_dev
         metrics["favorable_development"] = favorable_dev
         metrics["net_reserve_development"] = adverse_dev - favorable_dev
+
+        # Deferred tax balances (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5)
+        metrics["deferred_tax_asset"] = self.deferred_tax_asset
+        metrics["dta_valuation_allowance"] = self.dta_valuation_allowance
+        metrics["deferred_tax_liability"] = self.deferred_tax_liability
 
         # Dividends and depreciation
         metrics["dividends_paid"] = self._last_dividends_paid

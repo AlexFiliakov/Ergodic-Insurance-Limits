@@ -398,7 +398,10 @@ class BootstrapAnalyzer:
         Returns:
             Bias correction value.
         """
-        return float(stats.norm.ppf(np.mean(bootstrap_dist < original_stat)))
+        n = len(bootstrap_dist)
+        proportion = np.mean(bootstrap_dist < original_stat)
+        proportion = np.clip(proportion, 1 / (2 * n), 1 - 1 / (2 * n))
+        return float(stats.norm.ppf(proportion))
 
     def _calculate_acceleration(
         self, data: np.ndarray, statistic: Callable[[np.ndarray], float]

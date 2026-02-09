@@ -51,7 +51,11 @@ import random
 from typing import Any, Dict, List, Optional, Union
 
 try:
-    from ergodic_insurance.accrual_manager import AccrualManager, AccrualType, PaymentSchedule
+    from ergodic_insurance.accrual_manager import (
+        AccrualManager,
+        AccrualType,
+        PaymentSchedule,
+    )
     from ergodic_insurance.config import ManufacturerConfig
     from ergodic_insurance.decimal_utils import ONE, ZERO, MetricsDict, to_decimal
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
@@ -141,7 +145,9 @@ class WidgetManufacturer(
     """
 
     def __init__(
-        self, config: ManufacturerConfig, stochastic_process: Optional[StochasticProcess] = None
+        self,
+        config: ManufacturerConfig,
+        stochastic_process: Optional[StochasticProcess] = None,
     ):
         """Initialize manufacturer with configuration parameters.
 
@@ -190,6 +196,7 @@ class WidgetManufacturer(
         # Insurance cost tracking for tax purposes
         self.period_insurance_premiums: Decimal = ZERO
         self.period_insurance_losses: Decimal = ZERO
+        self.period_insurance_lae: Decimal = ZERO  # LAE per ASC 944-40 (Issue #468)
 
         # Track actual dividends paid
         self._last_dividends_paid: Decimal = ZERO
@@ -214,8 +221,9 @@ class WidgetManufacturer(
         self._initial_equity: Decimal = to_decimal(config.initial_assets)
 
         # Compute initial balance sheet values
-        # Type ignore: ppe_ratio is guaranteed non-None after model_validator
-        initial_gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)  # type: ignore
+        # ppe_ratio is guaranteed non-None after model_validator
+        assert config.ppe_ratio is not None
+        initial_gross_ppe: Decimal = to_decimal(config.initial_assets * config.ppe_ratio)
         initial_accumulated_depreciation: Decimal = ZERO
 
         # Current Assets - initialize working capital to steady state
@@ -227,7 +235,9 @@ class WidgetManufacturer(
         initial_prepaid_insurance: Decimal = ZERO
 
         working_capital_assets = initial_accounts_receivable + initial_inventory
-        initial_cash: Decimal = to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets  # type: ignore
+        initial_cash: Decimal = (
+            to_decimal(config.initial_assets * (1 - config.ppe_ratio)) - working_capital_assets
+        )
 
         initial_accounts_payable: Decimal = ZERO
         initial_collateral: Decimal = ZERO
@@ -428,7 +438,9 @@ class WidgetManufacturer(
     # ========================================================================
 
     def process_accrued_payments(
-        self, time_resolution: str = "annual", max_payable: Optional[Union[Decimal, float]] = None
+        self,
+        time_resolution: str = "annual",
+        max_payable: Optional[Union[Decimal, float]] = None,
     ) -> Decimal:
         """Process due accrual payments for the current period.
 
@@ -509,7 +521,9 @@ class WidgetManufacturer(
         return total_paid
 
     def record_wage_accrual(
-        self, amount: float, payment_schedule: PaymentSchedule = PaymentSchedule.IMMEDIATE
+        self,
+        amount: float,
+        payment_schedule: PaymentSchedule = PaymentSchedule.IMMEDIATE,
     ) -> None:
         """Record accrued wages to be paid later.
 
@@ -666,8 +680,20 @@ class WidgetManufacturer(
         else:
             depreciation_expense = ZERO
 
-        # Calculate operating income including depreciation
-        operating_income = self.calculate_operating_income(revenue, depreciation_expense)
+        # Record capital expenditure (reinvestment in PP&E) (Issue #543)
+        # Capex is capitalized (Dr GROSS_PPE, Cr CASH) — does not affect income.
+        capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
+        if capex_ratio > ZERO and depreciation_expense > ZERO:
+            capex_amount = depreciation_expense * capex_ratio
+            self.record_capex(capex_amount)
+
+        # Record deferred tax liability from depreciation timing differences (Issue #367)
+        # When tax_depreciation_life_years < book life, accelerated tax depreciation
+        # creates a temporary difference that generates a DTL per ASC 740.
+        self._record_dtl_from_depreciation(time_resolution)
+
+        # Calculate operating income (depreciation already embedded in COGS/SGA ratios)
+        operating_income = self.calculate_operating_income(revenue)
 
         # Calculate collateral costs
         if time_resolution == "monthly":
@@ -681,8 +707,6 @@ class WidgetManufacturer(
         net_income = self.calculate_net_income(
             operating_income,
             collateral_costs,
-            0,
-            0,
             use_accrual=True,
             time_resolution=time_resolution,
         )
@@ -719,6 +743,74 @@ class WidgetManufacturer(
 
         return metrics
 
+    def _record_dtl_from_depreciation(self, time_resolution: str) -> None:
+        """Record deferred tax liability from book-tax depreciation timing difference.
+
+        When tax depreciation is accelerated relative to book depreciation
+        (tax_depreciation_life_years < ppe_useful_life_years), the cumulative
+        timing difference creates a DTL per ASC 740.  With ongoing capex, new
+        timing differences are perpetually created, making the DTL persistent
+        rather than transient (Issue #367).
+
+        Args:
+            time_resolution: "annual" or "monthly".
+        """
+        tax_life_cfg = self.config.tax_depreciation_life_years
+        if tax_life_cfg is None:
+            return  # No accelerated depreciation configured
+
+        book_life = 10.0  # Matches hardcoded book useful life in step()
+        if time_resolution == "monthly":
+            tax_life = tax_life_cfg * 12
+        else:
+            tax_life = tax_life_cfg
+
+        tax_life_decimal = to_decimal(tax_life)
+        if self.gross_ppe <= ZERO or tax_life_decimal <= ZERO:
+            return
+
+        # Calculate period tax depreciation (same pool approach as book)
+        tax_depr = self.gross_ppe / tax_life_decimal
+
+        # Cap at remaining tax basis (cannot depreciate below zero)
+        tax_net = self.gross_ppe - self.tax_handler.tax_accumulated_depreciation
+        if tax_net <= ZERO:
+            tax_depr = ZERO
+        else:
+            tax_depr = min(tax_depr, tax_net)
+
+        self.tax_handler.tax_accumulated_depreciation += tax_depr
+
+        # Compute desired DTL = (tax_accum - book_accum) * tax_rate
+        # Positive when tax depreciation is ahead of book depreciation
+        temp_diff = self.tax_handler.tax_accumulated_depreciation - self.accumulated_depreciation
+        desired_dtl = max(ZERO, temp_diff * to_decimal(self.config.tax_rate))
+        current_dtl = self.ledger.get_balance(AccountName.DEFERRED_TAX_LIABILITY)
+        dtl_change = desired_dtl - current_dtl
+
+        if dtl_change > ZERO:
+            # DTL increased: Dr TAX_EXPENSE, Cr DEFERRED_TAX_LIABILITY
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.TAX_EXPENSE,
+                credit_account=AccountName.DEFERRED_TAX_LIABILITY,
+                amount=dtl_change,
+                transaction_type=TransactionType.DTL_ADJUSTMENT,
+                description=f"Year {self.current_year} DTL recognition from depreciation timing",
+                month=self.current_month,
+            )
+        elif dtl_change < ZERO:
+            # DTL decreased (reversal): Dr DEFERRED_TAX_LIABILITY, Cr TAX_EXPENSE
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.DEFERRED_TAX_LIABILITY,
+                credit_account=AccountName.TAX_EXPENSE,
+                amount=abs(dtl_change),
+                transaction_type=TransactionType.DTL_ADJUSTMENT,
+                description=f"Year {self.current_year} DTL reversal from depreciation timing",
+                month=self.current_month,
+            )
+
     def reset(self) -> None:
         """Reset the manufacturer to initial state for new simulation.
 
@@ -742,6 +834,7 @@ class WidgetManufacturer(
         # Reset period insurance cost tracking
         self.period_insurance_premiums = ZERO
         self.period_insurance_losses = ZERO
+        self.period_insurance_lae = ZERO
 
         # Reset reserve development tracking (Issue #470)
         self.period_adverse_development = ZERO

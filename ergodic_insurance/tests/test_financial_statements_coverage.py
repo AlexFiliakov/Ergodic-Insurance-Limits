@@ -50,6 +50,7 @@ def _full_metrics(overrides: Optional[dict] = None) -> dict:
         "roa": 0.03,
         "asset_turnover": 0.5,
         "gross_ppe": 7_000_000,
+        "net_ppe": 7_000_000,
         "accumulated_depreciation": 0,
         "depreciation_expense": 700_000,
         "cash": 3_000_000,
@@ -110,7 +111,7 @@ class TestCashFlowStatementMissingDepreciation:
         """Line 296: depreciation_expense missing in capex calculation."""
         cf = CashFlowStatement([{"net_income": 100_000}])
         with pytest.raises(ValueError, match="depreciation_expense missing"):
-            cf._calculate_capex({"gross_ppe": 100}, {"gross_ppe": 50})
+            cf._calculate_capex({"net_ppe": 100}, {"net_ppe": 50})
 
 
 # ===========================================================================

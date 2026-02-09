@@ -208,8 +208,10 @@ class TestInsuranceConfig:
             InsuranceConfig(layers=[layer1, layer2])
         assert "overlap" in str(exc_info.value).lower()
 
-    def test_layer_gap_warning(self, capsys):
+    def test_layer_gap_warning(self, caplog):
         """Test warning for gaps between layers."""
+        import logging
+
         layer1 = InsuranceLayerConfig(
             name="Primary", limit=1000000, attachment=0, base_premium_rate=0.015
         )
@@ -217,9 +219,9 @@ class TestInsuranceConfig:
             name="Excess", limit=3000000, attachment=2000000, base_premium_rate=0.008  # Gap
         )
 
-        config = InsuranceConfig(layers=[layer1, layer2])
-        captured = capsys.readouterr()
-        assert "Warning: Gap between layers" in captured.out
+        with caplog.at_level(logging.WARNING):
+            config = InsuranceConfig(layers=[layer1, layer2])
+        assert "Gap between layers" in caplog.text
         assert config is not None
 
     def test_single_layer(self):
@@ -641,9 +643,10 @@ class TestConfigV2:
         with patch("builtins.open", mock_open(read_data=yaml_content)):
             config.apply_module(Path("module.yaml"))
             assert config.manufacturer.base_operating_margin == 0.10
-            assert config.custom_modules == {
-                "risk": {"module_name": "risk", "module_version": "1.0.0"}
-            }
+            assert "risk" in config.custom_modules
+            risk_module = config.custom_modules["risk"]
+            assert risk_module.module_name == "risk"
+            assert risk_module.module_version == "1.0.0"
 
     def test_apply_preset(self):
         """Test applying a preset to configuration."""

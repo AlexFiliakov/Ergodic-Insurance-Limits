@@ -54,6 +54,7 @@ class TestDataGenerator:
             tax_rate=kwargs.get("tax_rate", 0.25),
             retention_ratio=kwargs.get("retention_ratio", 0.8),
             ppe_ratio=kwargs.get("ppe_ratio", None),  # Pass through PPE ratio if specified
+            capex_to_depreciation_ratio=kwargs.get("capex_to_depreciation_ratio", 1.0),
         )
         return WidgetManufacturer(config)
 

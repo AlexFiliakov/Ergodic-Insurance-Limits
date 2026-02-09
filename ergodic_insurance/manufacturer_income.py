@@ -38,6 +38,7 @@ class IncomeCalculationMixin:
         - self.stochastic_process: Optional[StochasticProcess]
         - self.period_insurance_premiums: Decimal
         - self.period_insurance_losses: Decimal
+        - self.period_insurance_lae: Decimal (Issue #468)
         - self.collateral: Decimal (property from BalanceSheetMixin)
         - self.equity: Decimal (property from BalanceSheetMixin)
         - self.accrual_manager: AccrualManager instance
@@ -58,6 +59,11 @@ class IncomeCalculationMixin:
             float: Annual revenue in dollars. Always non-negative.
         """
         available_assets = max(ZERO, self.total_assets)
+        # Add back valuation allowance — it's a non-cash accounting adjustment
+        # that reduces net DTA on the balance sheet but doesn't affect the
+        # company's productive (revenue-generating) capacity (Issue #464)
+        va = getattr(self, "dta_valuation_allowance", ZERO)
+        available_assets = available_assets + va
         revenue = available_assets * to_decimal(self.asset_turnover_ratio)
 
         if apply_stochastic and self.stochastic_process is not None:
@@ -68,20 +74,22 @@ class IncomeCalculationMixin:
         logger.debug(f"Revenue calculated: ${revenue:,.2f} from assets ${self.total_assets:,.2f}")
         return revenue
 
-    def calculate_operating_income(
-        self, revenue: Union[Decimal, float], depreciation_expense: Union[Decimal, float] = ZERO
-    ) -> Decimal:
-        """Calculate operating income including insurance and depreciation as operating expenses.
+    def calculate_operating_income(self, revenue: Union[Decimal, float]) -> Decimal:
+        """Calculate operating income including insurance as operating expenses.
+
+        Depreciation is NOT subtracted here because it is already embedded in the
+        COGS/SGA expense ratios derived from base_operating_margin.  Since
+        Revenue = COGS + SGA + base_operating_income (where COGS and SGA each
+        include their allocated depreciation), subtracting depreciation again
+        would double-count it (Issue #475).
 
         Args:
             revenue: Annual revenue in dollars.
-            depreciation_expense: Depreciation expense for the period.
 
         Returns:
-            Decimal: Operating income in dollars after insurance costs and depreciation.
+            Decimal: Operating income in dollars after insurance costs.
         """
         revenue_decimal = to_decimal(revenue)
-        depreciation_decimal = to_decimal(depreciation_expense)
 
         base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
 
@@ -90,11 +98,14 @@ class IncomeCalculationMixin:
             self, "period_favorable_development", ZERO
         )
 
+        # LAE tracked separately per ASC 944-40 (Issue #468)
+        period_lae: Decimal = getattr(self, "period_insurance_lae", ZERO)
+
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
-            - depreciation_decimal
+            - period_lae
             - net_reserve_development
         )
 
@@ -102,12 +113,14 @@ class IncomeCalculationMixin:
             f"Operating income: ${actual_operating_income:,.2f} "
             f"(base: ${base_operating_income:,.2f}, insurance: "
             f"${self.period_insurance_premiums + self.period_insurance_losses:,.2f}, "
-            f"depreciation: ${depreciation_decimal:,.2f})"
+            f"LAE: ${period_lae:,.2f})"
         )
         return actual_operating_income
 
     def calculate_collateral_costs(
-        self, letter_of_credit_rate: Union[Decimal, float] = 0.015, time_period: str = "annual"
+        self,
+        letter_of_credit_rate: Union[Decimal, float] = 0.015,
+        time_period: str = "annual",
     ) -> Decimal:
         """Calculate costs for letter of credit collateral.
 
@@ -134,18 +147,19 @@ class IncomeCalculationMixin:
         self,
         operating_income: Union[Decimal, float],
         collateral_costs: Union[Decimal, float],
-        insurance_premiums: Union[Decimal, float] = ZERO,
-        insurance_losses: Union[Decimal, float] = ZERO,
         use_accrual: bool = True,
         time_resolution: str = "annual",
     ) -> Decimal:
         """Calculate net income after collateral costs and taxes.
 
+        Insurance costs (premiums and losses) are already deducted in
+        calculate_operating_income() and must NOT be passed here to avoid
+        double-counting (Issue #374).
+
         Args:
-            operating_income: Operating income (EBIT).
+            operating_income: Operating income after insurance costs (from
+                calculate_operating_income).
             collateral_costs: Financing costs for letter of credit collateral.
-            insurance_premiums: Insurance premium costs to deduct.
-            insurance_losses: Insurance loss/deductible costs to deduct.
             use_accrual: Whether to use accrual accounting for taxes.
             time_resolution: Time resolution for tax accrual calculation.
 
@@ -155,13 +169,8 @@ class IncomeCalculationMixin:
         # Convert inputs to Decimal
         operating_income_decimal = to_decimal(operating_income)
         collateral_costs_decimal = to_decimal(collateral_costs)
-        insurance_premiums_decimal = to_decimal(insurance_premiums)
-        insurance_losses_decimal = to_decimal(insurance_losses)
 
-        total_insurance_costs = insurance_premiums_decimal + insurance_losses_decimal
-        income_before_tax = (
-            operating_income_decimal - collateral_costs_decimal - total_insurance_costs
-        )
+        income_before_tax = operating_income_decimal - collateral_costs_decimal
 
         # Capture DTA before tax calculation for journal entry delta (Issue #365)
         old_dta = self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else ZERO
@@ -216,13 +225,38 @@ class IncomeCalculationMixin:
                     month=self.current_month,
                 )
 
+            # Record valuation allowance changes per ASC 740-10-30-5 (Issue #464)
+            target_va = self.tax_handler.valuation_allowance
+            current_va = abs(self.ledger.get_balance(AccountName.DTA_VALUATION_ALLOWANCE))
+            va_change = target_va - current_va
+            if va_change > ZERO:
+                # Allowance increased — recognize additional tax expense
+                # Dr TAX_EXPENSE, Cr DTA_VALUATION_ALLOWANCE
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.TAX_EXPENSE,
+                    credit_account=AccountName.DTA_VALUATION_ALLOWANCE,
+                    amount=va_change,
+                    transaction_type=TransactionType.DTA_ADJUSTMENT,
+                    description=f"Year {self.current_year} DTA valuation allowance increase (ASC 740-10-30-5)",
+                    month=self.current_month,
+                )
+            elif va_change < ZERO:
+                # Allowance decreased (reversal) — recognize tax benefit
+                # Dr DTA_VALUATION_ALLOWANCE, Cr TAX_EXPENSE
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.DTA_VALUATION_ALLOWANCE,
+                    credit_account=AccountName.TAX_EXPENSE,
+                    amount=abs(va_change),
+                    transaction_type=TransactionType.DTA_ADJUSTMENT,
+                    description=f"Year {self.current_year} DTA valuation allowance reversal (ASC 740-10-30-5)",
+                    month=self.current_month,
+                )
+
         # Enhanced profit waterfall logging
         logger.info("===== PROFIT WATERFALL =====")
         logger.info(f"Operating Income:        ${operating_income_decimal:,.2f}")
-        if insurance_premiums_decimal > ZERO:
-            logger.info(f"  - Insurance Premiums:  ${insurance_premiums_decimal:,.2f}")
-        if insurance_losses_decimal > ZERO:
-            logger.info(f"  - Insurance Losses:    ${insurance_losses_decimal:,.2f}")
         if collateral_costs_decimal > ZERO:
             logger.info(f"  - Collateral Costs:    ${collateral_costs_decimal:,.2f}")
         logger.info(f"Income Before Tax:       ${income_before_tax:,.2f}")
@@ -246,7 +280,7 @@ class IncomeCalculationMixin:
 
         # Validation assertion
         epsilon = to_decimal("0.000000001")
-        if total_insurance_costs + collateral_costs_decimal > epsilon:
+        if collateral_costs_decimal > epsilon:
             assert (
                 net_income <= operating_income_decimal + epsilon
             ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income_decimal}) when costs exist"

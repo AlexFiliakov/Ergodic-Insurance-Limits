@@ -41,7 +41,10 @@ class TestFinancialStatementConfig:
     def test_custom_config(self):
         """Test custom configuration values."""
         config = FinancialStatementConfig(
-            currency_symbol="€", decimal_places=2, include_yoy_change=False, fiscal_year_end=6
+            currency_symbol="€",
+            decimal_places=2,
+            include_yoy_change=False,
+            fiscal_year_end=6,
         )
 
         assert config.currency_symbol == "€"
@@ -160,6 +163,7 @@ class TestFinancialStatementGenerator:
                     "asset_turnover": 0.5,
                     "gross_ppe": 7_000_000,
                     "accumulated_depreciation": 0,
+                    "net_ppe": 7_000_000,
                     "depreciation_expense": 700_000,  # 10-year useful life
                     "cash": 3_000_000,  # Current assets to make total = 10M
                 }
@@ -183,6 +187,7 @@ class TestFinancialStatementGenerator:
                     "asset_turnover": 0.5,
                     "gross_ppe": 7_200_000,
                     "accumulated_depreciation": 700_000,
+                    "net_ppe": 6_500_000,
                     "depreciation_expense": 720_000,
                     "cash": 3_300_000,  # Year 1: 3.3M cash + 6.5M net_ppe + 0.5M restricted
                 }
@@ -206,6 +211,7 @@ class TestFinancialStatementGenerator:
                     "asset_turnover": 0.5,
                     "gross_ppe": 7_400_000,
                     "accumulated_depreciation": 1_420_000,
+                    "net_ppe": 5_980_000,
                     "depreciation_expense": 740_000,
                     "cash": 4_429_000,  # Year 2: 4.429M cash + 5.98M net_ppe + 0.2M restricted
                 }
@@ -244,7 +250,8 @@ class TestFinancialStatementGenerator:
     def test_initialization_error(self):
         """Test initialization without required data."""
         with pytest.raises(
-            ValueError, match="Either manufacturer or manufacturer_data must be provided"
+            ValueError,
+            match="Either manufacturer or manufacturer_data must be provided",
         ):
             FinancialStatementGenerator()
 
@@ -334,31 +341,50 @@ class TestFinancialStatementGenerator:
         # Find insurance premium and losses rows
         premium_found = False
         losses_found = False
+        operating_section_idx = None
+        non_operating_section_idx = None
         for i, item in enumerate(items):
-            if "Insurance Premium" in str(item):
+            if "OPERATING EXPENSES" == str(item).strip():
+                operating_section_idx = i
+            elif "NON-OPERATING INCOME" in str(item):
+                non_operating_section_idx = i
+            elif "Insurance Premium" in str(item):
                 premium_found = True
                 # Premium should be in operating expenses (positive value)
                 assert (
                     values[i] == 500_000
                 ), "Insurance premium should be 500,000 in operating expenses"
+                # Verify it's in operating section, before non-operating
+                assert (
+                    operating_section_idx is not None
+                ), "Premiums should be after OPERATING EXPENSES header"
+                assert (
+                    non_operating_section_idx is None or i < non_operating_section_idx
+                ), "Premiums should be before NON-OPERATING section"
             elif "Insurance Claim Loss" in str(item):
                 losses_found = True
-                # Losses should be in non-operating (negative value)
-                assert values[i] == -200_000, "Insurance losses should be -200,000 in non-operating"
+                # Losses should be in operating expenses (positive value, Issue #364)
+                assert (
+                    values[i] == 200_000
+                ), "Insurance losses should be 200,000 in operating expenses"
+                # Verify it's in operating section, before non-operating
+                assert (
+                    operating_section_idx is not None
+                ), "Losses should be after OPERATING EXPENSES header"
+                assert (
+                    non_operating_section_idx is None or i < non_operating_section_idx
+                ), "Insurance losses should be in operating section, not non-operating (ASC 944)"
 
         # Verify insurance costs appear in appropriate sections
         assert premium_found, "Insurance premiums should appear in operating expenses"
-        assert losses_found, "Insurance losses should appear in non-operating expenses"
+        assert losses_found, "Insurance claim losses should appear in operating expenses (ASC 944)"
 
-        # Check that Total Non-Operating includes insurance losses
-        total_non_op_row = None
+        # Verify Total Non-Operating does NOT include insurance losses
         for i, item in enumerate(items):
             if "Total Non-Operating" in str(item):
-                total_non_op_row = i
+                # Total Non-Operating should only contain interest items
+                # Insurance losses are no longer here (Issue #364)
                 break
-
-        # Note: Total Non-Operating will include interest income/expense and insurance losses
-        # Just verify it exists (actual value depends on other factors)
 
     def test_generate_cash_flow_statement_indirect(self, generator):
         """Test cash flow statement generation using indirect method."""
@@ -808,29 +834,42 @@ class TestFinancialStatementGenerator:
                     values[i] == 0
                 ), f"Interest income should be 0 (not fabricated), got {values[i]}"
 
-    def test_net_income_matches_manufacturer(self, generator):
-        """Test that income statement NET INCOME matches manufacturer's computed value.
+    def test_net_income_gaap_consistency(self, generator):
+        """Test that NET INCOME equals INCOME BEFORE TAXES minus Total Tax Provision.
 
-        Issue #301: The income statement must report the manufacturer's net_income
-        directly rather than recomputing it, which could diverge due to GAAP
-        categorization differences.
+        Issue #475: The income statement must be internally consistent — net income
+        must equal the sum of its component line items per ASC 220-10-45.
+        The old override that used the manufacturer's net_income directly was removed
+        because it could create unexplained gaps between line items and the bottom line.
         """
         df = generator.generate_income_statement(year=2)
 
-        # Find NET INCOME row
-        net_income_value = None
-        for i, item in enumerate(df["Item"].values):
-            if str(item).strip() == "NET INCOME":
-                net_income_value = df["Year 2"].values[i]
-                break
+        items = [str(item).strip() for item in df["Item"].values]
+        values = df["Year 2"].values
 
+        # Extract key line items
+        pretax_income = None
+        total_tax = None
+        net_income_value = None
+
+        for i, item in enumerate(items):
+            if item == "INCOME BEFORE TAXES":
+                pretax_income = values[i]
+            elif item == "Total Tax Provision":
+                total_tax = values[i]
+            elif item == "NET INCOME":
+                net_income_value = values[i]
+
+        assert pretax_income is not None, "INCOME BEFORE TAXES row not found"
+        assert total_tax is not None, "Total Tax Provision row not found"
         assert net_income_value is not None, "NET INCOME row not found"
 
-        # Should match manufacturer's net_income exactly
-        expected = generator.metrics_history[2]["net_income"]
-        assert (
-            net_income_value == expected
-        ), f"NET INCOME should be {expected} (from manufacturer), got {net_income_value}"
+        # Net income MUST equal pretax income minus total tax provision
+        expected = float(pretax_income) - float(total_tax)
+        assert abs(float(net_income_value) - expected) < 0.01, (
+            f"NET INCOME ({net_income_value}) must equal "
+            f"INCOME BEFORE TAXES ({pretax_income}) - Total Tax Provision ({total_tax}) = {expected}"
+        )
 
     def test_tax_provision_structure(self, generator):
         """Test that tax provision follows flat rate structure."""
@@ -1231,11 +1270,11 @@ class TestFinancialStatementGenerator:
                 )
                 break  # Found and checked the balance sheet status
 
-    def test_configurable_current_claims_ratio(self):
-        """Test that current claims ratio is configurable.
+    def test_current_claims_from_development_schedule(self):
+        """Test that current/non-current claims use development schedule metrics.
 
-        Issue #301: current_claims was hardcoded as claim_liabilities * 0.1.
-        Now configurable via FinancialStatementConfig.current_claims_ratio.
+        Issue #466: current_claims_ratio removed. The manufacturer now computes
+        current_claim_liabilities from actual development schedules (ASC 450).
         """
         manufacturer = Mock(spec=WidgetManufacturer)
         manufacturer.config = ManufacturerConfig(
@@ -1246,6 +1285,8 @@ class TestFinancialStatementGenerator:
             tax_rate=0.25,
         )
 
+        # Manufacturer provides development-schedule-based split:
+        # 200K current (next year's scheduled payments), 800K non-current
         manufacturer.metrics_history = [
             _add_cogs_sga_breakdown(
                 {
@@ -1259,6 +1300,8 @@ class TestFinancialStatementGenerator:
                     "restricted_assets": 0,
                     "available_assets": 10_000_000,
                     "claim_liabilities": 1_000_000,
+                    "current_claim_liabilities": 200_000,
+                    "non_current_claim_liabilities": 800_000,
                     "is_solvent": True,
                     "base_operating_margin": 0.08,
                     "roe": 0.03,
@@ -1272,25 +1315,31 @@ class TestFinancialStatementGenerator:
             ),
         ]
 
-        # Use custom current_claims_ratio of 0.25 (25% current)
-        config = FinancialStatementConfig(current_claims_ratio=0.25)
-        generator = FinancialStatementGenerator(manufacturer=manufacturer, config=config)
+        generator = FinancialStatementGenerator(manufacturer=manufacturer)
 
         df = generator.generate_balance_sheet(year=0)
 
-        # Find the current portion of claim liabilities
         items = df["Item"].values
         values = df["Year 0"].values
 
         for i, item in enumerate(items):
             if "Current Portion of Claim Liabilities" in str(item):
-                # With 1M claim liabilities and 0.25 ratio, current should be 250K
                 assert (
-                    abs(float(values[i]) - 250_000) < 1
-                ), f"Current claims should be 250,000 (25% of 1M), got {values[i]}"
+                    abs(float(values[i]) - 200_000) < 1
+                ), f"Current claims should be 200,000 from dev schedule, got {values[i]}"
                 break
         else:
             pytest.fail("Current Portion of Claim Liabilities row not found")
+
+        # Verify non-current portion
+        for i, item in enumerate(items):
+            if "Long-Term Claim Reserves" in str(item):
+                assert (
+                    abs(float(values[i]) - 800_000) < 1
+                ), f"Non-current claims should be 800,000, got {values[i]}"
+                break
+        else:
+            pytest.fail("Long-Term Claim Reserves row not found")
 
 
 class TestMonteCarloStatementAggregator:

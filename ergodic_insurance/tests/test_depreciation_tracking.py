@@ -12,13 +12,18 @@ class TestDepreciationTracking:
 
     @pytest.fixture
     def manufacturer(self):
-        """Create a manufacturer with standard configuration."""
+        """Create a manufacturer with standard configuration.
+
+        Uses capex_to_depreciation_ratio=0.0 to isolate depreciation behavior
+        from capex effects (capex is tested separately in test_capex.py).
+        """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
             asset_turnover_ratio=0.8,
             base_operating_margin=0.08,
             tax_rate=0.25,
             retention_ratio=0.7,
+            capex_to_depreciation_ratio=0.0,
         )
         return WidgetManufacturer(config)
 

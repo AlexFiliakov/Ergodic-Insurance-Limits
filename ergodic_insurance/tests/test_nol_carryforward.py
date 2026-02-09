@@ -180,10 +180,10 @@ class TestNOLIntegration:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Force a loss by adding excessive insurance costs
+        # Force a loss by adding excessive collateral costs
         excessive_costs = operating_income + to_decimal(500_000)
         net_income = manufacturer.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
+            operating_income, excessive_costs, use_accrual=False
         )
 
         assert net_income < ZERO
@@ -194,17 +194,15 @@ class TestNOLIntegration:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Year 1: Loss year — force large insurance cost
+        # Year 1: Loss year — force large collateral cost
         excessive_costs = operating_income + to_decimal(500_000)
-        manufacturer.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
-        )
+        manufacturer.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
         nol_after_loss = manufacturer.tax_handler.nol_carryforward
         assert nol_after_loss > ZERO
 
         # Year 2: Profit year — should use NOL
         net_income_with_nol = manufacturer.calculate_net_income(
-            operating_income, 0, 0, 0, use_accrual=False
+            operating_income, 0, use_accrual=False
         )
 
         # Compare with a fresh manufacturer (no NOL)
@@ -212,9 +210,7 @@ class TestNOLIntegration:
         fresh_mfr = WidgetManufacturer(fresh_config)
         revenue2 = fresh_mfr.calculate_revenue()
         operating_income2 = fresh_mfr.calculate_operating_income(revenue2)
-        net_income_no_nol = fresh_mfr.calculate_net_income(
-            operating_income2, 0, 0, 0, use_accrual=False
-        )
+        net_income_no_nol = fresh_mfr.calculate_net_income(operating_income2, 0, use_accrual=False)
 
         # Net income with NOL should be higher (less tax)
         assert net_income_with_nol > net_income_no_nol
@@ -226,11 +222,9 @@ class TestNOLIntegration:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Force a loss
+        # Force a loss with excessive collateral costs
         excessive_costs = operating_income + to_decimal(500_000)
-        manufacturer.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
-        )
+        manufacturer.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
 
         # DTA should now be positive on the balance sheet
         assert manufacturer.deferred_tax_asset > ZERO
@@ -245,11 +239,9 @@ class TestNOLIntegration:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Force a loss that creates DTA
+        # Force a loss that creates DTA via excessive collateral costs
         excessive_costs = operating_income + to_decimal(500_000)
-        manufacturer.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
-        )
+        manufacturer.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
 
         dta = manufacturer.deferred_tax_asset
         assert dta > ZERO
@@ -265,16 +257,14 @@ class TestNOLIntegration:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Create NOL
+        # Create NOL via excessive collateral costs
         excessive_costs = operating_income + to_decimal(500_000)
-        manufacturer.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
-        )
+        manufacturer.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
         dta_after_loss = manufacturer.deferred_tax_asset
         assert dta_after_loss > ZERO
 
         # Profit year — DTA should decrease
-        manufacturer.calculate_net_income(operating_income, 0, 0, 0, use_accrual=False)
+        manufacturer.calculate_net_income(operating_income, 0, use_accrual=False)
         dta_after_profit = manufacturer.deferred_tax_asset
         assert dta_after_profit < dta_after_loss
 
@@ -285,7 +275,7 @@ class TestNOLIntegration:
         # Create some NOL
         revenue = mfr.calculate_revenue()
         op_income = mfr.calculate_operating_income(revenue)
-        mfr.calculate_net_income(op_income, 0, op_income + 100_000, 0, use_accrual=False)
+        mfr.calculate_net_income(op_income, op_income + 100_000, use_accrual=False)
         assert mfr.tax_handler.nol_carryforward > ZERO
 
         # create_fresh should have zero NOL
@@ -297,7 +287,7 @@ class TestNOLIntegration:
         """reset() should clear NOL state."""
         revenue = manufacturer.calculate_revenue()
         op_income = manufacturer.calculate_operating_income(revenue)
-        manufacturer.calculate_net_income(op_income, 0, op_income + 100_000, 0, use_accrual=False)
+        manufacturer.calculate_net_income(op_income, op_income + 100_000, use_accrual=False)
         assert manufacturer.tax_handler.nol_carryforward > ZERO
 
         manufacturer.reset()
@@ -308,15 +298,15 @@ class TestNOLIntegration:
         revenue = manufacturer.calculate_revenue()
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Loss year
+        # Loss year — force via excessive collateral costs
         manufacturer.calculate_net_income(
-            operating_income, 0, operating_income + 500_000, 0, use_accrual=False
+            operating_income, operating_income + 500_000, use_accrual=False
         )
         balanced, diff = manufacturer.ledger.verify_balance()
         assert balanced, f"Ledger unbalanced by ${diff:,.2f} after loss year"
 
         # Profit year (partial NOL utilization)
-        manufacturer.calculate_net_income(operating_income, 0, 0, 0, use_accrual=False)
+        manufacturer.calculate_net_income(operating_income, 0, use_accrual=False)
         balanced, diff = manufacturer.ledger.verify_balance()
         assert balanced, f"Ledger unbalanced by ${diff:,.2f} after recovery year"
 
@@ -344,10 +334,10 @@ class TestNOLBackwardCompatibility:
         revenue = manufacturer_no_nol.calculate_revenue()
         operating_income = manufacturer_no_nol.calculate_operating_income(revenue)
 
-        # Force a loss
+        # Force a loss via excessive collateral costs
         excessive_costs = operating_income + to_decimal(500_000)
         net_income = manufacturer_no_nol.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
+            operating_income, excessive_costs, use_accrual=False
         )
 
         assert net_income < ZERO
@@ -362,7 +352,7 @@ class TestNOLBackwardCompatibility:
 
         excessive_costs = operating_income + to_decimal(500_000)
         manufacturer_no_nol.calculate_net_income(
-            operating_income, 0, excessive_costs, 0, use_accrual=False
+            operating_income, excessive_costs, use_accrual=False
         )
 
         assert manufacturer_no_nol.deferred_tax_asset == ZERO

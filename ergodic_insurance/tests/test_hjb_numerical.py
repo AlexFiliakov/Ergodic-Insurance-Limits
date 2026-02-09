@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Advanced numerical tests for Hamilton-Jacobi-Bellman solver.
 
 This module tests numerical stability, boundary conditions, and accuracy
@@ -6,6 +7,8 @@ of the HJB solver implementation.
 Author: Alex Filiakov
 Date: 2025-01-26
 """
+
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -70,12 +73,20 @@ class TestNumericalMethods:
                 assert mat_array is not None
                 assert np.all(np.isfinite(mat_array))
             elif bc == BoundaryCondition.ABSORBING:
-                # For absorbing BC, boundary values are fixed
-                # This is implemented as identity rows (diagonal = 1, others = 0)
-                expected_first_row = np.zeros(10)
-                expected_first_row[0] = 1.0
-                expected_last_row = np.zeros(10)
-                expected_last_row[-1] = 1.0
+                # For absorbing BC, boundary rows enforce d²V/dx² = 0
+                # Row 0: [1/dx², -2/dx², 1/dx², 0, ...]
+                # Row n-1: [..., 0, 1/dx², -2/dx², 1/dx²]
+                n = 10
+                dx = 1.0 / (n - 1)
+                coeff = 1.0 / (dx * dx)
+                expected_first_row = np.zeros(n)
+                expected_first_row[0] = coeff
+                expected_first_row[1] = -2.0 * coeff
+                expected_first_row[2] = coeff
+                expected_last_row = np.zeros(n)
+                expected_last_row[-3] = coeff
+                expected_last_row[-2] = -2.0 * coeff
+                expected_last_row[-1] = coeff
                 assert np.allclose(mat_array[0, :], expected_first_row)
                 assert np.allclose(mat_array[-1, :], expected_last_row)
 
@@ -227,12 +238,6 @@ class TestBoundaryConditions:
 
         for bc_lower in boundary_types:
             for bc_upper in boundary_types:
-                # Skip reflecting for now as it's same as Neumann
-                if bc_lower == BoundaryCondition.REFLECTING:
-                    bc_lower = BoundaryCondition.NEUMANN
-                if bc_upper == BoundaryCondition.REFLECTING:
-                    bc_upper = BoundaryCondition.NEUMANN
-
                 state_var = StateVariable(
                     "x", 0, 1, 7, boundary_lower=bc_lower, boundary_upper=bc_upper
                 )
@@ -304,6 +309,308 @@ class TestBoundaryConditions:
 
         # Check interior point is not boundary
         assert not mask_3d[1, 2, 1]
+
+    def test_absorbing_bc_second_derivative_zero(self):
+        """For V(x) = x², the absorbing BC matrix row should give d²V/dx² = 0.
+
+        Acceptance criterion: the second derivative operator applied at the
+        boundary should return 0 (not 1*V[0] as the old Dirichlet-like rows did).
+        """
+        n = 11
+        state_space = StateSpace([StateVariable("x", 0, 1, n)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        solver = HJBSolver(problem, HJBSolverConfig())
+        mat = solver._build_difference_matrix(0, BoundaryCondition.ABSORBING)
+
+        # V(x) = x² on uniform grid [0, 1]
+        grid = np.linspace(0, 1, n)
+        v = grid**2
+
+        result = mat @ v
+
+        # Interior points: d²(x²)/dx² = 2  (constant)
+        # Absorbing boundary rows: enforce V[0] - 2V[1] + V[2] = 0
+        # For x², V[0]-2V[1]+V[2] = 0 - 2*(1/100) + (4/100) = 2/100, then /dx²
+        # which equals the standard second derivative ≈ 2. So the boundary rows
+        # give the same result as interior for a smooth function.
+        # The key difference from the old code: the old code returned
+        # 1*V[0] = 0 at the lower boundary and 1*V[n-1] = 1 at the upper
+        # boundary, instead of the actual second derivative.
+        dx = 1.0 / (n - 1)
+        expected_d2v = 2.0  # d²(x²)/dx² = 2
+        # Boundary rows now compute the finite difference of d²V/dx²
+        assert abs(result[0] - expected_d2v) < 0.1
+        assert abs(result[-1] - expected_d2v) < 0.1
+
+    def test_absorbing_bc_boundary_changes_with_time(self):
+        """With absorbing BCs and diffusion, boundary values should evolve.
+
+        Acceptance criterion: For a parabolic PDE V_t = V_xx with absorbing
+        BCs, the boundary value should change with time (not stay fixed).
+        """
+        n = 21
+        sv = StateVariable(
+            "x",
+            0,
+            1,
+            n,
+            boundary_lower=BoundaryCondition.ABSORBING,
+            boundary_upper=BoundaryCondition.ABSORBING,
+        )
+        state_space = StateSpace([sv])
+
+        # Set up a pure diffusion problem V_t = V_xx
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=lambda x, u, t: np.ones((x.shape[0], 1)),
+            terminal_value=lambda x: np.sin(np.pi * x[..., 0]),
+            time_horizon=0.5,
+        )
+
+        config = HJBSolverConfig(time_step=0.01, max_iterations=3, tolerance=1e-8, verbose=False)
+
+        # Solve with absorbing BCs
+        solver_abs = HJBSolver(problem, config)
+        value_abs, _ = solver_abs.solve()
+
+        # Solve with Dirichlet BCs for comparison
+        sv_dir = StateVariable(
+            "x",
+            0,
+            1,
+            n,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+            boundary_upper=BoundaryCondition.DIRICHLET,
+        )
+        problem_dir = HJBProblem(
+            state_space=StateSpace([sv_dir]),
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            diffusion=lambda x, u, t: np.ones((x.shape[0], 1)),
+            terminal_value=lambda x: np.sin(np.pi * x[..., 0]),
+            time_horizon=0.5,
+        )
+        solver_dir = HJBSolver(problem_dir, config)
+        value_dir, _ = solver_dir.solve()
+
+        # With absorbing BCs, boundary values should differ from Dirichlet
+        # because absorbing linearly extrapolates from interior (allowing
+        # the boundary to evolve) while Dirichlet fixes boundary values.
+        # The terminal condition sin(pi*x) has V[0]=V[-1]=0.
+        # After diffusion with absorbing BCs, boundaries will be extrapolated
+        # from interior values and should differ from the fixed Dirichlet values.
+        assert not np.allclose(
+            value_abs, value_dir, atol=1e-6
+        ), "Absorbing and Dirichlet BCs produced identical solutions for diffusion problem"
+
+    def test_absorbing_vs_dirichlet_different_solutions(self):
+        """Absorbing and Dirichlet BCs should produce different solutions.
+
+        Acceptance criterion: Dirichlet and absorbing BCs produce different
+        solutions for the same PDE.
+        """
+        n = 15
+
+        def make_problem(bc_type):
+            sv = StateVariable(
+                "x",
+                0,
+                1,
+                n,
+                boundary_lower=bc_type,
+                boundary_upper=bc_type,
+            )
+            return HJBProblem(
+                state_space=StateSpace([sv]),
+                control_variables=[ControlVariable("u", 0, 1, 2)],
+                utility_function=ExpectedWealth(),
+                dynamics=lambda x, u, t: np.ones_like(x) * 0.5,
+                running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+                diffusion=lambda x, u, t: np.ones((x.shape[0], 1)) * 0.1,
+                terminal_value=lambda x: x[..., 0] ** 2,
+                time_horizon=0.5,
+            )
+
+        config = HJBSolverConfig(time_step=0.05, max_iterations=5, tolerance=1e-8, verbose=False)
+
+        solver_absorbing = HJBSolver(make_problem(BoundaryCondition.ABSORBING), config)
+        value_absorbing, _ = solver_absorbing.solve()
+
+        solver_dirichlet = HJBSolver(make_problem(BoundaryCondition.DIRICHLET), config)
+        value_dirichlet, _ = solver_dirichlet.solve()
+
+        # Solutions should differ, especially at the boundaries
+        assert not np.allclose(
+            value_absorbing, value_dirichlet, atol=1e-6
+        ), "Absorbing and Dirichlet BCs produced identical solutions"
+
+
+class TestBoundaryConditionEnforcement:
+    """Verify that boundary conditions are actually enforced during time-stepping (issue #448)."""
+
+    @staticmethod
+    def _make_solver(bc_lower, bc_upper, num_points=20, time_horizon=0.5, max_iter=10):
+        """Helper: build a 1-D solver with specified BCs."""
+        state_var = StateVariable(
+            "x",
+            0.1,
+            2.0,
+            num_points,
+            boundary_lower=bc_lower,
+            boundary_upper=bc_upper,
+        )
+        state_space = StateSpace([state_var])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: 0.1 * np.ones_like(x),
+            running_cost=lambda x, u, t: np.ones(x.shape[0]),
+            terminal_value=lambda x: x[..., 0] ** 2,
+            time_horizon=time_horizon,
+        )
+        config = HJBSolverConfig(
+            time_step=0.05, max_iterations=max_iter, tolerance=1e-6, verbose=False
+        )
+        return HJBSolver(problem, config)
+
+    def test_absorbing_bc_zero_curvature(self):
+        """Absorbing BCs should enforce d²V/dx² ≈ 0 at both boundaries."""
+        solver = self._make_solver(BoundaryCondition.ABSORBING, BoundaryCondition.ABSORBING)
+        value, _ = solver.solve()
+
+        # Numerical second derivative at lower boundary: V[2] - 2*V[1] + V[0]
+        d2_lower = value[2] - 2.0 * value[1] + value[0]
+        # Numerical second derivative at upper boundary: V[-1] - 2*V[-2] + V[-3]
+        d2_upper = value[-1] - 2.0 * value[-2] + value[-3]
+
+        assert abs(d2_lower) < 1e-10, f"Lower absorbing BC violated: d²V = {d2_lower}"
+        assert abs(d2_upper) < 1e-10, f"Upper absorbing BC violated: d²V = {d2_upper}"
+
+    def test_dirichlet_bc_preserves_prescribed_values(self):
+        """Dirichlet BCs should hold boundary values fixed at their initial values."""
+        solver = self._make_solver(BoundaryCondition.DIRICHLET, BoundaryCondition.DIRICHLET)
+
+        # Capture prescribed boundary values before solve
+        solver.solve()  # triggers value_function init & boundary capture
+        lower_prescribed = solver._boundary_values[0]["lower"]
+        upper_prescribed = solver._boundary_values[0]["upper"]
+
+        # After solve, boundary values should match prescribed values
+        assert np.allclose(solver.value_function[0], lower_prescribed), (
+            f"Lower Dirichlet BC drifted: got {solver.value_function[0]}, "
+            f"expected {lower_prescribed}"
+        )
+        assert np.allclose(solver.value_function[-1], upper_prescribed), (
+            f"Upper Dirichlet BC drifted: got {solver.value_function[-1]}, "
+            f"expected {upper_prescribed}"
+        )
+
+    def test_neumann_bc_zero_gradient(self):
+        """Neumann BCs should enforce dV/dx ≈ 0 at both boundaries."""
+        solver = self._make_solver(BoundaryCondition.NEUMANN, BoundaryCondition.NEUMANN)
+        value, _ = solver.solve()
+
+        # dV/dx ≈ (V[1] - V[0]) / dx at lower boundary
+        dx = solver.dx[0]
+        grad_lower = (value[1] - value[0]) / dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+
+        assert abs(grad_lower) < 1e-10, f"Lower Neumann BC violated: dV/dx = {grad_lower}"
+        assert abs(grad_upper) < 1e-10, f"Upper Neumann BC violated: dV/dx = {grad_upper}"
+
+    def test_reflecting_bc_zero_gradient(self):
+        """Reflecting BCs are equivalent to Neumann (dV/dx = 0)."""
+        solver = self._make_solver(BoundaryCondition.REFLECTING, BoundaryCondition.REFLECTING)
+        value, _ = solver.solve()
+
+        dx = solver.dx[0]
+        grad_lower = (value[1] - value[0]) / dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+
+        assert abs(grad_lower) < 1e-10, f"Lower reflecting BC violated: dV/dx = {grad_lower}"
+        assert abs(grad_upper) < 1e-10, f"Upper reflecting BC violated: dV/dx = {grad_upper}"
+
+    def test_mixed_boundary_conditions(self):
+        """Different BC types on lower vs. upper boundary."""
+        solver = self._make_solver(BoundaryCondition.ABSORBING, BoundaryCondition.NEUMANN)
+        value, _ = solver.solve()
+
+        # Lower: absorbing → d²V/dx² ≈ 0
+        d2_lower = value[2] - 2.0 * value[1] + value[0]
+        assert abs(d2_lower) < 1e-10, f"Lower absorbing BC violated: d²V = {d2_lower}"
+
+        # Upper: Neumann → dV/dx ≈ 0
+        dx = solver.dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+        assert abs(grad_upper) < 1e-10, f"Upper Neumann BC violated: dV/dx = {grad_upper}"
+
+    def test_finite_horizon_terminal_condition_preserved(self):
+        """Terminal condition should remain intact at the time boundary."""
+        state_var = StateVariable(
+            "x",
+            0.1,
+            2.0,
+            15,
+            boundary_lower=BoundaryCondition.ABSORBING,
+            boundary_upper=BoundaryCondition.ABSORBING,
+        )
+        state_space = StateSpace([state_var])
+
+        def terminal_fn(x):
+            return x[..., 0] ** 2
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            terminal_value=terminal_fn,
+            time_horizon=0.5,
+        )
+
+        config = HJBSolverConfig(time_step=0.05, max_iterations=3, tolerance=1e-8, verbose=False)
+        solver = HJBSolver(problem, config)
+        value, _ = solver.solve()
+
+        # With zero dynamics and zero running cost, the value function should
+        # remain close to the terminal condition (only boundary enforcement changes it)
+        state_points = np.stack(state_space.flat_grids, axis=-1)
+        terminal_values = terminal_fn(state_points).reshape(state_space.shape)
+
+        # Interior points should stay close to terminal condition
+        interior = value[2:-2]
+        terminal_interior = terminal_values[2:-2]
+        assert np.allclose(interior, terminal_interior, atol=0.5), (
+            f"Terminal condition drifted too much in interior: "
+            f"max diff = {np.max(np.abs(interior - terminal_interior))}"
+        )
+
+    def test_boundary_values_finite_after_many_iterations(self):
+        """Boundary values should stay finite and stable, not blow up."""
+        solver = self._make_solver(
+            BoundaryCondition.ABSORBING, BoundaryCondition.ABSORBING, max_iter=50
+        )
+        value, _ = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Value function has non-finite values"
+        assert (
+            np.max(np.abs(value)) < 1e10
+        ), f"Value function blew up: max = {np.max(np.abs(value))}"
 
 
 class TestMultiDimensionalProblems:
@@ -526,6 +833,153 @@ class TestConvergenceAndAccuracy:
         assert "min" in metrics["policy_stats"]["u"]
         assert "max" in metrics["policy_stats"]["u"]
         assert "mean" in metrics["policy_stats"]["u"]
+
+
+class TestGradientConsistency:
+    """Test that policy improvement uses the same gradient scheme as evaluation (#454)."""
+
+    def test_policy_improvement_uses_upwind_gradient(self):
+        """Verify policy improvement computes drift*grad_V via upwind, not central diffs.
+
+        The Hamiltonian maximized during policy improvement must use the same
+        spatial discretization (upwind) as the PDE time-stepping in policy
+        evaluation.
+        """
+        state_space = StateSpace([StateVariable("x", 0, 10, 21)])
+
+        def dynamics(x, u, t):
+            return np.ones_like(x) * 5.0
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * u[..., 0]
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.1, 1.0, 3)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=None,
+        )
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        # Set a non-trivial value function (quadratic) so gradients differ
+        grid = state_space.grids[0]
+        solver.value_function = grid**2
+        solver.optimal_policy = {"u": np.full(state_space.shape, 0.5)}
+
+        # Compute what _policy_evaluation uses: upwind advection
+        drift_val = np.ones(state_space.shape) * 5.0
+        upwind_advection = solver._apply_upwind_scheme(solver.value_function, drift_val, 0)
+
+        # Compute what old code used: central-difference gradient * drift
+        grad_central = np.gradient(solver.value_function, grid)
+        central_advection = drift_val * grad_central
+
+        # They should differ (confirms the bug was real)
+        assert not np.allclose(
+            upwind_advection, central_advection
+        ), "Upwind and central advection should differ for non-linear V"
+
+        # Run policy improvement and verify the solver calls _apply_upwind_scheme
+        upwind_called: list[bool] = []
+        original_upwind = solver._apply_upwind_scheme
+
+        def tracking_upwind(*args, **kwargs):
+            upwind_called.append(True)
+            return original_upwind(*args, **kwargs)
+
+        with patch.object(solver, "_apply_upwind_scheme", side_effect=tracking_upwind):
+            solver._policy_improvement()
+
+        assert len(upwind_called) > 0, "Policy improvement must call _apply_upwind_scheme"
+
+    def test_policy_iteration_monotonic_convergence(self):
+        """Policy iteration should converge monotonically for a simple 1D problem.
+
+        With consistent gradient discretization, the value function should
+        improve (or stay the same) at every policy iteration step.
+        """
+        state_space = StateSpace([StateVariable("x", 1, 10, 15)])
+
+        def dynamics(x, u, t):
+            return x * u[..., 0:1] * 0.05
+
+        def running_cost(x, u, t):
+            return -np.log(np.maximum(x[..., 0], 1e-10)) * 0.1
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.01, 0.5, 5)],
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            discount_rate=0.05,
+            time_horizon=None,
+        )
+
+        config = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=20,
+            tolerance=1e-6,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        # Capture value function norm at each outer iteration
+        value_norms: list[float] = []
+        original_policy_eval = solver._policy_evaluation
+
+        def tracking_eval(*args, **kwargs):
+            original_policy_eval()
+            if solver.value_function is not None:
+                value_norms.append(np.max(np.abs(solver.value_function)))
+
+        with patch.object(solver, "_policy_evaluation", side_effect=tracking_eval):
+            solver.solve()
+
+        # After convergence, verify changes shrink over time
+        if len(value_norms) >= 3:
+            diffs = [abs(value_norms[i + 1] - value_norms[i]) for i in range(len(value_norms) - 1)]
+            early = np.mean(diffs[: max(1, len(diffs) // 3)])
+            late = np.mean(diffs[-(max(1, len(diffs) // 3)) :])
+            assert (
+                late <= early + 1e-8
+            ), f"Value function should converge: early={early:.6f}, late={late:.6f}"
+
+    def test_convergence_metrics_uses_upwind(self):
+        """Convergence metrics residual should use the upwind scheme."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 11)])
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0.0, 1.0, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.1,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        # Verify upwind is called during metrics computation
+        upwind_called: list[bool] = []
+        original_upwind = solver._apply_upwind_scheme
+
+        def tracking_upwind(*args, **kwargs):
+            upwind_called.append(True)
+            return original_upwind(*args, **kwargs)
+
+        with patch.object(solver, "_apply_upwind_scheme", side_effect=tracking_upwind):
+            metrics = solver.compute_convergence_metrics()
+
+        assert len(upwind_called) > 0, "compute_convergence_metrics must use _apply_upwind_scheme"
+        assert "max_residual" in metrics
+        assert metrics["max_residual"] >= 0
 
 
 class TestEdgeCasesAndErrors:
@@ -1018,7 +1472,18 @@ class TestDiffusionTerm:
 
     def test_nonzero_diffusion_changes_value(self):
         """Test that non-zero diffusion produces different results."""
-        state_space = StateSpace([StateVariable("x", 1, 10, 15)])
+        # Use Dirichlet BCs so boundary-fixed values allow diffusion to
+        # affect the interior solution (absorbing BCs linearly extrapolate,
+        # which can make solutions converge to linear — where d²V/dx² = 0).
+        sv = StateVariable(
+            "x",
+            1,
+            10,
+            15,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+            boundary_upper=BoundaryCondition.DIRICHLET,
+        )
+        state_space = StateSpace([sv])
 
         def dynamics(x, u, t):
             return x * 0.05
@@ -1109,7 +1574,15 @@ class TestDiffusionTerm:
 
     def test_control_dependent_diffusion_affects_value(self):
         """Test that control-dependent diffusion changes the value function."""
-        state_space = StateSpace([StateVariable("x", 1, 10, 10)])
+        sv = StateVariable(
+            "x",
+            1,
+            10,
+            10,
+            boundary_lower=BoundaryCondition.DIRICHLET,
+            boundary_upper=BoundaryCondition.DIRICHLET,
+        )
+        state_space = StateSpace([sv])
 
         def dynamics(x, u, t):
             return x * 0.05 * u[..., 0].reshape(x.shape)
@@ -1182,3 +1655,578 @@ class TestDiffusionTerm:
         assert np.all(np.isfinite(policy["u"]))
         # Value should not be all zeros (solver should have updated it)
         assert not np.allclose(value, 0)
+
+
+class TestResidualDriftTerm:
+    """Regression tests for issue #449: residual must include drift·∇V."""
+
+    def test_zero_drift_residual_unchanged(self):
+        """With zero drift, residual equals |−ρV + f|."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 5)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        metrics = solver.compute_convergence_metrics()
+        assert metrics["max_residual"] >= 0
+        assert metrics["mean_residual"] >= 0
+        assert np.isfinite(metrics["max_residual"])
+
+    def test_nonzero_drift_increases_residual(self):
+        """With non-zero drift, residual includes drift·∇V contribution."""
+        state_space = StateSpace([StateVariable("x", 1, 5, 7)])
+
+        # Problem with zero drift
+        problem_no_drift = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=10, verbose=False)
+        solver_no_drift = HJBSolver(problem_no_drift, config)
+        solver_no_drift.solve()
+        metrics_no_drift = solver_no_drift.compute_convergence_metrics()
+
+        # Same problem but with significant drift
+        problem_drift = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.5,  # significant positive drift
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        solver_drift = HJBSolver(problem_drift, config)
+        solver_drift.solve()
+        metrics_drift = solver_drift.compute_convergence_metrics()
+
+        # Drift problem should have different residuals (drift term contributes)
+        assert metrics_drift["max_residual"] != metrics_no_drift["max_residual"]
+        assert np.isfinite(metrics_drift["max_residual"])
+        assert np.isfinite(metrics_drift["mean_residual"])
+
+
+class TestReflectingBoundaryDirect:
+    """Regression tests for issue #450: REFLECTING BC must be handled directly."""
+
+    def test_reflecting_produces_same_matrix_as_neumann(self):
+        """REFLECTING and NEUMANN produce identical difference matrices."""
+        sv = StateVariable(
+            "x",
+            0,
+            1,
+            10,
+            boundary_lower=BoundaryCondition.REFLECTING,
+            boundary_upper=BoundaryCondition.REFLECTING,
+        )
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            time_horizon=1.0,
+        )
+        config = HJBSolverConfig(max_iterations=2, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        mat_reflecting = solver._build_difference_matrix(0, BoundaryCondition.REFLECTING)
+        mat_neumann = solver._build_difference_matrix(0, BoundaryCondition.NEUMANN)
+
+        diff = (mat_reflecting - mat_neumann).toarray()
+        assert np.allclose(diff, 0), "REFLECTING and NEUMANN matrices should be identical"
+
+    def test_reflecting_full_solve(self):
+        """REFLECTING BC works through the full solver without manual swap."""
+        sv = StateVariable(
+            "x",
+            1,
+            5,
+            7,
+            boundary_lower=BoundaryCondition.REFLECTING,
+            boundary_upper=BoundaryCondition.REFLECTING,
+        )
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.1,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=10, verbose=False)
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value))
+        assert np.all(np.isfinite(policy["u"]))
+
+        # Verify reflecting BC: dV/dx ≈ 0 at boundaries
+        dx = solver.dx[0]
+        grad_lower = (value[1] - value[0]) / dx[0]
+        grad_upper = (value[-1] - value[-2]) / dx[-1]
+        assert abs(grad_lower) < 1e-6, f"Reflecting lower BC violated: dV/dx = {grad_lower}"
+        assert abs(grad_upper) < 1e-6, f"Reflecting upper BC violated: dV/dx = {grad_upper}"
+
+
+class TestNaNInfDetection:
+    """Tests for NaN/Inf detection during solve (#453)."""
+
+    def _make_1d_problem(self, drift_fn=None, discount_rate=0.05, num_points=20):
+        """Helper to create a simple 1D HJB problem."""
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        if drift_fn is None:
+
+            def drift_fn(x, u, t):
+                return x * 0.05
+
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=drift_fn,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            discount_rate=discount_rate,
+        )
+
+    def test_nan_inf_raises_in_policy_evaluation(self):
+        """Solver raises NumericalDivergenceError when value function contains NaN."""
+        from ergodic_insurance.hjb_solver import NumericalDivergenceError
+
+        # A running cost that returns NaN propagates directly into new_v:
+        # rhs = -rho*V + NaN + advection = NaN → new_v = V + dt*NaN = NaN
+        sv = StateVariable("x", 1.0, 5.0, 20)
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.05,
+            running_cost=lambda x, u, t: np.full(x.shape[0], np.nan),
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=5,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        with pytest.raises(NumericalDivergenceError, match="diverged"):
+            solver.solve()
+
+    def test_convergence_metrics_has_nan_inf_flag(self):
+        """compute_convergence_metrics returns has_nan_inf field."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(max_iterations=5, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        metrics = solver.compute_convergence_metrics()
+        assert "has_nan_inf" in metrics
+        assert metrics["has_nan_inf"] is False
+
+    def test_convergence_metrics_includes_diffusion_in_residual(self):
+        """Residual computation includes diffusion term when diffusion is present."""
+        sv = StateVariable("x", 1.0, 5.0, 20)
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * 0.05,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=lambda x, u, t: np.full_like(x, 0.04),
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(max_iterations=20, verbose=False)
+        solver = HJBSolver(problem, config)
+        solver.solve()
+
+        metrics = solver.compute_convergence_metrics()
+        assert "has_nan_inf" in metrics
+        assert metrics["has_nan_inf"] is False
+        # Residual should be finite
+        assert np.isfinite(metrics["max_residual"])
+
+
+class TestCFLStabilityCheck:
+    """Tests for CFL stability checking and auto-adaptation (#452)."""
+
+    def _make_1d_problem(self, drift_scale=0.05, sigma_sq=None):
+        sv = StateVariable("x", 1.0, 5.0, 20)
+        state_space = StateSpace([sv])
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+
+    def test_cfl_computation(self):
+        """_compute_cfl_number returns correct CFL numbers."""
+        problem = self._make_1d_problem(drift_scale=1.0)
+        config = HJBSolverConfig(time_step=0.5, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        # Create dummy drift on grid
+        grid = problem.state_space.grids[0]
+        drift = (grid * 1.0).reshape(-1, 1)
+        adv_cfl, diff_cfl = solver._compute_cfl_number(drift, None, 0.5)
+
+        assert adv_cfl > 0, "Advection CFL should be positive with non-zero drift"
+        assert diff_cfl == 0.0, "Diffusion CFL should be zero without diffusion"
+
+    def test_cfl_auto_reduces_dt(self):
+        """Solver auto-reduces dt when CFL is violated for explicit scheme."""
+        # Large drift + large dt → CFL violation
+        problem = self._make_1d_problem(drift_scale=50.0)
+        config = HJBSolverConfig(
+            time_step=1.0,  # Very large dt
+            max_iterations=5,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        # Should not raise — CFL auto-reduction prevents divergence
+        import logging
+
+        with patch("ergodic_insurance.hjb_solver.logger") as mock_logger:
+            solver.solve()
+            # Verify CFL warning was issued
+            warning_calls = [
+                call for call in mock_logger.warning.call_args_list if "CFL" in str(call)
+            ]
+            assert len(warning_calls) > 0, "Expected CFL warning"
+
+    def test_cfl_not_checked_for_implicit(self):
+        """CFL check is skipped for implicit scheme (unconditionally stable)."""
+        problem = self._make_1d_problem(drift_scale=50.0)
+        config = HJBSolverConfig(
+            time_step=1.0,
+            max_iterations=5,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        with patch("ergodic_insurance.hjb_solver.logger") as mock_logger:
+            solver.solve()
+            # Should NOT have CFL warnings for implicit scheme
+            warning_calls = [
+                call for call in mock_logger.warning.call_args_list if "CFL" in str(call)
+            ]
+            assert len(warning_calls) == 0, "Implicit scheme should not trigger CFL warnings"
+
+    def test_solver_produces_finite_after_cfl_adaptation(self):
+        """After CFL auto-adaptation, solution should remain finite."""
+        problem = self._make_1d_problem(drift_scale=10.0)
+        config = HJBSolverConfig(
+            time_step=0.5,
+            max_iterations=20,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Value function should be finite after CFL adaptation"
+        assert np.all(np.isfinite(policy["u"])), "Policy should be finite after CFL adaptation"
+
+
+class TestImplicitScheme:
+    """Tests for implicit (backward Euler) time-stepping scheme (#451)."""
+
+    def _make_1d_problem(self, drift_scale=0.05, sigma_sq=None, num_points=20):
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+
+    def test_implicit_scheme_converges(self):
+        """Implicit scheme should converge to a valid solution."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Implicit solution should be finite"
+        assert np.all(np.isfinite(policy["u"])), "Implicit policy should be finite"
+
+    def test_implicit_matches_explicit_small_dt(self):
+        """Implicit and explicit should give similar results with small dt."""
+        problem_exp = self._make_1d_problem()
+        problem_imp = self._make_1d_problem()
+
+        config_exp = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        config_imp = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+
+        solver_exp = HJBSolver(problem_exp, config_exp)
+        solver_imp = HJBSolver(problem_imp, config_imp)
+
+        v_exp, _ = solver_exp.solve()
+        v_imp, _ = solver_imp.solve()
+
+        # With same small dt, solutions should be close
+        rel_diff = np.max(np.abs(v_exp - v_imp)) / (np.max(np.abs(v_exp)) + 1e-10)
+        assert rel_diff < 0.1, (
+            f"Implicit and explicit should agree with small dt, " f"relative diff = {rel_diff:.4f}"
+        )
+
+    def test_implicit_stable_with_large_dt(self):
+        """Implicit scheme should remain stable with dt much larger than CFL limit."""
+        problem = self._make_1d_problem(drift_scale=1.0)
+        # For explicit, CFL would require dt ~ 0.01 or less
+        # Implicit should handle dt = 0.1 (10x larger)
+        config = HJBSolverConfig(
+            time_step=0.1,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Implicit scheme should be stable with large dt"
+
+    def test_implicit_with_diffusion(self):
+        """Implicit scheme handles diffusion term correctly."""
+        problem = self._make_1d_problem(drift_scale=0.05, sigma_sq=0.04)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "Implicit with diffusion should be finite"
+
+    def test_default_scheme_is_explicit(self):
+        """Default HJBSolverConfig.scheme should be EXPLICIT (#451 Phase 0)."""
+        config = HJBSolverConfig()
+        assert config.scheme == TimeSteppingScheme.EXPLICIT
+
+    def test_spatial_operator_tridiagonal(self):
+        """_build_spatial_operator_1d produces a tridiagonal matrix."""
+        problem = self._make_1d_problem(num_points=10)
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+
+        N = 10
+        drift_1d = np.ones(N) * 0.1
+        sigma_sq_1d = np.ones(N) * 0.04
+        L = solver._build_spatial_operator_1d(drift_1d, sigma_sq_1d)
+
+        L_dense = L.toarray()
+        # Interior rows should be tridiagonal
+        for i in range(2, N - 2):
+            for j in range(N):
+                if abs(i - j) > 1:
+                    assert L_dense[i, j] == 0.0, f"L[{i},{j}] should be zero for tridiagonal matrix"
+
+    def test_implicit_operator_m_matrix(self):
+        """(I - dt*L) should be an M-matrix: positive diagonal, non-positive off-diagonal."""
+        problem = self._make_1d_problem(num_points=10)
+        config = HJBSolverConfig(verbose=False)
+        solver = HJBSolver(problem, config)
+
+        N = 10
+        drift_1d = np.linspace(-0.5, 0.5, N)
+        sigma_sq_1d = np.ones(N) * 0.04
+        dt = 0.01
+
+        L = solver._build_spatial_operator_1d(drift_1d, sigma_sq_1d)
+        I_mat = sparse.eye(N)
+        A = (I_mat - dt * L).toarray()
+
+        # Interior rows: check M-matrix property
+        for i in range(1, N - 1):
+            assert A[i, i] >= 1.0, f"Diagonal A[{i},{i}]={A[i,i]} should be >= 1"
+            for j in range(N):
+                if j != i:
+                    assert (
+                        A[i, j] <= 0.0 + 1e-15
+                    ), f"Off-diagonal A[{i},{j}]={A[i,j]} should be <= 0"
+
+
+class TestCrankNicolsonScheme:
+    """Tests for Crank-Nicolson time-stepping scheme (#451)."""
+
+    def _make_1d_problem(self, drift_scale=0.05, sigma_sq=None, num_points=20):
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        return HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+
+    def test_crank_nicolson_converges(self):
+        """Crank-Nicolson scheme should converge to a valid solution."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "CN solution should be finite"
+        assert np.all(np.isfinite(policy["u"])), "CN policy should be finite"
+
+    def test_crank_nicolson_with_diffusion(self):
+        """CN scheme handles diffusion correctly."""
+        problem = self._make_1d_problem(drift_scale=0.05, sigma_sq=0.04)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, policy = solver.solve()
+
+        assert np.all(np.isfinite(value)), "CN with diffusion should be finite"
+
+    def test_rannacher_startup(self):
+        """CN with Rannacher smoothing should produce stable results."""
+        problem = self._make_1d_problem()
+        # Rannacher steps = 2 (default)
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            rannacher_steps=2,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, _ = solver.solve()
+
+        assert np.all(np.isfinite(value)), "CN with Rannacher should be finite"
+
+    def test_rannacher_zero_disables_startup(self):
+        """Setting rannacher_steps=0 disables the implicit startup."""
+        problem = self._make_1d_problem()
+        config = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=50,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            rannacher_steps=0,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        value, _ = solver.solve()
+
+        # Should still produce finite results with small dt
+        assert np.all(np.isfinite(value)), "CN without Rannacher should still work with small dt"
+
+    def test_cn_matches_explicit_small_dt(self):
+        """CN and explicit should give similar results with small dt."""
+        problem_exp = self._make_1d_problem()
+        problem_cn = self._make_1d_problem()
+
+        config_exp = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.EXPLICIT,
+            verbose=False,
+        )
+        config_cn = HJBSolverConfig(
+            time_step=0.005,
+            max_iterations=100,
+            scheme=TimeSteppingScheme.CRANK_NICOLSON,
+            verbose=False,
+        )
+
+        solver_exp = HJBSolver(problem_exp, config_exp)
+        solver_cn = HJBSolver(problem_cn, config_cn)
+
+        v_exp, _ = solver_exp.solve()
+        v_cn, _ = solver_cn.solve()
+
+        rel_diff = np.max(np.abs(v_exp - v_cn)) / (np.max(np.abs(v_exp)) + 1e-10)
+        assert (
+            rel_diff < 0.1
+        ), f"CN and explicit should agree with small dt, relative diff = {rel_diff:.4f}"
+
+    def test_multid_falls_back_to_explicit(self):
+        """Multi-D problems should fall back to explicit with warning."""
+        sv_x = StateVariable("x", 1.0, 5.0, 5)
+        sv_y = StateVariable("y", 1.0, 5.0, 5)
+        state_space = StateSpace([sv_x, sv_y])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: np.zeros_like(x),
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=3,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+
+        with patch("ergodic_insurance.hjb_solver.logger") as mock_logger:
+            value, _ = solver.solve()
+            # Should warn about fallback
+            warning_calls = [
+                call
+                for call in mock_logger.warning.call_args_list
+                if "falling back" in str(call).lower()
+            ]
+            assert len(warning_calls) > 0, "Should warn about multi-D fallback"
+
+        assert np.all(np.isfinite(value)), "Multi-D fallback should produce finite results"

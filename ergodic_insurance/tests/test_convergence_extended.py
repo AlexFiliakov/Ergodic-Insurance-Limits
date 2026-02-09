@@ -198,6 +198,78 @@ class TestConvergenceExtended:
         assert isinstance(z_score, float)
         assert isinstance(p_value, float)
 
+    def test_geweke_test_ar1_autocorrelated(self, diagnostics):
+        """Test Geweke test with AR(1) chain — spectral density should prevent
+        anti-conservative p-values for autocorrelated, stationary data."""
+        rng = np.random.default_rng(123)
+        n = 5000
+        phi = 0.9  # Strong positive autocorrelation
+        chain = np.zeros(n)
+        chain[0] = rng.standard_normal()
+        for i in range(1, n):
+            chain[i] = phi * chain[i - 1] + rng.standard_normal()
+
+        z_score, p_value = diagnostics.geweke_test(chain)
+
+        # Stationary AR(1) with constant mean should NOT be flagged as
+        # non-converged.  With simple variance the z-score is inflated
+        # and p-value is anti-conservatively small; with spectral density
+        # the test should be well-calibrated.
+        assert (
+            p_value > 0.01
+        ), f"AR(1) stationary chain incorrectly flagged (z={z_score:.2f}, p={p_value:.4f})"
+
+    def test_geweke_test_iid_backward_compatibility(self, diagnostics):
+        """Test Geweke on IID data — results should be similar to simple variance."""
+        rng = np.random.default_rng(42)
+        chain = rng.standard_normal(10000)
+
+        z_score, p_value = diagnostics.geweke_test(chain)
+
+        assert isinstance(z_score, float)
+        assert isinstance(p_value, float)
+        assert 0 <= p_value <= 1
+        # IID chain with same mean everywhere should pass easily
+        assert p_value > 0.01
+
+    def test_spectral_density_at_zero_iid(self, diagnostics):
+        """Test _spectral_density_at_zero approximates sample variance for IID data."""
+        rng = np.random.default_rng(99)
+        segment = rng.standard_normal(2000)
+
+        s_zero = diagnostics._spectral_density_at_zero(segment)
+        sigma2 = np.var(segment, ddof=1)
+
+        # For IID data, S(0) should approximate sigma^2
+        assert s_zero == pytest.approx(sigma2, rel=0.5)
+
+    def test_spectral_density_at_zero_autocorrelated(self, diagnostics):
+        """Test _spectral_density_at_zero inflates S(0) for AR(1) data."""
+        rng = np.random.default_rng(77)
+        n = 2000
+        phi = 0.9
+        segment = np.zeros(n)
+        segment[0] = rng.standard_normal()
+        for i in range(1, n):
+            segment[i] = phi * segment[i - 1] + rng.standard_normal()
+
+        s_zero = diagnostics._spectral_density_at_zero(segment)
+        sigma2 = np.var(segment, ddof=1)
+
+        # S(0) should be much larger than sigma^2 for AR(1) with phi=0.9
+        # Theoretical ratio: (1+phi)/(1-phi) = 19
+        assert s_zero > sigma2 * 3, (
+            f"S(0) ({s_zero:.4f}) should be much larger than "
+            f"sigma^2 ({sigma2:.4f}) for autocorrelated data"
+        )
+
+    def test_spectral_density_at_zero_nonnegative(self, diagnostics):
+        """Test _spectral_density_at_zero returns a non-negative value."""
+        rng = np.random.default_rng(55)
+        segment = rng.standard_normal(100)
+        s_zero = diagnostics._spectral_density_at_zero(segment)
+        assert s_zero >= 0.0
+
     def test_heidelberger_welch_test(self, diagnostics):
         """Test Heidelberger-Welch stationarity test."""
         # Create stationary chain

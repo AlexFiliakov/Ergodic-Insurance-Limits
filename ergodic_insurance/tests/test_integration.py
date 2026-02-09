@@ -33,6 +33,7 @@ class TestIntegration:
             base_operating_margin=kwargs.get("base_operating_margin", 0.10),  # 10% EBIT margin
             tax_rate=kwargs.get("tax_rate", 0.25),  # 25% corporate tax
             retention_ratio=kwargs.get("retention_ratio", 0.70),  # 70% retention for growth
+            lae_ratio=kwargs.get("lae_ratio", 0.0),
         )
         return WidgetManufacturer(config)
 

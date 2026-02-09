@@ -46,6 +46,7 @@ class ClaimProcessingMixin:
         - self.claim_liabilities: List[ClaimLiability]
         - self.period_insurance_premiums: Decimal
         - self.period_insurance_losses: Decimal
+        - self.period_insurance_lae: Decimal (Issue #468)
         - self._original_prepaid_premium: Decimal
         - self.is_ruined: bool
         - Balance sheet properties from BalanceSheetMixin
@@ -115,6 +116,7 @@ class ClaimProcessingMixin:
         """Reset period insurance cost tracking for new period."""
         self.period_insurance_premiums = ZERO
         self.period_insurance_losses = ZERO
+        self.period_insurance_lae = ZERO
         self.period_adverse_development = ZERO
         self.period_favorable_development = ZERO
 
@@ -272,18 +274,26 @@ class ClaimProcessingMixin:
                 if claim > deductible + limit:
                     company_payment += claim - deductible - limit
 
+        # Compute LAE on company portion (Issue #468, ASC 944-40)
+        lae_ratio = to_decimal(getattr(self.config, "lae_ratio", 0.12))
+
         # Company payment is collateralized and paid over time
         if company_payment > ZERO:
+            lae_on_company = company_payment * lae_ratio
+
             current_equity = self.equity
             available_cash = self.cash
+            # Cap at equity / (1 + lae_ratio) so total liability including LAE
+            # does not exceed equity (limited liability, Issue #468)
+            equity_cap = current_equity / (ONE + lae_ratio) if lae_ratio > ZERO else current_equity
             max_payable: Decimal = (
-                min(company_payment, current_equity, available_cash)
-                if current_equity > ZERO
-                else ZERO
+                min(company_payment, equity_cap, available_cash) if current_equity > ZERO else ZERO
             )
             unpayable_amount = company_payment - max_payable
 
             if max_payable > ZERO:
+                lae_on_payable = max_payable * lae_ratio
+
                 self._record_asset_transfer(
                     from_account=AccountName.CASH,
                     to_account=AccountName.RESTRICTED_CASH,
@@ -291,25 +301,40 @@ class ClaimProcessingMixin:
                     description="Cash to restricted for insurance claim collateral",
                 )
 
+                # Claim liability includes indemnity + LAE
                 claim_liability = ClaimLiability(
-                    original_amount=max_payable,
-                    remaining_amount=max_payable,
+                    original_amount=max_payable + lae_on_payable,
+                    remaining_amount=max_payable + lae_on_payable,
                     year_incurred=self.current_year,
                     is_insured=True,
                 )
                 self._apply_reserve_noise(claim_liability)
                 self.claim_liabilities.append(claim_liability)
+
+                # Record indemnity portion
                 self.ledger.record_double_entry(
                     date=self.current_year,
                     debit_account=AccountName.INSURANCE_LOSS,
                     credit_account=AccountName.CLAIM_LIABILITIES,
-                    amount=claim_liability.original_amount,
+                    amount=max_payable,
                     transaction_type=TransactionType.INSURANCE_CLAIM,
                     description="Recognize insured claim liability (company portion)",
                 )
 
+                # Record LAE portion separately (Issue #468)
+                if lae_on_payable > ZERO:
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.LAE_EXPENSE,
+                        credit_account=AccountName.CLAIM_LIABILITIES,
+                        amount=lae_on_payable,
+                        transaction_type=TransactionType.INSURANCE_CLAIM,
+                        description="LAE on insured claim (ALAE+ULAE per ASC 944-40)",
+                    )
+                    self.period_insurance_lae += lae_on_payable
+
                 logger.info(
-                    f"Company portion: ${max_payable:,.2f} - collateralized with payment schedule"
+                    f"Company portion: ${max_payable:,.2f} + LAE ${lae_on_payable:,.2f} - collateralized with payment schedule"
                 )
                 logger.info(
                     f"Posted ${max_payable:,.2f} letter of credit as collateral for company portion"
@@ -317,30 +342,52 @@ class ClaimProcessingMixin:
 
             # Handle unpayable portion
             if unpayable_amount > ZERO:
+                lae_on_unpayable = unpayable_amount * lae_ratio
                 current_equity_after_collateral = self.equity
+                # Cap at equity / (1 + lae_ratio) for LAE headroom (Issue #468)
+                equity_cap_after = (
+                    current_equity_after_collateral / (ONE + lae_ratio)
+                    if lae_ratio > ZERO
+                    else current_equity_after_collateral
+                )
                 max_liability: Decimal = (
-                    min(unpayable_amount, current_equity_after_collateral)
+                    min(unpayable_amount, equity_cap_after)
                     if current_equity_after_collateral > ZERO
                     else ZERO
                 )
 
                 if max_liability > ZERO:
+                    lae_on_max_liability = max_liability * lae_ratio
                     unpayable_claim = ClaimLiability(
-                        original_amount=max_liability,
-                        remaining_amount=max_liability,
+                        original_amount=max_liability + lae_on_max_liability,
+                        remaining_amount=max_liability + lae_on_max_liability,
                         year_incurred=self.current_year,
                         is_insured=False,
                     )
                     self._apply_reserve_noise(unpayable_claim)
                     self.claim_liabilities.append(unpayable_claim)
+
+                    # Record indemnity portion
                     self.ledger.record_double_entry(
                         date=self.current_year,
                         debit_account=AccountName.INSURANCE_LOSS,
                         credit_account=AccountName.CLAIM_LIABILITIES,
-                        amount=unpayable_claim.original_amount,
+                        amount=max_liability,
                         transaction_type=TransactionType.INSURANCE_CLAIM,
                         description="Recognize unpayable claim liability",
                     )
+
+                    # Record LAE portion separately (Issue #468)
+                    if lae_on_max_liability > ZERO:
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=AccountName.LAE_EXPENSE,
+                            credit_account=AccountName.CLAIM_LIABILITIES,
+                            amount=lae_on_max_liability,
+                            transaction_type=TransactionType.INSURANCE_CLAIM,
+                            description="LAE on unpayable claim portion (ALAE+ULAE per ASC 944-40)",
+                        )
+                        self.period_insurance_lae += lae_on_max_liability
 
                     logger.warning(
                         f"LIMITED LIABILITY: Company payment capped at ${max_payable:,.2f} (cash/equity). "
@@ -420,32 +467,62 @@ class ClaimProcessingMixin:
 
             self.period_insurance_losses += actual_payment
 
+            # Track LAE on immediate-payment uninsured claim (Issue #468)
+            # LAE is tracked for the income statement (like period_insurance_losses)
+            # but not recorded as a balance-sheet liability for immediate payments.
+            lae_ratio_imm = to_decimal(getattr(self.config, "lae_ratio", 0.12))
+            lae_on_immediate = actual_payment * lae_ratio_imm
+            if lae_on_immediate > ZERO:
+                self.period_insurance_lae += lae_on_immediate
+
             shortfall = claim - actual_payment
             if shortfall > ZERO:
                 current_equity_after_payment = self.equity
+                # Cap at equity / (1 + lae_ratio) for LAE headroom (Issue #468)
+                equity_cap_shortfall = (
+                    current_equity_after_payment / (ONE + lae_ratio_imm)
+                    if lae_ratio_imm > ZERO
+                    else current_equity_after_payment
+                )
                 max_liability: Decimal = (
-                    min(shortfall, current_equity_after_payment)
+                    min(shortfall, equity_cap_shortfall)
                     if current_equity_after_payment > ZERO
                     else ZERO
                 )
 
                 if max_liability > ZERO:
+                    lae_on_shortfall = max_liability * lae_ratio_imm
                     claim_liability = ClaimLiability(
-                        original_amount=max_liability,
-                        remaining_amount=max_liability,
+                        original_amount=max_liability + lae_on_shortfall,
+                        remaining_amount=max_liability + lae_on_shortfall,
                         year_incurred=self.current_year,
                         is_insured=False,
                     )
                     self._apply_reserve_noise(claim_liability)
                     self.claim_liabilities.append(claim_liability)
+
+                    # Record indemnity portion
                     self.ledger.record_double_entry(
                         date=self.current_year,
                         debit_account=AccountName.INSURANCE_LOSS,
                         credit_account=AccountName.CLAIM_LIABILITIES,
-                        amount=claim_liability.original_amount,
+                        amount=max_liability,
                         transaction_type=TransactionType.INSURANCE_CLAIM,
                         description="Recognize uninsured claim liability (shortfall)",
                     )
+
+                    # Record LAE portion (Issue #468)
+                    if lae_on_shortfall > ZERO:
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=AccountName.LAE_EXPENSE,
+                            credit_account=AccountName.CLAIM_LIABILITIES,
+                            amount=lae_on_shortfall,
+                            transaction_type=TransactionType.INSURANCE_CLAIM,
+                            description="LAE on uninsured shortfall (ALAE+ULAE per ASC 944-40)",
+                        )
+                        self.period_insurance_lae += lae_on_shortfall
+
                     logger.info(
                         f"LIMITED LIABILITY: Immediate payment ${actual_payment:,.2f}, "
                         f"created liability for ${claim_liability.original_amount:,.2f} (total claim: ${claim:,.2f})"
@@ -466,30 +543,53 @@ class ClaimProcessingMixin:
             return claim
 
         # Create liability without collateral for payment over time
+        lae_ratio = to_decimal(getattr(self.config, "lae_ratio", 0.12))
         current_equity = self.equity
+        # Cap at equity / (1 + lae_ratio) so total liability including LAE
+        # does not exceed equity (limited liability, Issue #468)
+        equity_cap_deferred = (
+            current_equity / (ONE + lae_ratio) if lae_ratio > ZERO else current_equity
+        )
         deferred_max_liability: Decimal = (
-            min(claim, current_equity) if current_equity > ZERO else ZERO
+            min(claim, equity_cap_deferred) if current_equity > ZERO else ZERO
         )
 
         if deferred_max_liability > ZERO:
+            lae_on_deferred = deferred_max_liability * lae_ratio
             claim_liability = ClaimLiability(
-                original_amount=deferred_max_liability,
-                remaining_amount=deferred_max_liability,
+                original_amount=deferred_max_liability + lae_on_deferred,
+                remaining_amount=deferred_max_liability + lae_on_deferred,
                 year_incurred=self.current_year,
                 is_insured=False,
             )
             self._apply_reserve_noise(claim_liability)
             self.claim_liabilities.append(claim_liability)
+
+            # Record indemnity portion
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.INSURANCE_LOSS,
                 credit_account=AccountName.CLAIM_LIABILITIES,
-                amount=claim_liability.original_amount,
+                amount=deferred_max_liability,
                 transaction_type=TransactionType.INSURANCE_CLAIM,
                 description="Recognize uninsured deferred claim liability",
             )
+
+            # Record LAE portion separately (Issue #468)
+            if lae_on_deferred > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.LAE_EXPENSE,
+                    credit_account=AccountName.CLAIM_LIABILITIES,
+                    amount=lae_on_deferred,
+                    transaction_type=TransactionType.INSURANCE_CLAIM,
+                    description="LAE on uninsured deferred claim (ALAE+ULAE per ASC 944-40)",
+                )
+                self.period_insurance_lae += lae_on_deferred
+
             logger.info(
-                f"Created uninsured claim liability: ${claim_liability.original_amount:,.2f} (no collateral required)"
+                f"Created uninsured claim liability: ${claim_liability.original_amount:,.2f} "
+                f"(incl. LAE ${lae_on_deferred:,.2f}, no collateral required)"
             )
 
         unpayable = claim - deferred_max_liability
@@ -649,11 +749,18 @@ class ClaimProcessingMixin:
     ) -> None:
         """Record insurance claim with multi-year payment schedule.
 
+        Inflates the claim amount by the configured LAE ratio and records
+        a separate LAE ledger entry (Issue #468, ASC 944-40).
+
         Args:
-            claim_amount: Total claim amount to be paid
+            claim_amount: Total claim amount to be paid (indemnity only)
             development_pattern: Optional ClaimDevelopment strategy for payment timing.
         """
         amount = to_decimal(claim_amount)
+        lae_ratio = to_decimal(getattr(self.config, "lae_ratio", 0.12))
+        lae_amount = amount * lae_ratio
+        total_with_lae = amount + lae_amount
+
         if development_pattern is not None:
             if isinstance(development_pattern, list):
                 development_pattern = ClaimDevelopment(
@@ -661,21 +768,33 @@ class ClaimProcessingMixin:
                     development_factors=development_pattern,
                 )
             new_claim = ClaimLiability(
-                original_amount=amount,
-                remaining_amount=amount,
+                original_amount=total_with_lae,
+                remaining_amount=total_with_lae,
                 year_incurred=self.current_year,
                 is_insured=False,
                 development_strategy=development_pattern,
             )
         else:
             new_claim = ClaimLiability(
-                original_amount=amount,
-                remaining_amount=amount,
+                original_amount=total_with_lae,
+                remaining_amount=total_with_lae,
                 year_incurred=self.current_year,
                 is_insured=False,
             )
         self._apply_reserve_noise(new_claim)
         self.claim_liabilities.append(new_claim)
+
+        # Record LAE expense separately (Issue #468)
+        if lae_amount > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.LAE_EXPENSE,
+                credit_account=AccountName.CLAIM_LIABILITIES,
+                amount=lae_amount,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
+                description="LAE on claim accrual (ALAE+ULAE per ASC 944-40)",
+            )
+            self.period_insurance_lae += lae_amount
 
         pattern_name = (
             getattr(development_pattern, "pattern_name", "custom")
@@ -684,7 +803,7 @@ class ClaimProcessingMixin:
         )
         logger.info(
             f"Created claim liability via record_claim_accrual: ${amount:,.2f} "
-            f"with pattern {pattern_name}"
+            f"(+ LAE ${lae_amount:,.2f}) with pattern {pattern_name}"
         )
 
     def _apply_reserve_noise(self, claim: ClaimLiability) -> None:

@@ -78,25 +78,26 @@ class TestManufacturerConfig:
                 retention_ratio=1.0,
             )
 
-    def test_high_margin_warning(self, capsys):
+    def test_high_margin_warning(self, caplog):
         """Test warning for unusually high operating margin.
 
         Args:
-            capsys: Pytest fixture for capturing stdout/stderr.
+            caplog: Pytest fixture for capturing log output.
 
         Tests that the custom validator issues warnings for
         unrealistically high operating margins.
         """
-        config = ManufacturerConfig(
-            initial_assets=10_000_000,
-            asset_turnover_ratio=1.0,
-            base_operating_margin=0.4,  # 40% - unusually high
-            tax_rate=0.25,
-            retention_ratio=1.0,
-        )
-        captured = capsys.readouterr()
-        assert "Warning" in captured.out
-        assert "unusually high" in captured.out
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            config = ManufacturerConfig(
+                initial_assets=10_000_000,
+                asset_turnover_ratio=1.0,
+                base_operating_margin=0.4,  # 40% - unusually high
+                tax_rate=0.25,
+                retention_ratio=1.0,
+            )
+        assert "unusually high" in caplog.text
 
 
 class TestWorkingCapitalConfig:
