@@ -527,8 +527,20 @@ class ScenarioExposure(ExposureBase):
     def _cubic_interpolate(self, path: List[float], time: float) -> float:
         """Cubic interpolation with scipy fallback to linear.
 
-        Falls back to linear interpolation when scipy is not available.
+        Falls back to linear interpolation when scipy is not available
+        or when fewer than 4 data points are provided (the minimum
+        required for cubic spline interpolation).
         """
+        if len(path) < 4:
+            # Cubic splines require >= 4 points; fall back to linear
+            logger.info(
+                "Cubic interpolation requires >= 4 data points, got %d; " "falling back to linear",
+                len(path),
+            )
+            lower = int(time)
+            upper = lower + 1
+            weight = time - lower
+            return path[lower] * (1 - weight) + path[upper] * weight
         try:
             from scipy.interpolate import interp1d
 
