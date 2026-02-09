@@ -1,5 +1,6 @@
 """Tests for industry-specific configuration classes."""
 
+from pydantic import ValidationError
 import pytest
 
 from ergodic_insurance.config import (
@@ -27,7 +28,7 @@ class TestIndustryConfig:
     def test_asset_composition_validation(self):
         """Test that asset ratios must sum to 1.0."""
         # This should fail validation
-        with pytest.raises(AssertionError, match="Asset ratios must sum to 1.0"):
+        with pytest.raises(ValidationError, match="Asset ratios must sum to 1.0"):
             IndustryConfig(
                 current_asset_ratio=0.3, ppe_ratio=0.3, intangible_ratio=0.3  # Sum is 0.9, not 1.0
             )
@@ -35,11 +36,11 @@ class TestIndustryConfig:
     def test_margin_validation(self):
         """Test margin parameter validation."""
         # Invalid gross margin
-        with pytest.raises(AssertionError, match="Gross margin must be between 0 and 1"):
+        with pytest.raises(ValidationError):
             IndustryConfig(gross_margin=1.5)
 
         # Invalid operating expense ratio
-        with pytest.raises(AssertionError, match="Operating expense ratio must be between 0 and 1"):
+        with pytest.raises(ValidationError):
             IndustryConfig(operating_expense_ratio=-0.1)
 
     def test_working_capital_days_calculation(self):
@@ -57,12 +58,12 @@ class TestIndustryConfig:
     def test_depreciation_validation(self):
         """Test depreciation parameter validation."""
         # Invalid useful life
-        with pytest.raises(AssertionError, match="PPE useful life must be positive"):
+        with pytest.raises(ValidationError):
             IndustryConfig(ppe_useful_life=0)
 
         # Invalid depreciation method
-        with pytest.raises(AssertionError, match="Unknown depreciation method"):
-            IndustryConfig(depreciation_method="invalid_method")
+        with pytest.raises(ValidationError):
+            IndustryConfig(depreciation_method="invalid_method")  # type: ignore[arg-type]
 
 
 class TestManufacturingConfig:

@@ -10,6 +10,14 @@ from typing import Any, Dict, List
 
 import yaml
 
+try:
+    from ergodic_insurance.config.utils import deep_merge_inplace as _deep_merge_inplace
+except ImportError:
+    try:
+        from .config.utils import deep_merge_inplace as _deep_merge_inplace
+    except ImportError:
+        from config.utils import deep_merge_inplace as _deep_merge_inplace  # type: ignore[no-redef]
+
 
 class ConfigMigrator:
     """Handles migration from legacy configuration to new 3-tier system."""
@@ -340,11 +348,7 @@ class ConfigMigrator:
             target: Target dictionary to merge into.
             source: Source dictionary to merge from.
         """
-        for key, value in source.items():
-            if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                self._deep_merge(target[key], value)
-            else:
-                target[key] = value
+        _deep_merge_inplace(target, source)
 
     def run_migration(self) -> bool:
         """Run the complete migration process.

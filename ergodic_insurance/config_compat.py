@@ -4,9 +4,12 @@ This module provides adapters and shims to ensure existing code continues
 to work while transitioning to the new 3-tier configuration system.
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import warnings
+
+logger = logging.getLogger(__name__)
 
 import yaml
 
@@ -114,7 +117,39 @@ class LegacyConfigAdapter:
 
         Returns:
             Legacy format Config object.
+
+        Note:
+            V2-only fields not present in legacy Config are dropped during
+            conversion.  A warning is emitted for each non-empty field that
+            is lost so callers can detect silent data loss.
         """
+        # Warn about V2-only fields that will be dropped
+        v2_only_fields = [
+            "insurance",
+            "losses",
+            "excel_reporting",
+            "working_capital_ratios",
+            "expense_ratios",
+            "depreciation",
+            "industry_config",
+        ]
+        dropped = []
+        for field_name in v2_only_fields:
+            value = getattr(config_v2, field_name, None)
+            if value is not None:
+                dropped.append(field_name)
+        if config_v2.custom_modules:
+            dropped.append("custom_modules")
+        if config_v2.applied_presets:
+            dropped.append("applied_presets")
+        if config_v2.overrides:
+            dropped.append("overrides")
+        if dropped:
+            logger.warning(
+                "ConfigV2 → Config conversion drops non-empty V2-only fields: %s",
+                ", ".join(dropped),
+            )
+
         # Extract the sections needed for legacy Config
         try:
             # Try absolute import first (for installed package)
@@ -236,8 +271,16 @@ class LegacyConfigAdapter:
         return dict(items)
 
 
-# Global adapter instance for drop-in replacement
-_adapter = LegacyConfigAdapter()
+# Lazy-initialized global adapter to avoid filesystem side effects at import time
+_adapter: Optional[LegacyConfigAdapter] = None
+
+
+def _get_adapter() -> LegacyConfigAdapter:
+    """Return the global adapter, creating it on first use."""
+    global _adapter
+    if _adapter is None:
+        _adapter = LegacyConfigAdapter()
+    return _adapter
 
 
 def load_config(
@@ -253,7 +296,7 @@ def load_config(
     Returns:
         Config object.
     """
-    return _adapter.load(config_name, override_params, **kwargs)
+    return _get_adapter().load(config_name, override_params, **kwargs)
 
 
 def migrate_config_usage(file_path: Path) -> None:

@@ -200,21 +200,29 @@ class TestWorkingCapitalCalculation:
         )
         assert config_max.days_sales_outstanding == 365
 
-    def test_cash_conversion_cycle_warnings(self, capsys):
+    def test_cash_conversion_cycle_warnings(self, caplog):
         """Test that appropriate warnings are issued for unusual cash conversion cycles."""
+        import logging
+
         # Negative cash conversion cycle (good but unusual)
-        config_negative = WorkingCapitalRatiosConfig(
-            days_sales_outstanding=30, days_inventory_outstanding=20, days_payable_outstanding=60
-        )
-        captured = capsys.readouterr()
-        assert "Negative cash conversion cycle" in captured.out
+        with caplog.at_level(logging.WARNING):
+            config_negative = WorkingCapitalRatiosConfig(
+                days_sales_outstanding=30,
+                days_inventory_outstanding=20,
+                days_payable_outstanding=60,
+            )
+        assert "Negative cash conversion cycle" in caplog.text
+
+        caplog.clear()
 
         # Very long cash conversion cycle (problematic)
-        config_long = WorkingCapitalRatiosConfig(
-            days_sales_outstanding=120, days_inventory_outstanding=150, days_payable_outstanding=30
-        )
-        captured = capsys.readouterr()
-        assert "Very long cash conversion cycle" in captured.out
+        with caplog.at_level(logging.WARNING):
+            config_long = WorkingCapitalRatiosConfig(
+                days_sales_outstanding=120,
+                days_inventory_outstanding=150,
+                days_payable_outstanding=30,
+            )
+        assert "Very long cash conversion cycle" in caplog.text
 
     def test_working_capital_impact_on_cash(self, manufacturer):
         """Test that working capital affects cash position and balance sheet balances."""

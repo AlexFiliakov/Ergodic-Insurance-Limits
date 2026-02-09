@@ -53,13 +53,16 @@ logger = logging.getLogger(__name__)
 try:
     # Try absolute import first (for installed package)
     from ergodic_insurance.config import ConfigV2, PresetLibrary
+    from ergodic_insurance.config.utils import deep_merge as _deep_merge_fn
 except ImportError:
     try:
         # Try relative import (for package context)
         from .config import ConfigV2, PresetLibrary
+        from .config.utils import deep_merge as _deep_merge_fn
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
         from config import ConfigV2, PresetLibrary  # type: ignore[no-redef]
+        from config.utils import deep_merge as _deep_merge_fn  # type: ignore[no-redef]
 
 
 class ConfigManager:
@@ -490,15 +493,7 @@ class ConfigManager:
         Returns:
             Merged dictionary.
         """
-        result = base.copy()
-
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = self._deep_merge(result[key], value)
-            else:
-                result[key] = value
-
-        return result
+        return _deep_merge_fn(base, override)
 
     @lru_cache(maxsize=32)
     def get_profile_metadata(self, profile_name: str) -> Dict[str, Any]:

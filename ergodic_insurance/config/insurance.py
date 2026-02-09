@@ -8,9 +8,12 @@ Since:
     Version 0.9.0 (Issue #458)
 """
 
+import logging
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class InsuranceLayerConfig(BaseModel):
@@ -52,7 +55,7 @@ class InsuranceLayerConfig(BaseModel):
         # Validate based on limit type
         if self.limit_type == "hybrid":
             # For hybrid, need both per-occurrence and aggregate limits
-            if self.per_occurrence_limit is None and self.aggregate_limit is None:
+            if self.per_occurrence_limit is None or self.aggregate_limit is None:
                 raise ValueError(
                     "Hybrid limit type requires both per_occurrence_limit and aggregate_limit to be set"
                 )
@@ -94,7 +97,7 @@ class InsuranceConfig(BaseModel):
 
             # Check for gaps or overlaps
             if current.attachment + current.limit < next_layer.attachment:
-                print(f"Warning: Gap between layers {current.name} and {next_layer.name}")
+                logger.warning("Gap between layers %s and %s", current.name, next_layer.name)
             elif current.attachment + current.limit > next_layer.attachment:
                 raise ValueError(f"Layers {current.name} and {next_layer.name} overlap")
 

@@ -8,9 +8,12 @@ Since:
     Version 0.9.0 (Issue #458)
 """
 
+import logging
 from typing import Dict, Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class PricingScenario(BaseModel):
@@ -126,9 +129,11 @@ class MarketCycles(BaseModel):
         # Check if average duration is reasonable given components
         expected_avg = total_duration / 3
         if abs(self.average_duration_years - expected_avg) > expected_avg * 0.5:
-            print(
-                f"Warning: Average duration ({self.average_duration_years:.1f} years) "
-                f"differs significantly from component average ({expected_avg:.1f} years)"
+            logger.warning(
+                "Average duration (%.1f years) differs significantly from "
+                "component average (%.1f years)",
+                self.average_duration_years,
+                expected_avg,
             )
 
         return self

@@ -272,13 +272,18 @@ class TestInsuranceDecisionEngine:
     @pytest.fixture
     def engine(self, mock_manufacturer, mock_loss_distribution):
         """Create decision engine with mocks."""
-        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
-            # Mock the config loader and pricing config
-            mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+        ) as mock_load:
+            # Mock the pricing config
+            mock_pricing = Mock()
+            mock_pricing.get_scenario.return_value = Mock(
                 primary_layer_rate=0.01,
                 first_excess_rate=0.005,
                 higher_excess_rate=0.002,
             )
+            mock_load.return_value = mock_pricing
 
             engine = InsuranceDecisionEngine(
                 manufacturer=mock_manufacturer,
@@ -395,12 +400,19 @@ class TestInsuranceDecisionEngine:
         loss_dist = Mock(spec=LossDistribution)
         loss_dist.expected_value = Mock(return_value=500_000)
 
-        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
-            mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
-                primary_layer_rate=0.01,
-                first_excess_rate=0.005,
-                higher_excess_rate=0.002,
-            )
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
             engine = InsuranceDecisionEngine(
                 manufacturer=manufacturer,
                 loss_distribution=loss_dist,
@@ -629,12 +641,19 @@ class TestIntegration:
         loss_dist.expected_value = Mock(return_value=100_000)
 
         # Create engine
-        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
-            mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
-                primary_layer_rate=0.01,
-                first_excess_rate=0.005,
-                higher_excess_rate=0.002,
-            )
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
 
             engine = InsuranceDecisionEngine(
                 manufacturer=manufacturer,
@@ -698,23 +717,23 @@ class TestIntegration:
         decisions = {}
 
         for scenario in ["inexpensive", "baseline", "expensive"]:
-            with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
-                # Mock different rates for each scenario
-                rates = {
-                    "inexpensive": (0.005, 0.003, 0.001),
-                    "baseline": (0.01, 0.005, 0.002),
-                    "expensive": (0.015, 0.008, 0.004),
-                }
+            # Mock different rates for each scenario
+            rates = {
+                "inexpensive": (0.005, 0.003, 0.001),
+                "baseline": (0.01, 0.005, 0.002),
+                "expensive": (0.015, 0.008, 0.004),
+            }
 
-                mock_scenario = Mock(
-                    primary_layer_rate=rates[scenario][0],
-                    first_excess_rate=rates[scenario][1],
-                    higher_excess_rate=rates[scenario][2],
-                )
-                mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = (
-                    mock_scenario
-                )
-
+            mock_scenario = Mock(
+                primary_layer_rate=rates[scenario][0],
+                first_excess_rate=rates[scenario][1],
+                higher_excess_rate=rates[scenario][2],
+            )
+            with patch.object(
+                InsuranceDecisionEngine,
+                "_load_pricing_scenarios",
+                return_value=Mock(get_scenario=Mock(return_value=mock_scenario)),
+            ):
                 engine = InsuranceDecisionEngine(
                     manufacturer=manufacturer,
                     loss_distribution=loss_dist,
@@ -998,12 +1017,19 @@ class TestSimulationTaxApplication:
         loss_dist.ppf = Mock(side_effect=lambda p: p * 10_000_000)
         loss_dist.expected_value = Mock(return_value=500_000)
 
-        with patch("ergodic_insurance.decision_engine.ConfigLoader") as mock_loader:
-            mock_loader.return_value.load_pricing_scenarios.return_value.get_scenario.return_value = Mock(
-                primary_layer_rate=0.01,
-                first_excess_rate=0.005,
-                higher_excess_rate=0.002,
-            )
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
             engine = InsuranceDecisionEngine(
                 manufacturer=manufacturer,
                 loss_distribution=loss_dist,
