@@ -478,16 +478,23 @@ class RiskMetrics:
         return return_periods, np.array(loss_values)
 
     def tail_index(self, threshold: Optional[float] = None) -> float:
-        """Estimate tail index using Hill estimator.
+        """Estimate the Pareto tail index alpha via Hill's method.
 
-        The tail index characterizes the heaviness of the tail.
-        Lower values indicate heavier tails.
+        Computes the Pareto shape parameter alpha (= 1 / gamma), where
+        gamma is the extreme value index from Hill (1975).  Larger alpha
+        means thinner tails; smaller alpha means heavier tails.
+
+        Note:
+            The classical Hill estimator returns gamma = (1/k) * sum(ln(X_i/u)).
+            This method returns its reciprocal, alpha = k / sum(ln(X_i/u)),
+            which is the maximum-likelihood estimate of the Pareto shape
+            parameter.  To recover the Hill gamma, compute ``1 / tail_index()``.
 
         Args:
             threshold: Threshold for tail definition (if None, uses 90th percentile).
 
         Returns:
-            Estimated tail index.
+            Estimated Pareto shape parameter alpha (= 1 / Hill gamma).
         """
         if threshold is None:
             threshold = np.percentile(self.losses, 90)
@@ -496,7 +503,7 @@ class RiskMetrics:
         if len(tail_losses) < 2:
             return np.nan
 
-        # Hill estimator
+        # Pareto alpha MLE via Hill's method (reciprocal of Hill gamma)
         k = len(tail_losses)
         hill_estimate = k / np.sum(np.log(tail_losses / threshold))
 
