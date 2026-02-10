@@ -50,7 +50,7 @@ from dataclasses import dataclass
 import logging
 from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -58,7 +58,7 @@ import pandas as pd
 from .config import DEFAULT_RISK_FREE_RATE, Config
 from .decimal_utils import ZERO, to_decimal
 from .insurance import InsurancePolicy
-from .insurance_program import InsuranceProgram
+from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from .loss_distributions import LossData, LossEvent, ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .monte_carlo import MonteCarloEngine
@@ -422,25 +422,25 @@ class Simulation:
             from ergodic_insurance.config import ManufacturerConfig
             from ergodic_insurance.manufacturer import WidgetManufacturer
             from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-            from ergodic_insurance.insurance import InsurancePolicy
+            from ergodic_insurance.insurance_program import InsuranceProgram
             from ergodic_insurance.simulation import Simulation
 
             # Create manufacturer
             config = ManufacturerConfig(initial_assets=10_000_000)
             manufacturer = WidgetManufacturer(config)
 
-            # Create insurance policy
-            policy = InsurancePolicy.from_simple(
+            # Create insurance program
+            program = InsuranceProgram.simple(
                 deductible=500_000,
                 limit=5_000_000,
-                premium_rate=0.02
+                rate=0.02,
             )
 
             # Run simulation
             sim = Simulation(
                 manufacturer=manufacturer,
                 loss_generator=ManufacturingLossGenerator.create_simple(seed=42),
-                insurance_policy=policy,
+                insurance_policy=program,
                 time_horizon=10
             )
             results = sim.run()
@@ -482,7 +482,7 @@ class Simulation:
         loss_generator: Optional[
             Union[ManufacturingLossGenerator, List[ManufacturingLossGenerator]]
         ] = None,
-        insurance_policy: Optional[InsurancePolicy] = None,
+        insurance_policy: Optional[Union[InsuranceProgram, InsurancePolicy]] = None,
         time_horizon: int = 100,
         seed: Optional[int] = None,
         growth_rate: float = 0.0,
@@ -497,8 +497,10 @@ class Simulation:
                 creating loss events. If a list is provided, losses from all
                 generators are combined. If None, a default generator with
                 standard parameters is created.
-            insurance_policy: Insurance policy for claim processing. If None,
-                legacy claim processing is used with fixed parameters.
+            insurance_policy: Insurance program (or deprecated InsurancePolicy)
+                for claim processing. Accepts :class:`InsuranceProgram`
+                (preferred) or :class:`InsurancePolicy` (deprecated, auto-
+                converted). If None, no insurance coverage is applied.
             time_horizon: Number of years to simulate. Must be positive.
             seed: Random seed for reproducibility. Passed to loss generator(s).
             growth_rate: Revenue growth rate per period (default 0.0).
@@ -511,17 +513,17 @@ class Simulation:
         Examples:
             Setup with custom insurance::
 
-                from ergodic_insurance.insurance import InsurancePolicy
+                from ergodic_insurance.insurance_program import InsuranceProgram
 
-                policy = InsurancePolicy(
+                program = InsuranceProgram.simple(
                     deductible=1_000_000,
                     limit=10_000_000,
-                    premium_rate=0.03
+                    rate=0.03,
                 )
 
                 sim = Simulation(
                     manufacturer=manufacturer,
-                    insurance_policy=policy,
+                    insurance_policy=program,
                     time_horizon=50
                 )
 
@@ -556,6 +558,18 @@ class Simulation:
             self.loss_generator = loss_generator
         else:
             self.loss_generator = [loss_generator]
+
+        # Normalize insurance input to InsuranceProgram
+        if insurance_policy is not None and isinstance(insurance_policy, InsurancePolicy):
+            import warnings
+
+            warnings.warn(
+                "Passing InsurancePolicy to Simulation is deprecated. "
+                "Use InsuranceProgram instead (e.g., InsuranceProgram.simple(...)).",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            insurance_policy = insurance_policy.to_enhanced_program()
 
         self.insurance_policy = insurance_policy
         self.time_horizon = time_horizon
@@ -915,7 +929,7 @@ class Simulation:
     def run_monte_carlo(  # pylint: disable=too-many-locals
         cls,
         config: Config,
-        insurance_policy: InsurancePolicy,
+        insurance_policy: Optional[Union[InsuranceProgram, InsurancePolicy]] = None,
         n_scenarios: int = 10000,
         batch_size: int = 1000,
         n_jobs: int = 7,
@@ -931,7 +945,9 @@ class Simulation:
 
         Args:
             config: Configuration object.
-            insurance_policy: Insurance policy to simulate.
+            insurance_policy: Insurance program (or deprecated InsurancePolicy)
+                to simulate. Accepts :class:`InsuranceProgram` (preferred) or
+                :class:`InsurancePolicy` (deprecated, auto-converted).
             n_scenarios: Number of scenarios to run.
             batch_size: Scenarios per batch.
             n_jobs: Number of parallel jobs.
@@ -948,19 +964,21 @@ class Simulation:
 
         loss_generator = ManufacturingLossGenerator(seed=seed)
 
-        # Create insurance program with layers passed to constructor so that
-        # layer_states are properly initialized (Issue #348)
-        if insurance_policy:
-            from .insurance_program import EnhancedInsuranceLayer
+        # Normalize to InsuranceProgram
+        if insurance_policy is not None and isinstance(insurance_policy, InsurancePolicy):
+            import warnings as _warnings
 
-            layer = EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=(
-                    insurance_policy.limit if hasattr(insurance_policy, "limit") else float("inf")
-                ),
-                base_premium_rate=0.01,
+            _warnings.warn(
+                "Passing InsurancePolicy to run_monte_carlo is deprecated. "
+                "Use InsuranceProgram instead.",
+                DeprecationWarning,
+                stacklevel=2,
             )
-            insurance_program = InsuranceProgram(layers=[layer])
+            insurance_policy = insurance_policy.to_enhanced_program()
+
+        # Create insurance program (Issue #348)
+        if insurance_policy is not None:
+            insurance_program = insurance_policy
         else:
             insurance_program = InsuranceProgram(layers=[])
 
@@ -1026,7 +1044,9 @@ class Simulation:
                 geo_with = stats_with["geometric_return"]
                 geo_without = stats_without["geometric_return"]
 
-                premium_cost = insurance_policy.calculate_premium()
+                premium_cost = (
+                    insurance_policy.calculate_premium() if insurance_policy is not None else 0.0
+                )
                 initial_assets = config.manufacturer.initial_assets
                 premium_rate = premium_cost / initial_assets
 
@@ -1073,7 +1093,7 @@ class Simulation:
     def compare_insurance_strategies(
         cls,
         config: Config,
-        insurance_policies: Dict[str, InsurancePolicy],
+        insurance_policies: Mapping[str, Union[InsuranceProgram, InsurancePolicy]],
         n_scenarios: int = 1000,
         n_jobs: int = 7,
         seed: Optional[int] = None,
@@ -1082,7 +1102,8 @@ class Simulation:
 
         Args:
             config: Configuration object.
-            insurance_policies: Dictionary of policy name to InsurancePolicy.
+            insurance_policies: Dictionary of strategy name to
+                :class:`InsuranceProgram` (or deprecated :class:`InsurancePolicy`).
             n_scenarios: Scenarios per policy.
             n_jobs: Number of parallel jobs.
             seed: Random seed.
@@ -1114,12 +1135,11 @@ class Simulation:
             survival_rate = float(np.mean(final_assets > 0)) if len(final_assets) > 0 else 0.0
             mean_final = float(np.mean(final_assets)) if len(final_assets) > 0 else 0.0
             std_final = float(np.std(final_assets, ddof=1)) if len(final_assets) > 1 else 0.0
-            positive_rates = growth_rates[growth_rates > 0]
-            geo_mean = (
-                float(np.exp(np.mean(np.log(positive_rates))) - 1)
-                if len(positive_rates) > 0
-                else 0.0
-            )
+            if len(growth_rates) > 0:
+                growth_factors = np.maximum(1 + growth_rates, 1e-10)
+                geo_mean = float(np.exp(np.mean(np.log(growth_factors))) - 1)
+            else:
+                geo_mean = 0.0
             arith_mean = float(np.mean(growth_rates)) if len(growth_rates) > 0 else 0.0
             p95 = float(np.percentile(final_assets, 95)) if len(final_assets) > 0 else 0.0
             p99 = float(np.percentile(final_assets, 99)) if len(final_assets) > 0 else 0.0

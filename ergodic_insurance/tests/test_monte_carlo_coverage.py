@@ -4,7 +4,7 @@ This test file systematically covers the missing lines identified by coverage an
 - Lines 45-74: _create_manufacturer and _simulate_year_losses helper functions
 - Lines 91-92: _test_worker_function ImportError branch
 - Lines 109-219: _simulate_path_enhanced function
-- Lines 376-394: SimulationResults.summary() bootstrap CI and report sections
+- Lines 376-394: MonteCarloResults.summary() bootstrap CI and report sections
 - Lines 572-580: run() parallel executor reinitialization
 - Line 636: run() bootstrap CI computation
 - Lines 738-745: _run_parallel() scipy import failure fallback
@@ -36,8 +36,8 @@ from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGen
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.monte_carlo import (
     MonteCarloEngine,
+    MonteCarloResults,
     SimulationConfig,
-    SimulationResults,
     _create_manufacturer,
     _simulate_path_enhanced,
     _simulate_year_losses,
@@ -337,15 +337,15 @@ class TestSimulatePathEnhanced:
 
 
 # ===========================================================================
-# Tests for SimulationResults.summary() missing branches (lines 376-394)
+# Tests for MonteCarloResults.summary() missing branches (lines 376-394)
 # ===========================================================================
 
 
-class TestSimulationResultsSummaryBranches:
+class TestMonteCarloResultsSummaryBranches:
     """Tests for bootstrap CI and summary_report branches in summary()."""
 
     def _make_results(self, **overrides):
-        """Helper to create a SimulationResults with optional overrides."""
+        """Helper to create a MonteCarloResults with optional overrides."""
         defaults = {
             "final_assets": np.array([100_000, 200_000]),
             "annual_losses": np.ones((2, 5)),
@@ -359,7 +359,7 @@ class TestSimulationResultsSummaryBranches:
             "config": SimulationConfig(n_simulations=2, n_years=5),
         }
         defaults.update(overrides)
-        return SimulationResults(**defaults)  # type: ignore[arg-type]
+        return MonteCarloResults(**defaults)  # type: ignore[arg-type]
 
     def test_bootstrap_ci_with_asset_metrics(self):
         """Lines 376-384: Bootstrap CI for asset-related metrics formats as currency."""
@@ -455,7 +455,7 @@ class TestRunMethodBranches:
 
         # Mock _run_enhanced_parallel to avoid real parallel work
         with patch.object(engine, "_run_enhanced_parallel") as mock_enhanced:
-            mock_enhanced.return_value = SimulationResults(
+            mock_enhanced.return_value = MonteCarloResults(
                 final_assets=np.ones(20) * 1_000_000,
                 annual_losses=np.zeros((20, 2)),
                 insurance_recoveries=np.zeros((20, 2)),
@@ -609,7 +609,7 @@ class TestRunEnhancedParallel:
                 warnings.simplefilter("always")
                 # _run_enhanced_parallel should catch the error and fall back
                 with patch.object(enhanced_engine, "_run_parallel") as mock_run_parallel:
-                    mock_run_parallel.return_value = SimulationResults(
+                    mock_run_parallel.return_value = MonteCarloResults(
                         final_assets=np.ones(20) * 1_000_000,
                         annual_losses=np.zeros((20, 2)),
                         insurance_recoveries=np.zeros((20, 2)),
@@ -1327,7 +1327,7 @@ class TestMetricsEmptyResults:
 
     def test_empty_final_assets(self, small_engine):
         """Empty arrays should return default metrics without error."""
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=np.array([]),
             annual_losses=np.array([]).reshape(0, 3),
             insurance_recoveries=np.array([]).reshape(0, 3),
@@ -1583,7 +1583,7 @@ class TestWorkerTestReturnsFalse:
             mock_executor.submit.return_value = mock_future
 
             with patch.object(engine, "_run_parallel") as mock_fallback:
-                mock_fallback.return_value = SimulationResults(
+                mock_fallback.return_value = MonteCarloResults(
                     final_assets=np.ones(20) * 1_000_000,
                     annual_losses=np.zeros((20, 2)),
                     insurance_recoveries=np.zeros((20, 2)),

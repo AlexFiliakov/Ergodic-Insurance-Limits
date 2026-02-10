@@ -9,9 +9,9 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.decision_engine import (
     DecisionMetrics,
+    DecisionOptimizationConstraints,
     InsuranceDecision,
     InsuranceDecisionEngine,
-    OptimizationConstraints,
     OptimizationMethod,
 )
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer as Layer
@@ -46,7 +46,7 @@ class TestRealWorldScenarios:
         )
 
         # Startup constraints: limited budget, need basic coverage
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=50_000,  # Limited budget
             min_coverage_limit=500_000,  # Minimum viable coverage
             max_coverage_limit=2_000_000,  # Don't over-insure
@@ -96,7 +96,7 @@ class TestRealWorldScenarios:
         )
 
         # Corporation constraints: comprehensive coverage, low risk
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=5_000_000,  # Substantial budget
             min_coverage_limit=50_000_000,  # High coverage needs
             max_coverage_limit=200_000_000,
@@ -144,7 +144,7 @@ class TestRealWorldScenarios:
         )
 
         # High-risk constraints: need extensive coverage
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=2_000_000,  # Higher budget needed
             min_coverage_limit=20_000_000,  # Regulatory requirements
             max_coverage_limit=100_000_000,
@@ -195,7 +195,7 @@ class TestRealWorldScenarios:
         )
 
         # Downturn constraints: limited budget, essential coverage only
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=200_000,  # Tight budget
             min_coverage_limit=5_000_000,  # Minimum essential coverage
             max_coverage_limit=20_000_000,
@@ -261,7 +261,7 @@ class TestMultiYearOptimizationScenarios:
             )
 
             # Adjust constraints as company grows
-            constraints = OptimizationConstraints(
+            constraints = DecisionOptimizationConstraints(
                 max_premium_budget=100_000 * (year + 1),  # Increasing budget
                 min_coverage_limit=2_000_000 * (year + 1),  # Increasing coverage needs
                 max_coverage_limit=10_000_000 * (year + 1),
@@ -298,7 +298,7 @@ class TestMultiYearOptimizationScenarios:
         loss_dist.expected_value.return_value = 200_000
 
         # Same constraints for comparison
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=10_000_000,
             max_coverage_limit=30_000_000,
@@ -355,7 +355,7 @@ class TestRegulatoryComplianceScenarios:
         )
 
         # Regulatory requirements
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
             min_coverage_limit=15_000_000,  # Total minimum
             max_coverage_limit=50_000_000,
@@ -396,7 +396,7 @@ class TestRegulatoryComplianceScenarios:
         )
 
         # Debt covenant requirements
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=600_000,
             min_coverage_limit=20_000_000,
             max_coverage_limit=60_000_000,
@@ -436,10 +436,12 @@ class TestCatastrophicEventScenarios:
         loss_dist.expected_value.return_value = 500_000
 
         # Simulate potential for catastrophic losses
+        _cat_rng = np.random.default_rng(42)
+
         def generate_loss():
-            if np.random.random() < 0.01:  # 1% chance of catastrophe
-                return np.random.lognormal(17, 1.0)  # ~$10M-50M loss
-            return np.random.lognormal(12, 1.0)  # Normal losses
+            if _cat_rng.random() < 0.01:  # 1% chance of catastrophe
+                return _cat_rng.lognormal(17, 1.0)  # ~$10M-50M loss
+            return _cat_rng.lognormal(12, 1.0)  # Normal losses
 
         loss_dist.rvs = Mock(side_effect=generate_loss)
 
@@ -450,7 +452,7 @@ class TestCatastrophicEventScenarios:
         )
 
         # Focus on catastrophic protection
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=1_000_000,
             min_coverage_limit=30_000_000,  # High limit for catastrophes
             max_coverage_limit=100_000_000,
@@ -497,7 +499,7 @@ class TestCatastrophicEventScenarios:
         )
 
         # Business interruption considerations
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=800_000,
             min_coverage_limit=25_000_000,  # Include BI coverage
             max_coverage_limit=75_000_000,
@@ -554,7 +556,7 @@ class TestPortfolioOptimizationScenarios:
         )
 
         # Portfolio optimization constraints
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=1_500_000,
             min_coverage_limit=40_000_000,
             max_coverage_limit=150_000_000,
@@ -598,7 +600,7 @@ class TestSensitivityAnalysisScenarios:
         )
 
         # Base decision
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=10_000_000,
             max_coverage_limit=30_000_000,

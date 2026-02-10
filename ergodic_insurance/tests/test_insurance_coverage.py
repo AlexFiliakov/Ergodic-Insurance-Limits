@@ -43,10 +43,11 @@ class TestInsurancePolicyCalculateRecovery:
 
     def test_recovery_below_deductible_is_zero(self):
         """Line 326: Claim at or below deductible returns zero recovery."""
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(1_000_000, 5_000_000, 0.03)],
-            deductible=1_000_000,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(1_000_000, 5_000_000, 0.03)],
+                deductible=1_000_000,
+            )
         # Claim exactly at deductible
         recovery = policy.calculate_recovery(1_000_000)
         assert recovery == 0.0
@@ -57,18 +58,20 @@ class TestInsurancePolicyCalculateRecovery:
 
     def test_recovery_zero_claim(self):
         """Zero claim returns zero recovery."""
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(0, 5_000_000, 0.03)],
-            deductible=0,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(0, 5_000_000, 0.03)],
+                deductible=0,
+            )
         recovery = policy.calculate_recovery(0)
         assert recovery == 0.0
 
     def test_recovery_negative_claim(self):
         """Negative claim returns zero recovery."""
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(0, 5_000_000, 0.03)],
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(0, 5_000_000, 0.03)],
+            )
         recovery = policy.calculate_recovery(-100)
         assert recovery == 0.0
 
@@ -78,13 +81,14 @@ class TestInsurancePolicyToEnhancedProgram:
 
     def test_successful_conversion(self):
         """Lines 404-428: Successful conversion to InsuranceProgram."""
-        policy = InsurancePolicy(
-            layers=[
-                InsuranceLayer(1_000_000, 5_000_000, 0.03),
-                InsuranceLayer(6_000_000, 10_000_000, 0.02),
-            ],
-            deductible=1_000_000,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(1_000_000, 5_000_000, 0.03),
+                    InsuranceLayer(6_000_000, 10_000_000, 0.02),
+                ],
+                deductible=1_000_000,
+            )
         program = policy.to_enhanced_program()
         if program is not None:
             assert len(program.layers) == 2
@@ -92,9 +96,10 @@ class TestInsurancePolicyToEnhancedProgram:
 
     def test_conversion_import_failure(self):
         """Lines 422-428: ImportError returns None with warning."""
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(0, 5_000_000, 0.03)],
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(0, 5_000_000, 0.03)],
+            )
         # Mock the import to fail — method should return None
         with patch.dict("sys.modules", {"ergodic_insurance.insurance_program": None}):
             with warnings.catch_warnings(record=True) as w:
@@ -110,20 +115,22 @@ class TestInsurancePolicyApplyPricing:
 
     def test_pricing_not_enabled_raises(self):
         """Line 449: Pricing not enabled raises ValueError."""
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(0, 5_000_000, 0.03)],
-            pricing_enabled=False,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(0, 5_000_000, 0.03)],
+                pricing_enabled=False,
+            )
         with pytest.raises(ValueError, match="Pricing not enabled"):
             policy.apply_pricing(expected_revenue=10_000_000)
 
     def test_pricing_enabled_no_pricer_no_generator_raises(self):
         """Line 453: No pricer and no loss_generator raises ValueError."""
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(0, 5_000_000, 0.03)],
-            pricing_enabled=True,
-            pricer=None,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(0, 5_000_000, 0.03)],
+                pricing_enabled=True,
+                pricer=None,
+            )
         with pytest.raises(ValueError, match="Either pricer or loss_generator"):
             policy.apply_pricing(expected_revenue=10_000_000, loss_generator=None)
 
@@ -134,13 +141,16 @@ class TestInsurancePolicyApplyPricing:
         loss_gen = ManufacturingLossGenerator.create_simple(
             frequency=0.1, severity_mean=500_000, severity_std=200_000, seed=42
         )
-        policy = InsurancePolicy(
-            layers=[InsuranceLayer(100_000, 5_000_000, 0.03)],
-            pricing_enabled=True,
-            pricer=None,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[InsuranceLayer(100_000, 5_000_000, 0.03)],
+                pricing_enabled=True,
+                pricer=None,
+            )
         # Should create pricer from loss_generator
-        policy.apply_pricing(expected_revenue=10_000_000, loss_generator=loss_gen)
+        # apply_pricing internally calls price_insurance_policy which also emits DeprecationWarning
+        with pytest.warns(DeprecationWarning, match="price_insurance_policy.*deprecated"):
+            policy.apply_pricing(expected_revenue=10_000_000, loss_generator=loss_gen)
         assert policy.pricer is not None
 
 
@@ -160,7 +170,8 @@ class TestInsurancePolicyFromYaml:
         with open(yaml_path, "w") as f:
             yaml.dump(config, f)
 
-        policy = InsurancePolicy.from_yaml(str(yaml_path))
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_yaml(str(yaml_path))
         assert len(policy.layers) == 2
         assert policy.deductible == 500_000
 
@@ -170,17 +181,19 @@ class TestInsurancePolicyGetTotalCoverage:
 
     def test_empty_layers_returns_zero(self):
         """Empty layer list returns zero coverage."""
-        policy = InsurancePolicy(layers=[], deductible=0)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=[], deductible=0)
         assert policy.get_total_coverage() == 0.0
 
     def test_multi_layer_coverage(self):
         """Multi-layer total coverage calculation."""
-        policy = InsurancePolicy(
-            layers=[
-                InsuranceLayer(1_000_000, 4_000_000, 0.03),
-                InsuranceLayer(5_000_000, 10_000_000, 0.02),
-            ],
-            deductible=1_000_000,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(1_000_000, 4_000_000, 0.03),
+                    InsuranceLayer(5_000_000, 10_000_000, 0.02),
+                ],
+                deductible=1_000_000,
+            )
         coverage = policy.get_total_coverage()
         assert coverage == 14_000_000  # (5M + 10M) - 1M deductible

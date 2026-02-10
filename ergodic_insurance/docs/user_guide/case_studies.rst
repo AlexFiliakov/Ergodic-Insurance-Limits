@@ -79,14 +79,14 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance import InsuranceProgram, EnhancedInsuranceLayer
 
-   current_policy = InsurancePolicy(
+   current_program = InsuranceProgram(
        layers=[
-           InsuranceLayer(
+           EnhancedInsuranceLayer(
                attachment_point=500_000,
                limit=5_000_000,
-               rate=0.025,
+               base_premium_rate=0.025,
            ),
        ],
        deductible=500_000,
@@ -101,7 +101,7 @@ Analysis Process
    sim = Simulation(
        manufacturer=manufacturer,
        loss_generator=loss_gen,
-       insurance_policy=current_policy,
+       insurance_program=current_program,
        time_horizon=10,
        seed=42,
    )
@@ -111,17 +111,17 @@ Analysis Process
 
 .. code-block:: python
 
-   optimized_policy = InsurancePolicy(
+   optimized_program = InsuranceProgram(
        layers=[
-           InsuranceLayer(
+           EnhancedInsuranceLayer(
                attachment_point=100_000,
                limit=5_000_000,
-               rate=0.025,
+               base_premium_rate=0.025,
            ),
-           InsuranceLayer(
+           EnhancedInsuranceLayer(
                attachment_point=5_100_000,
                limit=20_000_000,
-               rate=0.012,
+               base_premium_rate=0.012,
            ),
        ],
        deductible=100_000,
@@ -130,7 +130,7 @@ Analysis Process
    sim_opt = Simulation(
        manufacturer=WidgetManufacturer(config),
        loss_generator=loss_gen,
-       insurance_policy=optimized_policy,
+       insurance_program=optimized_program,
        time_horizon=10,
        seed=42,
    )
@@ -255,21 +255,21 @@ parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   from ergodic_insurance import InsurancePolicy, InsuranceLayer, Simulation
+   from ergodic_insurance import InsuranceProgram, EnhancedInsuranceLayer, Simulation
 
    # Minimal coverage option
-   minimal_policy = InsurancePolicy(
+   minimal_program = InsuranceProgram(
        layers=[
-           InsuranceLayer(attachment_point=50_000, limit=5_000_000, rate=0.036),
+           EnhancedInsuranceLayer(attachment_point=50_000, limit=5_000_000, base_premium_rate=0.036),
        ],
        deductible=50_000,
    )
 
    # Recommended comprehensive coverage
-   full_policy = InsurancePolicy(
+   full_program = InsuranceProgram(
        layers=[
-           InsuranceLayer(attachment_point=25_000, limit=5_000_000, rate=0.04),
-           InsuranceLayer(attachment_point=5_025_000, limit=45_000_000, rate=0.008),
+           EnhancedInsuranceLayer(attachment_point=25_000, limit=5_000_000, base_premium_rate=0.04),
+           EnhancedInsuranceLayer(attachment_point=5_025_000, limit=45_000_000, base_premium_rate=0.008),
        ],
        deductible=25_000,
    )
@@ -398,22 +398,22 @@ constructor captures this well:
 
 .. code-block:: python
 
-   from ergodic_insurance import InsurancePolicy, InsuranceLayer, Simulation
+   from ergodic_insurance import InsuranceProgram, EnhancedInsuranceLayer, Simulation
 
    # Current structure
-   current = InsurancePolicy(
+   current = InsuranceProgram(
        layers=[
-           InsuranceLayer(attachment_point=250_000, limit=10_000_000, rate=0.015),
-           InsuranceLayer(attachment_point=10_250_000, limit=100_000_000, rate=0.005),
+           EnhancedInsuranceLayer(attachment_point=250_000, limit=10_000_000, base_premium_rate=0.015),
+           EnhancedInsuranceLayer(attachment_point=10_250_000, limit=100_000_000, base_premium_rate=0.005),
        ],
        deductible=250_000,
    )
 
    # Optimized: raise retention, keep catastrophe protection
-   optimized = InsurancePolicy(
+   optimized = InsuranceProgram(
        layers=[
-           InsuranceLayer(attachment_point=2_000_000, limit=8_000_000, rate=0.012),
-           InsuranceLayer(attachment_point=10_000_000, limit=100_000_000, rate=0.005),
+           EnhancedInsuranceLayer(attachment_point=2_000_000, limit=8_000_000, base_premium_rate=0.012),
+           EnhancedInsuranceLayer(attachment_point=10_000_000, limit=100_000_000, base_premium_rate=0.005),
        ],
        deductible=2_000_000,
    )
@@ -490,7 +490,7 @@ Lesson 3: Market Capacity
 
 **Solution:** Structure the program with multiple carriers.
 
-This layered approach also naturally aligns with the framework's ``InsuranceLayer`` API, making it straightforward to model each carrier's contribution independently.
+This layered approach also naturally aligns with the framework's ``EnhancedInsuranceLayer`` API, making it straightforward to model each carrier's contribution independently.
 
 
 Further Analysis
@@ -530,6 +530,6 @@ Your Next Steps
 3. **Run your specific scenario** through the ``Simulation`` engine.
 4. **Compare results** with the relevant model case.
 5. **Iterate on the insurance structure** using different
-   ``InsurancePolicy`` configurations until you find the optimum.
+   ``InsuranceProgram`` configurations until you find the optimum.
 
 These cases are starting points. Your specific situation will require customized analysis, and the framework is designed to make that analysis straightforward and repeatable.

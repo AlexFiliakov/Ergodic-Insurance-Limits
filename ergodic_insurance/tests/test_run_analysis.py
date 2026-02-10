@@ -121,6 +121,38 @@ class TestRunAnalysis:
         )
         assert len(results.insured_results) == 2
 
+    def test_default_severity_std_logs_info(self, caplog):
+        """Omitting loss_severity_std emits an info-level log (#463)."""
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance._run_analysis"):
+            run_analysis(
+                loss_severity_mean=1_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        assert any(
+            "loss_severity_std not provided" in rec.message and "CV=1.0" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_explicit_severity_std_no_warning(self, caplog):
+        """Providing loss_severity_std explicitly should NOT emit the default log."""
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance._run_analysis"):
+            run_analysis(
+                loss_severity_mean=1_000_000,
+                loss_severity_std=500_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        assert not any("loss_severity_std not provided" in rec.message for rec in caplog.records)
+
     def test_config_preserved(self):
         results = run_analysis(
             initial_assets=7_000_000,
@@ -141,9 +173,9 @@ class TestRunAnalysis:
             seed=0,
             compare_uninsured=False,
         )
-        assert results.insurance_policy.deductible == 250_000
-        assert len(results.insurance_policy.layers) == 1
-        assert results.insurance_policy.layers[0].limit == 8_000_000
+        assert results.insurance_program.deductible == 250_000
+        assert len(results.insurance_program.layers) == 1
+        assert results.insurance_program.layers[0].limit == 8_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +325,7 @@ class TestEdgeCases:
             seed=0,
             compare_uninsured=False,
         )
-        assert results.insurance_policy.deductible == 0
+        assert results.insurance_program.deductible == 0
 
     def test_under_ten_lines(self):
         """Acceptance criterion: complete comparison in <10 lines."""

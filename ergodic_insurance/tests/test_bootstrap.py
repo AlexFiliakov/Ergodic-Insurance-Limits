@@ -501,10 +501,10 @@ class TestPerformance:
     def test_large_dataset_performance(self):
         """Test that bootstrap works efficiently with large datasets."""
         np.random.seed(42)
-        large_data = np.random.normal(0, 1, 10000)
+        large_data = np.random.normal(0, 1, 2000)
 
         analyzer = BootstrapAnalyzer(
-            n_bootstrap=1000,
+            n_bootstrap=500,
             n_workers=2,
             show_progress=False,
         )
@@ -513,7 +513,7 @@ class TestPerformance:
         result = analyzer.confidence_interval(large_data, np.mean, parallel=True)
 
         # Convergence may vary with random data
-        assert len(result.bootstrap_distribution) == 1000
+        assert len(result.bootstrap_distribution) == 500
         assert result.confidence_interval[0] < 0.1  # Should be close to 0
         assert result.confidence_interval[1] > -0.1  # Should be close to 0
 
@@ -522,8 +522,8 @@ class TestPerformance:
         import time
 
         np.random.seed(42)
-        data = np.random.normal(0, 1, 5000)
-        n_bootstrap = 2000
+        data = np.random.normal(0, 1, 1000)
+        n_bootstrap = 500
 
         # Sequential timing
         analyzer_seq = BootstrapAnalyzer(

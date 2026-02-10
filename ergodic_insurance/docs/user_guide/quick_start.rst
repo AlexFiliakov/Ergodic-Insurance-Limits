@@ -133,17 +133,17 @@ A real insurance program is a tower of layers, each covering a slice of loss:
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                               Total Premium: $335K/year
 
-For quick single-layer policies, ``run_analysis()`` handles everything
-internally. You can also build a policy object directly:
+For quick single-layer programs, ``run_analysis()`` handles everything
+internally. You can also build a program object directly:
 
 .. code-block:: python
 
-   from ergodic_insurance import InsurancePolicy
+   from ergodic_insurance import InsuranceProgram
 
-   policy = InsurancePolicy.from_simple(
+   program = InsuranceProgram.simple(
        deductible=100_000,
        limit=5_000_000,
-       premium_rate=0.015,
+       rate=0.015,
    )
 
 For multi-layer towers and advanced structures, see

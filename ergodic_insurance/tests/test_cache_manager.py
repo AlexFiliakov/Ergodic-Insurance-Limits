@@ -322,8 +322,10 @@ class TestCacheManager:
 
     def test_ttl_expiration(self, cache_manager):
         """Test time-to-live expiration."""
+        from datetime import datetime, timedelta
+
         # Configure with short TTL
-        cache_manager.config.ttl_hours = 0.0001  # Very short for testing
+        cache_manager.config.ttl_hours = 1  # 1 hour TTL
 
         params = {"ttl": "test"}
         paths = np.random.randn(10, 10)
@@ -331,8 +333,10 @@ class TestCacheManager:
         # Cache data
         cache_manager.cache_simulation_paths(params=params, paths=paths)
 
-        # Sleep to let it expire
-        time.sleep(0.5)
+        # Backdate the cache entry's timestamp to simulate expiration
+        cache_key = cache_manager._generate_cache_key(params)
+        if cache_key in cache_manager._cache_index:
+            cache_manager._cache_index[cache_key].timestamp = datetime.now() - timedelta(hours=2)
 
         # Try to load - should be expired
         loaded = cache_manager.load_simulation_paths(params=params)
@@ -340,6 +344,8 @@ class TestCacheManager:
 
     def test_size_limit_enforcement(self, temp_cache_dir):
         """Test cache size limit enforcement with LRU eviction."""
+        from datetime import datetime, timedelta
+
         # Create cache manager with tiny limit
         config = CacheConfig(
             cache_dir=temp_cache_dir, max_cache_size_gb=0.0001, compression="gzip"  # 100 KB
@@ -355,7 +361,10 @@ class TestCacheManager:
             params=old_params, paths=np.random.randn(10, 10)  # Much smaller array
         )
 
-        time.sleep(0.1)  # Ensure different timestamps
+        # Backdate the old entry to ensure it's the LRU candidate
+        old_key = cache_manager._generate_cache_key(old_params)
+        if old_key in cache_manager._cache_index:
+            cache_manager._cache_index[old_key].last_accessed = datetime.now() - timedelta(hours=1)
 
         # Cache new item (should evict old due to size limit)
         cache_manager.cache_simulation_paths(

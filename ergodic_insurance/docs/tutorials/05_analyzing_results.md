@@ -48,7 +48,7 @@ We assume you have your manufacturer and loss generator configured (see Tutorial
 ```python
 from ergodic_insurance import (
     ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    InsurancePolicy, Simulation,
+    InsuranceProgram, Simulation,
 )
 
 # NovaTech's financial profile
@@ -61,10 +61,10 @@ config = ManufacturerConfig(
 )
 
 # NovaTech's proposed insurance program
-policy = InsurancePolicy.from_simple(
+policy = InsuranceProgram.simple(
     deductible=100_000,
     limit=5_000_000,
-    premium_rate=0.02
+    rate=0.02
 )
 
 # Run paired simulations
@@ -83,7 +83,7 @@ for seed in range(n_sims):
     sim_insured = Simulation(
         manufacturer=mfg_insured,
         loss_generator=loss_gen_insured,
-        insurance_policy=policy,
+        insurance_program=policy,
         time_horizon=time_horizon,
         seed=seed
     )
@@ -97,7 +97,7 @@ for seed in range(n_sims):
     sim_uninsured = Simulation(
         manufacturer=mfg_uninsured,
         loss_generator=loss_gen_uninsured,
-        # No insurance_policy here
+        # No insurance_program here
         time_horizon=time_horizon,
         seed=seed
     )
@@ -525,7 +525,7 @@ Here is the complete end-to-end analysis pipeline that Dana would run before her
 import numpy as np
 from ergodic_insurance import (
     ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    InsurancePolicy, InsuranceLayer, Simulation, ErgodicAnalyzer,
+    InsuranceProgram, EnhancedInsuranceLayer, Simulation, ErgodicAnalyzer,
 )
 
 # ============================================================
@@ -539,8 +539,8 @@ config = ManufacturerConfig(
     retention_ratio=1.0
 )
 
-policy = InsurancePolicy(
-    layers=[InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)],
+policy = InsuranceProgram(
+    layers=[EnhancedInsuranceLayer(attachment_point=100_000, limit=5_000_000, base_premium_rate=0.02)],
     deductible=100_000
 )
 
@@ -561,7 +561,7 @@ for seed in range(n_sims):
     )
     sim = Simulation(
         manufacturer=mfg, loss_generator=loss_gen,
-        insurance_policy=policy, time_horizon=time_horizon, seed=seed
+        insurance_program=policy, time_horizon=time_horizon, seed=seed
     )
     insured_results.append(sim.run())
 
@@ -594,7 +594,7 @@ unins = comparison['uninsured']
 adv = comparison['ergodic_advantage']
 
 # Calculate cost-benefit ratio
-annual_premium = policy.calculate_premium()
+annual_premium = policy.calculate_annual_premium()
 expected_annual_loss = 0.2 * 1_000_000  # frequency x severity mean
 premium_loading = (annual_premium / expected_annual_loss - 1) * 100
 
@@ -651,8 +651,8 @@ Use the following table as a reference when reading `compare_scenarios()` output
 
 Run 200 paired simulations comparing NovaTech's current insurance program (low limits, high retention) against a proposed enhanced program (higher limits, lower retention). Calculate the ergodic divergence for each. Specifically:
 
-- **Current program**: `InsurancePolicy(layers=[InsuranceLayer(500_000, 2_000_000, 0.015)], deductible=500_000)`
-- **Proposed program**: `InsurancePolicy(layers=[InsuranceLayer(100_000, 5_000_000, 0.02)], deductible=100_000)`
+- **Current program**: `InsuranceProgram(layers=[EnhancedInsuranceLayer(500_000, 2_000_000, base_premium_rate=0.015)], deductible=500_000)`
+- **Proposed program**: `InsuranceProgram(layers=[EnhancedInsuranceLayer(100_000, 5_000_000, base_premium_rate=0.02)], deductible=100_000)`
 
 Compare the `time_average_gain` and `survival_gain` from `compare_scenarios()` for each program against the uninsured baseline. Which program produces a larger ergodic advantage?
 

@@ -265,6 +265,7 @@ class TestSensitivityMatrix:
     @pytest.fixture
     def multiple_results(self):
         """Create multiple sensitivity results."""
+        rng = np.random.default_rng(42)
         results = {}
 
         for param in ["frequency", "severity", "premium"]:
@@ -272,7 +273,7 @@ class TestSensitivityMatrix:
                 parameter=param,
                 baseline_value=10.0,
                 variations=np.linspace(7, 13, 7),  # ±30%
-                metrics={"optimal_roe": np.random.uniform(0.08, 0.15, 7)},
+                metrics={"optimal_roe": rng.uniform(0.08, 0.15, 7)},
             )
 
         return results
@@ -335,12 +336,14 @@ class TestSensitivityReport:
         )
 
         # Mock parameter analysis
+        _mock_rng = np.random.default_rng(42)
+
         def mock_analyze(param, **kwargs):
             return SensitivityResult(
                 parameter=param,
                 baseline_value=10.0,
                 variations=np.linspace(7, 13, 5),
-                metrics={"optimal_roe": np.random.uniform(0.08, 0.15, 5)},
+                metrics={"optimal_roe": _mock_rng.uniform(0.08, 0.15, 5)},
             )
 
         analyzer.analyze_parameter.side_effect = mock_analyze

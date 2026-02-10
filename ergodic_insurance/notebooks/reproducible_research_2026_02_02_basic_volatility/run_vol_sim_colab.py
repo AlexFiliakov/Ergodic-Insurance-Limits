@@ -13,7 +13,7 @@ from ergodic_insurance.exposure_base import RevenueExposure
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from ergodic_insurance.stochastic_processes import GeometricBrownianMotion, StochasticConfig
 
 warnings.filterwarnings("ignore")

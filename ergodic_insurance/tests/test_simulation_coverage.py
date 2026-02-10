@@ -9,6 +9,7 @@ Coverage targets:
 """
 
 from unittest.mock import MagicMock, Mock, patch
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -74,23 +75,27 @@ def manufacturer(manufacturer_config):
 @pytest.fixture
 def simple_insurance_policy():
     """Create a basic insurance policy for testing."""
-    layer = InsuranceLayer(
-        attachment_point=500_000,
-        limit=5_000_000,
-        rate=0.02,
-    )
-    return InsurancePolicy(layers=[layer], deductible=500_000)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        layer = InsuranceLayer(
+            attachment_point=500_000,
+            limit=5_000_000,
+            rate=0.02,
+        )
+        return InsurancePolicy(layers=[layer], deductible=500_000)
 
 
 @pytest.fixture
 def simulation_with_policy(manufacturer, simple_insurance_policy):
     """Create a simulation instance with insurance policy attached."""
-    return Simulation(
-        manufacturer=manufacturer,
-        insurance_policy=simple_insurance_policy,
-        time_horizon=10,
-        seed=42,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return Simulation(
+            manufacturer=manufacturer,
+            insurance_policy=simple_insurance_policy,
+            time_horizon=10,
+            seed=42,
+        )
 
 
 @pytest.fixture
@@ -364,12 +369,14 @@ class TestRunMonteCarlo:
     @pytest.fixture
     def test_policy(self):
         """Create a test insurance policy with known premium and coverage."""
-        layer = InsuranceLayer(
-            attachment_point=500_000,
-            limit=5_000_000,
-            rate=0.02,
-        )
-        return InsurancePolicy(layers=[layer], deductible=500_000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            layer = InsuranceLayer(
+                attachment_point=500_000,
+                limit=5_000_000,
+                rate=0.02,
+            )
+            return InsurancePolicy(layers=[layer], deductible=500_000)
 
     @staticmethod
     def _make_mock_mc_results(has_statistics=True, has_geo_return=True):
@@ -418,13 +425,15 @@ class TestRunMonteCarlo:
 
         MockMCEngine.side_effect = [mock_engine_insured, mock_engine_uninsured]
 
-        output = Simulation.run_monte_carlo(
-            config=full_config,
-            insurance_policy=test_policy,
-            n_scenarios=100,
-            n_jobs=1,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            output = Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=100,
+                n_jobs=1,
+                seed=42,
+            )
 
         # Verify both engines were created and run
         assert MockMCEngine.call_count == 2
@@ -470,13 +479,15 @@ class TestRunMonteCarlo:
 
         MockMCEngine.side_effect = [mock_engine_insured, mock_engine_uninsured]
 
-        output = Simulation.run_monte_carlo(
-            config=full_config,
-            insurance_policy=test_policy,
-            n_scenarios=50,
-            n_jobs=1,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            output = Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=50,
+                n_jobs=1,
+                seed=42,
+            )
 
         assert "results_with_insurance" in output
         assert "results_without_insurance" in output
@@ -503,13 +514,15 @@ class TestRunMonteCarlo:
 
         MockMCEngine.side_effect = [mock_engine_insured, mock_engine_uninsured]
 
-        output = Simulation.run_monte_carlo(
-            config=full_config,
-            insurance_policy=test_policy,
-            n_scenarios=50,
-            n_jobs=1,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            output = Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=50,
+                n_jobs=1,
+                seed=42,
+            )
 
         assert "results_with_insurance" in output
         assert "results_without_insurance" in output
@@ -524,13 +537,15 @@ class TestRunMonteCarlo:
         mock_engine.run.return_value = mock_results
         MockMCEngine.return_value = mock_engine
 
-        Simulation.run_monte_carlo(
-            config=full_config,
-            insurance_policy=test_policy,
-            n_scenarios=50,
-            n_jobs=4,
-            seed=99,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=50,
+                n_jobs=4,
+                seed=99,
+            )
 
         # Check that MonteCarloEngine was called with proper config
         assert MockMCEngine.call_count == 2
@@ -549,13 +564,15 @@ class TestRunMonteCarlo:
         mock_engine.run.return_value = mock_results
         MockMCEngine.return_value = mock_engine
 
-        Simulation.run_monte_carlo(
-            config=full_config,
-            insurance_policy=test_policy,
-            n_scenarios=10,
-            n_jobs=1,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=10,
+                n_jobs=1,
+                seed=42,
+            )
 
         call_kwargs = MockMCEngine.call_args_list[0][1]
         sim_config = call_kwargs["config"]
@@ -577,13 +594,15 @@ class TestRunMonteCarlo:
 
         MockMCEngine.side_effect = [mock_engine_insured, mock_engine_uninsured]
 
-        output = Simulation.run_monte_carlo(
-            config=full_config,
-            insurance_policy=test_policy,
-            n_scenarios=100,
-            n_jobs=1,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            output = Simulation.run_monte_carlo(
+                config=full_config,
+                insurance_policy=test_policy,
+                n_scenarios=100,
+                n_jobs=1,
+                seed=42,
+            )
 
         expected_premium = test_policy.calculate_premium()
         expected_initial_assets = full_config.manufacturer.initial_assets
@@ -611,26 +630,28 @@ class TestCompareInsuranceStrategies:
     @pytest.fixture
     def policy_dict(self):
         """Create a dictionary of insurance policies for comparison."""
-        low_coverage = InsurancePolicy(
-            layers=[InsuranceLayer(500_000, 2_000_000, 0.015)],
-            deductible=500_000,
-        )
-        medium_coverage = InsurancePolicy(
-            layers=[InsuranceLayer(500_000, 5_000_000, 0.02)],
-            deductible=500_000,
-        )
-        high_coverage = InsurancePolicy(
-            layers=[
-                InsuranceLayer(500_000, 5_000_000, 0.025),
-                InsuranceLayer(5_500_000, 10_000_000, 0.015),
-            ],
-            deductible=500_000,
-        )
-        return {
-            "Low": low_coverage,
-            "Medium": medium_coverage,
-            "High": high_coverage,
-        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            low_coverage = InsurancePolicy(
+                layers=[InsuranceLayer(500_000, 2_000_000, 0.015)],
+                deductible=500_000,
+            )
+            medium_coverage = InsurancePolicy(
+                layers=[InsuranceLayer(500_000, 5_000_000, 0.02)],
+                deductible=500_000,
+            )
+            high_coverage = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(500_000, 5_000_000, 0.025),
+                    InsuranceLayer(5_500_000, 10_000_000, 0.015),
+                ],
+                deductible=500_000,
+            )
+            return {
+                "Low": low_coverage,
+                "Medium": medium_coverage,
+                "High": high_coverage,
+            }
 
     @staticmethod
     def _make_mc_output(n_scenarios=100):
@@ -736,12 +757,14 @@ class TestCompareInsuranceStrategies:
     @patch.object(Simulation, "run_monte_carlo")
     def test_compare_single_policy(self, mock_run_mc, full_config):
         """Works correctly with a single policy."""
-        single_policy = {
-            "OnlyPolicy": InsurancePolicy(
-                layers=[InsuranceLayer(0, 1_000_000, 0.03)],
-                deductible=0,
-            )
-        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            single_policy = {
+                "OnlyPolicy": InsurancePolicy(
+                    layers=[InsuranceLayer(0, 1_000_000, 0.03)],
+                    deductible=0,
+                )
+            }
         mock_run_mc.return_value = self._make_mc_output()
 
         df = Simulation.compare_insurance_strategies(
@@ -796,12 +819,14 @@ class TestCompareInsuranceStrategies:
             "results_without_insurance": MagicMock(),
         }
 
-        single_policy = {
-            "TestPolicy": InsurancePolicy(
-                layers=[InsuranceLayer(0, 1_000_000, 0.02)],
-                deductible=0,
-            )
-        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            single_policy = {
+                "TestPolicy": InsurancePolicy(
+                    layers=[InsuranceLayer(0, 1_000_000, 0.02)],
+                    deductible=0,
+                )
+            }
 
         df = Simulation.compare_insurance_strategies(
             config=full_config,
@@ -816,9 +841,8 @@ class TestCompareInsuranceStrategies:
         assert df.iloc[0]["survival_rate"] == pytest.approx(0.7, rel=1e-6)
 
     @patch.object(Simulation, "run_monte_carlo")
-    def test_compare_geometric_return_from_positive_rates(self, mock_run_mc, full_config):
-        """Geometric return should be calculated from positive growth
-        rates only."""
+    def test_compare_geometric_return_uses_all_rates(self, mock_run_mc, full_config):
+        """Geometric return should use ALL growth rates via growth factors."""
         mock_sim_results = MagicMock()
         mock_sim_results.final_assets = np.array([1_000_000.0] * 5)
         # Mix of positive and negative growth rates
@@ -829,12 +853,14 @@ class TestCompareInsuranceStrategies:
             "results_without_insurance": MagicMock(),
         }
 
-        single_policy = {
-            "Test": InsurancePolicy(
-                layers=[InsuranceLayer(0, 1_000_000, 0.02)],
-                deductible=0,
-            )
-        }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            single_policy = {
+                "Test": InsurancePolicy(
+                    layers=[InsuranceLayer(0, 1_000_000, 0.02)],
+                    deductible=0,
+                )
+            }
 
         df = Simulation.compare_insurance_strategies(
             config=full_config,
@@ -844,10 +870,44 @@ class TestCompareInsuranceStrategies:
             seed=42,
         )
 
-        # Geometric mean of positive rates only: [0.10, 0.05, 0.08]
-        positive_rates = np.array([0.10, 0.05, 0.08])
-        expected_geo = float(np.exp(np.mean(np.log(positive_rates))) - 1)
+        # Geometric mean of ALL growth factors: [1.10, 1.05, 0.97, 1.08, 0.99]
+        all_rates = np.array([0.10, 0.05, -0.03, 0.08, -0.01])
+        growth_factors = np.maximum(1 + all_rates, 1e-10)
+        expected_geo = float(np.exp(np.mean(np.log(growth_factors))) - 1)
         assert df.iloc[0]["geometric_return"] == pytest.approx(expected_geo, rel=1e-4)
+
+    @patch.object(Simulation, "run_monte_carlo")
+    def test_compare_geometric_return_handles_total_wipeout(self, mock_run_mc, full_config):
+        """Growth rates <= -1 should produce a finite geometric return."""
+        mock_sim_results = MagicMock()
+        mock_sim_results.final_assets = np.array([0.0, 0.0, 1_000_000.0])
+        # Total wipeout rates (-1.0 means 100% loss)
+        mock_sim_results.growth_rates = np.array([-1.0, -1.5, 0.05])
+
+        mock_run_mc.return_value = {
+            "results_with_insurance": mock_sim_results,
+            "results_without_insurance": MagicMock(),
+        }
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            single_policy = {
+                "Test": InsurancePolicy(
+                    layers=[InsuranceLayer(0, 1_000_000, 0.02)],
+                    deductible=0,
+                )
+            }
+
+        df = Simulation.compare_insurance_strategies(
+            config=full_config,
+            insurance_policies=single_policy,
+            n_scenarios=3,
+            n_jobs=1,
+            seed=42,
+        )
+
+        geo = df.iloc[0]["geometric_return"]
+        assert np.isfinite(geo), f"Geometric return should be finite, got {geo}"
 
 
 # ---------------------------------------------------------------------------

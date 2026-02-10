@@ -69,14 +69,15 @@ __all__ = [
     "run_analysis",
     "AnalysisResults",
     # Insurance & Risk
-    "InsurancePolicy",
-    "InsuranceLayer",
     "InsuranceProgram",
     "EnhancedInsuranceLayer",
+    "InsurancePolicy",  # Deprecated — use InsuranceProgram
+    "InsuranceLayer",  # Deprecated — use EnhancedInsuranceLayer
     "InsurancePricer",
     "MarketCycle",
     "RiskMetrics",
     "MonteCarloEngine",
+    "MonteCarloResults",
     "RuinProbabilityAnalyzer",
     # Business optimization
     "BusinessObjective",
@@ -127,6 +128,11 @@ __all__ = [
     "EntryType",
     "AccountType",
     "AccountName",
+    # Warning classes
+    "ErgodicInsuranceWarning",
+    "ConfigurationWarning",
+    "DataQualityWarning",
+    "ExportWarning",
 ]
 
 
@@ -181,10 +187,13 @@ def __getattr__(name):
         from .risk_metrics import RiskMetrics  # pylint: disable=import-outside-toplevel
 
         return RiskMetrics
-    if name == "MonteCarloEngine":
-        from .monte_carlo import MonteCarloEngine  # pylint: disable=import-outside-toplevel
+    if name in ("MonteCarloEngine", "MonteCarloResults"):
+        from .monte_carlo import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            MonteCarloEngine,
+            MonteCarloResults,
+        )
 
-        return MonteCarloEngine
+        return locals()[name]
     if name == "RuinProbabilityAnalyzer":
         from .ruin_probability import (  # pylint: disable=import-outside-toplevel
             RuinProbabilityAnalyzer,
@@ -316,6 +325,20 @@ def __getattr__(name):
             Ledger,
             LedgerEntry,
             TransactionType,
+        )
+
+        return locals()[name]
+    if name in (
+        "ErgodicInsuranceWarning",
+        "ConfigurationWarning",
+        "DataQualityWarning",
+        "ExportWarning",
+    ):
+        from ._warnings import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            ConfigurationWarning,
+            DataQualityWarning,
+            ErgodicInsuranceWarning,
+            ExportWarning,
         )
 
         return locals()[name]

@@ -10,9 +10,9 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decimal_utils import to_decimal
 from ergodic_insurance.decision_engine import (
     DecisionMetrics,
+    DecisionOptimizationConstraints,
     InsuranceDecision,
     InsuranceDecisionEngine,
-    OptimizationConstraints,
     OptimizationMethod,
     Recommendations,
     SensitivityReport,
@@ -141,7 +141,7 @@ class TestWeightedSumOptimization:
 
     def test_weighted_sum_optimization(self, engine):
         """Test explicit WEIGHTED_SUM optimization method."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=15_000_000,
@@ -390,7 +390,7 @@ class TestDecisionValidationFailures:
 
     def test_validation_failure_coverage_below_minimum(self, engine):
         """Test validation when coverage is below minimum."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             min_coverage_limit=10_000_000,
             max_coverage_limit=20_000_000,
         )
@@ -408,7 +408,7 @@ class TestDecisionValidationFailures:
 
     def test_validation_failure_coverage_above_maximum(self, engine):
         """Test validation when coverage exceeds maximum."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             min_coverage_limit=5_000_000,
             max_coverage_limit=10_000_000,
         )
@@ -426,7 +426,7 @@ class TestDecisionValidationFailures:
 
     def test_validation_failure_retention_below_minimum(self, engine):
         """Test validation when retention is below minimum."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             min_retained_limit=500_000,
             max_retained_limit=2_000_000,
         )
@@ -444,7 +444,7 @@ class TestDecisionValidationFailures:
 
     def test_validation_failure_retention_above_maximum(self, engine):
         """Test validation when retention exceeds maximum."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             min_retained_limit=100_000,
             max_retained_limit=1_000_000,
         )
@@ -462,7 +462,7 @@ class TestDecisionValidationFailures:
 
     def test_validation_failure_too_many_layers(self, engine):
         """Test validation when too many layers exist."""
-        constraints = OptimizationConstraints(max_layers=2)
+        constraints = DecisionOptimizationConstraints(max_layers=2)
 
         decision = InsuranceDecision(
             retained_limit=1_000_000,
@@ -973,7 +973,7 @@ class TestDifferentialEvolutionPenalties:
 
     def test_differential_evolution_coverage_max_penalty(self, engine):
         """Test penalty when coverage exceeds maximum in differential evolution."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_coverage_limit=10_000_000,
             min_coverage_limit=5_000_000,
             max_premium_budget=500_000,

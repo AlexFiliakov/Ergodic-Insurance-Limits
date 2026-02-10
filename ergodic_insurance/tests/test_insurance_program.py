@@ -17,7 +17,7 @@ from ergodic_insurance.insurance_program import (
     InsuranceProgram,
     LayerState,
     OptimalStructure,
-    OptimizationConstraints,
+    ProgramOptimizationConstraints,
     ProgramState,
     ReinstatementType,
 )
@@ -44,21 +44,42 @@ class TestEnhancedInsuranceLayer:
         assert layer.reinstatement_premium == 1.0
         assert layer.reinstatement_type == ReinstatementType.PRO_RATA
 
-    def test_invalid_parameters(self):
+    @pytest.mark.parametrize(
+        "kwargs,match",
+        [
+            (
+                {"attachment_point": -100, "limit": 1_000_000, "base_premium_rate": 0.01},
+                "Attachment point must be non-negative",
+            ),
+            (
+                {"attachment_point": 0, "limit": -1_000_000, "base_premium_rate": 0.01},
+                "Limit must be positive",
+            ),
+            (
+                {"attachment_point": 0, "limit": 1_000_000, "base_premium_rate": -0.01},
+                "Base premium rate must be non-negative",
+            ),
+            (
+                {
+                    "attachment_point": 0,
+                    "limit": 1_000_000,
+                    "base_premium_rate": 0.01,
+                    "reinstatements": -1,
+                },
+                "Reinstatements must be non-negative",
+            ),
+        ],
+        ids=[
+            "negative-attachment",
+            "negative-limit",
+            "negative-rate",
+            "negative-reinstatements",
+        ],
+    )
+    def test_invalid_parameters(self, kwargs, match):
         """Test that invalid parameters raise errors."""
-        with pytest.raises(ValueError, match="Attachment point must be non-negative"):
-            EnhancedInsuranceLayer(attachment_point=-100, limit=1_000_000, base_premium_rate=0.01)
-
-        with pytest.raises(ValueError, match="Limit must be positive"):
-            EnhancedInsuranceLayer(attachment_point=0, limit=-1_000_000, base_premium_rate=0.01)
-
-        with pytest.raises(ValueError, match="Base premium rate must be non-negative, got -0.01"):
-            EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=-0.01)
-
-        with pytest.raises(ValueError, match="Reinstatements must be non-negative"):
-            EnhancedInsuranceLayer(
-                attachment_point=0, limit=1_000_000, base_premium_rate=0.01, reinstatements=-1
-            )
+        with pytest.raises(ValueError, match=match):
+            EnhancedInsuranceLayer(**kwargs)
 
     def test_calculate_base_premium(self):
         """Test base premium calculation."""
@@ -68,45 +89,44 @@ class TestEnhancedInsuranceLayer:
 
         assert layer.calculate_base_premium() == 100_000  # 5M * 0.02
 
-    def test_reinstatement_premium_pro_rata(self):
-        """Test pro-rata reinstatement premium calculation."""
+    @pytest.mark.parametrize(
+        "reinstatement_premium,reinstatement_type,expected",
+        [
+            (0.5, ReinstatementType.PRO_RATA, 25_000),  # 100K base * 0.5 * 0.5 timing
+            (1.0, ReinstatementType.FULL, 100_000),  # Full base premium (timing ignored)
+            (0.0, ReinstatementType.FREE, 0.0),  # Free reinstatement
+        ],
+        ids=["pro-rata", "full", "free"],
+    )
+    def test_reinstatement_premium(self, reinstatement_premium, reinstatement_type, expected):
+        """Test reinstatement premium calculation for all types."""
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000,
             limit=5_000_000,
             base_premium_rate=0.02,
-            reinstatement_premium=0.5,
-            reinstatement_type=ReinstatementType.PRO_RATA,
+            reinstatement_premium=reinstatement_premium,
+            reinstatement_type=reinstatement_type,
         )
 
-        # Half year remaining
         premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
-        assert premium == 25_000  # 100K base * 0.5 reinstatement * 0.5 timing
+        assert premium == expected
 
-    def test_reinstatement_premium_full(self):
-        """Test full reinstatement premium calculation."""
+    def test_exhausted_is_dataclass_field(self):
+        """exhausted should be a proper dataclass field, appearing in asdict and __eq__."""
+        from dataclasses import asdict
+
         layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000,
-            limit=5_000_000,
-            base_premium_rate=0.02,
-            reinstatement_premium=1.0,
-            reinstatement_type=ReinstatementType.FULL,
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
         )
+        d = asdict(layer)
+        assert "exhausted" in d
+        assert d["exhausted"] == 0.0
 
-        # Timing doesn't matter for full reinstatement
-        premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
-        assert premium == 100_000  # Full base premium
-
-    def test_reinstatement_premium_free(self):
-        """Test free reinstatement premium calculation."""
-        layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000,
-            limit=5_000_000,
-            base_premium_rate=0.02,
-            reinstatement_type=ReinstatementType.FREE,
+        # Two identical layers should be equal (exhausted participates in __eq__)
+        layer2 = EnhancedInsuranceLayer(
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
         )
-
-        premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
-        assert premium == 0.0
+        assert layer == layer2
 
     def test_can_respond(self):
         """Test layer response determination."""
@@ -485,6 +505,41 @@ class TestInsuranceProgram:
 
         assert program.get_total_coverage() == 25_000_000
 
+    def test_get_total_coverage_subtracts_deductible(self):
+        """get_total_coverage should return gross coverage minus deductible."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.01
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=1_000_000)
+        # Gross = 25M, net = 25M - 1M = 24M
+        assert program.get_total_coverage() == 24_000_000
+
+    def test_get_total_coverage_consistent_with_policy(self):
+        """InsuranceProgram.get_total_coverage should match InsurancePolicy for same config."""
+        from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+
+        layers_basic = [
+            InsuranceLayer(attachment_point=500_000, limit=4_500_000, rate=0.015),
+            InsuranceLayer(attachment_point=5_000_000, limit=20_000_000, rate=0.008),
+        ]
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers_basic, deductible=500_000)
+
+        program = policy.to_enhanced_program()
+        assert program is not None
+        assert program.get_total_coverage() == policy.get_total_coverage()
+
+    def test_get_total_coverage_deductible_exceeds_layers(self):
+        """get_total_coverage returns 0 when deductible exceeds highest layer exhaust."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=100_000, limit=200_000, base_premium_rate=0.01),
+        ]
+        program = InsuranceProgram(layers, deductible=500_000)
+        assert program.get_total_coverage() == 0.0
+
     def test_yaml_loading(self):
         """Test loading program from YAML configuration."""
         config = {
@@ -831,7 +886,7 @@ class TestInsuranceProgramOptimization:
         """Test structure optimization with custom constraints."""
         program = InsuranceProgram.create_standard_manufacturing_program()
 
-        constraints = OptimizationConstraints(
+        constraints = ProgramOptimizationConstraints(
             max_total_premium=400_000,
             min_total_coverage=30_000_000,
             max_layers=4,
@@ -862,7 +917,7 @@ class TestInsuranceProgramOptimization:
 
     def test_optimization_constraints_defaults(self):
         """Test default optimization constraints."""
-        constraints = OptimizationConstraints()
+        constraints = ProgramOptimizationConstraints()
 
         assert constraints.max_layers == 5
         assert constraints.min_layers == 3
@@ -909,7 +964,7 @@ class TestInsuranceProgramOptimization:
         """Test that optimization converges within iteration limit."""
         program = InsuranceProgram.create_standard_manufacturing_program()
 
-        constraints = OptimizationConstraints(max_iterations=10)
+        constraints = ProgramOptimizationConstraints(max_iterations=10)
 
         optimal = program.optimize_layer_structure(sample_loss_data, constraints=constraints)
 
@@ -1150,3 +1205,197 @@ class TestOverRecoveryGuard:
         result = program.process_claim(5_000_001)
         # First layer pays 4M, second layer pays min(5M+1 - 5M, 10M) = 1
         assert result["insurance_recovery"] == 4_000_001
+
+
+class TestInsuranceProgramSimple:
+    """Tests for InsuranceProgram.simple() convenience constructor."""
+
+    def test_creates_single_layer_program(self):
+        """simple() should create a program with exactly one layer."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert len(program.layers) == 1
+
+    def test_deductible_set_correctly(self):
+        """Deductible on the program matches the argument."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert program.deductible == 500_000
+
+    def test_layer_attachment_equals_deductible(self):
+        """The single layer's attachment point equals the deductible."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert program.layers[0].attachment_point == 500_000
+
+    def test_layer_limit_and_rate(self):
+        """Layer limit and rate match the arguments."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert program.layers[0].limit == 10_000_000
+        assert program.layers[0].base_premium_rate == 0.025
+
+    def test_default_name(self):
+        """simple() uses default name 'Simple Insurance Program'."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert program.name == "Simple Insurance Program"
+
+    def test_custom_name(self):
+        """simple() respects custom name."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+            name="My Custom Program",
+        )
+        assert program.name == "My Custom Program"
+
+    def test_no_reinstatements(self):
+        """simple() creates a layer with no reinstatements."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert program.layers[0].reinstatements == 0
+
+    def test_premium_calculation(self):
+        """Premium is limit * rate."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+        assert program.calculate_premium() == 250_000  # 10M * 0.025
+
+    def test_claim_processing(self):
+        """Claims flow correctly through a simple() program."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+
+        # Below deductible
+        result = program.process_claim(300_000)
+        assert result["deductible_paid"] == 300_000
+        assert result["insurance_recovery"] == 0
+
+        # Partially in layer
+        result = program.process_claim(3_000_000)
+        assert result["deductible_paid"] == 500_000
+        assert result["insurance_recovery"] == 2_500_000
+
+    def test_zero_deductible(self):
+        """simple() works with zero deductible."""
+        program = InsuranceProgram.simple(
+            deductible=0,
+            limit=5_000_000,
+            rate=0.03,
+        )
+        assert program.deductible == 0
+        assert program.layers[0].attachment_point == 0
+
+    def test_kwargs_forwarded(self):
+        """Extra kwargs are forwarded to InsuranceProgram.__init__."""
+        program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+            pricing_enabled=True,
+        )
+        assert program.pricing_enabled is True
+
+    def test_equivalent_to_manual_construction(self):
+        """simple() produces equivalent behavior to manual construction."""
+        manual_layer = EnhancedInsuranceLayer(
+            attachment_point=500_000,
+            limit=10_000_000,
+            base_premium_rate=0.025,
+            reinstatements=0,
+        )
+        manual_program = InsuranceProgram(layers=[manual_layer], deductible=500_000)
+
+        simple_program = InsuranceProgram.simple(
+            deductible=500_000,
+            limit=10_000_000,
+            rate=0.025,
+        )
+
+        # Same structure
+        assert simple_program.deductible == manual_program.deductible
+        assert len(simple_program.layers) == len(manual_program.layers)
+        assert (
+            simple_program.layers[0].attachment_point == manual_program.layers[0].attachment_point
+        )
+        assert simple_program.layers[0].limit == manual_program.layers[0].limit
+        assert (
+            simple_program.layers[0].base_premium_rate == manual_program.layers[0].base_premium_rate
+        )
+
+        # Same premium
+        assert simple_program.calculate_premium() == manual_program.calculate_premium()
+
+
+class TestInsuranceProgramCalculatePremium:
+    """Tests for InsuranceProgram.calculate_premium() alias."""
+
+    def test_calculate_premium_matches_annual(self):
+        """calculate_premium() should match calculate_annual_premium(0.0)."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000,
+                limit=10_000_000,
+                base_premium_rate=0.01,
+            ),
+        ]
+        program = InsuranceProgram(layers)
+        assert program.calculate_premium() == program.calculate_annual_premium(0.0)
+
+    def test_calculate_premium_value(self):
+        """calculate_premium() returns correct total premium."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000,
+                limit=10_000_000,
+                base_premium_rate=0.01,
+            ),
+        ]
+        program = InsuranceProgram(layers)
+        expected = 5_000_000 * 0.02 + 10_000_000 * 0.01  # 100K + 100K = 200K
+        assert program.calculate_premium() == expected
+
+    def test_calculate_premium_empty_program(self):
+        """calculate_premium() returns 0 for empty program."""
+        program = InsuranceProgram(layers=[])
+        assert program.calculate_premium() == 0.0
+
+    def test_calculate_premium_single_layer(self):
+        """calculate_premium() works for single layer."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=500_000,
+                limit=4_500_000,
+                base_premium_rate=0.015,
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=500_000)
+        assert program.calculate_premium() == 4_500_000 * 0.015

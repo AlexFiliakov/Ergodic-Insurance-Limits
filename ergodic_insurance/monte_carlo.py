@@ -323,7 +323,7 @@ class SimulationConfig:
 
 
 @dataclass
-class SimulationResults:
+class MonteCarloResults:
     """Results from Monte Carlo simulation.
 
     Attributes:
@@ -576,11 +576,11 @@ class MonteCarloEngine:
             self.time_series_aggregator = TimeSeriesAggregator(agg_config)
             self.summary_statistics = SummaryStatistics()
 
-    def run(self) -> SimulationResults:
+    def run(self) -> MonteCarloResults:
         """Execute Monte Carlo simulation.
 
         Returns:
-            SimulationResults object with all outputs
+            MonteCarloResults object with all outputs
         """
         start_time = time.time()
 
@@ -676,7 +676,7 @@ class MonteCarloEngine:
 
         return results
 
-    def _run_sequential(self) -> SimulationResults:
+    def _run_sequential(self) -> MonteCarloResults:
         """Run simulation sequentially."""
         n_sims = self.config.n_simulations
         n_years = self.config.n_years
@@ -747,7 +747,7 @@ class MonteCarloEngine:
             final_ruin_count = np.sum(np.less_equal(final_assets, self.config.insolvency_tolerance))
         ruin_probability[str(n_years)] = float(final_ruin_count / n_sims)
 
-        return SimulationResults(
+        return MonteCarloResults(
             final_assets=final_assets,
             annual_losses=annual_losses,
             insurance_recoveries=insurance_recoveries,
@@ -760,7 +760,7 @@ class MonteCarloEngine:
             config=self.config,
         )
 
-    def _run_parallel(self) -> SimulationResults:
+    def _run_parallel(self) -> MonteCarloResults:
         """Run simulation in parallel using multiprocessing."""
         # Check if we're on Windows and have scipy import issues
         # Fall back to sequential execution in these cases
@@ -841,7 +841,7 @@ class MonteCarloEngine:
         # Combine results
         return self._combine_chunk_results(all_results)
 
-    def _run_enhanced_parallel(self) -> SimulationResults:
+    def _run_enhanced_parallel(self) -> MonteCarloResults:
         """Run simulation using enhanced parallel executor.
 
         Uses CPU-optimized parallel execution with shared memory and
@@ -987,7 +987,7 @@ class MonteCarloEngine:
                 )
             ruin_probability[str(n_years)] = float(final_ruin_count / total_simulations)
 
-            return SimulationResults(
+            return MonteCarloResults(
                 final_assets=final_assets,
                 annual_losses=annual_losses,
                 insurance_recoveries=insurance_recoveries,
@@ -1184,14 +1184,14 @@ class MonteCarloEngine:
             "ruin_at_year": ruin_at_year,  # New field for periodic ruin tracking
         }
 
-    def _combine_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> SimulationResults:
+    def _combine_chunk_results(self, chunk_results: List[Dict[str, Any]]) -> MonteCarloResults:
         """Combine results from parallel chunks.
 
         Args:
             chunk_results: List of chunk result dictionaries
 
         Returns:
-            Combined SimulationResults
+            Combined MonteCarloResults
         """
         # Handle empty chunk results
         if not chunk_results:
@@ -1202,7 +1202,7 @@ class MonteCarloEngine:
                         ruin_probability[str(eval_year)] = 0.0
             ruin_probability[str(self.config.n_years)] = 0.0
 
-            return SimulationResults(
+            return MonteCarloResults(
                 final_assets=np.array([]),
                 annual_losses=np.array([]).reshape(0, self.config.n_years),
                 insurance_recoveries=np.array([]).reshape(0, self.config.n_years),
@@ -1262,7 +1262,7 @@ class MonteCarloEngine:
             final_ruin_count = np.sum(np.less_equal(final_assets, self.config.insolvency_tolerance))
         ruin_probability[str(self.config.n_years)] = float(final_ruin_count / total_simulations)
 
-        return SimulationResults(
+        return MonteCarloResults(
             final_assets=final_assets,
             annual_losses=annual_losses,
             insurance_recoveries=insurance_recoveries,
@@ -1300,7 +1300,7 @@ class MonteCarloEngine:
 
         return growth_rates
 
-    def _calculate_metrics(self, results: SimulationResults) -> Dict[str, float]:
+    def _calculate_metrics(self, results: MonteCarloResults) -> Dict[str, float]:
         """Calculate risk metrics from simulation results.
 
         Args:
@@ -1366,7 +1366,7 @@ class MonteCarloEngine:
 
         return metrics
 
-    def _check_convergence(self, results: SimulationResults) -> Dict[str, ConvergenceStats]:
+    def _check_convergence(self, results: MonteCarloResults) -> Dict[str, ConvergenceStats]:
         """Check convergence of simulation results.
 
         Args:
@@ -1405,7 +1405,7 @@ class MonteCarloEngine:
 
         return convergence_stats
 
-    def _perform_advanced_aggregation(self, results: SimulationResults) -> SimulationResults:
+    def _perform_advanced_aggregation(self, results: MonteCarloResults) -> MonteCarloResults:
         """Perform advanced aggregation on simulation results.
 
         Args:
@@ -1452,7 +1452,7 @@ class MonteCarloEngine:
         return results
 
     def export_results(
-        self, results: SimulationResults, filepath: Path, file_format: str = "csv"
+        self, results: MonteCarloResults, filepath: Path, file_format: str = "csv"
     ) -> None:
         """Export simulation results to file.
 
@@ -1483,7 +1483,7 @@ class MonteCarloEngine:
 
     def compute_bootstrap_confidence_intervals(
         self,
-        results: SimulationResults,
+        results: MonteCarloResults,
         confidence_level: float = 0.95,
         n_bootstrap: int = 10000,
         method: str = "percentile",
@@ -1611,7 +1611,7 @@ class MonteCarloEngine:
         ]
         return "_".join(key_parts)
 
-    def _save_cache(self, cache_key: str, results: SimulationResults) -> None:
+    def _save_cache(self, cache_key: str, results: MonteCarloResults) -> None:
         """Save results to cache.
 
         Args:
@@ -1625,7 +1625,7 @@ class MonteCarloEngine:
         except (IOError, OSError, pickle.PickleError) as e:
             warnings.warn(f"Failed to save cache: {e}")
 
-    def _load_cache(self, cache_key: str) -> Optional[SimulationResults]:
+    def _load_cache(self, cache_key: str) -> Optional[MonteCarloResults]:
         """Load results from cache.
 
         Args:
@@ -1731,7 +1731,7 @@ class MonteCarloEngine:
         convergence_threshold: float = 1.1,
         early_stopping: bool = True,
         show_progress: bool = True,
-    ) -> SimulationResults:
+    ) -> MonteCarloResults:
         """Run simulation with progress tracking and convergence monitoring."""
         if check_intervals is None:
             check_intervals = [10_000, 25_000, 50_000, 100_000]
@@ -1791,7 +1791,7 @@ class MonteCarloEngine:
             )
         }
 
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=arrays["final_assets"],
             annual_losses=arrays["annual_losses"],
             insurance_recoveries=arrays["insurance_recoveries"],
@@ -1832,7 +1832,7 @@ class MonteCarloEngine:
         target_r_hat: float = 1.05,
         check_interval: int = 10000,
         max_iterations: Optional[int] = None,
-    ) -> SimulationResults:
+    ) -> MonteCarloResults:
         """Run simulation with automatic convergence monitoring.
 
         Args:
@@ -1895,14 +1895,14 @@ class MonteCarloEngine:
 
         return combined
 
-    def _combine_multiple_results(self, results_list: List[SimulationResults]) -> SimulationResults:
+    def _combine_multiple_results(self, results_list: List[MonteCarloResults]) -> MonteCarloResults:
         """Combine multiple simulation results.
 
         Args:
-            results_list: List of SimulationResults to combine
+            results_list: List of MonteCarloResults to combine
 
         Returns:
-            Combined SimulationResults
+            Combined MonteCarloResults
         """
         # Concatenate arrays
         final_assets = np.concatenate([r.final_assets for r in results_list])
@@ -1912,7 +1912,7 @@ class MonteCarloEngine:
         growth_rates = np.concatenate([r.growth_rates for r in results_list])
 
         # Recalculate metrics
-        combined = SimulationResults(
+        combined = MonteCarloResults(
             final_assets=final_assets,
             annual_losses=annual_losses,
             insurance_recoveries=insurance_recoveries,

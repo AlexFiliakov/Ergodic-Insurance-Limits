@@ -14,7 +14,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from ergodic_insurance.ruin_probability import RuinProbabilityConfig
 
 
@@ -169,7 +169,7 @@ class TestParallelProcessing:
         # Mock print to capture output
         with patch("builtins.print") as mock_print:
             # Create mock results with good convergence
-            mock_results = SimulationResults(
+            mock_results = MonteCarloResults(
                 final_assets=np.random.normal(10_000_000, 100_000, 100),
                 annual_losses=np.zeros((100, 5)),
                 insurance_recoveries=np.zeros((100, 5)),

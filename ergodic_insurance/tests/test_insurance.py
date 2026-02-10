@@ -65,7 +65,8 @@ class TestInsurancePolicy:
             InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
             InsuranceLayer(attachment_point=5_000_000, limit=10_000_000, rate=0.01),
         ]
-        return InsurancePolicy(layers=layers, deductible=0)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            return InsurancePolicy(layers=layers, deductible=0)
 
     @pytest.fixture
     def policy_with_deductible(self):
@@ -75,7 +76,8 @@ class TestInsurancePolicy:
             InsuranceLayer(attachment_point=5_000_000, limit=20_000_000, rate=0.008),
             InsuranceLayer(attachment_point=25_000_000, limit=25_000_000, rate=0.004),
         ]
-        return InsurancePolicy(layers=layers, deductible=500_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            return InsurancePolicy(layers=layers, deductible=500_000)
 
     def test_policy_initialization(self, simple_policy):
         """Test policy initialization and layer sorting."""
@@ -164,9 +166,40 @@ class TestInsurancePolicy:
         # 50M total - 500K deductible = 49.5M insurance coverage
         assert coverage == 49_500_000
 
+    def test_get_total_coverage_deductible_exceeds_layers(self):
+        """get_total_coverage returns 0 when deductible exceeds highest layer exhaust."""
+        layers = [
+            InsuranceLayer(attachment_point=100_000, limit=200_000, rate=0.01),
+        ]
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=500_000)
+        assert policy.get_total_coverage() == 0.0
+
+    def test_layer_recovery_capped_per_layer(self):
+        """Layers overlapping the deductible region produce correct totals."""
+        # Layer attaches at 0 (below deductible), so part of its response
+        # overlaps with the deductible region.
+        layers = [
+            InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
+            InsuranceLayer(attachment_point=5_000_000, limit=5_000_000, rate=0.01),
+        ]
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+
+        # 3M claim: deductible=1M, max_recoverable=2M
+        # Layer 0 would pay min(3M, 5M)=3M but capped at remaining 2M
+        company, insurance = policy.process_claim(3_000_000)
+        assert insurance == 2_000_000
+        assert company + insurance == 3_000_000
+
+        # Same via calculate_recovery
+        recovery = policy.calculate_recovery(3_000_000)
+        assert recovery == 2_000_000
+
     def test_empty_policy(self):
         """Test policy with no layers."""
-        policy = InsurancePolicy(layers=[], deductible=100_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=[], deductible=100_000)
 
         company_payment, insurance_recovery = policy.process_claim(500_000)
         assert company_payment == 500_000  # Company pays everything
@@ -198,7 +231,8 @@ class TestInsurancePolicyYAML:
 
     def test_load_from_yaml(self, yaml_config_path):
         """Test loading policy from YAML file."""
-        policy = InsurancePolicy.from_yaml(yaml_config_path)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_yaml(yaml_config_path)
 
         assert policy.deductible == 250_000
         assert len(policy.layers) == 2
@@ -219,7 +253,8 @@ class TestInsurancePolicyYAML:
         config_path = Path(__file__).parent.parent / "data" / "parameters" / "insurance.yaml"
 
         if config_path.exists():
-            policy = InsurancePolicy.from_yaml(str(config_path))
+            with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+                policy = InsurancePolicy.from_yaml(str(config_path))
 
             assert policy.deductible == 500_000
             assert len(policy.layers) == 3
@@ -245,7 +280,8 @@ class TestIntegrationScenarios:
             InsuranceLayer(attachment_point=5_000_000, limit=20_000_000, rate=0.008),
             InsuranceLayer(attachment_point=25_000_000, limit=25_000_000, rate=0.004),
         ]
-        return InsurancePolicy(layers=layers, deductible=500_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            return InsurancePolicy(layers=layers, deductible=500_000)
 
     def test_small_attritional_losses(self, realistic_policy):
         """Test handling of small frequent losses."""
@@ -316,7 +352,8 @@ class TestOverRecoveryGuard:
         layers = [
             InsuranceLayer(attachment_point=500_000, limit=4_500_000, rate=0.015),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=200_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=200_000)
 
         # 3M claim: deductible=200K, layer recovery=min(3M-500K, 4.5M)=2.5M
         # Without guard: total = 200K + 2.5M = 2.7M (< 3M, no over-recovery here)
@@ -336,7 +373,8 @@ class TestOverRecoveryGuard:
         layers = [
             InsuranceLayer(attachment_point=500_000, limit=5_000_000, rate=0.015),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=1_000_000)
 
         # 3M claim: deductible=1M, max_recoverable=2M
         # Layer: min(3M-500K, 5M) = 2.5M, but cap at 2M
@@ -351,7 +389,8 @@ class TestOverRecoveryGuard:
             InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
             InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=0)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=0)
 
         # 3M claim: each layer would pay 3M, total 6M > 3M claim
         company, insurance = policy.process_claim(3_000_000)
@@ -364,7 +403,8 @@ class TestOverRecoveryGuard:
             InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.01),
             InsuranceLayer(attachment_point=200_000, limit=10_000_000, rate=0.01),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=500_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=500_000)
 
         for claim in [100_000, 500_000, 1_000_000, 5_000_000, 15_000_000]:
             company, insurance = policy.process_claim(claim)
@@ -379,7 +419,8 @@ class TestOverRecoveryGuard:
         layers = [
             InsuranceLayer(attachment_point=500_000, limit=5_000_000, rate=0.015),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=1_000_000)
 
         # 3M claim: max_recoverable = 3M - 1M = 2M
         # Layer: min(3M - 500K, 5M) = 2.5M → capped to 2M
@@ -389,7 +430,8 @@ class TestOverRecoveryGuard:
     def test_zero_claim_returns_zero(self):
         """Test zero and negative claims produce zero recovery."""
         layers = [InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.01)]
-        policy = InsurancePolicy(layers=layers, deductible=0)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=0)
 
         company, insurance = policy.process_claim(0)
         assert company == 0 and insurance == 0
@@ -400,7 +442,8 @@ class TestOverRecoveryGuard:
     def test_claim_exactly_at_deductible(self):
         """Test claim exactly equal to deductible."""
         layers = [InsuranceLayer(attachment_point=500_000, limit=5_000_000, rate=0.01)]
-        policy = InsurancePolicy(layers=layers, deductible=500_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=500_000)
 
         company, insurance = policy.process_claim(500_000)
         assert company == 500_000
@@ -412,7 +455,8 @@ class TestOverRecoveryGuard:
             InsuranceLayer(attachment_point=1_000_000, limit=4_000_000, rate=0.015),
             InsuranceLayer(attachment_point=5_000_000, limit=10_000_000, rate=0.008),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=1_000_000)
 
         # Claim exactly at first layer exhaust point (5M)
         company, insurance = policy.process_claim(5_000_000)
@@ -430,38 +474,42 @@ class TestFromSimple:
 
     def test_creates_single_layer_policy(self):
         """from_simple() should create a policy with exactly one layer."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
         assert len(policy.layers) == 1
 
     def test_deductible_set_correctly(self):
         """Deductible on the policy matches the argument."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
         assert policy.deductible == 500_000
 
     def test_layer_attachment_equals_deductible(self):
         """The single layer's attachment point equals the deductible."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
         assert policy.layers[0].attachment_point == 500_000
 
     def test_layer_limit_and_rate(self):
         """Layer limit and rate match the arguments."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
         assert policy.layers[0].limit == 10_000_000
         assert policy.layers[0].rate == 0.025
 
@@ -472,13 +520,15 @@ class TestFromSimple:
             limit=10_000_000,
             rate=0.025,
         )
-        manual_policy = InsurancePolicy(layers=[manual_layer], deductible=500_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            manual_policy = InsurancePolicy(layers=[manual_layer], deductible=500_000)
 
-        simple_policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            simple_policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
 
         # Same structure
         assert simple_policy.deductible == manual_policy.deductible
@@ -496,20 +546,22 @@ class TestFromSimple:
 
     def test_premium_calculation(self):
         """Premium is limit * premium_rate."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
         assert policy.calculate_premium() == 250_000  # 10M * 0.025
 
     def test_claim_processing(self):
         """Claims flow correctly through a from_simple() policy."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+            )
 
         # Below deductible
         company, insurance = policy.process_claim(300_000)
@@ -528,11 +580,12 @@ class TestFromSimple:
 
     def test_zero_deductible(self):
         """from_simple() works with zero deductible."""
-        policy = InsurancePolicy.from_simple(
-            deductible=0,
-            limit=5_000_000,
-            premium_rate=0.03,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=0,
+                limit=5_000_000,
+                premium_rate=0.03,
+            )
         assert policy.deductible == 0
         assert policy.layers[0].attachment_point == 0
 
@@ -542,12 +595,13 @@ class TestFromSimple:
 
     def test_kwargs_forwarded(self):
         """Extra kwargs are forwarded to InsurancePolicy.__init__."""
-        policy = InsurancePolicy.from_simple(
-            deductible=500_000,
-            limit=10_000_000,
-            premium_rate=0.025,
-            pricing_enabled=True,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy.from_simple(
+                deductible=500_000,
+                limit=10_000_000,
+                premium_rate=0.025,
+                pricing_enabled=True,
+            )
         assert policy.pricing_enabled is True
 
     def test_validation_propagates(self):

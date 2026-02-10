@@ -350,16 +350,34 @@ class TestAdditionalMetrics:
         assert abs(ec - expected_ec) < 1
 
     def test_tail_index(self):
-        """Test tail index estimation."""
+        """Test tail index returns Pareto alpha (= 1/Hill gamma)."""
         np.random.seed(42)
-        # Generate heavy-tailed distribution (Pareto)
-        losses = np.random.pareto(2, 1000) * 1000
+        # Generate heavy-tailed distribution (Pareto with alpha=2)
+        # np.random.pareto draws from P(X>x) = (1/x)^alpha for x>=1,
+        # so multiplying by xm shifts the minimum.
+        true_alpha = 2.0
+        losses = np.random.pareto(true_alpha, 5000) * 1000
         metrics = RiskMetrics(losses)
 
-        tail_idx = metrics.tail_index()
-        assert tail_idx > 0
-        # For Pareto(2), tail index should be around 2
-        assert 1 < tail_idx < 4
+        alpha_hat = metrics.tail_index()
+        assert alpha_hat > 0
+        # The MLE alpha should be close to the true value
+        assert 1.5 < alpha_hat < 3.0, f"Expected ~{true_alpha}, got {alpha_hat:.2f}"
+
+        # Verify the reciprocal relationship: 1/alpha ≈ Hill gamma
+        gamma_hat = 1.0 / alpha_hat
+        assert 0.3 < gamma_hat < 0.7, f"Hill gamma should be ~0.5, got {gamma_hat:.2f}"
+
+    def test_tail_index_known_pareto(self):
+        """Verify tail_index on a larger Pareto sample with alpha=3."""
+        np.random.seed(123)
+        true_alpha = 3.0
+        losses = (np.random.pareto(true_alpha, 10000) + 1) * 500
+        metrics = RiskMetrics(losses)
+
+        alpha_hat = metrics.tail_index()
+        # With 10k samples the estimate should be reasonably tight
+        assert 2.0 < alpha_hat < 5.0, f"Expected ~{true_alpha}, got {alpha_hat:.2f}"
 
     def test_conditional_tail_expectation(self):
         """Test CTE calculation."""
@@ -390,6 +408,7 @@ class TestReturnPeriodCurve:
 
     def test_custom_return_periods(self):
         """Test return period curve with custom periods."""
+        np.random.seed(42)
         losses = np.random.lognormal(10, 1, 1000)
         metrics = RiskMetrics(losses)
 
@@ -685,6 +704,7 @@ class TestROEAnalyzer:
         """Test stability analysis across periods."""
         from ergodic_insurance.risk_metrics import ROEAnalyzer
 
+        np.random.seed(42)
         # Create a series with increasing stability
         roe_series = np.concatenate(
             [
@@ -758,6 +778,7 @@ class TestEdgeCases:
 
     def test_extreme_confidence_levels(self):
         """Test metrics with extreme confidence levels."""
+        np.random.seed(42)
         losses = np.random.normal(1000, 100, 1000)
         metrics = RiskMetrics(losses)
 

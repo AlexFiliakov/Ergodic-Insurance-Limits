@@ -31,7 +31,7 @@ class ReinstatementType(Enum):
 
 
 @dataclass
-class OptimizationConstraints:
+class ProgramOptimizationConstraints:
     """Constraints for insurance program optimization."""
 
     max_total_premium: Optional[float] = None  # Budget constraint
@@ -80,6 +80,7 @@ class EnhancedInsuranceLayer:
     premium_rate_exposure: Optional["ExposureBase"] = (
         None  # Exposure object for dynamic premium scaling
     )
+    exhausted: float = field(default=0.0, init=False)
 
     def __post_init__(self):
         """Validate layer parameters."""
@@ -87,8 +88,6 @@ class EnhancedInsuranceLayer:
             raise ValueError(f"Attachment point must be non-negative, got {self.attachment_point}")
         if self.limit <= 0:
             raise ValueError(f"Limit must be positive, got {self.limit}")
-        # Initialize exhausted tracking
-        self.exhausted = 0.0
         if self.base_premium_rate < 0:
             raise ValueError(
                 f"Base premium rate must be non-negative, got {self.base_premium_rate}"
@@ -528,6 +527,57 @@ class InsuranceProgram:
         self.pricer = pricer
         self.pricing_results: List[Any] = []
 
+    @classmethod
+    def simple(
+        cls,
+        deductible: float,
+        limit: float,
+        rate: float,
+        name: str = "Simple Insurance Program",
+        **kwargs,
+    ) -> "InsuranceProgram":
+        """Create a single-layer insurance program from basic parameters.
+
+        Convenience factory for the most common use case: a single primary
+        layer where the attachment point equals the deductible.
+
+        Args:
+            deductible: Self-insured retention in dollars.
+            limit: Maximum coverage amount in dollars above the deductible.
+            rate: Annual premium as a fraction of the limit (e.g. 0.025 for 2.5%).
+            name: Program identifier.
+            **kwargs: Additional keyword arguments (e.g. pricing_enabled, pricer).
+
+        Returns:
+            InsuranceProgram with a single layer.
+
+        Examples:
+            Quick single-layer program::
+
+                program = InsuranceProgram.simple(
+                    deductible=500_000,
+                    limit=10_000_000,
+                    rate=0.025,
+                )
+        """
+        layer = EnhancedInsuranceLayer(
+            attachment_point=deductible,
+            limit=limit,
+            base_premium_rate=rate,
+            reinstatements=0,
+        )
+        return cls(layers=[layer], deductible=deductible, name=name, **kwargs)
+
+    def calculate_premium(self) -> float:
+        """Calculate total annual premium across all layers.
+
+        Convenience alias for ``calculate_annual_premium(0.0)``.
+
+        Returns:
+            Total annual premium in dollars.
+        """
+        return self.calculate_annual_premium(0.0)
+
     def calculate_annual_premium(self, time: float = 0.0) -> float:
         """Calculate total annual premium for the program.
 
@@ -716,7 +766,7 @@ class InsuranceProgram:
         # Find highest exhaustion point
         max_coverage = max(layer.attachment_point + layer.limit for layer in self.layers)
 
-        return max_coverage
+        return max(0.0, max_coverage - self.deductible)
 
     def _get_default_manufacturer_profile(self) -> Dict[str, Any]:
         """Get default manufacturer profile."""
@@ -1037,7 +1087,7 @@ class InsuranceProgram:
         self,
         loss_data: List[List[float]],
         company_profile: Optional[Dict[str, Any]] = None,
-        constraints: Optional[OptimizationConstraints] = None,
+        constraints: Optional[ProgramOptimizationConstraints] = None,
     ) -> OptimalStructure:
         """Optimize complete insurance layer structure.
 
@@ -1053,7 +1103,7 @@ class InsuranceProgram:
             Optimal insurance structure.
         """
         if constraints is None:
-            constraints = OptimizationConstraints()
+            constraints = ProgramOptimizationConstraints()
 
         # Flatten loss data for analysis
         all_losses = [loss for annual_losses in loss_data for loss in annual_losses]

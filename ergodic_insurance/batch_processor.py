@@ -4,7 +4,7 @@ This module provides a framework for executing multiple scenarios in parallel
 or serial, with support for checkpointing, resumption, and result aggregation.
 """
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -21,7 +21,7 @@ from .excel_reporter import ExcelReportConfig, ExcelReporter
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from .monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from .safe_pickle import safe_dump, safe_load
 from .scenario_manager import ScenarioConfig
 
@@ -53,7 +53,7 @@ class BatchResult:
     scenario_id: str
     scenario_name: str
     status: ProcessingStatus
-    simulation_results: Optional[SimulationResults] = None
+    simulation_results: Optional[MonteCarloResults] = None
     execution_time: float = 0.0
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -100,8 +100,11 @@ class AggregatedResults:
             if result.simulation_results:
                 # Get final ruin probability (the maximum year key in the dict)
                 ruin_prob_dict = result.simulation_results.ruin_probability
-                final_year = str(max(int(year) for year in ruin_prob_dict.keys()))
-                final_ruin_prob = ruin_prob_dict[final_year]
+                if ruin_prob_dict:
+                    final_year = str(max(int(year) for year in ruin_prob_dict.keys()))
+                    final_ruin_prob = ruin_prob_dict[final_year]
+                else:
+                    final_ruin_prob = np.nan
                 row.update(
                     {
                         "ruin_probability": final_ruin_prob,
@@ -285,7 +288,11 @@ class BatchProcessor:
     def _process_parallel(
         self, scenarios: List[ScenarioConfig], checkpoint_interval: int, max_failures: Optional[int]
     ) -> List[BatchResult]:
-        """Process scenarios in parallel.
+        """Process scenarios in parallel with incremental submission.
+
+        Scenarios are submitted in a sliding window so that unsubmitted work
+        can be skipped when ``max_failures`` is reached, making early stopping
+        effective.
 
         Args:
             scenarios: Scenarios to process
@@ -295,57 +302,81 @@ class BatchProcessor:
         Returns:
             List of batch results
         """
-        results = []
+        results: List[BatchResult] = []
         failures = 0
+        completed_count = 0
 
-        # Use process pool for parallel execution
         with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-            # Submit all scenarios
-            future_to_scenario = {
-                executor.submit(self._process_scenario, scenario): scenario
-                for scenario in scenarios
-            }
+            # Determine pool size for sliding window
+            pool_size = self.n_workers or min(4, len(scenarios))
 
-            # Process completed futures
-            iterator = as_completed(future_to_scenario)
-            if self.progress_bar:
-                iterator = tqdm(iterator, total=len(scenarios), desc="Processing scenarios")
+            # Submit initial batch up to pool_size
+            pending: Dict[Any, ScenarioConfig] = {}
+            next_idx = 0
+            while next_idx < len(scenarios) and len(pending) < pool_size:
+                scenario = scenarios[next_idx]
+                future = executor.submit(self._process_scenario, scenario)
+                pending[future] = scenario
+                next_idx += 1
 
-            for i, future in enumerate(iterator):
-                # Check failure limit
+            pbar = (
+                tqdm(total=len(scenarios), desc="Processing scenarios")
+                if self.progress_bar
+                else None
+            )
+
+            while pending:
+                # Wait for at least one future to complete
+                done, _ = wait(pending.keys(), return_when=FIRST_COMPLETED)
+
+                for future in done:
+                    scenario = pending.pop(future)
+                    try:
+                        result = future.result()
+                    except (ValueError, RuntimeError, TypeError) as e:
+                        result = BatchResult(
+                            scenario_id=scenario.scenario_id,
+                            scenario_name=scenario.name,
+                            status=ProcessingStatus.FAILED,
+                            error_message=str(e),
+                        )
+
+                    results.append(result)
+                    completed_count += 1
+
+                    if pbar:
+                        pbar.update(1)
+
+                    # Update state
+                    if result.status == ProcessingStatus.COMPLETED:
+                        self.completed_scenarios.add(scenario.scenario_id)
+                    elif result.status == ProcessingStatus.FAILED:
+                        self.failed_scenarios.add(scenario.scenario_id)
+                        failures += 1
+
+                    # Checkpoint periodically
+                    if completed_count % checkpoint_interval == 0:
+                        self.batch_results.extend(results)
+                        self._save_checkpoint()
+                        results.clear()
+
+                # Check failure limit after processing the done batch
                 if max_failures and failures >= max_failures:
-                    # Cancel remaining futures
-                    for f in future_to_scenario:
+                    for f in pending:
                         f.cancel()
+                    pending.clear()
                     print(f"Stopping batch: reached {max_failures} failures")
                     break
 
-                # Get result
-                scenario = future_to_scenario[future]
-                try:
-                    result = future.result()
-                except (ValueError, RuntimeError, TypeError) as e:
-                    result = BatchResult(
-                        scenario_id=scenario.scenario_id,
-                        scenario_name=scenario.name,
-                        status=ProcessingStatus.FAILED,
-                        error_message=str(e),
-                    )
+                # Submit more scenarios to fill the pool
+                while next_idx < len(scenarios) and len(pending) < pool_size:
+                    scenario = scenarios[next_idx]
+                    future = executor.submit(self._process_scenario, scenario)
+                    pending[future] = scenario
+                    next_idx += 1
 
-                results.append(result)
-
-                # Update state
-                if result.status == ProcessingStatus.COMPLETED:
-                    self.completed_scenarios.add(scenario.scenario_id)
-                elif result.status == ProcessingStatus.FAILED:
-                    self.failed_scenarios.add(scenario.scenario_id)
-                    failures += 1
-
-                # Checkpoint periodically
-                if (i + 1) % checkpoint_interval == 0:
-                    self.batch_results.extend(results)
-                    self._save_checkpoint()
-                    results.clear()
+            if pbar:
+                pbar.close()
 
         return results
 
@@ -479,10 +510,13 @@ class BatchProcessor:
                                 max_year = max(baseline_dict.keys(), key=int)
                                 baseline_value = baseline_dict[max_year]
                                 # Extract same year from all scenarios
-                                metric_values = summary_df[metric].apply(
-                                    lambda d, _my=max_year: (
-                                        d.get(_my, np.nan) if isinstance(d, dict) else np.nan
-                                    )
+                                metric_values = pd.to_numeric(
+                                    summary_df[metric].apply(
+                                        lambda d, _my=max_year: (
+                                            d.get(_my, np.nan) if isinstance(d, dict) else np.nan
+                                        )
+                                    ),
+                                    errors="coerce",
                                 )
                                 if baseline_value != 0:
                                     relative_performance[f"{metric}_relative"] = (
@@ -502,7 +536,10 @@ class BatchProcessor:
                 for metric in ["mean_growth_rate", "mean_final_assets"]:
                     if metric in summary_df.columns:
                         ranking_df[f"{metric}_rank"] = (
-                            summary_df[metric].rank(ascending=False).astype(int)
+                            summary_df[metric]
+                            .rank(ascending=False, na_option="bottom", method="min")
+                            .astype("Int64")
+                            .values
                         )
 
                 # Ruin probability ranked ascending (lower is better)
@@ -511,12 +548,17 @@ class BatchProcessor:
                     first_dict = summary_df["ruin_probability"].iloc[0]
                     if isinstance(first_dict, dict) and first_dict:
                         max_year = max(first_dict.keys(), key=int)
-                        ruin_prob_values = summary_df["ruin_probability"].apply(
-                            lambda d: d.get(max_year, np.nan) if isinstance(d, dict) else np.nan
+                        ruin_prob_values = pd.to_numeric(
+                            summary_df["ruin_probability"].apply(
+                                lambda d: d.get(max_year, np.nan) if isinstance(d, dict) else np.nan
+                            ),
+                            errors="coerce",
                         )
-                        ranking_df["ruin_probability_rank"] = ruin_prob_values.rank(
-                            ascending=True
-                        ).astype(int)
+                        ranking_df["ruin_probability_rank"] = (
+                            ruin_prob_values.rank(ascending=True, na_option="bottom", method="min")
+                            .astype("Int64")
+                            .values
+                        )
 
                 comparison_metrics["rankings"] = ranking_df
 

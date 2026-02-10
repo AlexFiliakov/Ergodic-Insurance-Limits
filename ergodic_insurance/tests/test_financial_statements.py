@@ -1048,8 +1048,8 @@ class TestFinancialStatementGenerator:
         monthly_df = generator.generate_income_statement(year=2, monthly=True)
         annual_df = generator.generate_income_statement(year=2, monthly=False)
 
-        # Check column naming
-        assert "Month 2" in monthly_df.columns
+        # Check column naming — annualized data uses "Monthly Avg" label
+        assert "Monthly Avg 2" in monthly_df.columns
         assert "Year 2" in annual_df.columns
 
         # Get revenue values
@@ -1058,7 +1058,7 @@ class TestFinancialStatementGenerator:
 
         for i, item in enumerate(monthly_df["Item"].values):
             if "Sales Revenue" in str(item) and "Total" not in str(item):
-                monthly_revenue = monthly_df["Month 2"].values[i]
+                monthly_revenue = monthly_df["Monthly Avg 2"].values[i]
                 break
 
         for i, item in enumerate(annual_df["Item"].values):
@@ -1340,6 +1340,60 @@ class TestFinancialStatementGenerator:
                 break
         else:
             pytest.fail("Long-Term Claim Reserves row not found")
+
+    def test_monthly_income_statement_disclaimer(self, generator):
+        """Test that monthly income statement includes disclaimer row when annualized."""
+        df = generator.generate_income_statement(year=2, monthly=True)
+
+        # First row should be the disclaimer
+        first_item = str(df["Item"].values[0])
+        assert "NOTE:" in first_item
+        assert "annualized monthly averages" in first_item
+
+    def test_monthly_income_statement_period_warning(self, generator):
+        """Test that monthly income statement sets period_warning attr when annualized."""
+        monthly_df = generator.generate_income_statement(year=2, monthly=True)
+        annual_df = generator.generate_income_statement(year=2, monthly=False)
+
+        # Monthly statement should have period_warning
+        assert "period_warning" in monthly_df.attrs
+        assert "estimates" in monthly_df.attrs["period_warning"]
+
+        # Annual statement should NOT have period_warning
+        assert "period_warning" not in annual_df.attrs
+
+    def test_monthly_cash_flow_statement_labeling(self, generator):
+        """Test that monthly cash flow statement uses 'Monthly Avg' label and has disclaimer + period_warning."""
+        df = generator.generate_cash_flow_statement(year=2, period="monthly")
+
+        # Column should say "Monthly Avg" not "Month"
+        col_names = [c for c in df.columns if "Monthly Avg" in str(c)]
+        assert (
+            len(col_names) == 1
+        ), f"Expected 'Monthly Avg' column, got columns: {list(df.columns)}"
+
+        # First row should be disclaimer
+        first_item = str(df["Item"].values[0])
+        assert "NOTE:" in first_item
+        assert "annualized monthly averages" in first_item
+
+        # period_warning attr should be set
+        assert "period_warning" in df.attrs
+        assert "estimates" in df.attrs["period_warning"]
+
+    def test_annual_statements_no_warning(self, generator):
+        """Test that annual statements have no disclaimer row and no period_warning attr."""
+        income_df = generator.generate_income_statement(year=2, monthly=False)
+        cf_df = generator.generate_cash_flow_statement(year=2, period="annual")
+
+        # No disclaimer rows
+        for df in [income_df, cf_df]:
+            for item in df["Item"].values:
+                assert "NOTE:" not in str(item), "Annual statement should not have disclaimer"
+
+        # No period_warning attr
+        assert "period_warning" not in income_df.attrs
+        assert "period_warning" not in cf_df.attrs
 
 
 class TestMonteCarloStatementAggregator:

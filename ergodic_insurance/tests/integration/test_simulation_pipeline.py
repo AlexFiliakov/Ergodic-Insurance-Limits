@@ -16,7 +16,7 @@ from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from ergodic_insurance.parallel_executor import ParallelExecutor
 from ergodic_insurance.progress_monitor import ProgressMonitor
 from ergodic_insurance.result_aggregator import ResultAggregator
@@ -79,7 +79,7 @@ class TestSimulationPipeline:
 
         # Verify execution completed
         assert results is not None, "Results should not be None"
-        assert isinstance(results, SimulationResults), "Should return SimulationResults"
+        assert isinstance(results, MonteCarloResults), "Should return MonteCarloResults"
 
         # Verify result structure
         assert hasattr(results, "final_assets"), "Should have final assets"

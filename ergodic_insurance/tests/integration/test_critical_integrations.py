@@ -11,6 +11,8 @@ This module covers:
 
 # mypy: ignore-errors
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -18,7 +20,10 @@ from ergodic_insurance.business_optimizer import BusinessConstraints, BusinessOp
 from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
 from ergodic_insurance.convergence import ConvergenceDiagnostics
-from ergodic_insurance.decision_engine import InsuranceDecisionEngine, OptimizationConstraints
+from ergodic_insurance.decision_engine import (
+    DecisionOptimizationConstraints,
+    InsuranceDecisionEngine,
+)
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.loss_distributions import LossData, ManufacturingLossGenerator
@@ -82,17 +87,21 @@ class TestErgodicIntegration:
         for i in range(10):
             # Insured simulation
             manufacturer = WidgetManufacturer(config.manufacturer)
-            policy = InsurancePolicy(
-                layers=[InsuranceLayer(100_000, 5_000_000, 0.02)],
-                deductible=100_000,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                policy = InsurancePolicy(
+                    layers=[InsuranceLayer(100_000, 5_000_000, 0.02)],
+                    deductible=100_000,
+                )
 
-            sim = Simulation(
-                manufacturer=manufacturer,
-                time_horizon=config.simulation.time_horizon_years,
-                insurance_policy=policy,
-                seed=42 + i,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                sim = Simulation(
+                    manufacturer=manufacturer,
+                    time_horizon=config.simulation.time_horizon_years,
+                    insurance_policy=policy,
+                    seed=42 + i,
+                )
             insured_results.append(sim.run())
 
             # Uninsured simulation
@@ -400,11 +409,12 @@ class TestOptimizationWorkflow:
         # Test that we can generate at least a few points using weighted sum
         try:
             pareto_points = frontier.generate_weighted_sum(n_points=5)
-            # Verify we got some points
-            assert len(pareto_points) >= 0  # Allow empty result for test stability
-        except (ValueError, TypeError) as e:
-            # ParetoFrontier might be complex - just verify it was created properly
-            assert frontier is not None, f"ParetoFrontier creation failed: {e}"
+            # Verify we got a list of points back
+            assert isinstance(pareto_points, list)
+        except (ValueError, TypeError):
+            # ParetoFrontier optimization may fail depending on the objective -
+            # the initialization assertions above already verified construction
+            pass
 
     def test_decision_engine_integration(self, default_config_v2: ConfigV2):
         """Test decision engine with optimization results.
@@ -437,7 +447,7 @@ class TestOptimizationWorkflow:
         engine = InsuranceDecisionEngine(manufacturer, loss_generator)
 
         # Create optimization constraints
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=2_000_000,
             max_bankruptcy_probability=0.02,  # 2% ruin probability

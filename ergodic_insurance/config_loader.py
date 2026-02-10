@@ -17,11 +17,11 @@ import yaml
 
 try:
     # Try relative imports first (when used as a package)
-    from .config import Config, PricingScenarioConfig
+    from .config import Config, ConfigV2, PricingScenarioConfig
     from .config_compat import LegacyConfigAdapter
 except ImportError:
     # Fall back to absolute imports (when called directly or from notebooks)
-    from config import Config, PricingScenarioConfig  # type: ignore
+    from config import Config, ConfigV2, PricingScenarioConfig  # type: ignore
     from config_compat import LegacyConfigAdapter  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -248,18 +248,20 @@ class ConfigLoader:
         # Parse and validate using Pydantic
         return PricingScenarioConfig(**data)
 
-    def switch_pricing_scenario(self, config: Config, scenario_name: str) -> Config:
+    def switch_pricing_scenario(
+        self, config: Union[Config, ConfigV2], scenario_name: str
+    ) -> Union[Config, ConfigV2]:
         """Switch to a different pricing scenario.
 
         Updates the configuration's insurance parameters to use rates
         from the specified pricing scenario.
 
         Args:
-            config: Current configuration
+            config: Current configuration (Config or ConfigV2).
             scenario_name: Name of scenario to switch to (inexpensive/baseline/expensive)
 
         Returns:
-            Updated configuration with new pricing scenario
+            Updated configuration with new pricing scenario (same type as input).
         """
         # Load pricing scenarios
         pricing_config = self.load_pricing_scenarios()
@@ -271,17 +273,26 @@ class ConfigLoader:
         config_dict = config.model_dump()
 
         # Update insurance rates if insurance config exists
-        if "insurance" in config_dict:
-            # Map scenario rates to insurance configuration
-            # This assumes insurance config has layer rates or similar structure
-            # Actual mapping depends on insurance config structure
+        if "insurance" in config_dict and config_dict["insurance"]:
+            insurance = config_dict["insurance"]
+
+            # Update layer base_premium_rate from scenario rates
+            if "layers" in insurance and insurance["layers"]:
+                for i, layer in enumerate(insurance["layers"]):
+                    if i == 0:
+                        layer["base_premium_rate"] = scenario.primary_layer_rate
+                    elif i == 1:
+                        layer["base_premium_rate"] = scenario.first_excess_rate
+                    else:
+                        layer["base_premium_rate"] = scenario.higher_excess_rate
+
             logger.info(f"Switching to {scenario.name} pricing scenario")
             logger.info(f"Primary rate: {scenario.primary_layer_rate:.1%}")
             logger.info(f"First excess rate: {scenario.first_excess_rate:.1%}")
             logger.info(f"Higher excess rate: {scenario.higher_excess_rate:.1%}")
 
-        # Return updated config
-        return Config(**config_dict)
+        # Return updated config (preserves input type: Config or ConfigV2)
+        return type(config)(**config_dict)
 
     def list_available_configs(self) -> list[str]:
         """List all available configuration files.

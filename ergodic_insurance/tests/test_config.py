@@ -605,13 +605,23 @@ class TestConfigFromCompany:
         assert config.manufacturer.asset_turnover_ratio == 1.5
         assert config.working_capital.percent_of_sales == 0.25
 
-    def test_from_company_unknown_industry_falls_back(self):
-        """Unknown industry falls back to manufacturing defaults."""
-        config = Config.from_company(
-            initial_assets=10_000_000,
-            industry="unknown",
-        )
-        assert config.manufacturer.asset_turnover_ratio == 0.8
+    def test_from_company_unknown_industry_raises(self):
+        """Unknown industry raises ValueError with supported values."""
+        with pytest.raises(ValueError, match="Unsupported industry 'technology'") as exc_info:
+            Config.from_company(
+                initial_assets=10_000_000,
+                industry="technology",
+            )
+        msg = str(exc_info.value)
+        assert "manufacturing" in msg
+        assert "retail" in msg
+        assert "service" in msg
+        assert "Use Config() with explicit sub-configs" in msg
+
+    def test_from_company_unknown_industry_lists_all_supported(self):
+        """Error message lists every supported industry value."""
+        with pytest.raises(ValueError, match="Supported values:.*manufacturing.*retail.*service"):
+            Config.from_company(industry="unknown")
 
     def test_from_company_override_kwargs(self):
         """Extra kwargs override industry defaults."""

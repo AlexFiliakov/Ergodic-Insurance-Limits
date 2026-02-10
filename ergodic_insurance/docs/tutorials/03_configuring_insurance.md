@@ -15,24 +15,24 @@ If you already work with commercial insurance, feel free to skip ahead. For ever
 
 Insurance is structured in **layers** stacked on top of one another, forming a **tower**. Lower layers are more expensive per dollar of coverage because they pay out more frequently. Higher excess layers are cheaper because they only respond to large, rare events.
 
-## Creating a Simple Insurance Policy
+## Creating a Simple Insurance Program
 
-The `InsurancePolicy` class in `ergodic_insurance.insurance` is the building block you will use with the `Simulation` engine. Let us start NovaTech with a straightforward single-layer policy.
+The `InsuranceProgram` class in `ergodic_insurance.insurance_program` is the building block you will use with both the `Simulation` engine and the `MonteCarloEngine`. Let us start NovaTech with a straightforward single-layer program.
 
 ```python
-from ergodic_insurance import InsurancePolicy
+from ergodic_insurance import InsuranceProgram
 
-# NovaTech's first insurance policy:
+# NovaTech's first insurance program:
 #   - $100K deductible (they retain the first $100K of any loss)
 #   - $5M of coverage above the deductible
 #   - 2.5% premium rate on the limit
-policy = InsurancePolicy.from_simple(
+policy = InsuranceProgram.simple(
     deductible=100_000,            # Self-insured retention
     limit=5_000_000,               # Maximum payout: $5M
-    premium_rate=0.025             # Annual premium = 2.5% x $5M = $125K
+    rate=0.025                     # Annual premium = 2.5% x $5M = $125K
 )
 
-print(f"Annual Premium: ${policy.calculate_premium():,.0f}")
+print(f"Annual Premium: ${policy.calculate_annual_premium():,.0f}")
 print(f"Total Coverage: ${policy.get_total_coverage():,.0f}")
 ```
 
@@ -49,28 +49,30 @@ That $125K premium represents about 1.25% of NovaTech's $10M asset base. It migh
 Real-world insurance programs rarely consist of a single layer. NovaTech's risk manager wants broader protection, so she builds a three-layer tower:
 
 ```python
+from ergodic_insurance import InsuranceProgram, EnhancedInsuranceLayer
+
 # Primary layer: $5M xs $250K (covers $250K to $5.25M)
-primary = InsuranceLayer(
+primary = EnhancedInsuranceLayer(
     attachment_point=250_000,
     limit=5_000_000,
-    rate=0.025                  # 2.5% -- highest rate, most frequent claims
+    base_premium_rate=0.025     # 2.5% -- highest rate, most frequent claims
 )
 
 # First excess layer: $5M xs $5.25M (covers $5.25M to $10.25M)
-excess_1 = InsuranceLayer(
+excess_1 = EnhancedInsuranceLayer(
     attachment_point=5_250_000,
     limit=5_000_000,
-    rate=0.015                  # 1.5% -- mid-layer
+    base_premium_rate=0.015     # 1.5% -- mid-layer
 )
 
 # Second excess layer: $10M xs $10.25M (covers $10.25M to $20.25M)
-excess_2 = InsuranceLayer(
+excess_2 = EnhancedInsuranceLayer(
     attachment_point=10_250_000,
     limit=10_000_000,
-    rate=0.008                  # 0.8% -- catastrophe layer, lowest rate
+    base_premium_rate=0.008     # 0.8% -- catastrophe layer, lowest rate
 )
 
-tower = InsurancePolicy(
+tower = InsuranceProgram(
     layers=[primary, excess_1, excess_2],
     deductible=250_000
 )
@@ -80,13 +82,13 @@ print("=== NovaTech Insurance Tower ===")
 print(f"Deductible: ${tower.deductible:,.0f}")
 for i, layer in enumerate(tower.layers, 1):
     exhaustion = layer.attachment_point + layer.limit
-    premium = layer.calculate_premium()
+    premium = layer.calculate_base_premium()
     print(
         f"  Layer {i}: ${layer.limit/1e6:.0f}M xs ${layer.attachment_point/1e6:,.2f}M "
-        f"| Rate: {layer.rate:.1%} | Premium: ${premium:,.0f}"
+        f"| Rate: {layer.base_premium_rate:.1%} | Premium: ${premium:,.0f}"
     )
 print(f"Total Coverage: ${tower.get_total_coverage():,.0f}")
-print(f"Total Annual Premium: ${tower.calculate_premium():,.0f}")
+print(f"Total Annual Premium: ${tower.calculate_annual_premium():,.0f}")
 ```
 
 **Expected Output:**
@@ -102,26 +104,26 @@ Total Annual Premium: $280,000
 
 Notice how the premium rate decreases as the layers go higher. The primary layer (closest to expected losses) costs the most per dollar of coverage, while the catastrophe layer is the cheapest. This reflects the decreasing probability that losses will reach those heights.
 
-## Processing Claims Through the Policy
+## Processing Claims Through the Program
 
-Before running a full simulation, it helps to understand how a single claim flows through the tower. The `process_claim()` method returns a tuple of `(company_payment, insurance_recovery)`:
+Before running a full simulation, it helps to understand how a single claim flows through the tower. The `process_claim()` method returns a detailed dictionary:
 
 ```python
 # Scenario 1: Small loss -- entirely within the deductible
-company_pays, insurer_pays = tower.process_claim(150_000)
-print(f"$150K loss -> Company: ${company_pays:,.0f}, Insurance: ${insurer_pays:,.0f}")
+result = tower.process_claim(150_000)
+print(f"$150K loss -> Company: ${result['deductible_paid'] + result['uncovered_loss']:,.0f}, Insurance: ${result['insurance_recovery']:,.0f}")
 
 # Scenario 2: Medium loss -- penetrates the primary layer
-company_pays, insurer_pays = tower.process_claim(3_000_000)
-print(f"$3M loss   -> Company: ${company_pays:,.0f}, Insurance: ${insurer_pays:,.0f}")
+result = tower.process_claim(3_000_000)
+print(f"$3M loss   -> Company: ${result['deductible_paid'] + result['uncovered_loss']:,.0f}, Insurance: ${result['insurance_recovery']:,.0f}")
 
 # Scenario 3: Large loss -- hits two layers
-company_pays, insurer_pays = tower.process_claim(8_000_000)
-print(f"$8M loss   -> Company: ${company_pays:,.0f}, Insurance: ${insurer_pays:,.0f}")
+result = tower.process_claim(8_000_000)
+print(f"$8M loss   -> Company: ${result['deductible_paid'] + result['uncovered_loss']:,.0f}, Insurance: ${result['insurance_recovery']:,.0f}")
 
 # Scenario 4: Catastrophic loss -- exceeds all coverage
-company_pays, insurer_pays = tower.process_claim(25_000_000)
-print(f"$25M loss  -> Company: ${company_pays:,.0f}, Insurance: ${insurer_pays:,.0f}")
+result = tower.process_claim(25_000_000)
+print(f"$25M loss  -> Company: ${result['deductible_paid'] + result['uncovered_loss']:,.0f}, Insurance: ${result['insurance_recovery']:,.0f}")
 ```
 
 **Expected Output:**
@@ -130,13 +132,6 @@ $150K loss -> Company: $150,000, Insurance: $0
 $3M loss   -> Company: $250,000, Insurance: $2,750,000
 $8M loss   -> Company: $250,000, Insurance: $7,750,000
 $25M loss  -> Company: $4,750,000, Insurance: $20,250,000
-```
-
-You can also use `calculate_recovery()` when you only need the insurance recovery amount:
-
-```python
-recovery = tower.calculate_recovery(3_000_000)
-print(f"Insurance recovery on $3M claim: ${recovery:,.0f}")
 ```
 
 A few things to notice. Small losses stay entirely with NovaTech. Medium losses hit the primary layer and NovaTech only pays the deductible. The catastrophic $25M loss exceeds the tower, so NovaTech absorbs $4.75M ($250K deductible plus $4.75M above the tower). This is the "uninsured gap" that keeps risk managers up at night.
@@ -148,7 +143,7 @@ Now for the central question: does insurance actually improve NovaTech's long-te
 ```python
 from ergodic_insurance import (
     ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    Simulation, InsurancePolicy,
+    Simulation, InsuranceProgram,
 )
 
 # -- NovaTech's financial profile --
@@ -160,11 +155,11 @@ novatech_config = ManufacturerConfig(
     retention_ratio=1.0
 )
 
-# -- Insurance policy: $5M xs $100K --
-policy = InsurancePolicy.from_simple(
+# -- Insurance program: $5M xs $100K --
+policy = InsuranceProgram.simple(
     deductible=100_000,
     limit=5_000_000,
-    premium_rate=0.025
+    rate=0.025
 )
 
 # -- Loss profile: moderate frequency, high severity variability --
@@ -180,7 +175,7 @@ manufacturer_insured = WidgetManufacturer(novatech_config)
 sim_insured = Simulation(
     manufacturer=manufacturer_insured,
     loss_generator=loss_gen,
-    insurance_policy=policy,
+    insurance_program=policy,
     time_horizon=30,
     seed=42
 )
@@ -212,7 +207,7 @@ print("-" * 60)
 print(f"{'Final Equity':<30} ${results_insured.equity[-1]:>13,.0f} ${results_uninsured.equity[-1]:>13,.0f}")
 print(f"{'Time-Weighted ROE':<30} {insured_growth:>13.2%} {uninsured_growth:>13.2%}")
 print(f"{'Survived':<30} {'Yes' if results_insured.insolvency_year is None else 'No':>14} {'Yes' if results_uninsured.insolvency_year is None else 'No':>14}")
-print(f"{'Annual Premium Paid':<30} ${policy.calculate_premium():>13,.0f} {'$0':>14}")
+print(f"{'Annual Premium Paid':<30} ${policy.calculate_annual_premium():>13,.0f} {'$0':>14}")
 print(f"{'Growth Improvement':<30} {insured_growth - uninsured_growth:>+13.2%}")
 ```
 
@@ -220,11 +215,9 @@ The key metric is `Time-Weighted ROE`: this is the ergodic (time-average) growth
 
 > **Why does this work?** Ensemble-average thinking says: "expected loss is $150K, the premium is $125K, so insurance is a fair deal." Ergodic thinking reveals something deeper: without insurance, a single $3M loss destroys equity that would have compounded for decades. The growth you lose to volatility drag far exceeds the premium cost.
 
-## Advanced Features: InsuranceProgram
+## Advanced Features
 
-For more sophisticated modeling (reinstatements, aggregate limits, participation rates, and different limit types) use the `InsuranceProgram` and `EnhancedInsuranceLayer` classes from `ergodic_insurance.insurance_program`.
-
-> **Note**: `InsuranceProgram` is a standalone analysis tool with its own claim processing methods. The `Simulation` engine uses `InsurancePolicy` (from `ergodic_insurance.insurance`). You can use `InsuranceProgram` directly for detailed program analysis, or convert between the two using `InsurancePolicy.to_enhanced_program()`.
+`InsuranceProgram` and `EnhancedInsuranceLayer` also support reinstatements, aggregate limits, participation rates, and different limit types for more sophisticated modeling.
 
 ### Reinstatements
 
@@ -403,8 +396,8 @@ expected_severity = 1_000_000       # $1M average severity
 expected_annual_loss = expected_frequency * expected_severity
 print(f"Expected Annual Loss: ${expected_annual_loss:,.0f}")
 
-# Premium paid for the simple $5M xs $100K policy
-annual_premium = policy.calculate_premium()
+# Premium paid for the simple $5M xs $100K program
+annual_premium = policy.calculate_annual_premium()
 print(f"Annual Premium:       ${annual_premium:,.0f}")
 
 # Loading calculation
@@ -442,10 +435,10 @@ for load in loadings:
     # Calculate premium rate that produces this loading
     adjusted_rate = (1 + load) * expected_annual_loss / 5_000_000
 
-    test_policy = InsurancePolicy.from_simple(
+    test_policy = InsuranceProgram.simple(
         deductible=100_000,
         limit=5_000_000,
-        premium_rate=adjusted_rate
+        rate=adjusted_rate
     )
 
     test_loss_gen = ManufacturingLossGenerator.create_simple(
@@ -456,7 +449,7 @@ for load in loadings:
     test_sim = Simulation(
         manufacturer=test_mfg,
         loss_generator=test_loss_gen,
-        insurance_policy=test_policy,
+        insurance_program=test_policy,
         time_horizon=30,
         seed=42
     )
@@ -465,7 +458,7 @@ for load in loadings:
 
     results_by_loading.append({
         'loading': load,
-        'premium': test_policy.calculate_premium(),
+        'premium': test_policy.calculate_annual_premium(),
         'growth': growth,
         'vs_uninsured': growth - uninsured_growth
     })
@@ -493,7 +486,7 @@ NovaTech's board wants a 3-layer insurance tower with the following specificatio
 - **Second excess**: $15M xs $10M at a 0.6% rate
 
 Tasks:
-1. Create the `InsurancePolicy` with these three layers.
+1. Create the `InsuranceProgram` with these three layers.
 2. Calculate the total annual premium and total coverage.
 3. Process claims of $200K, $4M, $9M, and $22M through the tower. For each claim, print the company payment and insurance recovery.
 4. Identify which claim sizes fall entirely within the deductible and which exceed the tower.

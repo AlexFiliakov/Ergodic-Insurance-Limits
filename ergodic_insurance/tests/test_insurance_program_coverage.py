@@ -21,7 +21,7 @@ from ergodic_insurance.insurance_program import (
     InsuranceProgram,
     LayerState,
     OptimalStructure,
-    OptimizationConstraints,
+    ProgramOptimizationConstraints,
     ProgramState,
     ReinstatementType,
 )
@@ -34,25 +34,52 @@ from ergodic_insurance.insurance_program import (
 class TestEnhancedInsuranceLayerValidation:
     """Test validation logic in EnhancedInsuranceLayer.__post_init__."""
 
-    def test_negative_reinstatement_premium_raises(self):
-        """Line 101: negative reinstatement_premium raises ValueError."""
-        with pytest.raises(ValueError, match="Reinstatement premium must be non-negative"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                reinstatement_premium=-0.5,
-            )
-
-    def test_invalid_limit_type_raises(self):
-        """Line 108: invalid limit_type raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid limit_type"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="invalid_type",
-            )
+    @pytest.mark.parametrize(
+        "extra_kwargs,match",
+        [
+            (
+                {"reinstatement_premium": -0.5},
+                "Reinstatement premium must be non-negative",
+            ),
+            (
+                {"limit_type": "invalid_type"},
+                "Invalid limit_type",
+            ),
+            (
+                {"limit_type": "hybrid", "per_occurrence_limit": 500_000, "aggregate_limit": None},
+                "Hybrid limit type requires",
+            ),
+            (
+                {
+                    "limit_type": "hybrid",
+                    "per_occurrence_limit": -100,
+                    "aggregate_limit": 5_000_000,
+                },
+                "Per-occurrence limit must be positive",
+            ),
+            (
+                {"limit_type": "hybrid", "per_occurrence_limit": 500_000, "aggregate_limit": -100},
+                "Aggregate limit must be positive",
+            ),
+            (
+                {"limit_type": "per-occurrence", "aggregate_limit": -500},
+                "Aggregate limit must be positive",
+            ),
+        ],
+        ids=[
+            "negative-reinstatement-premium",
+            "invalid-limit-type",
+            "hybrid-missing-aggregate",
+            "hybrid-negative-per-occurrence",
+            "hybrid-negative-aggregate",
+            "standalone-negative-aggregate",
+        ],
+    )
+    def test_validation_errors(self, extra_kwargs, match):
+        """Test that invalid parameters raise appropriate ValueErrors."""
+        base = {"attachment_point": 0, "limit": 1_000_000, "base_premium_rate": 0.01}
+        with pytest.raises(ValueError, match=match):
+            EnhancedInsuranceLayer(**{**base, **extra_kwargs})
 
     def test_hybrid_default_per_occurrence_limit(self):
         """Line 132: hybrid type sets per_occurrence_limit to limit when None."""
@@ -64,53 +91,6 @@ class TestEnhancedInsuranceLayerValidation:
             aggregate_limit=5_000_000,
         )
         assert layer.per_occurrence_limit == 1_000_000
-
-    def test_hybrid_missing_aggregate_limit_raises(self):
-        """Line 135-137: hybrid without aggregate_limit raises ValueError."""
-        with pytest.raises(ValueError, match="Hybrid limit type requires"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="hybrid",
-                per_occurrence_limit=500_000,
-                aggregate_limit=None,
-            )
-
-    def test_hybrid_negative_per_occurrence_limit_raises(self):
-        """Line 139: negative per_occurrence_limit raises ValueError."""
-        with pytest.raises(ValueError, match="Per-occurrence limit must be positive"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="hybrid",
-                per_occurrence_limit=-100,
-                aggregate_limit=5_000_000,
-            )
-
-    def test_hybrid_negative_aggregate_limit_raises(self):
-        """Line 143: negative aggregate_limit in hybrid raises ValueError."""
-        with pytest.raises(ValueError, match="Aggregate limit must be positive"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="hybrid",
-                per_occurrence_limit=500_000,
-                aggregate_limit=-100,
-            )
-
-    def test_aggregate_limit_negative_standalone_raises(self):
-        """Line 147: negative aggregate_limit on per-occurrence type raises ValueError."""
-        with pytest.raises(ValueError, match="Aggregate limit must be positive"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="per-occurrence",
-                aggregate_limit=-500,
-            )
 
 
 # ===========================================================================
@@ -914,3 +894,114 @@ class TestFromYamlAlternateKeys:
             assert program.layers[0].base_premium_rate == 0.03
         finally:
             Path(temp_path).unlink()
+
+
+# ===========================================================================
+# InsuranceProgram: simple() classmethod (line 531-569)
+# ===========================================================================
+
+
+class TestInsuranceProgramSimpleCoverage:
+    """Coverage tests for InsuranceProgram.simple() classmethod."""
+
+    def test_simple_creates_single_layer(self):
+        """simple() creates a program with one EnhancedInsuranceLayer."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=2_000_000,
+            rate=0.02,
+        )
+        assert len(program.layers) == 1
+        assert isinstance(program.layers[0], EnhancedInsuranceLayer)
+
+    def test_simple_attachment_equals_deductible(self):
+        """simple() sets the layer attachment point to the deductible."""
+        program = InsuranceProgram.simple(
+            deductible=250_000,
+            limit=5_000_000,
+            rate=0.015,
+        )
+        assert program.layers[0].attachment_point == 250_000
+
+    def test_simple_layer_has_zero_reinstatements(self):
+        """simple() creates layer with reinstatements=0."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=1_000_000,
+            rate=0.03,
+        )
+        assert program.layers[0].reinstatements == 0
+
+    def test_simple_respects_name_kwarg(self):
+        """simple() passes name to InsuranceProgram."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=1_000_000,
+            rate=0.02,
+            name="Custom Name",
+        )
+        assert program.name == "Custom Name"
+
+    def test_simple_forwards_extra_kwargs(self):
+        """simple() forwards extra kwargs to InsuranceProgram.__init__."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=1_000_000,
+            rate=0.02,
+            pricing_enabled=True,
+        )
+        assert program.pricing_enabled is True
+
+    def test_simple_zero_deductible(self):
+        """simple() works with zero deductible."""
+        program = InsuranceProgram.simple(
+            deductible=0,
+            limit=1_000_000,
+            rate=0.02,
+        )
+        assert program.deductible == 0
+        assert program.layers[0].attachment_point == 0
+
+
+# ===========================================================================
+# InsuranceProgram: calculate_premium() alias (line 571-579)
+# ===========================================================================
+
+
+class TestInsuranceProgramCalculatePremiumCoverage:
+    """Coverage tests for InsuranceProgram.calculate_premium() alias."""
+
+    def test_calculate_premium_is_alias(self):
+        """calculate_premium() delegates to calculate_annual_premium(0.0)."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=100_000,
+                limit=5_000_000,
+                base_premium_rate=0.015,
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=100_000)
+        assert program.calculate_premium() == program.calculate_annual_premium(0.0)
+
+    def test_calculate_premium_correct_value(self):
+        """calculate_premium() returns limit * rate for each layer."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=0,
+                limit=2_000_000,
+                base_premium_rate=0.01,
+            ),
+            EnhancedInsuranceLayer(
+                attachment_point=2_000_000,
+                limit=3_000_000,
+                base_premium_rate=0.005,
+            ),
+        ]
+        program = InsuranceProgram(layers)
+        expected = 2_000_000 * 0.01 + 3_000_000 * 0.005  # 20K + 15K = 35K
+        assert program.calculate_premium() == expected
+
+    def test_calculate_premium_empty_layers(self):
+        """calculate_premium() returns 0 for program with no layers."""
+        program = InsuranceProgram(layers=[])
+        assert program.calculate_premium() == 0.0

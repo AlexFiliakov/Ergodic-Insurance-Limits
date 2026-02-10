@@ -301,6 +301,7 @@ class TestParetoFrontier:
     @pytest.fixture
     def sample_pareto_points(self):
         """Create sample Pareto points."""
+        rng = np.random.default_rng(42)
         points = []
         for i in range(10):
             point = MockParetoPoint(
@@ -309,7 +310,7 @@ class TestParetoFrontier:
                     "risk": 50 - i * 4,
                     "performance": 60 + i * 3,
                 },
-                crowding_distance=np.random.uniform(0.5, 2.0),
+                crowding_distance=rng.uniform(0.5, 2.0),
             )
             points.append(point)
         return points

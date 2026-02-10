@@ -9,7 +9,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 
 
 class TestPeriodicRuinTracking:
@@ -258,9 +258,11 @@ class TestPeriodicRuinTracking:
         loss_generator, insurance_program, manufacturer = setup_engine
 
         # Create a scenario with higher loss probability
+        # Use a seeded RNG so the loss generation is deterministic
+        _ruin_rng = np.random.default_rng(123)
         loss_generator.generate_losses = Mock(
             side_effect=lambda duration, revenue: (
-                [Mock(amount=2_000_000)] if np.random.random() < 0.3 else [],
+                [Mock(amount=2_000_000)] if _ruin_rng.random() < 0.3 else [],
                 None,
             )
         )

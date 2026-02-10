@@ -8,9 +8,9 @@ import pytest
 from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.decision_engine import (
     DecisionMetrics,
+    DecisionOptimizationConstraints,
     InsuranceDecision,
     InsuranceDecisionEngine,
-    OptimizationConstraints,
     OptimizationMethod,
     Recommendations,
     SensitivityReport,
@@ -20,12 +20,12 @@ from ergodic_insurance.loss_distributions import LossDistribution
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
-class TestOptimizationConstraints:
-    """Test OptimizationConstraints dataclass."""
+class TestDecisionOptimizationConstraints:
+    """Test DecisionOptimizationConstraints dataclass."""
 
     def test_default_constraints(self):
         """Test default constraint values."""
-        constraints = OptimizationConstraints()
+        constraints = DecisionOptimizationConstraints()
 
         assert constraints.max_premium_budget == 1_000_000
         assert constraints.min_coverage_limit == 5_000_000
@@ -39,7 +39,7 @@ class TestOptimizationConstraints:
 
     def test_custom_constraints(self):
         """Test custom constraint values."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=2_000_000,
             min_coverage_limit=10_000_000,
             max_bankruptcy_probability=0.005,
@@ -51,7 +51,7 @@ class TestOptimizationConstraints:
 
     def test_enhanced_constraints(self):
         """Test enhanced constraint fields."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_debt_to_equity=1.5,
             max_insurance_cost_ratio=0.02,
             min_coverage_requirement=1_000_000,
@@ -302,7 +302,7 @@ class TestInsuranceDecisionEngine:
 
     def test_optimize_insurance_decision_slsqp(self, engine):
         """Test optimization using SLSQP method."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=50_000_000,
@@ -318,7 +318,7 @@ class TestInsuranceDecisionEngine:
 
     def test_optimize_insurance_decision_differential_evolution(self, engine):
         """Test optimization using differential evolution."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=300_000,
             min_coverage_limit=5_000_000,
             max_layers=3,
@@ -335,7 +335,7 @@ class TestInsuranceDecisionEngine:
 
     def test_optimize_with_custom_weights(self, engine):
         """Test optimization with custom objective weights."""
-        constraints = OptimizationConstraints()
+        constraints = DecisionOptimizationConstraints()
         weights = {"growth": 0.6, "risk": 0.3, "cost": 0.1}
 
         decision = engine.optimize_insurance_decision(constraints, weights=weights)
@@ -345,7 +345,7 @@ class TestInsuranceDecisionEngine:
 
     def test_decision_caching(self, engine):
         """Test that decisions are cached."""
-        constraints = OptimizationConstraints(max_premium_budget=400_000)
+        constraints = DecisionOptimizationConstraints(max_premium_budget=400_000)
 
         # First call
         decision1 = engine.optimize_insurance_decision(constraints)
@@ -382,6 +382,7 @@ class TestInsuranceDecisionEngine:
         assert metrics.premium_to_limit_ratio == 40_000 / 5_000_000
         assert metrics.coverage_adequacy > 0
 
+    @pytest.mark.slow
     def test_run_sensitivity_analysis(self):
         """Test sensitivity analysis.
 
@@ -527,7 +528,7 @@ class TestInsuranceDecisionEngine:
 
     def test_validate_decision(self, engine):
         """Test decision validation against constraints."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=50_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=20_000_000,
@@ -619,6 +620,7 @@ class TestInsuranceDecisionEngine:
 class TestIntegration:
     """Integration tests for decision engine."""
 
+    @pytest.mark.slow
     def test_full_optimization_workflow(self):
         """Test complete optimization workflow."""
         # Create real components
@@ -662,7 +664,7 @@ class TestIntegration:
             )
 
         # Define constraints
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=50_000_000,
@@ -692,6 +694,7 @@ class TestIntegration:
         assert decision.total_coverage >= constraints.min_coverage_limit
         assert metrics.bankruptcy_probability <= constraints.max_bankruptcy_probability
 
+    @pytest.mark.slow
     def test_multi_scenario_optimization(self):
         """Test optimization across different pricing scenarios."""
 
@@ -709,7 +712,7 @@ class TestIntegration:
         loss_dist.ppf = Mock(return_value=1_000_000)
         loss_dist.expected_value = Mock(return_value=500_000)
 
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
             min_coverage_limit=5_000_000,
         )
@@ -781,7 +784,7 @@ class TestEnhancedOptimizationMethods:
 
     def test_enhanced_slsqp_optimization(self, engine):
         """Test enhanced SLSQP optimization method."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=20_000_000,
@@ -805,7 +808,7 @@ class TestEnhancedOptimizationMethods:
     @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_trust_region_optimization(self, engine):
         """Test trust-region optimization method."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=15_000_000,
@@ -827,7 +830,7 @@ class TestEnhancedOptimizationMethods:
 
     def test_penalty_method_optimization(self, engine):
         """Test penalty method optimization."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=300_000,
             min_coverage_limit=4_000_000,
             max_coverage_limit=12_000_000,
@@ -849,7 +852,7 @@ class TestEnhancedOptimizationMethods:
 
     def test_augmented_lagrangian_optimization(self, engine):
         """Test augmented Lagrangian optimization."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=450_000,
             min_coverage_limit=6_000_000,
             max_coverage_limit=18_000_000,
@@ -871,7 +874,7 @@ class TestEnhancedOptimizationMethods:
 
     def test_multi_start_optimization(self, engine):
         """Test multi-start global optimization."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=20_000_000,
@@ -893,7 +896,7 @@ class TestEnhancedOptimizationMethods:
 
     def test_enhanced_constraint_handling(self, engine):
         """Test the enhanced constraints (debt-to-equity, insurance cost ceiling, etc.)."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=600_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=25_000_000,
@@ -921,7 +924,7 @@ class TestEnhancedOptimizationMethods:
 
     def test_optimization_convergence_info(self, engine):
         """Test that optimization methods provide convergence information."""
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
             min_coverage_limit=5_000_000,
             max_coverage_limit=15_000_000,
@@ -942,7 +945,7 @@ class TestEnhancedOptimizationMethods:
     def test_fallback_optimization_on_failure(self, engine):
         """Test that optimization falls back to alternative method on failure."""
         # Create moderately restrictive constraints
-        constraints = OptimizationConstraints(
+        constraints = DecisionOptimizationConstraints(
             max_premium_budget=100_000,  # Low but not impossible budget
             min_coverage_limit=10_000_000,  # High coverage requirement
             max_coverage_limit=20_000_000,

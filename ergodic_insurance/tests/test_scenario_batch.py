@@ -22,7 +22,7 @@ from ergodic_insurance.config import Config
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
 from ergodic_insurance.scenario_manager import (
     ParameterSpec,
     ScenarioConfig,
@@ -59,7 +59,7 @@ def mock_simulation_results():
     n_sims = 100
     n_years = 5
 
-    return SimulationResults(
+    return MonteCarloResults(
         final_assets=np.random.lognormal(16, 1, n_sims),
         annual_losses=np.random.exponential(100000, (n_sims, n_years)),
         insurance_recoveries=np.random.exponential(50000, (n_sims, n_years)),
@@ -425,17 +425,20 @@ class TestBatchProcessor:
         mock_engine.run.return_value = mock_simulation_results
         mock_engine_class.return_value = mock_engine
 
-        # Setup mock executor
-        mock_future = Mock()
-        mock_future.result.return_value = BatchResult(
-            scenario_id="test",
-            scenario_name="Test",
-            status=ProcessingStatus.COMPLETED,
-            simulation_results=mock_simulation_results,
-        )
+        # Create 3 distinct futures so the pending dict can track them
+        futures = []
+        for i in range(3):
+            f = Mock()
+            f.result.return_value = BatchResult(
+                scenario_id=f"test_{i}",
+                scenario_name=f"Test {i}",
+                status=ProcessingStatus.COMPLETED,
+                simulation_results=mock_simulation_results,
+            )
+            futures.append(f)
 
         mock_executor = Mock()
-        mock_executor.submit.return_value = mock_future
+        mock_executor.submit.side_effect = futures
         mock_executor.__enter__ = Mock(return_value=mock_executor)
         mock_executor.__exit__ = Mock(return_value=None)
         mock_executor_class.return_value = mock_executor
@@ -452,9 +455,13 @@ class TestBatchProcessor:
             progress_bar=False,
         )
 
-        # Mock as_completed to return futures
-        with patch("ergodic_insurance.batch_processor.as_completed") as mock_as_completed:
-            mock_as_completed.return_value = [mock_future] * 3
+        # Mock wait() to match the new sliding-window pattern
+        with patch("ergodic_insurance.batch_processor.wait") as mock_wait:
+            # n_workers=2, so first call returns 2 done, second returns the last 1
+            mock_wait.side_effect = [
+                ({futures[0], futures[1]}, set()),
+                ({futures[2]}, set()),
+            ]
 
             # Process batch
             results = processor.process_batch(scenarios, resume_from_checkpoint=False)

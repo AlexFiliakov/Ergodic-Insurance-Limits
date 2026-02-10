@@ -70,6 +70,7 @@ class TestImportPatterns:
             ManufacturingLossGenerator,
             MarketCycle,
             MonteCarloEngine,
+            MonteCarloResults,
             RiskMetrics,
             RuinProbabilityAnalyzer,
             Simulation,
@@ -100,6 +101,7 @@ class TestImportPatterns:
         assert isinstance(InsurancePricer, type), "InsurancePricer should be a class"
         assert isinstance(RiskMetrics, type), "RiskMetrics should be a class"
         assert isinstance(MonteCarloEngine, type), "MonteCarloEngine should be a class"
+        assert isinstance(MonteCarloResults, type), "MonteCarloResults should be a class"
         assert isinstance(
             RuinProbabilityAnalyzer, type
         ), "RuinProbabilityAnalyzer should be a class"
@@ -109,23 +111,13 @@ class TestImportPatterns:
         assert isinstance(MarketCycle, EnumMeta), "MarketCycle should be an Enum"
 
         # Verify classes have expected methods/attributes
-        assert hasattr(BusinessOptimizer, "__init__"), "BusinessOptimizer should be instantiable"
         assert hasattr(
             ManufacturingLossGenerator, "generate_losses"
         ), "ManufacturingLossGenerator should have generate_losses method"
-        assert hasattr(WidgetManufacturer, "__init__"), "WidgetManufacturer should be instantiable"
-        assert hasattr(ErgodicAnalyzer, "__init__"), "ErgodicAnalyzer should be instantiable"
 
         # Test that basic instantiation works for simple classes
-        try:
-            # LossEvent should be instantiable with basic parameters
-            event = LossEvent(amount=1000, event_type="test", time=1)
-            assert event.amount == 1000, "LossEvent should store amount"
-        except TypeError:
-            # If it needs different parameters, at least verify it's a proper class
-            assert LossEvent.__module__.startswith(
-                "ergodic_insurance"
-            ), "LossEvent should be from ergodic_insurance module"
+        event = LossEvent(amount=1000, event_type="test", time=1)
+        assert event.amount == 1000, "LossEvent should store amount"
 
     def test_internals_imports(self):
         """Test that relocated internal classes are importable from internals module."""

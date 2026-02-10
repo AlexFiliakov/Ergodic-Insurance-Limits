@@ -35,6 +35,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 import uuid
+import warnings
 
 from .decimal_utils import ZERO, to_decimal
 
@@ -417,6 +418,9 @@ class Ledger:
         # Snapshot of balances at the prune point (Issue #315)
         self._pruned_balances: Dict[str, Decimal] = {}
         self._prune_cutoff: Optional[int] = None
+        # Aggregate debit/credit totals for pruned entries (Issue #362)
+        self._pruned_debits: Decimal = ZERO
+        self._pruned_credits: Decimal = ZERO
 
     def _update_balance_cache(self, entry: LedgerEntry) -> None:
         """Update running balance cache after recording an entry.
@@ -623,6 +627,15 @@ class Ledger:
         # O(1) lookup for current balance (Issue #259)
         if as_of_date is None:
             return self._balances.get(account_str, ZERO)
+
+        # Warn when querying dates in the pruned range (Issue #362)
+        if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
+            warnings.warn(
+                f"as_of_date {as_of_date} is before prune cutoff "
+                f"{self._prune_cutoff}; returned balance reflects the "
+                f"prune-point snapshot, not the true historical balance",
+                stacklevel=2,
+            )
 
         # Historical query: iterate through entries (less frequent use case)
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
@@ -907,13 +920,16 @@ class Ledger:
 
                 balanced, diff = ledger.verify_balance()
                 if not balanced:
-                    print(f"Warning: Ledger out of balance by ${diff:,.2f}")
+                    warnings.warn(
+                        f"Ledger out of balance by ${diff:,.2f}",
+                        stacklevel=2,
+                    )
         """
-        total_debits = sum(
+        total_debits = self._pruned_debits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.DEBIT),
             ZERO,
         )
-        total_credits = sum(
+        total_credits = self._pruned_credits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.CREDIT),
             ZERO,
         )
@@ -951,6 +967,15 @@ class Ledger:
                 for account, balance in sorted(self._balances.items())
                 if balance != ZERO
             }
+
+        # Warn when querying dates in the pruned range (Issue #362)
+        if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
+            warnings.warn(
+                f"as_of_date {as_of_date} is before prune cutoff "
+                f"{self._prune_cutoff}; returned balances reflect the "
+                f"prune-point snapshot, not true historical balances",
+                stacklevel=2,
+            )
 
         # O(N) single-pass: accumulate per-account balances in one iteration
         # Include any pruned snapshot balances as starting points
@@ -1009,6 +1034,10 @@ class Ledger:
         if self._pruned_balances:
             snapshot = dict(self._pruned_balances)
 
+        # Track aggregate debit/credit totals for verify_balance (Issue #362)
+        pruned_debits = self._pruned_debits
+        pruned_credits = self._pruned_credits
+
         kept: List[LedgerEntry] = []
         removed = 0
         for entry in self.entries:
@@ -1028,6 +1057,11 @@ class Ledger:
                         snapshot[account] += entry.amount
                     else:
                         snapshot[account] -= entry.amount
+                # Track raw debit/credit for verify_balance
+                if entry.entry_type == EntryType.DEBIT:
+                    pruned_debits += entry.amount
+                else:
+                    pruned_credits += entry.amount
                 removed += 1
             else:
                 kept.append(entry)
@@ -1035,6 +1069,8 @@ class Ledger:
         self.entries = kept
         self._pruned_balances = snapshot
         self._prune_cutoff = before_date
+        self._pruned_debits = pruned_debits
+        self._pruned_credits = pruned_credits
         return removed
 
     def clear(self) -> None:
@@ -1047,6 +1083,8 @@ class Ledger:
         self._balances.clear()
         self._pruned_balances.clear()
         self._prune_cutoff = None
+        self._pruned_debits = ZERO
+        self._pruned_credits = ZERO
 
     def __len__(self) -> int:
         """Return the number of entries in the ledger."""
@@ -1085,8 +1123,10 @@ class Ledger:
         # Deep copy balance cache
         result._balances = copy.deepcopy(self._balances, memo)
 
-        # Deep copy pruning state (Issue #315)
+        # Deep copy pruning state (Issue #315, #362)
         result._pruned_balances = copy.deepcopy(self._pruned_balances, memo)
         result._prune_cutoff = self._prune_cutoff
+        result._pruned_debits = self._pruned_debits
+        result._pruned_credits = self._pruned_credits
 
         return result

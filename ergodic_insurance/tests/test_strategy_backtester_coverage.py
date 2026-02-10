@@ -19,8 +19,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import SimulationConfig
-from ergodic_insurance.monte_carlo import SimulationResults as MCSimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
 from ergodic_insurance.simulation import SimulationResults
 from ergodic_insurance.strategy_backtester import (
     AdaptiveStrategy,
@@ -72,8 +71,8 @@ def sim_config():
 
 @pytest.fixture
 def mock_mc_results():
-    """Build a plausible MCSimulationResults mock."""
-    mock = MagicMock(spec=MCSimulationResults)
+    """Build a plausible MonteCarloResults mock."""
+    mock = MagicMock(spec=MonteCarloResults)
     mock.growth_rates = np.array([0.05, 0.08, 0.03, 0.10, 0.07, -0.02, 0.06, 0.04, 0.09, 0.01])
     mock.final_assets = np.array(
         [
