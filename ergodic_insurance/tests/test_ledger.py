@@ -10,6 +10,7 @@ Tests cover:
 """
 
 from decimal import Decimal
+import warnings
 
 import pytest
 
@@ -1131,3 +1132,176 @@ class TestSinglePassTrialBalance:
         ledger.prune_entries(before_date=2)
         trial_pruned = ledger.get_trial_balance(as_of_date=3)
         assert trial_full == trial_pruned
+
+
+class TestPrunedLedgerWarningsAndVerification:
+    """Tests for Issue #362: correct behavior after ledger pruning."""
+
+    @pytest.fixture
+    def pruned_ledger(self):
+        """Ledger with years 1-5, pruned at year 3."""
+        ledger = Ledger()
+        for year in range(1, 6):
+            ledger.record_double_entry(
+                date=year,
+                debit_account="cash",
+                credit_account="revenue",
+                amount=1000 * year,
+                transaction_type=TransactionType.REVENUE,
+                description=f"Year {year} revenue",
+            )
+        ledger.prune_entries(before_date=3)
+        return ledger
+
+    def test_get_balance_warns_before_prune_cutoff(self, pruned_ledger):
+        """get_balance warns when as_of_date < prune_cutoff."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            pruned_ledger.get_balance("cash", as_of_date=1)
+            assert len(w) == 1
+            assert "prune cutoff" in str(w[0].message)
+
+    def test_get_balance_no_warning_at_cutoff(self, pruned_ledger):
+        """get_balance does not warn when as_of_date >= prune_cutoff."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            pruned_ledger.get_balance("cash", as_of_date=3)
+            assert len(w) == 0
+
+    def test_get_balance_no_warning_after_cutoff(self, pruned_ledger):
+        """get_balance does not warn when as_of_date > prune_cutoff."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            pruned_ledger.get_balance("cash", as_of_date=5)
+            assert len(w) == 0
+
+    def test_get_balance_no_warning_without_pruning(self):
+        """get_balance never warns on an unpruned ledger."""
+        ledger = Ledger()
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=1000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            ledger.get_balance("cash", as_of_date=1)
+            assert len(w) == 0
+
+    def test_get_trial_balance_warns_before_prune_cutoff(self, pruned_ledger):
+        """get_trial_balance warns when as_of_date < prune_cutoff."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            pruned_ledger.get_trial_balance(as_of_date=2)
+            assert len(w) == 1
+            assert "prune cutoff" in str(w[0].message)
+
+    def test_get_trial_balance_no_warning_at_cutoff(self, pruned_ledger):
+        """get_trial_balance does not warn at prune_cutoff."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            pruned_ledger.get_trial_balance(as_of_date=3)
+            assert len(w) == 0
+
+    def test_verify_balance_correct_after_pruning(self, pruned_ledger):
+        """verify_balance returns balanced after pruning."""
+        balanced, diff = pruned_ledger.verify_balance()
+        assert balanced is True
+        assert diff == Decimal("0")
+
+    def test_verify_balance_correct_after_multiple_prunes(self):
+        """verify_balance stays correct across multiple prune calls."""
+        ledger = Ledger()
+        for year in range(1, 6):
+            ledger.record_double_entry(
+                date=year,
+                debit_account="cash",
+                credit_account="revenue",
+                amount=1000 * year,
+                transaction_type=TransactionType.REVENUE,
+            )
+        ledger.prune_entries(before_date=2)
+        balanced1, diff1 = ledger.verify_balance()
+        assert balanced1 is True
+        assert diff1 == Decimal("0")
+
+        ledger.prune_entries(before_date=4)
+        balanced2, diff2 = ledger.verify_balance()
+        assert balanced2 is True
+        assert diff2 == Decimal("0")
+
+    def test_verify_balance_correct_after_pruning_all(self):
+        """verify_balance correct when all entries are pruned."""
+        ledger = Ledger()
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=5000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        ledger.prune_entries(before_date=100)
+        balanced, diff = ledger.verify_balance()
+        assert balanced is True
+        assert diff == Decimal("0")
+
+    def test_verify_balance_detects_imbalance_after_pruning(self):
+        """verify_balance detects imbalance even when imbalanced entries are pruned."""
+        ledger = Ledger()
+        # Record a balanced double-entry
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=5000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        # Force an imbalanced entry via direct record
+        ledger.record(
+            LedgerEntry(
+                date=1,
+                account="cash",
+                entry_type=EntryType.DEBIT,
+                amount=Decimal("100"),
+                transaction_type=TransactionType.ADJUSTMENT,
+                description="imbalanced debit",
+            )
+        )
+        # Verify imbalanced before pruning
+        balanced_before, _ = ledger.verify_balance()
+        assert balanced_before is False
+
+        # Prune everything
+        ledger.prune_entries(before_date=100)
+        balanced_after, diff = ledger.verify_balance()
+        assert balanced_after is False
+        assert diff == Decimal("100")
+
+    def test_pruned_state_reset_on_clear(self):
+        """clear() resets pruned debit/credit totals."""
+        ledger = Ledger()
+        ledger.record_double_entry(
+            date=1,
+            debit_account="cash",
+            credit_account="revenue",
+            amount=1000,
+            transaction_type=TransactionType.REVENUE,
+        )
+        ledger.prune_entries(before_date=100)
+        ledger.clear()
+        assert ledger._pruned_debits == Decimal("0")
+        assert ledger._pruned_credits == Decimal("0")
+        balanced, diff = ledger.verify_balance()
+        assert balanced is True
+
+    def test_deepcopy_preserves_pruned_totals(self, pruned_ledger):
+        """deepcopy preserves pruned debit/credit totals."""
+        import copy
+
+        copied = copy.deepcopy(pruned_ledger)
+        assert copied._pruned_debits == pruned_ledger._pruned_debits
+        assert copied._pruned_credits == pruned_ledger._pruned_credits
+        balanced, diff = copied.verify_balance()
+        assert balanced is True
