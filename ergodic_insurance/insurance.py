@@ -279,18 +279,19 @@ class InsurancePolicy:
 
         # Company pays the deductible
         company_payment = min(claim_amount, self.deductible)
-        remaining_loss = claim_amount - company_payment
+        remaining_insurable = claim_amount - company_payment
 
         # Process through insurance layers
         insurance_recovery = 0.0
         for layer in self.layers:
-            if remaining_loss <= 0:
+            if remaining_insurable <= 0:
                 break
 
             # Calculate recovery from this layer
             layer_recovery = layer.calculate_recovery(claim_amount)
+            layer_recovery = min(layer_recovery, remaining_insurable)
             insurance_recovery += layer_recovery
-            remaining_loss -= layer_recovery
+            remaining_insurable -= layer_recovery
 
         # Guard: total insurance recovery cannot exceed (claim - deductible)
         max_recoverable = claim_amount - min(claim_amount, self.deductible)
@@ -325,11 +326,14 @@ class InsurancePolicy:
             return 0.0
 
         # Process through insurance layers
+        remaining_insurable = claim_amount - self.deductible
         insurance_recovery = 0.0
         for layer in self.layers:
             # Calculate recovery from this layer
             layer_recovery = layer.calculate_recovery(claim_amount)
+            layer_recovery = min(layer_recovery, remaining_insurable)
             insurance_recovery += layer_recovery
+            remaining_insurable -= layer_recovery
 
         # Guard: total recovery cannot exceed (claim - deductible)
         max_recoverable = claim_amount - self.deductible
@@ -440,7 +444,7 @@ class InsurancePolicy:
             layer_top = layer.attachment_point + layer.limit
             max_coverage = max(max_coverage, layer_top)
 
-        return max_coverage - self.deductible
+        return max(0.0, max_coverage - self.deductible)
 
     def to_enhanced_program(self) -> Optional["InsuranceProgram"]:
         """Convert to enhanced InsuranceProgram for advanced features.

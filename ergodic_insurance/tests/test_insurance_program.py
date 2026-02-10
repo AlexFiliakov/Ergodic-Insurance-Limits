@@ -108,6 +108,23 @@ class TestEnhancedInsuranceLayer:
         premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
         assert premium == 0.0
 
+    def test_exhausted_is_dataclass_field(self):
+        """exhausted should be a proper dataclass field, appearing in asdict and __eq__."""
+        from dataclasses import asdict
+
+        layer = EnhancedInsuranceLayer(
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
+        )
+        d = asdict(layer)
+        assert "exhausted" in d
+        assert d["exhausted"] == 0.0
+
+        # Two identical layers should be equal (exhausted participates in __eq__)
+        layer2 = EnhancedInsuranceLayer(
+            attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
+        )
+        assert layer == layer2
+
     def test_can_respond(self):
         """Test layer response determination."""
         layer = EnhancedInsuranceLayer(
@@ -484,6 +501,40 @@ class TestInsuranceProgram:
         program = InsuranceProgram(layers)
 
         assert program.get_total_coverage() == 25_000_000
+
+    def test_get_total_coverage_subtracts_deductible(self):
+        """get_total_coverage should return gross coverage minus deductible."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=20_000_000, base_premium_rate=0.01
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=1_000_000)
+        # Gross = 25M, net = 25M - 1M = 24M
+        assert program.get_total_coverage() == 24_000_000
+
+    def test_get_total_coverage_consistent_with_policy(self):
+        """InsuranceProgram.get_total_coverage should match InsurancePolicy for same config."""
+        from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
+
+        layers_basic = [
+            InsuranceLayer(attachment_point=500_000, limit=4_500_000, rate=0.015),
+            InsuranceLayer(attachment_point=5_000_000, limit=20_000_000, rate=0.008),
+        ]
+        policy = InsurancePolicy(layers=layers_basic, deductible=500_000)
+
+        program = policy.to_enhanced_program()
+        assert program is not None
+        assert program.get_total_coverage() == policy.get_total_coverage()
+
+    def test_get_total_coverage_deductible_exceeds_layers(self):
+        """get_total_coverage returns 0 when deductible exceeds highest layer exhaust."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=100_000, limit=200_000, base_premium_rate=0.01),
+        ]
+        program = InsuranceProgram(layers, deductible=500_000)
+        assert program.get_total_coverage() == 0.0
 
     def test_yaml_loading(self):
         """Test loading program from YAML configuration."""

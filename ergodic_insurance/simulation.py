@@ -1114,12 +1114,11 @@ class Simulation:
             survival_rate = float(np.mean(final_assets > 0)) if len(final_assets) > 0 else 0.0
             mean_final = float(np.mean(final_assets)) if len(final_assets) > 0 else 0.0
             std_final = float(np.std(final_assets, ddof=1)) if len(final_assets) > 1 else 0.0
-            positive_rates = growth_rates[growth_rates > 0]
-            geo_mean = (
-                float(np.exp(np.mean(np.log(positive_rates))) - 1)
-                if len(positive_rates) > 0
-                else 0.0
-            )
+            if len(growth_rates) > 0:
+                growth_factors = np.maximum(1 + growth_rates, 1e-10)
+                geo_mean = float(np.exp(np.mean(np.log(growth_factors))) - 1)
+            else:
+                geo_mean = 0.0
             arith_mean = float(np.mean(growth_rates)) if len(growth_rates) > 0 else 0.0
             p95 = float(np.percentile(final_assets, 95)) if len(final_assets) > 0 else 0.0
             p99 = float(np.percentile(final_assets, 99)) if len(final_assets) > 0 else 0.0
