@@ -127,6 +127,11 @@ __all__ = [
     "EntryType",
     "AccountType",
     "AccountName",
+    # Warning classes
+    "ErgodicInsuranceWarning",
+    "ConfigurationWarning",
+    "DataQualityWarning",
+    "ExportWarning",
 ]
 
 
@@ -316,6 +321,20 @@ def __getattr__(name):
             Ledger,
             LedgerEntry,
             TransactionType,
+        )
+
+        return locals()[name]
+    if name in (
+        "ErgodicInsuranceWarning",
+        "ConfigurationWarning",
+        "DataQualityWarning",
+        "ExportWarning",
+    ):
+        from ._warnings import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            ConfigurationWarning,
+            DataQualityWarning,
+            ErgodicInsuranceWarning,
+            ExportWarning,
         )
 
         return locals()[name]

@@ -2,13 +2,20 @@
 
 This module provides functions to export visualizations to different formats
 including high-resolution images, PDFs, and web-ready formats.
+
+.. versionchanged:: 0.7.0
+    Replaced bare ``print()`` warning calls with ``logging.warning()``.
+    See :issue:`382`.
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from matplotlib.figure import Figure
 import plotly.graph_objects as go
+
+logger = logging.getLogger(__name__)
 
 
 def save_figure(
@@ -93,8 +100,12 @@ def save_figure(
                     )
                     saved_files.append(str(output_path))
                 except Exception as e:
-                    print(f"Warning: Could not save plotly figure as {fmt}: {e}")
-                    print("Install kaleido for static image export: pip install kaleido")
+                    logger.warning(
+                        "Could not save plotly figure as %s: %s. "
+                        "Install kaleido for static image export: pip install kaleido",
+                        fmt,
+                        e,
+                    )
             else:
                 raise ValueError(f"Unsupported format for plotly: {fmt}")
     else:
@@ -211,8 +222,11 @@ def save_for_presentation(
                 scale=1,
             )
         except Exception as e:
-            print(f"Warning: Could not save plotly figure: {e}")
-            print("Install kaleido for static image export: pip install kaleido")
+            logger.warning(
+                "Could not save plotly figure: %s. "
+                "Install kaleido for static image export: pip install kaleido",
+                e,
+            )
             # Fallback to HTML
             output_path = f"{filename}.html"
             fig.write_html(output_path)

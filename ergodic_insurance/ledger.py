@@ -920,7 +920,10 @@ class Ledger:
 
                 balanced, diff = ledger.verify_balance()
                 if not balanced:
-                    print(f"Warning: Ledger out of balance by ${diff:,.2f}")
+                    warnings.warn(
+                        f"Ledger out of balance by ${diff:,.2f}",
+                        stacklevel=2,
+                    )
         """
         total_debits = self._pruned_debits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.DEBIT),
