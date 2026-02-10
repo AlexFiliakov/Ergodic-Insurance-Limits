@@ -180,13 +180,15 @@ class TestCashFlowStatement:
         """Test monthly cash flow statement generation."""
         df = self.cash_flow.generate_statement(1, period="monthly")
 
-        assert "Month 1" in df.columns
+        assert "Monthly Avg 1" in df.columns
 
         # Extract values
         values_dict = {}
         for _, row in df.iterrows():
-            if row["Month 1"] != "" and isinstance(row["Month 1"], (int, float, Decimal)):
-                values_dict[row["Item"].strip()] = row["Month 1"]
+            if row["Monthly Avg 1"] != "" and isinstance(
+                row["Monthly Avg 1"], (int, float, Decimal)
+            ):
+                values_dict[row["Item"].strip()] = row["Monthly Avg 1"]
 
         # Monthly values should be annual / 12
         assert float(values_dict["Net Income"]) == pytest.approx(1200000 / 12)

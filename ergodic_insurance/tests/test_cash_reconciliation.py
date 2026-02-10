@@ -267,7 +267,7 @@ class TestCashReconciliation:
         cash_flow = CashFlowStatement(metrics)
         df = cash_flow.generate_statement(1, period="monthly")
 
-        values = self._extract_values_from_df(df, "Month 1")
+        values = self._extract_values_from_df(df, "Monthly Avg 1")
 
         # Monthly values
         monthly_net_income = values.get("Net Income")
