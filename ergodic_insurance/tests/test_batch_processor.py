@@ -23,7 +23,7 @@ from ergodic_insurance.batch_processor import (
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
 from ergodic_insurance.safe_pickle import safe_dump, safe_load
 from ergodic_insurance.scenario_manager import ScenarioConfig
 
@@ -58,7 +58,7 @@ class TestBatchResult:
 
     def test_initialization_full(self):
         """Test full BatchResult initialization."""
-        sim_results = MagicMock(spec=SimulationResults)
+        sim_results = MagicMock(spec=MonteCarloResults)
         result = BatchResult(
             scenario_id="test_id",
             scenario_name="Test Scenario",
@@ -118,7 +118,7 @@ class TestAggregatedResults:
 
     def test_to_dataframe(self):
         """Test conversion to DataFrame."""
-        sim_results = MagicMock(spec=SimulationResults)
+        sim_results = MagicMock(spec=MonteCarloResults)
         sim_results.ruin_probability = {"5": 0.01}
         sim_results.growth_rates = np.array([0.08, 0.09, 0.07])
         sim_results.final_assets = np.array([1e7, 1.1e7, 0.9e7])
@@ -362,7 +362,7 @@ class TestBatchProcessor:
         # Mock MonteCarloEngine
         with patch("ergodic_insurance.batch_processor.MonteCarloEngine") as MockEngine:
             mock_engine = MockEngine.return_value
-            mock_results = MagicMock(spec=SimulationResults)
+            mock_results = MagicMock(spec=MonteCarloResults)
             mock_engine.run.return_value = mock_results
 
             with patch("time.time") as mock_time:
@@ -396,7 +396,7 @@ class TestBatchProcessor:
 
         with patch("ergodic_insurance.batch_processor.MonteCarloEngine") as MockEngine:
             mock_engine = MockEngine.return_value
-            mock_results = MagicMock(spec=SimulationResults)
+            mock_results = MagicMock(spec=MonteCarloResults)
             mock_engine.run.return_value = mock_results
 
             result = processor._process_scenario(scenario)
@@ -446,7 +446,7 @@ class TestBatchProcessor:
         processor = BatchProcessor(checkpoint_dir=temp_checkpoint_dir)
 
         # Create mock simulation results
-        sim_results = MagicMock(spec=SimulationResults)
+        sim_results = MagicMock(spec=MonteCarloResults)
         sim_results.ruin_probability = {"5": 0.01}
         sim_results.growth_rates = np.array([0.08, 0.09, 0.07])
         sim_results.final_assets = np.array([1e7, 1.1e7, 0.9e7])
@@ -478,13 +478,13 @@ class TestBatchProcessor:
         processor = BatchProcessor(checkpoint_dir=temp_checkpoint_dir)
 
         # Create multiple simulation results
-        sim_results1 = MagicMock(spec=SimulationResults)
+        sim_results1 = MagicMock(spec=MonteCarloResults)
         sim_results1.ruin_probability = {"5": 0.02, "10": 0.05, "20": 0.08}
         sim_results1.growth_rates = np.array([0.08, 0.09])
         sim_results1.final_assets = np.array([1e7, 1.1e7])
         sim_results1.metrics = {"var_95": 500000, "var_99": 1000000}
 
-        sim_results2 = MagicMock(spec=SimulationResults)
+        sim_results2 = MagicMock(spec=MonteCarloResults)
         sim_results2.ruin_probability = {"5": 0.01, "10": 0.03, "20": 0.06}
         sim_results2.growth_rates = np.array([0.06, 0.07])
         sim_results2.final_assets = np.array([0.9e7, 0.95e7])
@@ -508,12 +508,12 @@ class TestBatchProcessor:
         processor = BatchProcessor(checkpoint_dir=temp_checkpoint_dir)
 
         # Create baseline and sensitivity results
-        baseline_results = MagicMock(spec=SimulationResults)
+        baseline_results = MagicMock(spec=MonteCarloResults)
         baseline_results.ruin_probability = {"5": 0.01}
         baseline_results.growth_rates = np.array([0.08])
         baseline_results.final_assets = np.array([1e7])
 
-        sensitivity_results = MagicMock(spec=SimulationResults)
+        sensitivity_results = MagicMock(spec=MonteCarloResults)
         sensitivity_results.ruin_probability = {"5": 0.015}
         sensitivity_results.growth_rates = np.array([0.085])
         sensitivity_results.final_assets = np.array([1.05e7])
@@ -639,7 +639,7 @@ class TestBatchProcessor:
 
         processor = BatchProcessor(checkpoint_dir=temp_checkpoint_dir)
 
-        sim_results = MagicMock(spec=SimulationResults)
+        sim_results = MagicMock(spec=MonteCarloResults)
         sim_results.ruin_probability = {"5": 0.01}
         sim_results.growth_rates = np.array([0.08])
         sim_results.final_assets = np.array([1e7])

@@ -36,8 +36,7 @@ from .insurance import InsuranceLayer, InsurancePolicy
 from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import MonteCarloEngine, SimulationConfig
-from .monte_carlo import SimulationResults as MCSimulationResults
+from .monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from .optimization import PenaltyMethodOptimizer
 from .simulation import Simulation, SimulationResults
 from .validation_metrics import MetricCalculator, ValidationMetrics
@@ -585,7 +584,7 @@ class BacktestResult:
     """
 
     strategy_name: str
-    simulation_results: Union[SimulationResults, MCSimulationResults]
+    simulation_results: Union[SimulationResults, MonteCarloResults]
     metrics: ValidationMetrics
     execution_time: float
     config: SimulationConfig
@@ -727,7 +726,7 @@ class StrategyBacktester:
         return pd.DataFrame(results)
 
     def _calculate_metrics_mc(
-        self, simulation_results: MCSimulationResults, n_years: int
+        self, simulation_results: MonteCarloResults, n_years: int
     ) -> ValidationMetrics:
         """Calculate metrics from Monte Carlo simulation results.
 

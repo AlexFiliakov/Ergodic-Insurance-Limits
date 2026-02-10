@@ -9,7 +9,7 @@ both budget hardware (4-8 cores) and high-end workstations.
 
 | File | Purpose |
 |------|---------|
-| `ergodic_insurance/monte_carlo.py` | Main orchestrator (`MonteCarloEngine`, `SimulationConfig`, `SimulationResults`) |
+| `ergodic_insurance/monte_carlo.py` | Main orchestrator (`MonteCarloEngine`, `SimulationConfig`, `MonteCarloResults`) |
 | `ergodic_insurance/monte_carlo_worker.py` | Standalone worker function (`run_chunk_standalone`) |
 | `ergodic_insurance/simulation.py` | Single-path simulation (`Simulation`, `SimulationResults`) |
 | `ergodic_insurance/parallel_executor.py` | Enhanced parallel executor (`ParallelExecutor`, `SharedMemoryManager`) |
@@ -30,7 +30,7 @@ flowchart TD
     A[SimulationConfig] --> B[MonteCarloEngine.__init__]
     B --> C{cache_results?}
     C -- Yes --> D[Check Cache]
-    D -- Hit --> E[Return Cached SimulationResults]
+    D -- Hit --> E[Return Cached MonteCarloResults]
     D -- Miss --> F{parallel?}
     C -- No --> F
 
@@ -68,7 +68,7 @@ flowchart TD
     Z --> AA
 
     AA -- Yes --> AB[Save to Cache]
-    AA -- No --> AC[Return SimulationResults]
+    AA -- No --> AC[Return MonteCarloResults]
     AB --> AC
 ```
 
@@ -142,7 +142,7 @@ sequenceDiagram
 
     MCEngine->>MCEngine: _calculate_metrics()
     MCEngine->>MCEngine: _check_convergence()
-    MCEngine-->>Client: SimulationResults
+    MCEngine-->>Client: MonteCarloResults
 ```
 
 **Important details:**
@@ -188,7 +188,7 @@ classDiagram
         +bool enable_ledger_pruning
     }
 
-    class SimulationResults {
+    class MonteCarloResults {
         +ndarray final_assets
         +ndarray annual_losses
         +ndarray insurance_recoveries
@@ -214,21 +214,21 @@ classDiagram
         +ParallelExecutor parallel_executor
         +TrajectoryStorage trajectory_storage
         +ResultAggregator result_aggregator
-        +run() SimulationResults
-        +run_with_progress_monitoring() SimulationResults
-        +run_with_convergence_monitoring() SimulationResults
+        +run() MonteCarloResults
+        +run_with_progress_monitoring() MonteCarloResults
+        +run_with_convergence_monitoring() MonteCarloResults
         +estimate_ruin_probability() RuinProbabilityResults
         +export_results()
         +compute_bootstrap_confidence_intervals() Dict
-        -_run_sequential() SimulationResults
-        -_run_parallel() SimulationResults
-        -_run_enhanced_parallel() SimulationResults
+        -_run_sequential() MonteCarloResults
+        -_run_parallel() MonteCarloResults
+        -_run_enhanced_parallel() MonteCarloResults
         -_run_single_simulation() Dict
-        -_combine_chunk_results() SimulationResults
+        -_combine_chunk_results() MonteCarloResults
         -_calculate_growth_rates() ndarray
         -_calculate_metrics() Dict
         -_check_convergence() Dict
-        -_perform_advanced_aggregation() SimulationResults
+        -_perform_advanced_aggregation() MonteCarloResults
     }
 
     class ParallelExecutor {
@@ -300,7 +300,7 @@ classDiagram
     }
 
     MonteCarloEngine --> SimulationConfig : uses
-    MonteCarloEngine --> SimulationResults : produces
+    MonteCarloEngine --> MonteCarloResults : produces
     MonteCarloEngine --> ParallelExecutor : enhanced parallel
     MonteCarloEngine --> ConvergenceDiagnostics : convergence checks
     MonteCarloEngine --> ProgressMonitor : progress tracking
@@ -435,7 +435,7 @@ flowchart TD
 
     S --> T[Flatten results<br>Extract arrays<br>Calculate growth rates<br>Calculate ruin probability]
 
-    T --> U[Return SimulationResults<br>with PerformanceMetrics]
+    T --> U[Return MonteCarloResults<br>with PerformanceMetrics]
 ```
 
 **Shared memory benefits:**
@@ -495,7 +495,7 @@ flowchart TD
     U --> V[_check_convergence<br>full multi-chain analysis]
 
     V --> W[Add monitoring metadata<br>actual_iterations<br>convergence_achieved<br>ESS per metric]
-    W --> X[Return SimulationResults]
+    W --> X[Return MonteCarloResults]
 ```
 
 **Convergence diagnostics:**
@@ -620,7 +620,7 @@ flowchart LR
     end
 
     subgraph Output
-        SR[SimulationResults]
+        SR[MonteCarloResults]
         PM[PerformanceMetrics]
         CS[ConvergenceStats]
     end

@@ -14,8 +14,7 @@ from ergodic_insurance.config import Config, ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import SimulationConfig
-from ergodic_insurance.monte_carlo import SimulationResults as MCSimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
 from ergodic_insurance.simulation import Simulation, SimulationResults
 from ergodic_insurance.strategy_backtester import (
     AdaptiveStrategy,
@@ -242,7 +241,7 @@ class TestStrategyBacktester:
     def test_strategy_backtester(self, mock_mc_engine):
         """Test StrategyBacktester."""
         # Mock Monte Carlo engine
-        mock_results = MCSimulationResults(
+        mock_results = MonteCarloResults(
             final_assets=np.random.lognormal(16, 1, 100),
             annual_losses=np.random.exponential(100000, (100, 5)),
             insurance_recoveries=np.random.exponential(50000, (100, 5)),
@@ -278,7 +277,7 @@ class TestStrategyBacktester:
     def test_multiple_strategies_comparison(self, mock_mc_engine):
         """Test comparing multiple strategies."""
         # Mock results
-        mock_results = MCSimulationResults(
+        mock_results = MonteCarloResults(
             final_assets=np.random.lognormal(16, 1, 100),
             annual_losses=np.random.exponential(100000, (100, 5)),
             insurance_recoveries=np.random.exponential(50000, (100, 5)),
@@ -625,7 +624,7 @@ class TestIntegration:
     def test_end_to_end_validation(self, mock_mc_engine):
         """Test complete validation workflow."""
         # Setup mock results
-        mock_results = MCSimulationResults(
+        mock_results = MonteCarloResults(
             final_assets=np.random.lognormal(16, 1, 100),
             annual_losses=np.random.exponential(100000, (100, 5)),
             insurance_recoveries=np.random.exponential(50000, (100, 5)),

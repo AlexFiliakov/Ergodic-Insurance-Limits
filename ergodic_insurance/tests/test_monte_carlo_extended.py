@@ -13,7 +13,7 @@ from ergodic_insurance.convergence import ConvergenceStats
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from ergodic_insurance.tests.test_fixtures import ScenarioBuilder, TestDataGenerator
 
 
@@ -63,7 +63,7 @@ class TestMonteCarloExtended:
         )
 
     def test_summary_method(self, setup_simple_engine):
-        """Test the summary method of SimulationResults with real data."""
+        """Test the summary method of MonteCarloResults with real data."""
         engine = setup_simple_engine
 
         # Run a real small simulation to get actual results
@@ -77,7 +77,7 @@ class TestMonteCarloExtended:
         assert "Execution Time:" in summary
 
         # Test with custom results to verify specific formatting
-        custom_results = SimulationResults(
+        custom_results = MonteCarloResults(
             final_assets=np.array([100_000, 200_000, 0, -50_000]),
             annual_losses=np.ones((4, 2)) * 10_000,
             insurance_recoveries=np.ones((4, 2)) * 5_000,
@@ -237,7 +237,7 @@ class TestMonteCarloExtended:
         engine = setup_simple_engine
 
         # Create results with very few simulations
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=np.array([100_000, 200_000]),
             annual_losses=np.ones((2, 2)),
             insurance_recoveries=np.ones((2, 2)),
@@ -401,7 +401,7 @@ class TestMonteCarloExtended:
         engine = setup_simple_engine
 
         # Create results with no variance
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=np.ones(10) * 100_000,
             annual_losses=np.ones((10, 2)) * 10_000,
             insurance_recoveries=np.ones((10, 2)) * 5_000,

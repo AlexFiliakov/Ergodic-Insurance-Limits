@@ -29,11 +29,11 @@ classDiagram
         +insurance_program: InsuranceProgram
         +manufacturer: WidgetManufacturer
         +config: SimulationConfig
-        +run() SimulationResults
+        +run() MonteCarloResults
         +export_results(results, filepath)
         +compute_bootstrap_confidence_intervals() dict
-        +run_with_progress_monitoring() SimulationResults
-        +run_with_convergence_monitoring() SimulationResults
+        +run_with_progress_monitoring() MonteCarloResults
+        +run_with_convergence_monitoring() MonteCarloResults
         +estimate_ruin_probability() RuinProbabilityResults
     }
 
@@ -85,7 +85,7 @@ classDiagram
     MonteCarloEngine --> WidgetManufacturer : copies per path
     MonteCarloEngine --> ManufacturingLossGenerator : uses
     MonteCarloEngine --> InsuranceProgram : uses
-    MonteCarloEngine --> MCSimulationResults : produces
+    MonteCarloEngine --> MonteCarloResults : produces
 
     InsurancePolicy --> InsuranceProgram : converts to
 
@@ -426,21 +426,21 @@ classDiagram
         +convergence_diagnostics: ConvergenceDiagnostics
         +parallel_executor: ParallelExecutor
         +trajectory_storage: TrajectoryStorage
-        +run() MCSimulationResults
-        -_run_sequential() MCSimulationResults
-        -_run_parallel() MCSimulationResults
-        -_run_enhanced_parallel() MCSimulationResults
+        +run() MonteCarloResults
+        -_run_sequential() MonteCarloResults
+        -_run_parallel() MonteCarloResults
+        -_run_enhanced_parallel() MonteCarloResults
         -_calculate_growth_rates(assets) ndarray
         -_calculate_metrics(results) dict
         -_check_convergence(results) dict
         +export_results(results, filepath)
         +compute_bootstrap_confidence_intervals(results) dict
-        +run_with_progress_monitoring() MCSimulationResults
-        +run_with_convergence_monitoring() MCSimulationResults
+        +run_with_progress_monitoring() MonteCarloResults
+        +run_with_convergence_monitoring() MonteCarloResults
         +estimate_ruin_probability(config) RuinProbabilityResults
     }
 
-    class MCSimulationResults {
+    class MonteCarloResults {
         <<dataclass>>
         +final_assets: ndarray
         +annual_losses: ndarray
@@ -469,7 +469,7 @@ classDiagram
     }
 
     Simulation --> SimulationResults : produces
-    MonteCarloEngine --> MCSimulationResults : produces
+    MonteCarloEngine --> MonteCarloResults : produces
     MonteCarloEngine --> SimulationConfig : configured by
 ```
 

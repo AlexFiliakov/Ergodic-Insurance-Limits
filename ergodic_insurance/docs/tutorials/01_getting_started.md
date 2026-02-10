@@ -139,7 +139,8 @@ Now that you've run your first simulation, continue with:
 | `WidgetManufacturer` | Business model with financial operations |
 | `ManufacturingLossGenerator` | Generate random loss events (recommended) |
 | `Simulation` | Run time evolution of the business |
-| `SimulationResults` | Container for simulation output |
+| `SimulationResults` | Container for single-path simulation output |
+| `MonteCarloResults` | Container for Monte Carlo simulation output |
 
 ### Common Parameters
 
