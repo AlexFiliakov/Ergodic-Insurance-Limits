@@ -1071,9 +1071,11 @@ class TestParameterSweep:
             refinement_threshold=50.0,
         )
 
+        _sweep_rng = np.random.default_rng(42)
+
         def mock_run(params, metrics):
             result = params.copy()
-            result["optimal_roe"] = np.random.uniform(0.05, 0.20)
+            result["optimal_roe"] = _sweep_rng.uniform(0.05, 0.20)
             return result
 
         sweeper._run_single = mock_run  # type: ignore[method-assign]

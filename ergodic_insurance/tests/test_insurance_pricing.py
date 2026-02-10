@@ -30,17 +30,19 @@ from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 class TestMarketCycle:
     """Test MarketCycle enum."""
 
-    def test_market_cycle_values(self):
-        """Test market cycle loss ratio values."""
-        assert MarketCycle.HARD.value == 0.60
-        assert MarketCycle.NORMAL.value == 0.70
-        assert MarketCycle.SOFT.value == 0.80
-
-    def test_market_cycle_names(self):
-        """Test market cycle names."""
-        assert MarketCycle.HARD.name == "HARD"
-        assert MarketCycle.NORMAL.name == "NORMAL"
-        assert MarketCycle.SOFT.name == "SOFT"
+    @pytest.mark.parametrize(
+        "member,expected_name,expected_value",
+        [
+            (MarketCycle.HARD, "HARD", 0.60),
+            (MarketCycle.NORMAL, "NORMAL", 0.70),
+            (MarketCycle.SOFT, "SOFT", 0.80),
+        ],
+        ids=["hard", "normal", "soft"],
+    )
+    def test_market_cycle_members(self, member, expected_name, expected_value):
+        """Test market cycle enum names and loss ratio values."""
+        assert member.name == expected_name
+        assert member.value == expected_value
 
 
 class TestPricingParameters:

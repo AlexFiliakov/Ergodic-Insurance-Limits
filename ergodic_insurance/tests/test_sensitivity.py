@@ -588,11 +588,3 @@ class TestIntegration:
         # Verify all retentions are within bounds
         retentions = result.metrics["optimal_retention"]
         assert all(r >= 5000 for r in retentions)
-
-
-def test_module_imports():
-    """Test that all module imports work correctly."""
-    # Already imported at the top of the file
-    assert SensitivityAnalyzer is not None
-    assert SensitivityResult is not None
-    assert TwoWaySensitivityResult is not None

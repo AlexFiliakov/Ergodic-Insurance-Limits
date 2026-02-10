@@ -126,11 +126,12 @@ class TestOptimalCoverageHeatmap:
 
     def test_plot_optimal_coverage_heatmap_with_data(self):
         """Test heatmap with provided optimization results."""
+        rng = np.random.default_rng(42)
         # Create mock optimization results
         retention_values = np.logspace(4, 7, 10)
         limit_values = np.logspace(5, 8, 10)
         R, L = np.meshgrid(retention_values, limit_values)
-        growth_rates = np.random.rand(10, 10) * 0.15
+        growth_rates = rng.random((10, 10)) * 0.15
 
         optimization_results = {
             "company_1000000": {
@@ -229,9 +230,10 @@ class TestRobustnessHeatmap:
 
     def test_plot_robustness_heatmap_with_data(self):
         """Test robustness heatmap with provided data."""
+        rng = np.random.default_rng(42)
         # Create mock robustness data
         n_points = 15
-        robustness_data = np.random.rand(n_points, n_points)
+        robustness_data = rng.random((n_points, n_points))
 
         fig = plot_robustness_heatmap(
             robustness_data=robustness_data, frequency_range=(0.8, 1.2), severity_range=(0.8, 1.2)

@@ -400,11 +400,12 @@ class TestOptimizationWorkflow:
         # Test that we can generate at least a few points using weighted sum
         try:
             pareto_points = frontier.generate_weighted_sum(n_points=5)
-            # Verify we got some points
-            assert len(pareto_points) >= 0  # Allow empty result for test stability
-        except (ValueError, TypeError) as e:
-            # ParetoFrontier might be complex - just verify it was created properly
-            assert frontier is not None, f"ParetoFrontier creation failed: {e}"
+            # Verify we got a list of points back
+            assert isinstance(pareto_points, list)
+        except (ValueError, TypeError):
+            # ParetoFrontier optimization may fail depending on the objective -
+            # the initialization assertions above already verified construction
+            pass
 
     def test_decision_engine_integration(self, default_config_v2: ConfigV2):
         """Test decision engine with optimization results.

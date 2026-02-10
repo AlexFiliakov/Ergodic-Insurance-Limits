@@ -382,6 +382,7 @@ class TestInsuranceDecisionEngine:
         assert metrics.premium_to_limit_ratio == 40_000 / 5_000_000
         assert metrics.coverage_adequacy > 0
 
+    @pytest.mark.slow
     def test_run_sensitivity_analysis(self):
         """Test sensitivity analysis.
 
@@ -619,6 +620,7 @@ class TestInsuranceDecisionEngine:
 class TestIntegration:
     """Integration tests for decision engine."""
 
+    @pytest.mark.slow
     def test_full_optimization_workflow(self):
         """Test complete optimization workflow."""
         # Create real components
@@ -692,6 +694,7 @@ class TestIntegration:
         assert decision.total_coverage >= constraints.min_coverage_limit
         assert metrics.bankruptcy_probability <= constraints.max_bankruptcy_probability
 
+    @pytest.mark.slow
     def test_multi_scenario_optimization(self):
         """Test optimization across different pricing scenarios."""
 

@@ -162,11 +162,11 @@ class TestMonteCarloEngine:
         """Test parallel simulation run."""
         engine, loss_generator, _, _ = setup_engine
 
-        # Configure for parallel execution
-        engine.config.n_simulations = 10_000
+        # Configure for parallel execution (use small count since mock runs sequentially)
+        engine.config.n_simulations = 1_000
         engine.config.parallel = True
         engine.config.n_workers = 2
-        engine.config.chunk_size = 5_000
+        engine.config.chunk_size = 500
         # Disable enhanced parallel to test _run_parallel path specifically
         engine.config.use_enhanced_parallel = False
 
@@ -182,7 +182,7 @@ class TestMonteCarloEngine:
             results = engine.run()
 
         assert results is not None
-        assert len(results.final_assets) == 10_000
+        assert len(results.final_assets) == 1_000
 
     def test_growth_rate_calculation(self, setup_engine):
         """Test growth rate calculation."""

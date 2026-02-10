@@ -495,6 +495,7 @@ class TestAdaptiveRefinementCategoricalParam:
 
     def test_adaptive_refinement_preserves_categorical_params(self):
         """Categorical parameters should be kept as-is during refinement."""
+        rng = np.random.default_rng(42)
         with tempfile.TemporaryDirectory() as tmpdir:
             sweeper = ParameterSweeper(cache_dir=tmpdir, use_parallel=False)
 
@@ -502,7 +503,7 @@ class TestAdaptiveRefinementCategoricalParam:
                 {
                     "category": ["a", "b", "c", "a", "b", "c"] * 3,
                     "numeric_param": list(range(18)),
-                    "optimal_roe": np.random.uniform(0.05, 0.25, 18),
+                    "optimal_roe": rng.uniform(0.05, 0.25, 18),
                 }
             )
 
@@ -535,7 +536,7 @@ class TestAdaptiveRefinementCategoricalParam:
                     {
                         "category": ["a"] * n,
                         "numeric_param": np.linspace(5, 10, n),
-                        "optimal_roe": np.random.uniform(0.18, 0.22, n),
+                        "optimal_roe": rng.uniform(0.18, 0.22, n),
                     }
                 )
 

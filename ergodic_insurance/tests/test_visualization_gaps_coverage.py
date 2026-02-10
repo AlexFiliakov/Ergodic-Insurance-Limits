@@ -1230,7 +1230,7 @@ class TestExportGaps:
             # The code handles the exception on lines 97-99
             try:
                 saved = export.save_figure(plotly_fig, str(base_path), formats=["png"])
-                assert len(saved) >= 0  # May be 0 if kaleido not installed
+                assert isinstance(saved, list)  # May be empty if kaleido not installed
             except Exception:  # pylint: disable=broad-exception-caught
                 pass  # Expected if kaleido is not available
 
