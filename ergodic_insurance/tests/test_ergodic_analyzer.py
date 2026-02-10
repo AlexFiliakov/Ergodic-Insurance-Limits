@@ -18,24 +18,26 @@ class TestErgodicAnalyzer:
     @pytest.fixture
     def sample_trajectory(self):
         """Create a sample growth trajectory."""
+        rng = np.random.default_rng(42)
         # Exponential growth with noise
         time = np.arange(100)
         growth_rate = 0.05
-        noise = np.random.normal(0, 0.1, 100)
+        noise = rng.normal(0, 0.1, 100)
         values = 1000000 * np.exp(growth_rate * time + np.cumsum(noise))
         return values
 
     @pytest.fixture
     def multiple_trajectories(self):
         """Create multiple simulation trajectories."""
+        rng = np.random.default_rng(42)
         n_paths = 100
         n_time = 100
         trajectories = []
 
         for _ in range(n_paths):
             time = np.arange(n_time)
-            growth_rate = np.random.normal(0.05, 0.02)
-            noise = np.random.normal(0, 0.1, n_time)
+            growth_rate = rng.normal(0.05, 0.02)
+            noise = rng.normal(0, 0.1, n_time)
             values = 1000000 * np.exp(growth_rate * time + np.cumsum(noise))
             trajectories.append(values)
 
@@ -104,15 +106,16 @@ class TestErgodicAnalyzer:
 
     def test_check_convergence(self, analyzer):
         """Test convergence checking."""
+        rng = np.random.default_rng(42)
         # Converged series (low variance)
-        converged_values = np.random.normal(0.05, 0.001, 1000)
+        converged_values = rng.normal(0.05, 0.001, 1000)
         converged, se = analyzer.check_convergence(converged_values)
 
         assert converged is True
         assert se < analyzer.convergence_threshold
 
         # Not converged series (high variance)
-        divergent_values = np.random.normal(0.05, 0.5, 1000)
+        divergent_values = rng.normal(0.05, 0.5, 1000)
         converged, se = analyzer.check_convergence(divergent_values)
 
         assert converged is False
@@ -128,6 +131,7 @@ class TestErgodicAnalyzer:
 
     def test_compare_scenarios_with_arrays(self, analyzer):
         """Test scenario comparison with numpy arrays."""
+        rng = np.random.default_rng(42)
         # Create insured trajectories (lower volatility)
         n_paths = 50
         n_time = 100
@@ -135,7 +139,7 @@ class TestErgodicAnalyzer:
         insured = []
         for _ in range(n_paths):
             time = np.arange(n_time)
-            growth = 0.04 + np.cumsum(np.random.normal(0, 0.05, n_time))
+            growth = 0.04 + np.cumsum(rng.normal(0, 0.05, n_time))
             values = 1000000 * np.exp(growth)
             insured.append(values)
 
@@ -143,7 +147,7 @@ class TestErgodicAnalyzer:
         uninsured = []
         for i in range(n_paths):
             time = np.arange(n_time)
-            growth = 0.05 + np.cumsum(np.random.normal(0, 0.15, n_time))
+            growth = 0.05 + np.cumsum(rng.normal(0, 0.15, n_time))
             values = 1000000 * np.exp(growth)
             # Add some failures
             if i % 10 == 0:
@@ -168,6 +172,7 @@ class TestErgodicAnalyzer:
 
     def test_compare_scenarios_with_simulation_results(self, analyzer):
         """Test scenario comparison with SimulationResults objects."""
+        rng = np.random.default_rng(42)
         # Create mock SimulationResults
         insured_results = []
         uninsured_results = []
@@ -176,13 +181,13 @@ class TestErgodicAnalyzer:
             # Mock insured result
             insured = SimulationResults(
                 years=np.arange(100),
-                assets=np.random.uniform(900000, 1100000, 100),
-                equity=np.random.uniform(900000, 1100000, 100),
-                roe=np.random.uniform(0.08, 0.12, 100),
-                revenue=np.random.uniform(400000, 600000, 100),
-                net_income=np.random.uniform(40000, 60000, 100),
-                claim_counts=np.random.poisson(3, 100),
-                claim_amounts=np.random.lognormal(10, 2, 100),
+                assets=rng.uniform(900000, 1100000, 100),
+                equity=rng.uniform(900000, 1100000, 100),
+                roe=rng.uniform(0.08, 0.12, 100),
+                revenue=rng.uniform(400000, 600000, 100),
+                net_income=rng.uniform(40000, 60000, 100),
+                claim_counts=rng.poisson(3, 100),
+                claim_amounts=rng.lognormal(10, 2, 100),
                 insolvency_year=None,
             )
             insured_results.append(insured)
@@ -190,14 +195,14 @@ class TestErgodicAnalyzer:
             # Mock uninsured result (some with insolvency)
             uninsured = SimulationResults(
                 years=np.arange(100),
-                assets=np.random.uniform(800000, 1200000, 100),
-                equity=np.random.uniform(800000, 1200000, 100),
-                roe=np.random.uniform(0.06, 0.14, 100),
-                revenue=np.random.uniform(350000, 650000, 100),
-                net_income=np.random.uniform(30000, 70000, 100),
-                claim_counts=np.random.poisson(3, 100),
-                claim_amounts=np.random.lognormal(10, 2, 100),
-                insolvency_year=np.random.choice([None, 50, 75]),
+                assets=rng.uniform(800000, 1200000, 100),
+                equity=rng.uniform(800000, 1200000, 100),
+                roe=rng.uniform(0.06, 0.14, 100),
+                revenue=rng.uniform(350000, 650000, 100),
+                net_income=rng.uniform(30000, 70000, 100),
+                claim_counts=rng.poisson(3, 100),
+                claim_amounts=rng.lognormal(10, 2, 100),
+                insolvency_year=rng.choice([None, 50, 75]),
             )
             uninsured_results.append(uninsured)
 
@@ -209,9 +214,10 @@ class TestErgodicAnalyzer:
 
     def test_significance_test(self, analyzer):
         """Test statistical significance testing."""
+        rng = np.random.default_rng(42)
         # Create two samples with different means
-        sample1 = np.random.normal(0.05, 0.01, 100)
-        sample2 = np.random.normal(0.03, 0.01, 100)
+        sample1 = rng.normal(0.05, 0.01, 100)
+        sample2 = rng.normal(0.03, 0.01, 100)
 
         t_stat, p_value = analyzer.significance_test(sample1, sample2)
 
@@ -282,6 +288,7 @@ class TestErgodicAnalyzer:
 
     def test_analyze_simulation_batch(self, analyzer):
         """Test batch analysis of simulation results."""
+        rng = np.random.default_rng(42)
         # Create batch of results
         results = []
         for i in range(20):
@@ -289,11 +296,11 @@ class TestErgodicAnalyzer:
                 years=np.arange(100),
                 assets=1000000 * np.exp(0.05 * np.arange(100)),
                 equity=1000000 * np.exp(0.045 * np.arange(100)),
-                roe=np.random.uniform(0.08, 0.12, 100),
-                revenue=np.random.uniform(400000, 600000, 100),
-                net_income=np.random.uniform(40000, 60000, 100),
-                claim_counts=np.random.poisson(3, 100),
-                claim_amounts=np.random.lognormal(10, 2, 100),
+                roe=rng.uniform(0.08, 0.12, 100),
+                revenue=rng.uniform(400000, 600000, 100),
+                net_income=rng.uniform(40000, 60000, 100),
+                claim_counts=rng.poisson(3, 100),
+                claim_amounts=rng.lognormal(10, 2, 100),
                 insolvency_year=None if i < 18 else 50,
             )
             results.append(result)

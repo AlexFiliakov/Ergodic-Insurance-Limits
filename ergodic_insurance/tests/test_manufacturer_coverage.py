@@ -37,14 +37,6 @@ def manufacturer(basic_config):
     return WidgetManufacturer(basic_config)
 
 
-class TestFallbackImports:
-    """Tests for import fallback chains (lines 210-238)."""
-
-    def test_manufacturer_imports_successfully(self):
-        """Verify that the module imports without errors."""
-        assert WidgetManufacturer is not None
-
-
 class TestInitialBalanceSheetSetup:
     """Tests for initial balance sheet recording (lines 964, 986, 997, 1011).
 

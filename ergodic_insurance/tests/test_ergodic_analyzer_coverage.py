@@ -126,7 +126,7 @@ class TestErgodicDataValidate:
         """Properly matched arrays should pass validation."""
         data = ErgodicData(
             time_series=np.arange(5),
-            values=np.random.rand(5),
+            values=np.random.default_rng(42).random(5),
             metadata={"source": "test"},
         )
         assert data.validate() is True

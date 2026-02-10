@@ -390,6 +390,7 @@ class TestReturnPeriodCurve:
 
     def test_custom_return_periods(self):
         """Test return period curve with custom periods."""
+        np.random.seed(42)
         losses = np.random.lognormal(10, 1, 1000)
         metrics = RiskMetrics(losses)
 
@@ -685,6 +686,7 @@ class TestROEAnalyzer:
         """Test stability analysis across periods."""
         from ergodic_insurance.risk_metrics import ROEAnalyzer
 
+        np.random.seed(42)
         # Create a series with increasing stability
         roe_series = np.concatenate(
             [
@@ -758,6 +760,7 @@ class TestEdgeCases:
 
     def test_extreme_confidence_levels(self):
         """Test metrics with extreme confidence levels."""
+        np.random.seed(42)
         losses = np.random.normal(1000, 100, 1000)
         metrics = RiskMetrics(losses)
 

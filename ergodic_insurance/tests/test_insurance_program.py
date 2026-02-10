@@ -44,21 +44,42 @@ class TestEnhancedInsuranceLayer:
         assert layer.reinstatement_premium == 1.0
         assert layer.reinstatement_type == ReinstatementType.PRO_RATA
 
-    def test_invalid_parameters(self):
+    @pytest.mark.parametrize(
+        "kwargs,match",
+        [
+            (
+                {"attachment_point": -100, "limit": 1_000_000, "base_premium_rate": 0.01},
+                "Attachment point must be non-negative",
+            ),
+            (
+                {"attachment_point": 0, "limit": -1_000_000, "base_premium_rate": 0.01},
+                "Limit must be positive",
+            ),
+            (
+                {"attachment_point": 0, "limit": 1_000_000, "base_premium_rate": -0.01},
+                "Base premium rate must be non-negative",
+            ),
+            (
+                {
+                    "attachment_point": 0,
+                    "limit": 1_000_000,
+                    "base_premium_rate": 0.01,
+                    "reinstatements": -1,
+                },
+                "Reinstatements must be non-negative",
+            ),
+        ],
+        ids=[
+            "negative-attachment",
+            "negative-limit",
+            "negative-rate",
+            "negative-reinstatements",
+        ],
+    )
+    def test_invalid_parameters(self, kwargs, match):
         """Test that invalid parameters raise errors."""
-        with pytest.raises(ValueError, match="Attachment point must be non-negative"):
-            EnhancedInsuranceLayer(attachment_point=-100, limit=1_000_000, base_premium_rate=0.01)
-
-        with pytest.raises(ValueError, match="Limit must be positive"):
-            EnhancedInsuranceLayer(attachment_point=0, limit=-1_000_000, base_premium_rate=0.01)
-
-        with pytest.raises(ValueError, match="Base premium rate must be non-negative, got -0.01"):
-            EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=-0.01)
-
-        with pytest.raises(ValueError, match="Reinstatements must be non-negative"):
-            EnhancedInsuranceLayer(
-                attachment_point=0, limit=1_000_000, base_premium_rate=0.01, reinstatements=-1
-            )
+        with pytest.raises(ValueError, match=match):
+            EnhancedInsuranceLayer(**kwargs)
 
     def test_calculate_base_premium(self):
         """Test base premium calculation."""
@@ -68,45 +89,27 @@ class TestEnhancedInsuranceLayer:
 
         assert layer.calculate_base_premium() == 100_000  # 5M * 0.02
 
-    def test_reinstatement_premium_pro_rata(self):
-        """Test pro-rata reinstatement premium calculation."""
+    @pytest.mark.parametrize(
+        "reinstatement_premium,reinstatement_type,expected",
+        [
+            (0.5, ReinstatementType.PRO_RATA, 25_000),  # 100K base * 0.5 * 0.5 timing
+            (1.0, ReinstatementType.FULL, 100_000),  # Full base premium (timing ignored)
+            (0.0, ReinstatementType.FREE, 0.0),  # Free reinstatement
+        ],
+        ids=["pro-rata", "full", "free"],
+    )
+    def test_reinstatement_premium(self, reinstatement_premium, reinstatement_type, expected):
+        """Test reinstatement premium calculation for all types."""
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000,
             limit=5_000_000,
             base_premium_rate=0.02,
-            reinstatement_premium=0.5,
-            reinstatement_type=ReinstatementType.PRO_RATA,
-        )
-
-        # Half year remaining
-        premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
-        assert premium == 25_000  # 100K base * 0.5 reinstatement * 0.5 timing
-
-    def test_reinstatement_premium_full(self):
-        """Test full reinstatement premium calculation."""
-        layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000,
-            limit=5_000_000,
-            base_premium_rate=0.02,
-            reinstatement_premium=1.0,
-            reinstatement_type=ReinstatementType.FULL,
-        )
-
-        # Timing doesn't matter for full reinstatement
-        premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
-        assert premium == 100_000  # Full base premium
-
-    def test_reinstatement_premium_free(self):
-        """Test free reinstatement premium calculation."""
-        layer = EnhancedInsuranceLayer(
-            attachment_point=1_000_000,
-            limit=5_000_000,
-            base_premium_rate=0.02,
-            reinstatement_type=ReinstatementType.FREE,
+            reinstatement_premium=reinstatement_premium,
+            reinstatement_type=reinstatement_type,
         )
 
         premium = layer.calculate_reinstatement_premium(timing_factor=0.5)
-        assert premium == 0.0
+        assert premium == expected
 
     def test_exhausted_is_dataclass_field(self):
         """exhausted should be a proper dataclass field, appearing in asdict and __eq__."""

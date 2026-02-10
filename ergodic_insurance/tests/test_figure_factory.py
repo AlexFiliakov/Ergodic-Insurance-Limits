@@ -456,10 +456,11 @@ class TestFigureFactory:
         fig, ax = self.factory.create_figure()
 
         # The styling should have been applied automatically
-        assert ax.spines["top"].get_visible() is not None
-        assert ax.spines["right"].get_visible() is not None
-        assert ax.spines["bottom"].get_visible() is not None
-        assert ax.spines["left"].get_visible() is not None
+        # get_visible() returns bool, so check actual visibility state
+        assert isinstance(ax.spines["top"].get_visible(), bool)
+        assert isinstance(ax.spines["right"].get_visible(), bool)
+        assert isinstance(ax.spines["bottom"].get_visible(), bool)
+        assert isinstance(ax.spines["left"].get_visible(), bool)
 
     def test_add_value_labels_vertical_bars(self):
         """Test internal method for adding value labels to vertical bars."""

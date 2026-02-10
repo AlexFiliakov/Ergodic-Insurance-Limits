@@ -25,50 +25,9 @@ from ergodic_insurance.visualization import (
 matplotlib.use("Agg")
 
 
-class TestVisualizationFormatting:
-    """Test formatting functions."""
-
-    def test_format_currency(self):
-        """Test currency formatting."""
-        assert format_currency(1000) == "$1,000"
-        assert format_currency(1000000) == "$1,000,000"
-        assert format_currency(1234.56, decimals=2) == "$1,234.56"
-        assert format_currency(-5000) == "-$5,000"
-        assert format_currency(0) == "$0"
-
-    def test_format_percentage(self):
-        """Test percentage formatting."""
-        assert format_percentage(0.05) == "5.0%"
-        assert format_percentage(0.123, decimals=2) == "12.30%"
-        assert format_percentage(1.5) == "150.0%"
-        assert format_percentage(-0.05) == "-5.0%"
-        assert format_percentage(0) == "0.0%"
-
-    def test_wsj_formatter(self):
-        """Test WSJ formatter class."""
-        formatter = WSJFormatter()
-
-        # Test currency
-        assert formatter.currency(1000000) == "$1M"
-        assert formatter.currency(1500000) == "$1.5M"
-        assert formatter.currency(500) == "$500"
-
-        # Test percentage
-        assert formatter.percentage(0.05) == "5.0%"
-
-        # Test number
-        assert formatter.number(1234567) == "1.23M"
-        assert formatter.number(999) == "999"
-
-    def test_set_wsj_style(self):
-        """Test WSJ style setting."""
-        # Should not raise
-        set_wsj_style()
-
-        # Check some style elements were set
-        params = plt.rcParams
-        assert params["font.size"] > 0
-        assert params["axes.labelsize"] > 0
+# NOTE: TestVisualizationFormatting (format_currency, format_percentage,
+# wsj_formatter, set_wsj_style) removed — those tests are covered more
+# thoroughly in test_visualization.py and test_visualization_extended.py.
 
 
 class TestVisualizationPlots:

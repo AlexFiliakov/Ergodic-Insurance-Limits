@@ -34,25 +34,52 @@ from ergodic_insurance.insurance_program import (
 class TestEnhancedInsuranceLayerValidation:
     """Test validation logic in EnhancedInsuranceLayer.__post_init__."""
 
-    def test_negative_reinstatement_premium_raises(self):
-        """Line 101: negative reinstatement_premium raises ValueError."""
-        with pytest.raises(ValueError, match="Reinstatement premium must be non-negative"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                reinstatement_premium=-0.5,
-            )
-
-    def test_invalid_limit_type_raises(self):
-        """Line 108: invalid limit_type raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid limit_type"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="invalid_type",
-            )
+    @pytest.mark.parametrize(
+        "extra_kwargs,match",
+        [
+            (
+                {"reinstatement_premium": -0.5},
+                "Reinstatement premium must be non-negative",
+            ),
+            (
+                {"limit_type": "invalid_type"},
+                "Invalid limit_type",
+            ),
+            (
+                {"limit_type": "hybrid", "per_occurrence_limit": 500_000, "aggregate_limit": None},
+                "Hybrid limit type requires",
+            ),
+            (
+                {
+                    "limit_type": "hybrid",
+                    "per_occurrence_limit": -100,
+                    "aggregate_limit": 5_000_000,
+                },
+                "Per-occurrence limit must be positive",
+            ),
+            (
+                {"limit_type": "hybrid", "per_occurrence_limit": 500_000, "aggregate_limit": -100},
+                "Aggregate limit must be positive",
+            ),
+            (
+                {"limit_type": "per-occurrence", "aggregate_limit": -500},
+                "Aggregate limit must be positive",
+            ),
+        ],
+        ids=[
+            "negative-reinstatement-premium",
+            "invalid-limit-type",
+            "hybrid-missing-aggregate",
+            "hybrid-negative-per-occurrence",
+            "hybrid-negative-aggregate",
+            "standalone-negative-aggregate",
+        ],
+    )
+    def test_validation_errors(self, extra_kwargs, match):
+        """Test that invalid parameters raise appropriate ValueErrors."""
+        base = {"attachment_point": 0, "limit": 1_000_000, "base_premium_rate": 0.01}
+        with pytest.raises(ValueError, match=match):
+            EnhancedInsuranceLayer(**{**base, **extra_kwargs})
 
     def test_hybrid_default_per_occurrence_limit(self):
         """Line 132: hybrid type sets per_occurrence_limit to limit when None."""
@@ -64,53 +91,6 @@ class TestEnhancedInsuranceLayerValidation:
             aggregate_limit=5_000_000,
         )
         assert layer.per_occurrence_limit == 1_000_000
-
-    def test_hybrid_missing_aggregate_limit_raises(self):
-        """Line 135-137: hybrid without aggregate_limit raises ValueError."""
-        with pytest.raises(ValueError, match="Hybrid limit type requires"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="hybrid",
-                per_occurrence_limit=500_000,
-                aggregate_limit=None,
-            )
-
-    def test_hybrid_negative_per_occurrence_limit_raises(self):
-        """Line 139: negative per_occurrence_limit raises ValueError."""
-        with pytest.raises(ValueError, match="Per-occurrence limit must be positive"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="hybrid",
-                per_occurrence_limit=-100,
-                aggregate_limit=5_000_000,
-            )
-
-    def test_hybrid_negative_aggregate_limit_raises(self):
-        """Line 143: negative aggregate_limit in hybrid raises ValueError."""
-        with pytest.raises(ValueError, match="Aggregate limit must be positive"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="hybrid",
-                per_occurrence_limit=500_000,
-                aggregate_limit=-100,
-            )
-
-    def test_aggregate_limit_negative_standalone_raises(self):
-        """Line 147: negative aggregate_limit on per-occurrence type raises ValueError."""
-        with pytest.raises(ValueError, match="Aggregate limit must be positive"):
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=1_000_000,
-                base_premium_rate=0.01,
-                limit_type="per-occurrence",
-                aggregate_limit=-500,
-            )
 
 
 # ===========================================================================

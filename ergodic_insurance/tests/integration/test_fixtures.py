@@ -120,11 +120,12 @@ def default_config_v2() -> ConfigV2:
 
 
 @pytest.fixture
-def config_manager(tmp_path) -> ConfigManager:
+def config_manager(tmp_path, monkeypatch) -> ConfigManager:
     """Create a ConfigManager with test configurations.
 
     Args:
         tmp_path: Pytest temporary path fixture.
+        monkeypatch: Pytest monkeypatch fixture for safe env var modification.
 
     Returns:
         ConfigManager: Configured manager for testing.
@@ -137,8 +138,8 @@ def config_manager(tmp_path) -> ConfigManager:
     profiles_dir = config_dir / "profiles"
     profiles_dir.mkdir(exist_ok=True)
 
-    # Initialize manager with test directory
-    os.environ["ERGODIC_CONFIG_DIR"] = str(config_dir)
+    # Initialize manager with test directory (monkeypatch auto-restores on teardown)
+    monkeypatch.setenv("ERGODIC_CONFIG_DIR", str(config_dir))
     manager = ConfigManager()
 
     return manager

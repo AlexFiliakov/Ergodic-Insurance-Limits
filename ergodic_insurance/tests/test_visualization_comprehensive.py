@@ -556,6 +556,7 @@ class TestFigureFactory:
         """Test FigureFactory initialization with custom settings."""
         factory = figure_factory.FigureFactory(theme=Theme.PRESENTATION)
 
+        # TODO(tautology-review): sole assertion is trivial - consider checking theme was applied
         assert factory is not None
 
     def test_create_figure(self):
