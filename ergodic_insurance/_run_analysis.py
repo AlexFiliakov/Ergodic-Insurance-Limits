@@ -389,7 +389,11 @@ def run_analysis(
             (Poisson lambda).
         loss_severity_mean: Mean loss size in dollars.
         loss_severity_std: Standard deviation of loss size.
-            Defaults to *loss_severity_mean* if not provided.
+            Defaults to *loss_severity_mean* if not provided, implying a
+            coefficient of variation (CV) of 1.0.  Typical CV ranges by
+            line of business: property 0.5–1.5, general liability 1.0–3.0,
+            workers' compensation 1.0–2.0.  Set explicitly when your loss
+            data suggests a different CV.
         deductible: Self-insured retention in dollars.
         coverage_limit: Maximum insurance payout per occurrence.
         premium_rate: Annual premium as a fraction of
@@ -435,6 +439,10 @@ def run_analysis(
     """
     if loss_severity_std is None:
         loss_severity_std = loss_severity_mean
+        logger.info(
+            "loss_severity_std not provided; defaulting to loss_severity_mean " "(CV=1.0): %.2f",
+            loss_severity_std,
+        )
 
     # --- Build configuration ---
     config = Config.from_company(
