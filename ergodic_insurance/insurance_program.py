@@ -31,7 +31,7 @@ class ReinstatementType(Enum):
 
 
 @dataclass
-class OptimizationConstraints:
+class ProgramOptimizationConstraints:
     """Constraints for insurance program optimization."""
 
     max_total_premium: Optional[float] = None  # Budget constraint
@@ -1036,7 +1036,7 @@ class InsuranceProgram:
         self,
         loss_data: List[List[float]],
         company_profile: Optional[Dict[str, Any]] = None,
-        constraints: Optional[OptimizationConstraints] = None,
+        constraints: Optional[ProgramOptimizationConstraints] = None,
     ) -> OptimalStructure:
         """Optimize complete insurance layer structure.
 
@@ -1052,7 +1052,7 @@ class InsuranceProgram:
             Optimal insurance structure.
         """
         if constraints is None:
-            constraints = OptimizationConstraints()
+            constraints = ProgramOptimizationConstraints()
 
         # Flatten loss data for analysis
         all_losses = [loss for annual_losses in loss_data for loss in annual_losses]

@@ -21,7 +21,7 @@ from ergodic_insurance.insurance_program import (
     InsuranceProgram,
     LayerState,
     OptimalStructure,
-    OptimizationConstraints,
+    ProgramOptimizationConstraints,
     ProgramState,
     ReinstatementType,
 )
