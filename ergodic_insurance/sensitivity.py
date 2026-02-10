@@ -29,12 +29,17 @@ Example:
             metric="optimal_roe"
         )
 
+.. versionchanged:: 0.7.0
+    Replaced bare ``print()`` warning calls with ``logging.warning()``.
+    See :issue:`382`.
+
 Author: Alex Filiakov
 Date: 2025-01-29
 """
 
 from dataclasses import dataclass
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -42,6 +47,8 @@ import numpy as np
 import pandas as pd
 
 from .safe_pickle import safe_dump, safe_load
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -506,7 +513,7 @@ class SensitivityAnalyzer:
 
             except (KeyError, Exception) as e:  # pylint: disable=broad-exception-caught
                 # Skip parameters that cause errors
-                print(f"Warning: Could not analyze parameter '{param_name}': {e}")
+                logger.warning("Could not analyze parameter '%s': %s", param_name, e)
                 continue
 
         # Create DataFrame and sort by impact
@@ -708,6 +715,6 @@ class SensitivityAnalyzer:
                 )
                 results[param_name] = result
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print(f"Warning: Could not analyze '{param_name}': {e}")
+                logger.warning("Could not analyze '%s': %s", param_name, e)
 
         return results
