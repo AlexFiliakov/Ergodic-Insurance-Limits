@@ -618,7 +618,7 @@ class TestTaxProvisionMonthly:
         for i, item in enumerate(df["Item"].values):
             if "Current Tax Expense" in str(item):
                 # 120_000 / 12 = 10_000
-                assert abs(float(df["Month 0"].values[i]) - 10_000) < 1
+                assert abs(float(df["Monthly Avg 0"].values[i]) - 10_000) < 1
                 break
 
     def test_tax_provision_from_metrics_monthly(self):
@@ -630,7 +630,7 @@ class TestTaxProvisionMonthly:
 
         for i, item in enumerate(df["Item"].values):
             if "Current Tax Expense" in str(item):
-                assert abs(float(df["Month 0"].values[i]) - 20_000) < 1
+                assert abs(float(df["Monthly Avg 0"].values[i]) - 20_000) < 1
                 break
 
 
