@@ -197,3 +197,96 @@ class TestIndustryConfigSwitching:
         # Retail should have shortest DSO (cash sales)
         assert retail.days_sales_outstanding < manufacturing.days_sales_outstanding
         assert retail.days_sales_outstanding < service.days_sales_outstanding
+
+
+class TestIndustryConfigValidationRobustness:
+    """Test that IndustryConfig validation uses Pydantic, not assert.
+
+    Issue #462: IndustryConfig must not use assert for validation because
+    assert statements are silently removed when Python runs with -O.
+    These tests verify the Pydantic Field validators and model_validator
+    are always active regardless of optimization flags.
+    """
+
+    def test_is_pydantic_model(self):
+        """IndustryConfig and subclasses are Pydantic BaseModel instances."""
+        from pydantic import BaseModel
+
+        assert issubclass(IndustryConfig, BaseModel)
+        assert issubclass(ManufacturingConfig, BaseModel)
+        assert issubclass(ServiceConfig, BaseModel)
+        assert issubclass(RetailConfig, BaseModel)
+
+    def test_no_assert_in_source(self):
+        """IndustryConfig source has no assert-based validation."""
+        import inspect
+
+        source = inspect.getsource(IndustryConfig)
+        # Filter out docstrings/comments; check for bare assert statements
+        lines = source.split("\n")
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'"):
+                continue
+            assert not stripped.startswith(
+                "assert "
+            ), f"Found assert-based validation in IndustryConfig: {stripped}"
+
+    def test_gross_margin_out_of_range_raises_validation_error(self):
+        """gross_margin > 1.0 is rejected by Pydantic, not assert."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(gross_margin=5.0)
+
+    def test_negative_gross_margin_rejected(self):
+        """Negative gross_margin is rejected."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(gross_margin=-0.1)
+
+    def test_operating_expense_ratio_out_of_range(self):
+        """operating_expense_ratio > 1.0 is rejected."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(operating_expense_ratio=1.5)
+
+    def test_negative_days_sales_outstanding(self):
+        """Negative DSO is rejected."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(days_sales_outstanding=-10)
+
+    def test_negative_ppe_useful_life(self):
+        """ppe_useful_life <= 0 is rejected."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(ppe_useful_life=-10)
+
+    def test_zero_ppe_useful_life(self):
+        """ppe_useful_life == 0 is rejected (must be > 0)."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(ppe_useful_life=0)
+
+    def test_invalid_depreciation_method(self):
+        """Only 'straight_line' and 'declining_balance' are accepted."""
+        with pytest.raises(ValidationError):
+            IndustryConfig(depreciation_method="accelerated")  # type: ignore[arg-type]
+
+    def test_asset_ratios_not_summing_to_one(self):
+        """Asset composition that doesn't sum to 1.0 is rejected."""
+        with pytest.raises(ValidationError, match="Asset ratios must sum to 1.0"):
+            IndustryConfig(
+                current_asset_ratio=0.5,
+                ppe_ratio=0.5,
+                intangible_ratio=0.5,
+            )
+
+    def test_subclass_validation_manufacturing(self):
+        """ManufacturingConfig also validates via Pydantic."""
+        with pytest.raises(ValidationError):
+            ManufacturingConfig(gross_margin=2.0)
+
+    def test_subclass_validation_service(self):
+        """ServiceConfig also validates via Pydantic."""
+        with pytest.raises(ValidationError):
+            ServiceConfig(ppe_useful_life=-5)
+
+    def test_subclass_validation_retail(self):
+        """RetailConfig also validates via Pydantic."""
+        with pytest.raises(ValidationError):
+            RetailConfig(operating_expense_ratio=-0.5)
