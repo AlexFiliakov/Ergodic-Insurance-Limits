@@ -164,6 +164,34 @@ class TestInsurancePolicy:
         # 50M total - 500K deductible = 49.5M insurance coverage
         assert coverage == 49_500_000
 
+    def test_get_total_coverage_deductible_exceeds_layers(self):
+        """get_total_coverage returns 0 when deductible exceeds highest layer exhaust."""
+        layers = [
+            InsuranceLayer(attachment_point=100_000, limit=200_000, rate=0.01),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=500_000)
+        assert policy.get_total_coverage() == 0.0
+
+    def test_layer_recovery_capped_per_layer(self):
+        """Layers overlapping the deductible region produce correct totals."""
+        # Layer attaches at 0 (below deductible), so part of its response
+        # overlaps with the deductible region.
+        layers = [
+            InsuranceLayer(attachment_point=0, limit=5_000_000, rate=0.02),
+            InsuranceLayer(attachment_point=5_000_000, limit=5_000_000, rate=0.01),
+        ]
+        policy = InsurancePolicy(layers=layers, deductible=1_000_000)
+
+        # 3M claim: deductible=1M, max_recoverable=2M
+        # Layer 0 would pay min(3M, 5M)=3M but capped at remaining 2M
+        company, insurance = policy.process_claim(3_000_000)
+        assert insurance == 2_000_000
+        assert company + insurance == 3_000_000
+
+        # Same via calculate_recovery
+        recovery = policy.calculate_recovery(3_000_000)
+        assert recovery == 2_000_000
+
     def test_empty_policy(self):
         """Test policy with no layers."""
         policy = InsurancePolicy(layers=[], deductible=100_000)

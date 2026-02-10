@@ -80,6 +80,7 @@ class EnhancedInsuranceLayer:
     premium_rate_exposure: Optional["ExposureBase"] = (
         None  # Exposure object for dynamic premium scaling
     )
+    exhausted: float = field(default=0.0, init=False)
 
     def __post_init__(self):
         """Validate layer parameters."""
@@ -87,8 +88,6 @@ class EnhancedInsuranceLayer:
             raise ValueError(f"Attachment point must be non-negative, got {self.attachment_point}")
         if self.limit <= 0:
             raise ValueError(f"Limit must be positive, got {self.limit}")
-        # Initialize exhausted tracking
-        self.exhausted = 0.0
         if self.base_premium_rate < 0:
             raise ValueError(
                 f"Base premium rate must be non-negative, got {self.base_premium_rate}"
@@ -716,7 +715,7 @@ class InsuranceProgram:
         # Find highest exhaustion point
         max_coverage = max(layer.attachment_point + layer.limit for layer in self.layers)
 
-        return max_coverage
+        return max(0.0, max_coverage - self.deductible)
 
     def _get_default_manufacturer_profile(self) -> Dict[str, Any]:
         """Get default manufacturer profile."""
