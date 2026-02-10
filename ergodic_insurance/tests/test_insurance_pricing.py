@@ -567,18 +567,20 @@ class TestInsurancePolicyIntegration:
                 rate=0.008,
             ),
         ]
-        return InsurancePolicy(layers=layers, deductible=250_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            return InsurancePolicy(layers=layers, deductible=250_000)
 
     def test_price_insurance_policy(self, pricer, policy):
         """Test pricing an insurance policy."""
         original_rates = [layer.rate for layer in policy.layers]
 
-        priced_policy = pricer.price_insurance_policy(
-            policy=policy,
-            expected_revenue=15_000_000,
-            market_cycle=MarketCycle.NORMAL,
-            update_policy=True,
-        )
+        with pytest.warns(DeprecationWarning, match="price_insurance_policy.*deprecated"):
+            priced_policy = pricer.price_insurance_policy(
+                policy=policy,
+                expected_revenue=15_000_000,
+                market_cycle=MarketCycle.NORMAL,
+                update_policy=True,
+            )
 
         # Should be the same object if update_policy=True
         assert priced_policy is policy
@@ -601,19 +603,22 @@ class TestInsurancePolicyIntegration:
             ),
         ]
 
-        policy = InsurancePolicy(
-            layers=layers,
-            deductible=250_000,
-            pricing_enabled=True,
-        )
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(
+                layers=layers,
+                deductible=250_000,
+                pricing_enabled=True,
+            )
 
         original_rate = policy.layers[0].rate
 
-        policy.apply_pricing(
-            expected_revenue=15_000_000,
-            market_cycle=MarketCycle.HARD,
-            loss_generator=loss_generator,
-        )
+        # apply_pricing internally calls price_insurance_policy which emits DeprecationWarning
+        with pytest.warns(DeprecationWarning, match="price_insurance_policy.*deprecated"):
+            policy.apply_pricing(
+                expected_revenue=15_000_000,
+                market_cycle=MarketCycle.HARD,
+                loss_generator=loss_generator,
+            )
 
         # Rate should be updated
         assert policy.layers[0].rate != original_rate
@@ -631,13 +636,14 @@ class TestInsurancePolicyIntegration:
             ),
         ]
 
-        policy = InsurancePolicy.create_with_pricing(
-            layers=layers,
-            loss_generator=loss_generator,
-            expected_revenue=15_000_000,
-            market_cycle=MarketCycle.SOFT,
-            deductible=250_000,
-        )
+        with pytest.warns(DeprecationWarning):
+            policy = InsurancePolicy.create_with_pricing(
+                layers=layers,
+                loss_generator=loss_generator,
+                expected_revenue=15_000_000,
+                market_cycle=MarketCycle.SOFT,
+                deductible=250_000,
+            )
 
         assert policy.pricing_enabled
         assert policy.pricer is not None
@@ -670,7 +676,8 @@ class TestBackwardCompatibility:
                 rate=0.015,
             ),
         ]
-        policy = InsurancePolicy(layers=layers, deductible=250_000)
+        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
+            policy = InsurancePolicy(layers=layers, deductible=250_000)
 
         # Should work normally
         assert policy.calculate_premium() > 0

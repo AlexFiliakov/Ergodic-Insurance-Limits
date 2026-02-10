@@ -275,7 +275,7 @@ classDiagram
     class Simulation {
         +WidgetManufacturer manufacturer
         +List loss_generator
-        +InsurancePolicy insurance_policy
+        +InsuranceProgram insurance_program
         +int time_horizon
         +run() SimulationResults
         +step_annual() Dict

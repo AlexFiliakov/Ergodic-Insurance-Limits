@@ -4,6 +4,8 @@ This module ensures that ROE calculations correctly include all insurance
 expenses (premiums and claim deductibles) and that the fix doesn't regress.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -167,21 +169,23 @@ class TestROEWithInsurance:
         )
 
         # Create insurance policy
-        insurance = InsurancePolicy(
-            layers=[
-                InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.02)  # 2% rate
-            ],
-            deductible=100_000,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            insurance = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.02)  # 2% rate
+                ],
+                deductible=100_000,
+            )
 
-        # Run short simulation
-        sim = Simulation(
-            manufacturer=manufacturer,
-            loss_generator=loss_gen,
-            insurance_policy=insurance,
-            time_horizon=3,
-            seed=42,
-        )
+            # Run short simulation
+            sim = Simulation(
+                manufacturer=manufacturer,
+                loss_generator=loss_gen,
+                insurance_policy=insurance,
+                time_horizon=3,
+                seed=42,
+            )
 
         results = sim.run()
         stats = results.summary_stats()
@@ -249,19 +253,21 @@ class TestROEWithInsurance:
         )
 
         # Create insurance
-        insurance = InsurancePolicy(
-            layers=[InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.015)],
-            deductible=100_000,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            insurance = InsurancePolicy(
+                layers=[InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.015)],
+                deductible=100_000,
+            )
 
-        # Run simulation with multiple generators
-        sim = Simulation(
-            manufacturer=manufacturer,
-            loss_generator=[standard, catastrophic],
-            insurance_policy=insurance,
-            time_horizon=5,
-            seed=42,
-        )
+            # Run simulation with multiple generators
+            sim = Simulation(
+                manufacturer=manufacturer,
+                loss_generator=[standard, catastrophic],
+                insurance_policy=insurance,
+                time_horizon=5,
+                seed=42,
+            )
 
         results = sim.run()
         stats = results.summary_stats()

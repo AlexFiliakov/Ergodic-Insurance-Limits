@@ -527,6 +527,57 @@ class InsuranceProgram:
         self.pricer = pricer
         self.pricing_results: List[Any] = []
 
+    @classmethod
+    def simple(
+        cls,
+        deductible: float,
+        limit: float,
+        rate: float,
+        name: str = "Simple Insurance Program",
+        **kwargs,
+    ) -> "InsuranceProgram":
+        """Create a single-layer insurance program from basic parameters.
+
+        Convenience factory for the most common use case: a single primary
+        layer where the attachment point equals the deductible.
+
+        Args:
+            deductible: Self-insured retention in dollars.
+            limit: Maximum coverage amount in dollars above the deductible.
+            rate: Annual premium as a fraction of the limit (e.g. 0.025 for 2.5%).
+            name: Program identifier.
+            **kwargs: Additional keyword arguments (e.g. pricing_enabled, pricer).
+
+        Returns:
+            InsuranceProgram with a single layer.
+
+        Examples:
+            Quick single-layer program::
+
+                program = InsuranceProgram.simple(
+                    deductible=500_000,
+                    limit=10_000_000,
+                    rate=0.025,
+                )
+        """
+        layer = EnhancedInsuranceLayer(
+            attachment_point=deductible,
+            limit=limit,
+            base_premium_rate=rate,
+            reinstatements=0,
+        )
+        return cls(layers=[layer], deductible=deductible, name=name, **kwargs)
+
+    def calculate_premium(self) -> float:
+        """Calculate total annual premium across all layers.
+
+        Convenience alias for ``calculate_annual_premium(0.0)``.
+
+        Returns:
+            Total annual premium in dollars.
+        """
+        return self.calculate_annual_premium(0.0)
+
     def calculate_annual_premium(self, time: float = 0.0) -> float:
         """Calculate total annual premium for the program.
 

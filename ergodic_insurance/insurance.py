@@ -1,51 +1,20 @@
 """Insurance policy structure and claim processing.
 
-This module provides classes for modeling multi-layer insurance policies
-with configurable attachment points, limits, and premium rates. It supports
-complex insurance structures commonly used in commercial insurance including
-excess layers, umbrella coverage, and multi-layer towers.
+.. deprecated::
+    The classes in this module (``InsurancePolicy`` and ``InsuranceLayer``)
+    are deprecated.  Use :class:`~ergodic_insurance.insurance_program.InsuranceProgram`
+    and :class:`~ergodic_insurance.insurance_program.EnhancedInsuranceLayer`
+    instead.
 
-The module integrates with pricing engines for dynamic premium calculation
-and supports both static and market-driven pricing models.
+Migration examples::
 
-Key Features:
-    - Multi-layer insurance towers with attachment points and limits
-    - Deductible and self-insured retention handling
-    - Dynamic pricing integration with market cycles
-    - Claim allocation across multiple layers
-    - Premium calculation with various rating methods
+    # Before (deprecated):
+    from ergodic_insurance.insurance import InsurancePolicy
+    policy = InsurancePolicy.from_simple(deductible=1_000_000, limit=5_000_000, premium_rate=0.03)
 
-Examples:
-    Simple single-layer policy (recommended)::
-
-        from ergodic_insurance.insurance import InsurancePolicy
-
-        # $5M excess $1M with 3% rate
-        policy = InsurancePolicy.from_simple(
-            deductible=1_000_000,
-            limit=5_000_000,
-            premium_rate=0.03,
-        )
-
-        # Process a $3M claim
-        company_payment, insurance_recovery = policy.process_claim(3_000_000)
-
-    Multi-layer tower::
-
-        # Build a insurance tower
-        layers = [
-            InsuranceLayer(1_000_000, 4_000_000, 0.025),  # Primary
-            InsuranceLayer(5_000_000, 5_000_000, 0.015),  # First excess
-            InsuranceLayer(10_000_000, 10_000_000, 0.01), # Second excess
-        ]
-
-        tower = InsurancePolicy(layers, deductible=1_000_000)
-        annual_premium = tower.calculate_premium()
-
-Note:
-    For advanced features like reinstatements and complex multi-layer programs,
-    see the insurance_program module which provides EnhancedInsuranceLayer and
-    InsuranceProgram classes.
+    # After (recommended):
+    from ergodic_insurance.insurance_program import InsuranceProgram
+    program = InsuranceProgram.simple(deductible=1_000_000, limit=5_000_000, rate=0.03)
 
 Since:
     Version 0.1.0
@@ -228,6 +197,12 @@ class InsurancePolicy:
     ):
         """Initialize insurance policy.
 
+        .. deprecated::
+            InsurancePolicy is deprecated. Use
+            :class:`~ergodic_insurance.insurance_program.InsuranceProgram`
+            instead.  For simple single-layer policies, use
+            ``InsuranceProgram.simple(deductible, limit, rate)``.
+
         Args:
             layers: List of InsuranceLayer objects defining the coverage tower.
                 Layers will be automatically sorted by attachment point.
@@ -253,6 +228,12 @@ class InsurancePolicy:
                     pricer=pricer
                 )
         """
+        warnings.warn(
+            "InsurancePolicy is deprecated. Use InsuranceProgram instead. "
+            "For simple policies, use InsuranceProgram.simple(deductible, limit, rate).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
         self.deductible = deductible
         self.pricing_enabled = pricing_enabled

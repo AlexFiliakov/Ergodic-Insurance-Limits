@@ -6,6 +6,7 @@ pipeline works correctly and demonstrates the ergodic advantage of insurance.
 
 import time
 from typing import Any, Dict
+import warnings
 
 import numpy as np
 import psutil
@@ -52,13 +53,15 @@ class TestIntegration:
     @pytest.fixture
     def insurance_policy(self) -> InsurancePolicy:
         """Create insurance policy for tests."""
-        # Create a single layer insurance structure
-        layer = InsuranceLayer(
-            attachment_point=50_000,  # Acts like deductible
-            limit=5_000_000,
-            rate=0.02,
-        )
-        return InsurancePolicy(layers=[layer], deductible=50_000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            # Create a single layer insurance structure
+            layer = InsuranceLayer(
+                attachment_point=50_000,  # Acts like deductible
+                limit=5_000_000,
+                rate=0.02,
+            )
+            return InsurancePolicy(layers=[layer], deductible=50_000)
 
     def test_full_pipeline_execution(self, base_config: dict, insurance_policy: InsurancePolicy):
         """Test that the full simulation pipeline executes without errors."""
@@ -79,12 +82,14 @@ class TestIntegration:
         )
 
         # Run single simulation
-        simulation = Simulation(
-            manufacturer=manufacturer,
-            loss_generator=loss_gen,
-            time_horizon=base_config["time_horizon"],
-            insurance_policy=insurance_policy,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            simulation = Simulation(
+                manufacturer=manufacturer,
+                loss_generator=loss_gen,
+                time_horizon=base_config["time_horizon"],
+                insurance_policy=insurance_policy,
+            )
         result = simulation.run()
 
         # Verify results
@@ -150,13 +155,15 @@ class TestIntegration:
         insured_results = []
         for i in range(10):  # Small sample for speed
             mfg = self.create_manufacturer(initial_assets=base_config["initial_assets"])
-            simulation = Simulation(
-                manufacturer=mfg,
-                loss_generator=loss_gen,
-                time_horizon=base_config["time_horizon"],
-                insurance_policy=insurance_policy,
-                seed=base_config["random_seed"] + i,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                simulation = Simulation(
+                    manufacturer=mfg,
+                    loss_generator=loss_gen,
+                    time_horizon=base_config["time_horizon"],
+                    insurance_policy=insurance_policy,
+                    seed=base_config["random_seed"] + i,
+                )
             result = simulation.run()
             insured_results.append(result)
 
@@ -209,12 +216,14 @@ class TestIntegration:
         )
 
         # Better calibrated insurance for testing
-        layer = InsuranceLayer(
-            attachment_point=50_000,  # Lower attachment for better coverage
-            limit=5_000_000,  # Reasonable limit
-            rate=0.02,  # 2% rate = $100k premium
-        )
-        insurance = InsurancePolicy(layers=[layer], deductible=50_000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            layer = InsuranceLayer(
+                attachment_point=50_000,  # Lower attachment for better coverage
+                limit=5_000_000,  # Reasonable limit
+                rate=0.02,  # 2% rate = $100k premium
+            )
+            insurance = InsurancePolicy(layers=[layer], deductible=50_000)
 
         # Run comparison
         analyzer = ErgodicAnalyzer()
@@ -230,13 +239,15 @@ class TestIntegration:
                 asset_turnover=1.2,
                 base_operating_margin=0.1,
             )
-            insured_simulation = Simulation(
-                manufacturer=insured_mfg,
-                loss_generator=loss_gen,
-                time_horizon=50,  # Shorter for testing
-                insurance_policy=insurance,
-                seed=base_config["random_seed"] + i,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                insured_simulation = Simulation(
+                    manufacturer=insured_mfg,
+                    loss_generator=loss_gen,
+                    time_horizon=50,  # Shorter for testing
+                    insurance_policy=insurance,
+                    seed=base_config["random_seed"] + i,
+                )
             insured_result = insured_simulation.run()
             insured_batch.append(insured_result)
 
@@ -523,8 +534,10 @@ class TestIntegration:
         )
 
         # Create insurance
-        layer = InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)
-        insurance = InsurancePolicy(layers=[layer], deductible=100_000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            layer = InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)
+            insurance = InsurancePolicy(layers=[layer], deductible=100_000)
 
         # Run base scenario (no insurance)
         sim_base = Simulation(
@@ -537,13 +550,15 @@ class TestIntegration:
         result_base = sim_base.run()
 
         # Run insured scenario
-        sim_insured = Simulation(
-            manufacturer=manufacturer_insured,
-            loss_generator=loss_gen,
-            time_horizon=20,
-            insurance_policy=insurance,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            sim_insured = Simulation(
+                manufacturer=manufacturer_insured,
+                loss_generator=loss_gen,
+                time_horizon=20,
+                insurance_policy=insurance,
+                seed=42,
+            )
         result_insured = sim_insured.run()
 
         # Create analyzer and validate

@@ -152,10 +152,10 @@ flowchart TB
 
        %% Insurance Subsystem
        subgraph InsuranceSub["Insurance Subsystem"]
-           INSPOL["InsurancePolicy<br/>(Basic Path)"]
-           INSLAY["InsuranceLayer<br/>(Basic Layers)"]
-           INSPROG["InsuranceProgram<br/>(Enhanced Path)"]
-           ENHLAY["EnhancedInsuranceLayer<br/>(Enhanced Layers)"]
+           INSPOL["InsurancePolicy<br/>(Deprecated)"]
+           INSLAY["InsuranceLayer<br/>(Deprecated)"]
+           INSPROG["InsuranceProgram<br/>(Primary)"]
+           ENHLAY["EnhancedInsuranceLayer<br/>(Primary)"]
            PRICER["InsurancePricer<br/>(Market Cycles)"]
        end
 
@@ -294,7 +294,7 @@ The Ergodic Insurance Limits framework is designed as a modular, high-performanc
 ### 1. **Separation of Concerns**
 - **Core Simulation**: Handles the fundamental business and insurance mechanics
 - **Financial Accounting**: Provides double-entry ledger, accrual accounting, insurance accounting, and tax handling -- all using Python's `Decimal` type for precision
-- **Insurance Subsystem**: Offers both a basic path (`InsurancePolicy` with `InsuranceLayer`) and an enhanced path (`InsuranceProgram` with `EnhancedInsuranceLayer`), with market-cycle-aware pricing via `InsurancePricer`
+- **Insurance Subsystem**: Provides `InsuranceProgram` with `EnhancedInsuranceLayer` for coverage modeling, with market-cycle-aware pricing via `InsurancePricer`. (The legacy `InsurancePolicy`/`InsuranceLayer` classes are deprecated.)
 - **Exposure & Trends**: Dynamically adjusts claim frequencies using actual financial state (via the `FinancialStateProvider` protocol) and applies trend multipliers over time
 - **Analysis Layer**: Provides ergodic and optimization capabilities
 - **Infrastructure**: Manages computational efficiency and data handling
@@ -316,7 +316,7 @@ The Ergodic Insurance Limits framework is designed as a modular, high-performanc
 - **AccrualManager** tracks timing differences between cash movements and accounting recognition (wages, interest, taxes, insurance claims)
 - **InsuranceAccounting** handles premium amortization as a prepaid asset and tracks insurance claim recoveries
 - **TaxHandler** consolidates tax calculation, accrual, and payment logic, delegating accrual tracking to the **AccrualManager**
-- **InsurancePricer** supports market cycles (Soft / Normal / Hard) to generate realistic premiums for both basic and enhanced insurance paths
+- **InsurancePricer** supports market cycles (Soft / Normal / Hard) to generate realistic premiums for insurance programs
 - The **Exposure System** uses a `FinancialStateProvider` protocol so that `ExposureBase` subclasses query live financial state from the manufacturer for state-driven claim generation
 - **Trend classes** (in `trends.py`) provide multiplicative adjustments to claim frequencies and severities over time, supporting linear, scenario-based, and stochastic trends
 - **Monte Carlo Engine** generates multiple scenarios for statistical analysis
@@ -360,34 +360,35 @@ The insurance subsystem provides two complementary paths for modeling coverage:
 
 ```{mermaid}
 flowchart TB
-       subgraph Basic["Basic Path"]
+       subgraph Deprecated["Deprecated"]
            INSPOL["InsurancePolicy"]
            INSLAY["InsuranceLayer"]
            INSPOL --> INSLAY
        end
 
-       subgraph Enhanced["Enhanced Path"]
+       subgraph Primary["Primary"]
            INSPROG["InsuranceProgram"]
            ENHLAY["EnhancedInsuranceLayer"]
            INSPROG --> ENHLAY
        end
 
        PRICER["InsurancePricer<br/>(Soft / Normal / Hard)"]
-       PRICER --> INSPOL
        PRICER --> INSPROG
 
-       classDef basicClass fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-       classDef enhancedClass fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+       INSPOL -.->|deprecated, use| INSPROG
+
+       classDef deprecatedClass fill:#ffcdd2,stroke:#b71c1c,stroke-width:2px
+       classDef primaryClass fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
        classDef pricerClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
 
-       class INSPOL,INSLAY basicClass
-       class INSPROG,ENHLAY enhancedClass
+       class INSPOL,INSLAY deprecatedClass
+       class INSPROG,ENHLAY primaryClass
        class PRICER pricerClass
 ```
 
-- **Basic Path**: `InsurancePolicy` (in `insurance.py`) composes one or more `InsuranceLayer` objects for straightforward coverage modeling
-- **Enhanced Path**: `InsuranceProgram` (in `insurance_program.py`) uses `EnhancedInsuranceLayer` objects for richer features including market-cycle-aware pricing
-- **InsurancePricer** (in `insurance_pricing.py`) supports three `MarketCycle` states -- `HARD` (60% loss ratio), `NORMAL` (70%), and `SOFT` (80%) -- and can price both basic and enhanced insurance structures
+- **Primary Path**: `InsuranceProgram` (in `insurance_program.py`) uses `EnhancedInsuranceLayer` objects for full-featured coverage modeling including reinstatements, aggregate limits, and market-cycle-aware pricing
+- **Deprecated**: `InsurancePolicy` (in `insurance.py`) with `InsuranceLayer` is deprecated in favor of `InsuranceProgram`
+- **InsurancePricer** (in `insurance_pricing.py`) supports three `MarketCycle` states -- `HARD` (60% loss ratio), `NORMAL` (70%), and `SOFT` (80%)
 
 ### 6. **Exposure & Trend System**
 

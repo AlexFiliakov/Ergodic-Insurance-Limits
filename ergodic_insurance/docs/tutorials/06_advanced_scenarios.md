@@ -83,7 +83,7 @@ engine = MonteCarloEngine(
 results = engine.run()
 ```
 
-> **Important:** `MonteCarloEngine` accepts an `InsuranceProgram` (with `EnhancedInsuranceLayer`), not an `InsurancePolicy`. The `InsurancePolicy`/`InsuranceLayer` classes from Tutorial 3 are designed for the single-path `Simulation` engine. When working with Monte Carlo, always use `InsuranceProgram`.
+> **Note:** Both the `Simulation` engine and `MonteCarloEngine` accept `InsuranceProgram` (with `EnhancedInsuranceLayer`). The legacy `InsurancePolicy`/`InsuranceLayer` classes are deprecated.
 
 ### Reading the Results
 
@@ -323,8 +323,8 @@ hard_pricer = InsurancePricer(
 
 # Price NovaTech's program under each condition
 for label, pricer in [("Soft", soft_pricer), ("Normal", normal_pricer), ("Hard", hard_pricer)]:
-    priced = pricer.price_insurance_program(program, expected_revenue=25_000_000)
-    total_premium = priced.calculate_annual_premium()
+    priced_program = pricer.price_insurance_program(program, expected_revenue=25_000_000)
+    total_premium = priced_program.calculate_annual_premium()
     print(f"{label:>6} market premium: ${total_premium:>12,.0f}")
 ```
 

@@ -32,7 +32,6 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from .insurance import InsuranceLayer, InsurancePolicy
 from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
@@ -267,14 +266,13 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             # x = [deductible, primary_limit, excess_limit]
             deductible, primary, excess = x
 
-            # Create trial insurance program
+            # Create trial insurance program directly
             layers = [
-                InsuranceLayer(deductible, primary - deductible, 0.015),
-                InsuranceLayer(primary, excess, 0.008),
+                EnhancedInsuranceLayer(deductible, primary - deductible, base_premium_rate=0.015),
+                EnhancedInsuranceLayer(primary, excess, base_premium_rate=0.008),
             ]
-            policy = InsurancePolicy(layers, deductible)
+            program = InsuranceProgram(layers=layers, deductible=deductible)
 
-            # Run short simulation to evaluate
             # Run short simulation using MonteCarloEngine
             from .monte_carlo import MonteCarloEngine
             from .monte_carlo import SimulationConfig as MCConfig
@@ -283,19 +281,6 @@ class OptimizedStaticStrategy(InsuranceStrategy):
 
             # Create loss generator
             loss_generator = ManufacturingLossGenerator(seed=42)
-
-            # Create insurance program from policy
-            from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-
-            program_layers = [
-                EnhancedInsuranceLayer(
-                    attachment_point=layer.attachment_point,
-                    limit=layer.limit,
-                    base_premium_rate=layer.rate,
-                )
-                for layer in policy.layers
-            ]
-            program = InsuranceProgram(layers=program_layers)
 
             # Initialize Monte Carlo engine with required parameters
             mc_engine = MonteCarloEngine(
@@ -315,10 +300,10 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             deductible, primary, excess = x
 
             layers = [
-                InsuranceLayer(deductible, primary - deductible, 0.015),
-                InsuranceLayer(primary, excess, 0.008),
+                EnhancedInsuranceLayer(deductible, primary - deductible, base_premium_rate=0.015),
+                EnhancedInsuranceLayer(primary, excess, base_premium_rate=0.008),
             ]
-            policy = InsurancePolicy(layers, deductible)
+            program = InsuranceProgram(layers=layers, deductible=deductible)
 
             # Run short simulation using MonteCarloEngine
             from .monte_carlo import MonteCarloEngine
@@ -328,19 +313,6 @@ class OptimizedStaticStrategy(InsuranceStrategy):
 
             # Create loss generator
             loss_generator = ManufacturingLossGenerator(seed=42)
-
-            # Create insurance program from policy
-            from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
-
-            program_layers = [
-                EnhancedInsuranceLayer(
-                    attachment_point=layer.attachment_point,
-                    limit=layer.limit,
-                    base_premium_rate=layer.rate,
-                )
-                for layer in policy.layers
-            ]
-            program = InsuranceProgram(layers=program_layers)
 
             # Initialize Monte Carlo engine with required parameters
             mc_engine = MonteCarloEngine(
