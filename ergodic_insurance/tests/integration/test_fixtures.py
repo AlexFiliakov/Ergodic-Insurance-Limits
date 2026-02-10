@@ -202,12 +202,16 @@ def basic_insurance_policy() -> InsurancePolicy:
     Returns:
         InsurancePolicy: Basic insurance for testing.
     """
+    import warnings
+
     layer = InsuranceLayer(
         attachment_point=100_000,
         limit=5_000_000,
         rate=0.02,
     )
-    return InsurancePolicy(layers=[layer], deductible=100_000)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return InsurancePolicy(layers=[layer], deductible=100_000)
 
 
 @pytest.fixture
@@ -217,6 +221,8 @@ def multi_layer_insurance() -> InsurancePolicy:
     Returns:
         InsurancePolicy: Multi-layer insurance for testing.
     """
+    import warnings
+
     primary = InsuranceLayer(
         attachment_point=50_000,
         limit=2_000_000,
@@ -232,10 +238,12 @@ def multi_layer_insurance() -> InsurancePolicy:
         limit=10_000_000,
         rate=0.008,
     )
-    return InsurancePolicy(
-        layers=[primary, excess1, excess2],
-        deductible=50_000,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return InsurancePolicy(
+            layers=[primary, excess1, excess2],
+            deductible=50_000,
+        )
 
 
 @pytest.fixture

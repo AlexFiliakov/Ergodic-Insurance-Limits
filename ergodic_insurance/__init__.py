@@ -69,10 +69,10 @@ __all__ = [
     "run_analysis",
     "AnalysisResults",
     # Insurance & Risk
-    "InsurancePolicy",
-    "InsuranceLayer",
     "InsuranceProgram",
     "EnhancedInsuranceLayer",
+    "InsurancePolicy",  # Deprecated — use InsuranceProgram
+    "InsuranceLayer",  # Deprecated — use EnhancedInsuranceLayer
     "InsurancePricer",
     "MarketCycle",
     "RiskMetrics",

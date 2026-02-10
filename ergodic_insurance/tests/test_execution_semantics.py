@@ -8,6 +8,8 @@ Validates that:
 5. Execution ordering is consistent: losses → claims → premium → step
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -48,15 +50,17 @@ def loss_generator():
 @pytest.fixture
 def insurance_policy():
     """Create a test insurance policy."""
-    layer = InsuranceLayer(
-        attachment_point=100_000,
-        limit=5_000_000,
-        rate=0.02,
-    )
-    return InsurancePolicy(
-        layers=[layer],
-        deductible=100_000,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        layer = InsuranceLayer(
+            attachment_point=100_000,
+            limit=5_000_000,
+            rate=0.02,
+        )
+        return InsurancePolicy(
+            layers=[layer],
+            deductible=100_000,
+        )
 
 
 class TestReEntrancy:
@@ -87,13 +91,15 @@ class TestReEntrancy:
         self, manufacturer, loss_generator, insurance_policy
     ):
         """Run simulation with insurance twice and verify results are identical."""
-        sim = Simulation(
-            manufacturer=manufacturer,
-            loss_generator=loss_generator,
-            insurance_policy=insurance_policy,
-            time_horizon=10,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            sim = Simulation(
+                manufacturer=manufacturer,
+                loss_generator=loss_generator,
+                insurance_policy=insurance_policy,
+                time_horizon=10,
+                seed=42,
+            )
 
         results1 = sim.run()
         results2 = sim.run()
@@ -307,12 +313,14 @@ class TestExecutionOrdering:
         """Verify that premium is recorded before manufacturer.step()."""
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        sim = Simulation(
-            manufacturer=manufacturer,
-            insurance_policy=insurance_policy,
-            time_horizon=5,
-            seed=42,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            sim = Simulation(
+                manufacturer=manufacturer,
+                insurance_policy=insurance_policy,
+                time_horizon=5,
+                seed=42,
+            )
 
         call_order = []
         original_step = manufacturer.step

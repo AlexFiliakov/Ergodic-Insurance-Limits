@@ -467,6 +467,9 @@ class InsurancePricer:
     ) -> "InsurancePolicy":
         """Price a basic insurance policy.
 
+        .. deprecated::
+            Use :meth:`price_insurance_program` instead.
+
         Prices all layers in the policy and optionally updates their rates.
 
         Args:
@@ -478,6 +481,14 @@ class InsurancePricer:
         Returns:
             Policy with updated pricing (original or copy based on update_policy)
         """
+        import warnings
+
+        warnings.warn(
+            "price_insurance_policy() is deprecated. "
+            "Use price_insurance_program() with an InsuranceProgram instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         from .insurance import InsurancePolicy
 
         # Create a copy if not updating in place

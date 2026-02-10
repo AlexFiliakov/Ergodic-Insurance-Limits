@@ -41,14 +41,18 @@ def _make_insurance_program():
 
 def _make_insurance_policy():
     """Create a minimal InsurancePolicy for pricing tests."""
+    import warnings
+
     from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 
-    return InsurancePolicy(
-        layers=[
-            InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.03),
-        ],
-        deductible=100_000,
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return InsurancePolicy(
+            layers=[
+                InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.03),
+            ],
+            deductible=100_000,
+        )
 
 
 class TestPriceInsuranceProgramNoRevenue:
@@ -108,11 +112,12 @@ class TestPriceInsurancePolicyCopy:
         policy = _make_insurance_policy()
         original_rate = policy.layers[0].rate
 
-        priced_copy = pricer.price_insurance_policy(
-            policy=policy,
-            expected_revenue=10_000_000,
-            update_policy=False,
-        )
+        with pytest.warns(DeprecationWarning, match="price_insurance_policy.*deprecated"):
+            priced_copy = pricer.price_insurance_policy(
+                policy=policy,
+                expected_revenue=10_000_000,
+                update_policy=False,
+            )
 
         # Original should be unchanged
         assert policy.layers[0].rate == original_rate
@@ -130,11 +135,12 @@ class TestPriceInsurancePolicyCopy:
         )
         policy = _make_insurance_policy()
 
-        priced = pricer.price_insurance_policy(
-            policy=policy,
-            expected_revenue=10_000_000,
-            update_policy=True,
-        )
+        with pytest.warns(DeprecationWarning, match="price_insurance_policy.*deprecated"):
+            priced = pricer.price_insurance_policy(
+                policy=policy,
+                expected_revenue=10_000_000,
+                update_policy=True,
+            )
         # Should be the same object
         assert priced is policy
 
@@ -152,10 +158,11 @@ class TestPriceInsurancePolicyStoreResults:
         )
         policy = _make_insurance_policy()
 
-        pricer.price_insurance_policy(
-            policy=policy,
-            expected_revenue=10_000_000,
-        )
+        with pytest.warns(DeprecationWarning, match="price_insurance_policy.*deprecated"):
+            pricer.price_insurance_policy(
+                policy=policy,
+                expected_revenue=10_000_000,
+            )
         assert hasattr(policy, "pricing_results")
         assert len(policy.pricing_results) == 1
         assert isinstance(policy.pricing_results[0], LayerPricing)

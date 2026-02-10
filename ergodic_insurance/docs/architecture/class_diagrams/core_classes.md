@@ -14,7 +14,7 @@ classDiagram
     class Simulation {
         +manufacturer: WidgetManufacturer
         +loss_generator: List~ManufacturingLossGenerator~
-        +insurance_policy: InsurancePolicy
+        +insurance_program: InsuranceProgram
         +time_horizon: int
         +run() SimulationResults
         +step_annual(year, losses) dict
@@ -61,6 +61,7 @@ classDiagram
     }
 
     class InsurancePolicy {
+        <<deprecated>>
         +layers: List~InsuranceLayer~
         +deductible: float
         +process_claim(amount) tuple
@@ -79,7 +80,7 @@ classDiagram
 
     Simulation --> WidgetManufacturer : simulates
     Simulation --> ManufacturingLossGenerator : uses
-    Simulation --> InsurancePolicy : uses
+    Simulation --> InsurancePolicy : uses (deprecated)
     Simulation --> SimulationResults : produces
 
     MonteCarloEngine --> WidgetManufacturer : copies per path
@@ -87,7 +88,7 @@ classDiagram
     MonteCarloEngine --> InsuranceProgram : uses
     MonteCarloEngine --> MonteCarloResults : produces
 
-    InsurancePolicy --> InsuranceProgram : converts to
+    InsurancePolicy --> InsuranceProgram : converts to (deprecated)
 
     WidgetManufacturer ..|> FinancialStateProvider : implements
 ```
@@ -200,12 +201,13 @@ classDiagram
 
 ## Insurance Subsystem Detail
 
-This diagram shows both the basic insurance path (`InsurancePolicy` / `InsuranceLayer`)
-and the enhanced insurance path (`InsuranceProgram` / `EnhancedInsuranceLayer` / `LayerState`).
+This diagram shows the primary insurance path (`InsuranceProgram` / `EnhancedInsuranceLayer` / `LayerState`)
+and the deprecated basic path (`InsurancePolicy` / `InsuranceLayer`).
 
 ```{mermaid}
 classDiagram
     class InsurancePolicy {
+        <<deprecated>>
         +layers: List~InsuranceLayer~
         +deductible: float
         +pricing_enabled: bool
@@ -221,7 +223,7 @@ classDiagram
     }
 
     class InsuranceLayer {
-        <<dataclass>>
+        <<deprecated, dataclass>>
         +attachment_point: float
         +limit: float
         +rate: float
@@ -282,8 +284,8 @@ classDiagram
         +get_utilization_rate() float
     }
 
-    InsurancePolicy --> InsuranceLayer : contains 1..*
-    InsurancePolicy ..> InsuranceProgram : converts to
+    InsurancePolicy --> InsuranceLayer : contains 1..* (deprecated)
+    InsurancePolicy ..> InsuranceProgram : converts to (deprecated)
 
     InsuranceProgram --> EnhancedInsuranceLayer : contains 1..*
     InsuranceProgram --> LayerState : tracks 1..*
@@ -390,7 +392,7 @@ classDiagram
     class Simulation {
         +manufacturer: WidgetManufacturer
         +loss_generator: List~ManufacturingLossGenerator~
-        +insurance_policy: InsurancePolicy
+        +insurance_program: InsuranceProgram
         +time_horizon: int
         +seed: int
         +run(progress_interval) SimulationResults

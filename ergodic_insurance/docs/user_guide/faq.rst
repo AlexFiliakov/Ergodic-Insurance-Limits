@@ -46,16 +46,18 @@ At minimum:
 
 If you lack historical loss data, use industry benchmarks from your broker and run a sensitivity analysis to see how results change with different assumptions (see :doc:`../tutorials/04_optimization_workflow`).
 
-What is the difference between InsurancePolicy and InsuranceProgram?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+What happened to InsurancePolicy?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-They serve different simulation engines:
+``InsurancePolicy`` and ``InsuranceLayer`` are **deprecated**. Use ``InsuranceProgram`` and ``EnhancedInsuranceLayer`` instead. ``InsuranceProgram`` works with both the single-path ``Simulation`` engine and the ``MonteCarloEngine``, and supports advanced features like reinstatements, aggregate limits, and participation rates.
 
-- **``InsurancePolicy``** with **``InsuranceLayer``** -- used by the single-path ``Simulation`` engine. Each layer has an ``attachment_point``, ``limit``, and ``rate``.
+Migration is straightforward:
 
-- **``InsuranceProgram``** with **``EnhancedInsuranceLayer``** -- used by ``MonteCarloEngine``. Supports reinstatements, aggregate limits, participation rates, and per-occurrence vs. aggregate limit types.
+- ``InsurancePolicy.from_simple(deductible, limit, premium_rate)`` becomes ``InsuranceProgram.simple(deductible, limit, rate)``
+- ``InsuranceLayer(attachment_point, limit, rate)`` becomes ``EnhancedInsuranceLayer(attachment_point, limit, base_premium_rate=rate)``
+- ``InsurancePolicy(layers=[...], deductible=...)`` becomes ``InsuranceProgram(layers=[...], deductible=...)``
 
-Start with ``InsurancePolicy`` for exploration. Move to ``InsuranceProgram`` when you need Monte Carlo analysis or advanced layer features. See :doc:`../tutorials/03_configuring_insurance` for a walkthrough.
+See :doc:`../tutorials/03_configuring_insurance` for a walkthrough.
 
 How many simulations should I run?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -135,7 +137,7 @@ Common calibration mistakes:
 - **Loss frequency**: specifying per-simulation frequency instead of per-year
 - **Premium rate**: applying the rate to assets instead of to the layer limit
 
-Double-check ``ManufacturerConfig`` fields against your source data and verify ``InsuranceLayer`` parameters match your broker's terms.
+Double-check ``ManufacturerConfig`` fields against your source data and verify ``EnhancedInsuranceLayer`` parameters match your broker's terms.
 
 The simulation is slow.
 ~~~~~~~~~~~~~~~~~~~~~~~~

@@ -83,7 +83,7 @@ Here's a complete example that demonstrates the key features:
    from ergodic_insurance.config_manager import ConfigManager
    from ergodic_insurance.manufacturer import WidgetManufacturer
    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
-   from ergodic_insurance import InsurancePolicy, InsuranceLayer
+   from ergodic_insurance import InsuranceProgram, EnhancedInsuranceLayer
    from ergodic_insurance.simulation import Simulation
 
    # Configuration
@@ -103,15 +103,15 @@ Here's a complete example that demonstrates the key features:
        seed=42
    )
 
-   # Create insurance policy
-   layer = InsuranceLayer(attachment_point=100_000, limit=5_000_000, rate=0.02)
-   policy = InsurancePolicy(layers=[layer], deductible=100_000)
+   # Create insurance program
+   layer = EnhancedInsuranceLayer(attachment_point=100_000, limit=5_000_000, base_premium_rate=0.02)
+   program = InsuranceProgram(layers=[layer], deductible=100_000)
 
    # Run simulation with insurance
    sim = Simulation(
        manufacturer=manufacturer,
        loss_generator=generator,
-       insurance_policy=policy,
+       insurance_program=program,
        time_horizon=50
    )
    results = sim.run()

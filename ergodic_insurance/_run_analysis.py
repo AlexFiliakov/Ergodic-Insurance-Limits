@@ -49,7 +49,7 @@ import pandas as pd
 
 from .config import Config, ManufacturerConfig
 from .ergodic_analyzer import ErgodicAnalyzer
-from .insurance import InsurancePolicy
+from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
 from .simulation import Simulation, SimulationResults
@@ -72,7 +72,7 @@ class AnalysisResults:
             :meth:`ErgodicAnalyzer.compare_scenarios`, or ``None`` when
             *compare_uninsured* was ``False``.
         config: The Config used for the simulations.
-        insurance_policy: The InsurancePolicy used for insured runs.
+        insurance_program: The InsuranceProgram used for insured runs.
 
     Examples:
         Quick inspection::
@@ -94,10 +94,22 @@ class AnalysisResults:
     uninsured_results: List[SimulationResults]
     comparison: Optional[Dict[str, Any]]
     config: Config
-    insurance_policy: InsurancePolicy
+    insurance_program: InsuranceProgram
 
     # Cached summary text
     _summary_cache: Optional[str] = field(default=None, repr=False)
+
+    @property
+    def insurance_policy(self):
+        """Deprecated: use ``insurance_program`` instead."""
+        import warnings
+
+        warnings.warn(
+            "AnalysisResults.insurance_policy is deprecated. " "Use insurance_program instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.insurance_program
 
     def summary(self) -> str:
         """Return a human-readable summary of the analysis.
@@ -146,7 +158,7 @@ class AnalysisResults:
         insured_tw_roe = [r.calculate_time_weighted_roe() for r in self.insured_results]
         lines.append(f"Mean Time-Weighted ROE: {np.mean(insured_tw_roe):.2%}")
 
-        premium = self.insurance_policy.calculate_premium()
+        premium = self.insurance_program.calculate_premium()
         lines.append(f"Annual Premium: ${premium:,.0f}")
 
         # --- Uninsured scenario ---
@@ -453,11 +465,11 @@ def run_analysis(
         time_horizon_years=time_horizon,
     )
 
-    # --- Build insurance policy ---
-    policy = InsurancePolicy.from_simple(
+    # --- Build insurance program ---
+    program = InsuranceProgram.simple(
         deductible=deductible,
         limit=coverage_limit,
-        premium_rate=premium_rate,
+        rate=premium_rate,
     )
 
     # --- Run insured simulations ---
@@ -471,7 +483,7 @@ def run_analysis(
         loss_frequency=loss_frequency,
         loss_severity_mean=loss_severity_mean,
         loss_severity_std=loss_severity_std,
-        insurance_policy=policy,
+        insurance_policy=program,
         n_simulations=n_simulations,
         time_horizon=time_horizon,
         growth_rate=growth_rate,
@@ -509,7 +521,7 @@ def run_analysis(
         uninsured_results=uninsured_results,
         comparison=comparison,
         config=config,
-        insurance_policy=policy,
+        insurance_program=program,
     )
 
 
@@ -519,7 +531,7 @@ def _run_batch(
     loss_frequency: float,
     loss_severity_mean: float,
     loss_severity_std: float,
-    insurance_policy: Optional[InsurancePolicy],
+    insurance_policy: Optional[InsuranceProgram],
     n_simulations: int,
     time_horizon: int,
     growth_rate: float,

@@ -11,6 +11,8 @@ This module covers:
 
 # mypy: ignore-errors
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -85,17 +87,21 @@ class TestErgodicIntegration:
         for i in range(10):
             # Insured simulation
             manufacturer = WidgetManufacturer(config.manufacturer)
-            policy = InsurancePolicy(
-                layers=[InsuranceLayer(100_000, 5_000_000, 0.02)],
-                deductible=100_000,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                policy = InsurancePolicy(
+                    layers=[InsuranceLayer(100_000, 5_000_000, 0.02)],
+                    deductible=100_000,
+                )
 
-            sim = Simulation(
-                manufacturer=manufacturer,
-                time_horizon=config.simulation.time_horizon_years,
-                insurance_policy=policy,
-                seed=42 + i,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                sim = Simulation(
+                    manufacturer=manufacturer,
+                    time_horizon=config.simulation.time_horizon_years,
+                    insurance_policy=policy,
+                    seed=42 + i,
+                )
             insured_results.append(sim.run())
 
             # Uninsured simulation

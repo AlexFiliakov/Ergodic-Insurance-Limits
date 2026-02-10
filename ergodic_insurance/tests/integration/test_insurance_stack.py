@@ -6,6 +6,8 @@ insurance programs, and manufacturer components.
 
 # mypy: ignore-errors
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -502,10 +504,12 @@ class TestInsuranceStack:
         # Simulate each structure
         results = []
         for i, structure in enumerate(structures):
-            policy = InsurancePolicy(
-                layers=structure["layers"],
-                deductible=structure["layers"][0].attachment_point,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                policy = InsurancePolicy(
+                    layers=structure["layers"],
+                    deductible=structure["layers"][0].attachment_point,
+                )
 
             # Run simulation
             sim_mfg = manufacturer.copy()
@@ -645,29 +649,31 @@ class TestInsuranceStack:
         manufacturer = base_manufacturer.copy()
 
         # Year 1-3: Startup phase with basic coverage
-        startup_policy = InsurancePolicy(
-            layers=[InsuranceLayer(100_000, 2_000_000, 0.03)],
-            deductible=100_000,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            startup_policy = InsurancePolicy(
+                layers=[InsuranceLayer(100_000, 2_000_000, 0.03)],
+                deductible=100_000,
+            )
 
-        # Year 4-6: Growth phase with expanded coverage
-        growth_policy = InsurancePolicy(
-            layers=[
-                InsuranceLayer(75_000, 3_000_000, 0.025),
-                InsuranceLayer(3_075_000, 5_000_000, 0.015),
-            ],
-            deductible=75_000,
-        )
+            # Year 4-6: Growth phase with expanded coverage
+            growth_policy = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(75_000, 3_000_000, 0.025),
+                    InsuranceLayer(3_075_000, 5_000_000, 0.015),
+                ],
+                deductible=75_000,
+            )
 
-        # Year 7-10: Mature phase with optimized coverage
-        mature_policy = InsurancePolicy(
-            layers=[
-                InsuranceLayer(150_000, 2_000_000, 0.02),
-                InsuranceLayer(2_150_000, 4_000_000, 0.012),
-                InsuranceLayer(6_150_000, 10_000_000, 0.008),
-            ],
-            deductible=150_000,
-        )
+            # Year 7-10: Mature phase with optimized coverage
+            mature_policy = InsurancePolicy(
+                layers=[
+                    InsuranceLayer(150_000, 2_000_000, 0.02),
+                    InsuranceLayer(2_150_000, 4_000_000, 0.012),
+                    InsuranceLayer(6_150_000, 10_000_000, 0.008),
+                ],
+                deductible=150_000,
+            )
 
         # Run multi-year simulation
         phases = [

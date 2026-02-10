@@ -894,3 +894,114 @@ class TestFromYamlAlternateKeys:
             assert program.layers[0].base_premium_rate == 0.03
         finally:
             Path(temp_path).unlink()
+
+
+# ===========================================================================
+# InsuranceProgram: simple() classmethod (line 531-569)
+# ===========================================================================
+
+
+class TestInsuranceProgramSimpleCoverage:
+    """Coverage tests for InsuranceProgram.simple() classmethod."""
+
+    def test_simple_creates_single_layer(self):
+        """simple() creates a program with one EnhancedInsuranceLayer."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=2_000_000,
+            rate=0.02,
+        )
+        assert len(program.layers) == 1
+        assert isinstance(program.layers[0], EnhancedInsuranceLayer)
+
+    def test_simple_attachment_equals_deductible(self):
+        """simple() sets the layer attachment point to the deductible."""
+        program = InsuranceProgram.simple(
+            deductible=250_000,
+            limit=5_000_000,
+            rate=0.015,
+        )
+        assert program.layers[0].attachment_point == 250_000
+
+    def test_simple_layer_has_zero_reinstatements(self):
+        """simple() creates layer with reinstatements=0."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=1_000_000,
+            rate=0.03,
+        )
+        assert program.layers[0].reinstatements == 0
+
+    def test_simple_respects_name_kwarg(self):
+        """simple() passes name to InsuranceProgram."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=1_000_000,
+            rate=0.02,
+            name="Custom Name",
+        )
+        assert program.name == "Custom Name"
+
+    def test_simple_forwards_extra_kwargs(self):
+        """simple() forwards extra kwargs to InsuranceProgram.__init__."""
+        program = InsuranceProgram.simple(
+            deductible=100_000,
+            limit=1_000_000,
+            rate=0.02,
+            pricing_enabled=True,
+        )
+        assert program.pricing_enabled is True
+
+    def test_simple_zero_deductible(self):
+        """simple() works with zero deductible."""
+        program = InsuranceProgram.simple(
+            deductible=0,
+            limit=1_000_000,
+            rate=0.02,
+        )
+        assert program.deductible == 0
+        assert program.layers[0].attachment_point == 0
+
+
+# ===========================================================================
+# InsuranceProgram: calculate_premium() alias (line 571-579)
+# ===========================================================================
+
+
+class TestInsuranceProgramCalculatePremiumCoverage:
+    """Coverage tests for InsuranceProgram.calculate_premium() alias."""
+
+    def test_calculate_premium_is_alias(self):
+        """calculate_premium() delegates to calculate_annual_premium(0.0)."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=100_000,
+                limit=5_000_000,
+                base_premium_rate=0.015,
+            ),
+        ]
+        program = InsuranceProgram(layers, deductible=100_000)
+        assert program.calculate_premium() == program.calculate_annual_premium(0.0)
+
+    def test_calculate_premium_correct_value(self):
+        """calculate_premium() returns limit * rate for each layer."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=0,
+                limit=2_000_000,
+                base_premium_rate=0.01,
+            ),
+            EnhancedInsuranceLayer(
+                attachment_point=2_000_000,
+                limit=3_000_000,
+                base_premium_rate=0.005,
+            ),
+        ]
+        program = InsuranceProgram(layers)
+        expected = 2_000_000 * 0.01 + 3_000_000 * 0.005  # 20K + 15K = 35K
+        assert program.calculate_premium() == expected
+
+    def test_calculate_premium_empty_layers(self):
+        """calculate_premium() returns 0 for program with no layers."""
+        program = InsuranceProgram(layers=[])
+        assert program.calculate_premium() == 0.0

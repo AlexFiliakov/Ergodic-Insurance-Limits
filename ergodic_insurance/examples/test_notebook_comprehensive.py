@@ -6,7 +6,6 @@ import numpy as np
 
 from ergodic_insurance import (
     EnhancedInsuranceLayer,
-    InsurancePolicy,
     InsurancePricer,
     InsuranceProgram,
     ManufacturingLossGenerator,

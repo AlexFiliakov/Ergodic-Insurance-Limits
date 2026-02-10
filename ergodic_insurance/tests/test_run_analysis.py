@@ -173,9 +173,9 @@ class TestRunAnalysis:
             seed=0,
             compare_uninsured=False,
         )
-        assert results.insurance_policy.deductible == 250_000
-        assert len(results.insurance_policy.layers) == 1
-        assert results.insurance_policy.layers[0].limit == 8_000_000
+        assert results.insurance_program.deductible == 250_000
+        assert len(results.insurance_program.layers) == 1
+        assert results.insurance_program.layers[0].limit == 8_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -325,7 +325,7 @@ class TestEdgeCases:
             seed=0,
             compare_uninsured=False,
         )
-        assert results.insurance_policy.deductible == 0
+        assert results.insurance_program.deductible == 0
 
     def test_under_ten_lines(self):
         """Acceptance criterion: complete comparison in <10 lines."""

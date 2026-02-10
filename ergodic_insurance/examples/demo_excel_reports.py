@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from ergodic_insurance import (
-    InsurancePolicy,
+    InsuranceProgram,
     ManufacturerConfig,
     ManufacturingLossGenerator,
     WidgetManufacturer,
@@ -64,8 +64,10 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
     )
 
     # Configure insurance
-    insurance = InsurancePolicy(
-        deductible=100_000, limit=5_000_000, base_premium_rate=0.02, coinsurance=0.1
+    insurance = InsuranceProgram.simple(
+        deductible=100_000,
+        limit=5_000_000,
+        rate=0.02,
     )
 
     # Run simulation
@@ -81,13 +83,12 @@ def run_simulation_with_claims(years: int = 10, seed: int = 42) -> WidgetManufac
         total_claims = sum(claims)
         company_payment, insurance_payment = manufacturer.process_insurance_claim(
             claim_amount=total_claims,
-            deductible=insurance.deductible,
-            insurance_limit=insurance.limit,
+            deductible_amount=insurance.deductible,
+            insurance_limit=insurance.get_total_coverage(),
         )
 
         # Calculate insurance premium
-        revenue_estimate = manufacturer.assets * manufacturer.asset_turnover_ratio
-        insurance_premium = revenue_estimate * insurance.base_premium_rate
+        insurance_premium = insurance.calculate_premium()
 
         # Run annual step
         metrics = manufacturer.step(letter_of_credit_rate=0.015, growth_rate=0.03)
