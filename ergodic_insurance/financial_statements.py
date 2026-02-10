@@ -97,6 +97,15 @@ class CashFlowStatement:
         self.config = config
         self.ledger = ledger
 
+    def _is_data_annualized(self) -> bool:
+        """Check whether metrics_history contains only annual data.
+
+        Returns True when dividing by 12 is needed (i.e., no actual monthly
+        entries exist). Actual monthly data is indicated by any entry with
+        ``month > 0``.
+        """
+        return not any(m.get("month", 0) > 0 for m in self.metrics_history)
+
     def generate_statement(
         self, year: int, period: str = "annual", method: str = "indirect"
     ) -> pd.DataFrame:
@@ -524,7 +533,8 @@ class CashFlowStatement:
             Formatted DataFrame with cash flow statement
         """
         cash_flow_data: List[Tuple[str, Union[str, float], str]] = []
-        period_label = "Month" if period == "monthly" else "Year"
+        annualized = period == "monthly" and self._is_data_annualized()
+        period_label = "Monthly Avg" if annualized else ("Month" if period == "monthly" else "Year")
 
         # OPERATING ACTIVITIES SECTION
         if method == "direct":
@@ -672,12 +682,27 @@ class CashFlowStatement:
         cash_flow_data.append(("  Net Change in Cash", net_cash_flow, ""))
         cash_flow_data.append(("  Cash - End of Period", ending_cash, ""))
 
+        # Prepend disclaimer row when monthly figures are annualized estimates
+        if annualized:
+            disclaimer = (
+                "NOTE: Figures are annualized monthly averages "
+                "(annual \u00f7 12), not actual monthly data."
+            )
+            cash_flow_data.insert(0, (disclaimer, "", "disclaimer"))
+
         # Create DataFrame
         df = pd.DataFrame(
             cash_flow_data,
             columns=["Item", f"{period_label} {year}", "Type"],
             dtype=object,
         )
+
+        if annualized:
+            df.attrs["period_warning"] = (
+                "Monthly figures are estimates derived by dividing annual "
+                "figures by 12. They do not reflect actual monthly cash flows."
+            )
+
         return df
 
 
@@ -762,6 +787,15 @@ class FinancialStatementGenerator:
         metrics = self.manufacturer_data.get("metrics_history", [])
         self.metrics_history: List[MetricsDict] = metrics if isinstance(metrics, list) else []
         self.years_available = len(self.metrics_history)
+
+    def _is_data_annualized(self) -> bool:
+        """Check whether metrics_history contains only annual data.
+
+        Returns True when dividing by 12 is needed (i.e., no actual monthly
+        entries exist). Actual monthly data is indicated by any entry with
+        ``month > 0``.
+        """
+        return not any(m.get("month", 0) > 0 for m in self.metrics_history)
 
     def _get_metrics_from_ledger(self, year: int) -> MetricsDict:
         """Derive metrics dictionary from ledger balances.
@@ -1316,7 +1350,9 @@ class FinancialStatementGenerator:
         Args:
             year: Year index (0-based) for income statement
             compare_years: Optional list of years to compare against
-            monthly: If True, generate monthly statement (divides annual by 12)
+            monthly: If True, generate monthly estimates (annual ÷ 12,
+                clearly labeled as averages when actual monthly data is
+                unavailable)
 
         Returns:
             DataFrame containing income statement data with GAAP structure
@@ -1350,12 +1386,28 @@ class FinancialStatementGenerator:
         )
 
         # Create DataFrame
-        period_label = "Month" if monthly else "Year"
+        annualized = monthly and self._is_data_annualized()
+        period_label = "Monthly Avg" if annualized else ("Month" if monthly else "Year")
+
+        # Prepend disclaimer row when monthly figures are annualized estimates
+        if annualized:
+            disclaimer = (
+                "NOTE: Figures are annualized monthly averages "
+                "(annual \u00f7 12), not actual monthly data."
+            )
+            income_data.insert(0, (disclaimer, "", "", "disclaimer"))
+
         df = pd.DataFrame(
             income_data,
             columns=["Item", f"{period_label} {year}", "Unit", "Type"],
             dtype=object,
         )
+
+        if annualized:
+            df.attrs["period_warning"] = (
+                "Monthly figures are estimates derived by dividing annual "
+                "figures by 12. They do not reflect actual monthly performance."
+            )
 
         # Add year-over-year comparison if requested
         if self.config.include_yoy_change and year > 0 and not monthly:
@@ -1380,7 +1432,7 @@ class FinancialStatementGenerator:
         Args:
             data: List to append statement lines to
             metrics: Year metrics dictionary
-            monthly: If True, divide annual figures by 12
+            monthly: If True, generate monthly estimates (annual ÷ 12)
 
         Returns:
             Total revenue for the period
@@ -1416,7 +1468,7 @@ class FinancialStatementGenerator:
             data: List to append statement lines to
             metrics: Year metrics dictionary
             revenue: Total revenue for the period
-            monthly: If True, use monthly figures
+            monthly: If True, generate monthly estimates (annual ÷ 12)
 
         Returns:
             Tuple of (gross_profit, operating_income)
