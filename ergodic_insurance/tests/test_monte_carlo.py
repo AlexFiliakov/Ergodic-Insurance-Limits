@@ -16,7 +16,7 @@ from ergodic_insurance.convergence import ConvergenceStats
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from ergodic_insurance.ruin_probability import (
     RuinProbabilityAnalyzer,
     RuinProbabilityConfig,
@@ -47,13 +47,13 @@ class TestSimulationConfig:
         assert config.seed == 42
 
 
-class TestSimulationResults:
-    """Test SimulationResults dataclass."""
+class TestMonteCarloResults:
+    """Test MonteCarloResults dataclass."""
 
     def test_results_summary(self):
         """Test results summary generation."""
         config = SimulationConfig(n_simulations=1000, n_years=5)
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=np.array([100_000, 150_000, 80_000]),
             annual_losses=np.zeros((3, 5)),
             insurance_recoveries=np.zeros((3, 5)),
@@ -210,7 +210,7 @@ class TestMonteCarloEngine:
         engine, _, _, _ = setup_engine
 
         # Create mock results
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=np.random.normal(10_000_000, 2_000_000, 1000),
             annual_losses=np.random.exponential(100_000, (1000, 5)),
             insurance_recoveries=np.random.exponential(50_000, (1000, 5)),
@@ -240,7 +240,7 @@ class TestMonteCarloEngine:
 
         # Create results with enough data for convergence check
         n_sims = 1000
-        results = SimulationResults(
+        results = MonteCarloResults(
             final_assets=np.random.normal(10_000_000, 2_000_000, n_sims),
             annual_losses=np.random.exponential(100_000, (n_sims, 5)),
             insurance_recoveries=np.random.exponential(50_000, (n_sims, 5)),
@@ -371,7 +371,7 @@ class TestMonteCarloEngine:
         engine, _, _, _ = setup_engine
 
         # Create multiple result sets
-        results1 = SimulationResults(
+        results1 = MonteCarloResults(
             final_assets=np.array([100_000, 150_000]),
             annual_losses=np.ones((2, 5)),
             insurance_recoveries=np.ones((2, 5)),
@@ -384,7 +384,7 @@ class TestMonteCarloEngine:
             config=engine.config,
         )
 
-        results2 = SimulationResults(
+        results2 = MonteCarloResults(
             final_assets=np.array([80_000, 120_000]),
             annual_losses=np.ones((2, 5)),
             insurance_recoveries=np.ones((2, 5)),

@@ -70,6 +70,7 @@ class TestImportPatterns:
             ManufacturingLossGenerator,
             MarketCycle,
             MonteCarloEngine,
+            MonteCarloResults,
             RiskMetrics,
             RuinProbabilityAnalyzer,
             Simulation,
@@ -100,6 +101,7 @@ class TestImportPatterns:
         assert isinstance(InsurancePricer, type), "InsurancePricer should be a class"
         assert isinstance(RiskMetrics, type), "RiskMetrics should be a class"
         assert isinstance(MonteCarloEngine, type), "MonteCarloEngine should be a class"
+        assert isinstance(MonteCarloResults, type), "MonteCarloResults should be a class"
         assert isinstance(
             RuinProbabilityAnalyzer, type
         ), "RuinProbabilityAnalyzer should be a class"

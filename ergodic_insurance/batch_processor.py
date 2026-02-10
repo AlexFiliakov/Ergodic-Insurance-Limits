@@ -21,7 +21,7 @@ from .excel_reporter import ExcelReportConfig, ExcelReporter
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import MonteCarloEngine, SimulationConfig, SimulationResults
+from .monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
 from .safe_pickle import safe_dump, safe_load
 from .scenario_manager import ScenarioConfig
 
@@ -53,7 +53,7 @@ class BatchResult:
     scenario_id: str
     scenario_name: str
     status: ProcessingStatus
-    simulation_results: Optional[SimulationResults] = None
+    simulation_results: Optional[MonteCarloResults] = None
     execution_time: float = 0.0
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)

@@ -22,7 +22,7 @@ from ergodic_insurance.config import Config
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import SimulationConfig, SimulationResults
+from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
 from ergodic_insurance.scenario_manager import (
     ParameterSpec,
     ScenarioConfig,
@@ -59,7 +59,7 @@ def mock_simulation_results():
     n_sims = 100
     n_years = 5
 
-    return SimulationResults(
+    return MonteCarloResults(
         final_assets=np.random.lognormal(16, 1, n_sims),
         annual_losses=np.random.exponential(100000, (n_sims, n_years)),
         insurance_recoveries=np.random.exponential(50000, (n_sims, n_years)),

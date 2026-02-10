@@ -77,6 +77,7 @@ __all__ = [
     "MarketCycle",
     "RiskMetrics",
     "MonteCarloEngine",
+    "MonteCarloResults",
     "RuinProbabilityAnalyzer",
     # Business optimization
     "BusinessObjective",
@@ -181,10 +182,13 @@ def __getattr__(name):
         from .risk_metrics import RiskMetrics  # pylint: disable=import-outside-toplevel
 
         return RiskMetrics
-    if name == "MonteCarloEngine":
-        from .monte_carlo import MonteCarloEngine  # pylint: disable=import-outside-toplevel
+    if name in ("MonteCarloEngine", "MonteCarloResults"):
+        from .monte_carlo import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            MonteCarloEngine,
+            MonteCarloResults,
+        )
 
-        return MonteCarloEngine
+        return locals()[name]
     if name == "RuinProbabilityAnalyzer":
         from .ruin_probability import (  # pylint: disable=import-outside-toplevel
             RuinProbabilityAnalyzer,
