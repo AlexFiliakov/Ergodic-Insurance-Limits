@@ -47,7 +47,7 @@ class OptimizationMethod(Enum):
 
 
 @dataclass
-class OptimizationConstraints:
+class DecisionOptimizationConstraints:
     """Constraints for insurance optimization."""
 
     max_premium_budget: float = field(default=1_000_000)
@@ -260,7 +260,7 @@ class InsuranceDecisionEngine:
 
     def optimize_insurance_decision(
         self,
-        constraints: OptimizationConstraints,
+        constraints: DecisionOptimizationConstraints,
         method: OptimizationMethod = OptimizationMethod.SLSQP,
         weights: Optional[Dict[str, float]] = None,
         _attempted_methods: Optional[Set[OptimizationMethod]] = None,
@@ -338,7 +338,7 @@ class InsuranceDecisionEngine:
     def _run_optimization_method(
         self,
         method: OptimizationMethod,
-        constraints: OptimizationConstraints,
+        constraints: DecisionOptimizationConstraints,
         weights: Dict[str, float],
     ) -> OptimizeResult:
         """Dispatch to the appropriate optimization method.
@@ -364,7 +364,7 @@ class InsuranceDecisionEngine:
         return dispatch[method](constraints, weights)
 
     def _optimize_slsqp(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using Sequential Least Squares Programming.
 
@@ -478,7 +478,7 @@ class InsuranceDecisionEngine:
         return result
 
     def _optimize_differential_evolution(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using Differential Evolution.
 
@@ -537,7 +537,7 @@ class InsuranceDecisionEngine:
         return result
 
     def _optimize_weighted_sum(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using weighted sum scalarization with Pareto sampling.
 
@@ -568,7 +568,7 @@ class InsuranceDecisionEngine:
         return best_result
 
     def _optimize_enhanced_slsqp(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using enhanced SLSQP with adaptive features."""
         n_vars = 1 + constraints.max_layers
@@ -606,7 +606,7 @@ class InsuranceDecisionEngine:
         return result
 
     def _optimize_trust_region(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using trust-region method."""
         n_vars = 1 + constraints.max_layers
@@ -644,7 +644,7 @@ class InsuranceDecisionEngine:
         return result
 
     def _optimize_penalty_method(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using penalty method with adaptive penalties."""
         n_vars = 1 + constraints.max_layers
@@ -680,7 +680,7 @@ class InsuranceDecisionEngine:
         return result
 
     def _optimize_augmented_lagrangian(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using augmented Lagrangian method."""
         n_vars = 1 + constraints.max_layers
@@ -716,7 +716,7 @@ class InsuranceDecisionEngine:
         return result
 
     def _optimize_multi_start(
-        self, constraints: OptimizationConstraints, weights: Dict[str, float]
+        self, constraints: DecisionOptimizationConstraints, weights: Dict[str, float]
     ) -> OptimizeResult:
         """Optimize using multi-start approach for global optimization."""
         n_vars = 1 + constraints.max_layers
@@ -754,7 +754,9 @@ class InsuranceDecisionEngine:
 
         return result
 
-    def _create_constraint_list(self, constraints: OptimizationConstraints) -> List[Dict[str, Any]]:
+    def _create_constraint_list(
+        self, constraints: DecisionOptimizationConstraints
+    ) -> List[Dict[str, Any]]:
         """Create list of constraints for optimizers."""
         constraint_list = []
 
@@ -1123,7 +1125,7 @@ class InsuranceDecisionEngine:
         )
 
     def _validate_decision(
-        self, decision: InsuranceDecision, constraints: OptimizationConstraints
+        self, decision: InsuranceDecision, constraints: DecisionOptimizationConstraints
     ) -> bool:
         """Validate that decision meets all constraints."""
         # Check premium budget
@@ -1486,7 +1488,7 @@ class InsuranceDecisionEngine:
                     self._metrics_cache.clear()
 
                     # Re-optimize with modified parameter
-                    constraints = OptimizationConstraints(
+                    constraints = DecisionOptimizationConstraints(
                         max_premium_budget=base_decision.total_premium * 1.1
                     )
                     modified_decision = self.optimize_insurance_decision(constraints)

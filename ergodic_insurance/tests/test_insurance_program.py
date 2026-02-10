@@ -17,7 +17,7 @@ from ergodic_insurance.insurance_program import (
     InsuranceProgram,
     LayerState,
     OptimalStructure,
-    OptimizationConstraints,
+    ProgramOptimizationConstraints,
     ProgramState,
     ReinstatementType,
 )
@@ -885,7 +885,7 @@ class TestInsuranceProgramOptimization:
         """Test structure optimization with custom constraints."""
         program = InsuranceProgram.create_standard_manufacturing_program()
 
-        constraints = OptimizationConstraints(
+        constraints = ProgramOptimizationConstraints(
             max_total_premium=400_000,
             min_total_coverage=30_000_000,
             max_layers=4,
@@ -916,7 +916,7 @@ class TestInsuranceProgramOptimization:
 
     def test_optimization_constraints_defaults(self):
         """Test default optimization constraints."""
-        constraints = OptimizationConstraints()
+        constraints = ProgramOptimizationConstraints()
 
         assert constraints.max_layers == 5
         assert constraints.min_layers == 3
@@ -963,7 +963,7 @@ class TestInsuranceProgramOptimization:
         """Test that optimization converges within iteration limit."""
         program = InsuranceProgram.create_standard_manufacturing_program()
 
-        constraints = OptimizationConstraints(max_iterations=10)
+        constraints = ProgramOptimizationConstraints(max_iterations=10)
 
         optimal = program.optimize_layer_structure(sample_loss_data, constraints=constraints)
 
