@@ -131,7 +131,14 @@ class Config(BaseModel):
             },
         }
 
-        defaults = industry_defaults.get(industry, industry_defaults["manufacturing"])
+        if industry not in industry_defaults:
+            supported = ", ".join(sorted(industry_defaults.keys()))
+            raise ValueError(
+                f"Unsupported industry '{industry}'. "
+                f"Supported values: {supported}. "
+                f"Use Config() with explicit sub-configs for other industries."
+            )
+        defaults = industry_defaults[industry]
 
         return cls(
             manufacturer=ManufacturerConfig(
