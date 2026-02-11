@@ -375,16 +375,16 @@ class AdvancedConvergenceDiagnostics:
         cutoff = np.quantile(chain, q)
         binary_chain = (chain <= cutoff).astype(int)
 
-        # Calculate transition probabilities
+        # Calculate transition counts (vectorized)
+        from_states = binary_chain[:-1]
+        to_states = binary_chain[1:]
         transitions = np.zeros((2, 2))
-        for i in range(n - 1):
-            transitions[binary_chain[i], binary_chain[i + 1]] += 1
+        np.add.at(transitions, (from_states, to_states), 1)
 
         # Normalize to get probabilities
-        for i in range(2):
-            row_sum = transitions[i].sum()
-            if row_sum > 0:
-                transitions[i] /= row_sum
+        row_sums = transitions.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1  # avoid division by zero
+        transitions /= row_sums
 
         # Calculate required burn-in and total iterations
         # Using simplified Raftery-Lewis formulae
