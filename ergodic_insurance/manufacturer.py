@@ -199,6 +199,9 @@ class WidgetManufacturer(
         self.period_insurance_losses: Decimal = ZERO
         self.period_insurance_lae: Decimal = ZERO  # LAE per ASC 944-40 (Issue #468)
 
+        # Cached net income from step() for use by calculate_metrics() (Issue #617)
+        self._period_net_income: Optional[Decimal] = None
+
         # Track actual dividends paid
         self._last_dividends_paid: Decimal = ZERO
 
@@ -712,6 +715,9 @@ class WidgetManufacturer(
             time_resolution=time_resolution,
         )
 
+        # Cache net income for calculate_metrics() to avoid double tax mutation (Issue #617)
+        self._period_net_income = net_income
+
         # Update balance sheet with retained earnings
         self.update_balance_sheet(net_income, growth_rate)
 
@@ -845,6 +851,9 @@ class WidgetManufacturer(
 
         # Reset dividend tracking
         self._last_dividends_paid = ZERO
+
+        # Reset cached net income (Issue #617)
+        self._period_net_income = None
 
         # Reset initial values (for exposure bases)
         initial_assets = to_decimal(self.config.initial_assets)
