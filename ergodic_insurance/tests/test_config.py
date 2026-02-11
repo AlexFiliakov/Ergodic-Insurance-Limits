@@ -274,14 +274,30 @@ class TestCompleteConfig:
 
         # Override using dot notation
         new_config = config.override(
-            manufacturer__base_operating_margin=0.1,
-            simulation__time_horizon_years=200,
+            {
+                "manufacturer.base_operating_margin": 0.1,
+                "simulation.time_horizon_years": 200,
+            }
         )
 
         assert new_config.manufacturer.base_operating_margin == 0.1
         assert new_config.simulation.time_horizon_years == 200
         # Original should be unchanged
         assert config.manufacturer.base_operating_margin == 0.08
+
+    def test_config_override_invalid_section(self, sample_config_dict):
+        """Test that override with invalid section raises ValueError."""
+        config = Config(**sample_config_dict)
+
+        with pytest.raises(ValueError, match="not a valid config section"):
+            config.override({"nonexistent.field": 42})
+
+    def test_config_override_invalid_field(self, sample_config_dict):
+        """Test that override with invalid field raises ValueError."""
+        config = Config(**sample_config_dict)
+
+        with pytest.raises(ValueError, match="not a valid field"):
+            config.override({"manufacturer.nonexistent_field": 42})
 
     def test_config_from_dict_with_base(self, sample_config_dict):
         """Test creating config from dict with base config."""
@@ -343,8 +359,10 @@ class TestConfigLoader:
         """Test loading config with overrides."""
         config = config_loader.load(
             "baseline",
-            overrides={"manufacturer": {"base_operating_margin": 0.10}},
-            simulation__time_horizon_years=200,
+            overrides={
+                "manufacturer": {"base_operating_margin": 0.10},
+                "simulation.time_horizon_years": 200,
+            },
         )
         assert config.manufacturer.base_operating_margin == 0.10
         assert config.simulation.time_horizon_years == 200
@@ -476,7 +494,10 @@ class TestQuickLoad:
 
     def test_load_config_with_overrides(self):
         """Test quick load with overrides."""
-        config = load_config("baseline", manufacturer__base_operating_margin=0.15)
+        config = load_config(
+            "baseline",
+            overrides={"manufacturer.base_operating_margin": 0.15},
+        )
         assert config.manufacturer.base_operating_margin == 0.15
 
 
@@ -641,6 +662,6 @@ class TestConfigFromCompany:
     def test_from_company_produces_valid_config(self):
         """Config from from_company() can be used with override()."""
         config = Config.from_company(initial_assets=20_000_000)
-        new_config = config.override(manufacturer__base_operating_margin=0.12)
+        new_config = config.override({"manufacturer.base_operating_margin": 0.12})
         assert new_config.manufacturer.base_operating_margin == 0.12
         assert new_config.manufacturer.initial_assets == 20_000_000

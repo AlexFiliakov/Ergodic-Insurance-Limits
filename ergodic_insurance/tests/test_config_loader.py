@@ -132,28 +132,24 @@ class TestConfigLoader:
 
             mock_load.assert_called_once_with("baseline", overrides)
 
-    def test_load_with_kwargs(self, temp_config_dir):
-        """Test loading configuration with keyword arguments."""
+    def test_load_with_dot_notation_overrides(self, temp_config_dir):
+        """Test loading configuration with dot-notation overrides."""
         loader = ConfigLoader(config_dir=temp_config_dir)
 
         with patch.object(loader._adapter, "load") as mock_load:
             mock_config = MagicMock(spec=Config)
             mock_load.return_value = mock_config
 
+            overrides = {
+                "manufacturer.base_operating_margin": 0.12,
+                "growth.annual_growth_rate": 0.08,
+            }
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
-                config = loader.load(
-                    "baseline",
-                    manufacturer__base_operating_margin=0.12,
-                    growth__annual_growth_rate=0.08,
-                )
+                config = loader.load("baseline", overrides=overrides)
 
-            mock_load.assert_called_once_with(
-                "baseline",
-                None,
-                manufacturer__base_operating_margin=0.12,
-                growth__annual_growth_rate=0.08,
-            )
+            mock_load.assert_called_once_with("baseline", overrides)
 
     def test_load_with_cache(self, temp_config_dir):
         """Test that configurations are cached."""

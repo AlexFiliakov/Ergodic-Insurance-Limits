@@ -244,7 +244,7 @@ class TestWithOverridesDeepMerge:
         original_retention = config.manufacturer.retention_ratio
 
         # Override only operating margin inside 'manufacturer'
-        result = config.with_overrides(manufacturer={"base_operating_margin": 0.15})
+        result = config.with_overrides({"manufacturer": {"base_operating_margin": 0.15}})
 
         # The overridden field is updated
         assert result.manufacturer.base_operating_margin == 0.15
@@ -257,7 +257,7 @@ class TestWithOverridesDeepMerge:
         config = _make_configv2()
         original_console = config.logging.console_output
 
-        result = config.with_overrides(logging={"level": "DEBUG"})
+        result = config.with_overrides({"logging": {"level": "DEBUG"}})
 
         assert result.logging.level == "DEBUG"
         assert result.logging.console_output == original_console
@@ -266,15 +266,15 @@ class TestWithOverridesDeepMerge:
         """Scalar overrides still replace the value entirely."""
         config = _make_configv2()
 
-        result = config.with_overrides(manufacturer={"initial_assets": 99_000_000})
+        result = config.with_overrides({"manufacturer": {"initial_assets": 99_000_000}})
 
         assert result.manufacturer.initial_assets == 99_000_000
 
-    def test_dunder_notation_still_works(self):
-        """Double-underscore notation for deep keys should still work."""
+    def test_dot_notation_works(self):
+        """Dot-notation for deep keys should work."""
         config = _make_configv2()
 
-        result = config.with_overrides(manufacturer__base_operating_margin=0.20)
+        result = config.with_overrides({"manufacturer.base_operating_margin": 0.20})
 
         assert result.manufacturer.base_operating_margin == 0.20
 

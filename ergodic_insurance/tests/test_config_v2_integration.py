@@ -110,11 +110,13 @@ class TestIntegration:
         assert config.losses is not None and config.losses.tail_alpha == 3.0
         assert "high_volatility" in config.applied_presets
 
-        # Create override version
+        # Create override version using dot notation
         override_config = config.with_overrides(
-            manufacturer__initial_assets=20000000,
-            simulation__time_horizon_years=25,
-            insurance__deductible=150000,
+            {
+                "manufacturer.initial_assets": 20000000,
+                "simulation.time_horizon_years": 25,
+                "insurance.deductible": 150000,
+            }
         )
 
         assert override_config.manufacturer.initial_assets == 20000000

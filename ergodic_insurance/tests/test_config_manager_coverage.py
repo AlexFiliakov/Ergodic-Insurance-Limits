@@ -331,7 +331,9 @@ class TestWithPresetAndOverrides:
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
 
-        new_config = manager.with_overrides(config, manufacturer={"initial_assets": 99_999_999})
+        new_config = manager.with_overrides(
+            config, {"manufacturer": {"initial_assets": 99_999_999}}
+        )
         assert new_config.manufacturer.initial_assets == 99_999_999
 
 
