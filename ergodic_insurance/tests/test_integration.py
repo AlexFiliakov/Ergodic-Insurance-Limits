@@ -207,12 +207,12 @@ class TestIntegration:
             initial_assets=base_config["initial_assets"],
         )
 
-        # More reasonable loss parameters for testing
-        # Lower frequency and severity to prevent immediate bankruptcy
+        # Calibrated loss parameters for correct tax accounting (#617)
+        # Lower frequency produces realistic manufacturing loss profile
         loss_gen = ManufacturingLossGenerator.create_simple(
-            frequency=3.0,  # Reduced frequency for stability
-            severity_mean=150_000,  # Lower mean for expected $450k annual loss
-            severity_std=200_000,  # Reduced std for less volatility
+            frequency=0.3,  # Realistic frequency: ~1 event per 3 years
+            severity_mean=150_000,  # Mean severity per event
+            severity_std=100_000,  # Moderate volatility
             seed=base_config["random_seed"],
         )
 
