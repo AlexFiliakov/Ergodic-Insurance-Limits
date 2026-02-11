@@ -8,8 +8,9 @@ calculations, and cash flow projections.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Mapping, Optional, Union
 
+import numpy as np
 import yaml
 
 
@@ -179,6 +180,95 @@ class ClaimDevelopment:
             cumulative += self.tail_factor * (years_since_accident - len(self.development_factors))
 
         return min(cumulative, 1.0)
+
+
+class StochasticClaimDevelopment(ClaimDevelopment):
+    """Stochastic variant of ClaimDevelopment using Dirichlet perturbation.
+
+    Samples development factors from a Dirichlet distribution centered on the
+    base pattern's factors, introducing realistic cash flow timing uncertainty.
+    The Dirichlet guarantees factors sum to 1.0 and introduces natural negative
+    correlation between development periods (if one year pays more, others
+    pay less).
+
+    Based on Sriram (2021) Dirichlet model for stochastic claims reserving.
+
+    Args:
+        base_pattern: Deterministic ClaimDevelopment to perturb.
+        concentration: Dirichlet concentration parameter (kappa). Higher values
+            produce less noise. Recommended: 200 (very low noise) to 10
+            (very high noise). Default 50 suits general liability.
+        seed: Random seed for reproducibility. Accepts int or SeedSequence.
+        stochastic: If False, uses base pattern factors exactly (deterministic
+            fallback).
+    """
+
+    def __init__(
+        self,
+        base_pattern: "ClaimDevelopment",
+        concentration: float = 50.0,
+        seed: Optional[Union[int, np.random.SeedSequence]] = None,
+        stochastic: bool = True,
+    ):
+        if concentration <= 0:
+            raise ValueError(f"Concentration must be positive, got {concentration}")
+
+        self.base_pattern = base_pattern
+        self.concentration = concentration
+        self.stochastic = stochastic
+        self.rng = np.random.default_rng(seed)
+
+        if stochastic:
+            # Build alpha vector; include tail factor in the Dirichlet simplex
+            # so total payment timing stays at 100%
+            alphas = [f * concentration for f in base_pattern.development_factors]
+            include_tail = base_pattern.tail_factor > 0
+            if include_tail:
+                alphas.append(base_pattern.tail_factor * concentration)
+
+            # Floor tiny alphas to prevent degenerate Dirichlet samples
+            alphas = [max(a, 1e-6) for a in alphas]
+
+            perturbed = self.rng.dirichlet(alphas)
+
+            if include_tail:
+                factors = list(perturbed[:-1])
+                tail = float(perturbed[-1])
+            else:
+                factors = list(perturbed)
+                tail = 0.0
+        else:
+            factors = list(base_pattern.development_factors)
+            tail = base_pattern.tail_factor
+
+        super().__init__(
+            pattern_name=f"{base_pattern.pattern_name}_stochastic",
+            development_factors=factors,
+            tail_factor=tail,
+        )
+
+    def __deepcopy__(self, memo):
+        """Deep copy without re-sampling; preserves the realized factors."""
+        import copy
+
+        new = object.__new__(StochasticClaimDevelopment)
+        memo[id(self)] = new
+        new.pattern_name = self.pattern_name
+        new.development_factors = copy.deepcopy(self.development_factors, memo)
+        new.tail_factor = self.tail_factor
+        new.base_pattern = copy.deepcopy(self.base_pattern, memo)
+        new.concentration = self.concentration
+        new.stochastic = self.stochastic
+        new.rng = copy.deepcopy(self.rng, memo)
+        return new
+
+    def __repr__(self) -> str:
+        return (
+            f"StochasticClaimDevelopment("
+            f"base='{self.base_pattern.pattern_name}', "
+            f"concentration={self.concentration}, "
+            f"stochastic={self.stochastic})"
+        )
 
 
 @dataclass
