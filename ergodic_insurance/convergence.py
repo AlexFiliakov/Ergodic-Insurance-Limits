@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from numpy.fft import fft, ifft
+from scipy.fft import irfft, rfft
 
 
 @dataclass
@@ -314,8 +314,8 @@ class ConvergenceDiagnostics:
         # FFT-based autocorrelation: zero-pad to avoid circular artifacts
         padded = np.zeros(2 * n)
         padded[:n] = chain_centered
-        f = fft(padded)
-        acf_raw = ifft(f * np.conj(f))[:n].real
+        f = rfft(padded)
+        acf_raw = irfft(f * np.conj(f), n=2 * n)[:n]
 
         # Normalize: acf_raw[k] = sum of x[t]*x[t+k], divide by n then by c0
         # Since c0 = acf_raw[0]/n, normalizing by acf_raw[0] gives rho[k]
