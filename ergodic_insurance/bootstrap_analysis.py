@@ -264,6 +264,104 @@ class BootstrapAnalyzer:
             converged=converged,
         )
 
+    def multi_confidence_interval(
+        self,
+        metrics: Dict[str, Tuple[np.ndarray, Callable[[np.ndarray], float]]],
+        confidence_level: Optional[float] = None,
+        method: str = "percentile",
+    ) -> Dict[str, BootstrapResult]:
+        """Calculate bootstrap CIs for multiple metrics using shared resampling indices.
+
+        Instead of generating independent bootstrap resamples for each metric,
+        this method generates one set of indices per iteration and applies all
+        statistics, giving a proportional speedup equal to the number of metrics.
+
+        Args:
+            metrics: Dictionary mapping metric names to ``(data, statistic)``
+                tuples.  All data arrays must have the same length.
+            confidence_level: Confidence level (uses instance default if None).
+            method: ``'percentile'`` or ``'bca'``.
+
+        Returns:
+            Dictionary mapping metric names to :class:`BootstrapResult` objects.
+
+        Raises:
+            ValueError: If data arrays differ in length or method is invalid.
+        """
+        if confidence_level is None:
+            confidence_level = self.confidence_level
+
+        if method not in ["percentile", "bca"]:
+            raise ValueError(f"Method must be 'percentile' or 'bca', got {method}")
+
+        if not metrics:
+            return {}
+
+        # Validate all data arrays have the same length
+        lengths = {name: len(data) for name, (data, _) in metrics.items()}
+        unique_lengths = set(lengths.values())
+        if len(unique_lengths) > 1:
+            raise ValueError(
+                f"All data arrays must have the same length for shared indexing. "
+                f"Got lengths: {lengths}"
+            )
+
+        n = unique_lengths.pop()
+
+        # Pre-allocate bootstrap distributions
+        bootstrap_dists: Dict[str, np.ndarray] = {
+            name: np.zeros(self.n_bootstrap) for name in metrics
+        }
+
+        # Compute original statistics
+        original_stats = {name: statistic(data) for name, (data, statistic) in metrics.items()}
+
+        # Bootstrap with shared indices
+        iterator = range(self.n_bootstrap)
+        if self.show_progress:
+            iterator = tqdm(iterator, desc="Multi-metric bootstrap", unit="sample")
+
+        for i in iterator:
+            indices = self.rng.choice(n, size=n, replace=True)
+
+            # Cache resampled data by array identity to avoid redundant indexing
+            resampled_cache: Dict[int, np.ndarray] = {}
+            for name, (data, statistic) in metrics.items():
+                data_id = id(data)
+                if data_id not in resampled_cache:
+                    resampled_cache[data_id] = data[indices]
+                bootstrap_dists[name][i] = statistic(resampled_cache[data_id])
+
+        # Build results for each metric
+        results: Dict[str, BootstrapResult] = {}
+        for name, (data, statistic) in metrics.items():
+            bootstrap_dist = bootstrap_dists[name]
+
+            if method == "percentile":
+                ci = self._percentile_interval(bootstrap_dist, confidence_level)
+                bias = None
+                acceleration = None
+            else:  # bca
+                ci, bias, acceleration = self._bca_interval(
+                    data, statistic, bootstrap_dist, confidence_level
+                )
+
+            converged = self._check_convergence(bootstrap_dist)
+
+            results[name] = BootstrapResult(
+                statistic=original_stats[name],
+                confidence_level=confidence_level,
+                confidence_interval=ci,
+                bootstrap_distribution=bootstrap_dist,
+                method=method,
+                n_bootstrap=self.n_bootstrap,
+                bias=bias,
+                acceleration=acceleration,
+                converged=converged,
+            )
+
+        return results
+
     def _sequential_bootstrap(
         self,
         data: np.ndarray,
@@ -408,6 +506,10 @@ class BootstrapAnalyzer:
     ) -> float:
         """Calculate acceleration parameter using jackknife.
 
+        Uses an analytical O(N) formula for ``np.mean`` and a reusable boolean
+        mask for all other statistics, avoiding the O(N^2) ``np.delete`` copies
+        that the naive implementation requires.
+
         Args:
             data: Original data array.
             statistic: Function to compute the statistic.
@@ -416,11 +518,19 @@ class BootstrapAnalyzer:
             Acceleration parameter.
         """
         n = len(data)
-        jackknife_stats = np.zeros(n)
 
-        for i in range(n):
-            jackknife_sample = np.delete(data, i)
-            jackknife_stats[i] = statistic(jackknife_sample)
+        if statistic is np.mean:
+            # Analytical leave-one-out: mean_i = (sum - x_i) / (n - 1)
+            total = np.sum(data)
+            jackknife_stats = (total - data) / (n - 1)
+        else:
+            # Pre-allocated boolean mask avoids np.delete copies
+            jackknife_stats = np.zeros(n)
+            mask = np.ones(n, dtype=bool)
+            for i in range(n):
+                mask[i] = False
+                jackknife_stats[i] = statistic(data[mask])
+                mask[i] = True
 
         jackknife_mean = np.mean(jackknife_stats)
         num = np.sum((jackknife_mean - jackknife_stats) ** 3)
