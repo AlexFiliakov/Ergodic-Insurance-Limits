@@ -43,12 +43,16 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 import warnings
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Pattern for safe names: alphanumeric, hyphens, and underscores only
+_SAFE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 try:
     # Try absolute import first (for installed package)
@@ -147,6 +151,52 @@ class ConfigManager:
         if not self.presets_dir.exists():
             logger.debug(f"Presets directory not found: {self.presets_dir}")
 
+    @staticmethod
+    def _validate_name(name: str, *, allow_slashes: bool = False) -> None:
+        """Validate that a name contains only safe characters.
+
+        Args:
+            name: The name to validate.
+            allow_slashes: If True, allow forward slashes for subdirectory paths
+                (e.g., ``custom/client_abc``).
+
+        Raises:
+            ValueError: If the name contains unsafe characters.
+        """
+        if allow_slashes:
+            parts = name.replace("\\", "/").split("/")
+            for part in parts:
+                if not _SAFE_NAME_PATTERN.match(part):
+                    raise ValueError(
+                        f"Invalid name '{name}': each path component must contain "
+                        "only alphanumeric characters, hyphens, and underscores"
+                    )
+        else:
+            if not _SAFE_NAME_PATTERN.match(name):
+                raise ValueError(
+                    f"Invalid name '{name}': must contain only alphanumeric "
+                    "characters, hyphens, and underscores"
+                )
+
+    @staticmethod
+    def _validate_path_containment(path: Path, allowed_parent: Path) -> None:
+        """Verify that *path* resolves to a location inside *allowed_parent*.
+
+        Args:
+            path: The path to validate.
+            allowed_parent: The directory that must contain the path.
+
+        Raises:
+            ValueError: If the path resolves outside the allowed parent.
+        """
+        try:
+            path.resolve().relative_to(allowed_parent.resolve())
+        except ValueError:
+            raise ValueError(
+                f"Path traversal detected: resolved path is outside "
+                f"the allowed directory '{allowed_parent}'"
+            )
+
     def load_profile(
         self, profile_name: str = "default", use_cache: bool = True, **overrides
     ) -> ConfigV2:
@@ -196,6 +246,9 @@ class ConfigManager:
                 )
         """
 
+        # Validate profile name against path traversal
+        self._validate_name(profile_name, allow_slashes=True)
+
         # Check cache first
         def make_hashable(obj):
             """Convert nested dicts/lists to hashable format."""
@@ -211,9 +264,11 @@ class ConfigManager:
 
         # Load the profile
         profile_path = self.profiles_dir / f"{profile_name}.yaml"
+        self._validate_path_containment(profile_path, self.profiles_dir)
         if not profile_path.exists():
             # Try custom profiles
             custom_path = self.profiles_dir / "custom" / f"{profile_name}.yaml"
+            self._validate_path_containment(custom_path, self.profiles_dir)
             if custom_path.exists():
                 profile_path = custom_path
             else:
@@ -282,10 +337,13 @@ class ConfigManager:
         # Handle inheritance
         if "profile" in data and "extends" in data["profile"] and data["profile"]["extends"]:
             parent_name = data["profile"]["extends"]
+            self._validate_name(parent_name, allow_slashes=True)
             parent_path = self.profiles_dir / f"{parent_name}.yaml"
+            self._validate_path_containment(parent_path, self.profiles_dir)
 
             if not parent_path.exists():
                 parent_path = self.profiles_dir / "custom" / f"{parent_name}.yaml"
+                self._validate_path_containment(parent_path, self.profiles_dir)
 
             if parent_path.exists():
                 parent_config = self._load_with_inheritance(parent_path, _visited=visited)
@@ -306,7 +364,9 @@ class ConfigManager:
             config: Configuration to modify.
             module_name: Name of the module to apply.
         """
+        self._validate_name(module_name)
         module_path = self.modules_dir / f"{module_name}.yaml"
+        self._validate_path_containment(module_path, self.modules_dir)
         if not module_path.exists():
             warnings.warn(f"Module '{module_name}' not found")
             return
@@ -350,13 +410,17 @@ class ConfigManager:
             preset_type: Type of preset (e.g., 'market', 'layers').
             preset_name: Name of the specific preset.
         """
+        self._validate_name(preset_type)
+
         # Load preset library if not cached
         library_key = preset_type
         if library_key not in self._preset_libraries:
             preset_file = self.presets_dir / f"{preset_type}.yaml"
+            self._validate_path_containment(preset_file, self.presets_dir)
             if not preset_file.exists():
                 # Try with underscores
                 preset_file = self.presets_dir / f"{preset_type.replace('-', '_')}.yaml"
+                self._validate_path_containment(preset_file, self.presets_dir)
 
             if not preset_file.exists():
                 warnings.warn(f"Preset library '{preset_type}' not found")
@@ -520,9 +584,12 @@ class ConfigManager:
         Returns:
             Profile metadata dictionary.
         """
+        self._validate_name(profile_name, allow_slashes=True)
         profile_path = self.profiles_dir / f"{profile_name}.yaml"
+        self._validate_path_containment(profile_path, self.profiles_dir)
         if not profile_path.exists():
             profile_path = self.profiles_dir / "custom" / f"{profile_name}.yaml"
+            self._validate_path_containment(profile_path, self.profiles_dir)
 
         if not profile_path.exists():
             return {}
@@ -552,6 +619,9 @@ class ConfigManager:
         Returns:
             Path to the created profile file.
         """
+        # Validate profile name
+        self._validate_name(name)
+
         # Load base profile
         _base_config = self.load_profile(base_profile)
 
@@ -576,6 +646,7 @@ class ConfigManager:
             save_dir = self.profiles_dir
 
         save_path = save_dir / f"{name}.yaml"
+        self._validate_path_containment(save_path, self.profiles_dir)
 
         # Save the profile
         with open(save_path, "w") as f:
