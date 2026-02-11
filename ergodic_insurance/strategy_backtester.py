@@ -259,70 +259,48 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             manufacturer: Manufacturer instance
             simulation_engine: Simulation engine for evaluation
         """
+        # Shared config and loss generator — created once, reused across iterations
+        mc_config = SimulationConfig(n_simulations=100, n_years=5)
+        loss_generator = ManufacturingLossGenerator(seed=42)
 
-        # Define optimization problem
-        def objective(x):
-            # x = [deductible, primary_limit, excess_limit]
+        # Memoize simulation results so objective() and ruin_constraint()
+        # share results when scipy calls both with the same params.
+        _results_cache: Dict[tuple, MonteCarloResults] = {}
+
+        def _run_simulation(x) -> MonteCarloResults:
+            key = tuple(x)
+            if key in _results_cache:
+                return _results_cache[key]
+
             deductible, primary, excess = x
-
-            # Create trial insurance program directly
             layers = [
                 EnhancedInsuranceLayer(deductible, primary - deductible, base_premium_rate=0.015),
                 EnhancedInsuranceLayer(primary, excess, base_premium_rate=0.008),
             ]
             program = InsuranceProgram(layers=layers, deductible=deductible)
 
-            # Run short simulation using MonteCarloEngine
-            from .monte_carlo import MonteCarloEngine
-            from .monte_carlo import SimulationConfig as MCConfig
-
-            mc_config = MCConfig(n_simulations=100, n_years=5)
-
-            # Create loss generator
-            loss_generator = ManufacturingLossGenerator(seed=42)
-
-            # Initialize Monte Carlo engine with required parameters
             mc_engine = MonteCarloEngine(
                 loss_generator=loss_generator,
                 insurance_program=program,
                 manufacturer=manufacturer,
                 config=mc_config,
             )
-
             results = mc_engine.run()
 
+            # Only cache the most recent params to avoid unbounded memory growth
+            _results_cache.clear()
+            _results_cache[key] = results
+            return results
+
+        # Define optimization problem
+        def objective(x):
+            results = _run_simulation(x)
             # Maximize ROE (minimize negative ROE)
             return -results.metrics.get("mean_roe", 0)
 
         # Define constraints
         def ruin_constraint(x):
-            deductible, primary, excess = x
-
-            layers = [
-                EnhancedInsuranceLayer(deductible, primary - deductible, base_premium_rate=0.015),
-                EnhancedInsuranceLayer(primary, excess, base_premium_rate=0.008),
-            ]
-            program = InsuranceProgram(layers=layers, deductible=deductible)
-
-            # Run short simulation using MonteCarloEngine
-            from .monte_carlo import MonteCarloEngine
-            from .monte_carlo import SimulationConfig as MCConfig
-
-            mc_config = MCConfig(n_simulations=100, n_years=5)
-
-            # Create loss generator
-            loss_generator = ManufacturingLossGenerator(seed=42)
-
-            # Initialize Monte Carlo engine with required parameters
-            mc_engine = MonteCarloEngine(
-                loss_generator=loss_generator,
-                insurance_program=program,
-                manufacturer=manufacturer,
-                config=mc_config,
-            )
-
-            results = mc_engine.run()
-
+            results = _run_simulation(x)
             # Constraint: ruin_prob <= max_ruin_prob
             # Extract ruin probability for the final year
             ruin_prob_value = results.ruin_probability.get(
