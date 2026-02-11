@@ -72,6 +72,16 @@ Import Recipes:
     Ergodic & risk analysis::
 
         from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+        from ergodic_insurance.ergodic_types import (
+            ErgodicData, ErgodicAnalysisResults, ValidationResults,
+        )
+        from ergodic_insurance.scenario_analysis import (
+            compare_scenarios, analyze_simulation_batch,
+        )
+        from ergodic_insurance.integrated_analysis import (
+            integrate_loss_ergodic_analysis,
+            validate_insurance_ergodic_impact,
+        )
         from ergodic_insurance.risk_metrics import RiskMetrics
         from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
 
