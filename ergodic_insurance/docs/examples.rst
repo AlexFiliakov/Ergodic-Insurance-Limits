@@ -11,7 +11,9 @@ Run a simple 100-year simulation with baseline parameters:
 
 .. code-block:: python
 
-    from ergodic_insurance import WidgetManufacturer, ManufacturingLossGenerator, Simulation
+    from ergodic_insurance import Simulation
+    from ergodic_insurance.manufacturer import WidgetManufacturer
+    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
     from ergodic_insurance.config_loader import load_config
 
     # Load configuration

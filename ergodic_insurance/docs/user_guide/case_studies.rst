@@ -50,7 +50,8 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
    config = ManufacturerConfig(
        initial_assets=10_000_000,
@@ -66,7 +67,7 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturingLossGenerator
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
    loss_gen = ManufacturingLossGenerator(
        attritional_params={'frequency': 5.0, 'severity_mean': 60_000},
@@ -226,7 +227,8 @@ parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
    tech_config = ManufacturerConfig(
        initial_assets=5_000_000,
@@ -242,7 +244,7 @@ parameters to reflect a capital-light, high-growth profile:
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturingLossGenerator
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
    cyber_losses = ManufacturingLossGenerator.create_simple(
        frequency=0.8,
@@ -365,7 +367,8 @@ Analysis Process
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
    utility_config = ManufacturerConfig(
        initial_assets=100_000_000,
@@ -385,7 +388,7 @@ constructor captures this well:
 
 .. code-block:: python
 
-   from ergodic_insurance import ManufacturingLossGenerator
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
    utility_losses = ManufacturingLossGenerator(
        attritional_params={'frequency': 25.0, 'severity_mean': 30_000},

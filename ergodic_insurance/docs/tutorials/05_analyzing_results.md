@@ -46,10 +46,9 @@ To make a fair comparison, we run insured and uninsured simulations with **the s
 We assume you have your manufacturer and loss generator configured (see Tutorials 1-3). Here we set up the paired runs:
 
 ```python
-from ergodic_insurance import (
-    ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    InsuranceProgram, Simulation,
-)
+from ergodic_insurance import ManufacturerConfig, InsuranceProgram, Simulation
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 # NovaTech's financial profile
 config = ManufacturerConfig(
@@ -113,7 +112,7 @@ The key design decision: **same seed for both runs**. This creates paired observ
 The `ErgodicAnalyzer` is the core analysis tool. Its `compare_scenarios()` method accepts either lists of `SimulationResults` objects or raw numpy arrays and returns a comprehensive comparison dictionary.
 
 ```python
-from ergodic_insurance import ErgodicAnalyzer
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
 analyzer = ErgodicAnalyzer(convergence_threshold=0.01)
 
@@ -524,9 +523,11 @@ Here is the complete end-to-end analysis pipeline that Dana would run before her
 ```python
 import numpy as np
 from ergodic_insurance import (
-    ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    InsuranceProgram, EnhancedInsuranceLayer, Simulation, ErgodicAnalyzer,
+    ManufacturerConfig, InsuranceProgram, EnhancedInsuranceLayer, Simulation,
 )
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
+from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
 # ============================================================
 # Configuration

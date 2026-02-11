@@ -43,7 +43,8 @@ Edit your configuration file with company-specific parameters:
 .. code-block:: python
    :caption: Setting up your manufacturer model
 
-   from ergodic_insurance import WidgetManufacturer, ManufacturerConfig
+   from ergodic_insurance import ManufacturerConfig
+   from ergodic_insurance.manufacturer import WidgetManufacturer
 
    # Option 1: Direct instantiation
    manufacturer = WidgetManufacturer(
@@ -181,7 +182,8 @@ First, establish your baseline risk:
 .. code-block:: python
    :caption: Baseline simulation without insurance
 
-   from ergodic_insurance import MonteCarloEngine, ManufacturingLossGenerator
+   from ergodic_insurance.monte_carlo import MonteCarloEngine
+   from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
    # Set up loss generator
    loss_gen = ManufacturingLossGenerator.create_simple(
@@ -324,7 +326,7 @@ Compare time-average vs ensemble-average performance:
 .. code-block:: python
    :caption: Ergodic analysis
 
-   from ergodic_insurance import ErgodicAnalyzer
+   from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
    analyzer = ErgodicAnalyzer()
 
@@ -348,7 +350,7 @@ Calculate comprehensive risk measures:
 .. code-block:: python
    :caption: Risk metric calculation
 
-   from ergodic_insurance import RiskMetrics
+   from ergodic_insurance.risk_metrics import RiskMetrics
 
    risk_calc = RiskMetrics()
 

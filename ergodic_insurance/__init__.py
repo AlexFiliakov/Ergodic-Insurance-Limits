@@ -14,6 +14,18 @@ Key Features:
     - Performance optimization and benchmarking
     - Comprehensive visualization and reporting
 
+Top-level Exports:
+    The top-level ``__all__`` exposes the essential classes for most workflows:
+
+    - ``run_analysis`` / ``AnalysisResults`` — one-call analysis entry point
+    - ``Config`` / ``ManufacturerConfig`` — configuration
+    - ``InsuranceProgram`` / ``EnhancedInsuranceLayer`` — insurance modeling
+    - ``Simulation`` / ``SimulationResults`` — running simulations
+
+    All other classes remain importable from their respective submodules
+    (see *Import Recipes* below) and via ``from ergodic_insurance import <name>``
+    for backward compatibility.
+
 Examples:
     One-call analysis (recommended starting point)::
 
@@ -45,10 +57,76 @@ Examples:
             operating_margin=0.12,
         )
 
+Import Recipes:
+    Loss modeling::
+
+        from ergodic_insurance.loss_distributions import (
+            LossEvent, LossData, ManufacturingLossGenerator,
+        )
+
+    Business simulation::
+
+        from ergodic_insurance.manufacturer import WidgetManufacturer
+        from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults
+
+    Ergodic & risk analysis::
+
+        from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+        from ergodic_insurance.risk_metrics import RiskMetrics
+        from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
+
+    Insurance pricing::
+
+        from ergodic_insurance.insurance_pricing import InsurancePricer, MarketCycle
+
+    Business optimization::
+
+        from ergodic_insurance.business_optimizer import (
+            BusinessOptimizer, BusinessObjective, BusinessConstraints,
+            OptimalStrategy, BusinessOptimizationResult,
+        )
+
+    Strategies & backtesting::
+
+        from ergodic_insurance.strategy_backtester import (
+            InsuranceStrategy, NoInsuranceStrategy, ConservativeFixedStrategy,
+            AggressiveFixedStrategy, OptimizedStaticStrategy, AdaptiveStrategy,
+            StrategyBacktester,
+        )
+        from ergodic_insurance.walk_forward_validator import WalkForwardValidator
+
+    Sensitivity analysis::
+
+        from ergodic_insurance.sensitivity import (
+            SensitivityAnalyzer, SensitivityResult, TwoWaySensitivityResult,
+        )
+
+    Visualization::
+
+        from ergodic_insurance.visualization import StyleManager, Theme, FigureFactory
+
+    Validation & performance::
+
+        from ergodic_insurance.validation_metrics import (
+            ValidationMetrics, MetricCalculator, PerformanceTargets,
+        )
+        from ergodic_insurance.accuracy_validator import AccuracyValidator, ValidationResult
+        from ergodic_insurance.performance_optimizer import (
+            PerformanceOptimizer, OptimizationConfig,
+        )
+
+    Ledger (event sourcing)::
+
+        from ergodic_insurance.ledger import (
+            Ledger, LedgerEntry, TransactionType, EntryType, AccountType, AccountName,
+        )
+
 Note:
     This module uses lazy imports to avoid circular dependencies during
-    test discovery. All public API classes are accessible through the
-    module's __all__ list.
+    test discovery. All classes listed in the *Import Recipes* above are
+    also accessible as ``from ergodic_insurance import <name>`` for
+    backward compatibility, but they are not included in ``__all__``
+    and will not appear in IDE auto-complete at the top level.
 
 Since:
     Version 0.4.0
@@ -68,71 +146,15 @@ __all__ = [
     # Quick-start factory
     "run_analysis",
     "AnalysisResults",
-    # Insurance & Risk
-    "InsuranceProgram",
-    "EnhancedInsuranceLayer",
-    "InsurancePolicy",  # Deprecated — use InsuranceProgram
-    "InsuranceLayer",  # Deprecated — use EnhancedInsuranceLayer
-    "InsurancePricer",
-    "MarketCycle",
-    "RiskMetrics",
-    "MonteCarloEngine",
-    "MonteCarloResults",
-    "RuinProbabilityAnalyzer",
-    # Business optimization
-    "BusinessObjective",
-    "BusinessConstraints",
-    "OptimalStrategy",
-    "BusinessOptimizationResult",
-    "BusinessOptimizer",
-    # Loss modeling
-    "LossEvent",
-    "LossData",
-    "ManufacturingLossGenerator",
     # Configuration
     "Config",
     "ManufacturerConfig",
-    # Analysis & simulation
-    "ErgodicAnalyzer",
-    "WidgetManufacturer",
+    # Insurance modeling
+    "InsuranceProgram",
+    "EnhancedInsuranceLayer",
+    # Simulation
     "Simulation",
     "SimulationResults",
-    "ValidationMetrics",
-    "MetricCalculator",
-    "PerformanceTargets",
-    # Strategies
-    "InsuranceStrategy",
-    "NoInsuranceStrategy",
-    "ConservativeFixedStrategy",
-    "AggressiveFixedStrategy",
-    "OptimizedStaticStrategy",
-    "AdaptiveStrategy",
-    "StrategyBacktester",
-    "WalkForwardValidator",
-    # Performance & validation (user-facing only)
-    "PerformanceOptimizer",
-    "OptimizationConfig",
-    "AccuracyValidator",
-    "ValidationResult",
-    # Visualization
-    "StyleManager",
-    "Theme",
-    "FigureFactory",
-    "SensitivityAnalyzer",
-    "SensitivityResult",
-    "TwoWaySensitivityResult",
-    # Ledger for event sourcing
-    "Ledger",
-    "LedgerEntry",
-    "TransactionType",
-    "EntryType",
-    "AccountType",
-    "AccountName",
-    # Warning classes
-    "ErgodicInsuranceWarning",
-    "ConfigurationWarning",
-    "DataQualityWarning",
-    "ExportWarning",
 ]
 
 
