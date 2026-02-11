@@ -410,6 +410,17 @@ class ClaimProcessingMixin:
             self.insurance_accounting.record_claim_recovery(
                 recovery_amount=insurance_payment, claim_id=claim_id, year=self.current_year
             )
+            # Record receivable in ledger: Dr INSURANCE_RECEIVABLES / Cr INSURANCE_LOSS
+            # per ASC 410-30 — recognize receivable at claim inception (Issue #625)
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.INSURANCE_RECEIVABLES,
+                credit_account=AccountName.INSURANCE_LOSS,
+                amount=insurance_payment,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
+                description="Insurance receivable for claim recovery",
+                month=self.current_month,
+            )
             logger.info(f"Insurance covering ${insurance_payment:,.2f} - recorded as receivable")
 
         # Optionally record the loss in the income statement
