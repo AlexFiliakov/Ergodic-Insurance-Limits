@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.9.0] - 2026-02-11
+
+### Added
+- dot-notation overrides, stochastic claims, and perf boosts (#594) ([`d9f9b7b`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/d9f9b7b55fe6d196fa2d63d4da761410df901365))
+
+[0.9.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.8.0...v0.9.0
+
 ## [0.8.0] - 2026-02-10
 
 ### Added
