@@ -157,8 +157,8 @@ class TestParameterSpec:
         spec = ParameterSpec(
             name="test_param", min_value=0.0, max_value=1.0, n_samples=10, distribution="uniform"
         )
-        np.random.seed(42)
-        values = spec.generate_values(ScenarioType.RANDOM_SEARCH)
+        rng = np.random.default_rng(42)
+        values = spec.generate_values(ScenarioType.RANDOM_SEARCH, rng=rng)
         assert len(values) == 10
         assert all(0 <= v <= 1 for v in values)
 
@@ -167,8 +167,8 @@ class TestParameterSpec:
         spec = ParameterSpec(
             name="test_param", min_value=1.0, max_value=100.0, n_samples=10, distribution="log"
         )
-        np.random.seed(42)
-        values = spec.generate_values(ScenarioType.RANDOM_SEARCH)
+        rng = np.random.default_rng(42)
+        values = spec.generate_values(ScenarioType.RANDOM_SEARCH, rng=rng)
         assert len(values) == 10
         assert all(1 <= v <= 100 for v in values)
         # Log distribution should have more values in lower range
