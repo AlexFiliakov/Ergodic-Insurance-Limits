@@ -143,7 +143,7 @@ Code blocks with syntax highlighting and copy buttons:
 ```rst
 .. code-block:: python
 
-   from ergodic_insurance import WidgetManufacturer
+   from ergodic_insurance.manufacturer import WidgetManufacturer
    manufacturer = WidgetManufacturer(config)
 ```
 

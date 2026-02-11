@@ -110,7 +110,9 @@ class TestConfigManager:
         """Test profile loading with runtime overrides."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile(
-            "test", manufacturer__initial_assets=20000000, simulation__time_horizon_years=200
+            "test",
+            manufacturer={"initial_assets": 20000000},
+            simulation={"time_horizon_years": 200},
         )
 
         assert config.manufacturer.initial_assets == 20000000
@@ -326,7 +328,9 @@ class TestConfigManager:
 
         # Test configuration merging through public API
         config = manager.load_profile(
-            "test", manufacturer__base_operating_margin=0.10, simulation__time_horizon_years=50
+            "test",
+            manufacturer={"base_operating_margin": 0.10},
+            simulation={"time_horizon_years": 50},
         )
         assert config.manufacturer.initial_assets == 10000000  # Preserved
         assert config.manufacturer.base_operating_margin == 0.10  # Overridden

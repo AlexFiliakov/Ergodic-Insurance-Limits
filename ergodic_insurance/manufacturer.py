@@ -24,7 +24,8 @@ Key Components:
 Examples:
     Basic manufacturer setup and simulation::
 
-        from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
+        from ergodic_insurance import ManufacturerConfig
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         config = ManufacturerConfig(
             initial_assets=10_000_000,
@@ -168,8 +169,8 @@ class WidgetManufacturer(
         # Insurance accounting module
         self.insurance_accounting = InsuranceAccounting()
 
-        # Accrual management for timing differences
-        self.accrual_manager = AccrualManager()
+        # Accrual management for timing differences (Issue #277: fiscal-year-aware)
+        self.accrual_manager = AccrualManager(fiscal_year_end=config.fiscal_year_end)
 
         # Operating parameters
         self.asset_turnover_ratio = config.asset_turnover_ratio
@@ -850,8 +851,8 @@ class WidgetManufacturer(
         self._initial_assets = initial_assets
         self._initial_equity = initial_assets
 
-        # Reset accrual manager
-        self.accrual_manager = AccrualManager()
+        # Reset accrual manager (Issue #277: fiscal-year-aware)
+        self.accrual_manager = AccrualManager(fiscal_year_end=self.config.fiscal_year_end)
 
         # Reset tax handler with fresh NOL state (Issue #365)
         self.tax_handler = TaxHandler(

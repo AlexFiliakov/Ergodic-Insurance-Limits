@@ -20,7 +20,9 @@ Key Features:
 Examples:
     Basic simulation::
 
-        from ergodic_insurance import Simulation, Config, WidgetManufacturer, ManufacturingLossGenerator
+        from ergodic_insurance import Simulation, Config
+        from ergodic_insurance.manufacturer import WidgetManufacturer
+        from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
         config = Config()
         manufacturer = WidgetManufacturer(config.manufacturer)

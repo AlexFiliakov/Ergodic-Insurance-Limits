@@ -473,7 +473,9 @@ class TestConfigV2WithOverridesNewSection:
         # Use a key path where intermediate keys do not exist in the data dict.
         # 'overrides' is already a dict; we use a deep path.
         new_config = base_config_v2.with_overrides(
-            manufacturer__initial_assets=20_000_000,
+            {
+                "manufacturer.initial_assets": 20_000_000,
+            }
         )
         assert new_config.manufacturer.initial_assets == 20_000_000
 

@@ -11,7 +11,9 @@ Run a simple 100-year simulation with baseline parameters:
 
 .. code-block:: python
 
-    from ergodic_insurance import WidgetManufacturer, ManufacturingLossGenerator, Simulation
+    from ergodic_insurance import Simulation
+    from ergodic_insurance.manufacturer import WidgetManufacturer
+    from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
     from ergodic_insurance.config_loader import load_config
 
     # Load configuration
@@ -81,7 +83,7 @@ Analyze sensitivity to operating margin:
     ruin_probs = []
 
     for margin in margins:
-        config = load_config("baseline", manufacturer__operating_margin=margin)
+        config = load_config("baseline", overrides={"manufacturer.operating_margin": margin})
 
         manufacturer = WidgetManufacturer(config.manufacturer)
         claim_generator = ClaimGenerator.from_config(config)
@@ -190,12 +192,12 @@ Advanced configuration management:
     base_config = loader.load("baseline")
 
     # Create a high-growth scenario
-    high_growth = base_config.override(
-        growth__annual_growth_rate=0.12,
-        growth__type="stochastic",
-        growth__volatility=0.15,
-        manufacturer__operating_margin=0.10
-    )
+    high_growth = base_config.override({
+        "growth.annual_growth_rate": 0.12,
+        "growth.type": "stochastic",
+        "growth.volatility": 0.15,
+        "manufacturer.operating_margin": 0.10,
+    })
 
     # Save custom configuration
     output_path = Path("outputs/high_growth_config.yaml")
@@ -218,9 +220,11 @@ For large-scale analysis, use these performance tips:
     # Configure for performance
     config = load_config(
         "baseline",
-        simulation__time_resolution="annual",  # Use annual steps
-        output__detailed_metrics=False,       # Reduce output detail
-        logging__enabled=False                 # Disable logging
+        overrides={
+            "simulation.time_resolution": "annual",  # Use annual steps
+            "output.detailed_metrics": False,         # Reduce output detail
+            "logging.enabled": False,                 # Disable logging
+        },
     )
 
     # Time a long simulation

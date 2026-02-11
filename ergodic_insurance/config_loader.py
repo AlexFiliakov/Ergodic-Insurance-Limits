@@ -56,16 +56,16 @@ class ConfigLoader:
         self,
         config_name: str = "baseline",
         overrides: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
     ) -> Config:
         """Load configuration with optional overrides.
 
         Args:
             config_name: Name of config file (without .yaml extension)
                         or full path to config file.
-            overrides: Dictionary of overrides to apply.
-            **kwargs: Additional overrides in dot notation
-                     (e.g., manufacturer__operating_margin=0.1).
+            overrides: Dictionary of overrides to apply.  Supports
+                dot-notation keys (``{"manufacturer.tax_rate": 0.21}``)
+                and section-level dicts
+                (``{"manufacturer": {"tax_rate": 0.21}}``).
 
         Returns:
             Loaded and validated configuration.
@@ -94,7 +94,6 @@ class ConfigLoader:
         cache_key = (
             config_name,
             make_hashable(overrides) if overrides else None,
-            make_hashable(kwargs) if kwargs else None,
         )
 
         # Check cache
@@ -102,19 +101,16 @@ class ConfigLoader:
             return self._cache[cache_key]
 
         # Load using adapter and cache result
-        config: Config = self._adapter.load(config_name, overrides, **kwargs)
+        config: Config = self._adapter.load(config_name, overrides)
         self._cache[cache_key] = config
         return config
 
-    def load_scenario(
-        self, scenario: str, overrides: Optional[Dict[str, Any]] = None, **kwargs: Any
-    ) -> Config:
+    def load_scenario(self, scenario: str, overrides: Optional[Dict[str, Any]] = None) -> Config:
         """Load a predefined scenario configuration.
 
         Args:
             scenario: Scenario name ("baseline", "conservative", "optimistic").
             overrides: Dictionary of overrides to apply.
-            **kwargs: Additional overrides in dot notation.
 
         Returns:
             Loaded and validated configuration.
@@ -128,7 +124,7 @@ class ConfigLoader:
                 f"Unknown scenario '{scenario}'. Valid scenarios: {', '.join(valid_scenarios)}"
             )
 
-        return self.load(scenario, overrides, **kwargs)
+        return self.load(scenario, overrides)
 
     def compare_configs(
         self, config1: Union[str, Config], config2: Union[str, Config]
@@ -317,17 +313,17 @@ class ConfigLoader:
 def load_config(
     config_name: str = "baseline",
     overrides: Optional[Dict[str, Any]] = None,
-    **kwargs: Any,
 ) -> Config:
     """Quick helper to load a configuration.
 
     Args:
         config_name: Name of config file or full path.
-        overrides: Dictionary of overrides.
-        **kwargs: Keyword overrides in dot notation.
+        overrides: Dictionary of overrides.  Supports dot-notation keys
+            (``{"manufacturer.tax_rate": 0.21}``) and section-level dicts
+            (``{"manufacturer": {"tax_rate": 0.21}}``).
 
     Returns:
         Loaded configuration.
     """
     loader = ConfigLoader()
-    return loader.load(config_name, overrides, **kwargs)
+    return loader.load(config_name, overrides)

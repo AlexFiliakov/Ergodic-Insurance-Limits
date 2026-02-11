@@ -19,14 +19,14 @@ This tutorial covers the optimization workflow: how to let the framework find th
 The `BusinessOptimizer` wraps a manufacturer and searches over insurance parameters (coverage limit, deductible, premium rate) to find combinations that maximize business outcomes subject to constraints. It requires a `WidgetManufacturer` instance (the same one you have been using throughout the earlier tutorials).
 
 ```python
-from ergodic_insurance import (
+from ergodic_insurance import ManufacturerConfig
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.business_optimizer import (
     BusinessOptimizer,
     BusinessObjective,
     BusinessConstraints,
-    WidgetManufacturer,
-    ManufacturerConfig,
+    OptimizationDirection,
 )
-from ergodic_insurance.business_optimizer import OptimizationDirection
 
 # NovaTech Plastics -- current state before expansion
 mfg_config = ManufacturerConfig(
@@ -230,7 +230,7 @@ The optimizer gives you one answer, but how fragile is it? Sensitivity analysis 
 The `SensitivityAnalyzer` takes a base configuration dictionary and an optimizer, then sweeps individual parameters to see how outcomes change.
 
 ```python
-from ergodic_insurance import SensitivityAnalyzer
+from ergodic_insurance.sensitivity import SensitivityAnalyzer
 
 # Define the base configuration -- the starting point for perturbation
 base_config = {
@@ -327,7 +327,7 @@ Optimization tells you what *should* work. Backtesting tells you what *would hav
 ### Predefined Strategies
 
 ```python
-from ergodic_insurance import (
+from ergodic_insurance.strategy_backtester import (
     NoInsuranceStrategy,
     ConservativeFixedStrategy,
     AggressiveFixedStrategy,
@@ -420,7 +420,7 @@ The results typically reveal a pattern: "no insurance" has the highest ensemble-
 A backtest on the full dataset can overfit. Walk-forward validation splits the timeline into rolling train/test windows to check whether a strategy that looks good in-sample also performs well out-of-sample.
 
 ```python
-from ergodic_insurance import WalkForwardValidator
+from ergodic_insurance.walk_forward_validator import WalkForwardValidator
 
 validator = WalkForwardValidator(
     window_size=3,     # each window is 3 years

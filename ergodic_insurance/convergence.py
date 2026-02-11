@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from scipy.fft import irfft, rfft
 
 
 @dataclass
@@ -287,7 +288,11 @@ class ConvergenceDiagnostics:
         return results
 
     def _calculate_autocorrelation(self, chain: np.ndarray, max_lag: int) -> np.ndarray:
-        """Calculate autocorrelation function.
+        """Calculate autocorrelation function using FFT.
+
+        Uses FFT-based computation: acf = ifft(|fft(x)|^2), which is
+        O(N log N) regardless of max_lag, replacing the previous O(N*L)
+        Python loop.
 
         Args:
             chain: 1D array of samples
@@ -297,17 +302,25 @@ class ConvergenceDiagnostics:
             Array of autocorrelations for lags 0 to max_lag
         """
         n = len(chain)
-        chain = chain - np.mean(chain)
-        c0 = np.dot(chain, chain) / n
+        chain_centered = chain - np.mean(chain)
+        c0 = np.dot(chain_centered, chain_centered) / n
 
-        autocorr = np.zeros(max_lag + 1)
-        autocorr[0] = 1.0
+        if c0 == 0:
+            # Zero variance: lag-0 is 1.0, all others are 0
+            autocorr = np.zeros(max_lag + 1)
+            autocorr[0] = 1.0
+            return autocorr
 
-        for lag in range(1, min(max_lag + 1, n)):
-            c_lag = np.dot(chain[:-lag], chain[lag:]) / n
-            autocorr[lag] = c_lag / c0 if c0 > 0 else 0
+        # FFT-based autocorrelation: zero-pad to avoid circular artifacts
+        padded = np.zeros(2 * n)
+        padded[:n] = chain_centered
+        f = rfft(padded)
+        acf_raw = irfft(f * np.conj(f), n=2 * n)[:n]
 
-        return autocorr
+        # Normalize: acf_raw[k] = sum of x[t]*x[t+k], divide by n then by c0
+        # Since c0 = acf_raw[0]/n, normalizing by acf_raw[0] gives rho[k]
+        result = acf_raw[: min(max_lag + 1, n)] / acf_raw[0]
+        return np.asarray(result)
 
     @staticmethod
     def _spectral_density_at_zero(segment: np.ndarray) -> float:

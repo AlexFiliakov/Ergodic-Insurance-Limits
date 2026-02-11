@@ -59,7 +59,7 @@ Examples:
     Basic ergodic comparison between insured and uninsured scenarios::
 
         import numpy as np
-        from ergodic_insurance import ErgodicAnalyzer
+        from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 
         # Initialize analyzer
         analyzer = ErgodicAnalyzer(convergence_threshold=0.01)
@@ -113,7 +113,9 @@ Examples:
 
     Integration with loss modeling::
 
-        from ergodic_insurance import LossData, InsuranceProgram, WidgetManufacturer
+        from ergodic_insurance import InsuranceProgram
+        from ergodic_insurance.loss_distributions import LossData
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Set up integrated analysis
         loss_data = LossData.from_distribution(
@@ -512,7 +514,7 @@ class ErgodicAnalyzer:
     Examples:
         Basic analyzer setup and usage::
 
-            from ergodic_insurance import ErgodicAnalyzer
+            from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
             import numpy as np
 
             # Initialize with tight convergence criteria
@@ -2026,7 +2028,9 @@ class ErgodicAnalyzer:
 
             .. code-block:: python
 
-                from ergodic_insurance import LossData, InsuranceProgram, WidgetManufacturer, ManufacturerConfig
+                from ergodic_insurance import InsuranceProgram, ManufacturerConfig
+                from ergodic_insurance.loss_distributions import LossData
+                from ergodic_insurance.manufacturer import WidgetManufacturer
 
                 # Set up loss data
                 loss_data = LossData.from_poisson_lognormal(

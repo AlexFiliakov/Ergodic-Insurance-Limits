@@ -163,10 +163,21 @@ class TestExcelReporter:
             assert reporter.engine == "openpyxl"
 
     def test_engine_selection_fallback(self):
-        """Test engine fallback when specified engine not available."""
-        config = ExcelReportConfig(engine="nonexistent")
-        reporter = ExcelReporter(config)
-        assert reporter.engine == "pandas"
+        """Test engine fallback when no library is available for 'auto'."""
+        config = ExcelReportConfig(engine="auto")
+        with (
+            patch("ergodic_insurance.excel_reporter.XLSXWRITER_AVAILABLE", False),
+            patch("ergodic_insurance.excel_reporter.OPENPYXL_AVAILABLE", False),
+        ):
+            reporter = ExcelReporter(config)
+            assert reporter.engine == "pandas"
+
+    def test_invalid_engine_rejected(self):
+        """Test that invalid engine names are rejected by validation."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError, match="Invalid Excel engine"):
+            ExcelReportConfig(engine="nonexistent")
 
     @pytest.mark.skipif(not XLSXWRITER_AVAILABLE, reason="XlsxWriter not available")
     def test_generate_trajectory_report_xlsxwriter(self, mock_manufacturer, reporter_config):

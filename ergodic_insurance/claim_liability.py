@@ -264,12 +264,9 @@ class ClaimLiability:
         """
         import copy
 
-        # Create a new ClaimDevelopment with copied development_factors
-        copied_strategy = ClaimDevelopment(
-            pattern_name=self.development_strategy.pattern_name,
-            development_factors=copy.deepcopy(self.development_strategy.development_factors, memo),
-            tail_factor=self.development_strategy.tail_factor,
-        )
+        # Deep copy the strategy (supports ClaimDevelopment and subclasses
+        # like StochasticClaimDevelopment)
+        copied_strategy = copy.deepcopy(self.development_strategy, memo)
 
         result = ClaimLiability(
             original_amount=copy.deepcopy(self.original_amount, memo),

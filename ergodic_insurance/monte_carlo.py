@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import pickle
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import warnings
 
 import numpy as np
@@ -1491,6 +1491,10 @@ class MonteCarloEngine:
     ) -> Dict[str, Tuple[float, float]]:
         """Compute bootstrap confidence intervals for key simulation metrics.
 
+        All metrics share a single set of bootstrap resampling indices per
+        iteration, reducing total work from ``7 * n_bootstrap`` to
+        ``n_bootstrap`` iterations.
+
         Args:
             results: Simulation results to analyze.
             confidence_level: Confidence level for intervals (default 0.95).
@@ -1501,100 +1505,43 @@ class MonteCarloEngine:
         Returns:
             Dictionary mapping metric names to (lower, upper) confidence bounds.
         """
-        # Lazy import to avoid scipy issues in worker processes
-        from .bootstrap_analysis import bootstrap_confidence_interval
+        from .bootstrap_analysis import BootstrapAnalyzer
 
-        confidence_intervals = {}
-
-        # Bootstrap CI for mean final assets
-        _, ci = bootstrap_confidence_interval(
-            results.final_assets,
-            np.mean,
-            confidence_level=confidence_level,
+        analyzer = BootstrapAnalyzer(
             n_bootstrap=n_bootstrap,
-            method=method,
-            seed=self.config.seed,
-        )
-        confidence_intervals["Mean Final Assets"] = ci
-
-        # Bootstrap CI for median final assets
-        _, ci = bootstrap_confidence_interval(
-            results.final_assets,
-            np.median,
             confidence_level=confidence_level,
-            n_bootstrap=n_bootstrap,
-            method=method,
             seed=self.config.seed,
+            show_progress=show_progress,
         )
-        confidence_intervals["Median Final Assets"] = ci
 
-        # Bootstrap CI for mean growth rate
-        _, ci = bootstrap_confidence_interval(
-            results.growth_rates,
-            np.mean,
-            confidence_level=confidence_level,
-            n_bootstrap=n_bootstrap,
-            method=method,
-            seed=self.config.seed,
-        )
-        confidence_intervals["Mean Growth Rate"] = ci
-
-        # Bootstrap CI for ruin probability
-        # Create binary ruin indicator using insolvency tolerance
+        # Prepare derived arrays
         ruin_indicator = (results.final_assets <= self.config.insolvency_tolerance).astype(float)
-        _, ci = bootstrap_confidence_interval(
-            ruin_indicator,
-            np.mean,
-            confidence_level=confidence_level,
-            n_bootstrap=n_bootstrap,
-            method=method,
-            seed=self.config.seed,
-        )
-        confidence_intervals["Ruin Probability"] = ci
+        mean_annual_losses = np.mean(results.annual_losses, axis=1)
+        mean_recoveries = np.mean(results.insurance_recoveries, axis=1)
 
-        # Bootstrap CI for VaR if available
+        # Build metrics dict: name -> (data, statistic)
+        metrics: Dict[str, Tuple[np.ndarray, Callable[[np.ndarray], float]]] = {
+            "Mean Final Assets": (results.final_assets, np.mean),
+            "Median Final Assets": (results.final_assets, np.median),
+            "Mean Growth Rate": (results.growth_rates, np.mean),
+            "Ruin Probability": (ruin_indicator, np.mean),
+            "Mean Annual Losses": (mean_annual_losses, np.mean),
+            "Mean Insurance Recoveries": (mean_recoveries, np.mean),
+        }
+
         if "var_99" in results.metrics:
 
-            def var_99(x):
-                return np.percentile(x, 99)
+            def var_99(x: np.ndarray) -> float:
+                return float(np.percentile(x, 99))
 
-            _, ci = bootstrap_confidence_interval(
-                results.final_assets,
-                var_99,
-                confidence_level=confidence_level,
-                n_bootstrap=n_bootstrap,
-                method=method,
-                seed=self.config.seed,
-            )
-            confidence_intervals["VaR(99%)"] = ci
+            metrics["VaR(99%)"] = (results.final_assets, var_99)
 
-        # Bootstrap CI for mean annual losses
-        mean_annual_losses = np.mean(
-            results.annual_losses, axis=1
-        )  # Mean across years for each simulation
-        _, ci = bootstrap_confidence_interval(
-            mean_annual_losses,
-            np.mean,
-            confidence_level=confidence_level,
-            n_bootstrap=n_bootstrap,
-            method=method,
-            seed=self.config.seed,
+        # Compute all CIs with shared bootstrap indices (single pass)
+        bootstrap_results = analyzer.multi_confidence_interval(
+            metrics, confidence_level=confidence_level, method=method
         )
-        confidence_intervals["Mean Annual Losses"] = ci
 
-        # Bootstrap CI for mean insurance recoveries
-        mean_recoveries = np.mean(results.insurance_recoveries, axis=1)
-        _, ci = bootstrap_confidence_interval(
-            mean_recoveries,
-            np.mean,
-            confidence_level=confidence_level,
-            n_bootstrap=n_bootstrap,
-            method=method,
-            seed=self.config.seed,
-        )
-        confidence_intervals["Mean Insurance Recoveries"] = ci
-
-        return confidence_intervals
+        return {name: res.confidence_interval for name, res in bootstrap_results.items()}
 
     def _get_cache_key(self) -> str:
         """Generate cache key for current configuration.

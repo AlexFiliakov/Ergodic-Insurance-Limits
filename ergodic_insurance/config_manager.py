@@ -237,7 +237,7 @@ class ConfigManager:
 
         # Apply runtime overrides
         if overrides:
-            config = config.with_overrides(**overrides)
+            config = config.with_overrides(overrides)
 
         # Validate completeness
         issues = config.validate_completeness()
@@ -401,17 +401,18 @@ class ConfigManager:
 
         return new_config
 
-    def with_overrides(self, config: ConfigV2, **overrides) -> ConfigV2:
+    def with_overrides(self, config: ConfigV2, overrides: Dict[str, Any]) -> ConfigV2:
         """Create a new configuration with runtime overrides.
 
         Args:
             config: Base configuration.
-            **overrides: Override parameters.
+            overrides: Override parameters as a dictionary with dot-notation
+                keys or section-level dictionaries.
 
         Returns:
             New ConfigV2 instance with overrides applied.
         """
-        return config.with_overrides(**overrides)
+        return config.with_overrides(overrides)
 
     def validate(self, config: ConfigV2) -> List[str]:
         """Validate a configuration for completeness and consistency.
