@@ -8,7 +8,7 @@
 
 ## Prompt
 
-Create an agent team to perform a thorough review of this Python package for actuarial and risk management use. Spawn **eight** reviewers, each operating independently in their domain:
+Create an agent team to perform a thorough review of this Python package for actuarial and risk management use. Work in the `develop` branch. Spawn **eight** reviewers, each operating independently in their domain:
 
 ### Team Composition
 
@@ -222,15 +222,15 @@ Every GitHub issue must include:
 
 ### Progress Tracking
 
-Each reviewer must maintain a Markdown file in `docs/` documenting their progress:
+Each reviewer must maintain a Markdown file in `docs/reviews/` documenting their progress:
 
-- **Performance**: `docs/REVIEW_PERFORMANCE.md`
-- **Financial**: `docs/REVIEW_FINANCIAL.md`
-- **Mathematical**: `docs/REVIEW_MATHEMATICAL.md`
-- **Actuarial Methodology**: `docs/REVIEW_ACTUARIAL_METHODOLOGY.md`
-- **API Usability**: `docs/REVIEW_API_USABILITY.md`
-- **Security**: `docs/REVIEW_SECURITY.md`
-- **Issue Validation**: `docs/REVIEW_ISSUE_VALIDATION.md`
+- **Performance**: `docs/reviews/REVIEW_PERFORMANCE.md`
+- **Financial**: `docs/reviews/REVIEW_FINANCIAL.md`
+- **Mathematical**: `docs/reviews/REVIEW_MATHEMATICAL.md`
+- **Actuarial Methodology**: `docs/reviews/REVIEW_ACTUARIAL_METHODOLOGY.md`
+- **API Usability**: `docs/reviews/REVIEW_API_USABILITY.md`
+- **Security**: `docs/reviews/REVIEW_SECURITY.md`
+- **Issue Validation**: `docs/reviews/REVIEW_ISSUE_VALIDATION.md`
 
 Each file should contain:
 
@@ -280,7 +280,7 @@ Each domain reviewer should identify **at least 10 actionable issues**. If fewer
 
 ### Final Deliverable
 
-When all reviewers complete their work, the team lead produces a summary in `docs/REVIEW_SUMMARY.md`:
+When all reviewers complete their work, the team lead produces a summary in `docs/reviews/REVIEW_SUMMARY.md`:
 
 ```markdown
 # Codebase Review Summary
