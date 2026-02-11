@@ -422,7 +422,7 @@ class ConfigV2(BaseModel):
 | `with_inheritance(profile_path, config_dir)` | Class method: load with recursive inheritance |
 | `apply_module(module_path)` | Apply a module YAML file to this config (in-place) |
 | `apply_preset(preset_name, preset_data)` | Apply preset parameters (in-place) |
-| `with_overrides(**kwargs)` | Return a new ConfigV2 with overrides (supports `section__field` notation) |
+| `with_overrides(overrides)` | Return a new ConfigV2 with overrides (supports `"section.field"` dot notation) |
 | `validate_completeness()` | Return list of missing or inconsistent items |
 | `_deep_merge(base, override)` | Static method: recursive dictionary merge |
 
@@ -1154,11 +1154,11 @@ config = manager.load_profile(
     simulation={"random_seed": 42}
 )
 
-# Double-underscore notation for nested overrides
-config = config.with_overrides(
-    manufacturer__initial_assets=20_000_000,
-    simulation__time_horizon_years=100
-)
+# Dot-notation for nested overrides
+config = config.with_overrides({
+    "manufacturer.initial_assets": 20_000_000,
+    "simulation.time_horizon_years": 100,
+})
 ```
 
 ### Testing Configurations

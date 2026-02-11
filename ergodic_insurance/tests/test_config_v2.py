@@ -705,20 +705,22 @@ class TestConfigV2:
             logging=LoggingConfig(),
         )
 
-        # Test nested overrides
+        # Test nested overrides with dot notation
         new_config = config.with_overrides(
-            manufacturer__initial_assets=20000000,
-            manufacturer__base_operating_margin=0.10,
-            simulation__time_horizon_years=20,
+            {
+                "manufacturer.initial_assets": 20000000,
+                "manufacturer.base_operating_margin": 0.10,
+                "simulation.time_horizon_years": 20,
+            }
         )
 
         assert new_config.manufacturer.initial_assets == 20000000
         assert new_config.manufacturer.base_operating_margin == 0.10
         assert new_config.simulation.time_horizon_years == 20
         assert new_config.overrides == {
-            "manufacturer__initial_assets": 20000000,
-            "manufacturer__base_operating_margin": 0.10,
-            "simulation__time_horizon_years": 20,
+            "manufacturer.initial_assets": 20000000,
+            "manufacturer.base_operating_margin": 0.10,
+            "simulation.time_horizon_years": 20,
         }
 
         # Original config should be unchanged
@@ -747,10 +749,12 @@ class TestConfigV2:
             logging=LoggingConfig(),
         )
 
-        # Test simple key override
+        # Test simple key override (section-level dict)
         new_config = config.with_overrides(
-            custom_modules={"test": {"module_name": "test"}},
-            applied_presets=["preset1"],
+            {
+                "custom_modules": {"test": {"module_name": "test"}},
+                "applied_presets": ["preset1"],
+            }
         )
 
         assert "test" in new_config.custom_modules

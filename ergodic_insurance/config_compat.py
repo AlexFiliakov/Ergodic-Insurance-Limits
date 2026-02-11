@@ -49,14 +49,14 @@ class LegacyConfigAdapter:
         self,
         config_name: str = "baseline",
         override_params: Optional[Dict[str, Any]] = None,
-        **kwargs,
     ) -> Config:
         """Load configuration using legacy interface.
 
         Args:
             config_name: Legacy configuration name.
-            override_params: Dictionary of override parameters.
-            **kwargs: Additional override parameters.
+            override_params: Dictionary of override parameters.  Supports
+                dot-notation keys (``"manufacturer.tax_rate": 0.21``) and
+                section-level dicts (``{"manufacturer": {"tax_rate": 0.21}}``).
 
         Returns:
             Config object for backward compatibility.
@@ -75,10 +75,9 @@ class LegacyConfigAdapter:
         profile_name = self._profile_mapping.get(config_name, config_name)
 
         # Combine overrides
-        overrides = {}
+        overrides: Dict[str, Any] = {}
         if override_params:
             overrides.update(self._flatten_dict(override_params))
-        overrides.update(kwargs)
 
         # Load using new system
         try:
@@ -95,14 +94,14 @@ class LegacyConfigAdapter:
         self,
         config_path: Optional[Union[str, Path]] = None,
         config_name: str = "baseline",
-        **overrides,
+        overrides: Optional[Dict[str, Any]] = None,
     ) -> Config:
         """Alternative legacy loading method.
 
         Args:
             config_path: Path to configuration file (ignored, for compatibility).
             config_name: Configuration name.
-            **overrides: Override parameters.
+            overrides: Override parameters as a dictionary.
 
         Returns:
             Config object.
@@ -237,9 +236,9 @@ class LegacyConfigAdapter:
 
         # Apply overrides
         for key, value in overrides.items():
-            if "__" in key:
-                # Handle nested keys
-                parts = key.split("__")
+            if "." in key:
+                # Handle dot-notation nested keys
+                parts = key.split(".")
                 current = data
                 for part in parts[:-1]:
                     if part not in current:
@@ -251,19 +250,19 @@ class LegacyConfigAdapter:
 
         return Config(**data)
 
-    def _flatten_dict(self, d: Dict[str, Any], parent_key: str = "") -> Dict[str, str]:
-        """Flatten nested dictionary to support __ notation.
+    def _flatten_dict(self, d: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
+        """Flatten nested dictionary to dot-notation keys.
 
         Args:
             d: Dictionary to flatten.
             parent_key: Parent key for recursion.
 
         Returns:
-            Flattened dictionary.
+            Flattened dictionary with dot-notation keys.
         """
         items: List[tuple] = []
         for k, v in d.items():
-            new_key = f"{parent_key}__{k}" if parent_key else k
+            new_key = f"{parent_key}.{k}" if parent_key else k
             if isinstance(v, dict):
                 items.extend(self._flatten_dict(v, new_key).items())
             else:
@@ -284,19 +283,19 @@ def _get_adapter() -> LegacyConfigAdapter:
 
 
 def load_config(
-    config_name: str = "baseline", override_params: Optional[Dict[str, Any]] = None, **kwargs
+    config_name: str = "baseline", override_params: Optional[Dict[str, Any]] = None
 ) -> Config:
     """Legacy function interface for loading configurations.
 
     Args:
         config_name: Configuration name.
-        override_params: Override parameters.
-        **kwargs: Additional overrides.
+        override_params: Override parameters as a dictionary.  Supports
+            dot-notation keys and section-level dicts.
 
     Returns:
         Config object.
     """
-    return _get_adapter().load(config_name, override_params, **kwargs)
+    return _get_adapter().load(config_name, override_params)
 
 
 def migrate_config_usage(file_path: Path) -> None:

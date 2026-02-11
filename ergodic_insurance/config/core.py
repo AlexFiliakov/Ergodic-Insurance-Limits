@@ -208,28 +208,84 @@ class Config(BaseModel):
         merged = deep_merge(config_dict, data)
         return cls(**merged)
 
-    def override(self, **kwargs) -> "Config":
+    def override(self, overrides: Dict[str, Any]) -> "Config":
         """Create a new config with overridden parameters.
 
+        Accepts a dictionary with dot-notation keys to override nested
+        configuration values.
+
         Args:
-            **kwargs: Parameters to override in dot notation
-                     e.g., manufacturer__operating_margin=0.1.
+            overrides: Dictionary mapping dot-notation paths to values.
+                Example: ``{"manufacturer.tax_rate": 0.21}``
 
         Returns:
             New Config object with overrides applied.
+
+        Raises:
+            ValueError: If a path references an unknown config section or field.
+
+        Examples:
+            Override a single parameter::
+
+                new_config = config.override({"manufacturer.tax_rate": 0.21})
+
+            Override multiple parameters::
+
+                new_config = config.override({
+                    "manufacturer.base_operating_margin": 0.1,
+                    "simulation.time_horizon_years": 200,
+                })
         """
-        # Convert dot notation to nested dict
         override_dict: Dict[str, Any] = {}
-        for key, value in kwargs.items():
-            parts = key.split("__")
-            current = override_dict
-            for part in parts[:-1]:
-                if part not in current:
-                    current[part] = {}
-                current = current[part]
-            current[parts[-1]] = value
+        for key, value in overrides.items():
+            if "." in key:
+                parts = key.split(".")
+                self._validate_override_path(key, parts)
+                current = override_dict
+                for part in parts[:-1]:
+                    current = current.setdefault(part, {})
+                current[parts[-1]] = value
+            else:
+                if key not in self.model_fields:
+                    valid = ", ".join(sorted(self.model_fields.keys()))
+                    raise ValueError(
+                        f"Invalid config path '{key}': not a valid config section. "
+                        f"Valid sections: {valid}"
+                    )
+                override_dict[key] = value
 
         return Config.from_dict(override_dict, base_config=self)
+
+    def _validate_override_path(self, key: str, parts: list) -> None:
+        """Validate that a dot-notation path refers to valid config fields.
+
+        Args:
+            key: The original dot-notation key string (for error messages).
+            parts: The key split on ``"."``.
+
+        Raises:
+            ValueError: If any segment of the path is not a recognised field.
+        """
+        section = parts[0]
+        if section not in self.model_fields:
+            valid = ", ".join(sorted(self.model_fields.keys()))
+            raise ValueError(
+                f"Invalid config path '{key}': '{section}' is not a valid "
+                f"config section. Valid sections: {valid}"
+            )
+
+        if len(parts) >= 2:
+            annotation = self.model_fields[section].annotation
+            if (
+                annotation is not None
+                and hasattr(annotation, "model_fields")
+                and parts[1] not in annotation.model_fields
+            ):
+                valid = ", ".join(sorted(annotation.model_fields.keys()))
+                raise ValueError(
+                    f"Invalid config path '{key}': '{parts[1]}' is not a valid "
+                    f"field in '{section}'. Valid fields: {valid}"
+                )
 
     def to_yaml(self, path: Path) -> None:
         """Save configuration to YAML file.
@@ -438,23 +494,43 @@ class ConfigV2(BaseModel):
         for field_name in type(self).model_fields:
             object.__setattr__(self, field_name, getattr(updated, field_name))
 
-    def with_overrides(self, **kwargs) -> "ConfigV2":
+    def with_overrides(self, overrides: Dict[str, Any]) -> "ConfigV2":
         """Create a new config with runtime overrides.
 
+        Accepts a dictionary with dot-notation keys to override nested
+        configuration values.  Section-level dictionaries are also supported
+        for backward compatibility with :class:`ConfigManager`.
+
         Args:
-            **kwargs: Override parameters in format section__field=value.
+            overrides: Dictionary mapping dot-notation paths to values, or
+                section-level dictionaries.
+                Example: ``{"manufacturer.initial_assets": 20_000_000}``
 
         Returns:
             New ConfigV2 instance with overrides applied.
+
+        Examples:
+            Dot-notation overrides::
+
+                new = config.with_overrides({
+                    "manufacturer.initial_assets": 20_000_000,
+                    "simulation.time_horizon_years": 100,
+                })
+
+            Section-level dict overrides::
+
+                new = config.with_overrides({
+                    "manufacturer": {"initial_assets": 20_000_000},
+                })
         """
         # Create a copy of current config
         data = self.model_dump()
 
         # Apply overrides
-        for key, value in kwargs.items():
-            if "__" in key:
-                # Handle nested overrides like manufacturer__initial_assets
-                parts = key.split("__")
+        for key, value in overrides.items():
+            if "." in key:
+                # Dot-notation: "manufacturer.initial_assets" → nested dict
+                parts = key.split(".")
                 current = data
                 for part in parts[:-1]:
                     if part not in current:
@@ -462,15 +538,14 @@ class ConfigV2(BaseModel):
                     current = current[part]
                 current[parts[-1]] = value
             else:
-                # For nested objects, merge instead of replace
+                # Section-level: {"manufacturer": {"initial_assets": ...}}
                 if isinstance(value, dict) and key in data and isinstance(data[key], dict):
-                    # Merge dictionaries recursively
                     data[key] = deep_merge(data[key], value)
                 else:
                     data[key] = value
 
         # Track overrides
-        data["overrides"] = kwargs
+        data["overrides"] = overrides
 
         return ConfigV2(**data)
 

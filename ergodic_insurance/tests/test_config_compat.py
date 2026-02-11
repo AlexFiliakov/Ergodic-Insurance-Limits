@@ -219,22 +219,19 @@ class TestLegacyConfigAdapter:
                 "simulation": {"time_horizon_years": 100},
             }
 
-            kwargs = {"random_seed": 123}
-
             with patch.object(legacy_adapter.config_manager, "load_profile") as mock_load:
                 mock_config_v2 = MagicMock()
                 mock_load.return_value = mock_config_v2
                 with patch.object(legacy_adapter, "_convert_to_legacy") as mock_convert:
                     mock_convert.return_value = MagicMock(spec=Config)
 
-                    legacy_adapter.load("baseline", override_params, **kwargs)
+                    legacy_adapter.load("baseline", override_params)
 
-                    # Check that overrides were flattened and passed
+                    # Check that overrides were flattened with dot notation and passed
                     call_args = mock_load.call_args
                     assert call_args[0][0] == "default"
-                    assert "manufacturer__initial_assets" in call_args[1]
-                    assert "simulation__time_horizon_years" in call_args[1]
-                    assert "random_seed" in call_args[1]
+                    assert "manufacturer.initial_assets" in call_args[1]
+                    assert "simulation.time_horizon_years" in call_args[1]
 
     def test_load_fallback_to_legacy(self, legacy_adapter, sample_config_dict, tmp_path):
         """Test fallback to legacy loading when profile not found."""
@@ -274,7 +271,7 @@ class TestLegacyConfigAdapter:
                 result = legacy_adapter.load_config(
                     config_path="/some/path",
                     config_name="test",
-                    some_override="value",
+                    overrides={"some_override": "value"},
                 )
 
                 mock_load.assert_called_with("test", override_params={"some_override": "value"})
@@ -326,10 +323,10 @@ class TestLegacyConfigAdapter:
             yaml.dump(sample_config_dict, f)
 
         overrides = {
-            "manufacturer__initial_assets": 15_000_000,
-            "simulation__time_horizon_years": 75,
+            "manufacturer.initial_assets": 15_000_000,
+            "simulation.time_horizon_years": 75,
             "simple_override": "value",
-            "new_section__new_field": "new_value",  # This will create a new section
+            "new_section.new_field": "new_value",  # This will create a new section
         }
 
         # Mock __file__ to point to our temp directory
@@ -365,13 +362,13 @@ class TestLegacyConfigAdapter:
                 )
 
             # Verify the flatten_dict was used to handle nested params
-            # The override should be flattened to manufacturer__operating_margin
+            # The override should be flattened to dot notation
             call_args = mock_load.call_args
             assert call_args is not None
             assert call_args[0][0] == "default"  # mapped profile name
             # Check that the override was properly flattened
-            assert "manufacturer__base_operating_margin" in call_args[1]
-            assert call_args[1]["manufacturer__base_operating_margin"] == 0.12
+            assert "manufacturer.base_operating_margin" in call_args[1]
+            assert call_args[1]["manufacturer.base_operating_margin"] == 0.12
 
             # Verify the result is a proper Config object
             assert isinstance(result, Config)
@@ -395,7 +392,7 @@ class TestLegacyConfigAdapter:
         result = legacy_adapter._flatten_dict(nested)
 
         assert result == {
-            "level1__level2__value": 123,
+            "level1.level2.value": 123,
             "simple": "value",
         }
 
@@ -408,9 +405,9 @@ class TestModuleFunctions:
         with patch("ergodic_insurance.config_compat._adapter") as mock_adapter:
             mock_adapter.load.return_value = MagicMock(spec=Config)
 
-            result = load_config("test", {"override": "value"}, extra="param")
+            result = load_config("test", {"override": "value"})
 
-            mock_adapter.load.assert_called_with("test", {"override": "value"}, extra="param")
+            mock_adapter.load.assert_called_with("test", {"override": "value"})
 
     def test_migrate_config_usage_with_changes(self, tmp_path):
         """Test migrating Python file with config usage."""
@@ -646,9 +643,9 @@ class TestIntegrationScenarios:
 
                     legacy_adapter.load("baseline", overrides)
 
-                    # Verify all nested overrides were flattened
+                    # Verify all nested overrides were flattened to dot notation
                     call_kwargs = mock_load.call_args[1]
-                    assert call_kwargs["manufacturer__initial_assets"] == 15_000_000
-                    assert call_kwargs["manufacturer__base_operating_margin"] == 0.10
-                    assert call_kwargs["simulation__time_horizon_years"] == 100
-                    assert call_kwargs["simulation__num_simulations"] == 5000
+                    assert call_kwargs["manufacturer.initial_assets"] == 15_000_000
+                    assert call_kwargs["manufacturer.base_operating_margin"] == 0.10
+                    assert call_kwargs["simulation.time_horizon_years"] == 100
+                    assert call_kwargs["simulation.num_simulations"] == 5000
