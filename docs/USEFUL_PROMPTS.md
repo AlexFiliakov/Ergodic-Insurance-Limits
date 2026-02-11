@@ -10,4 +10,8 @@ Use subagents to parallelize the work whenever possible and resolve issue #. Ens
 
 ## Research Failing Test
 
-See pull request # which has a failing test. Investigate the failing test thoroughly to come up with clear resolution plans. Where multiple approaches are viable, clearly explain each approach and make a recommendation with justification. Report your findings and recommended fix approaches in a comment on the pull request.
+See pull request # which has failing tests. Investigate the failing tests thoroughly to come up with clear resolution plans. Where multiple approaches are viable, clearly explain each approach and make a recommendation with justification. Report your findings and recommended fix approaches in a comment on the pull request.
+
+## Fix Failing Test From Comments
+
+See pull request # which has failing tests. The resolution approach is described in the pull request comments. Use parallel subagents as needed to fix the failing test, then test the repairs, but don't run a full test-suite because it will time out. Once relevant tests pass, commit and push the fixes.
