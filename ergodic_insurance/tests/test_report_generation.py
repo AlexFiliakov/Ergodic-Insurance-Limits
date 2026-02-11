@@ -705,6 +705,7 @@ class TestIntegration:
             for path in generated_reports:
                 assert path.exists()
 
+    @pytest.mark.benchmark
     def test_performance_requirements(self):
         """Test that report generation meets performance requirements."""
         import time

@@ -542,6 +542,7 @@ class TestCompareRiskMetrics:
 class TestPerformance:
     """Test performance requirements."""
 
+    @pytest.mark.benchmark
     def test_large_dataset_performance(self):
         """Test that metrics calculate quickly for large datasets."""
         np.random.seed(42)

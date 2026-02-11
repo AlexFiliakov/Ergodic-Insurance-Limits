@@ -761,6 +761,7 @@ class TestPerformance:
         assert len(scenarios) == 100
         assert len(manager.scenarios) == 100
 
+    @pytest.mark.benchmark
     def test_checkpoint_performance(self, mock_components):
         """Test checkpoint save/load performance."""
         loss_gen, insurance, manufacturer = mock_components

@@ -52,7 +52,7 @@ from ergodic_insurance.tests.test_fixtures import (
     TestDataGenerator,
 )
 
-pytest.skip(allow_module_level=True)
+pytestmark = pytest.mark.benchmark
 
 
 class TestPerformanceBenchmarks:

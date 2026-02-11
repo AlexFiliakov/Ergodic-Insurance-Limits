@@ -617,6 +617,7 @@ class TestIntegration:
         assert "mean_final" in results
         assert "std_final" in results
 
+    @pytest.mark.benchmark
     @pytest.mark.skipif(
         platform.system() == "Windows", reason="Shared memory has issues on Windows in tests"
     )

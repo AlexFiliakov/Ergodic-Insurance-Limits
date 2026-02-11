@@ -510,6 +510,7 @@ class TestMemoryEfficiency:
     """Test memory efficiency requirements."""
 
     @pytest.mark.slow
+    @pytest.mark.benchmark
     def test_lazy_loading_efficiency(self, tmp_path):
         """Test that lazy loading doesn't load unnecessary data."""
         import gc

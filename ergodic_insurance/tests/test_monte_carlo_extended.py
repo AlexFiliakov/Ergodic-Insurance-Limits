@@ -138,6 +138,7 @@ class TestMonteCarloExtended:
         assert results.execution_time > 0, "Execution time should be tracked"
         assert len(results.metrics) > 0, "Results should include computed metrics"
 
+    @pytest.mark.benchmark
     def test_cache_operations(self, setup_simple_engine):
         """Test cache save and load operations."""
         engine = setup_simple_engine

@@ -478,6 +478,7 @@ class TestLoadDevelopmentPatterns:
 class TestPerformance:
     """Performance tests for claim development."""
 
+    @pytest.mark.benchmark
     def test_large_cohort_performance(self):
         """Test performance with large number of claims."""
         import time
@@ -505,6 +506,7 @@ class TestPerformance:
         assert elapsed < 0.20, f"Processing took {elapsed:.3f}s, expected < 200ms"
         assert payment > 0  # Should have calculated payments
 
+    @pytest.mark.benchmark
     def test_multi_year_projection_performance(self):
         """Test performance of multi-year projections."""
         import time

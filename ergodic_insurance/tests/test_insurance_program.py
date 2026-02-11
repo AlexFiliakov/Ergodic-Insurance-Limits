@@ -1045,6 +1045,7 @@ class TestCatastrophicScenarios:
         assert result["uncovered_loss"] == 5_000_000
         assert result["deductible_paid"] == 5_000_000  # Company pays uncovered
 
+    @pytest.mark.benchmark
     def test_performance_batch_processing(self):
         """Test performance requirement: process 10K claims in < 100ms."""
         import time

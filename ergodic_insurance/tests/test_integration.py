@@ -63,6 +63,7 @@ class TestIntegration:
             )
             return InsurancePolicy(layers=[layer], deductible=50_000)
 
+    @pytest.mark.benchmark
     def test_full_pipeline_execution(self, base_config: dict, insurance_policy: InsurancePolicy):
         """Test that the full simulation pipeline executes without errors."""
         start_time = time.time()
@@ -287,7 +288,7 @@ class TestIntegration:
             comparison["insured"]["time_average_mean"]
         ), "Insured time average should be finite"
 
-    @pytest.mark.skip(reason="Performance benchmark, not regular test")
+    @pytest.mark.benchmark
     def test_performance_benchmarks(self, base_config: dict):
         """Test performance benchmarks for different scenario counts."""
         benchmarks = [
@@ -615,6 +616,7 @@ class TestIntegration:
         # Insured amount should be less due to recoveries
         assert total_insured <= total_original
 
+    @pytest.mark.benchmark
     def test_performance_with_loss_data(self, base_config: dict):
         """Test performance when using LossData structures."""
         # Generate large loss dataset

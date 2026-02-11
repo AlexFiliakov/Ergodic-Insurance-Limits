@@ -471,6 +471,7 @@ class TestDecisionFramework:
 class TestPerformanceWithRealData:
     """Test performance characteristics with real computations."""
 
+    @pytest.mark.benchmark
     def test_simulation_performance_scaling(self):
         """Test that simulation performance scales appropriately.
 
@@ -518,6 +519,7 @@ class TestPerformanceWithRealData:
         max_time = max(time_per_sim)
         assert max_time < min_time * 10.0
 
+    @pytest.mark.benchmark
     def test_cache_effectiveness_real_data(self):
         """Test cache effectiveness with real simulations.
 
