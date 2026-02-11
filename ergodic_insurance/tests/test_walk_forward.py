@@ -854,6 +854,272 @@ class TestParallelExecution:
         assert "No Insurance" in result.strategy_performances
 
 
+class TestSeedSequenceSeeding:
+    """Tests for SeedSequence-based window seeding (#605)."""
+
+    def test_seed_parameter_stored(self):
+        """Test that the seed parameter is stored on the validator."""
+        validator = WalkForwardValidator(seed=42)
+        assert validator.seed == 42
+
+    def test_seed_default_is_none(self):
+        """Test that seed defaults to None (system entropy)."""
+        validator = WalkForwardValidator()
+        assert validator.seed is None
+
+    def test_no_seed_collision_across_windows(self):
+        """Test that SeedSequence eliminates the arithmetic seed collision.
+
+        Previously window_id*1000 caused collisions: window 0 sim 1000
+        and window 1 sim 0 both produced seed 1000.  SeedSequence.spawn()
+        guarantees distinct child entropy pools.
+        """
+        base_ss = np.random.SeedSequence(42)
+        window_seeds = base_ss.spawn(5)
+
+        # Derive train/test int seeds for each window
+        all_seeds = set()
+        for ws in window_seeds:
+            train_ss, test_ss = ws.spawn(2)
+            train_seed = int(train_ss.generate_state(1)[0])
+            test_seed = int(test_ss.generate_state(1)[0])
+            all_seeds.add(train_seed)
+            all_seeds.add(test_seed)
+
+        # 5 windows x 2 seeds each = 10 unique seeds expected
+        assert len(all_seeds) == 10
+
+    def test_reproducibility_with_same_seed(self):
+        """Test that the same base seed produces identical window seeds."""
+
+        def derive_seeds(base_seed):
+            base_ss = np.random.SeedSequence(base_seed)
+            window_seeds = base_ss.spawn(3)
+            result = []
+            for ws in window_seeds:
+                t, v = ws.spawn(2)
+                result.append((int(t.generate_state(1)[0]), int(v.generate_state(1)[0])))
+            return result
+
+        run1 = derive_seeds(123)
+        run2 = derive_seeds(123)
+        assert run1 == run2
+
+    def test_different_seeds_produce_different_streams(self):
+        """Test that different base seeds produce different window seeds."""
+
+        def derive_seeds(base_seed):
+            base_ss = np.random.SeedSequence(base_seed)
+            ws = base_ss.spawn(1)[0]
+            t, v = ws.spawn(2)
+            return int(t.generate_state(1)[0]), int(v.generate_state(1)[0])
+
+        seeds_a = derive_seeds(42)
+        seeds_b = derive_seeds(99)
+        assert seeds_a != seeds_b
+
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_worker_receives_window_seed(self, mock_backtester):
+        """Test that _process_window_worker uses the provided SeedSequence."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+        mock_result = BacktestResult(
+            strategy_name="Test",
+            simulation_results=Mock(),
+            metrics=mock_metrics,
+            execution_time=1.0,
+            config=SimulationConfig(),
+        )
+        mock_backtester.return_value.test_strategy.return_value = mock_result
+
+        window = ValidationWindow(0, 0, 2, 2, 3)
+        strategies = [NoInsuranceStrategy()]
+        mfg_config = ManufacturerConfig(
+            initial_assets=10000000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        manufacturer = WidgetManufacturer(mfg_config)
+
+        from ergodic_insurance.config import (  # pylint: disable=reimported
+            Config,
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            OutputConfig,
+        )
+        from ergodic_insurance.config import SimulationConfig as SimConfig
+        from ergodic_insurance.config import WorkingCapitalConfig  # pylint: disable=reimported
+
+        full_config = Config(
+            manufacturer=mfg_config,
+            working_capital=WorkingCapitalConfig(percent_of_sales=0.15),
+            growth=GrowthConfig(type="deterministic", annual_growth_rate=0.05, volatility=0.15),
+            debt=DebtConfig(
+                interest_rate=0.05, max_leverage_ratio=2.0, minimum_cash_balance=100000
+            ),
+            simulation=SimConfig(time_resolution="annual", time_horizon_years=10),
+            output=OutputConfig(
+                output_directory="./results",
+                file_format="csv",
+                checkpoint_frequency=0,
+                detailed_metrics=True,
+            ),
+            logging=LoggingConfig(enabled=True, level="INFO", log_file=None),
+        )
+
+        # Provide an explicit SeedSequence to the worker
+        window_seed = np.random.SeedSequence(42).spawn(1)[0]
+        result = _process_window_worker(
+            window=window,
+            strategies=strategies,
+            n_simulations=100,
+            manufacturer=manufacturer,
+            config=full_config,
+            window_seed=window_seed,
+        )
+
+        assert isinstance(result, WindowResult)
+        # Verify the backtester was called with SimulationConfig whose seeds
+        # are derived from the SeedSequence, NOT from window_id arithmetic
+        calls = mock_backtester.return_value.test_strategy.call_args_list
+        train_seed = calls[0].kwargs.get("config") or calls[0][1].get("config")
+        if train_seed is None:
+            # positional arg
+            train_seed = calls[0][0][2] if len(calls[0][0]) > 2 else None
+        # The seed should NOT be window_id * 1000 (which would be 0)
+        for call in calls:
+            sim_config = call.kwargs.get("config")
+            if sim_config is None:
+                # Try positional args - config is not a positional in test_strategy
+                continue
+            assert sim_config.seed != 0, "Seed should not be window_id * 1000 = 0"
+            assert sim_config.seed != 500, "Seed should not be window_id * 1000 + 500 = 500"
+
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_worker_fallback_without_window_seed(self, mock_backtester):
+        """Test that _process_window_worker creates a SeedSequence from window_id when no seed provided."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+        mock_result = BacktestResult(
+            strategy_name="Test",
+            simulation_results=Mock(),
+            metrics=mock_metrics,
+            execution_time=1.0,
+            config=SimulationConfig(),
+        )
+        mock_backtester.return_value.test_strategy.return_value = mock_result
+
+        window = ValidationWindow(2, 0, 2, 2, 3)
+        strategies = [NoInsuranceStrategy()]
+        mfg_config = ManufacturerConfig(
+            initial_assets=10000000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        manufacturer = WidgetManufacturer(mfg_config)
+
+        from ergodic_insurance.config import (  # pylint: disable=reimported
+            Config,
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            OutputConfig,
+        )
+        from ergodic_insurance.config import SimulationConfig as SimConfig
+        from ergodic_insurance.config import WorkingCapitalConfig  # pylint: disable=reimported
+
+        full_config = Config(
+            manufacturer=mfg_config,
+            working_capital=WorkingCapitalConfig(percent_of_sales=0.15),
+            growth=GrowthConfig(type="deterministic", annual_growth_rate=0.05, volatility=0.15),
+            debt=DebtConfig(
+                interest_rate=0.05, max_leverage_ratio=2.0, minimum_cash_balance=100000
+            ),
+            simulation=SimConfig(time_resolution="annual", time_horizon_years=10),
+            output=OutputConfig(
+                output_directory="./results",
+                file_format="csv",
+                checkpoint_frequency=0,
+                detailed_metrics=True,
+            ),
+            logging=LoggingConfig(enabled=True, level="INFO", log_file=None),
+        )
+
+        # Call without window_seed - should use SeedSequence(window.window_id) fallback
+        result = _process_window_worker(
+            window=window,
+            strategies=strategies,
+            n_simulations=100,
+            manufacturer=manufacturer,
+            config=full_config,
+        )
+
+        assert isinstance(result, WindowResult)
+        # Seeds should NOT be the old arithmetic: 2*1000=2000 and 2*1000+500=2500
+        calls = mock_backtester.return_value.test_strategy.call_args_list
+        for call in calls:
+            sim_config = call.kwargs.get("config")
+            if sim_config is not None:
+                assert sim_config.seed != 2000
+                assert sim_config.seed != 2500
+
+    def test_seedsequence_is_picklable(self):
+        """Test that SeedSequence objects survive pickling (needed for ProcessPoolExecutor)."""
+        import pickle
+
+        base_ss = np.random.SeedSequence(42)
+        children = base_ss.spawn(3)
+
+        for child in children:
+            restored = pickle.loads(pickle.dumps(child))
+            # generate_state is deterministic: same SeedSequence always produces the same output
+            assert np.array_equal(
+                restored.generate_state(4),
+                child.generate_state(4),
+            )
+
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_validate_strategies_passes_seed_to_windows(self, mock_backtester):
+        """Test that validate_strategies creates SeedSequence from self.seed and passes to windows."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+        mock_result = BacktestResult(
+            strategy_name="Test",
+            simulation_results=Mock(),
+            metrics=mock_metrics,
+            execution_time=1.0,
+            config=SimulationConfig(),
+        )
+        mock_backtester.return_value.test_strategy.return_value = mock_result
+
+        validator = WalkForwardValidator(window_size=3, step_size=2, max_workers=1, seed=42)
+        result = validator.validate_strategies(
+            strategies=[NoInsuranceStrategy()],
+            n_years=10,
+            n_simulations=100,
+        )
+
+        assert isinstance(result, ValidationResult)
+        assert len(result.window_results) > 0
+
+        # Collect all seeds used across windows - they should all be unique
+        used_seeds = set()
+        for call in mock_backtester.return_value.test_strategy.call_args_list:
+            sim_config = call.kwargs.get("config")
+            if sim_config is not None and sim_config.seed is not None:
+                used_seeds.add(sim_config.seed)
+        # Each window produces 2 calls (train + test), so at least as many unique seeds
+        assert len(used_seeds) >= 2
+
+
 class TestIntegration:
     """Integration tests for the walk-forward validation system."""
 
