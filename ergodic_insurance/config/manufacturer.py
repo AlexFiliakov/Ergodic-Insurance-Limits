@@ -266,6 +266,15 @@ class ManufacturerConfig(BaseModel):
         "(Issue #255: Enables explicit COGS/SG&A calculation in Manufacturer)",
     )
 
+    # Fiscal year configuration (Issue #277)
+    fiscal_year_end: int = Field(
+        default=12,
+        ge=1,
+        le=12,
+        description="Month of fiscal year end (1-12). Default is 12 (December) for "
+        "calendar year alignment. Affects quarterly tax payment scheduling.",
+    )
+
     # Mid-year liquidity configuration (Issue #279)
     premium_payment_month: int = Field(
         default=0,
