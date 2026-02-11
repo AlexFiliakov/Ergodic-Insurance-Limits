@@ -12,12 +12,16 @@ import io
 import os
 from pathlib import Path
 import pickle
+import stat
 import tempfile
+from unittest import mock
 
 import pytest
 
 from ergodic_insurance.safe_pickle import (
     _get_or_create_hmac_key,
+    _secure_mkdir,
+    _secure_write_key,
     deterministic_hash,
     safe_dump,
     safe_dumps,
@@ -267,3 +271,54 @@ class TestDeterministicHash:
         result = deterministic_hash()
         assert isinstance(result, str)
         assert len(result) == 16
+
+
+# ---------------------------------------------------------------------------
+# Secure permissions (issue #613)
+# ---------------------------------------------------------------------------
+
+
+class TestSecurePermissions:
+    """Test that HMAC key files and directories have restrictive permissions."""
+
+    @pytest.mark.skipif(os.name == "nt", reason="Unix permissions not available on Windows")
+    def test_key_file_permissions_unix(self, fresh_key_dir):
+        """Key file should have 0600 permissions on Unix."""
+        _get_or_create_hmac_key(fresh_key_dir)
+        key_file = fresh_key_dir / ".pickle_hmac_key"
+        mode = stat.S_IMODE(key_file.stat().st_mode)
+        assert mode == 0o600, f"Expected 0o600, got {oct(mode)}"
+
+    @pytest.mark.skipif(os.name == "nt", reason="Unix permissions not available on Windows")
+    def test_key_dir_permissions_unix(self, fresh_key_dir):
+        """Key directory should have 0700 permissions on Unix."""
+        _get_or_create_hmac_key(fresh_key_dir)
+        mode = stat.S_IMODE(fresh_key_dir.stat().st_mode)
+        assert mode == 0o700, f"Expected 0o700, got {oct(mode)}"
+
+    def test_existing_key_not_broken(self, temp_key_dir):
+        """Pre-existing keys with any permissions still load correctly."""
+        # Create key the normal way first
+        key1 = _get_or_create_hmac_key(temp_key_dir)
+        # Reading it again should return the same key regardless of permissions
+        key2 = _get_or_create_hmac_key(temp_key_dir)
+        assert key1 == key2
+
+    def test_race_condition_handling(self, fresh_key_dir):
+        """FileExistsError from O_EXCL is handled gracefully (TOCTOU race)."""
+        # Pre-create directory so _secure_mkdir succeeds
+        fresh_key_dir.mkdir(parents=True, exist_ok=True)
+        key_path = fresh_key_dir / ".pickle_hmac_key"
+        # Write a key manually to simulate another process winning the race
+        existing_key = b"\xab" * 32
+        key_path.write_bytes(existing_key)
+
+        # Patch _secure_write_key to raise FileExistsError (simulates O_EXCL race)
+        with mock.patch(
+            "ergodic_insurance.safe_pickle._secure_write_key",
+            side_effect=FileExistsError("File exists"),
+        ):
+            result = _get_or_create_hmac_key(fresh_key_dir)
+
+        # Should fall back to reading the existing key
+        assert result == existing_key
