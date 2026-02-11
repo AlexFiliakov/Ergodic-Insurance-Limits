@@ -18,6 +18,7 @@ Date: 2025-01-26
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from itertools import product as itertools_product
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -1158,13 +1159,60 @@ class HJBSolver:
             ):
                 break
 
+    def _precompute_upwind_diffs(self) -> List[Tuple[np.ndarray, np.ndarray]]:
+        """Precompute forward and backward finite differences of the value function.
+
+        Returns a list (one entry per dimension) of (fwd_diff_flat, bwd_diff_flat)
+        arrays, each of shape (n_states,).  These encode the same upwind scheme
+        used by ``_apply_upwind_scheme`` so that the advection term for an
+        arbitrary drift field can be assembled as::
+
+            advection = sum_dim( max(drift, 0)*fwd + min(drift, 0)*bwd )
+
+        without recomputing the differences for every control candidate.
+        """
+        assert self.value_function is not None
+        ndim = self.problem.state_space.ndim
+        diffs: List[Tuple[np.ndarray, np.ndarray]] = []
+
+        for dim in range(ndim):
+            dx_array = self.dx[dim]
+            n = self.value_function.shape[dim]
+
+            # Broadcast dx along the correct axis
+            dx_shape = [1] * ndim
+            dx_shape[dim] = n - 1
+            dx_bc = dx_array.reshape(dx_shape)
+
+            hi = [slice(None)] * ndim
+            lo = [slice(None)] * ndim
+            hi[dim] = slice(1, None)  # indices 1..N-1
+            lo[dim] = slice(None, -1)  # indices 0..N-2
+
+            diff_vals = (self.value_function[tuple(hi)] - self.value_function[tuple(lo)]) / dx_bc
+
+            # Forward difference: defined at indices 0..N-2, zero at N-1
+            fwd = np.zeros_like(self.value_function)
+            fwd[tuple(lo)] = diff_vals
+
+            # Backward difference: defined at indices 1..N-1, zero at 0
+            bwd = np.zeros_like(self.value_function)
+            bwd[tuple(hi)] = diff_vals
+
+            diffs.append((fwd.ravel(), bwd.ravel()))
+
+        return diffs
+
     def _policy_improvement(self):
         """Improve policy by maximizing the Hamiltonian.
 
         H(x,u) = f(x,u) + drift(x,u)·∇V(x) + ½σ²(x,u)·∇²V(x)
 
-        Vectorized over all state points for each control combination to avoid
-        the combinatorial explosion of evaluating each state-control pair individually.
+        Vectorized over all state points for each control combination.
+        Forward/backward differences of V are precomputed once so the
+        advection term is assembled via a single numpy expression per
+        control candidate, avoiding repeated ``_apply_upwind_scheme``
+        calls and grid reshape operations (#371).
         """
         if self.value_function is None or self.optimal_policy is None:
             return
@@ -1172,6 +1220,7 @@ class HJBSolver:
         state_points = np.stack(self.problem.state_space.flat_grids, axis=-1)
         n_states = state_points.shape[0]
         n_controls = len(self.problem.control_variables)
+        ndim = self.problem.state_space.ndim
 
         # Initialize tracking arrays
         best_values = np.full(n_states, -np.inf)
@@ -1190,13 +1239,19 @@ class HJBSolver:
                 return
             d2V_flat = d2V.reshape(n_states, -1)
 
+        # Precompute upwind finite differences of V (control-independent).
+        # Each entry is (fwd_flat, bwd_flat) with shape (n_states,).
+        upwind_diffs = self._precompute_upwind_diffs()
+
+        # Stack into (n_states, ndim) for vectorized advection computation
+        fwd_arr = np.column_stack([f for f, _ in upwind_diffs])  # (n_states, ndim)
+        bwd_arr = np.column_stack([b for _, b in upwind_diffs])  # (n_states, ndim)
+
         # Get discrete control samples for each control variable
         control_samples = [cv.get_values() for cv in self.problem.control_variables]
 
         # Iterate over control combinations, vectorized over all states
-        from itertools import product
-
-        for control_combo in product(*control_samples):
+        for control_combo in itertools_product(*control_samples):
             control_array = np.array(control_combo)
             control_broadcast = np.tile(control_array, (n_states, 1))
 
@@ -1213,15 +1268,16 @@ class HJBSolver:
                     cost = cost[..., 0]
             cost = cost.flatten()
 
-            # Compute advection term (drift * grad_V) using upwind scheme,
-            # consistent with PDE discretization in _policy_evaluation (#454).
-            drift_grid = np.asarray(drift).reshape(self.problem.state_space.shape + (-1,))
-            advection = np.zeros(self.problem.state_space.shape)
-            n_dims = min(drift_grid.shape[-1], len(self.problem.state_space.state_variables))
-            for dim in range(n_dims):
-                drift_component = drift_grid[..., dim]
-                advection += self._apply_upwind_scheme(self.value_function, drift_component, dim)
-            advection_flat = advection.flatten()
+            # Compute advection using precomputed upwind differences.
+            # advection = sum_dim( max(drift,0)*fwd + min(drift,0)*bwd )
+            drift_flat = np.asarray(drift).reshape(n_states, -1)
+            n_dims = min(drift_flat.shape[1], ndim)
+            drift_pos = np.maximum(drift_flat[:, :n_dims], 0.0)
+            drift_neg = np.minimum(drift_flat[:, :n_dims], 0.0)
+            advection_flat = np.sum(
+                drift_pos * fwd_arr[:, :n_dims] + drift_neg * bwd_arr[:, :n_dims],
+                axis=1,
+            )
 
             # Full Hamiltonian: H = f(x,u) + drift(x,u) * grad_V(x) + 0.5*sigma^2(x,u) * d2V(x)
             hamiltonian = cost + advection_flat

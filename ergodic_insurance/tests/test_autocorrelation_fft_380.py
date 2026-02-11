@@ -113,7 +113,7 @@ class TestFFTAutocorrelationAccuracy:
 
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
-    reason="Timing tests unreliable on shared CI runners",
+    reason="Speedup benchmarks are flaky on shared CI runners due to variable CPU performance",
 )
 class TestFFTAutocorrelationPerformance:
     """Verify >= 1.5x speedup for chains of length 25K+."""
