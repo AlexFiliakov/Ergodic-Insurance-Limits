@@ -1,19 +1,20 @@
 """Calibration parameters for optimization and decision engine heuristics.
 
-Contains dataclass configurations that tune the financial scoring functions
+Contains Pydantic configuration models that tune the financial scoring functions
 used by ``BusinessOptimizer`` and ``InsuranceDecisionEngine``. These are
 meta-parameters for optimizer behavior, not core business configuration.
 
 Since:
     Version 0.9.0 (Issue #314, #458)
+    Converted to Pydantic BaseModel in 0.9.x (Issue #471)
 """
 
-from dataclasses import dataclass, field
 from typing import Dict, Tuple
 
+from pydantic import BaseModel, Field
 
-@dataclass
-class BusinessOptimizerConfig:
+
+class BusinessOptimizerConfig(BaseModel):
     """Calibration parameters for BusinessOptimizer financial heuristics.
 
     Issue #314 (C1): Consolidates all hardcoded financial multipliers from
@@ -26,63 +27,138 @@ class BusinessOptimizerConfig:
     """
 
     # _estimate_roe parameters
-    base_roe: float = 0.15
-    """Base return on equity (15%) before insurance adjustments."""
-    protection_benefit_factor: float = 0.05
-    """Coverage-to-assets ratio multiplier for protection benefit."""
-    roe_noise_std: float = 0.1
-    """Standard deviation of multiplicative noise applied to ROE."""
+    base_roe: float = Field(
+        default=0.15,
+        ge=0,
+        le=1,
+        description="Base return on equity (15%) before insurance adjustments.",
+    )
+    protection_benefit_factor: float = Field(
+        default=0.05,
+        ge=0,
+        le=1,
+        description="Coverage-to-assets ratio multiplier for protection benefit.",
+    )
+    roe_noise_std: float = Field(
+        default=0.1,
+        ge=0,
+        le=1,
+        description="Standard deviation of multiplicative noise applied to ROE.",
+    )
 
     # _estimate_bankruptcy_risk parameters
-    base_bankruptcy_risk: float = 0.02
-    """Base annual bankruptcy probability (2%)."""
-    max_risk_reduction: float = 0.015
-    """Maximum risk reduction from insurance coverage (1.5%)."""
-    premium_burden_risk_factor: float = 0.5
-    """Multiplier converting premium burden ratio to risk increase."""
-    time_risk_constant: float = 20.0
-    """Time constant (years) for exponential risk accumulation."""
+    base_bankruptcy_risk: float = Field(
+        default=0.02,
+        ge=0,
+        le=1,
+        description="Base annual bankruptcy probability (2%).",
+    )
+    max_risk_reduction: float = Field(
+        default=0.015,
+        ge=0,
+        le=1,
+        description="Maximum risk reduction from insurance coverage (1.5%).",
+    )
+    premium_burden_risk_factor: float = Field(
+        default=0.5,
+        ge=0,
+        description="Multiplier converting premium burden ratio to risk increase.",
+    )
+    time_risk_constant: float = Field(
+        default=20.0,
+        gt=0,
+        description="Time constant (years) for exponential risk accumulation.",
+    )
 
     # _estimate_growth_rate parameters
-    base_growth_rate: float = 0.10
-    """Base growth rate (10%) before insurance adjustments."""
-    growth_boost_factor: float = 0.03
-    """Coverage ratio multiplier for growth boost (up to 3%)."""
-    premium_drag_factor: float = 0.5
-    """Multiplier for premium-to-revenue drag on growth."""
-    asset_growth_factor: float = 0.8
-    """Growth adjustment factor for asset metric."""
-    equity_growth_factor: float = 1.1
-    """Growth adjustment factor for equity metric."""
+    base_growth_rate: float = Field(
+        default=0.10,
+        ge=0,
+        le=1,
+        description="Base growth rate (10%) before insurance adjustments.",
+    )
+    growth_boost_factor: float = Field(
+        default=0.03,
+        ge=0,
+        le=1,
+        description="Coverage ratio multiplier for growth boost (up to 3%).",
+    )
+    premium_drag_factor: float = Field(
+        default=0.5,
+        ge=0,
+        description="Multiplier for premium-to-revenue drag on growth.",
+    )
+    asset_growth_factor: float = Field(
+        default=0.8,
+        ge=0,
+        description="Growth adjustment factor for asset metric.",
+    )
+    equity_growth_factor: float = Field(
+        default=1.1,
+        ge=0,
+        description="Growth adjustment factor for equity metric.",
+    )
 
     # _calculate_capital_efficiency parameters
-    risk_transfer_benefit_rate: float = 0.05
-    """Fraction of coverage limit freed up by risk transfer (5%)."""
+    risk_transfer_benefit_rate: float = Field(
+        default=0.05,
+        ge=0,
+        le=1,
+        description="Fraction of coverage limit freed up by risk transfer (5%).",
+    )
 
     # _estimate_insurance_return parameters
-    risk_reduction_value: float = 0.03
-    """Return contribution from risk reduction (3%)."""
-    stability_value: float = 0.02
-    """Return contribution from stability improvement (2%)."""
-    growth_enablement_value: float = 0.03
-    """Return contribution from growth enablement (3%)."""
+    risk_reduction_value: float = Field(
+        default=0.03,
+        ge=0,
+        le=1,
+        description="Return contribution from risk reduction (3%).",
+    )
+    stability_value: float = Field(
+        default=0.02,
+        ge=0,
+        le=1,
+        description="Return contribution from stability improvement (2%).",
+    )
+    growth_enablement_value: float = Field(
+        default=0.03,
+        ge=0,
+        le=1,
+        description="Return contribution from growth enablement (3%).",
+    )
 
     # _calculate_ergodic_growth parameters
-    assumed_volatility: float = 0.20
-    """Assumed base volatility for ergodic correction."""
-    volatility_reduction_factor: float = 0.05
-    """Coverage ratio multiplier for volatility reduction."""
-    min_volatility: float = 0.05
-    """Floor for adjusted volatility."""
+    assumed_volatility: float = Field(
+        default=0.20,
+        gt=0,
+        le=1,
+        description="Assumed base volatility for ergodic correction.",
+    )
+    volatility_reduction_factor: float = Field(
+        default=0.05,
+        ge=0,
+        le=1,
+        description="Coverage ratio multiplier for volatility reduction.",
+    )
+    min_volatility: float = Field(
+        default=0.05,
+        gt=0,
+        le=1,
+        description="Floor for adjusted volatility.",
+    )
 
     # RNG seed for reproducibility
-    seed: int = 42
-    """Seed for the random number generator used in Monte Carlo simulations.
-    Ensures deterministic results for the same inputs."""
+    seed: int = Field(
+        default=42,
+        ge=0,
+        description=(
+            "Seed for the random number generator used in Monte Carlo simulations. "
+            "Ensures deterministic results for the same inputs."
+        ),
+    )
 
 
-@dataclass
-class DecisionEngineConfig:
+class DecisionEngineConfig(BaseModel):
     """Calibration parameters for InsuranceDecisionEngine heuristics.
 
     Issue #314 (C2): Consolidates hardcoded values from the decision engine's
@@ -90,22 +166,42 @@ class DecisionEngineConfig:
     """
 
     # _estimate_growth_rate parameters
-    base_growth_rate: float = 0.08
-    """Base growth rate (8%) for decision engine growth estimation."""
-    volatility_reduction_factor: float = 0.3
-    """Coverage ratio multiplier for volatility reduction."""
-    max_volatility_reduction: float = 0.15
-    """Maximum volatility reduction (15%)."""
-    growth_benefit_factor: float = 0.5
-    """Simplified growth benefit multiplier."""
-
-    loss_cv: float = 0.5
-    """Default coefficient of variation for loss severity."""
-
-    default_optimization_weights: Dict[str, float] = field(
-        default_factory=lambda: {"growth": 0.4, "risk": 0.4, "cost": 0.2}
+    base_growth_rate: float = Field(
+        default=0.08,
+        ge=0,
+        le=1,
+        description="Base growth rate (8%) for decision engine growth estimation.",
     )
-    """Default objective function weights."""
+    volatility_reduction_factor: float = Field(
+        default=0.3,
+        ge=0,
+        le=1,
+        description="Coverage ratio multiplier for volatility reduction.",
+    )
+    max_volatility_reduction: float = Field(
+        default=0.15,
+        ge=0,
+        le=1,
+        description="Maximum volatility reduction (15%).",
+    )
+    growth_benefit_factor: float = Field(
+        default=0.5,
+        ge=0,
+        description="Simplified growth benefit multiplier.",
+    )
 
-    layer_attachment_thresholds: Tuple[float, float] = (5_000_000, 25_000_000)
-    """Attachment thresholds: (primary_ceiling, first_excess_ceiling)."""
+    loss_cv: float = Field(
+        default=0.5,
+        gt=0,
+        description="Default coefficient of variation for loss severity.",
+    )
+
+    default_optimization_weights: Dict[str, float] = Field(
+        default_factory=lambda: {"growth": 0.4, "risk": 0.4, "cost": 0.2},
+        description="Default objective function weights.",
+    )
+
+    layer_attachment_thresholds: Tuple[float, float] = Field(
+        default=(5_000_000, 25_000_000),
+        description="Attachment thresholds: (primary_ceiling, first_excess_ceiling).",
+    )
