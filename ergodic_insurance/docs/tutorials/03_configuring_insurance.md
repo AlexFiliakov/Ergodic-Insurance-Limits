@@ -141,10 +141,9 @@ A few things to notice. Small losses stay entirely with NovaTech. Medium losses 
 Now for the central question: does insurance actually improve NovaTech's long-term growth? Let us run parallel simulations with and without coverage.
 
 ```python
-from ergodic_insurance import (
-    ManufacturerConfig, WidgetManufacturer, ManufacturingLossGenerator,
-    Simulation, InsuranceProgram,
-)
+from ergodic_insurance import ManufacturerConfig, Simulation, InsuranceProgram
+from ergodic_insurance.manufacturer import WidgetManufacturer
+from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 
 # -- NovaTech's financial profile --
 novatech_config = ManufacturerConfig(

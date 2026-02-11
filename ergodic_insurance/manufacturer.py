@@ -24,7 +24,8 @@ Key Components:
 Examples:
     Basic manufacturer setup and simulation::
 
-        from ergodic_insurance import ManufacturerConfig, WidgetManufacturer
+        from ergodic_insurance import ManufacturerConfig
+        from ergodic_insurance.manufacturer import WidgetManufacturer
 
         config = ManufacturerConfig(
             initial_assets=10_000_000,
