@@ -397,6 +397,8 @@ class ParetoFrontier:
     def _filter_dominated_points(self, points: List[ParetoPoint]) -> List[ParetoPoint]:
         """Filter out dominated points to get true Pareto frontier.
 
+        Uses vectorized numpy dominance checking instead of nested Python loops.
+
         Args:
             points: List of candidate points
 
@@ -406,15 +408,33 @@ class ParetoFrontier:
         if not points:
             return []
 
-        # Mark dominated points
-        for i, point1 in enumerate(points):
-            for j, point2 in enumerate(points):
-                if i != j and not point1.is_dominated:
-                    if point2.dominates(point1, self.objectives):
-                        point1.is_dominated = True
-                        break
+        # Build objective matrix (rows=points, cols=objectives)
+        obj_names = [obj.name for obj in self.objectives]
+        obj_matrix = np.array([[p.objectives[name] for name in obj_names] for p in points])
 
-        # Return non-dominated points
+        # Normalize so "higher is better" for all objectives
+        signs = np.array(
+            [1.0 if obj.type == ObjectiveType.MAXIMIZE else -1.0 for obj in self.objectives]
+        )
+        normalized = obj_matrix * signs
+
+        n = len(points)
+        is_dominated = np.zeros(n, dtype=bool)
+
+        for i in range(n):
+            if is_dominated[i]:
+                continue
+            # Vectorized: mark all points that point i dominates
+            geq = np.all(normalized[i] >= normalized, axis=1)
+            gt = np.any(normalized[i] > normalized, axis=1)
+            dominates = geq & gt
+            dominates[i] = False
+            is_dominated |= dominates
+
+        # Mark dominated flags on original point objects
+        for i, point in enumerate(points):
+            point.is_dominated = bool(is_dominated[i])
+
         return [p for p in points if not p.is_dominated]
 
     def _calculate_crowding_distances(self) -> None:
@@ -556,6 +576,9 @@ class ParetoFrontier:
     ) -> float:
         """Calculate hypervolume using Monte Carlo approximation for n-D.
 
+        Uses vectorized numpy sampling and dominance checking instead of
+        nested Python loops.
+
         Args:
             reference_point: Reference point
             n_samples: Number of Monte Carlo samples
@@ -563,45 +586,50 @@ class ParetoFrontier:
         Returns:
             Approximate hypervolume value
         """
-        # Define bounding box
-        bounds = {}
-        for obj in self.objectives:
+        obj_names = [obj.name for obj in self.objectives]
+        n_dims = len(obj_names)
+
+        # Define bounding box as arrays
+        lower = np.empty(n_dims)
+        upper = np.empty(n_dims)
+        for i, obj in enumerate(self.objectives):
             values = [p.objectives[obj.name] for p in self.frontier_points]
             if obj.type == ObjectiveType.MAXIMIZE:
-                bounds[obj.name] = (reference_point[obj.name], max(values))
+                lower[i] = reference_point[obj.name]
+                upper[i] = max(values)
             else:
-                bounds[obj.name] = (min(values), reference_point[obj.name])
+                lower[i] = min(values)
+                upper[i] = reference_point[obj.name]
 
-        # Generate random samples
+        # Generate all random samples at once
+        random_samples = self._rng.uniform(lower, upper, size=(n_samples, n_dims))
+
+        # Build pareto points matrix
+        pareto_matrix = np.array(
+            [[p.objectives[name] for name in obj_names] for p in self.frontier_points]
+        )
+
+        # Build maximize mask for vectorized comparison direction
+        maximize_mask = np.array([obj.type == ObjectiveType.MAXIMIZE for obj in self.objectives])
+
+        # For each pareto point, check dominance of all samples at once
+        already_counted = np.zeros(n_samples, dtype=bool)
         dominated_count = 0
-        for _ in range(n_samples):
-            sample = {}
-            for obj in self.objectives:
-                sample[obj.name] = self._rng.uniform(bounds[obj.name][0], bounds[obj.name][1])
 
-            # Check if sample is dominated by any frontier point
-            for point in self.frontier_points:
-                is_dominated = True
-                for obj in self.objectives:
-                    if obj.type == ObjectiveType.MAXIMIZE:
-                        if sample[obj.name] > point.objectives[obj.name]:
-                            is_dominated = False
-                            break
-                    else:
-                        if sample[obj.name] < point.objectives[obj.name]:
-                            is_dominated = False
-                            break
-
-                if is_dominated:
-                    dominated_count += 1
-                    break
+        for p_row in pareto_matrix:
+            # MAXIMIZE: pareto >= sample; MINIMIZE: pareto <= sample
+            comparison = np.where(maximize_mask, p_row >= random_samples, p_row <= random_samples)
+            dominated = np.all(comparison, axis=1)
+            new_dominated = dominated & ~already_counted
+            dominated_count += np.sum(new_dominated)
+            already_counted |= dominated
+            if np.all(already_counted):
+                break
 
         # Calculate volume
-        total_volume = 1.0
-        for obj in self.objectives:
-            total_volume *= bounds[obj.name][1] - bounds[obj.name][0]
+        total_volume = np.prod(upper - lower)
 
-        return (dominated_count / n_samples) * total_volume
+        return float((dominated_count / n_samples) * total_volume)
 
     def get_knee_points(self, n_knees: int = 1) -> List[ParetoPoint]:
         """Find knee points on the Pareto frontier.
