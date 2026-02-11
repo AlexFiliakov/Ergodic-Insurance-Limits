@@ -33,10 +33,10 @@ else:
         StorageConfig = None  # type: ignore
         TrajectoryStorage = None  # type: ignore
 
-pytest.skip(allow_module_level=True)
+pytestmark = pytest.mark.benchmark
 
 
-def _test_cpu_bound_work(item):  # type: ignore[unreachable]
+def _test_cpu_bound_work(item):
     """Helper function for testing CPU-bound work."""
     result = 0
     for i in range(1000000):

@@ -665,6 +665,7 @@ class TestValidationFramework:
 class TestEndToEndScenarios:
     """Test complete end-to-end scenarios."""
 
+    @pytest.mark.benchmark
     def test_startup_company_scenario(self, default_config_v2: ConfigV2):
         """Test startup company scenario (low assets, high risk).
 
@@ -760,9 +761,7 @@ class TestEndToEndScenarios:
         # Verify timing
         assert t["elapsed"] < 60, f"Startup scenario took {t['elapsed']:.2f}s, should be < 60s"
 
-    @pytest.mark.skip(
-        reason="Mature company scenario test is time-consuming and may require tuning."
-    )
+    @pytest.mark.benchmark
     def test_mature_company_scenario(self, default_config_v2: ConfigV2):
         """Test mature company scenario (stable, optimized).
 
@@ -1030,9 +1029,7 @@ class TestEndToEndScenarios:
             volatility > 0.16
         ), f"Growth scenario should have some volatility, got {volatility:.4f}"
 
-    @pytest.mark.skip(
-        reason="Performance benchmarks are environment-dependent and may not be stable in CI"
-    )
+    @pytest.mark.benchmark
     def test_performance_benchmarks(self, default_config_v2: ConfigV2):
         """Test that performance benchmarks are met.
 

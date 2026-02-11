@@ -488,6 +488,7 @@ class TestCachePerformance:
         # Cleanup
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+    @pytest.mark.benchmark
     def test_large_array_performance(self, perf_cache_manager):
         """Test performance with 10,000 × 1,000 array."""
         params = {"perf": "test"}
@@ -521,6 +522,7 @@ class TestCachePerformance:
         assert speedup > 5, f"Cache speedup only {speedup:.1f}x, expected >5x"
         print(f"Speedup: {speedup:.1f}x faster than computation")
 
+    @pytest.mark.benchmark
     @pytest.mark.parametrize(
         "compression,expected_ratio",
         [

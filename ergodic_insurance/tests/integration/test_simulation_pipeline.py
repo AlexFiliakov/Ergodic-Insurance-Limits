@@ -63,6 +63,7 @@ def worker_task_for_shared_memory_test(args: Tuple[int, int, int, Any]) -> None:
 class TestSimulationPipeline:
     """Test simulation pipeline integration."""
 
+    @pytest.mark.benchmark
     def test_monte_carlo_basic_execution(
         self,
         monte_carlo_engine: MonteCarloEngine,
@@ -640,7 +641,7 @@ class TestSimulationPipeline:
         assert full_results is not None, "Should have results"
         assert len(full_results.final_assets) == original_n_sims, "Should have complete results"
 
-    @pytest.mark.skip(reason="Performance test - enable manually")
+    @pytest.mark.benchmark
     def test_performance_scaling(
         self,
         default_config_v2: ConfigV2,

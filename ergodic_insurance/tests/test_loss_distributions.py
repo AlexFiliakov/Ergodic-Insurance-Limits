@@ -787,6 +787,7 @@ class TestStatisticalTests:
 class TestPerformance:
     """Test performance requirements."""
 
+    @pytest.mark.benchmark
     def test_generate_million_samples(self):
         """Test that we can generate 1M samples in < 1 second."""
         dist = LognormalLoss(mean=50_000, cv=1.5)
@@ -798,6 +799,7 @@ class TestPerformance:
         assert len(samples) == 1_000_000
         assert elapsed_time < 1.0  # Should complete in less than 1 second
 
+    @pytest.mark.benchmark
     def test_large_simulation_performance(self):
         """Test performance of comprehensive simulation."""
         gen = ManufacturingLossGenerator()
