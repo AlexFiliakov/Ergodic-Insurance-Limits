@@ -37,6 +37,7 @@ Author: Alex Filiakov
 Date: 2025-01-29
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import hashlib
 import logging
@@ -288,20 +289,23 @@ class SensitivityAnalyzer:
     ) -> Dict[str, Any]:
         """Update a nested parameter in configuration.
 
+        Uses shallow copies along only the modification path instead of a full
+        deep copy. Sibling branches share references with the original, which
+        is safe because we never mutate them — the leaf value is always a
+        scalar (float from ``np.linspace``).
+
         Args:
             config: Configuration dictionary
             param_path: Dot-separated path to parameter
             value: New value for parameter
 
         Returns:
-            Updated configuration dictionary
+            Updated configuration dictionary (original is not modified)
         """
-        import copy
-
-        config_copy = copy.deepcopy(config)
+        config_copy = config.copy()  # shallow copy top-level
         parts = param_path.split(".")
 
-        # Navigate to the nested location
+        # Shallow-copy each dict along the path from root to the target key
         current = config_copy
         for part in parts[:-1]:
             if part not in current:
@@ -309,6 +313,8 @@ class SensitivityAnalyzer:
             elif not isinstance(current[part], dict):
                 # Convert to dict if needed
                 current[part] = {"value": current[part]}
+            else:
+                current[part] = current[part].copy()  # shallow copy only this level
             current = current[part]
 
         # Set the final value
@@ -533,6 +539,7 @@ class SensitivityAnalyzer:
         n_points2: int = 10,
         metric: str = "optimal_roe",
         relative_range: float = 0.3,
+        max_workers: Optional[int] = None,
     ) -> TwoWaySensitivityResult:
         """Perform two-way sensitivity analysis.
 
@@ -545,6 +552,11 @@ class SensitivityAnalyzer:
             n_points2: Number of points for second parameter
             metric: Metric to analyze
             relative_range: Relative range if explicit ranges not provided
+            max_workers: Maximum number of threads for parallel optimization.
+                If ``None`` or 1, optimizations run sequentially (default).
+                Uses :class:`~concurrent.futures.ThreadPoolExecutor` so that
+                NumPy/SciPy work can release the GIL for true parallelism
+                without pickling overhead.
 
         Returns:
             TwoWaySensitivityResult with grid of metric values
@@ -577,10 +589,14 @@ class SensitivityAnalyzer:
         # Initialize result grid
         metric_grid = np.zeros((len(values1), len(values2)))
 
-        # Run optimization for each combination
+        # --- Pre-build all configs and separate cached from uncached ----------
+        configs: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        cache_keys: Dict[Tuple[int, int], str] = {}
+        cached_results: Dict[Tuple[int, int], Any] = {}
+        uncached: Dict[Tuple[int, int], Dict[str, Any]] = {}
+
         for i, val1 in enumerate(values1):
             for j, val2 in enumerate(values2):
-                # Update configuration
                 config = self.base_config.copy()
 
                 if "." in param1_path:
@@ -593,17 +609,41 @@ class SensitivityAnalyzer:
                 else:
                     config[param2_name] = val2
 
-                # Get result (with caching)
                 cache_key = self._get_cache_key(config)
-                result = self._get_cached_result(cache_key)
+                cache_keys[(i, j)] = cache_key
+                configs[(i, j)] = config
 
-                if result is None:
-                    result = self.optimizer.optimize(config)
-                    self._cache_result(cache_key, result)
+                hit = self._get_cached_result(cache_key)
+                if hit is not None:
+                    cached_results[(i, j)] = hit
+                else:
+                    uncached[(i, j)] = config
 
-                # Extract metric value
-                metric_value = self._extract_metric(result, metric)
-                metric_grid[i, j] = metric_value
+        # --- Run uncached optimizations (parallel or sequential) --------------
+        new_results: Dict[Tuple[int, int], Any] = {}
+
+        if uncached and max_workers is not None and max_workers > 1:
+            # Parallel path using ThreadPoolExecutor
+            keys_list = list(uncached.keys())
+            configs_list = [uncached[k] for k in keys_list]
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results_iter = executor.map(self.optimizer.optimize, configs_list)
+                for key, result in zip(keys_list, results_iter):
+                    new_results[key] = result
+        else:
+            # Sequential path (default — preserves backwards compatibility)
+            for key, config in uncached.items():
+                new_results[key] = self.optimizer.optimize(config)
+
+        # --- Cache new results and build the metric grid ----------------------
+        for key, result in new_results.items():
+            self._cache_result(cache_keys[key], result)
+
+        all_results = {**cached_results, **new_results}
+
+        for (i, j), result in all_results.items():
+            metric_grid[i, j] = self._extract_metric(result, metric)
 
         return TwoWaySensitivityResult(
             parameter1=param1_name,
