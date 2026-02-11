@@ -15,9 +15,12 @@ non-deterministic built-in hash() function.
 
 import hashlib
 import hmac
+import logging
+import os
 from pathlib import Path
 import pickle
 import secrets
+import stat
 from typing import Any, Optional
 
 # Default location for the HMAC key
@@ -26,10 +29,36 @@ _KEY_FILENAME = ".pickle_hmac_key"
 _SIGNATURE_LENGTH = 32  # SHA-256 produces 32 bytes
 
 
+_logger = logging.getLogger(__name__)
+
+
 def _get_key_path(key_dir: Optional[Path] = None) -> Path:
     """Get the path to the HMAC key file."""
     directory = key_dir or _DEFAULT_KEY_DIR
     return directory / _KEY_FILENAME
+
+
+def _secure_mkdir(dir_path: Path) -> None:
+    """Create directory with restricted permissions (0700 on Unix)."""
+    dir_path.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        os.chmod(str(dir_path), stat.S_IRWXU)
+
+
+def _secure_write_key(key_path: Path, key: bytes) -> None:
+    """Write key file with restricted permissions (0600 on Unix).
+
+    On Unix, uses O_EXCL for atomic creation to prevent TOCTOU races.
+    On Windows, falls back to Path.write_bytes (os.chmod only toggles read-only).
+    """
+    if os.name != "nt":
+        fd = os.open(str(key_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            os.write(fd, key)
+        finally:
+            os.close(fd)
+    else:
+        key_path.write_bytes(key)
 
 
 def _get_or_create_hmac_key(key_dir: Optional[Path] = None) -> bytes:
@@ -46,9 +75,13 @@ def _get_or_create_hmac_key(key_dir: Optional[Path] = None) -> bytes:
     if key_path.exists():
         return key_path.read_bytes()
 
-    key_path.parent.mkdir(parents=True, exist_ok=True)
+    _secure_mkdir(key_path.parent)
     key = secrets.token_bytes(32)
-    key_path.write_bytes(key)
+    try:
+        _secure_write_key(key_path, key)
+    except FileExistsError:
+        _logger.debug("HMAC key file created by another process, reading existing key")
+        return key_path.read_bytes()
     return key
 
 
