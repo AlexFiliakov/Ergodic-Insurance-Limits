@@ -502,11 +502,25 @@ class RiskMetrics:
         if return_periods is None:
             return_periods = np.array([2, 5, 10, 25, 50, 100, 200, 250, 500, 1000])
 
-        loss_values = []
-        for period in return_periods:
-            loss_values.append(self.pml(period))
+        # Validate all return periods at once
+        if np.any(return_periods < 1):
+            raise ValueError(
+                f"Return period must be >= 1, got {return_periods[return_periods < 1][0]}"
+            )
 
-        return return_periods, np.array(loss_values)
+        # Compute all percentiles in a single vectorized call instead of
+        # looping through pml() -> var() -> np.percentile() one at a time.
+        # Fixes #506.
+        confidences = 1 - 1 / return_periods
+        if self.weights is None:
+            loss_values = np.percentile(self.losses, confidences * 100)
+        else:
+            # Weighted percentile: reuse the pre-sorted data
+            indices = np.searchsorted(self._cumulative_weights, confidences)
+            indices = np.clip(indices, 0, len(self._sorted_losses) - 1)
+            loss_values = self._sorted_losses[indices].astype(float)
+
+        return return_periods, loss_values
 
     def tail_index(self, threshold: Optional[float] = None) -> float:
         """Estimate the Pareto tail index alpha via Hill's method.
@@ -905,33 +919,33 @@ class ROEAnalyzer:
         if window > n:
             raise ValueError(f"Window {window} larger than series length {n}")
 
-        rolling_stats = {
-            "mean": np.full(n, np.nan),
-            "std": np.full(n, np.nan),
-            "min": np.full(n, np.nan),
-            "max": np.full(n, np.nan),
-            "sharpe": np.full(n, np.nan),
-        }
+        # Use pandas rolling for vectorized computation instead of a Python
+        # for-loop.  min_periods=1 mirrors the original NaN-skipping behaviour
+        # while pd.Series.rolling(min_periods=window) ensures the first
+        # (window-1) entries stay NaN.  Fixes #483.
+        series = pd.Series(self.roe_series)
+        rolling = series.rolling(window, min_periods=window)
+
+        roll_mean = rolling.mean().to_numpy()
+        # ddof=0 matches the original np.std (population std)
+        roll_std = rolling.std(ddof=0).to_numpy()
+        roll_min = rolling.min().to_numpy()
+        roll_max = rolling.max().to_numpy()
 
         risk_free_rate = DEFAULT_RISK_FREE_RATE
 
-        for i in range(window - 1, n):
-            window_data = self.roe_series[i - window + 1 : i + 1]
-            valid_data = window_data[~np.isnan(window_data)]
+        # Sharpe = (mean - risk_free) / std, only where std > 0
+        roll_sharpe = np.full(n, np.nan)
+        valid = (~np.isnan(roll_std)) & (roll_std > 0)
+        roll_sharpe[valid] = (roll_mean[valid] - risk_free_rate) / roll_std[valid]
 
-            if len(valid_data) > 0:
-                rolling_stats["mean"][i] = np.mean(valid_data)
-                rolling_stats["std"][i] = np.std(valid_data) if len(valid_data) > 1 else 0.0
-                rolling_stats["min"][i] = np.min(valid_data)
-                rolling_stats["max"][i] = np.max(valid_data)
-
-                # Rolling Sharpe ratio
-                if rolling_stats["std"][i] > 0:
-                    rolling_stats["sharpe"][i] = (
-                        rolling_stats["mean"][i] - risk_free_rate
-                    ) / rolling_stats["std"][i]
-
-        return rolling_stats
+        return {
+            "mean": roll_mean,
+            "std": roll_std,
+            "min": roll_min,
+            "max": roll_max,
+            "sharpe": roll_sharpe,
+        }
 
     def volatility_metrics(self) -> Dict[str, float]:
         """Calculate comprehensive volatility metrics for ROE.
