@@ -102,8 +102,15 @@ class AccrualManager:
     settlements. Uses FIFO approach for payment matching.
     """
 
-    def __init__(self):
-        """Initialize the accrual manager."""
+    def __init__(self, fiscal_year_end: int = 12):
+        """Initialize the accrual manager.
+
+        Args:
+            fiscal_year_end: Month of fiscal year end (1-12). Default is 12
+                (December) for calendar year alignment.
+        """
+        self.fiscal_year_end = fiscal_year_end
+        self._fiscal_year_start = (fiscal_year_end % 12) + 1
         self.accrued_expenses: Dict[AccrualType, List[AccrualItem]] = {
             accrual_type: [] for accrual_type in AccrualType
         }
@@ -121,7 +128,7 @@ class AccrualManager:
         """
         import copy
 
-        result = AccrualManager()
+        result = AccrualManager(fiscal_year_end=self.fiscal_year_end)
         memo[id(self)] = result
 
         # Deep copy all accrued expenses
@@ -137,6 +144,30 @@ class AccrualManager:
         result.current_period = self.current_period
 
         return result
+
+    def _get_fiscal_payment_periods(self) -> List[int]:
+        """Compute absolute payment periods for quarterly tax payments.
+
+        IRS rules: payments are due on the 15th day of the 4th, 6th, 9th, and
+        12th months of the corporation's tax year.
+
+        Returns:
+            List of 4 absolute period numbers for quarterly tax payments.
+        """
+        # 0-indexed start month of fiscal year
+        fiscal_start_month = self.fiscal_year_end % 12
+
+        current_month = self.current_period % 12
+        current_year = self.current_period // 12
+
+        # Find the start of the fiscal year containing current_period
+        if fiscal_start_month == 0 or current_month >= fiscal_start_month:
+            fy_start_period = current_year * 12 + fiscal_start_month
+        else:
+            fy_start_period = (current_year - 1) * 12 + fiscal_start_month
+
+        # Payment offsets from fiscal year start (4th, 6th, 9th, 12th months)
+        return [fy_start_period + offset for offset in [3, 5, 8, 11]]
 
     def record_expense_accrual(
         self,
@@ -164,9 +195,8 @@ class AccrualManager:
 
         # Generate payment dates based on schedule
         if payment_schedule == PaymentSchedule.QUARTERLY:
-            # Quarterly tax payments on 15th of 4th, 6th, 9th, 12th months
-            base_year = self.current_period // 12
-            payment_dates = [base_year * 12 + month for month in [3, 5, 8, 11]]
+            # Quarterly tax payments on 15th of 4th, 6th, 9th, 12th fiscal months
+            payment_dates = self._get_fiscal_payment_periods()
         elif payment_schedule == PaymentSchedule.ANNUAL:
             payment_dates = [self.current_period + 12]
         elif payment_schedule == PaymentSchedule.IMMEDIATE:
@@ -269,14 +299,9 @@ class AccrualManager:
         """
         annual_tax = to_decimal(annual_tax)
         quarterly_amount = annual_tax / Decimal(4)
-        base_year = self.current_period // 12
+        payment_periods = self._get_fiscal_payment_periods()
 
-        return [
-            (base_year * 12 + 3, quarterly_amount),  # April 15
-            (base_year * 12 + 5, quarterly_amount),  # June 15
-            (base_year * 12 + 8, quarterly_amount),  # September 15
-            (base_year * 12 + 11, quarterly_amount),  # December 15
-        ]
+        return [(period, quarterly_amount) for period in payment_periods]
 
     def get_claim_payment_schedule(
         self,
