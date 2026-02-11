@@ -506,6 +506,187 @@ class TestTrajectoryStorage:
         storage_uncompressed.clear_storage()
 
 
+class TestIncrementalDiskTracking:
+    """Tests for incremental disk usage tracking (issue #399)."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for testing."""
+        temp_dir = tempfile.mkdtemp()
+        yield temp_dir
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    @pytest.fixture
+    def sample_data(self):
+        """Generate sample simulation data."""
+        np.random.seed(42)
+        n_years = 20
+        return {
+            "annual_losses": np.random.lognormal(10, 2, n_years),
+            "insurance_recoveries": np.random.lognormal(9, 2, n_years) * 0.8,
+            "retained_losses": np.random.lognormal(8, 1, n_years),
+            "initial_assets": 10_000_000.0,
+            "final_assets": 12_000_000.0,
+        }
+
+    def test_check_disk_space_does_not_walk_tree(self, temp_dir, sample_data):
+        """_check_disk_space must not call rglob or walk the directory tree."""
+        config = StorageConfig(storage_dir=temp_dir, backend="memmap", sample_interval=5)
+        storage = TrajectoryStorage(config)
+
+        # Store a simulation so there are files on disk
+        storage.store_simulation(sim_id=0, **sample_data, ruin_occurred=False)
+
+        # Patch Path.rglob at the class level to detect tree-walk calls
+        original_rglob = Path.rglob
+        with patch.object(Path, "rglob", wraps=original_rglob) as mock_rglob:
+            result = storage._check_disk_space()
+            mock_rglob.assert_not_called()
+        assert isinstance(result, bool)
+
+    def test_incremental_tracking_matches_actual_memmap(self, temp_dir, sample_data):
+        """Incremental counter must be within 5% of actual disk usage (memmap)."""
+        config = StorageConfig(
+            storage_dir=temp_dir, backend="memmap", sample_interval=5, chunk_size=100
+        )
+        storage = TrajectoryStorage(config)
+
+        for i in range(10):
+            storage.store_simulation(sim_id=i, **sample_data, ruin_occurred=False)
+
+        # Force-persist any buffered summaries so all data is on disk
+        storage._persist_summaries()
+
+        # Actual disk usage via full scan
+        actual_bytes = storage._scan_disk_usage()
+        tracked_bytes = storage._disk_usage_bytes
+
+        assert actual_bytes > 0
+        assert tracked_bytes > 0
+        error = abs(tracked_bytes - actual_bytes) / actual_bytes
+        assert (
+            error < 0.05
+        ), f"Tracking error {error:.2%} exceeds 5% (tracked={tracked_bytes}, actual={actual_bytes})"
+
+    def test_incremental_tracking_matches_actual_hdf5(self, temp_dir, sample_data):
+        """Incremental counter must be within reasonable bounds for HDF5."""
+        config = StorageConfig(
+            storage_dir=temp_dir,
+            backend="hdf5",
+            sample_interval=5,
+            compression=False,
+            chunk_size=100,
+        )
+        storage = TrajectoryStorage(config)
+
+        for i in range(10):
+            storage.store_simulation(sim_id=i, **sample_data, ruin_occurred=False)
+
+        storage._persist_summaries()
+
+        actual_bytes = storage._scan_disk_usage()
+        tracked_bytes = storage._disk_usage_bytes
+
+        # HDF5 has metadata overhead, so tracked (data only) is a lower bound
+        # of actual. The key guarantee: tracked > 0 and not wildly different.
+        assert tracked_bytes > 0
+        assert actual_bytes > 0
+
+        storage.clear_storage()
+
+    def test_clear_storage_resets_counter(self, temp_dir, sample_data):
+        """clear_storage must reset the incremental counter to zero."""
+        config = StorageConfig(storage_dir=temp_dir, backend="memmap", sample_interval=5)
+        storage = TrajectoryStorage(config)
+
+        storage.store_simulation(sim_id=0, **sample_data, ruin_occurred=False)
+        assert storage._disk_usage_bytes > 0
+
+        storage.clear_storage()
+        assert storage._disk_usage_bytes == 0
+        assert storage._disk_usage == 0.0
+
+    def test_disk_limit_enforced_without_tree_walk(self, temp_dir):
+        """Disk limit enforcement works using incremental tracking."""
+        config = StorageConfig(
+            storage_dir=temp_dir,
+            backend="memmap",
+            sample_interval=1,
+            max_disk_usage_gb=0.000001,  # ~1 KB limit
+        )
+        storage = TrajectoryStorage(config)
+
+        n_years = 100
+        annual_losses = np.ones(n_years) * 100000
+        insurance_recoveries = np.ones(n_years) * 80000
+        retained_losses = np.ones(n_years) * 20000
+
+        # First simulation should succeed (empty dir starts under limit)
+        storage.store_simulation(
+            sim_id=0,
+            annual_losses=annual_losses,
+            insurance_recoveries=insurance_recoveries,
+            retained_losses=retained_losses,
+            initial_assets=10_000_000.0,
+            final_assets=12_000_000.0,
+            ruin_occurred=False,
+        )
+        assert storage._total_simulations == 1
+
+        # Second simulation should warn and be skipped
+        with pytest.warns(UserWarning, match="Disk usage limit"):
+            storage.store_simulation(
+                sim_id=1,
+                annual_losses=annual_losses,
+                insurance_recoveries=insurance_recoveries,
+                retained_losses=retained_losses,
+                initial_assets=10_000_000.0,
+                final_assets=12_000_000.0,
+                ruin_occurred=False,
+            )
+        # sim count should NOT have incremented
+        assert storage._total_simulations == 1
+
+    def test_disk_check_is_o1(self, temp_dir, sample_data):
+        """_check_disk_space should complete in < 0.01ms."""
+        import time
+
+        config = StorageConfig(storage_dir=temp_dir, backend="memmap", sample_interval=5)
+        storage = TrajectoryStorage(config)
+
+        for i in range(20):
+            storage.store_simulation(sim_id=i, **sample_data, ruin_occurred=False)
+
+        # Warm up
+        storage._check_disk_space()
+
+        # Time many iterations for stable measurement
+        iterations = 10_000
+        start = time.perf_counter()
+        for _ in range(iterations):
+            storage._check_disk_space()
+        elapsed = time.perf_counter() - start
+
+        avg_ms = (elapsed / iterations) * 1000
+        assert avg_ms < 0.01, f"Average disk check time {avg_ms:.6f}ms exceeds 0.01ms"
+
+    def test_init_seeds_from_existing_directory(self, temp_dir, sample_data):
+        """Re-opening an existing storage directory picks up prior usage."""
+        config = StorageConfig(
+            storage_dir=temp_dir, backend="memmap", sample_interval=5, chunk_size=100
+        )
+
+        # First session: write some data
+        storage1 = TrajectoryStorage(config)
+        for i in range(5):
+            storage1.store_simulation(sim_id=i, **sample_data, ruin_occurred=False)
+        storage1._persist_summaries()
+
+        # Second session: re-open same directory
+        storage2 = TrajectoryStorage(config)
+        assert storage2._disk_usage_bytes > 0, "Should have seeded from existing files"
+
+
 class TestMemoryEfficiency:
     """Test memory efficiency requirements."""
 

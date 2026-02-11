@@ -118,6 +118,7 @@ class TrajectoryStorage:
 
         # Track storage statistics
         self._total_simulations = 0
+        self._disk_usage_bytes = 0
         self._disk_usage = 0.0
 
         # Setup backend
@@ -125,6 +126,10 @@ class TrajectoryStorage:
             self._setup_hdf5()
         else:
             self._setup_memmap()
+
+        # One-time scan to seed incremental disk usage counter
+        self._disk_usage_bytes = self._scan_disk_usage()
+        self._disk_usage = self._disk_usage_bytes / (1024**3)
 
     def _setup_memmap(self) -> None:
         """Setup memory-mapped array storage."""
@@ -341,6 +346,9 @@ class TrajectoryStorage:
         mmap.flush()
         del mmap  # Close the file
 
+        # Track written bytes incrementally
+        self._disk_usage_bytes += sampled_data.nbytes
+
     def _store_time_series_hdf5(
         self,
         sim_id: int,
@@ -369,21 +377,25 @@ class TrajectoryStorage:
         compression = "gzip" if self.config.compression else None
         compression_opts = self.config.compression_level if self.config.compression else None
 
+        losses_data = annual_losses[sample_indices].astype(self.config.dtype)
+        recoveries_data = insurance_recoveries[sample_indices].astype(self.config.dtype)
+        retained_data = retained_losses[sample_indices].astype(self.config.dtype)
+
         sim_group.create_dataset(
             "annual_losses",
-            data=annual_losses[sample_indices].astype(self.config.dtype),
+            data=losses_data,
             compression=compression,
             compression_opts=compression_opts,
         )
         sim_group.create_dataset(
             "insurance_recoveries",
-            data=insurance_recoveries[sample_indices].astype(self.config.dtype),
+            data=recoveries_data,
             compression=compression,
             compression_opts=compression_opts,
         )
         sim_group.create_dataset(
             "retained_losses",
-            data=retained_losses[sample_indices].astype(self.config.dtype),
+            data=retained_data,
             compression=compression,
             compression_opts=compression_opts,
         )
@@ -391,6 +403,9 @@ class TrajectoryStorage:
 
         # Flush to disk
         self._hdf5_file.flush()
+
+        # Track written bytes (uncompressed upper bound)
+        self._disk_usage_bytes += losses_data.nbytes + recoveries_data.nbytes + retained_data.nbytes
 
     def load_simulation(self, sim_id: int, load_time_series: bool = False) -> Dict[str, Any]:
         """Load simulation data with lazy loading.
@@ -547,25 +562,36 @@ class TrajectoryStorage:
             summary_dir = self.storage_path / "summaries"
             for sim_id, summary in self._summaries.items():
                 summary_file = summary_dir / f"sim_{sim_id}.json"
+                json_str = json.dumps(summary.to_dict())
                 with open(summary_file, "w") as f:
-                    json.dump(summary.to_dict(), f)
+                    f.write(json_str)
+                self._disk_usage_bytes += len(json_str.encode("utf-8"))
 
         # Clear memory cache after persisting
         self._summaries.clear()
 
-    def _check_disk_space(self) -> bool:
-        """Check if disk usage is within limits.
+    def _scan_disk_usage(self) -> int:
+        """One-time scan of storage directory to seed the incremental counter.
+
+        Called once during ``__init__`` so that reopened storage directories
+        start with an accurate baseline.
 
         Returns:
-            True if within limits, False otherwise
+            Total size in bytes of all files under ``storage_path``.
         """
-        # Calculate current disk usage
         total_size = 0
         for path in self.storage_path.rglob("*"):
             if path.is_file():
                 total_size += path.stat().st_size
+        return total_size
 
-        self._disk_usage = total_size / (1024**3)  # Convert to GB
+    def _check_disk_space(self) -> bool:
+        """Check if disk usage is within limits (O(1) via incremental tracking).
+
+        Returns:
+            True if within limits, False otherwise
+        """
+        self._disk_usage = self._disk_usage_bytes / (1024**3)  # Convert to GB
         return self._disk_usage < self.config.max_disk_usage_gb
 
     def _cleanup_memory(self) -> None:
@@ -613,6 +639,7 @@ class TrajectoryStorage:
 
         # Reset counters
         self._total_simulations = 0
+        self._disk_usage_bytes = 0
         self._disk_usage = 0.0
 
         # Reinitialize backend
