@@ -77,7 +77,12 @@ class TestPackageLevelImports:
             cls = getattr(ergodic_insurance, name)
             assert issubclass(cls, UserWarning)
 
-    def test_in_all(self):
+    def test_importable_but_not_in_all(self):
+        """Warning classes are importable via __getattr__ but not in __all__.
+
+        Since #477, only essential user-facing names are in __all__.
+        Warning classes remain accessible via lazy imports for backward compat.
+        """
         import ergodic_insurance
 
         for name in (
@@ -86,7 +91,11 @@ class TestPackageLevelImports:
             "DataQualityWarning",
             "ExportWarning",
         ):
-            assert name in ergodic_insurance.__all__
+            # Still importable via __getattr__
+            cls = getattr(ergodic_insurance, name)
+            assert issubclass(cls, UserWarning)
+            # But not in the trimmed __all__
+            assert name not in ergodic_insurance.__all__
 
 
 # ---------------------------------------------------------------------------
