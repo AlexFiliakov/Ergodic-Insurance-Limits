@@ -7,7 +7,8 @@ Monte Carlo aggregations with advanced formatting and validation.
 Example:
     Generate Excel report from simulation::
 
-        from ergodic_insurance.excel_reporter import ExcelReporter, ExcelReportConfig
+        from ergodic_insurance.config import ExcelReportConfig
+        from ergodic_insurance.excel_reporter import ExcelReporter
         from ergodic_insurance.manufacturer import WidgetManufacturer
 
         # Configure report
@@ -26,7 +27,6 @@ Example:
         )
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
@@ -52,43 +52,11 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
     warnings.warn("openpyxl not available. Using pandas default Excel writer.")
 
+from .config import ExcelReportConfig
 from .financial_statements import FinancialStatementConfig, FinancialStatementGenerator
 
 if TYPE_CHECKING:
     from .manufacturer import WidgetManufacturer
-
-
-@dataclass
-class ExcelReportConfig:
-    """Configuration for Excel report generation.
-
-    Attributes:
-        output_path: Directory for output files
-        include_balance_sheet: Whether to include balance sheet
-        include_income_statement: Whether to include income statement
-        include_cash_flow: Whether to include cash flow statement
-        include_reconciliation: Whether to include reconciliation sheet
-        include_metrics_dashboard: Whether to include metrics dashboard
-        include_pivot_data: Whether to include pivot-ready data sheet
-        formatting: Custom formatting options
-        engine: Excel engine to use ('xlsxwriter', 'openpyxl', 'auto')
-        currency_format: Currency format string
-        decimal_places: Number of decimal places for numbers
-        date_format: Date format string
-    """
-
-    output_path: Path = field(default_factory=lambda: Path("./reports"))
-    include_balance_sheet: bool = True
-    include_income_statement: bool = True
-    include_cash_flow: bool = True
-    include_reconciliation: bool = True
-    include_metrics_dashboard: bool = True
-    include_pivot_data: bool = True
-    formatting: Optional[Dict[str, Any]] = None
-    engine: str = "auto"
-    currency_format: str = "$#,##0"
-    decimal_places: int = 0
-    date_format: str = "yyyy-mm-dd"
 
 
 class ExcelReporter:
