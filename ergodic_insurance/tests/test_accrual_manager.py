@@ -322,3 +322,128 @@ class TestAccrualManager:
         manager.process_payment(AccrualType.TAXES, 15000.0)
         assert tax_accruals[0].remaining_balance == 5000.0
         assert tax_accruals[1].remaining_balance == 8000.0
+
+
+class TestFiscalYearAwareScheduling:
+    """Test fiscal year-aware quarterly tax payment scheduling (Issue #277)."""
+
+    def test_default_calendar_year_unchanged(self):
+        """Default fiscal_year_end=12 produces same results as before."""
+        manager = AccrualManager()  # defaults to fiscal_year_end=12
+        assert manager.fiscal_year_end == 12
+        assert manager._fiscal_year_start == 1  # January
+
+        manager.current_period = 1  # February
+        accrual = manager.record_expense_accrual(
+            AccrualType.TAXES, 40000.0, PaymentSchedule.QUARTERLY
+        )
+        assert accrual.payment_dates == [3, 5, 8, 11]
+
+    def test_default_calendar_year_tax_schedule(self):
+        """Default fiscal year produces calendar-year tax schedule."""
+        manager = AccrualManager()
+        manager.current_period = 2
+        schedule = manager.get_quarterly_tax_schedule(40000.0)
+        assert [p for p, _ in schedule] == [3, 5, 8, 11]
+        assert all(amt == 10000.0 for _, amt in schedule)
+
+    def test_june_fiscal_year_quarterly_payments(self):
+        """June FYE schedules payments in Oct, Dec, Mar, Jun."""
+        manager = AccrualManager(fiscal_year_end=6)
+        assert manager._fiscal_year_start == 7  # July
+
+        # Start in July (period 6), first month of fiscal year
+        manager.current_period = 6
+        accrual = manager.record_expense_accrual(
+            AccrualType.TAXES, 40000.0, PaymentSchedule.QUARTERLY
+        )
+        # Oct (9), Dec (11), Mar (14=next year month 2), Jun (17=next year month 5)
+        assert accrual.payment_dates == [9, 11, 14, 17]
+
+    def test_june_fiscal_year_tax_schedule(self):
+        """June FYE tax schedule has correct periods."""
+        manager = AccrualManager(fiscal_year_end=6)
+        manager.current_period = 8  # September (3rd fiscal month)
+        schedule = manager.get_quarterly_tax_schedule(100000.0)
+        assert [p for p, _ in schedule] == [9, 11, 14, 17]
+        assert all(amt == 25000.0 for _, amt in schedule)
+
+    def test_march_fiscal_year_quarterly_payments(self):
+        """March FYE schedules payments in Jul, Sep, Dec, Mar."""
+        manager = AccrualManager(fiscal_year_end=3)
+        assert manager._fiscal_year_start == 4  # April
+
+        # Start in April (period 3), first month of fiscal year
+        manager.current_period = 3
+        accrual = manager.record_expense_accrual(
+            AccrualType.TAXES, 20000.0, PaymentSchedule.QUARTERLY
+        )
+        # Jul (6), Sep (8), Dec (11), Mar (14=next year month 2)
+        assert accrual.payment_dates == [6, 8, 11, 14]
+
+    def test_march_fiscal_year_tax_schedule(self):
+        """March FYE tax schedule has correct periods."""
+        manager = AccrualManager(fiscal_year_end=3)
+        manager.current_period = 5  # June (3rd fiscal month)
+        schedule = manager.get_quarterly_tax_schedule(80000.0)
+        assert [p for p, _ in schedule] == [6, 8, 11, 14]
+        assert all(amt == 20000.0 for _, amt in schedule)
+
+    def test_fiscal_year_second_simulation_year(self):
+        """Fiscal year payment dates correct in year 2 of simulation."""
+        manager = AccrualManager(fiscal_year_end=6)
+        # Period 18 = July of year 1, start of second fiscal year
+        manager.current_period = 18
+        accrual = manager.record_expense_accrual(
+            AccrualType.TAXES, 40000.0, PaymentSchedule.QUARTERLY
+        )
+        # FY starts at period 18 (month 6 of year 1)
+        # Payments: 18+3=21, 18+5=23, 18+8=26, 18+11=29
+        assert accrual.payment_dates == [21, 23, 26, 29]
+
+    def test_fiscal_year_preserved_in_deepcopy(self):
+        """Deep copy preserves fiscal_year_end setting."""
+        import copy
+
+        original = AccrualManager(fiscal_year_end=6)
+        original.current_period = 8
+        original.record_expense_accrual(AccrualType.TAXES, 10000.0, PaymentSchedule.QUARTERLY)
+
+        copied = copy.deepcopy(original)
+        assert copied.fiscal_year_end == 6
+        assert copied._fiscal_year_start == 7
+        assert copied.current_period == 8
+
+        # New accruals on the copy should use the same fiscal year
+        accrual = copied.record_expense_accrual(
+            AccrualType.TAXES, 5000.0, PaymentSchedule.QUARTERLY
+        )
+        assert accrual.payment_dates == [9, 11, 14, 17]
+
+    def test_payments_due_with_fiscal_year(self):
+        """Payments due are correctly tracked with non-calendar fiscal year."""
+        manager = AccrualManager(fiscal_year_end=6)
+        manager.current_period = 6  # July, start of fiscal year
+        manager.record_expense_accrual(AccrualType.TAXES, 40000.0, PaymentSchedule.QUARTERLY)
+
+        # Check at October (period 9) - first payment should be due
+        payments_due = manager.get_payments_due(period=9)
+        assert AccrualType.TAXES in payments_due
+        assert payments_due[AccrualType.TAXES] == 10000.0
+
+        # Check at December (period 11) - two payments due
+        payments_due = manager.get_payments_due(period=11)
+        assert payments_due[AccrualType.TAXES] == 20000.0
+
+    def test_explicit_fiscal_year_end_12(self):
+        """Explicit fiscal_year_end=12 is identical to default."""
+        default = AccrualManager()
+        explicit = AccrualManager(fiscal_year_end=12)
+
+        default.current_period = 2
+        explicit.current_period = 2
+
+        default_schedule = default.get_quarterly_tax_schedule(40000.0)
+        explicit_schedule = explicit.get_quarterly_tax_schedule(40000.0)
+
+        assert default_schedule == explicit_schedule
