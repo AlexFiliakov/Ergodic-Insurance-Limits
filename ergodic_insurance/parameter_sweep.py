@@ -197,6 +197,7 @@ class ParameterSweeper:
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.results_cache: Dict[str, Dict[str, Any]] = {}
+        self._template_optimizer: Optional[BusinessOptimizer] = None
         self.use_parallel = use_parallel
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -312,15 +313,17 @@ class ParameterSweeper:
         # Create manufacturer with parameters
         manufacturer = self._create_manufacturer(params)
 
-        # Import BusinessOptimizer here to avoid circular imports
-        from .business_optimizer import BusinessOptimizer
-
-        # Create optimizer if not provided
-        if self.optimizer is None:
-            optimizer = BusinessOptimizer(manufacturer)
+        # Reuse optimizer components when possible to avoid expensive
+        # reconstruction (YAML I/O, engine init) on every sweep point.
+        if self.optimizer is not None:
+            optimizer = self.optimizer.with_manufacturer(manufacturer)
+        elif self._template_optimizer is not None:
+            optimizer = self._template_optimizer.with_manufacturer(manufacturer)
         else:
-            # Update optimizer's manufacturer
+            from .business_optimizer import BusinessOptimizer
+
             optimizer = BusinessOptimizer(manufacturer)
+            self._template_optimizer = optimizer
 
         # Set up constraints
         constraints = BusinessConstraints(

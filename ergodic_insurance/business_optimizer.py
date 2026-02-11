@@ -199,6 +199,31 @@ class BusinessOptimizer:
         self.ergodic_analyzer = ergodic_analyzer
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def with_manufacturer(self, manufacturer: WidgetManufacturer) -> "BusinessOptimizer":
+        """Create a lightweight optimizer for a different manufacturer.
+
+        Reuses the optimizer config, loss distribution, decision engine, and
+        ergodic analyzer from this instance, avoiding the overhead of
+        reconstructing shared components (YAML I/O, engine initialization).
+
+        The decision engine retains a reference to the original manufacturer,
+        which is correct because methods like maximize_roe_with_insurance read
+        directly from self.manufacturer rather than through the decision engine.
+
+        Args:
+            manufacturer: New manufacturer to optimize for.
+
+        Returns:
+            A new BusinessOptimizer sharing this instance's internal components.
+        """
+        return BusinessOptimizer(
+            manufacturer=manufacturer,
+            decision_engine=self.decision_engine,
+            ergodic_analyzer=self.ergodic_analyzer,
+            loss_distribution=self.loss_distribution,
+            optimizer_config=self.optimizer_config,
+        )
+
     def maximize_roe_with_insurance(
         self, constraints: BusinessConstraints, time_horizon: int = 10, n_simulations: int = 1000
     ) -> OptimalStrategy:
