@@ -141,25 +141,19 @@ class TestInsuranceStrategyGetDescription:
 class TestOptimizedStaticStrategyOptimizeLimits:
     """Cover the optimize_limits method including objective, constraint, and scipy.minimize.
 
-    The optimize_limits method uses local imports inside nested functions
-    (``from .monte_carlo import MonteCarloEngine``), so we must patch at the
-    *source* module ``ergodic_insurance.monte_carlo.MonteCarloEngine`` to
-    intercept them, in addition to the module-level import.
+    The optimize_limits method uses a shared ``_run_simulation`` helper with
+    memoization so that objective and constraint share MC results for the same
+    params.  We only need to patch the module-level MonteCarloEngine import.
     """
 
-    @patch("ergodic_insurance.monte_carlo.MonteCarloEngine")
     @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
-    def test_optimize_limits_success(
-        self, mock_sb_mc_cls, mock_mc_cls, manufacturer, mock_mc_results
-    ):
+    def test_optimize_limits_success(self, mock_mc_cls, manufacturer, mock_mc_results):
         """When scipy.optimize.minimize succeeds, optimized_params should be set from result.x."""
-        # Both patch targets must return the same mock engine
         mock_engine_instance = MagicMock()
         mock_mc_results.metrics = {"mean_roe": 0.12}
         mock_mc_results.ruin_probability = {"5": 0.005}
         mock_engine_instance.run.return_value = mock_mc_results
         mock_mc_cls.return_value = mock_engine_instance
-        mock_sb_mc_cls.return_value = mock_engine_instance
 
         strategy = OptimizedStaticStrategy(target_roe=0.15, max_ruin_prob=0.01)
 
@@ -175,10 +169,9 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         assert strategy.optimized_params["primary_limit"] == pytest.approx(4_000_000.0)
         assert strategy.optimized_params["excess_limit"] == pytest.approx(15_000_000.0)
 
-    @patch("ergodic_insurance.monte_carlo.MonteCarloEngine")
     @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
     def test_optimize_limits_failure_falls_back_to_defaults(
-        self, mock_sb_mc_cls, mock_mc_cls, manufacturer, mock_mc_results
+        self, mock_mc_cls, manufacturer, mock_mc_results
     ):
         """When scipy.optimize.minimize fails, should fall back to conservative defaults."""
         mock_engine_instance = MagicMock()
@@ -186,7 +179,6 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         mock_mc_results.ruin_probability = {"5": 0.08}
         mock_engine_instance.run.return_value = mock_mc_results
         mock_mc_cls.return_value = mock_engine_instance
-        mock_sb_mc_cls.return_value = mock_engine_instance
 
         strategy = OptimizedStaticStrategy(target_roe=0.15, max_ruin_prob=0.01)
 
@@ -203,36 +195,24 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         assert strategy.optimized_params["primary_limit"] == 5_000_000
         assert strategy.optimized_params["excess_limit"] == 20_000_000
 
-    @patch("ergodic_insurance.monte_carlo.MonteCarloEngine")
     @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
-    def test_optimize_limits_objective_calls_mc_engine(
-        self, mock_sb_mc_cls, mock_mc_cls, manufacturer
-    ):
-        """The objective function inside optimize_limits should build layers, create MC engine, and run."""
+    def test_optimize_limits_objective_calls_mc_engine(self, mock_mc_cls, manufacturer):
+        """The objective and constraint share MC results via memoization."""
         mock_engine_instance = MagicMock()
         mock_results = MagicMock()
         mock_results.metrics = {"mean_roe": 0.10}
         mock_results.ruin_probability = {"5": 0.003}
         mock_engine_instance.run.return_value = mock_results
         mock_mc_cls.return_value = mock_engine_instance
-        mock_sb_mc_cls.return_value = mock_engine_instance
 
         strategy = OptimizedStaticStrategy(target_roe=0.15, max_ruin_prob=0.02)
 
-        # Use a side_effect on minimize to capture and call the objective function
-        captured_objective = None
-        captured_constraint_fun = None
-
         def fake_minimize(func, x0, method, bounds, constraints, options):
-            nonlocal captured_objective, captured_constraint_fun
-            captured_objective = func
-            captured_constraint_fun = constraints[0]["fun"]
+            constraint_fun = constraints[0]["fun"]
 
-            # Call the objective to exercise lines 267-312
-            obj_val = func(x0)
-
-            # Call the constraint to exercise lines 315-362
-            con_val = captured_constraint_fun(x0)
+            # Call the objective then the constraint with the same params
+            func(x0)
+            constraint_fun(x0)
 
             result = MagicMock()
             result.success = True
@@ -242,19 +222,48 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         with patch("scipy.optimize.minimize", side_effect=fake_minimize):
             strategy.optimize_limits(manufacturer, MagicMock())
 
-        # The objective was called, so the MC engine should have been called at least twice
-        # (once for objective, once for constraint)
-        assert mock_engine_instance.run.call_count >= 2
+        # With memoization, same params should only trigger one engine.run() call
+        assert mock_engine_instance.run.call_count == 1
 
         # Params should be set from the "successful" result
         assert strategy.optimized_params is not None
         assert strategy.optimized_params["deductible"] == pytest.approx(100_000)
         assert strategy.optimized_params["primary_limit"] == pytest.approx(5_000_000)
 
-    @patch("ergodic_insurance.monte_carlo.MonteCarloEngine")
+    @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
+    def test_optimize_limits_different_params_not_cached(self, mock_mc_cls, manufacturer):
+        """Different params should trigger separate MC engine runs."""
+        mock_engine_instance = MagicMock()
+        mock_results = MagicMock()
+        mock_results.metrics = {"mean_roe": 0.10}
+        mock_results.ruin_probability = {"5": 0.003}
+        mock_engine_instance.run.return_value = mock_results
+        mock_mc_cls.return_value = mock_engine_instance
+
+        strategy = OptimizedStaticStrategy(target_roe=0.15, max_ruin_prob=0.02)
+
+        def fake_minimize(func, x0, method, bounds, constraints, options):
+            constraint_fun = constraints[0]["fun"]
+
+            # Call with two different param sets
+            func(x0)
+            constraint_fun(x0)  # same params — should hit cache
+            func([200000, 6000000, 25000000])  # different params — should miss cache
+
+            result = MagicMock()
+            result.success = True
+            result.x = np.array(x0)
+            return result
+
+        with patch("scipy.optimize.minimize", side_effect=fake_minimize):
+            strategy.optimize_limits(manufacturer, MagicMock())
+
+        # Two distinct param sets = two engine.run() calls
+        assert mock_engine_instance.run.call_count == 2
+
     @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
     def test_optimize_limits_ruin_constraint_with_empty_ruin_probability(
-        self, mock_sb_mc_cls, mock_mc_cls, manufacturer
+        self, mock_mc_cls, manufacturer
     ):
         """Test the ruin_constraint when ruin_probability dict is empty."""
         mock_engine_instance = MagicMock()
@@ -263,7 +272,6 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         mock_results.ruin_probability = {}  # empty dict
         mock_engine_instance.run.return_value = mock_results
         mock_mc_cls.return_value = mock_engine_instance
-        mock_sb_mc_cls.return_value = mock_engine_instance
 
         strategy = OptimizedStaticStrategy(target_roe=0.15, max_ruin_prob=0.05)
 
@@ -286,11 +294,8 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         assert captured_constraint_val == pytest.approx(0.05)
         assert strategy.optimized_params is not None
 
-    @patch("ergodic_insurance.monte_carlo.MonteCarloEngine")
     @patch("ergodic_insurance.strategy_backtester.MonteCarloEngine")
-    def test_optimize_limits_objective_returns_negative_roe(
-        self, mock_sb_mc_cls, mock_mc_cls, manufacturer
-    ):
+    def test_optimize_limits_objective_returns_negative_roe(self, mock_mc_cls, manufacturer):
         """The objective function should return -mean_roe, and handle missing key gracefully."""
         mock_engine_instance = MagicMock()
         mock_results = MagicMock()
@@ -298,7 +303,6 @@ class TestOptimizedStaticStrategyOptimizeLimits:
         mock_results.ruin_probability = {"5": 0.01}
         mock_engine_instance.run.return_value = mock_results
         mock_mc_cls.return_value = mock_engine_instance
-        mock_sb_mc_cls.return_value = mock_engine_instance
 
         strategy = OptimizedStaticStrategy()
 
