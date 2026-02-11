@@ -34,6 +34,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache, wraps
 import gc
+import hashlib
+import heapq
 import io
 import pstats
 import time
@@ -126,7 +128,8 @@ class SmartCache:
     """Smart caching system for repeated calculations.
 
     Provides intelligent caching with memory management and
-    hit rate tracking.
+    hit rate tracking. Uses a heap-based eviction strategy
+    for O(log N) amortized eviction instead of O(N) scanning.
     """
 
     def __init__(self, max_size: int = 1000):
@@ -140,6 +143,8 @@ class SmartCache:
         self.hits = 0
         self.misses = 0
         self.access_counts: Dict[Tuple, int] = defaultdict(int)
+        self._heap: List[Tuple[int, int, Tuple]] = []  # (access_count, counter, key)
+        self._counter = 0  # Monotonic counter for tie-breaking
 
     def get(self, key: Tuple) -> Optional[Any]:
         """Get value from cache.
@@ -153,25 +158,46 @@ class SmartCache:
         if key in self.cache:
             self.hits += 1
             self.access_counts[key] += 1
+            # Push updated entry; stale entries are skipped during eviction
+            self._counter += 1
+            heapq.heappush(self._heap, (self.access_counts[key], self._counter, key))
             return self.cache[key]
         self.misses += 1
         return None
 
     def set(self, key: Tuple, value: Any) -> None:
-        """Set value in cache.
+        """Set value in cache with O(log N) amortized eviction.
 
         Args:
             key: Cache key (must be hashable).
             value: Value to cache.
         """
-        if len(self.cache) >= self.max_size:
-            # Evict least recently accessed
-            least_accessed = min(self.access_counts.keys(), key=lambda k: self.access_counts[k])
-            del self.cache[least_accessed]
-            del self.access_counts[least_accessed]
+        if key not in self.cache and len(self.cache) >= self.max_size:
+            self._evict()
 
         self.cache[key] = value
         self.access_counts[key] = 1
+        self._counter += 1
+        heapq.heappush(self._heap, (1, self._counter, key))
+
+    def _evict(self) -> None:
+        """Evict the least-accessed entry using the heap.
+
+        Uses lazy deletion: pops entries from the heap until finding
+        one that is still valid (present in cache with matching access count).
+        """
+        while self._heap:
+            count, _counter, key = heapq.heappop(self._heap)
+            # Skip stale entries (key removed or access_count changed)
+            if key in self.cache and self.access_counts[key] == count:
+                del self.cache[key]
+                del self.access_counts[key]
+                return
+        # Fallback: if heap is exhausted (all stale), evict any entry
+        if self.cache:
+            evict_key = next(iter(self.cache))
+            del self.cache[evict_key]
+            del self.access_counts[evict_key]
 
     @property
     def hit_rate(self) -> float:
@@ -187,6 +213,8 @@ class SmartCache:
         """Clear the cache."""
         self.cache.clear()
         self.access_counts.clear()
+        self._heap.clear()
+        self._counter = 0
         self.hits = 0
         self.misses = 0
 
@@ -427,8 +455,10 @@ class PerformanceOptimizer:
         Returns:
             Dictionary with optimized results.
         """
-        # Try cache first
-        cache_key = (losses.tobytes(), tuple(layers))
+        # Try cache first — hash the array buffer instead of materializing
+        # a full copy via tobytes() (avoids O(N) temporary allocation).
+        array_hash = hashlib.sha256(np.ascontiguousarray(losses).data).hexdigest()
+        cache_key = (array_hash, tuple(layers))
         cached_result = self.cache.get(cache_key) if self.config.enable_caching else None
 
         if cached_result is not None:
