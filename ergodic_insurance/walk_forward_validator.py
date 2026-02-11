@@ -143,6 +143,7 @@ def _process_window_worker(
     manufacturer: WidgetManufacturer,
     config: Config,
     simulation_engine: Optional[Simulation] = None,
+    window_seed: Optional[np.random.SeedSequence] = None,
 ) -> WindowResult:
     """Process a single validation window in a worker process.
 
@@ -156,6 +157,9 @@ def _process_window_worker(
         manufacturer: Manufacturer instance
         config: Configuration object
         simulation_engine: Optional simulation engine for optimization
+        window_seed: SeedSequence for this window, spawned from the
+            validator's base SeedSequence. Guarantees statistically
+            independent streams across windows.
 
     Returns:
         WindowResult for the window.
@@ -165,15 +169,20 @@ def _process_window_worker(
     backtester = StrategyBacktester(simulation_engine=simulation_engine)
     window_result = WindowResult(window=window)
 
+    # Derive independent train/test seeds via SeedSequence.spawn()
+    if window_seed is None:
+        window_seed = np.random.SeedSequence(window.window_id)
+    train_ss, test_ss = window_seed.spawn(2)
+
     train_config = SimulationConfig(
         n_simulations=n_simulations,
         n_years=window.get_train_years(),
-        seed=window.window_id * 1000,
+        seed=int(train_ss.generate_state(1)[0]),
     )
     test_config = SimulationConfig(
         n_simulations=n_simulations,
         n_years=window.get_test_years(),
-        seed=window.window_id * 1000 + 500,
+        seed=int(test_ss.generate_state(1)[0]),
     )
 
     for strategy in strategies:
@@ -220,6 +229,7 @@ class WalkForwardValidator:
         backtester: Optional[StrategyBacktester] = None,
         performance_targets: Optional[PerformanceTargets] = None,
         max_workers: Optional[int] = None,
+        seed: Optional[int] = None,
     ):
         """Initialize walk-forward validator.
 
@@ -233,6 +243,9 @@ class WalkForwardValidator:
             max_workers: Maximum worker processes for parallel window evaluation.
                 None (default) auto-detects based on CPU count and window count.
                 Set to 1 to force sequential processing.
+            seed: Base random seed for reproducibility. Uses
+                ``np.random.SeedSequence`` internally to derive statistically
+                independent per-window seeds. None uses system entropy.
         """
         self.window_size = window_size
         self.step_size = step_size
@@ -242,6 +255,7 @@ class WalkForwardValidator:
         self.performance_targets = performance_targets
         self.metric_calculator = MetricCalculator()
         self.max_workers = max_workers
+        self.seed = seed
 
     def generate_windows(self, total_years: int) -> List[ValidationWindow]:
         """Generate validation windows.
@@ -367,6 +381,10 @@ class WalkForwardValidator:
         # Generate windows
         windows = self.generate_windows(n_years)
 
+        # Derive per-window SeedSequences via spawn() for statistical independence
+        base_ss = np.random.SeedSequence(self.seed)
+        window_seeds = base_ss.spawn(len(windows))
+
         # Determine parallelism
         n_workers = self.max_workers
         if n_workers is None:
@@ -384,11 +402,12 @@ class WalkForwardValidator:
                 manufacturer=manufacturer,
                 config=config,
                 n_workers=n_workers,
+                window_seeds=window_seeds,
             )
         else:
             # Sequential window processing
             window_results = []
-            for window in windows:
+            for window, w_seed in zip(windows, window_seeds):
                 logger.info(f"Processing {window}")
                 window_result = self._process_window(
                     window=window,
@@ -396,6 +415,7 @@ class WalkForwardValidator:
                     n_simulations=n_simulations,
                     manufacturer=manufacturer,
                     config=config,
+                    window_seed=w_seed,
                 )
                 window_results.append(window_result)
 
@@ -412,6 +432,7 @@ class WalkForwardValidator:
         n_simulations: int,
         manufacturer: WidgetManufacturer,
         config: Config,
+        window_seed: Optional[np.random.SeedSequence] = None,
     ) -> WindowResult:
         """Process a single validation window.
 
@@ -421,6 +442,9 @@ class WalkForwardValidator:
             n_simulations: Number of simulations
             manufacturer: Manufacturer instance
             config: Configuration object
+            window_seed: SeedSequence for this window, spawned from the
+                validator's base SeedSequence. Guarantees statistically
+                independent streams across windows.
 
         Returns:
             WindowResult for the window.
@@ -431,17 +455,21 @@ class WalkForwardValidator:
 
         window_result = WindowResult(window=window)
 
-        # Create configurations for train and test
+        # Derive independent train/test seeds via SeedSequence.spawn()
+        if window_seed is None:
+            window_seed = np.random.SeedSequence(window.window_id)
+        train_ss, test_ss = window_seed.spawn(2)
+
         train_config = SimulationConfig(
             n_simulations=n_simulations,
             n_years=window.get_train_years(),
-            seed=window.window_id * 1000,  # Reproducible seeds
+            seed=int(train_ss.generate_state(1)[0]),
         )
 
         test_config = SimulationConfig(
             n_simulations=n_simulations,
             n_years=window.get_test_years(),
-            seed=window.window_id * 1000 + 500,
+            seed=int(test_ss.generate_state(1)[0]),
         )
 
         # Test each strategy
@@ -491,6 +519,7 @@ class WalkForwardValidator:
         manufacturer: WidgetManufacturer,
         config: Config,
         n_workers: int,
+        window_seeds: Optional[List[np.random.SeedSequence]] = None,
     ) -> List[WindowResult]:
         """Process validation windows in parallel using ProcessPoolExecutor.
 
@@ -501,6 +530,7 @@ class WalkForwardValidator:
             manufacturer: Manufacturer instance
             config: Configuration object
             n_workers: Number of worker processes
+            window_seeds: Per-window SeedSequence objects (picklable).
 
         Returns:
             List of WindowResult in original window order.
@@ -510,6 +540,7 @@ class WalkForwardValidator:
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
             future_to_idx = {}
             for idx, window in enumerate(windows):
+                w_seed = window_seeds[idx] if window_seeds else None
                 future = executor.submit(
                     _process_window_worker,
                     window=window,
@@ -518,6 +549,7 @@ class WalkForwardValidator:
                     manufacturer=manufacturer,
                     config=config,
                     simulation_engine=self.simulation_engine,
+                    window_seed=w_seed,
                 )
                 future_to_idx[future] = idx
 
