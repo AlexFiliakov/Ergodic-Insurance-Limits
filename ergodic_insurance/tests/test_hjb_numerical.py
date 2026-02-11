@@ -843,7 +843,9 @@ class TestGradientConsistency:
 
         The Hamiltonian maximized during policy improvement must use the same
         spatial discretization (upwind) as the PDE time-stepping in policy
-        evaluation.
+        evaluation.  The optimized code precomputes upwind finite differences
+        via ``_precompute_upwind_diffs`` instead of calling
+        ``_apply_upwind_scheme`` per control candidate (#371).
         """
         state_space = StateSpace([StateVariable("x", 0, 10, 21)])
 
@@ -883,18 +885,30 @@ class TestGradientConsistency:
             upwind_advection, central_advection
         ), "Upwind and central advection should differ for non-linear V"
 
-        # Run policy improvement and verify the solver calls _apply_upwind_scheme
-        upwind_called: list[bool] = []
-        original_upwind = solver._apply_upwind_scheme
+        # Verify that _precompute_upwind_diffs produces the same result as
+        # _apply_upwind_scheme for the same drift field.
+        upwind_diffs = solver._precompute_upwind_diffs()
+        fwd_flat, bwd_flat = upwind_diffs[0]
+        drift_flat = drift_val.ravel()
+        precomputed_advection = (
+            np.maximum(drift_flat, 0.0) * fwd_flat + np.minimum(drift_flat, 0.0) * bwd_flat
+        )
+        assert np.allclose(
+            precomputed_advection, upwind_advection.ravel()
+        ), "Precomputed upwind diffs must match _apply_upwind_scheme output"
 
-        def tracking_upwind(*args, **kwargs):
-            upwind_called.append(True)
-            return original_upwind(*args, **kwargs)
+        # Run policy improvement and verify precompute is called (not _apply_upwind_scheme)
+        precompute_called: list[bool] = []
+        original_precompute = solver._precompute_upwind_diffs
 
-        with patch.object(solver, "_apply_upwind_scheme", side_effect=tracking_upwind):
+        def tracking_precompute(*args, **kwargs):
+            precompute_called.append(True)
+            return original_precompute(*args, **kwargs)
+
+        with patch.object(solver, "_precompute_upwind_diffs", side_effect=tracking_precompute):
             solver._policy_improvement()
 
-        assert len(upwind_called) > 0, "Policy improvement must call _apply_upwind_scheme"
+        assert len(precompute_called) > 0, "Policy improvement must call _precompute_upwind_diffs"
 
     def test_policy_iteration_monotonic_convergence(self):
         """Policy iteration should converge monotonically for a simple 1D problem.
