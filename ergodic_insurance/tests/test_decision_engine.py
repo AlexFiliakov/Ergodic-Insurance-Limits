@@ -229,6 +229,97 @@ class TestDecisionMetrics:
         assert 0 <= score <= 1
         assert metrics.decision_score == score
 
+    def test_calculate_score_custom_targets(self):
+        """Test score calculation with custom normalization targets."""
+        metrics = DecisionMetrics(
+            ergodic_growth_rate=0.08,
+            bankruptcy_probability=0.01,
+            expected_roe=0.10,
+            roe_improvement=0.02,
+            premium_to_limit_ratio=0.02,
+            coverage_adequacy=0.9,
+            capital_efficiency=0.8,
+            value_at_risk_95=5_000_000,
+            conditional_value_at_risk=7_000_000,
+        )
+
+        # A conservative CFO targeting 8% growth should score 1.0 on growth
+        targets = {"growth_target": 0.08, "max_acceptable_risk": 0.03}
+        score = metrics.calculate_score(targets=targets)
+
+        assert 0 <= score <= 1
+        assert metrics.decision_score == score
+        # growth_score = 0.08/0.08 = 1.0, risk_score = 1 - 0.01/0.03 = 0.667
+        # With default weights: 0.3*1.0 + 0.3*0.667 + 0.2*0.8 + 0.2*0.9 = 0.84
+        assert score > 0.8
+
+    def test_calculate_score_targets_backward_compatible(self):
+        """Test that omitting targets still works (backward compatibility)."""
+        metrics = DecisionMetrics(
+            ergodic_growth_rate=0.15,
+            bankruptcy_probability=0.01,
+            expected_roe=0.18,
+            roe_improvement=0.05,
+            premium_to_limit_ratio=0.02,
+            coverage_adequacy=0.9,
+            capital_efficiency=0.8,
+            value_at_risk_95=5_000_000,
+            conditional_value_at_risk=7_000_000,
+        )
+
+        # Calling without targets should use defaults and not raise
+        score_no_targets = metrics.calculate_score()
+        assert 0 <= score_no_targets <= 1
+
+        # Explicitly passing the defaults should give the same result
+        score_with_defaults = metrics.calculate_score(
+            targets={"growth_target": 0.10, "max_acceptable_risk": 0.05}
+        )
+        assert score_no_targets == score_with_defaults
+
+    def test_calculate_score_conservative_vs_aggressive_targets(self):
+        """Test that targets properly calibrate scores for different risk appetites."""
+        metrics = DecisionMetrics(
+            ergodic_growth_rate=0.08,
+            bankruptcy_probability=0.02,
+            expected_roe=0.10,
+            roe_improvement=0.02,
+            premium_to_limit_ratio=0.02,
+            coverage_adequacy=0.8,
+            capital_efficiency=0.7,
+            value_at_risk_95=5_000_000,
+            conditional_value_at_risk=7_000_000,
+        )
+
+        # Conservative company: 8% growth target
+        conservative_score = metrics.calculate_score(targets={"growth_target": 0.08})
+        # Aggressive company: 20% growth target
+        aggressive_score = metrics.calculate_score(targets={"growth_target": 0.20})
+
+        # Same metrics should score higher against conservative targets
+        assert conservative_score > aggressive_score
+
+    def test_calculate_score_partial_targets(self):
+        """Test that partial targets dict uses defaults for missing keys."""
+        metrics = DecisionMetrics(
+            ergodic_growth_rate=0.10,
+            bankruptcy_probability=0.02,
+            expected_roe=0.12,
+            roe_improvement=0.02,
+            premium_to_limit_ratio=0.03,
+            coverage_adequacy=0.7,
+            capital_efficiency=0.6,
+            value_at_risk_95=5_000_000,
+            conditional_value_at_risk=7_000_000,
+        )
+
+        # Only override growth_target, max_acceptable_risk should default to 0.05
+        score_partial = metrics.calculate_score(targets={"growth_target": 0.10})
+        score_full = metrics.calculate_score(
+            targets={"growth_target": 0.10, "max_acceptable_risk": 0.05}
+        )
+        assert score_partial == score_full
+
 
 class TestInsuranceDecisionEngine:
     """Test InsuranceDecisionEngine class."""

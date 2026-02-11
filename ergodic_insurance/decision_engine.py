@@ -115,14 +115,39 @@ class DecisionMetrics:
     insurance_impact_roe: float = 0.0  # ROE impact from insurance
     tax_effect_roe: float = 0.0  # Tax impact on ROE
 
-    def calculate_score(self, weights: Optional[Dict[str, float]] = None) -> float:
+    def calculate_score(
+        self,
+        weights: Optional[Dict[str, float]] = None,
+        targets: Optional[Dict[str, float]] = None,
+    ) -> float:
         """Calculate weighted decision score.
 
+        Normalizes each metric to a [0, 1] scale using configurable targets,
+        then computes a weighted sum.
+
         Args:
-            weights: Weights for each metric (default: equal weights)
+            weights: Weights for each metric component. Keys are ``"growth"``,
+                ``"risk"``, ``"efficiency"``, and ``"adequacy"``. Values should
+                sum to 1.0. Default: ``{"growth": 0.3, "risk": 0.3,
+                "efficiency": 0.2, "adequacy": 0.2}``.
+            targets: Normalization targets that define what "perfect" looks
+                like for growth and risk metrics. Keys:
+
+                * ``"growth_target"`` — The growth rate that maps to a
+                  score of 1.0. Default ``0.10`` (10%). A mid-sized
+                  manufacturer typically targets 8–12% real growth; 10%
+                  represents a reasonable mid-range goal.
+                  Typical ranges: conservative 0.05–0.08,
+                  moderate 0.08–0.12, aggressive 0.12–0.20.
+                * ``"max_acceptable_risk"`` — The bankruptcy probability
+                  at or above which the risk score is 0.0. Default
+                  ``0.05`` (5%). Below this threshold the score scales
+                  linearly to 1.0 (lower risk is better).
+                  Typical ranges: conservative 0.01–0.03,
+                  moderate 0.03–0.05, aggressive 0.05–0.10.
 
         Returns:
-            Weighted score between 0 and 1
+            Weighted score between 0 and 1.
         """
         if weights is None:
             weights = {
@@ -132,9 +157,14 @@ class DecisionMetrics:
                 "adequacy": 0.2,
             }
 
+        if targets is None:
+            targets = {}
+        growth_target = targets.get("growth_target", 0.10)
+        max_acceptable_risk = targets.get("max_acceptable_risk", 0.05)
+
         # Normalize metrics to [0, 1] scale
-        growth_score = min(max(self.ergodic_growth_rate / 0.2, 0), 1)  # Target 20% growth
-        risk_score = 1 - min(self.bankruptcy_probability / 0.05, 1)  # Lower is better
+        growth_score = min(max(self.ergodic_growth_rate / growth_target, 0), 1)
+        risk_score = 1 - min(self.bankruptcy_probability / max_acceptable_risk, 1)
         efficiency_score = min(self.capital_efficiency, 1)
         adequacy_score = min(self.coverage_adequacy, 1)
 
