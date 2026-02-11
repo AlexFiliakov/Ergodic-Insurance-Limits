@@ -217,27 +217,35 @@ class RiskMetrics:
     def _bootstrap_var_ci(self, confidence: float, n_bootstrap: int) -> Tuple[float, float]:
         """Calculate bootstrap confidence interval for VaR."""
         n = len(self.losses)
-        var_bootstrap = []
+        chunk_size = max(1, min(n_bootstrap, 10_000_000 // max(1, n)))
+        var_bootstrap = np.empty(n_bootstrap)
 
-        for _ in range(n_bootstrap):
-            if self.weights is None:
-                idx = self.rng.choice(n, size=n, replace=True)
-                sample = self.losses[idx]
-                var_bootstrap.append(np.percentile(sample, confidence * 100))
-            else:
-                idx = self.rng.choice(n, size=n, replace=True)
-                sample = self.losses[idx]
-                weights = self.weights[idx]
-                # Recalculate weighted percentile
-                sort_idx = np.argsort(sample)
-                sorted_sample = sample[sort_idx]
-                sorted_weights = weights[sort_idx]
-                cum_weights = np.cumsum(sorted_weights)
-                cum_weights /= cum_weights[-1]
-                idx_var = np.searchsorted(cum_weights, confidence)
-                if idx_var >= len(sorted_sample):
-                    idx_var = len(sorted_sample) - 1  # type: ignore
-                var_bootstrap.append(sorted_sample[idx_var])
+        if self.weights is None:
+            for start in range(0, n_bootstrap, chunk_size):
+                end = min(start + chunk_size, n_bootstrap)
+                batch = end - start
+                all_idx = self.rng.choice(n, size=(batch, n), replace=True)
+                all_samples = self.losses[all_idx]
+                var_bootstrap[start:end] = np.percentile(all_samples, confidence * 100, axis=1)
+        else:
+            for start in range(0, n_bootstrap, chunk_size):
+                end = min(start + chunk_size, n_bootstrap)
+                batch = end - start
+                all_idx = self.rng.choice(n, size=(batch, n), replace=True)
+                all_samples = self.losses[all_idx]
+                all_weights = self.weights[all_idx]
+                sort_idx = np.argsort(all_samples, axis=1)
+                sorted_samples = np.take_along_axis(all_samples, sort_idx, axis=1)
+                sorted_weights = np.take_along_axis(all_weights, sort_idx, axis=1)
+                cum_weights = np.cumsum(sorted_weights, axis=1)
+                cum_weights /= cum_weights[:, -1:]
+                # Vectorized searchsorted: find first index where cum_weights >= confidence
+                found = cum_weights >= confidence
+                idx_var = np.argmax(found, axis=1)
+                # argmax returns 0 when no match; guard those rows
+                no_match = ~found.any(axis=1)
+                idx_var[no_match] = n - 1
+                var_bootstrap[start:end] = sorted_samples[np.arange(batch), idx_var]
 
         result = np.percentile(var_bootstrap, [2.5, 97.5])
         return (float(result[0]), float(result[1]))
@@ -245,31 +253,54 @@ class RiskMetrics:
     def _bootstrap_tvar_ci(self, confidence: float, n_bootstrap: int) -> Tuple[float, float]:
         """Calculate bootstrap confidence interval for TVaR."""
         n = len(self.losses)
-        tvar_bootstrap = []
+        chunk_size = max(1, min(n_bootstrap, 10_000_000 // max(1, n)))
+        tvar_bootstrap = np.empty(n_bootstrap)
 
-        for _ in range(n_bootstrap):
-            idx = self.rng.choice(n, size=n, replace=True)
-            sample = self.losses[idx]
-            if self.weights is None:
-                var_val = float(np.percentile(sample, confidence * 100))
-                tail = sample[sample >= var_val]
-                tvar_bootstrap.append(float(np.mean(tail)) if len(tail) > 0 else var_val)
-            else:
-                weights = self.weights[idx]
-                sort_idx = np.argsort(sample)
-                sorted_sample = sample[sort_idx]
-                sorted_weights = weights[sort_idx]
-                cum_weights = np.cumsum(sorted_weights)
-                cum_weights /= cum_weights[-1]
-                idx_var = np.searchsorted(cum_weights, confidence)
-                if idx_var >= len(sorted_sample):
-                    idx_var = len(sorted_sample) - 1  # type: ignore
-                var_val = float(sorted_sample[idx_var])
-                mask = sample >= var_val
-                if np.any(mask):
-                    tvar_bootstrap.append(float(np.average(sample[mask], weights=weights[mask])))
-                else:
-                    tvar_bootstrap.append(var_val)
+        if self.weights is None:
+            for start in range(0, n_bootstrap, chunk_size):
+                end = min(start + chunk_size, n_bootstrap)
+                batch = end - start
+                all_idx = self.rng.choice(n, size=(batch, n), replace=True)
+                all_samples = self.losses[all_idx]
+                var_values = np.percentile(all_samples, confidence * 100, axis=1)
+                # Boolean mask: which samples are in the tail
+                mask = all_samples >= var_values[:, np.newaxis]
+                masked_samples = all_samples * mask
+                tail_sums = masked_samples.sum(axis=1)
+                tail_counts = mask.sum(axis=1)
+                # Fallback to VaR where no tail samples exist
+                has_tail = tail_counts > 0
+                tvar_bootstrap[start:end] = np.where(
+                    has_tail, tail_sums / np.maximum(tail_counts, 1), var_values
+                )
+        else:
+            for start in range(0, n_bootstrap, chunk_size):
+                end = min(start + chunk_size, n_bootstrap)
+                batch = end - start
+                all_idx = self.rng.choice(n, size=(batch, n), replace=True)
+                all_samples = self.losses[all_idx]
+                all_weights = self.weights[all_idx]
+                # Compute weighted VaR for each bootstrap sample
+                sort_idx = np.argsort(all_samples, axis=1)
+                sorted_samples = np.take_along_axis(all_samples, sort_idx, axis=1)
+                sorted_weights = np.take_along_axis(all_weights, sort_idx, axis=1)
+                cum_weights = np.cumsum(sorted_weights, axis=1)
+                cum_weights /= cum_weights[:, -1:]
+                found = cum_weights >= confidence
+                idx_var = np.argmax(found, axis=1)
+                no_match = ~found.any(axis=1)
+                idx_var[no_match] = n - 1
+                var_values = sorted_samples[np.arange(batch), idx_var]
+                # Weighted tail average
+                mask = all_samples >= var_values[:, np.newaxis]
+                weighted_tail_sums = (all_samples * all_weights * mask).sum(axis=1)
+                weight_sums = (all_weights * mask).sum(axis=1)
+                has_tail = weight_sums > 0
+                tvar_bootstrap[start:end] = np.where(
+                    has_tail,
+                    weighted_tail_sums / np.maximum(weight_sums, 1e-300),
+                    var_values,
+                )
 
         result = np.percentile(tvar_bootstrap, [2.5, 97.5])
         return (float(result[0]), float(result[1]))
