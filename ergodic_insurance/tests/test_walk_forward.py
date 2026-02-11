@@ -37,6 +37,7 @@ from ergodic_insurance.walk_forward_validator import (
     ValidationWindow,
     WalkForwardValidator,
     WindowResult,
+    _process_window_worker,
 )
 
 
@@ -436,7 +437,7 @@ class TestWalkForwardValidator:
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
-        validator = WalkForwardValidator(window_size=3, step_size=2)
+        validator = WalkForwardValidator(window_size=3, step_size=2, max_workers=1)
         strategies = [NoInsuranceStrategy(), ConservativeFixedStrategy()]
 
         validation_result = validator.validate_strategies(
@@ -617,6 +618,242 @@ class TestWalkForwardValidator:
             assert "<table" in content
 
 
+class TestParallelExecution:
+    """Tests for parallel window processing."""
+
+    def test_max_workers_default(self):
+        """Test default max_workers is None (auto-detect)."""
+        validator = WalkForwardValidator()
+        assert validator.max_workers is None
+
+    def test_max_workers_stored(self):
+        """Test max_workers parameter is stored correctly."""
+        validator = WalkForwardValidator(max_workers=4)
+        assert validator.max_workers == 4
+
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_sequential_with_max_workers_one(self, mock_backtester):
+        """Test sequential execution when max_workers=1."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+        mock_result = BacktestResult(
+            strategy_name="Test",
+            simulation_results=Mock(),
+            metrics=mock_metrics,
+            execution_time=1.0,
+            config=SimulationConfig(),
+        )
+        mock_backtester.return_value.test_strategy.return_value = mock_result
+
+        validator = WalkForwardValidator(window_size=3, step_size=2, max_workers=1)
+        result = validator.validate_strategies(
+            strategies=[NoInsuranceStrategy(), ConservativeFixedStrategy()],
+            n_years=10,
+            n_simulations=100,
+        )
+
+        assert isinstance(result, ValidationResult)
+        assert len(result.window_results) > 0
+        assert result.best_strategy is not None
+
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_worker_function_produces_valid_result(self, mock_backtester):
+        """Test _process_window_worker produces correct WindowResult."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+        mock_result = BacktestResult(
+            strategy_name="Test",
+            simulation_results=Mock(),
+            metrics=mock_metrics,
+            execution_time=1.0,
+            config=SimulationConfig(),
+        )
+        mock_backtester.return_value.test_strategy.return_value = mock_result
+
+        window = ValidationWindow(0, 0, 2, 2, 3)
+        strategies = [NoInsuranceStrategy()]
+        mfg_config = ManufacturerConfig(
+            initial_assets=10000000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        manufacturer = WidgetManufacturer(mfg_config)
+
+        from ergodic_insurance.config import (  # pylint: disable=reimported
+            Config,
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            OutputConfig,
+        )
+        from ergodic_insurance.config import SimulationConfig as SimConfig
+        from ergodic_insurance.config import WorkingCapitalConfig  # pylint: disable=reimported
+
+        full_config = Config(
+            manufacturer=mfg_config,
+            working_capital=WorkingCapitalConfig(percent_of_sales=0.15),
+            growth=GrowthConfig(type="deterministic", annual_growth_rate=0.05, volatility=0.15),
+            debt=DebtConfig(
+                interest_rate=0.05, max_leverage_ratio=2.0, minimum_cash_balance=100000
+            ),
+            simulation=SimConfig(time_resolution="annual", time_horizon_years=10),
+            output=OutputConfig(
+                output_directory="./results",
+                file_format="csv",
+                checkpoint_frequency=0,
+                detailed_metrics=True,
+            ),
+            logging=LoggingConfig(enabled=True, level="INFO", log_file=None),
+        )
+
+        result = _process_window_worker(
+            window=window,
+            strategies=strategies,
+            n_simulations=100,
+            manufacturer=manufacturer,
+            config=full_config,
+        )
+
+        assert isinstance(result, WindowResult)
+        assert result.window == window
+        assert "No Insurance" in result.strategy_performances
+        assert result.execution_time >= 0
+
+    @patch.object(WalkForwardValidator, "_process_windows_parallel")
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_dispatches_to_parallel_when_multiple_windows(self, mock_backtester, mock_parallel):
+        """Test that parallel execution is used for multiple windows with max_workers > 1."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+
+        # Create window results matching generate_windows output
+        windows = WalkForwardValidator(window_size=3, step_size=2).generate_windows(10)
+        mock_window_results = []
+        for window in windows:
+            perf = StrategyPerformance(
+                strategy_name="No Insurance",
+                in_sample_metrics=mock_metrics,
+                out_sample_metrics=mock_metrics,
+            )
+            perf.calculate_degradation()
+            wr = WindowResult(
+                window=window,
+                strategy_performances={"No Insurance": perf},
+                execution_time=1.0,
+            )
+            mock_window_results.append(wr)
+        mock_parallel.return_value = mock_window_results
+
+        validator = WalkForwardValidator(window_size=3, step_size=2, max_workers=2)
+        result = validator.validate_strategies(
+            strategies=[NoInsuranceStrategy()],
+            n_years=10,
+            n_simulations=100,
+        )
+
+        mock_parallel.assert_called_once()
+        assert isinstance(result, ValidationResult)
+        assert len(result.window_results) == 4
+
+    @patch.object(WalkForwardValidator, "_process_windows_parallel")
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_no_parallel_dispatch_when_max_workers_one(self, mock_backtester, mock_parallel):
+        """Test that sequential execution is used when max_workers=1."""
+        mock_metrics = ValidationMetrics(
+            roe=0.12, ruin_probability=0.02, growth_rate=0.06, volatility=0.2
+        )
+        mock_result = BacktestResult(
+            strategy_name="Test",
+            simulation_results=Mock(),
+            metrics=mock_metrics,
+            execution_time=1.0,
+            config=SimulationConfig(),
+        )
+        mock_backtester.return_value.test_strategy.return_value = mock_result
+
+        validator = WalkForwardValidator(window_size=3, step_size=2, max_workers=1)
+        result = validator.validate_strategies(
+            strategies=[NoInsuranceStrategy()],
+            n_years=10,
+            n_simulations=100,
+        )
+
+        mock_parallel.assert_not_called()
+        assert isinstance(result, ValidationResult)
+
+    @patch("ergodic_insurance.walk_forward_validator.StrategyBacktester")
+    def test_worker_function_multiple_strategies(self, mock_backtester):
+        """Test _process_window_worker handles multiple strategies correctly."""
+        mock_metrics_1 = ValidationMetrics(
+            roe=0.15, ruin_probability=0.01, growth_rate=0.08, volatility=0.2
+        )
+        mock_metrics_2 = ValidationMetrics(
+            roe=0.10, ruin_probability=0.03, growth_rate=0.05, volatility=0.25
+        )
+        mock_backtester.return_value.test_strategy.side_effect = [
+            BacktestResult("Conservative", Mock(), mock_metrics_1, 1.0, SimulationConfig()),
+            BacktestResult("Conservative", Mock(), mock_metrics_1, 1.0, SimulationConfig()),
+            BacktestResult("No Insurance", Mock(), mock_metrics_2, 1.0, SimulationConfig()),
+            BacktestResult("No Insurance", Mock(), mock_metrics_2, 1.0, SimulationConfig()),
+        ]
+
+        window = ValidationWindow(0, 0, 2, 2, 3)
+        strategies = [ConservativeFixedStrategy(), NoInsuranceStrategy()]
+        mfg_config = ManufacturerConfig(
+            initial_assets=10000000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        manufacturer = WidgetManufacturer(mfg_config)
+
+        from ergodic_insurance.config import (  # pylint: disable=reimported
+            Config,
+            DebtConfig,
+            GrowthConfig,
+            LoggingConfig,
+            OutputConfig,
+        )
+        from ergodic_insurance.config import SimulationConfig as SimConfig
+        from ergodic_insurance.config import WorkingCapitalConfig  # pylint: disable=reimported
+
+        full_config = Config(
+            manufacturer=mfg_config,
+            working_capital=WorkingCapitalConfig(percent_of_sales=0.15),
+            growth=GrowthConfig(type="deterministic", annual_growth_rate=0.05, volatility=0.15),
+            debt=DebtConfig(
+                interest_rate=0.05, max_leverage_ratio=2.0, minimum_cash_balance=100000
+            ),
+            simulation=SimConfig(time_resolution="annual", time_horizon_years=10),
+            output=OutputConfig(
+                output_directory="./results",
+                file_format="csv",
+                checkpoint_frequency=0,
+                detailed_metrics=True,
+            ),
+            logging=LoggingConfig(enabled=True, level="INFO", log_file=None),
+        )
+
+        result = _process_window_worker(
+            window=window,
+            strategies=strategies,
+            n_simulations=100,
+            manufacturer=manufacturer,
+            config=full_config,
+        )
+
+        assert isinstance(result, WindowResult)
+        assert len(result.strategy_performances) == 2
+        assert "Conservative Fixed" in result.strategy_performances
+        assert "No Insurance" in result.strategy_performances
+
+
 class TestIntegration:
     """Integration tests for the walk-forward validation system."""
 
@@ -647,7 +884,7 @@ class TestIntegration:
         ]
 
         # Run validation
-        validator = WalkForwardValidator(window_size=3, step_size=2, test_ratio=0.3)
+        validator = WalkForwardValidator(window_size=3, step_size=2, test_ratio=0.3, max_workers=1)
 
         validation_result = validator.validate_strategies(
             strategies=strategies, n_years=7, n_simulations=100
