@@ -8,7 +8,7 @@ Since:
 """
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -61,16 +61,39 @@ class LoggingConfig(BaseModel):
 
 
 class ExcelReportConfig(BaseModel):
-    """Configuration for Excel report generation."""
+    """Configuration for Excel report generation.
+
+    This is the canonical definition used throughout the codebase.
+    Both ``ExcelReporter`` and the unified config hierarchy (``ConfigV2``)
+    use this class.
+
+    Attributes:
+        enabled: Whether Excel reporting is enabled.
+        output_path: Directory for output files.
+        include_balance_sheet: Whether to include balance sheet.
+        include_income_statement: Whether to include income statement.
+        include_cash_flow: Whether to include cash flow statement.
+        include_reconciliation: Whether to include reconciliation sheet.
+        include_metrics_dashboard: Whether to include metrics dashboard.
+        include_pivot_data: Whether to include pivot-ready data sheet.
+        formatting: Custom formatting options.
+        engine: Excel engine to use ('xlsxwriter', 'openpyxl', 'auto', 'pandas').
+        currency_format: Currency format string.
+        decimal_places: Number of decimal places for numbers.
+        date_format: Date format string.
+    """
 
     enabled: bool = Field(default=True, description="Whether Excel reporting is enabled")
-    output_path: str = Field(default="./reports", description="Directory for Excel reports")
+    output_path: Path = Field(default=Path("./reports"), description="Directory for Excel reports")
     include_balance_sheet: bool = Field(default=True, description="Include balance sheet")
     include_income_statement: bool = Field(default=True, description="Include income statement")
     include_cash_flow: bool = Field(default=True, description="Include cash flow statement")
     include_reconciliation: bool = Field(default=True, description="Include reconciliation report")
     include_metrics_dashboard: bool = Field(default=True, description="Include metrics dashboard")
     include_pivot_data: bool = Field(default=True, description="Include pivot-ready data")
+    formatting: Optional[Dict[str, Any]] = Field(
+        default=None, description="Custom formatting options"
+    )
     engine: str = Field(default="auto", description="Excel engine: xlsxwriter, openpyxl, or auto")
     currency_format: str = Field(default="$#,##0", description="Currency format string")
     decimal_places: int = Field(default=0, ge=0, le=10, description="Number of decimal places")
