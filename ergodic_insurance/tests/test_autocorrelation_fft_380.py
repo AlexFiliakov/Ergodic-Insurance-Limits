@@ -5,6 +5,7 @@ matching the original O(N*L) loop implementation within 1e-10, and that
 the performance improvement is at least 3x for chains of length 25K+.
 """
 
+import os
 import time
 
 import numpy as np
@@ -110,6 +111,10 @@ class TestFFTAutocorrelationAccuracy:
         np.testing.assert_allclose(fft_result, loop_result[: len(fft_result)], atol=1e-10)
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="Speedup benchmarks are flaky on shared CI runners due to variable CPU performance",
+)
 class TestFFTAutocorrelationPerformance:
     """Verify >= 3x speedup for chains of length 25K+."""
 
