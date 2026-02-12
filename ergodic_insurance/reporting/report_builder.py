@@ -6,10 +6,12 @@ figure embedding, section management, and content generation.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+import html
 import logging
 from pathlib import Path
+import re
 import shutil
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, ClassVar, Dict, FrozenSet, List, Optional, Union, cast
 
 from jinja2 import Environment, FileSystemLoader
 import matplotlib.pyplot as plt
@@ -22,12 +24,45 @@ from .table_generator import TableGenerator
 logger = logging.getLogger(__name__)
 
 
+"""Allowlist of font families considered safe for CSS injection."""
+_ALLOWED_FONT_FAMILIES: frozenset[str] = frozenset(
+    {
+        "Arial",
+        "Helvetica",
+        "Times New Roman",
+        "Times",
+        "Courier New",
+        "Courier",
+        "Georgia",
+        "Verdana",
+        "Trebuchet MS",
+        "Palatino Linotype",
+        "Palatino",
+        "Garamond",
+        "Bookman",
+        "Tahoma",
+        "Lucida Sans",
+        "Lucida Console",
+        "Comic Sans MS",
+        "Impact",
+        "sans-serif",
+        "serif",
+        "monospace",
+        "cursive",
+        "fantasy",
+    }
+)
+
+
 class ReportBuilder(ABC):
     """Base class for building automated reports.
 
     This abstract base class provides common functionality for generating
     different types of reports, including section management, figure embedding,
     and template rendering.
+
+    Subclasses should extend ``_ALLOWED_FIGURE_GENERATORS`` and
+    ``_ALLOWED_TABLE_GENERATORS`` to register their own generator methods.
 
     Attributes:
         config: Report configuration object.
@@ -37,6 +72,9 @@ class ReportBuilder(ABC):
         figures: List of generated figures.
         tables: List of generated tables.
     """
+
+    _ALLOWED_FIGURE_GENERATORS: ClassVar[FrozenSet[str]] = frozenset()
+    _ALLOWED_TABLE_GENERATORS: ClassVar[FrozenSet[str]] = frozenset()
 
     def __init__(self, config: ReportConfig, cache_dir: Optional[Path] = None):
         """Initialize ReportBuilder.
@@ -152,7 +190,9 @@ class ReportBuilder(ABC):
                 template = self.env.get_template(content_ref)
                 return str(
                     template.render(
-                        metadata=self.config.metadata, figures=self.figures, tables=self.tables
+                        metadata=self.config.metadata,
+                        figures=self.figures,
+                        tables=self.tables,
                     )
                 )
 
@@ -188,7 +228,11 @@ class ReportBuilder(ABC):
 
         # Store figure info
         self.figures.append(
-            {"name": fig_config.name, "path": str(fig_path), "caption": fig_config.caption}
+            {
+                "name": fig_config.name,
+                "path": str(fig_path),
+                "caption": fig_config.caption,
+            }
         )
 
         # Generate markdown for figure with relative path
@@ -224,7 +268,9 @@ class ReportBuilder(ABC):
             # If it's a generation function name
             if str(source).startswith("generate_"):
                 func_name = str(source)
-                if hasattr(self, func_name):
+                if func_name not in self._ALLOWED_FIGURE_GENERATORS:
+                    logger.warning("Figure generator %r not in allowlist, skipping", func_name)
+                elif hasattr(self, func_name):
                     fig = getattr(self, func_name)(fig_config)
                     dest_path = self.cache_dir / f"{fig_config.name}.png"
                     fig.savefig(dest_path, dpi=fig_config.dpi, bbox_inches="tight")
@@ -233,7 +279,14 @@ class ReportBuilder(ABC):
 
         # Fallback: create placeholder figure
         fig, ax = plt.subplots(figsize=(fig_config.width, fig_config.height))
-        ax.text(0.5, 0.5, f"Figure: {fig_config.name}", ha="center", va="center", fontsize=14)
+        ax.text(
+            0.5,
+            0.5,
+            f"Figure: {fig_config.name}",
+            ha="center",
+            va="center",
+            fontsize=14,
+        )
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -268,7 +321,11 @@ class ReportBuilder(ABC):
 
         # Store table info
         self.tables.append(
-            {"name": table_config.name, "caption": table_config.caption, "content": table_content}
+            {
+                "name": table_config.name,
+                "caption": table_config.caption,
+                "content": table_content,
+            }
         )
 
         return table_content
@@ -296,7 +353,9 @@ class ReportBuilder(ABC):
             # If it's a generation function name
             if str(data_source).startswith("generate_"):
                 func_name = str(data_source)
-                if hasattr(self, func_name):
+                if func_name not in self._ALLOWED_TABLE_GENERATORS:
+                    logger.warning("Table generator %r not in allowlist, skipping", func_name)
+                elif hasattr(self, func_name):
                     return cast(pd.DataFrame, getattr(self, func_name)())
 
         # Fallback: create sample data
@@ -400,16 +459,42 @@ class ReportBuilder(ABC):
             html_content = markdown2.markdown(content, extras=["tables", "fenced-code-blocks"])
             output_path = self.config.output_dir / f"{base_name}.html"
 
+            # Sanitize values for HTML/CSS injection (issue #801)
+            safe_title = html.escape(self.config.metadata.title, quote=True)
+
+            # Validate font_family against allowlist; fall back to Arial
+            raw_font = self.config.style.font_family
+            safe_font = raw_font if raw_font in _ALLOWED_FONT_FAMILIES else "Arial"
+
+            # Validate font_size is numeric (int already enforced by pydantic,
+            # but belt-and-suspenders for any runtime override)
+            raw_size = self.config.style.font_size
+            if not isinstance(raw_size, (int, float)) or not re.fullmatch(
+                r"\d+(\.\d+)?", str(raw_size)
+            ):
+                safe_size = 11
+            else:
+                safe_size = raw_size
+
+            # Validate line_spacing is numeric
+            raw_spacing = self.config.style.line_spacing
+            if not isinstance(raw_spacing, (int, float)) or not re.fullmatch(
+                r"\d+(\.\d+)?", str(raw_spacing)
+            ):
+                safe_spacing = 1.5
+            else:
+                safe_spacing = raw_spacing
+
             # Wrap in HTML template
             html_template = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{self.config.metadata.title}</title>
+    <title>{safe_title}</title>
     <style>
-        body {{ font-family: {self.config.style.font_family};
-                font-size: {self.config.style.font_size}pt;
-                line-height: {self.config.style.line_spacing};
+        body {{ font-family: {safe_font};
+                font-size: {safe_size}pt;
+                line-height: {safe_spacing};
                 max-width: 900px;
                 margin: 0 auto;
                 padding: 20px; }}
