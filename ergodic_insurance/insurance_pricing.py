@@ -72,13 +72,20 @@ class PricingParameters:
 
     Attributes:
         loss_ratio: Target loss ratio for pricing (claims/premium)
-        expense_ratio: Operating expense ratio (default 0.25)
+        expense_ratio: Operating expense ratio excluding LAE (default 0.25).
+            Covers commissions, overhead, admin, and other non-LAE expenses.
         profit_margin: Target profit margin (default 0.05)
         risk_loading: Additional loading for uncertainty (default 0.10)
         confidence_level: Confidence level for pricing (default 0.95)
         simulation_years: Years to simulate for pricing (default 10)
         min_premium: Minimum premium floor (default 1000)
         max_rate_on_line: Maximum rate on line cap (default 0.50)
+        alae_ratio: Allocated LAE ratio as fraction of pure premium (default
+            0.10). Covers claim-specific costs such as legal fees and expert
+            witnesses. Typical range for commercial lines is 0.08-0.15.
+        ulae_ratio: Unallocated LAE ratio as fraction of pure premium (default
+            0.05). Covers general claims department overhead. Typical range
+            is 0.03-0.08.
     """
 
     loss_ratio: float = 0.70
@@ -89,6 +96,26 @@ class PricingParameters:
     simulation_years: int = 10
     min_premium: float = 1000.0
     max_rate_on_line: float = 0.50
+    alae_ratio: float = 0.10
+    ulae_ratio: float = 0.05
+
+    def __post_init__(self) -> None:
+        import warnings
+
+        if self.alae_ratio + self.ulae_ratio > self.expense_ratio:
+            warnings.warn(
+                f"LAE ratio ({self.alae_ratio + self.ulae_ratio:.2f}) exceeds "
+                f"expense ratio ({self.expense_ratio:.2f}). This is unusual — "
+                f"verify that expense_ratio accounts for all operating expenses "
+                f"or adjust alae_ratio/ulae_ratio.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+    @property
+    def lae_ratio(self) -> float:
+        """Combined LAE ratio (ALAE + ULAE) as fraction of pure premium."""
+        return self.alae_ratio + self.ulae_ratio
 
 
 @dataclass
@@ -105,7 +132,7 @@ class LayerPricing:
         market_premium: Final premium after market adjustments
         rate_on_line: Premium as percentage of limit
         confidence_interval: (lower, upper) bounds at confidence level
-        lae_loading: LAE component embedded in the expense ratio (Issue #468)
+        lae_loading: LAE component calculated from dedicated ALAE/ULAE ratios
     """
 
     attachment_point: float
@@ -390,8 +417,8 @@ class InsurancePricer:
         # Calculate rate on line
         rate_on_line = market_premium / limit if limit > 0 else 0.0
 
-        # LAE loading is the portion of expenses attributable to loss adjustment (Issue #468)
-        lae_loading = pure_premium * self.parameters.expense_ratio
+        # LAE loading from dedicated ALAE/ULAE ratios (Issue #616)
+        lae_loading = pure_premium * self.parameters.lae_ratio
 
         return LayerPricing(
             attachment_point=attachment_point,
@@ -553,8 +580,8 @@ class InsurancePricer:
 
         results = {}
 
-        # LAE loading is the portion of expenses attributable to loss adjustment (Issue #468)
-        lae_loading = pure_premium * self.parameters.expense_ratio
+        # LAE loading from dedicated ALAE/ULAE ratios (Issue #616)
+        lae_loading = pure_premium * self.parameters.lae_ratio
 
         # Apply different market cycle adjustments to the same technical premium
         for cycle in MarketCycle:
@@ -704,6 +731,8 @@ class InsurancePricer:
             simulation_years=config.get("simulation_years", 10),
             min_premium=config.get("min_premium", 1000.0),
             max_rate_on_line=config.get("max_rate_on_line", 0.50),
+            alae_ratio=config.get("alae_ratio", 0.10),
+            ulae_ratio=config.get("ulae_ratio", 0.05),
         )
 
         # Get market cycle
