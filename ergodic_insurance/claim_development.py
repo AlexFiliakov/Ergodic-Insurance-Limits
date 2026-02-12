@@ -457,6 +457,135 @@ class CashFlowProjector:
                 pv += amount / ((1 + self.discount_rate) ** years_to_discount)
         return pv
 
+    # ------------------------------------------------------------------
+    # Loss-development triangle helpers  (Issue #626)
+    # ------------------------------------------------------------------
+
+    def build_triangle(self, evaluation_year: int) -> Dict[int, Dict[int, float]]:
+        """Build a paid-loss development triangle from actual payment data.
+
+        The triangle maps each accident year to a dictionary of
+        ``{development_age: cumulative_paid}``.  Development age 0
+        corresponds to the accident year itself (i.e. payments made in the
+        same calendar year as the accident).
+
+        Only cohorts whose accident year is ``<= evaluation_year`` are
+        included.  For each cohort the maximum observable development age
+        is ``evaluation_year - accident_year``.
+
+        Args:
+            evaluation_year: Valuation date; only data through this
+                calendar year is used.
+
+        Returns:
+            Nested dict ``{accident_year: {dev_age: cumulative_paid}}``.
+        """
+        triangle: Dict[int, Dict[int, float]] = {}
+        for ay, cohort in self.cohorts.items():
+            if ay > evaluation_year:
+                continue
+            max_age = evaluation_year - ay
+            cumulative = 0.0
+            age_data: Dict[int, float] = {}
+            for age in range(max_age + 1):
+                cal_year = ay + age
+                # Sum payments made by this cohort in calendar_year
+                year_paid = sum(claim.payments_made.get(cal_year, 0.0) for claim in cohort.claims)
+                cumulative += year_paid
+                age_data[age] = cumulative
+            if age_data:
+                triangle[ay] = age_data
+        return triangle
+
+    def _compute_age_to_age_factors(
+        self, triangle: Dict[int, Dict[int, float]]
+    ) -> Dict[int, float]:
+        """Compute volume-weighted age-to-age (link) factors from a triangle.
+
+        For each development age ``d`` the link ratio is computed as the
+        volume-weighted average across all accident years that have data
+        at both ``d`` and ``d+1``::
+
+            LDF(d) = sum(C(ay, d+1)) / sum(C(ay, d))
+
+        where ``C(ay, d)`` is the cumulative paid at age ``d`` for
+        accident year ``ay``.
+
+        This is the standard "all-years volume-weighted" selection per
+        Friedland §3 and CAS Exam 7.
+
+        Args:
+            triangle: Output of :meth:`build_triangle`.
+
+        Returns:
+            Dict mapping ``dev_age -> link_ratio``.  Only ages with at
+            least two contributing accident years are included (to avoid
+            single-point estimates).
+        """
+        # Determine max development age across all AYs
+        max_age = max(
+            (max(ages.keys()) for ages in triangle.values()),
+            default=-1,
+        )
+        if max_age < 1:
+            return {}
+
+        factors: Dict[int, float] = {}
+        for d in range(max_age):
+            numerator = 0.0
+            denominator = 0.0
+            n_contributors = 0
+            for _ay, ages in triangle.items():
+                if d in ages and (d + 1) in ages and ages[d] > 0:
+                    numerator += ages[d + 1]
+                    denominator += ages[d]
+                    n_contributors += 1
+            # Require >=2 data points to avoid single-year noise
+            if n_contributors >= 2 and denominator > 0:
+                factors[d] = numerator / denominator
+        return factors
+
+    def _compute_cdf_to_ultimate(
+        self,
+        ata_factors: Dict[int, float],
+        current_age: int,
+    ) -> Optional[float]:
+        """Compute CDF-to-ultimate from selected age-to-age factors.
+
+        The CDF is the cumulative product of all link ratios from
+        ``current_age`` to the last observed age::
+
+            CDF(d) = prod(LDF(k) for k in range(d, max_factor_age + 1))
+
+        If any required link ratio is missing (i.e. the triangle does not
+        extend far enough), ``None`` is returned.
+
+        Args:
+            ata_factors: Dict of ``{dev_age: link_ratio}`` from
+                :meth:`_compute_age_to_age_factors`.
+            current_age: The development age of the cohort being
+                projected.
+
+        Returns:
+            CDF-to-ultimate, or ``None`` if factors are unavailable.
+        """
+        if not ata_factors:
+            return None
+
+        max_factor_age = max(ata_factors.keys())
+        if current_age > max_factor_age:
+            # Already past all observed development; treat as fully
+            # developed.
+            return 1.0
+
+        cdf = 1.0
+        for d in range(current_age, max_factor_age + 1):
+            if d not in ata_factors:
+                # Gap in factors — cannot project reliably
+                return None
+            cdf *= ata_factors[d]
+        return cdf
+
     def _get_cohort_pct_developed(self, cohort: ClaimCohort, development_years: int) -> float:
         """Compute weighted-average cumulative development percentage for a cohort.
 
@@ -558,12 +687,17 @@ class CashFlowProjector:
 
         Per-cohort logic:
 
-        - **Chain-Ladder (CL)** ultimate = paid_to_date / pct_developed.
-          Uses actual cumulative payments as the numerator (not case
-          estimates), which is the standard paid CL projection.
-          ``project_payments()`` should be called before ``estimate_ibnr()``
-          so that claims have recorded payments; otherwise CL degrades
-          gracefully to ``None`` and BF (or no-method) takes over.
+        - **Chain-Ladder (CL)** projects ultimate losses using empirical
+          age-to-age factors derived from a paid-loss development triangle
+          built from actual cohort payment histories.  When sufficient
+          triangle data is available (>=2 cohorts contributing to each
+          link ratio), the CL ultimate for a cohort at development age
+          *d* is ``paid_to_date * CDF_to_ultimate(d)`` where the CDF is
+          the cumulative product of volume-weighted link ratios from age
+          *d* onward (Friedland §3, CAS Exam 7).
+        - When empirical factors are unavailable (e.g. single cohort,
+          no overlapping development periods) CL falls back to the
+          assumed-pattern method: ``paid_to_date / pct_developed``.
         - **Bornhuetter-Ferguson (BF)** IBNR = ELR * premium * (1 - pct).
           Requires both an ELR (via tiered fallback) *and* per-cohort
           ``earned_premium``.  When premium is unavailable, BF is skipped
@@ -571,22 +705,6 @@ class CashFlowProjector:
         - Blended ultimate uses maturity-adaptive credibility weights:
           CL weight = pct_developed, BF weight = 1 - pct_developed.
         - IBNR floored at 0 per cohort (E7).
-
-        .. note:: **CL in deterministic simulation**
-
-           In the current framework, claims follow their
-           ``ClaimDevelopment`` pattern deterministically — actual payments
-           match expected payments exactly.  Chain-Ladder's value comes from
-           projecting *actual experience that deviates from expected*.  In a
-           deterministic world, paid CL always recovers the case estimate as
-           ultimate (``paid / pct = initial_estimate``), producing zero IBNR
-           for known claims.  CL therefore contributes meaningful signal
-           only when actual paid deviates from pattern (e.g. claim
-           re-estimation, litigation delays).  If the simulation is extended
-           to include stochastic development, CL becomes genuinely valuable.
-           Until then, the adaptive blend effectively gives most weight to
-           BF for immature years (where it matters most) and CL for mature
-           years (where both methods converge anyway).
 
         Args:
             evaluation_year: Current evaluation year.
@@ -599,6 +717,10 @@ class CashFlowProjector:
             Total estimated IBNR amount across all cohorts.
         """
         ibnr = 0.0
+
+        # Build empirical triangle & factors once for this valuation
+        triangle = self.build_triangle(evaluation_year)
+        ata_factors = self._compute_age_to_age_factors(triangle)
 
         for accident_year, cohort in self.cohorts.items():
             if accident_year > evaluation_year:
@@ -618,12 +740,20 @@ class CashFlowProjector:
             if incurred <= 0:
                 continue
 
-            # Chain-Ladder ultimate (paid CL)
+            # Chain-Ladder ultimate — prefer empirical, fall back to
+            # assumed-pattern.
             paid_to_date = cohort.get_total_paid()
-            if pct_developed > 0 and paid_to_date > 0:
+            cl_ultimate: Optional[float] = None
+
+            # Empirical CL: use triangle-derived CDF
+            if paid_to_date > 0 and ata_factors:
+                cdf = self._compute_cdf_to_ultimate(ata_factors, dev_years)
+                if cdf is not None:
+                    cl_ultimate = paid_to_date * cdf
+
+            # Assumed-pattern fallback
+            if cl_ultimate is None and pct_developed > 0 and paid_to_date > 0:
                 cl_ultimate = paid_to_date / pct_developed
-            else:
-                cl_ultimate = None
 
             # Bornhuetter-Ferguson ultimate (requires premium)
             elr = self._resolve_elr_for_cohort(cohort, dev_years, earned_premium)
