@@ -1754,3 +1754,246 @@ class TestMidYearLiquidity:
         assert manufacturer.ruin_month is not None
         # Should be early in year due to large January premium
         assert manufacturer.ruin_month <= 3
+
+    # --- NOL carryforward tests (Issue #689) ---
+
+    def test_nol_reduces_estimated_tax_in_liquidity_check(self):
+        """Large NOL should reduce estimated tax, raising minimum cash estimate.
+
+        Without NOL, quarterly tax = estimated_income * tax_rate / 4.
+        With NOL, the 80%-limited deduction reduces taxable income, lowering
+        the quarterly tax deducted in the cash projection.
+
+        Uses premium_payment_month=3 (first tax month) so the minimum cash
+        point occurs when both premium and tax are paid, making the tax
+        difference visible in the minimum.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=3,
+            check_intra_period_liquidity=True,
+        )
+        mfr_no_nol = WidgetManufacturer(config)
+        mfr_no_nol.period_insurance_premiums = to_decimal(1_350_000)
+        min_cash_no_nol, _ = mfr_no_nol.estimate_minimum_cash_point("annual")
+
+        mfr_with_nol = WidgetManufacturer(config)
+        mfr_with_nol.period_insurance_premiums = to_decimal(1_350_000)
+        mfr_with_nol.tax_handler.nol_carryforward = Decimal("5000000")
+        min_cash_with_nol, _ = mfr_with_nol.estimate_minimum_cash_point("annual")
+
+        assert min_cash_with_nol > min_cash_no_nol
+
+    def test_nol_80pct_limitation_respected(self):
+        """NOL deduction limited to 80% of estimated income per IRC 172(a)(2).
+
+        Even with NOL >> estimated income, 20% of income remains taxable.
+        A small NOL (below the 80% cap) should yield a smaller benefit
+        than a huge NOL that hits the cap.
+
+        Uses premium_payment_month=3 so minimum cash falls at a tax month.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=3,
+            check_intra_period_liquidity=True,
+        )
+        premium = to_decimal(1_350_000)
+        # estimated_income ≈ $5M * 0.8 * 0.10 = $400K
+        # 80% cap = $320K
+
+        # No NOL
+        mfr_zero = WidgetManufacturer(config)
+        mfr_zero.period_insurance_premiums = premium
+        min_cash_zero, _ = mfr_zero.estimate_minimum_cash_point("annual")
+
+        # Small NOL ($50K < 80% cap of $320K) — fully used
+        mfr_small = WidgetManufacturer(config)
+        mfr_small.period_insurance_premiums = premium
+        mfr_small.tax_handler.nol_carryforward = Decimal("50000")
+        min_cash_small, _ = mfr_small.estimate_minimum_cash_point("annual")
+
+        # Huge NOL ($10M >> income) — capped at 80%
+        mfr_huge = WidgetManufacturer(config)
+        mfr_huge.period_insurance_premiums = premium
+        mfr_huge.tax_handler.nol_carryforward = Decimal("10000000")
+        min_cash_huge, _ = mfr_huge.estimate_minimum_cash_point("annual")
+
+        # Ordering: no NOL < small NOL < huge NOL (80%-capped)
+        assert min_cash_zero < min_cash_small < min_cash_huge
+
+    def test_nol_5m_with_400k_income(self):
+        """$5M NOL with ~$400K estimated income: taxable = $80K (20% of income).
+
+        80% of $400K = $320K max deduction. NOL $5M >> $320K, so deduction
+        is capped at $320K. Taxable = $400K - $320K = $80K.
+        Annual tax = $80K * 0.25 = $20K vs $100K without NOL.
+        Quarterly tax savings = ($100K - $20K) / 4 = $20K per quarter.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=3,
+            check_intra_period_liquidity=True,
+        )
+        premium = to_decimal(1_350_000)
+
+        mfr = WidgetManufacturer(config)
+        mfr.period_insurance_premiums = premium
+        mfr.tax_handler.nol_carryforward = Decimal("5000000")
+        min_cash_nol, _ = mfr.estimate_minimum_cash_point("annual")
+
+        mfr_base = WidgetManufacturer(config)
+        mfr_base.period_insurance_premiums = premium
+        min_cash_base, _ = mfr_base.estimate_minimum_cash_point("annual")
+
+        assert min_cash_nol > min_cash_base
+        savings = min_cash_nol - min_cash_base
+        # Min occurs at month 3 where one quarter's tax is saved: $20K
+        assert savings >= Decimal("15000")
+
+    def test_nol_1m_with_400k_income(self):
+        """$1M NOL with ~$400K estimated income: deduction = $320K (80% cap binds).
+
+        $1M NOL > 80% cap of $320K, so deduction = $320K.
+        Same result as $5M NOL case — the 80% cap is the binding constraint.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            check_intra_period_liquidity=True,
+        )
+        # $1M NOL — above the 80% cap ($320K), so same effect as any higher NOL
+        mfr_1m = WidgetManufacturer(config)
+        mfr_1m.tax_handler.nol_carryforward = Decimal("1000000")
+        min_cash_1m, _ = mfr_1m.estimate_minimum_cash_point("annual")
+
+        # $5M NOL — also above cap, should give same result
+        mfr_5m = WidgetManufacturer(config)
+        mfr_5m.tax_handler.nol_carryforward = Decimal("5000000")
+        min_cash_5m, _ = mfr_5m.estimate_minimum_cash_point("annual")
+
+        # Both exceed the 80% cap, so their effect should be identical
+        assert min_cash_1m == min_cash_5m
+
+    def test_partial_nol_below_80pct_cap(self):
+        """$100K NOL with ~$400K income: full NOL used (below 80% cap of $320K).
+
+        Deduction = min($100K, $320K) = $100K.
+        Taxable = $400K - $100K = $300K.
+        Tax = $300K * 0.25 = $75K vs $100K without NOL.
+        """
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            premium_payment_month=3,
+            check_intra_period_liquidity=True,
+        )
+        premium = to_decimal(1_350_000)
+
+        mfr_partial = WidgetManufacturer(config)
+        mfr_partial.period_insurance_premiums = premium
+        mfr_partial.tax_handler.nol_carryforward = Decimal("100000")
+        min_cash_partial, _ = mfr_partial.estimate_minimum_cash_point("annual")
+
+        mfr_capped = WidgetManufacturer(config)
+        mfr_capped.period_insurance_premiums = premium
+        mfr_capped.tax_handler.nol_carryforward = Decimal("5000000")
+        min_cash_capped, _ = mfr_capped.estimate_minimum_cash_point("annual")
+
+        mfr_none = WidgetManufacturer(config)
+        mfr_none.period_insurance_premiums = premium
+        min_cash_none, _ = mfr_none.estimate_minimum_cash_point("annual")
+
+        # Partial NOL gives less benefit than capped NOL
+        assert min_cash_none < min_cash_partial < min_cash_capped
+
+    def test_nol_prevents_false_insolvency(self):
+        """Company with NOL should not trigger false insolvency from inflated tax.
+
+        Sets up a scenario where premium + tax in month 3 cause insolvency
+        without NOL adjustment, but with NOL the reduced tax keeps cash positive.
+        """
+        config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.20,
+            tax_rate=0.30,
+            retention_ratio=0.7,
+            premium_payment_month=3,  # Coincides with first tax month
+            check_intra_period_liquidity=True,
+        )
+
+        # Without NOL — triggers insolvency
+        mfr_no_nol = WidgetManufacturer(config)
+        mfr_no_nol.period_insurance_premiums = to_decimal(370_000)
+
+        result_no_nol = mfr_no_nol.check_liquidity_constraints("annual")
+        assert result_no_nol is False, "Should be insolvent without NOL adjustment"
+        assert mfr_no_nol.is_ruined is True
+
+        # With NOL — same scenario stays solvent
+        mfr_with_nol = WidgetManufacturer(config)
+        mfr_with_nol.period_insurance_premiums = to_decimal(370_000)
+        estimated_income = mfr_with_nol.calculate_revenue() * to_decimal(0.20)
+        mfr_with_nol.tax_handler.nol_carryforward = estimated_income
+
+        result_with_nol = mfr_with_nol.check_liquidity_constraints("annual")
+        assert result_with_nol is True, "Should be solvent with NOL sheltering income"
+        assert mfr_with_nol.is_ruined is False
+
+    def test_zero_nol_unchanged_behavior(self):
+        """Zero NOL produces same result as default (no NOL adjustment)."""
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            check_intra_period_liquidity=True,
+        )
+        mfr_zero = WidgetManufacturer(config)
+        mfr_zero.tax_handler.nol_carryforward = Decimal("0")
+        min_cash_zero, _ = mfr_zero.estimate_minimum_cash_point("annual")
+
+        mfr_default = WidgetManufacturer(config)
+        min_cash_default, _ = mfr_default.estimate_minimum_cash_point("annual")
+
+        assert min_cash_zero == min_cash_default
+
+    def test_nol_graceful_without_tax_handler(self):
+        """Without tax_handler attribute, estimate works unchanged (no crash)."""
+        config = ManufacturerConfig(
+            initial_assets=5_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+            check_intra_period_liquidity=True,
+        )
+        mfr = WidgetManufacturer(config)
+        baseline_cash, baseline_month = mfr.estimate_minimum_cash_point("annual")
+
+        mfr2 = WidgetManufacturer(config)
+        delattr(mfr2, "tax_handler")
+        no_handler_cash, no_handler_month = mfr2.estimate_minimum_cash_point("annual")
+
+        assert no_handler_cash == baseline_cash
+        assert no_handler_month == baseline_month

@@ -389,7 +389,23 @@ class SolvencyMixin:
 
         operating_margin = to_decimal(self.base_operating_margin)
         estimated_annual_income = annual_revenue * operating_margin
-        annual_tax = estimated_annual_income * to_decimal(self.tax_rate)
+
+        # Account for NOL carryforward in tax estimate per IRC §172 (Issue #689)
+        tax_handler = getattr(self, "tax_handler", None)
+        if (
+            tax_handler is not None
+            and hasattr(tax_handler, "nol_carryforward")
+            and tax_handler.nol_carryforward > ZERO
+            and estimated_annual_income > ZERO
+        ):
+            nol_limit_pct = to_decimal(getattr(tax_handler, "nol_limitation_pct", 0.80))
+            max_nol_deduction = estimated_annual_income * nol_limit_pct
+            nol_deduction = min(tax_handler.nol_carryforward, max_nol_deduction)
+            taxable_income = estimated_annual_income - nol_deduction
+        else:
+            taxable_income = max(ZERO, estimated_annual_income)
+
+        annual_tax = taxable_income * to_decimal(self.tax_rate)
         quarterly_tax = annual_tax / to_decimal(4)
 
         monthly_revenues = self._get_monthly_revenue_distribution(annual_revenue, revenue_pattern)
