@@ -1260,14 +1260,14 @@ class TestConvergenceAndBatchMethods:
         assert results is not None
         assert len(results.final_assets) == 200
 
-    def test_early_stopping_prints_message(self, loss_generator, insurance_program, manufacturer):
-        """Line 1663: When early stopping is triggered, a message should be printed."""
+    def test_early_stopping_logs_message(self, loss_generator, insurance_program, manufacturer):
+        """Line 1663: When early stopping is triggered, a message should be logged."""
         config = SimulationConfig(
             n_simulations=2000,
             n_years=2,
             parallel=False,
             cache_results=False,
-            progress_bar=True,  # Must be True for the print to happen
+            progress_bar=True,  # Must be True for the log to happen
             seed=42,
         )
         engine = MonteCarloEngine(
@@ -1299,20 +1299,20 @@ class TestConvergenceAndBatchMethods:
             mock_monitor.generate_convergence_summary.return_value = {}
             mock_monitor_cls.return_value = mock_monitor
 
-            with patch("builtins.print") as mock_print:
+            with patch("ergodic_insurance.monte_carlo.logger") as mock_logger:
                 results = engine.run_with_progress_monitoring(
                     check_intervals=[1000, 2000],
                     convergence_threshold=1.1,
                     early_stopping=True,
                     show_progress=True,
                 )
-                # Verify early stopping message was printed
-                print_calls = [str(c) for c in mock_print.call_args_list]
-                early_stop_printed = any(
+                # Verify early stopping message was logged
+                info_calls = [str(c) for c in mock_logger.info.call_args_list]
+                early_stop_logged = any(
                     "Early stopping" in call or "Convergence achieved" in call
-                    for call in print_calls
+                    for call in info_calls
                 )
-                # The message is only printed if the batch loop actually hit a
+                # The message is only logged if the batch loop actually hit a
                 # convergence check interval. Check that we got results either way.
                 assert results is not None
 
