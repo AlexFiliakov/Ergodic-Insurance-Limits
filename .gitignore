@@ -427,6 +427,11 @@ ergodic_insurance/notebooks/reports
 ergodic_insurance/notebooks/results
 ergodic_insurance/notebooks/visualization_exports
 ergodic_insurance/notebooks/table_exports
+# Notebook output directories (topic-based subfolder structure)
+ergodic_insurance/notebooks/reporting/excel_reports
+ergodic_insurance/notebooks/reporting/reports
+ergodic_insurance/notebooks/visualization/comparison_reports
+ergodic_insurance/notebooks/optimization/exports
 ergodic_insurance/.hypothesis
 ergodic_insurance/test_trajectory_storage
 test_trajectory_storage
