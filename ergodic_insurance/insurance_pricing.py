@@ -262,10 +262,13 @@ class InsurancePricer:
         severities = []
         annual_aggregates = []
 
-        for _ in range(years):
-            # Generate annual losses
+        for year_idx in range(years):
+            # Generate annual losses (time enables loss cost trending per ASOP 13)
             losses, _stats = self.loss_generator.generate_losses(
-                duration=1.0, revenue=expected_revenue, include_catastrophic=True
+                duration=1.0,
+                revenue=expected_revenue,
+                include_catastrophic=True,
+                time=float(year_idx),
             )
 
             # Calculate losses hitting this layer

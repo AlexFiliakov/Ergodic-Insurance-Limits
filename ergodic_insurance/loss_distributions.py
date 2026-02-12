@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .ergodic_analyzer import ErgodicData
     from .exposure_base import ExposureBase
     from .insurance_program import InsuranceProgram
+    from .trends import Trend
 
 
 class LossDistribution(ABC):
@@ -838,6 +839,8 @@ class ManufacturingLossGenerator:
         extreme_params: Optional[dict] = None,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
+        frequency_trend: Optional["Trend"] = None,
+        severity_trend: Optional["Trend"] = None,
     ):
         """Initialize manufacturing loss generator.
 
@@ -851,6 +854,10 @@ class ManufacturingLossGenerator:
                 - severity_scale (float): GPD scale parameter β > 0 (required)
             exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
+            frequency_trend: Optional trend for scaling claim frequency over time.
+                Applied as a multiplicative factor to base frequencies.
+            severity_trend: Optional trend for scaling claim severity over time.
+                Applied as a multiplicative factor to loss amounts.
         """
         # Use provided parameters or defaults
         attritional_params = attritional_params or {}
@@ -859,6 +866,10 @@ class ManufacturingLossGenerator:
 
         # Store exposure object
         self.exposure = exposure
+
+        # Store trend objects for loss cost trending (ASOP 13)
+        self.frequency_trend = frequency_trend
+        self.severity_trend = severity_trend
 
         # Pass exposure to each generator if provided
         if exposure is not None:
@@ -937,6 +948,8 @@ class ManufacturingLossGenerator:
         catastrophic_frequency: float = 0.001,
         catastrophic_pareto_alpha: float = 2.5,
         catastrophic_severity_factor: float = 5.0,
+        frequency_trend: Optional["Trend"] = None,
+        severity_trend: Optional["Trend"] = None,
     ) -> "ManufacturingLossGenerator":
         """Create a simple loss generator (migration helper from ClaimGenerator).
 
@@ -1027,6 +1040,8 @@ class ManufacturingLossGenerator:
             large_params=large_params,
             catastrophic_params=catastrophic_params,
             seed=seed,
+            frequency_trend=frequency_trend,
+            severity_trend=severity_trend,
         )
 
     def generate_losses(
@@ -1049,14 +1064,40 @@ class ManufacturingLossGenerator:
         else:
             actual_revenue = revenue
 
-        # Generate each type of loss
-        attritional_losses = self.attritional.generate_losses(duration, actual_revenue)
-        large_losses = self.large.generate_losses(duration, actual_revenue)
+        # Compute trend multipliers (ASOP 13 loss cost trending)
+        freq_multiplier = self.frequency_trend.get_multiplier(time) if self.frequency_trend else 1.0
+        sev_multiplier = self.severity_trend.get_multiplier(time) if self.severity_trend else 1.0
 
-        if include_catastrophic:
-            catastrophic_losses = self.catastrophic.generate_losses(duration, actual_revenue)
-        else:
-            catastrophic_losses = []
+        # Temporarily scale base frequencies for frequency trending
+        generators: List[
+            Union[AttritionalLossGenerator, LargeLossGenerator, CatastrophicLossGenerator]
+        ] = [self.attritional, self.large, self.catastrophic]
+        original_frequencies = [g.frequency_generator.base_frequency for g in generators]
+        try:
+            for g in generators:
+                g.frequency_generator.base_frequency *= freq_multiplier
+
+            # Generate each type of loss
+            attritional_losses = self.attritional.generate_losses(duration, actual_revenue)
+            large_losses = self.large.generate_losses(duration, actual_revenue)
+
+            if include_catastrophic:
+                catastrophic_losses = self.catastrophic.generate_losses(duration, actual_revenue)
+            else:
+                catastrophic_losses = []
+        finally:
+            # Restore original base frequencies to avoid state corruption
+            for g, orig_freq in zip(generators, original_frequencies):
+                g.frequency_generator.base_frequency = orig_freq
+
+        # Apply severity trend to all loss amounts
+        if sev_multiplier != 1.0:
+            for loss in attritional_losses:
+                loss.amount *= sev_multiplier
+            for loss in large_losses:
+                loss.amount *= sev_multiplier
+            for loss in catastrophic_losses:
+                loss.amount *= sev_multiplier
 
         # Combine all losses
         all_losses = attritional_losses + large_losses + catastrophic_losses
@@ -1113,6 +1154,8 @@ class ManufacturingLossGenerator:
             "annual_expected_loss": (
                 sum(loss.amount for loss in all_losses) / duration if duration > 0 else 0
             ),
+            "frequency_trend_multiplier": freq_multiplier,
+            "severity_trend_multiplier": sev_multiplier,
         }
 
         return all_losses, statistics
