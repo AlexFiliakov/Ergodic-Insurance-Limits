@@ -832,14 +832,28 @@ class BalanceSheetMixin:
 
             total_retained = retained_earnings + additional_retained
 
-            if total_retained > ZERO:
+            # Issue #683: Record full net income to retained earnings, then
+            # record dividends as a separate entry so TransactionType.DIVIDEND
+            # appears in the ledger for direct-method cash flow reporting.
+            if net_income_decimal > ZERO:
                 self.ledger.record_double_entry(
                     date=self.current_year,
                     debit_account=AccountName.CASH,
                     credit_account=AccountName.RETAINED_EARNINGS,
-                    amount=total_retained,
+                    amount=net_income_decimal,
                     transaction_type=TransactionType.RETAINED_EARNINGS,
                     description=f"Year {self.current_year} retained earnings",
+                    month=self.current_month,
+                )
+
+            if actual_dividends > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.RETAINED_EARNINGS,
+                    credit_account=AccountName.CASH,
+                    amount=actual_dividends,
+                    transaction_type=TransactionType.DIVIDEND,
+                    description=f"Year {self.current_year} dividend distribution",
                     month=self.current_month,
                 )
 
