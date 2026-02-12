@@ -53,6 +53,24 @@ class LossDistribution(ABC):
             Expected value when analytically available, otherwise estimated.
         """
 
+    @abstractmethod
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value E[min(X, limit)].
+
+        The limited expected value (LEV) is the expected claim cost when
+        losses are capped at a given limit. It is the fundamental building
+        block for layer pricing, increased limits factors, and loss
+        elimination ratios.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Chapter 5.
+
+        Args:
+            limit: The maximum value to which losses are capped.
+
+        Returns:
+            E[min(X, limit)], the expected value of the loss limited to *limit*.
+        """
+
     def reset_seed(self, seed) -> None:
         """Reset the random seed for reproducibility.
 
@@ -140,6 +158,31 @@ class LognormalLoss(LossDistribution):
         """
         return self.mean
 
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value for the lognormal distribution.
+
+        LEV(d) = E[X] * Phi((ln(d) - mu - sigma^2) / sigma)
+                 + d * (1 - Phi((ln(d) - mu) / sigma))
+
+        where Phi is the standard normal CDF.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Theorem 5.3.
+
+        Args:
+            limit: The cap on individual losses.
+
+        Returns:
+            E[min(X, d)] for the lognormal distribution.
+        """
+        if limit <= 0:
+            return 0.0
+
+        ln_d = np.log(limit)
+        z1 = (ln_d - self.mu - self.sigma**2) / self.sigma
+        z2 = (ln_d - self.mu) / self.sigma
+
+        return float(self.mean * stats.norm.cdf(z1) + limit * (1 - stats.norm.cdf(z2)))
+
 
 class ParetoLoss(LossDistribution):
     """Pareto loss severity distribution for catastrophic events.
@@ -194,6 +237,40 @@ class ParetoLoss(LossDistribution):
         if self.alpha <= 1:
             return np.inf
         return self.alpha * self.xm / (self.alpha - 1)
+
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value for the Pareto Type I distribution.
+
+        For X ~ Pareto(alpha, xm) with S(x) = (xm/x)^alpha, x >= xm:
+
+        LEV(d) = d                                              if d <= xm
+        LEV(d) = alpha*xm/(alpha-1) - xm^alpha * d^(1-alpha) / (alpha-1)
+                                                                if d > xm, alpha > 1
+        LEV(d) = xm * (1 + ln(d/xm))                          if d > xm, alpha = 1
+
+        Derived via the survival function integral: LEV(d) = integral_0^d S(x) dx.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Chapter 5.
+
+        Args:
+            limit: The cap on individual losses.
+
+        Returns:
+            E[min(X, d)] for the Pareto distribution.
+        """
+        if limit <= 0:
+            return 0.0
+
+        if limit <= self.xm:
+            return limit
+
+        if self.alpha == 1.0:
+            return float(self.xm * (1.0 + np.log(limit / self.xm)))
+
+        return float(
+            self.alpha * self.xm / (self.alpha - 1)
+            - (self.xm**self.alpha) * limit ** (1 - self.alpha) / (self.alpha - 1)
+        )
 
 
 class GeneralizedParetoLoss(LossDistribution):
@@ -270,6 +347,47 @@ class GeneralizedParetoLoss(LossDistribution):
         if self.severity_shape >= 1:
             return np.inf
         return self.severity_scale / (1 - self.severity_shape)
+
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value for the Generalized Pareto distribution.
+
+        For X ~ GPD(xi, beta) with loc=0:
+
+        When xi != 0:
+            LEV(d) = (beta / (1 - xi)) * [1 - (1 + xi*d/beta)^(1 - 1/xi)]
+            valid for d < -beta/xi when xi < 0 (upper bound of support).
+
+        When xi == 0 (exponential):
+            LEV(d) = beta * (1 - exp(-d/beta))
+
+        For d >= upper bound (xi < 0): LEV(d) = E[X] (full expected value).
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Chapter 5;
+                   Hosking & Wallis (1987).
+
+        Args:
+            limit: The cap on individual losses.
+
+        Returns:
+            E[min(X, d)] for the GPD.
+        """
+        if limit <= 0:
+            return 0.0
+
+        xi = self.severity_shape
+        beta = self.severity_scale
+
+        if abs(xi) < 1e-12:
+            # Exponential case (xi -> 0)
+            return float(beta * (1 - np.exp(-limit / beta)))
+
+        # Check upper bound for xi < 0 (bounded support: x < -beta/xi)
+        if xi < 0:
+            upper_bound = -beta / xi
+            if limit >= upper_bound:
+                return self.expected_value()
+
+        return float((beta / (1 - xi)) * (1 - (1 + xi * limit / beta) ** (1 - 1 / xi)))
 
 
 @dataclass
