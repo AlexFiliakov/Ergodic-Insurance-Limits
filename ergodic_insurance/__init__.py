@@ -278,12 +278,16 @@ def __getattr__(name):
         "EnsembleAverageStats",
         "ConvergenceStats",
         "SurvivalAnalysisStats",
+        "ClaimResult",
+        "LayerPayment",
     ):
         from .ergodic_types import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             BatchAnalysisResults,
+            ClaimResult,
             ConvergenceStats,
             EnsembleAverageStats,
             ErgodicAdvantage,
+            LayerPayment,
             ScenarioComparison,
             ScenarioMetrics,
             SurvivalAnalysisStats,

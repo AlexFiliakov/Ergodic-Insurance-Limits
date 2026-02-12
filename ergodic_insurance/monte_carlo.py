@@ -186,7 +186,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         for loss_event in year_losses:
             if loss_event.amount > 0:
                 claim_result = insurance_program.process_claim(loss_event.amount)
-                event_recovery = claim_result.get("insurance_recovery", 0)
+                event_recovery = claim_result.insurance_recovery
                 event_retained = loss_event.amount - event_recovery
 
                 total_recovery += event_recovery
@@ -1083,13 +1083,13 @@ class MonteCarloEngine:
 
             # Apply insurance PER OCCURRENCE (not aggregate) and create
             # ClaimLiability objects with LoC collateral (Issue #342).
-            total_recovery = 0
-            total_retained = 0
+            total_recovery = 0.0
+            total_retained = 0.0
 
             for event in events:
                 # Process each event separately through insurance
                 claim_result = self.insurance_program.process_claim(event.amount)
-                event_recovery = claim_result.get("insurance_recovery", 0)
+                event_recovery = claim_result.insurance_recovery
                 event_retained = event.amount - event_recovery
 
                 total_recovery += event_recovery
