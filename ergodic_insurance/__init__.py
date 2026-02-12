@@ -209,9 +209,10 @@ def __getattr__(name):
         )
 
         return locals()[name]
-    if name in ("InsurancePricer", "MarketCycle"):
+    if name in ("InsurancePricer", "MarketCycle", "LayerPricer"):
         from .insurance_pricing import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             InsurancePricer,
+            LayerPricer,
             MarketCycle,
         )
 

@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from .claim_development import ClaimDevelopment
+from .loss_distributions import LossDistribution
 
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
@@ -156,6 +157,169 @@ class LayerPricing:
     confidence_interval: Tuple[float, float]
     lae_loading: float = 0.0
     development_factor: float = 1.0
+
+
+class LayerPricer:
+    """Analytical layer pricing using limited expected values.
+
+    Computes expected losses in an excess layer (attachment, attachment + limit)
+    directly from a fitted severity distribution, without simulation. This
+    replaces ad-hoc rate heuristics with actuarially sound formulas based on
+    the limited expected value (LEV), increased limits factors (ILFs), loss
+    elimination ratios (LERs), and exposure curves (Lee diagrams).
+
+    The fundamental identity is:
+        E[loss in layer (a, a+l)] = LEV(a + l) - LEV(a)
+
+    where LEV(d) = E[min(X, d)] is the limited expected value at *d*.
+
+    References:
+        - Lee (1988) — Loss Distributions (exposure curves)
+        - Miccolis (1977) — On the Theory of Increased Limits and Excess of Loss Pricing
+        - Klugman, Panjer, Willmot — *Loss Models*, Chapter 5
+
+    Args:
+        severity_distribution: Fitted severity distribution with a
+            ``limited_expected_value(limit)`` method.
+        frequency: Expected annual claim frequency for the distribution.
+
+    Example:
+        Analytical pricing of an excess layer::
+
+            from ergodic_insurance.loss_distributions import ParetoLoss
+            from ergodic_insurance.insurance_pricing import LayerPricer
+
+            severity = ParetoLoss(alpha=2.5, xm=100_000)
+            pricer = LayerPricer(severity, frequency=5.0)
+
+            # Expected loss in the $1M xs $500K layer
+            layer_loss = pricer.expected_layer_loss(500_000, 1_000_000)
+
+            # Increased Limits Factor at $2M relative to $500K basic limit
+            ilf = pricer.increased_limits_factor(2_000_000, basic_limit=500_000)
+    """
+
+    def __init__(
+        self,
+        severity_distribution: LossDistribution,
+        frequency: float = 1.0,
+    ) -> None:
+        self.severity = severity_distribution
+        self.frequency = frequency
+
+    def expected_layer_loss(self, attachment: float, limit: float) -> float:
+        """Calculate the expected loss in an excess layer.
+
+        E[loss in (a, a+l)] = LEV(a + l) - LEV(a)
+
+        This is the pure premium for a single occurrence in the layer,
+        multiplied by frequency to get the annual expected layer loss.
+
+        Args:
+            attachment: Layer attachment point (deductible).
+            limit: Layer limit (width of coverage).
+
+        Returns:
+            Annual expected loss cost for the layer.
+        """
+        if limit <= 0:
+            return 0.0
+        lev_top = self.severity.limited_expected_value(attachment + limit)
+        lev_bottom = self.severity.limited_expected_value(attachment)
+        per_occurrence = lev_top - lev_bottom
+        return float(self.frequency * max(per_occurrence, 0.0))
+
+    def increased_limits_factor(self, limit: float, basic_limit: float) -> float:
+        """Calculate the Increased Limits Factor (ILF).
+
+        ILF(L) = LEV(L) / LEV(B)
+
+        where B is the basic limit and L is the desired limit.
+        Used to price policies at higher limits relative to a base.
+
+        Reference: Miccolis (1977); CAS Study Note on ILF ratemaking.
+
+        Args:
+            limit: Target policy limit.
+            basic_limit: Basic (reference) limit.
+
+        Returns:
+            ILF ratio (>= 1.0 when limit >= basic_limit).
+        """
+        lev_basic = self.severity.limited_expected_value(basic_limit)
+        if lev_basic <= 0:
+            return 1.0
+        lev_limit = self.severity.limited_expected_value(limit)
+        return float(lev_limit / lev_basic)
+
+    def loss_elimination_ratio(self, deductible: float) -> float:
+        """Calculate the Loss Elimination Ratio (LER).
+
+        LER(d) = LEV(d) / E[X]
+
+        The proportion of total expected losses eliminated by a deductible *d*.
+        An LER of 0.40 means the deductible removes 40% of expected losses.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Definition 5.2.
+
+        Args:
+            deductible: Deductible amount.
+
+        Returns:
+            LER in [0, 1]. Returns 0.0 if E[X] is infinite.
+        """
+        ev = self.severity.expected_value()
+        if not np.isfinite(ev) or ev <= 0:
+            return 0.0
+        lev_d = self.severity.limited_expected_value(deductible)
+        return float(min(lev_d / ev, 1.0))
+
+    def exposure_curve(self, n_points: int = 100) -> Dict[str, List[float]]:
+        """Compute the exposure curve (Lee diagram).
+
+        The exposure curve relates the retention as a fraction of the policy
+        limit to the proportion of expected losses retained. Formally:
+
+            G(r) = LEV(r * M) / LEV(M)
+
+        where M is the maximum possible loss (or a large practical upper bound)
+        and r ranges from 0 to 1.
+
+        Useful for visualising how much loss is retained vs. ceded at
+        different attachment points.
+
+        Reference: Lee (1988).
+
+        Args:
+            n_points: Number of points on the curve (default 100).
+
+        Returns:
+            Dictionary with 'retention_pct' and 'loss_eliminated_pct' lists,
+            each of length *n_points* + 1 (including the origin).
+        """
+        ev = self.severity.expected_value()
+        if not np.isfinite(ev) or ev <= 0:
+            diagonal = [0.0] + [i / n_points for i in range(1, n_points + 1)]
+            return {"retention_pct": diagonal, "loss_eliminated_pct": diagonal}
+
+        # Use a practical upper bound: 20x expected value
+        max_loss = ev * 20.0
+        lev_max = self.severity.limited_expected_value(max_loss)
+        if lev_max <= 0:
+            diagonal = [0.0] + [i / n_points for i in range(1, n_points + 1)]
+            return {"retention_pct": diagonal, "loss_eliminated_pct": diagonal}
+
+        retention_pcts: List[float] = []
+        loss_elim_pcts: List[float] = []
+
+        for i in range(n_points + 1):
+            pct = i / n_points
+            retention_pcts.append(pct)
+            d = pct * max_loss
+            lev_d = self.severity.limited_expected_value(d)
+            loss_elim_pcts.append(float(lev_d / lev_max))
+
+        return {"retention_pct": retention_pcts, "loss_eliminated_pct": loss_elim_pcts}
 
 
 class InsurancePricer:
