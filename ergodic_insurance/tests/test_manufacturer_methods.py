@@ -390,23 +390,20 @@ class TestStepMethod:
         # Assets should increase with retained earnings
         assert manufacturer.total_assets > initial_assets
 
-        # Equity change reflects depreciation, tax accruals, and retained earnings.
+        # Equity change reflects retained earnings, depreciation add-back, and tax accruals.
         # With PP&E ratio=0.5 → gross_ppe=5M → depreciation=500K/yr (10yr life).
-        # Revenue=10M, base margin=10% → base operating income=1M.
-        # Operating income = 1M - 500K depreciation = 500K.
-        # Tax = 500K * 25% = 125K → net income = 375K.
-        # Retained earnings = 375K * 50% = 187.5K (added to cash).
-        # Depreciation (500K) + tax accrual (~125K) > retained earnings (187.5K),
-        # so equity decreases even with positive net income.
+        # Revenue=10M, base margin=10% → operating income=1M (depreciation embedded in margin).
+        # Tax = 1M * 25% = 250K → net income = 750K.
+        # Retained earnings = 750K * 50% = 375K (added to cash).
+        # Depreciation add-back restores 500K non-cash charge to cash (Issue #637).
+        # Net cash impact ≈ +375K retained + 500K add-back − 500K capex + WC changes.
+        # With profitable operation and depreciation add-back, equity increases.
         equity_change = manufacturer.equity - initial_equity
         retained_earnings = metrics["net_income"] * to_decimal(manufacturer.retention_ratio)
-        # Equity should decrease but by less than depreciation alone
+        # Equity should increase with profitable operation and depreciation add-back
         assert (
-            equity_change < 0
-        ), "Equity should decrease due to depreciation exceeding retained earnings"
-        assert (
-            equity_change > -500_000
-        ), "Equity decrease should be partially offset by retained earnings"
+            equity_change > 0
+        ), "Equity should increase with profitable operation and depreciation add-back"
 
         # Balance sheet should remain balanced (Assets = Liabilities + Equity)
         assert float(manufacturer.total_assets) == pytest.approx(
