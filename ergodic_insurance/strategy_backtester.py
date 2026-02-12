@@ -35,7 +35,7 @@ import pandas as pd
 from .insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from .monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from .optimization import PenaltyMethodOptimizer
 from .simulation import Simulation, SimulationResults
 from .validation_metrics import MetricCalculator, ValidationMetrics
@@ -260,7 +260,7 @@ class OptimizedStaticStrategy(InsuranceStrategy):
             simulation_engine: Simulation engine for evaluation
         """
         # Shared config and loss generator — created once, reused across iterations
-        mc_config = SimulationConfig(n_simulations=100, n_years=5)
+        mc_config = MonteCarloConfig(n_simulations=100, n_years=5)
         loss_generator = ManufacturingLossGenerator(seed=42)
 
         # Memoize simulation results so objective() and ruin_constraint()
@@ -537,7 +537,7 @@ class BacktestResult:
     simulation_results: Union[SimulationResults, MonteCarloResults]
     metrics: ValidationMetrics
     execution_time: float
-    config: SimulationConfig
+    config: MonteCarloConfig
 
 
 class StrategyBacktester:
@@ -562,7 +562,7 @@ class StrategyBacktester:
         self,
         strategy: InsuranceStrategy,
         manufacturer: WidgetManufacturer,
-        config: SimulationConfig,
+        config: MonteCarloConfig,
         use_cache: bool = True,
     ) -> BacktestResult:
         """Test a single strategy.
@@ -643,7 +643,7 @@ class StrategyBacktester:
         self,
         strategies: List[InsuranceStrategy],
         manufacturer: WidgetManufacturer,
-        config: SimulationConfig,
+        config: MonteCarloConfig,
     ) -> pd.DataFrame:
         """Test multiple strategies and compare.
 

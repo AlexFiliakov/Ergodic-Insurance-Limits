@@ -19,7 +19,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloResults
 from ergodic_insurance.simulation import SimulationResults
 from ergodic_insurance.strategy_backtester import (
     AdaptiveStrategy,
@@ -57,8 +57,8 @@ def manufacturer(manufacturer_config):
 
 @pytest.fixture
 def sim_config():
-    """Lightweight SimulationConfig for backtesting."""
-    return SimulationConfig(
+    """Lightweight MonteCarloConfig for backtesting."""
+    return MonteCarloConfig(
         n_simulations=10,
         n_years=5,
         parallel=False,

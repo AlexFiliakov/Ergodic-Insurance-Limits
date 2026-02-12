@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.config import Config
-from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig
 from ergodic_insurance.scenario_manager import (
     ParameterSpec,
     ScenarioConfig,
@@ -141,7 +141,7 @@ class TestScenarioConfig:
         """Test default simulation config creation."""
         scenario = ScenarioConfig(scenario_id="test", name="Test")
         assert scenario.simulation_config is not None
-        assert isinstance(scenario.simulation_config, SimulationConfig)
+        assert isinstance(scenario.simulation_config, MonteCarloConfig)
 
     def test_generate_id_deterministic(self):
         """Test that ID generation is deterministic."""

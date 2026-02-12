@@ -143,14 +143,14 @@ class TestGrowthRatesUseEquity:
 
     def test_growth_rates_use_equity(self):
         """_calculate_growth_rates should reference manufacturer.equity."""
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
         # Create mock manufacturer with different total_assets and equity
         manufacturer = Mock()
         type(manufacturer).total_assets = PropertyMock(return_value=10_000_000)
         type(manufacturer).equity = PropertyMock(return_value=4_000_000)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=10,
             n_years=5,
             parallel=False,
@@ -171,13 +171,13 @@ class TestGrowthRatesUseEquity:
 
     def test_growth_rate_not_based_on_total_assets(self):
         """Verify that total_assets is NOT used as the denominator."""
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
         manufacturer = Mock()
         type(manufacturer).total_assets = PropertyMock(return_value=10_000_000)
         type(manufacturer).equity = PropertyMock(return_value=4_000_000)
 
-        config = SimulationConfig(n_simulations=10, n_years=5, parallel=False)
+        config = MonteCarloConfig(n_simulations=10, n_years=5, parallel=False)
 
         engine = MonteCarloEngine.__new__(MonteCarloEngine)
         engine.manufacturer = manufacturer

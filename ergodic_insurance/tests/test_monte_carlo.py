@@ -16,7 +16,7 @@ from ergodic_insurance.convergence import ConvergenceStats
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from ergodic_insurance.ruin_probability import (
     RuinProbabilityAnalyzer,
     RuinProbabilityConfig,
@@ -24,12 +24,12 @@ from ergodic_insurance.ruin_probability import (
 )
 
 
-class TestSimulationConfig:
-    """Test SimulationConfig dataclass."""
+class TestMonteCarloConfig:
+    """Test MonteCarloConfig dataclass."""
 
     def test_default_config(self):
         """Test default configuration values."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.n_simulations == 100_000
         assert config.n_years == 10
         assert config.n_chains == 4
@@ -40,7 +40,7 @@ class TestSimulationConfig:
 
     def test_custom_config(self):
         """Test custom configuration."""
-        config = SimulationConfig(n_simulations=50_000, n_years=5, parallel=False, seed=42)
+        config = MonteCarloConfig(n_simulations=50_000, n_years=5, parallel=False, seed=42)
         assert config.n_simulations == 50_000
         assert config.n_years == 5
         assert config.parallel is False
@@ -52,7 +52,7 @@ class TestMonteCarloResults:
 
     def test_results_summary(self):
         """Test results summary generation."""
-        config = SimulationConfig(n_simulations=1000, n_years=5)
+        config = MonteCarloConfig(n_simulations=1000, n_years=5)
         results = MonteCarloResults(
             final_assets=np.array([100_000, 150_000, 80_000]),
             annual_losses=np.zeros((3, 5)),
@@ -107,7 +107,7 @@ class TestMonteCarloEngine:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create config with small values for testing
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=2,
             parallel=False,
@@ -459,7 +459,7 @@ class TestRuinProbabilityEstimation:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create config
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             parallel=False,
@@ -742,7 +742,7 @@ class TestEnhancedParallelExecution:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create enhanced config with parallel mode enabled for enhanced features
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1000,
             n_years=5,
             parallel=True,
@@ -944,7 +944,7 @@ class TestClaimLiabilityMCEngine:
         )
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=3,
             parallel=False,
@@ -1052,7 +1052,7 @@ class TestClaimLiabilityMCEngine:
         )
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=1,
             parallel=False,

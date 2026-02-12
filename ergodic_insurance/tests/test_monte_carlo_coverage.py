@@ -35,9 +35,9 @@ from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, Insuranc
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
 from ergodic_insurance.monte_carlo import (
+    MonteCarloConfig,
     MonteCarloEngine,
     MonteCarloResults,
-    SimulationConfig,
     _create_manufacturer,
     _simulate_path_enhanced,
     _simulate_year_losses,
@@ -107,8 +107,8 @@ def mock_loss_generator():
 
 @pytest.fixture
 def small_config():
-    """Minimal SimulationConfig for fast tests."""
-    return SimulationConfig(
+    """Minimal MonteCarloConfig for fast tests."""
+    return MonteCarloConfig(
         n_simulations=20,
         n_years=3,
         parallel=False,
@@ -356,7 +356,7 @@ class TestMonteCarloResultsSummaryBranches:
             "metrics": {"var_99": 500_000, "tvar_99": 600_000},
             "convergence": {},
             "execution_time": 1.0,
-            "config": SimulationConfig(n_simulations=2, n_years=5),
+            "config": MonteCarloConfig(n_simulations=2, n_years=5),
         }
         defaults.update(overrides)
         return MonteCarloResults(**defaults)  # type: ignore[arg-type]
@@ -432,7 +432,7 @@ class TestRunMethodBranches:
     ):
         """Lines 572-580: When parallel executor exists but worker count changed,
         a new ParallelExecutor should be created."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=2,
             parallel=True,
@@ -475,7 +475,7 @@ class TestRunMethodBranches:
     def test_bootstrap_ci_computed_in_run(self, loss_generator, insurance_program, manufacturer):
         """Line 636: When compute_bootstrap_ci is True in config,
         bootstrap_confidence_intervals should be computed during run()."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=50,
             n_years=2,
             parallel=False,
@@ -509,7 +509,7 @@ class TestRunParallelFallbacks:
 
     @pytest.fixture
     def parallel_engine(self, mock_loss_generator, insurance_program, manufacturer):
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=2,
             parallel=True,
@@ -580,7 +580,7 @@ class TestRunEnhancedParallel:
 
     @pytest.fixture
     def enhanced_engine(self, loss_generator, insurance_program, manufacturer):
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=2,
             parallel=True,
@@ -825,7 +825,7 @@ class TestRunSingleSimulationBranches:
         self, loss_generator, insurance_program, manufacturer
     ):
         """Lines 1008-1012: With crn_base_seed, results should be deterministic."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=5,
             n_years=2,
             parallel=False,
@@ -848,7 +848,7 @@ class TestRunSingleSimulationBranches:
         """Line 1022: If loss_generator has no generate_losses, raise AttributeError."""
         bad_gen = Mock()
         del bad_gen.generate_losses
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=1,
             parallel=False,
@@ -866,7 +866,7 @@ class TestRunSingleSimulationBranches:
 
     def test_ledger_pruning_is_invoked(self, mock_loss_generator, insurance_program, manufacturer):
         """Line 1093: When enable_ledger_pruning=True, ledger.prune_entries should be called."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=3,
             parallel=False,
@@ -897,7 +897,7 @@ class TestCombineChunkResultsEdgeCases:
 
     @pytest.fixture
     def engine_with_ruin_eval(self, mock_loss_generator, insurance_program, manufacturer):
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=5,
             parallel=False,
@@ -970,7 +970,7 @@ class TestAdvancedAggregationSummaryReport:
         self, loss_generator, insurance_program, manufacturer
     ):
         """Lines 1377-1378: When generate_summary_report=True, a report string is produced."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=50,
             n_years=3,
             parallel=False,
@@ -1004,7 +1004,7 @@ class TestExportResults:
 
     @pytest.fixture
     def engine_and_results(self, loss_generator, insurance_program, manufacturer):
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=30,
             n_years=3,
             parallel=False,
@@ -1053,7 +1053,7 @@ class TestExportResults:
     ):
         """Lines 1401-1409: When results lack aggregated_results, aggregation
         should be performed before export."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=2,
             parallel=False,
@@ -1082,7 +1082,7 @@ class TestExportResults:
         self, loss_generator, insurance_program, manufacturer
     ):
         """Lines 1401-1404: If engine has result_aggregator, it should be used."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=2,
             parallel=False,
@@ -1117,7 +1117,7 @@ class TestComputeBootstrapCI:
 
     @pytest.fixture
     def engine_with_results(self, loss_generator, insurance_program, manufacturer):
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=3,
             parallel=False,
@@ -1201,7 +1201,7 @@ class TestConvergenceAndBatchMethods:
 
     @pytest.fixture
     def monitoring_engine(self, loss_generator, insurance_program, manufacturer):
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=500,
             n_years=2,
             parallel=False,
@@ -1235,7 +1235,7 @@ class TestConvergenceAndBatchMethods:
     ):
         """Line 1681: When check_intervals is None, defaults should be used and
         filtered to n_simulations."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=200,
             n_years=2,
             parallel=False,
@@ -1262,7 +1262,7 @@ class TestConvergenceAndBatchMethods:
 
     def test_early_stopping_logs_message(self, loss_generator, insurance_program, manufacturer):
         """Line 1663: When early stopping is triggered, a message should be logged."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=2000,
             n_years=2,
             parallel=False,
@@ -1346,40 +1346,40 @@ class TestMetricsEmptyResults:
 
 
 # ===========================================================================
-# Tests for SimulationConfig additional attributes
+# Tests for MonteCarloConfig additional attributes
 # ===========================================================================
 
 
-class TestSimulationConfigExtended:
+class TestMonteCarloConfigExtended:
     """Tests for config attributes used by missing lines."""
 
     def test_ruin_evaluation_config(self):
         """ruin_evaluation should be settable and default to None."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.ruin_evaluation is None
 
-        config2 = SimulationConfig(ruin_evaluation=[1, 5, 10])
+        config2 = MonteCarloConfig(ruin_evaluation=[1, 5, 10])
         assert config2.ruin_evaluation == [1, 5, 10]
 
     def test_crn_base_seed_config(self):
         """crn_base_seed defaults to None and can be set."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.crn_base_seed is None
 
-        config2 = SimulationConfig(crn_base_seed=12345)
+        config2 = MonteCarloConfig(crn_base_seed=12345)
         assert config2.crn_base_seed == 12345
 
     def test_enable_ledger_pruning_config(self):
         """enable_ledger_pruning defaults to False."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.enable_ledger_pruning is False
 
-        config2 = SimulationConfig(enable_ledger_pruning=True)
+        config2 = MonteCarloConfig(enable_ledger_pruning=True)
         assert config2.enable_ledger_pruning is True
 
     def test_bootstrap_config_defaults(self):
         """Bootstrap-related config fields should have sensible defaults."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.compute_bootstrap_ci is False
         assert config.bootstrap_confidence_level == 0.95
         assert config.bootstrap_n_iterations == 10000
@@ -1398,7 +1398,7 @@ class TestSequentialRunWithRuinEvaluation:
         self, loss_generator, insurance_program, manufacturer
     ):
         """When ruin_evaluation is set, periodic ruin probabilities should be computed."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=30,
             n_years=5,
             parallel=False,
@@ -1446,7 +1446,7 @@ class TestStochasticProcessCRN:
         )
         manufacturer = WidgetManufacturer(manufacturer_config, stochastic_process=stochastic)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=2,
             parallel=False,
@@ -1504,7 +1504,7 @@ class TestTrajectoryStorage:
     ):
         """Lines 536-537: When enable_trajectory_storage=True, trajectory_storage
         should be initialized."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=5,
             n_years=2,
             parallel=False,
@@ -1525,7 +1525,7 @@ class TestTrajectoryStorage:
         self, loss_generator, insurance_program, manufacturer
     ):
         """Line 1116: During simulation, trajectories should be stored."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=3,
             n_years=2,
             parallel=False,
@@ -1557,7 +1557,7 @@ class TestWorkerTestReturnsFalse:
         """Line 833: When the worker test returns False (not an exception),
         RuntimeError('Worker test failed') should be raised internally and
         the engine should fall back to _run_parallel."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20,
             n_years=2,
             parallel=True,
@@ -1609,7 +1609,7 @@ class TestExportHDF5:
 
     def test_export_hdf5_format(self, loss_generator, insurance_program, manufacturer):
         """Line 1419: Export to HDF5 format should invoke ResultExporter.to_hdf5."""
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=10,
             n_years=2,
             parallel=False,

@@ -988,9 +988,9 @@ class Simulation:
         manufacturer = WidgetManufacturer(config=config.manufacturer)
 
         # Create simulation config
-        from .monte_carlo import SimulationConfig
+        from .monte_carlo import MonteCarloConfig
 
-        sim_config = SimulationConfig(
+        sim_config = MonteCarloConfig(
             n_simulations=n_scenarios,
             n_years=getattr(config.simulation, "years", 10),
             parallel=n_jobs > 1 if n_jobs else True,

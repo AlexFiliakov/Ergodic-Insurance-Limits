@@ -9,7 +9,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 
 
 class TestPeriodicRuinTracking:
@@ -46,7 +46,7 @@ class TestPeriodicRuinTracking:
         """Test basic periodic ruin probability evaluation."""
         loss_generator, insurance_program, manufacturer = setup_engine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1000,
             n_years=20,
             ruin_evaluation=[5, 10, 15],
@@ -84,7 +84,7 @@ class TestPeriodicRuinTracking:
         loss_generator, insurance_program, manufacturer = setup_engine
 
         sim_years = 10
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1000,
             n_years=sim_years,
             ruin_evaluation=None,  # No periodic evaluation
@@ -145,7 +145,7 @@ class TestPeriodicRuinTracking:
         """Test periodic ruin evaluation with parallel execution."""
         loss_generator, insurance_program, manufacturer = setup_real_engine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1000,  # Reduced for faster testing
             n_years=20,
             ruin_evaluation=[5, 10, 15],
@@ -178,7 +178,7 @@ class TestPeriodicRuinTracking:
         loss_generator, insurance_program, manufacturer = setup_engine
 
         # Test evaluation beyond simulation years
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             ruin_evaluation=[5, 10, 20],  # 20 > n_years
@@ -205,7 +205,7 @@ class TestPeriodicRuinTracking:
         """Test evaluation at a single year."""
         loss_generator, insurance_program, manufacturer = setup_engine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=500,
             n_years=10,
             ruin_evaluation=[5],  # Single evaluation point
@@ -231,7 +231,7 @@ class TestPeriodicRuinTracking:
         """Test with empty evaluation list."""
         loss_generator, insurance_program, manufacturer = setup_engine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             ruin_evaluation=[],  # Empty list
@@ -267,7 +267,7 @@ class TestPeriodicRuinTracking:
             )
         )
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1000,
             n_years=15,
             ruin_evaluation=[3, 6, 9, 12],

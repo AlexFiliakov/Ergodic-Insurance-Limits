@@ -604,7 +604,7 @@ class TestWalkForwardValidatorGaps:
 
     def test_process_window_with_optimized_strategy(self, validator: WalkForwardValidator):
         """Line 363: strategy with optimized_params captures optimization params."""
-        from ergodic_insurance.monte_carlo import SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig
         from ergodic_insurance.strategy_backtester import BacktestResult, NoInsuranceStrategy
 
         mock_metrics = ValidationMetrics(
@@ -615,7 +615,7 @@ class TestWalkForwardValidatorGaps:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=0.5,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
 
         with patch.object(validator, "backtester") as mock_bt:

@@ -16,7 +16,7 @@ from ergodic_insurance.exposure_base import RevenueExposure
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from ergodic_insurance.simulation import Simulation, SimulationResults
 
 warnings.filterwarnings("ignore")
@@ -226,7 +226,7 @@ def run_basic_simulation(
         )
 
         # Create simulation config
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=n_simulations,
             n_years=n_years,
             n_chains=4,

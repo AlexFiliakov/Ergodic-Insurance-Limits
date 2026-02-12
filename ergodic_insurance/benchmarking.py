@@ -721,7 +721,7 @@ if __name__ == "__main__":
     from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
     from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
     from ergodic_insurance.manufacturer import WidgetManufacturer
-    from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+    from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
     # Setup simulation
     loss_generator = ManufacturingLossGenerator()
@@ -742,7 +742,7 @@ if __name__ == "__main__":
     manufacturer = WidgetManufacturer(manufacturer_config)
 
     # Create engine
-    sim_config = SimulationConfig(n_simulations=1000, n_years=10, parallel=True, n_workers=4)
+    sim_config = MonteCarloConfig(n_simulations=1000, n_years=10, parallel=True, n_workers=4)
 
     engine = MonteCarloEngine(
         loss_generator=loss_generator,

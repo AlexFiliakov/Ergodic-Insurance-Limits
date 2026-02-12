@@ -82,7 +82,7 @@ The following files properly seed their randomness:
 - `test_bootstrap.py` - all tests use `np.random.seed(42)` before random calls
 - `test_accuracy_validator.py` - all tests use `np.random.seed(42)`
 - `test_stochastic.py` - uses `StochasticConfig(random_seed=42)` for all tests
-- `test_monte_carlo.py` - uses `np.random.seed(42)` and `SimulationConfig(seed=42)`
+- `test_monte_carlo.py` - uses `np.random.seed(42)` and `MonteCarloConfig(seed=42)`
 - `test_convergence_advanced.py` - uses `np.random.seed(42)`
 - `test_convergence_extended.py` - uses `np.random.seed(42)`
 - `test_parameter_sweep.py` - uses `np.random.seed(42)`

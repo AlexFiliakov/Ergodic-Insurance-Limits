@@ -49,14 +49,14 @@ from .test_helpers import assert_convergence, calculate_ergodic_metrics, compare
 
 def create_monte_carlo_config(config_v2, n_simulations=200, ruin_evaluation=None):
     """Create proper MonteCarloEngine config from ConfigV2."""
-    from ergodic_insurance.monte_carlo import SimulationConfig
+    from ergodic_insurance.monte_carlo import MonteCarloConfig
 
     n_years = config_v2.simulation.time_horizon_years
     # Default ruin evaluation at the final year if not specified
     if ruin_evaluation is None:
         ruin_evaluation = [n_years]
 
-    return SimulationConfig(
+    return MonteCarloConfig(
         n_simulations=n_simulations,
         n_years=n_years,
         seed=config_v2.simulation.random_seed or 42,

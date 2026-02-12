@@ -38,7 +38,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 from ergodic_insurance.performance_optimizer import (
     OptimizationConfig,
     PerformanceOptimizer,
@@ -112,7 +112,7 @@ class TestPerformanceBenchmarks:
         )
 
         # Use smaller scale for realistic testing
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1_000,  # Reduced from 50K for faster real testing
             n_years=5,  # Reduced years
             parallel=False,
@@ -215,7 +215,7 @@ class TestPerformanceBenchmarks:
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            config = SimulationConfig(
+            config = MonteCarloConfig(
                 n_simulations=500,  # Small but real simulation
                 n_years=3,  # Short time horizon
                 parallel=False,
@@ -589,7 +589,7 @@ class TestBenchmarking:
         loss_generator, insurance_program, manufacturer = setup_realistic_engine
 
         # Create engine with small scale for testing
-        config = SimulationConfig(n_simulations=100, n_years=5, parallel=False, progress_bar=False)
+        config = MonteCarloConfig(n_simulations=100, n_years=5, parallel=False, progress_bar=False)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -685,7 +685,7 @@ class TestIntegration:
         loss_generator, insurance_program, manufacturer = setup_realistic_engine
 
         # Create engine
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=10000,
             n_years=10,
             parallel=True,

@@ -14,7 +14,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from ergodic_insurance.ruin_probability import RuinProbabilityConfig
 
 
@@ -46,7 +46,7 @@ class TestParallelProcessing:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create config for parallel processing
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=20_000,  # Trigger parallel processing
             n_years=5,
             parallel=True,
@@ -233,7 +233,7 @@ class TestParallelRuinProbability:
         manufacturer.debt = 2_000_000  # type: ignore[attr-defined]
 
         # Create config
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             parallel=True,
@@ -526,7 +526,7 @@ class TestCombinedChunkResults:
         manufacturer.total_assets = 10_000_000
         manufacturer.equity = 6_000_000
 
-        config = SimulationConfig(n_simulations=100, n_years=5)
+        config = MonteCarloConfig(n_simulations=100, n_years=5)
         engine = MonteCarloEngine(loss_generator, insurance_program, manufacturer, config)
 
         # Create multiple chunk results

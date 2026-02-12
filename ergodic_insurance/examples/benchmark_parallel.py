@@ -33,7 +33,7 @@ from ergodic_insurance import (
     MonteCarloEngine,
     WidgetManufacturer,
 )
-from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig
 from ergodic_insurance.parallel_executor import CPUProfile
 
 
@@ -104,7 +104,7 @@ def benchmark_configuration(
     loss_generator: ManufacturingLossGenerator,
     insurance_program: InsuranceProgram,
     manufacturer: WidgetManufacturer,
-    config: SimulationConfig,
+    config: MonteCarloConfig,
     label: str,
 ) -> Dict:
     """Run benchmark for a specific configuration.
@@ -212,7 +212,7 @@ def run_benchmarks(n_simulations: int, n_years: int, max_workers: int = None) ->
     configs = [
         # Sequential baseline
         (
-            SimulationConfig(
+            MonteCarloConfig(
                 n_simulations=n_simulations,
                 n_years=n_years,
                 parallel=False,
@@ -225,7 +225,7 @@ def run_benchmarks(n_simulations: int, n_years: int, max_workers: int = None) ->
         # Standard parallel with different worker counts
         *[
             (
-                SimulationConfig(
+                MonteCarloConfig(
                     n_simulations=n_simulations,
                     n_years=n_years,
                     parallel=True,
@@ -241,7 +241,7 @@ def run_benchmarks(n_simulations: int, n_years: int, max_workers: int = None) ->
         # Enhanced parallel with different worker counts
         *[
             (
-                SimulationConfig(
+                MonteCarloConfig(
                     n_simulations=n_simulations,
                     n_years=n_years,
                     parallel=True,
@@ -259,7 +259,7 @@ def run_benchmarks(n_simulations: int, n_years: int, max_workers: int = None) ->
         ],
         # Enhanced with optimizations disabled
         (
-            SimulationConfig(
+            MonteCarloConfig(
                 n_simulations=n_simulations,
                 n_years=n_years,
                 parallel=True,

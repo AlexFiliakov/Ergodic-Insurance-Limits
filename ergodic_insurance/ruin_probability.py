@@ -128,7 +128,7 @@ class RuinProbabilityAnalyzer:
             manufacturer: WidgetManufacturer instance
             loss_generator: ManufacturingLossGenerator instance
             insurance_program: InsuranceProgram instance
-            config: SimulationConfig instance
+            config: MonteCarloConfig instance
         """
         self.manufacturer = manufacturer
         self.loss_generator = loss_generator
