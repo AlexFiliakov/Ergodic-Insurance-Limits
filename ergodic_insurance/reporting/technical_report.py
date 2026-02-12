@@ -34,6 +34,15 @@ class TechnicalReport(ReportBuilder):
         validation_metrics: Validation and convergence metrics.
     """
 
+    _ALLOWED_FIGURE_GENERATORS = frozenset(
+        {
+            "generate_parameter_sensitivity_plot",
+            "generate_qq_plot",
+            "generate_correlation_matrix_plot",
+        }
+    )
+    _ALLOWED_TABLE_GENERATORS = frozenset({"generate_model_parameters_table"})
+
     def __init__(
         self,
         results: Dict[str, Any],
@@ -114,8 +123,14 @@ class TechnicalReport(ReportBuilder):
                 # We use the first critical value (15% significance) as a simplified p-value proxy
                 ad_pval = 0.15 if ad_result.statistic < ad_result.critical_values[0] else 0.01
 
-                metrics["anderson_darling"] = {"statistic": ad_result.statistic, "p_value": ad_pval}
-                metrics["kolmogorov_smirnov"] = {"statistic": ks_stat, "p_value": ks_pval}
+                metrics["anderson_darling"] = {
+                    "statistic": ad_result.statistic,
+                    "p_value": ad_pval,
+                }
+                metrics["kolmogorov_smirnov"] = {
+                    "statistic": ks_stat,
+                    "p_value": ks_pval,
+                }
 
         # Model validation
         if "holdout_results" in self.results:
@@ -334,7 +349,14 @@ class TechnicalReport(ReportBuilder):
             # Create horizontal bars
             y_pos = np.arange(len(parameters))
             ax.barh(y_pos, low_dev, left=0, color="#e74c3c", alpha=0.7, label="Low scenario")
-            ax.barh(y_pos, high_dev, left=0, color="#2ecc71", alpha=0.7, label="High scenario")
+            ax.barh(
+                y_pos,
+                high_dev,
+                left=0,
+                color="#2ecc71",
+                alpha=0.7,
+                label="High scenario",
+            )
 
             ax.set_yticks(y_pos)
             ax.set_yticklabels(parameters)
