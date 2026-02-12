@@ -51,8 +51,9 @@ from copy import deepcopy
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+import threading
 import time
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -672,7 +673,12 @@ class Simulation:
 
         return metrics
 
-    def run(self, progress_interval: int = 100) -> SimulationResults:
+    def run(
+        self,
+        progress_interval: int = 100,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> SimulationResults:
         """Run the full simulation over the specified time horizon.
 
         Executes a complete simulation trajectory, processing claims each year,
@@ -682,6 +688,13 @@ class Simulation:
         Args:
             progress_interval: How often to log progress (in years). Set to 0
                 to disable progress logging. Useful for long simulations.
+            progress_callback: Optional callback invoked with
+                ``(completed_years, total_years, elapsed_seconds)`` after each
+                year completes.  Useful for GUI progress bars, web dashboards,
+                or any non-terminal environment.
+            cancel_event: Optional :class:`threading.Event`.  When set, the
+                simulation will stop after the current year and return partial
+                results (same pattern as insolvency early-stop).
 
         Returns:
             SimulationResults object containing:
@@ -746,7 +759,21 @@ class Simulation:
         logger.info(f"Starting {self.time_horizon}-year simulation with dynamic loss generation")
 
         # Run simulation
+        completed_years = 0
+        cancelled = False
         for year in range(self.time_horizon):
+            # Check for cancellation
+            if cancel_event is not None and cancel_event.is_set():
+                logger.info("Cancellation requested at year %d/%d", year, self.time_horizon)
+                cancelled = True
+                # Fill remaining years with zeros
+                self.assets[year:] = 0
+                self.equity[year:] = 0
+                self.roe[year:] = np.nan
+                self.revenue[year:] = 0
+                self.net_income[year:] = 0
+                break
+
             # Log progress
             if year > 0 and year % progress_interval == 0:
                 elapsed = time.time() - start_time
@@ -777,6 +804,12 @@ class Simulation:
             self.net_income[year] = metrics.get("net_income", 0)
             self.claim_counts[year] = metrics.get("claim_count", 0)
             self.claim_amounts[year] = metrics.get("claim_amount", 0)
+
+            completed_years = year + 1
+
+            # Fire progress callback after each year
+            if progress_callback is not None:
+                progress_callback(completed_years, self.time_horizon, time.time() - start_time)
 
             # Check for insolvency using manufacturer's insolvency tolerance
             tolerance = self.manufacturer.config.insolvency_tolerance

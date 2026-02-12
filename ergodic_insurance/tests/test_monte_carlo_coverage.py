@@ -637,7 +637,9 @@ class TestRunEnhancedParallel:
         }
 
         # Create a fake map_reduce that invokes the reduce function directly
-        def fake_map_reduce(work_function, work_items, reduce_function, shared_data, progress_bar):
+        def fake_map_reduce(
+            work_function, work_items, reduce_function, shared_data, progress_bar, **kwargs
+        ):
             # Simulate chunks of results (list of lists)
             chunk_results = [[mock_sim_result.copy() for _ in range(10)] for _ in range(2)]
             return reduce_function(chunk_results)
@@ -660,7 +662,9 @@ class TestRunEnhancedParallel:
     def test_combine_results_enhanced_with_none_results(self, enhanced_engine):
         """Lines 882-883: None results should be skipped during combination."""
 
-        def fake_map_reduce(work_function, work_items, reduce_function, shared_data, progress_bar):
+        def fake_map_reduce(
+            work_function, work_items, reduce_function, shared_data, progress_bar, **kwargs
+        ):
             # Mix of valid and None results
             valid = {
                 "final_assets": 1_000_000.0,
@@ -688,7 +692,9 @@ class TestRunEnhancedParallel:
     def test_combine_results_enhanced_with_unexpected_format(self, enhanced_engine):
         """Lines 897-901: Unexpected result formats should trigger a warning."""
 
-        def fake_map_reduce(work_function, work_items, reduce_function, shared_data, progress_bar):
+        def fake_map_reduce(
+            work_function, work_items, reduce_function, shared_data, progress_bar, **kwargs
+        ):
             valid = {
                 "final_assets": 1_000_000.0,
                 "annual_losses": np.array([10_000.0, 12_000.0]),
@@ -720,7 +726,9 @@ class TestRunEnhancedParallel:
         This test also validates that a bug is fixed where a local ``import warnings``
         inside the closure caused UnboundLocalError on the zero-results path."""
 
-        def fake_map_reduce(work_function, work_items, reduce_function, shared_data, progress_bar):
+        def fake_map_reduce(
+            work_function, work_items, reduce_function, shared_data, progress_bar, **kwargs
+        ):
             chunk = [None, None, None]
             return reduce_function([chunk])
 
@@ -746,7 +754,9 @@ class TestRunEnhancedParallel:
         """Lines 927-944: Ruin evaluation data should be properly aggregated."""
         enhanced_engine.config.ruin_evaluation = [1, 2]
 
-        def fake_map_reduce(work_function, work_items, reduce_function, shared_data, progress_bar):
+        def fake_map_reduce(
+            work_function, work_items, reduce_function, shared_data, progress_bar, **kwargs
+        ):
             results_with_ruin = []
             for i in range(5):
                 results_with_ruin.append(
@@ -789,7 +799,9 @@ class TestRunEnhancedParallel:
             speedup=2.0,
         )
 
-        def fake_map_reduce(work_function, work_items, reduce_function, shared_data, progress_bar):
+        def fake_map_reduce(
+            work_function, work_items, reduce_function, shared_data, progress_bar, **kwargs
+        ):
             valid = {
                 "final_assets": 1_000_000.0,
                 "annual_losses": np.array([10_000.0, 12_000.0]),
