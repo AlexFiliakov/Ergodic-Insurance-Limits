@@ -418,6 +418,11 @@ class HJBSolver:
         # Boundary values for Dirichlet BCs (captured from initial/terminal condition)
         self._boundary_values: dict[int, dict[str, np.ndarray]] | None = None
 
+        # Cache for factorized sparse operators: (theta, dt, dim) -> (solve_func, B_or_None)
+        self._operator_cache: Dict[
+            Tuple[float, float, int], Tuple[Any, Optional[sparse.spmatrix]]
+        ] = {}
+
         # Set up finite difference operators
         self._setup_operators()
 
@@ -542,6 +547,14 @@ class HJBSolver:
         )
         return L
 
+    def _invalidate_operator_cache(self):
+        """Clear the cached sparse matrix factorizations.
+
+        Must be called whenever drift or diffusion coefficients may change
+        (i.e., at the start of each policy evaluation cycle).
+        """
+        self._operator_cache.clear()
+
     def _theta_step_1d(
         self,
         old_v: np.ndarray,
@@ -573,33 +586,50 @@ class HJBSolver:
             Updated value function, shape (N,).
         """
         N = len(old_v)
-        L = self._build_spatial_operator_1d(drift_1d, sigma_sq_1d, dim)
-        I_mat = sparse.eye(N, format="csr")
+        cache_key = (theta, dt, dim)
 
-        # LHS: A = I - theta*dt*L
-        A = I_mat - theta * dt * L
+        if cache_key in self._operator_cache:
+            # Cache hit: reuse factorized solver and B matrix
+            solve_func, B = self._operator_cache[cache_key]
+        else:
+            # Cache miss: build, factorize, and store
+            L = self._build_spatial_operator_1d(drift_1d, sigma_sq_1d, dim)
+            I_mat = sparse.eye(N, format="csr")
+
+            # LHS: A = I - theta*dt*L
+            A = I_mat - theta * dt * L
+
+            # Set boundary rows to identity (boundary values handled by
+            # _apply_boundary_conditions after return)
+            A = A.tolil()
+            A[0, :] = 0
+            A[0, 0] = 1.0
+            A[N - 1, :] = 0
+            A[N - 1, N - 1] = 1.0
+            A = A.tocsc()
+
+            # Factorize once via SuperLU
+            solve_func = sparse.linalg.splu(A).solve
+
+            # Build B matrix for Crank-Nicolson (theta < 1)
+            if theta < 1.0:
+                B = I_mat + (1.0 - theta) * dt * L
+            else:
+                B = None
+
+            self._operator_cache[cache_key] = (solve_func, B)
 
         # RHS: B @ old_v + dt * cost
-        if theta < 1.0:
-            B = I_mat + (1.0 - theta) * dt * L
+        if B is not None:
             rhs = B @ old_v + dt * cost
         else:
             rhs = old_v + dt * cost
-
-        # Set boundary rows to identity (boundary values handled by
-        # _apply_boundary_conditions after return)
-        A = A.tolil()
-        A[0, :] = 0
-        A[0, 0] = 1.0
-        A[N - 1, :] = 0
-        A[N - 1, N - 1] = 1.0
-        A = A.tocsr()
 
         # Preserve old boundary values in RHS (will be overwritten by BCs)
         rhs[0] = old_v[0]
         rhs[N - 1] = old_v[N - 1]
 
-        new_v: np.ndarray = sparse.linalg.spsolve(A, rhs)
+        new_v: np.ndarray = solve_func(rhs)
         return new_v
 
     def _build_difference_matrix(
@@ -1002,6 +1032,9 @@ class HJBSolver:
         """
         if self.value_function is None or self.optimal_policy is None:
             return
+
+        # Policy may have changed since last evaluation; invalidate cached operators
+        self._invalidate_operator_cache()
 
         dt = self.config.time_step
         scheme = self.config.scheme
