@@ -247,7 +247,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
 
 @dataclass
-class SimulationConfig:
+class MonteCarloConfig:
     """Configuration for Monte Carlo simulation.
 
     Attributes:
@@ -357,7 +357,7 @@ class MonteCarloResults:
     metrics: Dict[str, float]
     convergence: Dict[str, ConvergenceStats]
     execution_time: float
-    config: SimulationConfig
+    config: MonteCarloConfig
     performance_metrics: Optional[PerformanceMetrics] = None
     aggregated_results: Optional[Dict[str, Any]] = None
     time_series_aggregation: Optional[Dict[str, Any]] = None
@@ -438,13 +438,13 @@ class MonteCarloEngine:
     Examples:
         Basic Monte Carlo simulation::
 
-            from .monte_carlo import MonteCarloEngine, SimulationConfig
+            from .monte_carlo import MonteCarloEngine, MonteCarloConfig
             from .loss_distributions import ManufacturingLossGenerator
             from .insurance_program import InsuranceProgram
             from .manufacturer import WidgetManufacturer
 
             # Configure simulation
-            config = SimulationConfig(
+            config = MonteCarloConfig(
                 n_simulations=10000,
                 n_years=20,
                 parallel=True,
@@ -471,7 +471,7 @@ class MonteCarloEngine:
         Advanced simulation with convergence monitoring::
 
             # Enable convergence checking
-            config = SimulationConfig(
+            config = MonteCarloConfig(
                 n_simulations=100000,
                 check_convergence=True,
                 convergence_tolerance=0.001,
@@ -501,7 +501,7 @@ class MonteCarloEngine:
         convergence_diagnostics: Convergence monitoring tools
 
     See Also:
-        :class:`SimulationConfig`: Configuration parameters
+        :class:`MonteCarloConfig`: Configuration parameters
         :class:`MonteCarloResults`: Simulation results container
         :class:`ParallelExecutor`: Enhanced parallel processing
         :class:`ConvergenceDiagnostics`: Convergence analysis tools
@@ -512,7 +512,7 @@ class MonteCarloEngine:
         loss_generator: ManufacturingLossGenerator,
         insurance_program: InsuranceProgram,
         manufacturer: WidgetManufacturer,
-        config: Optional[SimulationConfig] = None,
+        config: Optional[MonteCarloConfig] = None,
     ):
         """Initialize Monte Carlo engine.
 
@@ -525,7 +525,7 @@ class MonteCarloEngine:
         self.loss_generator = loss_generator
         self.insurance_program = insurance_program
         self.manufacturer = manufacturer
-        self.config = config or SimulationConfig()
+        self.config = config or MonteCarloConfig()
 
         # Set up convergence diagnostics
         self.convergence_diagnostics = ConvergenceDiagnostics()
@@ -1906,3 +1906,15 @@ class MonteCarloEngine:
             config=self.config,
         )
         return analyzer.analyze_ruin_probability(config)
+
+
+def __getattr__(name):
+    if name == "SimulationConfig":
+        warnings.warn(
+            "SimulationConfig has been renamed to MonteCarloConfig. "
+            "Please update your imports. The old name will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return MonteCarloConfig
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

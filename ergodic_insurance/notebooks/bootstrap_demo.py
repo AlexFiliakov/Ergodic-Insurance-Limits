@@ -13,7 +13,7 @@ from ergodic_insurance.bootstrap_analysis import BootstrapAnalyzer, bootstrap_co
 from ergodic_insurance.statistical_tests import difference_in_means_test, ratio_of_metrics_test
 
 # Enable bootstrap confidence intervals in simulation config
-bootstrap_config = SimulationConfig(
+bootstrap_config = MonteCarloConfig(
     n_simulations=10_000,
     n_years=10,
     parallel=True,
@@ -88,7 +88,7 @@ print("\nComparing Insurance Strategies")
 print("=" * 50)
 
 # Strategy A: Lower limits
-strategy_a_config = SimulationConfig(
+strategy_a_config = MonteCarloConfig(
     n_simulations=5_000, n_years=10, parallel=True, seed=42, progress_bar=False
 )
 

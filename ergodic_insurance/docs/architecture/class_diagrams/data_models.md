@@ -168,7 +168,7 @@ classDiagram
         -manufacturer: WidgetManufacturer
         -loss_generator: ManufacturingLossGenerator
         -insurance_program: InsuranceProgram
-        -config: SimulationConfig
+        -config: MonteCarloConfig
         +analyze_ruin_probability(config) RuinProbabilityResults
     }
 

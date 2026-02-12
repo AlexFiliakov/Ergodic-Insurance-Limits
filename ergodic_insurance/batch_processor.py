@@ -21,7 +21,7 @@ from .excel_reporter import ExcelReportConfig, ExcelReporter
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from .monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from .safe_pickle import safe_dump, safe_load
 from .scenario_manager import ScenarioConfig
 
@@ -440,7 +440,7 @@ class BatchProcessor:
                 loss_generator=loss_generator,
                 insurance_program=insurance_program,
                 manufacturer=manufacturer,
-                config=scenario.simulation_config or SimulationConfig(),
+                config=scenario.simulation_config or MonteCarloConfig(),
             )
 
             # Run simulation

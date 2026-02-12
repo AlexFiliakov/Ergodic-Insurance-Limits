@@ -17,7 +17,7 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Config
-from .monte_carlo import SimulationConfig
+from .monte_carlo import MonteCarloConfig
 
 
 class ScenarioType(Enum):
@@ -105,7 +105,7 @@ class ScenarioConfig:
     name: str
     description: str = ""
     base_config: Optional[Config] = None
-    simulation_config: Optional[SimulationConfig] = None
+    simulation_config: Optional[MonteCarloConfig] = None
     parameter_overrides: Dict[str, Any] = field(default_factory=dict)
     tags: Set[str] = field(default_factory=set)
     priority: int = 100
@@ -117,7 +117,7 @@ class ScenarioConfig:
         if not self.scenario_id:
             self.scenario_id = self.generate_id()
         if not self.simulation_config:
-            self.simulation_config = SimulationConfig()
+            self.simulation_config = MonteCarloConfig()
 
     def generate_id(self) -> str:
         """Generate unique scenario ID from configuration.
@@ -195,7 +195,7 @@ class ScenarioManager:
         self,
         name: str,
         base_config: Optional[Config] = None,
-        simulation_config: Optional[SimulationConfig] = None,
+        simulation_config: Optional[MonteCarloConfig] = None,
         parameter_overrides: Optional[Dict[str, Any]] = None,
         description: str = "",
         tags: Optional[Set[str]] = None,
@@ -220,7 +220,7 @@ class ScenarioManager:
             name=name,
             description=description,
             base_config=base_config,
-            simulation_config=simulation_config or SimulationConfig(),
+            simulation_config=simulation_config or MonteCarloConfig(),
             parameter_overrides=parameter_overrides or {},
             tags=tags or set(),
             priority=priority,
@@ -249,7 +249,7 @@ class ScenarioManager:
         name_template: str,
         parameter_specs: List[ParameterSpec],
         base_config: Optional[Config] = None,
-        simulation_config: Optional[SimulationConfig] = None,
+        simulation_config: Optional[MonteCarloConfig] = None,
         tags: Optional[Set[str]] = None,
     ) -> List[ScenarioConfig]:
         """Create scenarios for grid search over parameters.
@@ -300,7 +300,7 @@ class ScenarioManager:
         parameter_specs: List[ParameterSpec],
         n_scenarios: int,
         base_config: Optional[Config] = None,
-        simulation_config: Optional[SimulationConfig] = None,
+        simulation_config: Optional[MonteCarloConfig] = None,
         tags: Optional[Set[str]] = None,
         seed: Optional[int] = None,
     ) -> List[ScenarioConfig]:
@@ -349,7 +349,7 @@ class ScenarioManager:
         base_name: str,
         parameter_specs: List[ParameterSpec],
         base_config: Optional[Config] = None,
-        simulation_config: Optional[SimulationConfig] = None,
+        simulation_config: Optional[MonteCarloConfig] = None,
         tags: Optional[Set[str]] = None,
     ) -> List[ScenarioConfig]:
         """Create scenarios for sensitivity analysis.

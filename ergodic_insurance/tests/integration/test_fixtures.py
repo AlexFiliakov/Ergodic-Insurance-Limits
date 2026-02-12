@@ -433,7 +433,7 @@ def monte_carlo_engine(
     Returns:
         MonteCarloEngine: Configured engine for testing.
     """
-    from ergodic_insurance.monte_carlo import SimulationConfig as MonteCarloSimConfig
+    from ergodic_insurance.monte_carlo import MonteCarloConfig as MonteCarloSimConfig
 
     # Use smaller numbers for testing
     config = MonteCarloSimConfig(

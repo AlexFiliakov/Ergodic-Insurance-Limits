@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.convergence import ConvergenceDiagnostics, ConvergenceStats
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 from ergodic_insurance.progress_monitor import ProgressMonitor, ProgressStats
 
 
@@ -347,7 +347,7 @@ class TestMonteCarloIntegration:
         """Test Monte Carlo run with progress monitoring."""
         loss_generator, insurance_program, manufacturer = mock_components
 
-        config = SimulationConfig(n_simulations=1000, n_years=5, progress_bar=False, parallel=False)
+        config = MonteCarloConfig(n_simulations=1000, n_years=5, progress_bar=False, parallel=False)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -374,7 +374,7 @@ class TestMonteCarloIntegration:
         """Test early stopping when convergence is achieved."""
         loss_generator, insurance_program, manufacturer = mock_components
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100000, n_years=5, progress_bar=False, parallel=False
         )
 
@@ -403,7 +403,7 @@ class TestMonteCarloIntegration:
         """Test that progress monitoring has minimal performance impact."""
         loss_generator, insurance_program, manufacturer = mock_components
 
-        config = SimulationConfig(n_simulations=5000, n_years=5, progress_bar=False, parallel=False)
+        config = MonteCarloConfig(n_simulations=5000, n_years=5, progress_bar=False, parallel=False)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,

@@ -23,7 +23,7 @@ from ergodic_insurance.batch_processor import (
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloResults
 from ergodic_insurance.safe_pickle import safe_dump, safe_load
 from ergodic_insurance.scenario_manager import ScenarioConfig
 
@@ -356,7 +356,7 @@ class TestBatchProcessor:
         )
 
         scenario = ScenarioConfig(
-            "test_id", "Test Scenario", simulation_config=SimulationConfig(n_simulations=10)
+            "test_id", "Test Scenario", simulation_config=MonteCarloConfig(n_simulations=10)
         )
 
         # Mock MonteCarloEngine

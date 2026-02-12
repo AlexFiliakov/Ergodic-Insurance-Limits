@@ -354,9 +354,9 @@ class TestEnhancedParallelConfigParams:
 
     def test_shared_data_includes_step_params(self, manufacturer_config):
         """Verify shared_data includes step parameters for enhanced parallel."""
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=10,
             n_years=2,
             parallel=True,
@@ -426,9 +426,9 @@ class TestMonteCarloSequentialConfigParams:
 
     def test_sequential_uses_config_growth_rate(self, manufacturer_config):
         """Verify sequential MC path uses config growth_rate, not hardcoded 0.0."""
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=2,
             n_years=3,
             parallel=False,

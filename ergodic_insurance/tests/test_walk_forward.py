@@ -14,7 +14,7 @@ from ergodic_insurance.config import Config, ManufacturerConfig
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloResults
 from ergodic_insurance.simulation import Simulation, SimulationResults
 from ergodic_insurance.strategy_backtester import (
     AdaptiveStrategy,
@@ -252,7 +252,7 @@ class TestStrategyBacktester:
             metrics={"mean_roe": 0.12},
             convergence={},
             execution_time=1.0,
-            config=SimulationConfig(n_simulations=100, n_years=5),
+            config=MonteCarloConfig(n_simulations=100, n_years=5),
         )
         mock_mc_engine.return_value.run.return_value = mock_results
 
@@ -266,7 +266,7 @@ class TestStrategyBacktester:
             retention_ratio=0.7,
         )
         manufacturer = WidgetManufacturer(config)
-        sim_config = SimulationConfig(n_simulations=100, n_years=5)
+        sim_config = MonteCarloConfig(n_simulations=100, n_years=5)
 
         result = backtester.test_strategy(strategy, manufacturer, sim_config)
 
@@ -288,7 +288,7 @@ class TestStrategyBacktester:
             metrics={"mean_roe": 0.12},
             convergence={},
             execution_time=1.0,
-            config=SimulationConfig(n_simulations=100, n_years=5),
+            config=MonteCarloConfig(n_simulations=100, n_years=5),
         )
         mock_mc_engine.return_value.run.return_value = mock_results
 
@@ -302,7 +302,7 @@ class TestStrategyBacktester:
             retention_ratio=0.7,
         )
         manufacturer = WidgetManufacturer(config)
-        sim_config = SimulationConfig(n_simulations=100, n_years=5)
+        sim_config = MonteCarloConfig(n_simulations=100, n_years=5)
 
         results_df = backtester.test_multiple_strategies(strategies, manufacturer, sim_config)
 
@@ -353,7 +353,7 @@ class TestWalkForwardValidator:
                 roe=0.15, ruin_probability=0.01, growth_rate=0.08, volatility=0.2
             ),
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_test_result = BacktestResult(
             strategy_name="Test",
@@ -362,7 +362,7 @@ class TestWalkForwardValidator:
                 roe=0.12, ruin_probability=0.015, growth_rate=0.07, volatility=0.22
             ),
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
 
         mock_backtester.return_value.test_strategy.side_effect = [
@@ -433,7 +433,7 @@ class TestWalkForwardValidator:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -642,7 +642,7 @@ class TestParallelExecution:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -668,7 +668,7 @@ class TestParallelExecution:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -772,7 +772,7 @@ class TestParallelExecution:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -796,10 +796,10 @@ class TestParallelExecution:
             roe=0.10, ruin_probability=0.03, growth_rate=0.05, volatility=0.25
         )
         mock_backtester.return_value.test_strategy.side_effect = [
-            BacktestResult("Conservative", Mock(), mock_metrics_1, 1.0, SimulationConfig()),
-            BacktestResult("Conservative", Mock(), mock_metrics_1, 1.0, SimulationConfig()),
-            BacktestResult("No Insurance", Mock(), mock_metrics_2, 1.0, SimulationConfig()),
-            BacktestResult("No Insurance", Mock(), mock_metrics_2, 1.0, SimulationConfig()),
+            BacktestResult("Conservative", Mock(), mock_metrics_1, 1.0, MonteCarloConfig()),
+            BacktestResult("Conservative", Mock(), mock_metrics_1, 1.0, MonteCarloConfig()),
+            BacktestResult("No Insurance", Mock(), mock_metrics_2, 1.0, MonteCarloConfig()),
+            BacktestResult("No Insurance", Mock(), mock_metrics_2, 1.0, MonteCarloConfig()),
         ]
 
         window = ValidationWindow(0, 0, 2, 2, 3)
@@ -929,7 +929,7 @@ class TestSeedSequenceSeeding:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -983,7 +983,7 @@ class TestSeedSequenceSeeding:
         )
 
         assert isinstance(result, WindowResult)
-        # Verify the backtester was called with SimulationConfig whose seeds
+        # Verify the backtester was called with MonteCarloConfig whose seeds
         # are derived from the SeedSequence, NOT from window_id arithmetic
         calls = mock_backtester.return_value.test_strategy.call_args_list
         train_seed = calls[0].kwargs.get("config") or calls[0][1].get("config")
@@ -1010,7 +1010,7 @@ class TestSeedSequenceSeeding:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -1096,7 +1096,7 @@ class TestSeedSequenceSeeding:
             simulation_results=Mock(),
             metrics=mock_metrics,
             execution_time=1.0,
-            config=SimulationConfig(),
+            config=MonteCarloConfig(),
         )
         mock_backtester.return_value.test_strategy.return_value = mock_result
 
@@ -1137,7 +1137,7 @@ class TestIntegration:
             metrics={"mean_roe": 0.12},
             convergence={},
             execution_time=1.0,
-            config=SimulationConfig(n_simulations=100, n_years=5),
+            config=MonteCarloConfig(n_simulations=100, n_years=5),
         )
         mock_mc_engine.return_value.run.return_value = mock_results
 

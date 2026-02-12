@@ -50,7 +50,7 @@ import seaborn as sns
 
 from .config import Config
 from .manufacturer import WidgetManufacturer
-from .monte_carlo import SimulationConfig
+from .monte_carlo import MonteCarloConfig
 from .simulation import Simulation
 from .strategy_backtester import InsuranceStrategy, StrategyBacktester
 from .validation_metrics import (
@@ -174,12 +174,12 @@ def _process_window_worker(
         window_seed = np.random.SeedSequence(window.window_id)
     train_ss, test_ss = window_seed.spawn(2)
 
-    train_config = SimulationConfig(
+    train_config = MonteCarloConfig(
         n_simulations=n_simulations,
         n_years=window.get_train_years(),
         seed=int(train_ss.generate_state(1)[0]),
     )
-    test_config = SimulationConfig(
+    test_config = MonteCarloConfig(
         n_simulations=n_simulations,
         n_years=window.get_test_years(),
         seed=int(test_ss.generate_state(1)[0]),
@@ -460,13 +460,13 @@ class WalkForwardValidator:
             window_seed = np.random.SeedSequence(window.window_id)
         train_ss, test_ss = window_seed.spawn(2)
 
-        train_config = SimulationConfig(
+        train_config = MonteCarloConfig(
             n_simulations=n_simulations,
             n_years=window.get_train_years(),
             seed=int(train_ss.generate_state(1)[0]),
         )
 
-        test_config = SimulationConfig(
+        test_config = MonteCarloConfig(
             n_simulations=n_simulations,
             n_years=window.get_test_years(),
             seed=int(test_ss.generate_state(1)[0]),

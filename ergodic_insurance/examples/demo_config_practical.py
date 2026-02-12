@@ -23,7 +23,7 @@ from ergodic_insurance import InsuranceProgram, MonteCarloEngine, WidgetManufact
 from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.config_manager import ConfigManager
 from ergodic_insurance.config_migrator import ConfigMigrator
-from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig
 
 
 def demo_scenario_comparison():

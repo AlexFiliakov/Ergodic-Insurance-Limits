@@ -17,7 +17,7 @@ Key classes and modules:
 - `ManufacturingLossGenerator` — Stochastic loss generation (attritional, large, catastrophic)
 - `RevenueExposure` / `AssetExposure` / `EquityExposure` — State-driven exposure bases
 - `InsurancePolicy` / `InsuranceLayer` / `InsuranceProgram` / `EnhancedInsuranceLayer` — Insurance structures
-- `Simulation` / `MonteCarloEngine` / `SimulationConfig` — Simulation engines
+- `Simulation` / `MonteCarloEngine` / `MonteCarloConfig` — Simulation engines
 - `ErgodicAnalyzer` — Compares ensemble vs time-average metrics
 - `InsuranceDecisionEngine` — Optimization algorithms (SLSQP, differential evolution, weighted sum)
 - Visualization modules: `WSJ_COLORS`, `format_currency`, Plotly + Matplotlib outputs

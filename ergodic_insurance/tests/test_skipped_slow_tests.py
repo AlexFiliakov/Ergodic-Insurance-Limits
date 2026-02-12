@@ -13,14 +13,14 @@ import pytest
 
 if TYPE_CHECKING:
     from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
-    from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+    from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
     from ergodic_insurance.parallel_executor import ParallelExecutor
     from ergodic_insurance.trajectory_storage import StorageConfig, TrajectoryStorage
 else:
     # Runtime imports - these will fail if modules don't exist, which is fine for skipped tests
     try:
         from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
         from ergodic_insurance.parallel_executor import ParallelExecutor
         from ergodic_insurance.trajectory_storage import StorageConfig, TrajectoryStorage
     except ImportError:
@@ -28,7 +28,7 @@ else:
         LossEvent = None  # type: ignore
         ManufacturingLossGenerator = None  # type: ignore
         MonteCarloEngine = None  # type: ignore
-        SimulationConfig = None  # type: ignore
+        MonteCarloConfig = None  # type: ignore
         ParallelExecutor = None  # type: ignore
         StorageConfig = None  # type: ignore
         TrajectoryStorage = None  # type: ignore
@@ -51,7 +51,7 @@ class TestSlowTests:
         """Test that 10K simulations complete in reasonable time."""
         loss_generator, insurance_program, manufacturer = setup_realistic_engine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=10_000,
             n_years=10,
             parallel=False,
@@ -89,7 +89,7 @@ class TestSlowTests:
             {"total_amount": 100_000},
         )
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100_000,
             n_years=10,
             parallel=False,  # Changed to False - Mock objects can't be pickled for multiprocessing
@@ -129,7 +129,7 @@ class TestSlowTests:
             {"total_amount": 100_000},
         )
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100_000,
             n_years=10,
             parallel=False,
@@ -171,7 +171,7 @@ class TestSlowTests:
         # since Mock objects can't be pickled
 
         # Sequential run
-        config_seq = SimulationConfig(
+        config_seq = MonteCarloConfig(
             n_simulations=20_000,
             n_years=10,
             parallel=False,
@@ -192,7 +192,7 @@ class TestSlowTests:
         time_seq = time.time() - start_time
 
         # Parallel run
-        config_par = SimulationConfig(
+        config_par = MonteCarloConfig(
             n_simulations=20_000,
             n_years=10,
             parallel=True,
@@ -266,7 +266,7 @@ class TestSlowTests:
         )
 
         # Create optimized configuration
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100000,
             n_years=10,
             parallel=True,

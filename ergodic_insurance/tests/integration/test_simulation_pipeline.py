@@ -16,7 +16,7 @@ from ergodic_insurance.config import ConfigV2
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from ergodic_insurance.parallel_executor import ParallelExecutor
 from ergodic_insurance.progress_monitor import ProgressMonitor
 from ergodic_insurance.result_aggregator import ResultAggregator
@@ -122,7 +122,7 @@ class TestSimulationPipeline:
         This is the example test from the issue requirements.
         """
         # Create simulation config for serial execution
-        serial_config = SimulationConfig(
+        serial_config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             seed=42,
@@ -137,7 +137,7 @@ class TestSimulationPipeline:
         serial_results = serial_engine.run()
 
         # Create simulation config for parallel execution
-        parallel_config = SimulationConfig(
+        parallel_config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             seed=42,
@@ -545,7 +545,7 @@ class TestSimulationPipeline:
                 loss_generator=manufacturing_loss_generator,
                 insurance_program=enhanced_insurance_program,
                 manufacturer=scenario["manufacturer"],
-                config=SimulationConfig(
+                config=MonteCarloConfig(
                     n_simulations=10,
                     n_years=5,
                     seed=scenario_seed,
@@ -664,8 +664,8 @@ class TestSimulationPipeline:
             # Set number of simulations for this test iteration
             config.simulation.time_horizon_years = 20
 
-            # SimulationConfig already imported at module level
-            sim_config = SimulationConfig(
+            # MonteCarloConfig already imported at module level
+            sim_config = MonteCarloConfig(
                 n_simulations=n_sims,
                 n_years=20,
                 parallel=True,
@@ -720,7 +720,7 @@ class TestSimulationPipeline:
         """
         # Test empty simulation
         # Create config that disables advanced aggregation to avoid empty array issues
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=0,
             n_years=10,
             seed=42,
@@ -745,7 +745,7 @@ class TestSimulationPipeline:
             loss_generator=manufacturing_loss_generator,
             insurance_program=enhanced_insurance_program,
             manufacturer=base_manufacturer,
-            config=SimulationConfig(n_simulations=1, n_years=10, seed=42, parallel=False),
+            config=MonteCarloConfig(n_simulations=1, n_years=10, seed=42, parallel=False),
         )
 
         results = engine.run()
