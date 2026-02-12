@@ -99,11 +99,27 @@ class TaxHandler:
     - ``AccrualManager``: Stores tax accruals as liabilities
     - ``total_liabilities``: Includes accrued taxes from AccrualManager
 
+    TCJA Applicability (Issue #808):
+    --------------------------------
+    Per IRC §172(a)(2) as amended by the Tax Cuts and Jobs Act (TCJA):
+    - NOLs from tax years beginning **after December 31, 2017**: Limited to 80%
+      of taxable income (``nol_limitation_pct``), but carry forward indefinitely.
+    - NOLs from tax years beginning **before January 1, 2018**: No percentage
+      limitation (100% deduction allowed), but subject to 20-year carryforward
+      expiration (expiration not modeled here).
+
+    Since simulations typically start in recent years, the post-TCJA 80% limitation
+    is applied by default (``apply_tcja_limitation=True``). Set to ``False`` to model
+    pre-2018 NOL rules where the full NOL can offset 100% of taxable income.
+
     Attributes:
         tax_rate: Corporate tax rate (0.0 to 1.0)
         accrual_manager: Reference to the AccrualManager for recording accruals
         nol_carryforward: Cumulative unused NOL per IRC §172
         nol_limitation_pct: 80% limitation per IRC §172(a)(2), post-TCJA
+        apply_tcja_limitation: When True (default), applies 80% NOL deduction
+            limitation per IRC §172(a)(2). Set to False for pre-TCJA modeling
+            where NOLs can offset 100% of taxable income.
         consecutive_loss_years: Count of consecutive loss years for valuation allowance
 
     Example:
@@ -131,6 +147,7 @@ class TaxHandler:
     accrual_manager: "AccrualManager"
     nol_carryforward: Decimal = field(default_factory=lambda: Decimal("0"))
     nol_limitation_pct: float = 0.80
+    apply_tcja_limitation: bool = True
     tax_accumulated_depreciation: Decimal = field(default_factory=lambda: Decimal("0"))
     consecutive_loss_years: int = 0
 
@@ -217,9 +234,13 @@ class TaxHandler:
             # No NOL available — standard tax
             return max(ZERO, income * to_decimal(self.tax_rate)), ZERO
 
-        # Apply 80% limitation per IRC §172(a)(2):
-        # NOL deduction limited to nol_limitation_pct of taxable income
-        max_nol_deduction = income * to_decimal(self.nol_limitation_pct)
+        # Apply NOL deduction limitation per IRC §172(a)(2):
+        # Post-TCJA (apply_tcja_limitation=True): limited to nol_limitation_pct (80%)
+        # Pre-TCJA (apply_tcja_limitation=False): 100% of taxable income (no limit)
+        if self.apply_tcja_limitation:
+            max_nol_deduction = income * to_decimal(self.nol_limitation_pct)
+        else:
+            max_nol_deduction = income  # Pre-TCJA: no percentage limitation
         nol_utilized = min(self.nol_carryforward, max_nol_deduction)
 
         taxable_income = income - nol_utilized

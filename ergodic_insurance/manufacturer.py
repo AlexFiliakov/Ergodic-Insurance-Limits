@@ -178,7 +178,7 @@ class WidgetManufacturer(
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
 
-        # Tax handler with NOL carryforward tracking (Issue #365)
+        # Tax handler with NOL carryforward tracking (Issue #365, #808)
         self.tax_handler = TaxHandler(
             tax_rate=config.tax_rate,
             accrual_manager=self.accrual_manager,
@@ -186,6 +186,7 @@ class WidgetManufacturer(
             nol_limitation_pct=(
                 config.nol_limitation_pct if config.nol_carryforward_enabled else 0.0
             ),
+            apply_tcja_limitation=config.apply_tcja_limitation,
         )
         self._nol_carryforward_enabled = config.nol_carryforward_enabled
 

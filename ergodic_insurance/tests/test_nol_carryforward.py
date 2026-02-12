@@ -426,3 +426,161 @@ class TestNOLMultiYear:
         tax, nol_used = mfr.tax_handler.calculate_tax_liability(500_000)
         assert nol_used == Decimal("500000")  # Full 100% (limited by NOL pool, not %)
         assert tax == ZERO  # $500K - $500K = $0 taxable
+
+
+class TestTCJALimitation:
+    """Test TCJA applicability flag per IRC §172(a)(2) (Issue #808).
+
+    Post-TCJA (apply_tcja_limitation=True): NOL deduction limited to 80%.
+    Pre-TCJA (apply_tcja_limitation=False): NOL offsets 100% of taxable income.
+    """
+
+    @pytest.fixture
+    def accrual_manager(self):
+        return AccrualManager()
+
+    @pytest.fixture
+    def tcja_handler(self, accrual_manager):
+        """TaxHandler with TCJA limitation enabled (default, post-2017)."""
+        return TaxHandler(
+            tax_rate=0.25,
+            accrual_manager=accrual_manager,
+            nol_carryforward=Decimal("0"),
+            nol_limitation_pct=0.80,
+            apply_tcja_limitation=True,
+        )
+
+    @pytest.fixture
+    def pre_tcja_handler(self, accrual_manager):
+        """TaxHandler with TCJA limitation disabled (pre-2018 rules)."""
+        return TaxHandler(
+            tax_rate=0.25,
+            accrual_manager=accrual_manager,
+            nol_carryforward=Decimal("0"),
+            nol_limitation_pct=0.80,
+            apply_tcja_limitation=False,
+        )
+
+    def test_default_applies_tcja(self, accrual_manager):
+        """Default TaxHandler applies TCJA limitation."""
+        handler = TaxHandler(tax_rate=0.25, accrual_manager=accrual_manager)
+        assert handler.apply_tcja_limitation is True
+
+    def test_tcja_limits_nol_to_80pct(self, tcja_handler):
+        """Post-TCJA: NOL deduction capped at 80% of taxable income."""
+        tcja_handler.nol_carryforward = Decimal("2000000")
+        tax, nol_used = tcja_handler.calculate_tax_liability(1_000_000)
+
+        assert nol_used == Decimal("800000")  # 80% of $1M
+        assert tcja_handler.nol_carryforward == Decimal("1200000")
+        # Taxable = $1M - $800K = $200K, tax = $200K * 25% = $50K
+        assert tax == Decimal("50000")
+
+    def test_pre_tcja_allows_full_offset(self, pre_tcja_handler):
+        """Pre-TCJA: NOL can offset 100% of taxable income."""
+        pre_tcja_handler.nol_carryforward = Decimal("2000000")
+        tax, nol_used = pre_tcja_handler.calculate_tax_liability(1_000_000)
+
+        assert nol_used == Decimal("1000000")  # Full 100% of $1M
+        assert pre_tcja_handler.nol_carryforward == Decimal("1000000")
+        # Taxable = $1M - $1M = $0, tax = $0
+        assert tax == ZERO
+
+    def test_pre_tcja_nol_limited_by_pool_not_income(self, pre_tcja_handler):
+        """Pre-TCJA: NOL still limited by available pool, not income %."""
+        pre_tcja_handler.nol_carryforward = Decimal("300000")
+        tax, nol_used = pre_tcja_handler.calculate_tax_liability(1_000_000)
+
+        assert nol_used == Decimal("300000")  # Pool exhausted
+        assert pre_tcja_handler.nol_carryforward == ZERO
+        # Taxable = $1M - $300K = $700K, tax = $700K * 25% = $175K
+        assert tax == Decimal("175000")
+
+    def test_tcja_flag_overrides_limitation_pct(self, accrual_manager):
+        """apply_tcja_limitation=False bypasses nol_limitation_pct entirely."""
+        handler = TaxHandler(
+            tax_rate=0.25,
+            accrual_manager=accrual_manager,
+            nol_limitation_pct=0.50,  # Even a 50% limit is bypassed
+            apply_tcja_limitation=False,
+        )
+        handler.nol_carryforward = Decimal("1000000")
+        tax, nol_used = handler.calculate_tax_liability(800_000)
+
+        # Without TCJA, full offset regardless of nol_limitation_pct
+        assert nol_used == Decimal("800000")
+        assert tax == ZERO
+
+    def test_config_default_applies_tcja(self):
+        """ManufacturerConfig defaults to apply_tcja_limitation=True."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.15,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        assert config.apply_tcja_limitation is True
+
+    def test_config_pre_tcja_propagates(self):
+        """apply_tcja_limitation=False propagates from config to TaxHandler."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.15,
+            tax_rate=0.25,
+            retention_ratio=1.0,
+            nol_carryforward_enabled=True,
+            apply_tcja_limitation=False,
+        )
+        mfr = WidgetManufacturer(config)
+        assert mfr.tax_handler.apply_tcja_limitation is False
+
+    def test_pre_tcja_multi_year_scenario(self, pre_tcja_handler):
+        """Pre-TCJA multi-year: losses fully offset future income."""
+        # Year 1: -$1M loss
+        pre_tcja_handler.calculate_tax_liability(-1_000_000)
+        assert pre_tcja_handler.nol_carryforward == Decimal("1000000")
+
+        # Year 2: +$500K profit — fully offset, no tax
+        tax2, nol2 = pre_tcja_handler.calculate_tax_liability(500_000)
+        assert nol2 == Decimal("500000")
+        assert tax2 == ZERO
+        assert pre_tcja_handler.nol_carryforward == Decimal("500000")
+
+        # Year 3: +$800K profit — $500K offset, $300K taxable
+        tax3, nol3 = pre_tcja_handler.calculate_tax_liability(800_000)
+        assert nol3 == Decimal("500000")
+        assert pre_tcja_handler.nol_carryforward == ZERO
+        assert tax3 == Decimal("75000")  # $300K * 25%
+
+    def test_tcja_vs_pre_tcja_same_scenario(self, accrual_manager):
+        """Demonstrate difference between TCJA and pre-TCJA on same scenario."""
+        # Post-TCJA handler
+        tcja = TaxHandler(
+            tax_rate=0.25,
+            accrual_manager=accrual_manager,
+            apply_tcja_limitation=True,
+        )
+        tcja.nol_carryforward = Decimal("1000000")
+        tcja_tax, tcja_nol = tcja.calculate_tax_liability(1_000_000)
+
+        # Pre-TCJA handler (fresh accrual manager to avoid shared state)
+        pre_tcja = TaxHandler(
+            tax_rate=0.25,
+            accrual_manager=AccrualManager(),
+            apply_tcja_limitation=False,
+        )
+        pre_tcja.nol_carryforward = Decimal("1000000")
+        pre_tcja_tax, pre_tcja_nol = pre_tcja.calculate_tax_liability(1_000_000)
+
+        # Post-TCJA: $800K offset, $50K tax
+        assert tcja_nol == Decimal("800000")
+        assert tcja_tax == Decimal("50000")
+
+        # Pre-TCJA: $1M offset, $0 tax
+        assert pre_tcja_nol == Decimal("1000000")
+        assert pre_tcja_tax == ZERO
+
+        # Pre-TCJA always produces less or equal tax
+        assert pre_tcja_tax <= tcja_tax
