@@ -74,6 +74,7 @@ Import Recipes:
         from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
         from ergodic_insurance.ergodic_types import (
             ErgodicData, ErgodicAnalysisResults, ValidationResults,
+            ScenarioComparison, BatchAnalysisResults,
         )
         from ergodic_insurance.scenario_analysis import (
             compare_scenarios, analyze_simulation_batch,
@@ -267,6 +268,28 @@ def __getattr__(name):
         from .ergodic_analyzer import ErgodicAnalyzer  # pylint: disable=import-outside-toplevel
 
         return ErgodicAnalyzer
+    if name in (
+        "ScenarioComparison",
+        "ScenarioMetrics",
+        "ErgodicAdvantage",
+        "BatchAnalysisResults",
+        "TimeAverageStats",
+        "EnsembleAverageStats",
+        "ConvergenceStats",
+        "SurvivalAnalysisStats",
+    ):
+        from .ergodic_types import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            BatchAnalysisResults,
+            ConvergenceStats,
+            EnsembleAverageStats,
+            ErgodicAdvantage,
+            ScenarioComparison,
+            ScenarioMetrics,
+            SurvivalAnalysisStats,
+            TimeAverageStats,
+        )
+
+        return locals()[name]
     if name == "WidgetManufacturer":
         from .manufacturer import WidgetManufacturer  # pylint: disable=import-outside-toplevel
 

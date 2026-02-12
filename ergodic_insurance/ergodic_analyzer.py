@@ -35,7 +35,13 @@ from scipy import stats
 # Re-export data containers for backward compatibility — downstream code
 # imports ErgodicData, ErgodicAnalysisResults, and ValidationResults from
 # this module.
-from .ergodic_types import ErgodicAnalysisResults, ErgodicData, ValidationResults
+from .ergodic_types import (
+    BatchAnalysisResults,
+    ErgodicAnalysisResults,
+    ErgodicData,
+    ScenarioComparison,
+    ValidationResults,
+)
 from .simulation import SimulationResults
 
 if TYPE_CHECKING:
@@ -46,8 +52,10 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "ErgodicAnalyzer",
+    "BatchAnalysisResults",
     "ErgodicAnalysisResults",
     "ErgodicData",
+    "ScenarioComparison",
     "ValidationResults",
 ]
 
@@ -242,7 +250,9 @@ class ErgodicAnalyzer:
         return results
 
     def calculate_ensemble_average(
-        self, trajectories: Union[List[np.ndarray], np.ndarray], metric: str = "final_value"
+        self,
+        trajectories: Union[List[np.ndarray], np.ndarray],
+        metric: str = "final_value",
     ) -> Dict[str, float]:
         """Calculate ensemble average and statistics across multiple paths.
 
@@ -322,7 +332,7 @@ class ErgodicAnalyzer:
         insured_results: Union[List[SimulationResults], np.ndarray],
         uninsured_results: Union[List[SimulationResults], np.ndarray],
         metric: str = "equity",
-    ) -> Dict[str, Any]:
+    ) -> ScenarioComparison:
         """Compare insured vs uninsured scenarios using ergodic analysis.
 
         For detailed examples see the
@@ -334,9 +344,9 @@ class ErgodicAnalyzer:
             metric: Financial metric to analyze (default ``"equity"``).
 
         Returns:
-            Dict with ``insured``, ``uninsured``, and ``ergodic_advantage``
-            sub-dicts containing growth rates, survival rates, and
-            significance test results.
+            :class:`ScenarioComparison` with ``insured``, ``uninsured``,
+            and ``ergodic_advantage`` fields.  Supports dict-style access
+            for backward compatibility (with deprecation warnings).
         """
         from . import scenario_analysis
 
@@ -344,7 +354,7 @@ class ErgodicAnalyzer:
 
     def analyze_simulation_batch(
         self, simulation_results: List[SimulationResults], label: str = "Scenario"
-    ) -> Dict[str, Any]:
+    ) -> BatchAnalysisResults:
         """Perform comprehensive ergodic analysis on a batch of simulations.
 
         For detailed examples see the
@@ -356,9 +366,10 @@ class ErgodicAnalyzer:
             label: Descriptive label for this batch.
 
         Returns:
-            Dict with ``time_average``, ``ensemble_average``,
-            ``convergence``, ``survival_analysis``, and
-            ``ergodic_divergence`` keys.
+            :class:`BatchAnalysisResults` with ``time_average``,
+            ``ensemble_average``, ``convergence``, ``survival_analysis``,
+            and ``ergodic_divergence`` fields.  Supports dict-style access
+            for backward compatibility (with deprecation warnings).
         """
         from . import scenario_analysis
 
@@ -398,7 +409,12 @@ class ErgodicAnalyzer:
         from . import integrated_analysis
 
         return integrated_analysis.integrate_loss_ergodic_analysis(
-            self, loss_data, insurance_program, manufacturer, time_horizon, n_simulations
+            self,
+            loss_data,
+            insurance_program,
+            manufacturer,
+            time_horizon,
+            n_simulations,
         )
 
     def validate_insurance_ergodic_impact(

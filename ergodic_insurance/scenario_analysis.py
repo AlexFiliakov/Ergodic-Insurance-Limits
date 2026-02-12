@@ -12,10 +12,20 @@ and the
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Union
+from typing import TYPE_CHECKING, List, Union
 
 import numpy as np
 
+from .ergodic_types import (
+    BatchAnalysisResults,
+    ConvergenceStats,
+    EnsembleAverageStats,
+    ErgodicAdvantage,
+    ScenarioComparison,
+    ScenarioMetrics,
+    SurvivalAnalysisStats,
+    TimeAverageStats,
+)
 from .simulation import SimulationResults
 
 if TYPE_CHECKING:
@@ -29,7 +39,7 @@ def compare_scenarios(
     insured_results: Union[List[SimulationResults], np.ndarray],
     uninsured_results: Union[List[SimulationResults], np.ndarray],
     metric: str = "equity",
-) -> Dict[str, Any]:
+) -> ScenarioComparison:
     """Compare insured vs uninsured scenarios using ergodic analysis.
 
     Performs side-by-side comparison calculating both time-average and
@@ -46,9 +56,10 @@ def compare_scenarios(
         metric: Financial metric to analyze (default ``"equity"``).
 
     Returns:
-        Dict with ``insured``, ``uninsured``, and ``ergodic_advantage``
-        sub-dicts containing growth statistics, survival rates, and
-        significance test results.
+        :class:`ScenarioComparison` with ``insured``, ``uninsured``, and
+        ``ergodic_advantage`` fields containing growth statistics, survival
+        rates, and significance test results.  Supports dict-style access
+        for backward compatibility (with deprecation warnings).
     """
     # Extract trajectories
     if isinstance(insured_results, list) and isinstance(insured_results[0], SimulationResults):
@@ -93,66 +104,60 @@ def compare_scenarios(
     else:
         time_average_gain = float(insured_mean - uninsured_mean)
 
-    # Compile results
-    results: Dict[str, Any] = {
-        "insured": {
-            "time_average_mean": insured_mean,
-            "time_average_median": (
+    # Significance test
+    if insured_time_avg_valid and uninsured_time_avg_valid:
+        t_stat, p_val = analyzer.significance_test(insured_time_avg_valid, uninsured_time_avg_valid)
+        significant = bool(p_val < 0.05)
+    else:
+        t_stat = float(np.nan)
+        p_val = float(np.nan)
+        significant = False
+
+    return ScenarioComparison(
+        insured=ScenarioMetrics(
+            time_average_mean=insured_mean,
+            time_average_median=(
                 float(np.median(insured_time_avg_valid)) if insured_time_avg_valid else -np.inf
             ),
-            "time_average_std": (
+            time_average_std=(
                 float(np.std(insured_time_avg_valid, ddof=1))
                 if len(insured_time_avg_valid) > 1
                 else 0.0
             ),
-            "ensemble_average": insured_ensemble["mean"],
-            "survival_rate": insured_ensemble["survival_rate"],
-            "n_survived": insured_ensemble["n_survived"],
-        },
-        "uninsured": {
-            "time_average_mean": uninsured_mean,
-            "time_average_median": (
+            ensemble_average=insured_ensemble["mean"],
+            survival_rate=insured_ensemble["survival_rate"],
+            n_survived=int(insured_ensemble["n_survived"]),
+        ),
+        uninsured=ScenarioMetrics(
+            time_average_mean=uninsured_mean,
+            time_average_median=(
                 float(np.median(uninsured_time_avg_valid)) if uninsured_time_avg_valid else -np.inf
             ),
-            "time_average_std": (
+            time_average_std=(
                 float(np.std(uninsured_time_avg_valid, ddof=1))
                 if len(uninsured_time_avg_valid) > 1
                 else 0.0
             ),
-            "ensemble_average": uninsured_ensemble["mean"],
-            "survival_rate": uninsured_ensemble["survival_rate"],
-            "n_survived": uninsured_ensemble["n_survived"],
-        },
-        "ergodic_advantage": {
-            "time_average_gain": time_average_gain,
-            "ensemble_average_gain": insured_ensemble["mean"] - uninsured_ensemble["mean"],
-            "survival_gain": (
-                insured_ensemble["survival_rate"] - uninsured_ensemble["survival_rate"]
-            ),
-        },
-    }
-
-    # Add significance test if we have valid data
-    if insured_time_avg_valid and uninsured_time_avg_valid:
-        t_stat, p_value = analyzer.significance_test(
-            insured_time_avg_valid, uninsured_time_avg_valid
-        )
-        results["ergodic_advantage"]["t_statistic"] = t_stat
-        results["ergodic_advantage"]["p_value"] = p_value
-        results["ergodic_advantage"]["significant"] = p_value < 0.05
-    else:
-        results["ergodic_advantage"]["t_statistic"] = np.nan
-        results["ergodic_advantage"]["p_value"] = np.nan
-        results["ergodic_advantage"]["significant"] = False
-
-    return results
+            ensemble_average=uninsured_ensemble["mean"],
+            survival_rate=uninsured_ensemble["survival_rate"],
+            n_survived=int(uninsured_ensemble["n_survived"]),
+        ),
+        ergodic_advantage=ErgodicAdvantage(
+            time_average_gain=time_average_gain,
+            ensemble_average_gain=insured_ensemble["mean"] - uninsured_ensemble["mean"],
+            survival_gain=insured_ensemble["survival_rate"] - uninsured_ensemble["survival_rate"],
+            t_statistic=t_stat,
+            p_value=p_val,
+            significant=significant,
+        ),
+    )
 
 
 def analyze_simulation_batch(
     analyzer: ErgodicAnalyzer,
     simulation_results: List[SimulationResults],
     label: str = "Scenario",
-) -> Dict[str, Any]:
+) -> BatchAnalysisResults:
     """Perform comprehensive ergodic analysis on a batch of simulation results.
 
     Provides time-average and ensemble statistics, convergence analysis,
@@ -166,9 +171,11 @@ def analyze_simulation_batch(
         label: Descriptive label for this batch (default ``"Scenario"``).
 
     Returns:
-        Dict with ``label``, ``n_simulations``, ``time_average``,
-        ``ensemble_average``, ``convergence``, ``survival_analysis``,
-        and ``ergodic_divergence`` keys.
+        :class:`BatchAnalysisResults` with ``label``, ``n_simulations``,
+        ``time_average``, ``ensemble_average``, ``convergence``,
+        ``survival_analysis``, and ``ergodic_divergence`` fields.
+        Supports dict-style access for backward compatibility (with
+        deprecation warnings).
     """
     # Extract equity trajectories
     equity_trajectories = np.array([r.equity for r in simulation_results])
@@ -190,40 +197,54 @@ def analyze_simulation_batch(
     else:
         converged, se = False, np.inf
 
-    # Compile analysis
-    analysis: Dict[str, Any] = {
-        "label": label,
-        "n_simulations": len(simulation_results),
-        "time_average": {
-            "mean": np.mean(valid_growth) if valid_growth else -np.inf,
-            "median": np.median(valid_growth) if valid_growth else -np.inf,
-            "std": np.std(valid_growth, ddof=1) if len(valid_growth) > 1 else 0.0,
-            "min": np.min(valid_growth) if valid_growth else -np.inf,
-            "max": np.max(valid_growth) if valid_growth else -np.inf,
-        },
-        "ensemble_average": ensemble_stats,
-        "convergence": {
-            "converged": converged,
-            "standard_error": se,
-            "threshold": analyzer.convergence_threshold,
-        },
-        "survival_analysis": {
-            "survival_rate": ensemble_stats["survival_rate"],
-            "mean_survival_time": np.mean(
-                [
-                    r.insolvency_year if r.insolvency_year else len(r.years)
-                    for r in simulation_results
-                ]
-            ),
-        },
-    }
+    # Time-average statistics
+    ta_mean = float(np.mean(valid_growth)) if valid_growth else -np.inf
+    ta_median = float(np.median(valid_growth)) if valid_growth else -np.inf
+    ta_std = float(np.std(valid_growth, ddof=1)) if len(valid_growth) > 1 else 0.0
+    ta_min = float(np.min(valid_growth)) if valid_growth else -np.inf
+    ta_max = float(np.max(valid_growth)) if valid_growth else -np.inf
 
-    # Calculate ergodic divergence
+    # Ergodic divergence
     if valid_growth:
-        time_avg_mean = analysis["time_average"]["mean"]
-        ensemble_mean = ensemble_stats["mean"]
-        analysis["ergodic_divergence"] = time_avg_mean - ensemble_mean
+        ergodic_divergence = float(ta_mean - ensemble_stats["mean"])
     else:
-        analysis["ergodic_divergence"] = np.nan
+        ergodic_divergence = float(np.nan)
 
-    return analysis
+    return BatchAnalysisResults(
+        label=label,
+        n_simulations=len(simulation_results),
+        time_average=TimeAverageStats(
+            mean=ta_mean,
+            median=ta_median,
+            std=ta_std,
+            min=ta_min,
+            max=ta_max,
+        ),
+        ensemble_average=EnsembleAverageStats(
+            mean=ensemble_stats["mean"],
+            std=ensemble_stats["std"],
+            median=ensemble_stats["median"],
+            survival_rate=ensemble_stats["survival_rate"],
+            n_survived=int(ensemble_stats["n_survived"]),
+            n_total=int(ensemble_stats["n_total"]),
+            mean_trajectory=ensemble_stats.get("mean_trajectory"),  # type: ignore[arg-type]
+            std_trajectory=ensemble_stats.get("std_trajectory"),  # type: ignore[arg-type]
+        ),
+        convergence=ConvergenceStats(
+            converged=converged,
+            standard_error=se,
+            threshold=analyzer.convergence_threshold,
+        ),
+        survival_analysis=SurvivalAnalysisStats(
+            survival_rate=ensemble_stats["survival_rate"],
+            mean_survival_time=float(
+                np.mean(
+                    [
+                        r.insolvency_year if r.insolvency_year else len(r.years)
+                        for r in simulation_results
+                    ]
+                )
+            ),
+        ),
+        ergodic_divergence=ergodic_divergence,
+    )
