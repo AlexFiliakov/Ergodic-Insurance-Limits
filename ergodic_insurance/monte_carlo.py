@@ -3,12 +3,15 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 import hashlib
+import logging
 import os
 from pathlib import Path
 import pickle
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import warnings
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 from tqdm import tqdm
@@ -589,7 +592,7 @@ class MonteCarloEngine:
         if self.config.cache_results:
             cached = self._load_cache(cache_key)
             if cached is not None:
-                print("Loaded cached results")
+                logger.info("Loaded cached results")
                 return cached
 
         # Reinitialize parallel executor if config has changed
@@ -1663,8 +1666,9 @@ class MonteCarloEngine:
 
                 if early_stopping and not should_continue:
                     if show_progress:
-                        print(
-                            f"\n✓ Early stopping: Convergence achieved at {completed_iterations:,} iterations"
+                        logger.info(
+                            "Early stopping: Convergence achieved at %s iterations",
+                            f"{completed_iterations:,}",
                         )
                     break
             else:
@@ -1830,7 +1834,7 @@ class MonteCarloEngine:
                     converged = max_r_hat < target_r_hat
 
                     if self.config.progress_bar:
-                        print(f"Iteration {total_iterations}: R-hat = {max_r_hat:.3f}")
+                        logger.debug("Iteration %d: R-hat = %.3f", total_iterations, max_r_hat)
 
                 # Advance seed for next batch
                 if batch_seed is not None:
