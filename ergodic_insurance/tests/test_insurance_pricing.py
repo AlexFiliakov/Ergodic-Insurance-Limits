@@ -12,6 +12,7 @@ from typing import Any, Dict
 import numpy as np
 import pytest
 
+from ergodic_insurance.claim_development import ClaimDevelopment
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 from ergodic_insurance.insurance_pricing import (
     InsurancePricer,
@@ -962,3 +963,367 @@ class TestLAELoadingCalculation:
         assert pricer.parameters.alae_ratio == 0.12
         assert pricer.parameters.ulae_ratio == 0.07
         assert pricer.parameters.lae_ratio == pytest.approx(0.19)
+
+
+class TestLossDevelopmentToUltimate:
+    """Tests for Issue #714: develop losses to ultimate before pure premium.
+
+    Per ASOP 25 and CAS Ratemaking Chapter 4, losses used in experience
+    rating must be developed to ultimate.  Each simulation year is treated
+    as an accident year at a specific maturity: older years are more
+    developed, recent years are less developed.  Dividing by cumulative
+    percent developed produces the ultimate estimate (assumed-pattern
+    chain-ladder).
+    """
+
+    @pytest.fixture
+    def loss_generator(self):
+        """High-frequency generator so every year has layer losses."""
+        return ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+
+    def test_long_tail_development_increases_pure_premium(self):
+        """Long-tail development should increase pure premium.
+
+        When losses develop over 10 years, recent simulation years have
+        low cumulative pct_developed, so dividing by pct < 1 inflates
+        those years' aggregates → higher mean = higher pure premium.
+        """
+        # Separate generators with identical seeds so both pricers see the same losses
+        lg_no_dev = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+        lg_dev = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+
+        params_no_dev = PricingParameters()
+        pricer_no_dev = InsurancePricer(
+            loss_generator=lg_no_dev,
+            parameters=params_no_dev,
+            seed=99,
+        )
+
+        params_dev = PricingParameters(
+            development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+        )
+        pricer_dev = InsurancePricer(
+            loss_generator=lg_dev,
+            parameters=params_dev,
+            seed=99,
+        )
+
+        pp_no_dev, stats_no_dev = pricer_no_dev.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+        pp_dev, stats_dev = pricer_dev.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        assert pp_dev > pp_no_dev, (
+            f"Developed premium ({pp_dev:,.0f}) should exceed "
+            f"undeveloped ({pp_no_dev:,.0f}) for long-tail pattern"
+        )
+        assert stats_dev["development_factor"] > 1.0
+        assert stats_dev["undeveloped_pure_premium"] == pytest.approx(pp_no_dev, rel=1e-6)
+
+    def test_immediate_pattern_no_change(self, loss_generator):
+        """Immediate pattern (100% paid in year 1) should not change premium.
+
+        With an immediate pattern every simulation year is fully developed
+        at the evaluation point, so no adjustment is needed.
+        """
+        params_dev = PricingParameters(
+            development_pattern=ClaimDevelopment.create_immediate(),
+        )
+        pricer_dev = InsurancePricer(
+            loss_generator=loss_generator,
+            parameters=params_dev,
+            seed=99,
+        )
+
+        pp, stats = pricer_dev.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        assert stats["development_factor"] == pytest.approx(1.0)
+        assert pp == pytest.approx(stats["undeveloped_pure_premium"])
+
+    def test_no_pattern_backward_compatible(self, loss_generator):
+        """No development pattern should produce identical results to before.
+
+        When development_pattern is None (the default), pure_premium,
+        undeveloped_pure_premium, and development_factor should all
+        reflect no adjustment.
+        """
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            seed=99,
+        )
+
+        pp, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        assert stats["development_factor"] == 1.0
+        assert stats["undeveloped_pure_premium"] == pytest.approx(pp)
+
+    def test_statistics_contain_development_fields(self, loss_generator):
+        """Statistics dict should include development metadata."""
+        params = PricingParameters(
+            development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+        )
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            parameters=params,
+            seed=99,
+        )
+
+        _, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        assert "undeveloped_pure_premium" in stats
+        assert "development_factor" in stats
+        assert stats["development_factor"] >= 1.0
+
+    def test_development_factor_in_layer_pricing(self, loss_generator):
+        """price_layer should propagate development_factor to LayerPricing."""
+        params = PricingParameters(
+            development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+        )
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            parameters=params,
+            seed=99,
+        )
+
+        pricing = pricer.price_layer(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+        )
+
+        assert pricing.development_factor > 1.0
+
+    def test_longer_tail_gives_larger_development_factor(self):
+        """Longer-tail patterns should produce larger development factors.
+
+        A 10-year GL pattern has more immature years than a 5-year WC
+        pattern, so its development factor should be larger.
+        """
+        lg_5yr = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+        lg_10yr = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+
+        pricer_5yr = InsurancePricer(
+            loss_generator=lg_5yr,
+            parameters=PricingParameters(
+                development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+            ),
+            seed=99,
+        )
+        pricer_10yr = InsurancePricer(
+            loss_generator=lg_10yr,
+            parameters=PricingParameters(
+                development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+            ),
+            seed=99,
+        )
+
+        _, stats_5yr = pricer_5yr.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+        _, stats_10yr = pricer_10yr.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        assert stats_10yr["development_factor"] > stats_5yr["development_factor"], (
+            f"10yr LDF ({stats_10yr['development_factor']:.3f}) should exceed "
+            f"5yr LDF ({stats_5yr['development_factor']:.3f})"
+        )
+
+    def test_ci_computed_on_developed_aggregates(self):
+        """Bootstrap CI should be computed on developed annual aggregates.
+
+        With development, CI should be wider than without (more variance
+        from inflating immature years).
+        """
+        lg_no = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+        lg_dev = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=500_000,
+            severity_std=200_000,
+            seed=42,
+        )
+
+        pricer_no_dev = InsurancePricer(
+            loss_generator=lg_no,
+            seed=99,
+        )
+        pricer_dev = InsurancePricer(
+            loss_generator=lg_dev,
+            parameters=PricingParameters(
+                development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+            ),
+            seed=99,
+        )
+
+        pp_no, stats_no = pricer_no_dev.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+        pp_dev, stats_dev = pricer_dev.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        width_no = stats_no["confidence_interval"][1] - stats_no["confidence_interval"][0]
+        width_dev = stats_dev["confidence_interval"][1] - stats_dev["confidence_interval"][0]
+
+        # Development inflates recent years more than mature ones,
+        # increasing variance → wider CI
+        assert width_dev > width_no, (
+            f"Developed CI width ({width_dev:,.0f}) should exceed " f"undeveloped ({width_no:,.0f})"
+        )
+
+    def test_zero_loss_years_remain_zero_after_development(self):
+        """Years with zero layer losses should remain zero after development.
+
+        0 / pct_developed = 0, so development should not create phantom losses.
+        """
+        # Very low frequency + very high attachment → many zero-loss years
+        lg = ManufacturingLossGenerator.create_simple(
+            frequency=0.1,
+            severity_mean=50_000,
+            severity_std=20_000,
+            seed=42,
+        )
+        params = PricingParameters(
+            development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+        )
+        pricer = InsurancePricer(loss_generator=lg, parameters=params, seed=42)
+        _, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=20,
+        )
+
+        # With low frequency and high attachment, most aggregates should still be 0
+        aggregates = stats["annual_aggregates"]
+        zero_years = sum(1 for a in aggregates if a == 0.0)
+        assert zero_years > 0, "Expected some zero-loss years even after development"
+
+    def test_create_from_config_with_pattern_name(self, loss_generator):
+        """create_from_config should accept pattern name string."""
+        config = {
+            "development_pattern": "long_tail_10yr",
+            "market_cycle": "NORMAL",
+        }
+        pricer = InsurancePricer.create_from_config(config, loss_generator)
+        assert pricer.parameters.development_pattern is not None
+        assert pricer.parameters.development_pattern.pattern_name == "LONG_TAIL_10YR"
+
+    def test_create_from_config_with_pattern_dict(self, loss_generator):
+        """create_from_config should accept custom pattern dict."""
+        config = {
+            "development_pattern": {
+                "name": "custom_3yr",
+                "factors": [0.50, 0.30, 0.20],
+            },
+            "market_cycle": "NORMAL",
+        }
+        pricer = InsurancePricer.create_from_config(config, loss_generator)
+        pattern = pricer.parameters.development_pattern
+        assert pattern is not None
+        assert pattern.pattern_name == "custom_3yr"
+        assert pattern.development_factors == [0.50, 0.30, 0.20]
+
+    def test_create_from_config_with_invalid_pattern_name(self, loss_generator):
+        """create_from_config should raise on unknown pattern name."""
+        config = {
+            "development_pattern": "nonexistent_pattern",
+        }
+        with pytest.raises(ValueError, match="Unknown development pattern"):
+            InsurancePricer.create_from_config(config, loss_generator)
+
+    def test_create_from_config_with_pattern_object(self, loss_generator):
+        """create_from_config should accept a ClaimDevelopment instance."""
+        pattern = ClaimDevelopment.create_medium_tail_5yr()
+        config = {
+            "development_pattern": pattern,
+            "market_cycle": "NORMAL",
+        }
+        pricer = InsurancePricer.create_from_config(config, loss_generator)
+        assert pricer.parameters.development_pattern is pattern
+
+    def test_compare_market_cycles_includes_development_factor(self, loss_generator):
+        """compare_market_cycles should include development_factor."""
+        params = PricingParameters(
+            development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+        )
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            parameters=params,
+            seed=99,
+        )
+        results = pricer.compare_market_cycles(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+        )
+
+        # All cycles share the same development factor
+        dev_factors = [r.development_factor for r in results.values()]
+        assert all(d > 1.0 for d in dev_factors)
+        assert len(set(dev_factors)) == 1
