@@ -48,7 +48,7 @@ import numpy as np
 import pandas as pd
 
 from .config import Config, ManufacturerConfig
-from .ergodic_analyzer import ErgodicAnalyzer
+from .ergodic_analyzer import ErgodicAnalyzer, ScenarioComparison
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
 from .manufacturer import WidgetManufacturer
@@ -68,7 +68,7 @@ class AnalysisResults:
         insured_results: List of SimulationResults from insured runs.
         uninsured_results: List of SimulationResults from uninsured runs
             (empty when *compare_uninsured* was ``False``).
-        comparison: Ergodic comparison dict from
+        comparison: :class:`ScenarioComparison` from
             :meth:`ErgodicAnalyzer.compare_scenarios`, or ``None`` when
             *compare_uninsured* was ``False``.
         config: The Config used for the simulations.
@@ -92,7 +92,7 @@ class AnalysisResults:
 
     insured_results: List[SimulationResults]
     uninsured_results: List[SimulationResults]
-    comparison: Optional[Dict[str, Any]]
+    comparison: Optional[ScenarioComparison]
     config: Config
     insurance_program: InsuranceProgram
 
@@ -492,7 +492,7 @@ def run_analysis(
 
     # --- Run uninsured simulations ---
     uninsured_results: List[SimulationResults] = []
-    comparison: Optional[Dict[str, Any]] = None
+    comparison: Optional[ScenarioComparison] = None
 
     if compare_uninsured:
         logger.info(

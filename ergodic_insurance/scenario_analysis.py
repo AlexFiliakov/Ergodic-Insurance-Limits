@@ -227,8 +227,8 @@ def analyze_simulation_batch(
             survival_rate=ensemble_stats["survival_rate"],
             n_survived=int(ensemble_stats["n_survived"]),
             n_total=int(ensemble_stats["n_total"]),
-            mean_trajectory=ensemble_stats.get("mean_trajectory"),
-            std_trajectory=ensemble_stats.get("std_trajectory"),
+            mean_trajectory=ensemble_stats.get("mean_trajectory"),  # type: ignore[arg-type]
+            std_trajectory=ensemble_stats.get("std_trajectory"),  # type: ignore[arg-type]
         ),
         convergence=ConvergenceStats(
             converged=converged,

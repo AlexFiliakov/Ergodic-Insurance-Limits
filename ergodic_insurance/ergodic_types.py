@@ -152,15 +152,15 @@ class _DictAccessMixin:
 
     def keys(self) -> list:
         """Return field names (dict-compatible)."""
-        return [f.name for f in dataclasses.fields(self)]
+        return [f.name for f in dataclasses.fields(self)]  # type: ignore[arg-type]
 
     def values(self) -> list:
         """Return field values (dict-compatible)."""
-        return [getattr(self, f.name) for f in dataclasses.fields(self)]
+        return [getattr(self, f.name) for f in dataclasses.fields(self)]  # type: ignore[arg-type]
 
     def items(self) -> list:
         """Return (name, value) pairs (dict-compatible)."""
-        return [(f.name, getattr(self, f.name)) for f in dataclasses.fields(self)]
+        return [(f.name, getattr(self, f.name)) for f in dataclasses.fields(self)]  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

@@ -210,9 +210,7 @@ class TestCompareScenarioReturnType:
         result = analyzer.compare_scenarios(insured, uninsured)
 
         assert isinstance(result.insured.n_survived, int)
-        assert not isinstance(result.insured.n_survived, np.integer)
         assert isinstance(result.uninsured.n_survived, int)
-        assert not isinstance(result.uninsured.n_survived, np.integer)
 
 
 # ===================================================================
@@ -318,9 +316,7 @@ class TestAnalyzeSimulationBatchReturnType:
         analysis = analyzer.analyze_simulation_batch(results, label="Test")
 
         assert isinstance(analysis.ensemble_average.n_survived, int)
-        assert not isinstance(analysis.ensemble_average.n_survived, np.integer)
         assert isinstance(analysis.ensemble_average.n_total, int)
-        assert not isinstance(analysis.ensemble_average.n_total, np.integer)
 
 
 # ===================================================================
