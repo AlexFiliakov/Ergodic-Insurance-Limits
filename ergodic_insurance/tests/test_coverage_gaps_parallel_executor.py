@@ -19,7 +19,6 @@ Targeted untested lines
 - 673-674 : ``_execute_chunk`` -- array retrieval branch inside the worker.
 """
 
-import pickle
 from unittest.mock import patch
 import uuid
 import zlib
@@ -33,6 +32,7 @@ from ergodic_insurance.parallel_executor import (
     SharedMemoryManager,
     _execute_chunk,
 )
+from ergodic_insurance.safe_pickle import safe_dumps, safe_loads
 
 # ---------------------------------------------------------------------------
 # Fake shared-memory infrastructure
@@ -262,25 +262,25 @@ class TestShareObjectCompressionMocked:
         assert shm.buf is not None
         stored = bytes(shm.buf[: shm.size])
         decompressed = zlib.decompress(stored)
-        restored = pickle.loads(decompressed)
+        restored = safe_loads(decompressed)
         assert restored == obj
 
-        # Compressed should be smaller than raw pickle
-        raw_pickle = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-        assert len(stored) < len(raw_pickle)
+        # Compressed should be smaller than uncompressed HMAC-signed pickle
+        hmac_pickle = safe_dumps(obj)
+        assert len(stored) < len(hmac_pickle)
 
         manager.cleanup()
 
     @patch(_SHM_PATCH_TARGET, FakeSharedMemory)
-    def test_share_object_no_compression_stores_raw_pickle(self):
-        """Baseline: with compression=False, raw pickle bytes are stored."""
+    def test_share_object_no_compression_stores_hmac_signed_pickle(self):
+        """Baseline: with compression=False, HMAC-signed pickle bytes are stored."""
         config = SharedMemoryConfig(enable_shared_objects=True, compression=False)
         manager = SharedMemoryManager(config)
 
         obj = {"a": 1, "b": [2, 3]}
         shm_name = manager.share_object("raw", obj)
 
-        expected = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        expected = safe_dumps(obj)
         shm = manager.shared_objects["raw"]
         assert shm.buf is not None
         stored = bytes(shm.buf[: len(expected)])
@@ -306,26 +306,25 @@ class TestGetObjectDecompressionMocked:
         original = {"scores": list(range(500)), "label": "test"}
         shm_name = manager.share_object("cobj", original)
 
-        # Compute the compressed size the same way share_object does
-        raw = pickle.dumps(original, protocol=pickle.HIGHEST_PROTOCOL)
-        compressed_size = len(zlib.compress(raw))
+        # Use the actual stored size (includes HMAC overhead before compression)
+        actual_size = manager.get_object_size("cobj")
 
-        retrieved = manager.get_object(shm_name, compressed_size, compressed=True)
+        retrieved = manager.get_object(shm_name, actual_size, compressed=True)
         assert retrieved == original
 
         manager.cleanup()
 
     @patch(_SHM_PATCH_TARGET, FakeSharedMemory)
     def test_get_object_without_compression(self):
-        """Lines 264-273: get_object with compressed=False reads raw pickle."""
+        """Lines 264-273: get_object with compressed=False reads HMAC-signed pickle."""
         config = SharedMemoryConfig(enable_shared_objects=True, compression=False)
         manager = SharedMemoryManager(config)
 
         original = [1, "two", 3.0, None]
         shm_name = manager.share_object("plain", original)
-        raw_size = len(pickle.dumps(original, protocol=pickle.HIGHEST_PROTOCOL))
+        actual_size = manager.get_object_size("plain")
 
-        retrieved = manager.get_object(shm_name, raw_size, compressed=False)
+        retrieved = manager.get_object(shm_name, actual_size, compressed=False)
         assert retrieved == original
 
         manager.cleanup()
@@ -347,10 +346,9 @@ class TestGetObjectDecompressionMocked:
         }
         shm_name = manager.share_object("deep", original)
 
-        raw = pickle.dumps(original, protocol=pickle.HIGHEST_PROTOCOL)
-        compressed_size = len(zlib.compress(raw))
+        actual_size = manager.get_object_size("deep")
 
-        retrieved = manager.get_object(shm_name, compressed_size, compressed=True)
+        retrieved = manager.get_object(shm_name, actual_size, compressed=True)
         assert retrieved == original
 
         manager.cleanup()
@@ -463,10 +461,10 @@ class TestExecuteChunkArrayPathMocked:
 
         obj = {"factor": 5}
         shm_name = manager.share_object("cfg", obj)
-        raw_size = len(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))
+        actual_size = manager.get_object_size("cfg")
 
         shared_refs = {
-            "cfg": ("object", (shm_name, raw_size, False)),
+            "cfg": ("object", (shm_name, actual_size, False)),
         }
 
         def work(item, **kwargs):
@@ -487,11 +485,10 @@ class TestExecuteChunkArrayPathMocked:
         obj = {"multiplier": 3, "data": list(range(50))}
         shm_name = manager.share_object("comp_cfg", obj)
 
-        raw = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-        compressed_size = len(zlib.compress(raw))
+        actual_size = manager.get_object_size("comp_cfg")
 
         shared_refs = {
-            "comp_cfg": ("object", (shm_name, compressed_size, True)),
+            "comp_cfg": ("object", (shm_name, actual_size, True)),
         }
 
         def work(item, **kwargs):
@@ -518,7 +515,7 @@ class TestExecuteChunkArrayPathMocked:
 
         obj = {"offset": 100}
         shm_obj = manager.share_object("cfg", obj)
-        obj_size = len(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))
+        obj_size = manager.get_object_size("cfg")
 
         shared_refs = {
             "vec": ("array", (shm_arr, arr.shape, arr.dtype)),
@@ -605,10 +602,9 @@ class TestFullRoundTripMocked:
         original = {"key": "value", "numbers": list(range(200))}
         shm_name = manager.share_object("obj", original)
 
-        raw = pickle.dumps(original, protocol=pickle.HIGHEST_PROTOCOL)
-        compressed_size = len(zlib.compress(raw))
+        actual_size = manager.get_object_size("obj")
 
-        retrieved = manager.get_object(shm_name, compressed_size, compressed=True)
+        retrieved = manager.get_object(shm_name, actual_size, compressed=True)
         assert retrieved == original
 
         manager.cleanup()
