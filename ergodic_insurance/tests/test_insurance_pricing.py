@@ -59,6 +59,9 @@ class TestPricingParameters:
         assert params.simulation_years == 10
         assert params.min_premium == 1000.0
         assert params.max_rate_on_line == 0.50
+        assert params.alae_ratio == 0.10
+        assert params.ulae_ratio == 0.05
+        assert params.lae_ratio == pytest.approx(0.15)
 
     def test_custom_parameters(self):
         """Test custom pricing parameters."""
@@ -71,6 +74,8 @@ class TestPricingParameters:
             simulation_years=20,
             min_premium=5000.0,
             max_rate_on_line=0.75,
+            alae_ratio=0.12,
+            ulae_ratio=0.06,
         )
         assert params.loss_ratio == 0.65
         assert params.expense_ratio == 0.30
@@ -80,6 +85,9 @@ class TestPricingParameters:
         assert params.simulation_years == 20
         assert params.min_premium == 5000.0
         assert params.max_rate_on_line == 0.75
+        assert params.alae_ratio == 0.12
+        assert params.ulae_ratio == 0.06
+        assert params.lae_ratio == pytest.approx(0.18)
 
 
 class TestLayerPricing:
@@ -834,3 +842,123 @@ class TestBackwardCompatibility:
         # Premium calculation should use fixed rate
         premium = program.calculate_annual_premium()
         assert premium == 4_750_000 * 0.015
+
+
+class TestLAELoadingCalculation:
+    """Tests for Issue #616: LAE loading uses dedicated ALAE/ULAE ratios.
+
+    LAE should be calculated from separate alae_ratio and ulae_ratio fields,
+    not from the general expense_ratio which includes non-LAE operating expenses.
+    Per Werner & Modlin Chapter 7, LAE is a distinct provision from underwriting
+    expenses.
+    """
+
+    @pytest.fixture
+    def loss_generator(self):
+        """Create a loss generator for testing."""
+        return ManufacturingLossGenerator(seed=42)
+
+    def test_lae_loading_uses_lae_ratio_not_expense_ratio(self, loss_generator):
+        """LAE loading should use lae_ratio (alae + ulae), not expense_ratio.
+
+        With default alae_ratio=0.10 and ulae_ratio=0.05, the LAE loading
+        should be 15% of pure premium, not 25% (the expense_ratio default).
+        """
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=MarketCycle.NORMAL,
+            seed=42,
+        )
+        pricing = pricer.price_layer(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+        )
+
+        if pricing.pure_premium > 0:
+            expected_lae = pricing.pure_premium * 0.15  # alae(0.10) + ulae(0.05)
+            assert pricing.lae_loading == pytest.approx(expected_lae)
+            # Must NOT equal the old (incorrect) expense_ratio-based calculation
+            wrong_lae = pricing.pure_premium * 0.25
+            assert pricing.lae_loading != pytest.approx(wrong_lae)
+
+    def test_lae_loading_with_custom_ratios(self, loss_generator):
+        """LAE loading should reflect custom ALAE/ULAE ratios."""
+        params = PricingParameters(alae_ratio=0.12, ulae_ratio=0.06)
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=MarketCycle.NORMAL,
+            parameters=params,
+            seed=42,
+        )
+        pricing = pricer.price_layer(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+        )
+
+        if pricing.pure_premium > 0:
+            expected_lae = pricing.pure_premium * 0.18  # 0.12 + 0.06
+            assert pricing.lae_loading == pytest.approx(expected_lae)
+
+    def test_lae_loading_in_compare_market_cycles(self, loss_generator):
+        """compare_market_cycles should also use lae_ratio for LAE loading."""
+        params = PricingParameters(alae_ratio=0.08, ulae_ratio=0.04)
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=MarketCycle.NORMAL,
+            parameters=params,
+            seed=42,
+        )
+        results = pricer.compare_market_cycles(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+        )
+
+        # All cycles share the same pure premium and thus the same LAE loading
+        lae_values = [r.lae_loading for r in results.values()]
+        assert len(set(lae_values)) == 1  # all identical
+
+        for pricing in results.values():
+            if pricing.pure_premium > 0:
+                expected_lae = pricing.pure_premium * 0.12  # 0.08 + 0.04
+                assert pricing.lae_loading == pytest.approx(expected_lae)
+
+    def test_lae_ratio_property(self):
+        """PricingParameters.lae_ratio should return alae_ratio + ulae_ratio."""
+        params = PricingParameters(alae_ratio=0.10, ulae_ratio=0.05)
+        assert params.lae_ratio == pytest.approx(0.15)
+
+        params2 = PricingParameters(alae_ratio=0.0, ulae_ratio=0.0)
+        assert params2.lae_ratio == 0.0
+
+    def test_warning_when_lae_exceeds_expense_ratio(self):
+        """A warning should be emitted when lae_ratio > expense_ratio."""
+        with pytest.warns(UserWarning, match="LAE ratio.*exceeds.*expense ratio"):
+            PricingParameters(
+                expense_ratio=0.10,
+                alae_ratio=0.08,
+                ulae_ratio=0.05,  # total LAE = 0.13 > expense_ratio 0.10
+            )
+
+    def test_no_warning_when_lae_within_expense_ratio(self):
+        """No warning when lae_ratio <= expense_ratio (the normal case)."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # Default: lae_ratio=0.15 <= expense_ratio=0.25 — no warning
+            PricingParameters()
+
+    def test_create_from_config_with_lae_ratios(self, loss_generator):
+        """create_from_config should support alae_ratio and ulae_ratio."""
+        config = {
+            "alae_ratio": 0.12,
+            "ulae_ratio": 0.07,
+            "market_cycle": "NORMAL",
+        }
+        pricer = InsurancePricer.create_from_config(config, loss_generator)
+        assert pricer.parameters.alae_ratio == 0.12
+        assert pricer.parameters.ulae_ratio == 0.07
+        assert pricer.parameters.lae_ratio == pytest.approx(0.19)
