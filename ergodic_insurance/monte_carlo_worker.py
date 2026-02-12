@@ -73,8 +73,11 @@ def run_chunk_standalone(
             ),
         )
 
-        # Deep-copy insurance program per simulation to avoid state leakage (Issue #348)
-        sim_insurance_program = copy.deepcopy(insurance_program)
+        # Create a fresh insurance program from config instead of deep-copying
+        # the entire object graph (Issue #624).  EnhancedInsuranceLayer objects
+        # are immutable; only the LayerState wrappers carry mutable state, so
+        # InsuranceProgram.__init__ rebuilds them cheaply from the shared layers.
+        sim_insurance_program = InsuranceProgram.create_fresh(insurance_program)
 
         # Run single simulation
         sim_annual_losses = np.zeros(n_years, dtype=dtype)

@@ -528,6 +528,33 @@ class InsuranceProgram:
         self.pricing_results: List[Any] = []
 
     @classmethod
+    def create_fresh(cls, source: "InsuranceProgram") -> "InsuranceProgram":
+        """Create a fresh program from an existing program's configuration.
+
+        Factory method that avoids ``copy.deepcopy`` by constructing a new
+        instance directly from immutable layer definitions.  Use this in hot
+        loops (e.g. Monte Carlo workers) where each simulation needs clean
+        initial state.
+
+        The new instance shares the same :class:`EnhancedInsuranceLayer`
+        objects (which are immutable after construction) but builds fresh
+        :class:`LayerState` wrappers with zeroed counters.
+
+        Args:
+            source: An existing program whose configuration is reused.
+
+        Returns:
+            A new ``InsuranceProgram`` with pristine mutable state.
+        """
+        return cls(
+            layers=source.layers,
+            deductible=source.deductible,
+            name=source.name,
+            pricing_enabled=source.pricing_enabled,
+            pricer=source.pricer,
+        )
+
+    @classmethod
     def simple(
         cls,
         deductible: float,
