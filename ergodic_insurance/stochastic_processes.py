@@ -148,11 +148,20 @@ class LognormalVolatility(StochasticProcess):
 
 
 class MeanRevertingProcess(StochasticProcess):
-    """Ornstein-Uhlenbeck mean-reverting process for bounded variables.
+    """Exponential Ornstein-Uhlenbeck mean-reverting process.
 
-    Implements mean-reverting dynamics suitable for modeling variables that
-    tend to revert to long-term average levels, such as operating margins
-    or capacity utilization rates.
+    Implements geometric (exponential) mean-reverting dynamics that produce
+    strictly positive multiplicative shocks. Suitable for modeling variables
+    that revert to long-term average levels, such as operating margins or
+    capacity utilization rates.
+
+    The process operates in log-space:
+        d(log x) = θ*(log(μ) - log(x))*dt + σ*dW
+
+    This guarantees positive shocks and state-independent volatility.
+
+    References:
+        Dixit & Pindyck (1994), Investment Under Uncertainty, Ch. 3.
     """
 
     def __init__(
@@ -162,24 +171,30 @@ class MeanRevertingProcess(StochasticProcess):
 
         Args:
             config: Base stochastic configuration
-            mean_level: Long-term mean level to revert to
+            mean_level: Long-term mean level to revert to (must be positive)
             reversion_speed: Speed of mean reversion (0=no reversion, 1=instant)
         """
         super().__init__(config)
+        if mean_level <= 0:
+            raise ValueError(f"mean_level must be positive, got {mean_level}")
         self.mean_level = mean_level
         self.reversion_speed = reversion_speed
 
     def generate_shock(self, current_value: float) -> float:
-        """Generate mean-reverting shock.
+        """Generate mean-reverting multiplicative shock via exponential OU.
 
-        Uses Ornstein-Uhlenbeck process discretization:
-        dx = θ*(μ - x)*dt + σ*dW
+        Uses exponential Ornstein-Uhlenbeck formulation in log-space:
+            log_shock = θ*(log(μ) - log(x))*dt + σ*√dt*Z
+            shock = exp(log_shock)
+
+        This ensures shocks are always positive and multiplicative
+        volatility is independent of the current value.
 
         Args:
-            current_value: Current value of the process
+            current_value: Current value of the process (must be positive)
 
         Returns:
-            Multiplicative shock
+            Strictly positive multiplicative shock
         """
         dt = self.config.time_step
         sigma = self.config.volatility
@@ -189,16 +204,12 @@ class MeanRevertingProcess(StochasticProcess):
         # Generate standard normal random variable
         z = self.rng.standard_normal()
 
-        # Calculate new value using OU process
-        mean_component = current_value + theta * (mu - current_value) * dt
-        random_component = sigma * np.sqrt(dt) * z
-        new_value = mean_component + random_component
+        # Clamp current_value to a small positive floor for log safety
+        safe_value = max(current_value, 1e-10)
 
-        # Return as multiplicative shock
-        if abs(current_value) < 1e-10:
-            shock = 1.0
-        else:
-            shock = new_value / current_value
+        # Exponential OU: operate in log-space for multiplicative dynamics
+        log_shock = theta * (np.log(mu) - np.log(safe_value)) * dt + sigma * np.sqrt(dt) * z
+        shock = np.exp(log_shock)
 
         logger.debug(
             f"Mean-reverting shock: {shock:.4f} (current={current_value:.3f}, "
