@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import warnings
 
 import numpy as np
@@ -328,3 +328,56 @@ class BatchAnalysisResults(_DictAccessMixin):
     convergence: ConvergenceStats
     survival_analysis: SurvivalAnalysisStats
     ergodic_divergence: float
+
+
+# ---------------------------------------------------------------------------
+# Typed results for InsuranceProgram.process_claim() (#797)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class LayerPayment(_DictAccessMixin):
+    """Payment details for a single insurance layer triggered by a claim.
+
+    Attributes:
+        layer_index: Index of the triggered layer within the program.
+        attachment: Attachment point of the layer in dollars.
+        payment: Dollar amount paid by this layer.
+        reinstatement_premium: Reinstatement premium charged for this layer.
+        exhausted: Whether the layer's aggregate limit is now exhausted.
+    """
+
+    layer_index: int
+    attachment: float
+    payment: float
+    reinstatement_premium: float
+    exhausted: bool
+
+
+@dataclass
+class ClaimResult(_DictAccessMixin):
+    """Result of processing a single insurance claim through :class:`InsuranceProgram`.
+
+    Returned by :meth:`InsuranceProgram.process_claim`.  Supports
+    backward-compatible dict-style access (``result["key"]``) via
+    :class:`_DictAccessMixin`, but attribute access is preferred.
+
+    Attributes:
+        total_claim: Original gross claim amount in dollars.
+        deductible_paid: Amount borne by the insured (deductible plus any
+            uncovered excess).
+        insurance_recovery: Total amount recovered from all insurance layers.
+        uncovered_loss: Claim amount exceeding both deductible and all layer
+            limits.
+        reinstatement_premiums: Total reinstatement premiums triggered by
+            this claim.
+        layers_triggered: Per-layer payment details for each layer that
+            responded to the claim.
+    """
+
+    total_claim: float
+    deductible_paid: float
+    insurance_recovery: float
+    uncovered_loss: float
+    reinstatement_premiums: float
+    layers_triggered: List[LayerPayment] = field(default_factory=list)

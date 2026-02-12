@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from ergodic_insurance.ergodic_types import ClaimResult
 from ergodic_insurance.ruin_probability import (
     RuinProbabilityAnalyzer,
     RuinProbabilityConfig,
@@ -44,7 +45,13 @@ def make_mock_loss_generator():
 def make_mock_insurance_program():
     """Create a mock insurance program."""
     program = MagicMock()
-    program.process_claim.return_value = {"total_recovery": 0, "insurance_recovery": 0}
+    program.process_claim.return_value = ClaimResult(
+        total_claim=0.0,
+        deductible_paid=0.0,
+        insurance_recovery=0.0,
+        uncovered_loss=0.0,
+        reinstatement_premiums=0.0,
+    )
     return program
 
 

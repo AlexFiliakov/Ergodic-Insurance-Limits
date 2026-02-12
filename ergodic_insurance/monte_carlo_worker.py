@@ -132,7 +132,7 @@ def run_chunk_standalone(
             for loss_event in year_losses:
                 if loss_event.amount > 0:
                     claim_result = sim_insurance_program.process_claim(loss_event.amount)
-                    event_recovery = claim_result["insurance_recovery"]
+                    event_recovery = claim_result.insurance_recovery
                     event_retained = loss_event.amount - event_recovery
 
                     total_recovery += event_recovery

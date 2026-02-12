@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 import yaml
 
+from ergodic_insurance.ergodic_types import ClaimResult, LayerPayment
 from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,
@@ -1521,3 +1522,110 @@ class TestInsuranceProgramCreateFresh:
         program = InsuranceProgram(layers=layers)
         fresh = InsuranceProgram.create_fresh(program)
         assert fresh.layers[0].attachment_point < fresh.layers[1].attachment_point
+
+
+class TestClaimResultDataclass:
+    """Test that process_claim returns a typed ClaimResult (#797)."""
+
+    def test_returns_claim_result_type(self):
+        """process_claim returns a ClaimResult, not a plain dict."""
+        program = InsuranceProgram([], deductible=250_000)
+        result = program.process_claim(100_000)
+        assert isinstance(result, ClaimResult)
+
+    def test_attribute_access(self):
+        """Fields are accessible as attributes."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+
+        assert result.total_claim == 2_000_000
+        assert result.deductible_paid == 250_000
+        assert result.insurance_recovery == 1_750_000
+        assert result.uncovered_loss == 0.0
+        assert result.reinstatement_premiums == 0.0
+        assert len(result.layers_triggered) == 1
+
+    def test_layers_triggered_are_layer_payment(self):
+        """Each item in layers_triggered is a LayerPayment dataclass."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+
+        layer = result.layers_triggered[0]
+        assert isinstance(layer, LayerPayment)
+        assert layer.layer_index == 0
+        assert layer.attachment == 250_000
+        assert layer.payment == 1_750_000
+        assert layer.exhausted is False
+
+    def test_zero_claim_returns_claim_result(self):
+        """Zero/negative claims still return ClaimResult."""
+        program = InsuranceProgram([])
+        result = program.process_claim(0)
+        assert isinstance(result, ClaimResult)
+        assert result.total_claim == 0.0
+        assert result.insurance_recovery == 0.0
+
+    def test_backward_compat_getitem(self):
+        """Dict-style bracket access still works with deprecation warning."""
+        program = InsuranceProgram([], deductible=250_000)
+        result = program.process_claim(100_000)
+
+        with pytest.warns(DeprecationWarning, match="Dict-style access"):
+            assert result["total_claim"] == 100_000
+
+    def test_backward_compat_get(self):
+        """Dict-style .get() still works with deprecation warning."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+
+        with pytest.warns(DeprecationWarning, match="Dict-style access"):
+            assert result.get("insurance_recovery", 0) == 1_750_000
+
+    def test_backward_compat_contains(self):
+        """'key in result' still works."""
+        program = InsuranceProgram([])
+        result = program.process_claim(100_000)
+        assert "total_claim" in result
+        assert "nonexistent" not in result
+
+    def test_backward_compat_keys(self):
+        """result.keys() returns field names."""
+        program = InsuranceProgram([])
+        result = program.process_claim(100_000)
+        assert set(result.keys()) == {
+            "total_claim",
+            "deductible_paid",
+            "insurance_recovery",
+            "uncovered_loss",
+            "reinstatement_premiums",
+            "layers_triggered",
+        }
+
+    def test_layer_payment_backward_compat(self):
+        """LayerPayment also supports dict-style access."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+        layer = result.layers_triggered[0]
+
+        with pytest.warns(DeprecationWarning, match="Dict-style access"):
+            assert layer["payment"] == 1_750_000
