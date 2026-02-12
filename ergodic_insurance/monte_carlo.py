@@ -7,6 +7,7 @@ import logging
 import os
 from pathlib import Path
 import pickle
+import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import warnings
@@ -579,8 +580,21 @@ class MonteCarloEngine:
             self.time_series_aggregator = TimeSeriesAggregator(agg_config)
             self.summary_statistics = SummaryStatistics()
 
-    def run(self) -> MonteCarloResults:
+    def run(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Execute Monte Carlo simulation.
+
+        Args:
+            progress_callback: Optional callback invoked with
+                ``(completed, total, elapsed_seconds)`` after each batch of
+                simulations completes.  Useful for GUI progress bars, web
+                dashboards, or any non-terminal environment.
+            cancel_event: Optional :class:`threading.Event`.  When set, the
+                engine will stop after the current batch and return partial
+                results.
 
         Returns:
             MonteCarloResults object with all outputs
@@ -619,11 +633,20 @@ class MonteCarloEngine:
         # Run simulation with appropriate executor
         if self.config.parallel:
             if self.config.use_enhanced_parallel and self.parallel_executor:
-                results = self._run_enhanced_parallel()
+                results = self._run_enhanced_parallel(
+                    progress_callback=progress_callback,
+                    cancel_event=cancel_event,
+                )
             else:
-                results = self._run_parallel()
+                results = self._run_parallel(
+                    progress_callback=progress_callback,
+                    cancel_event=cancel_event,
+                )
         else:
-            results = self._run_sequential()
+            results = self._run_sequential(
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+            )
 
         # Calculate metrics
         results.metrics = self._calculate_metrics(results)
@@ -679,7 +702,11 @@ class MonteCarloEngine:
 
         return results
 
-    def _run_sequential(self) -> MonteCarloResults:
+    def _run_sequential(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Run simulation sequentially."""
         n_sims = self.config.n_simulations
         n_years = self.config.n_years
@@ -700,8 +727,18 @@ class MonteCarloEngine:
         if self.config.progress_bar:
             iterator = tqdm(iterator, desc="Running simulations")
 
+        # How often to fire the progress callback / check cancellation
+        callback_interval = max(1, n_sims // 100)
+        seq_start = time.time()
+
         # Run simulations
+        completed = 0
         for i in iterator:
+            # Check for cancellation
+            if cancel_event is not None and i % callback_interval == 0 and cancel_event.is_set():
+                logger.info("Cancellation requested at simulation %d/%d", i, n_sims)
+                break
+
             sim_results = self._run_single_simulation(i)
             final_assets[i] = sim_results["final_assets"]
             final_equity[i] = sim_results["final_equity"]
@@ -712,6 +749,12 @@ class MonteCarloEngine:
             # Collect periodic ruin data
             if self.config.ruin_evaluation:
                 ruin_at_year_all.append(sim_results["ruin_at_year"])
+
+            completed = i + 1
+
+            # Fire progress callback
+            if progress_callback is not None and completed % callback_interval == 0:
+                progress_callback(completed, n_sims, time.time() - seq_start)
 
             # Checkpoint if needed
             if (
@@ -726,6 +769,19 @@ class MonteCarloEngine:
                     insurance_recoveries[: i + 1],
                     retained_losses[: i + 1],
                 )
+
+        # Fire final callback so callers always see (total, total, ...)
+        if progress_callback is not None and completed > 0 and completed != n_sims:
+            progress_callback(completed, n_sims, time.time() - seq_start)
+
+        # Truncate arrays if cancelled early
+        if completed < n_sims:
+            final_assets = final_assets[:completed]
+            final_equity = final_equity[:completed]
+            annual_losses = annual_losses[:completed]
+            insurance_recoveries = insurance_recoveries[:completed]
+            retained_losses = retained_losses[:completed]
+            n_sims = completed
 
         # Calculate growth rates using equity (#355: total assets includes
         # liabilities, giving misleading growth when leverage changes)
@@ -763,7 +819,11 @@ class MonteCarloEngine:
             config=self.config,
         )
 
-    def _run_parallel(self) -> MonteCarloResults:
+    def _run_parallel(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Run simulation in parallel using multiprocessing."""
         # Check if we're on Windows and have scipy import issues
         # Fall back to sequential execution in these cases
@@ -777,7 +837,9 @@ class MonteCarloEngine:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return self._run_sequential()
+            return self._run_sequential(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
 
         n_sims = self.config.n_simulations
         n_workers = self.config.n_workers
@@ -804,6 +866,8 @@ class MonteCarloEngine:
 
         # Run chunks in parallel using standalone function
         all_results = []
+        par_start = time.time()
+        completed_sims = 0
         try:
             with ProcessPoolExecutor(max_workers=n_workers) as executor:
                 # Submit all tasks using the standalone function
@@ -824,11 +888,26 @@ class MonteCarloEngine:
                     pbar = tqdm(total=len(chunks), desc="Processing chunks")
 
                 for future in as_completed(futures):
+                    # Check for cancellation before processing next result
+                    if cancel_event is not None and cancel_event.is_set():
+                        logger.info("Cancellation requested during parallel execution")
+                        # Cancel remaining futures
+                        for f in futures:
+                            f.cancel()
+                        break
+
                     chunk_results = future.result()
                     all_results.append(chunk_results)
 
+                    # Track completed simulations for callback
+                    chunk_info = futures[future]
+                    completed_sims += chunk_info[1] - chunk_info[0]
+
                     if self.config.progress_bar:
                         pbar.update(1)
+
+                    if progress_callback is not None:
+                        progress_callback(completed_sims, n_sims, time.time() - par_start)
 
                 if self.config.progress_bar:
                     pbar.close()
@@ -839,12 +918,18 @@ class MonteCarloEngine:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return self._run_sequential()
+            return self._run_sequential(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
 
         # Combine results
         return self._combine_chunk_results(all_results)
 
-    def _run_enhanced_parallel(self) -> MonteCarloResults:
+    def _run_enhanced_parallel(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Run simulation using enhanced parallel executor.
 
         Uses CPU-optimized parallel execution with shared memory and
@@ -873,7 +958,9 @@ class MonteCarloEngine:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return self._run_parallel()
+            return self._run_parallel(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
 
         # Prepare shared data including the actual loss generator and insurance
         # program so _simulate_path_enhanced uses the configured model (issue #299).
@@ -1011,6 +1098,8 @@ class MonteCarloEngine:
             reduce_function=combine_results_enhanced,
             shared_data=shared_data,
             progress_bar=self.config.progress_bar,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
         )
 
         # Add performance metrics from executor
