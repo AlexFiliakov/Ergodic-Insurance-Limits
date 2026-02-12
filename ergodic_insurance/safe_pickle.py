@@ -27,6 +27,7 @@ from typing import Any, Optional
 _DEFAULT_KEY_DIR = Path.home() / ".ergodic_insurance"
 _KEY_FILENAME = ".pickle_hmac_key"
 _SIGNATURE_LENGTH = 32  # SHA-256 produces 32 bytes
+_MAX_KEY_RETRIES = 3  # retry limit for concurrent key creation races
 
 
 _logger = logging.getLogger(__name__)
@@ -46,23 +47,28 @@ def _secure_mkdir(dir_path: Path) -> None:
 
 
 def _secure_write_key(key_path: Path, key: bytes) -> None:
-    """Write key file with restricted permissions (0600 on Unix).
+    """Write key file atomically with restricted permissions.
 
-    On Unix, uses O_EXCL for atomic creation to prevent TOCTOU races.
-    On Windows, falls back to Path.write_bytes (os.chmod only toggles read-only).
+    Uses O_CREAT | O_EXCL on all platforms for atomic creation,
+    preventing TOCTOU races where two processes could clobber each
+    other's keys.  Raises FileExistsError if the file already exists.
     """
-    if os.name != "nt":
-        fd = os.open(str(key_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        try:
-            os.write(fd, key)
-        finally:
-            os.close(fd)
-    else:
-        key_path.write_bytes(key)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    flags |= getattr(os, "O_BINARY", 0)  # required on Windows for raw bytes
+    mode = 0o600 if os.name != "nt" else 0
+    fd = os.open(str(key_path), flags, mode)
+    try:
+        os.write(fd, key)
+    finally:
+        os.close(fd)
 
 
 def _get_or_create_hmac_key(key_dir: Optional[Path] = None) -> bytes:
     """Get or create a persistent HMAC key for pickle validation.
+
+    Eliminates TOCTOU races by using try/except instead of exists() + read(),
+    and retries if a concurrent process creates or deletes the key file
+    between our read and write attempts.
 
     Args:
         key_dir: Directory to store the key file. Defaults to ~/.ergodic_insurance/
@@ -72,17 +78,26 @@ def _get_or_create_hmac_key(key_dir: Optional[Path] = None) -> bytes:
     """
     key_path = _get_key_path(key_dir)
 
-    if key_path.exists():
-        return key_path.read_bytes()
+    for _attempt in range(_MAX_KEY_RETRIES):
+        # Try reading existing key — avoids TOCTOU from exists() + read_bytes()
+        try:
+            return key_path.read_bytes()
+        except FileNotFoundError:
+            pass
 
-    _secure_mkdir(key_path.parent)
-    key = secrets.token_bytes(32)
-    try:
-        _secure_write_key(key_path, key)
-    except FileExistsError:
-        _logger.debug("HMAC key file created by another process, reading existing key")
-        return key_path.read_bytes()
-    return key
+        # Key doesn't exist yet; create directory and attempt atomic write
+        _secure_mkdir(key_path.parent)
+        key = secrets.token_bytes(32)
+        try:
+            _secure_write_key(key_path, key)
+            return key
+        except FileExistsError:
+            # Another process won the race — loop back and read their key
+            _logger.debug("HMAC key file created by another process, retrying read")
+            continue
+
+    # Exhausted retries — final read attempt (let any exception propagate)
+    return key_path.read_bytes()
 
 
 def safe_dump(

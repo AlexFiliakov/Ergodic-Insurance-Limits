@@ -12,6 +12,7 @@ import io
 import os
 from pathlib import Path
 import pickle
+import secrets
 import stat
 import tempfile
 from unittest import mock
@@ -306,19 +307,104 @@ class TestSecurePermissions:
 
     def test_race_condition_handling(self, fresh_key_dir):
         """FileExistsError from O_EXCL is handled gracefully (TOCTOU race)."""
-        # Pre-create directory so _secure_mkdir succeeds
         fresh_key_dir.mkdir(parents=True, exist_ok=True)
         key_path = fresh_key_dir / ".pickle_hmac_key"
-        # Write a key manually to simulate another process winning the race
         existing_key = b"\xab" * 32
-        key_path.write_bytes(existing_key)
 
-        # Patch _secure_write_key to raise FileExistsError (simulates O_EXCL race)
-        with mock.patch(
-            "ergodic_insurance.safe_pickle._secure_write_key",
-            side_effect=FileExistsError("File exists"),
-        ):
-            result = _get_or_create_hmac_key(fresh_key_dir)
+        # Simulate: first read_bytes raises FileNotFoundError (key doesn't exist yet),
+        # then _secure_write_key raises FileExistsError (another process won the race),
+        # then read_bytes succeeds on the retry loop.
+        call_count = {"n": 0}
 
-        # Should fall back to reading the existing key
+        def mock_read_bytes(self):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise FileNotFoundError("not yet")
+            # On second call (retry), the file exists
+            return existing_key
+
+        with mock.patch.object(Path, "read_bytes", mock_read_bytes):
+            with mock.patch(
+                "ergodic_insurance.safe_pickle._secure_write_key",
+                side_effect=FileExistsError("File exists"),
+            ):
+                result = _get_or_create_hmac_key(fresh_key_dir)
+
         assert result == existing_key
+
+
+# ---------------------------------------------------------------------------
+# TOCTOU regression tests (issue #798)
+# ---------------------------------------------------------------------------
+
+
+class TestTOCTOURegressions:
+    """Regression tests for TOCTOU race conditions in key management."""
+
+    def test_no_exists_check_in_read_path(self, fresh_key_dir):
+        """Key read must use try/except, not exists() + read_bytes() (issue #798)."""
+        import inspect
+
+        source = inspect.getsource(_get_or_create_hmac_key)
+        # The fixed code should NOT call .exists() on the key path
+        assert "key_path.exists()" not in source
+
+    def test_secure_write_key_uses_o_excl_on_all_platforms(self, fresh_key_dir):
+        """_secure_write_key must use O_EXCL on all platforms (issue #798)."""
+        fresh_key_dir.mkdir(parents=True, exist_ok=True)
+        key_path = fresh_key_dir / ".pickle_hmac_key"
+        key = secrets.token_bytes(32)
+
+        # First write succeeds
+        _secure_write_key(key_path, key)
+        assert key_path.read_bytes() == key
+
+        # Second write to same path MUST raise FileExistsError (O_EXCL)
+        with pytest.raises(FileExistsError):
+            _secure_write_key(key_path, secrets.token_bytes(32))
+
+    def test_concurrent_deletion_retries(self, fresh_key_dir):
+        """If key is deleted between read and write, retry loop recovers."""
+        fresh_key_dir.mkdir(parents=True, exist_ok=True)
+        key_path = fresh_key_dir / ".pickle_hmac_key"
+        expected_key = b"\xcd" * 32
+
+        # Simulate: attempts 1-2 both fail to read AND fail to write,
+        # attempt 3 succeeds to read.
+        read_count = {"n": 0}
+
+        def mock_read_bytes(self):
+            read_count["n"] += 1
+            if read_count["n"] <= 2:
+                raise FileNotFoundError("gone")
+            return expected_key
+
+        write_effects = [
+            FileExistsError("race 1"),
+            FileExistsError("race 2"),
+        ]
+
+        with mock.patch.object(Path, "read_bytes", mock_read_bytes):
+            with mock.patch(
+                "ergodic_insurance.safe_pickle._secure_write_key",
+                side_effect=write_effects,
+            ):
+                result = _get_or_create_hmac_key(fresh_key_dir)
+
+        assert result == expected_key
+
+    def test_write_key_no_silent_overwrite(self, fresh_key_dir):
+        """On Windows, write_bytes() must NOT be used (would silently overwrite)."""
+        import inspect
+
+        source = inspect.getsource(_secure_write_key)
+        assert (
+            "write_bytes" not in source
+        ), "_secure_write_key must not use write_bytes — it silently overwrites"
+
+    def test_write_key_includes_o_binary_for_windows(self):
+        """O_BINARY flag must be included for correct binary writes on Windows."""
+        import inspect
+
+        source = inspect.getsource(_secure_write_key)
+        assert "O_BINARY" in source
