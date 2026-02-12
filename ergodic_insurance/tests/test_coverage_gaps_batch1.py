@@ -21,6 +21,7 @@ import yaml
 
 from ergodic_insurance.config_loader import ConfigLoader
 from ergodic_insurance.insurance_accounting import InsuranceAccounting, InsuranceRecovery
+from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.result_aggregator import (
     AggregationConfig,
     HierarchicalAggregator,
@@ -460,12 +461,8 @@ class TestMonteCarloWorkerRuinMarking:
         mock_loss_generator = MagicMock()
         mock_loss_generator.generate_losses.return_value = ([mock_loss], None)
 
-        mock_insurance = MagicMock()
-        mock_insurance.calculate_annual_premium.return_value = 50000.0
-        mock_insurance.process_claim.return_value = {
-            "insurance_recovery": 0.0,
-            "deductible_paid": 5_000_000.0,
-        }
+        # Deductible exceeds the 5M loss → zero insurance recovery → guaranteed ruin
+        insurance = InsuranceProgram.simple(deductible=10_000_000, limit=1_000_000, rate=0.01)
 
         # Tolerance set above initial equity (~50k) so the worker's
         # equity check fires even when the manufacturer's internal
@@ -486,7 +483,7 @@ class TestMonteCarloWorkerRuinMarking:
         result = run_chunk_standalone(
             chunk=chunk,
             loss_generator=mock_loss_generator,
-            insurance_program=mock_insurance,
+            insurance_program=insurance,
             manufacturer=manufacturer,
             config_dict=config_dict,
         )
@@ -525,12 +522,8 @@ class TestMonteCarloWorkerRuinMarking:
         mock_loss_generator = MagicMock()
         mock_loss_generator.generate_losses.return_value = ([mock_loss], None)
 
-        mock_insurance = MagicMock()
-        mock_insurance.calculate_annual_premium.return_value = 50000.0
-        mock_insurance.process_claim.return_value = {
-            "insurance_recovery": 50000.0,
-            "deductible_paid": 50000.0,
-        }
+        # Deductible = 50k, limit = 1M → covers most of the 100k loss
+        insurance = InsuranceProgram.simple(deductible=50_000, limit=1_000_000, rate=0.05)
 
         config_dict = {
             "n_years": 3,
@@ -548,7 +541,7 @@ class TestMonteCarloWorkerRuinMarking:
         result = run_chunk_standalone(
             chunk=chunk,
             loss_generator=mock_loss_generator,
-            insurance_program=mock_insurance,
+            insurance_program=insurance,
             manufacturer=manufacturer,
             config_dict=config_dict,
         )
