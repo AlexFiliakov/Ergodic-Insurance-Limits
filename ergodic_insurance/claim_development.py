@@ -155,8 +155,7 @@ class ClaimDevelopment:
 
         if development_year < len(self.development_factors):
             return claim_amount * self.development_factors[development_year]
-        if self.tail_factor > 0:
-            # Apply tail factor for years beyond pattern
+        if self.tail_factor > 0 and development_year == len(self.development_factors):
             return claim_amount * self.tail_factor
         return 0.0
 
@@ -177,7 +176,7 @@ class ClaimDevelopment:
         )
 
         if years_since_accident > len(self.development_factors) and self.tail_factor > 0:
-            cumulative += self.tail_factor * (years_since_accident - len(self.development_factors))
+            cumulative += self.tail_factor
 
         return min(cumulative, 1.0)
 
@@ -761,7 +760,7 @@ class CashFlowProjector:
             cohort_premium = earned_premium.get(accident_year) if earned_premium else None
             if elr is not None and cohort_premium is not None:
                 bf_ibnr = elr * cohort_premium * (1 - pct_developed)
-                bf_ultimate = incurred + bf_ibnr
+                bf_ultimate = paid_to_date + bf_ibnr
 
             # Maturity-adaptive credibility blend (E2)
             if cl_ultimate is not None and bf_ultimate is not None:

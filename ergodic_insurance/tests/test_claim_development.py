@@ -125,9 +125,11 @@ class TestClaimDevelopment:
         assert pattern.calculate_payments(claim_amount, accident_year, 2020) == 400_000
         assert pattern.calculate_payments(claim_amount, accident_year, 2022) == 200_000
 
-        # Beyond pattern period - tail factor applies
+        # Tail factor applies only once at development_year == len(factors)
         assert pattern.calculate_payments(claim_amount, accident_year, 2023) == 100_000
-        assert pattern.calculate_payments(claim_amount, accident_year, 2025) == 100_000
+        # Beyond tail year - no more payments
+        assert pattern.calculate_payments(claim_amount, accident_year, 2024) == 0.0
+        assert pattern.calculate_payments(claim_amount, accident_year, 2025) == 0.0
 
     def test_get_cumulative_paid(self):
         """Test cumulative payment percentage calculation."""
@@ -598,9 +600,11 @@ class TestIBNRActuarialMethods:
 
         # dev_years=0, pct_developed=0.0 -> CL undefined (no payments), BF only
         # BF IBNR = 0.70 * 2_000_000 * (1 - 0) = 1_400_000
+        # BF ultimate = paid(0) + 1_400_000 = 1_400_000
+        # IBNR = max(0, 1_400_000 - 1_000_000) = 400_000
         earned_premium = {2023: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(1_400_000)
+        assert ibnr == pytest.approx(400_000)
 
     def test_blended_cl_bf(self):
         """Verify maturity-adaptive CL/BF weights."""
@@ -623,12 +627,12 @@ class TestIBNRActuarialMethods:
         # pct=0.40, paid=400k
         # CL ultimate = 400k / 0.40 = 1M
         # BF IBNR = 0.70 * 2M * 0.60 = 840k
-        # BF ultimate = 1M + 840k = 1.84M
-        # Blended = 0.40 * 1M + 0.60 * 1.84M = 400k + 1_104k = 1_504k
-        # IBNR = 1_504k - 1M = 504k
+        # BF ultimate = paid + bf_ibnr = 400k + 840k = 1.24M
+        # Blended = 0.40 * 1M + 0.60 * 1.24M = 400k + 744k = 1_144k
+        # IBNR = 1_144k - 1M = 144k
         earned_premium = {2020: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(504_000)
+        assert ibnr == pytest.approx(144_000)
 
     def test_blended_with_earned_premium(self):
         """BF with earned premium uses standard formula."""
@@ -651,12 +655,12 @@ class TestIBNRActuarialMethods:
         # pct_developed at dev_years=1 = 0.40, paid=200k
         # CL ultimate = 200k / 0.40 = 500k
         # BF IBNR = 0.70 * 1M * 0.60 = 420k
-        # BF ultimate = 500k + 420k = 920k
-        # Blended = 0.40 * 500k + 0.60 * 920k = 200k + 552k = 752k
-        # IBNR = 752k - 500k = 252k
+        # BF ultimate = paid + bf_ibnr = 200k + 420k = 620k
+        # Blended = 0.40 * 500k + 0.60 * 620k = 200k + 372k = 572k
+        # IBNR = 572k - 500k = 72k
         earned_premium = {2020: 1_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(252_000)
+        assert ibnr == pytest.approx(72_000)
 
     def test_fully_developed_zero_ibnr(self):
         """E5: IBNR=0 at full maturity."""
@@ -730,12 +734,13 @@ class TestIBNRActuarialMethods:
 
         # pct=0.40, paid=400k
         # CL = 400k/0.40 = 1M
-        # BF IBNR = 0.80 * 2M * 0.60 = 960k; BF ult = 1M + 960k = 1.96M
-        # Blended = 0.40 * 1M + 0.60 * 1.96M = 400k + 1_176k = 1_576k
-        # IBNR = 576k
+        # BF IBNR = 0.80 * 2M * 0.60 = 960k
+        # BF ult = paid + bf_ibnr = 400k + 960k = 1.36M
+        # Blended = 0.40 * 1M + 0.60 * 1.36M = 400k + 816k = 1_216k
+        # IBNR = 216k
         earned_premium = {2020: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(576_000)
+        assert ibnr == pytest.approx(216_000)
 
     def test_elr_tier3_industry_benchmark(self):
         """ibnr_factors from YAML are used for Tier 3."""
@@ -755,9 +760,11 @@ class TestIBNRActuarialMethods:
         # dev_years=0, pct_developed=0.0 -> CL undefined (no payments)
         # Tier 3 ELR = 0.65 (from ibnr_factors)
         # BF IBNR = 0.65 * 2M * 1.0 = 1_300_000
+        # BF ultimate = paid(0) + 1_300_000 = 1_300_000
+        # IBNR = max(0, 1_300_000 - 1_000_000) = 300_000
         earned_premium = {2023: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(1_300_000)
+        assert ibnr == pytest.approx(300_000)
 
     def test_elr_tier2_cape_cod(self):
         """Cape Cod ELR derived from >=2 cohorts with premium."""
@@ -785,14 +792,14 @@ class TestIBNRActuarialMethods:
         cohort_2020.add_claim(claim2)
         projector.add_cohort(cohort_2020)
 
-        # Project payments before evaluation year
-        projector.project_payments(2019, 2020)
+        # Project payments through evaluation year so triangle has full data
+        projector.project_payments(2019, 2021)
 
         # At eval 2021:
-        # cohort_2019: dev_years=2, pct=0.65, paid=500k*0.65=325k
-        # cohort_2020: dev_years=1, pct=0.40, paid=800k*0.40=320k
-        # Cape Cod ELR = (325k+320k) / (700k*0.65 + 1.2M*0.40)
-        #             = 645k / (455k + 480k) = 645k / 935k ~ 0.6898
+        # cohort_2019: dev_years=2, pct=0.65, paid=500k*0.80=400k
+        # cohort_2020: dev_years=1, pct=0.40, paid=800k*0.65=520k
+        # Cape Cod ELR = (400k+520k) / (700k*0.65 + 1.2M*0.40)
+        #             = 920k / 935k ~ 0.984
         earned_premium = {2019: 700_000, 2020: 1_200_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
         assert ibnr > 0
@@ -1309,24 +1316,108 @@ class TestEmpiricalChainLadder:
             cohort.add_claim(claim)
             projector.add_cohort(cohort)
 
-        projector.project_payments(2018, 2020)
+        projector.project_payments(2018, 2021)
 
-        # AY 2020 at eval 2021: dev_years=1, pct=0.40, paid=400k
-        # Empirical CDF at age 0: LDF(0) = 1.625 (from AY 2018,2019)
-        # Empirical CL ultimate = 400k * 1.625 = 650k
+        # AY 2020 at eval 2021: dev_years=1, pct=0.40, paid=650k
+        # Empirical CDF at age 1: LDF(1) = 1.2308 (from AY 2018,2019)
+        # Empirical CL ultimate = 650k * 1.2308 = 800k
         #
-        # Wait, this doesn't match the assumed CL of 400k / 0.40 = 1M.
-        # That's because empirical CDF at age 0 includes only LDF(0→1),
-        # not the full chain. But cumulative at age 0 = 400k, at age 1 = 650k.
-        # So LDF(0) = 650k/400k = 1.625, but there's no LDF(1) with >=2 contributors
-        # (only AY 2018 has age 1→2). So CDF(0) = 1.625 only.
-        # Empirical CL = 400k * 1.625 = 650k (represents projection to age 1 only).
-        #
-        # BF IBNR = 0.70 * 1.5M * (1-0.40) = 630k; BF ult = 1M + 630k = 1.63M
-        # Blended = 0.40 * 650k + 0.60 * 1.63M = 260k + 978k = 1.238M
-        # IBNR = 238k
+        # BF IBNR = 0.70 * 1.5M * 0.60 = 630k; BF ult = 650k + 630k = 1.28M
+        # Blended = 0.40 * 800k + 0.60 * 1.28M = 320k + 768k = 1.088M
+        # IBNR = 88k
         earned_premium = {2018: 1_500_000, 2019: 1_500_000, 2020: 1_500_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
 
         # IBNR should be positive when BF is available
         assert ibnr > 0
+
+
+class TestRegressions:
+    """Regression tests for specific bug fixes."""
+
+    def test_tail_factor_pays_only_once_issue_810(self):
+        """#810: tail factor must pay once at development_year == len(factors), not every year."""
+        pattern = ClaimDevelopment(
+            pattern_name="WITH_TAIL",
+            development_factors=[0.40, 0.30, 0.28],
+            tail_factor=0.02,
+        )
+        claim_amount = 1_000_000
+        accident_year = 2020
+
+        # Total payments over many years must equal claim_amount exactly
+        total = sum(
+            pattern.calculate_payments(claim_amount, accident_year, 2020 + y) for y in range(50)
+        )
+        assert total == pytest.approx(claim_amount)
+
+        # Tail paid exactly once at development_year == 3
+        assert pattern.calculate_payments(claim_amount, accident_year, 2023) == 20_000
+        # No payment after tail year
+        assert pattern.calculate_payments(claim_amount, accident_year, 2024) == 0.0
+        assert pattern.calculate_payments(claim_amount, accident_year, 2050) == 0.0
+
+    def test_cumulative_paid_consistent_with_payments_issue_810(self):
+        """#810: get_cumulative_paid and calculate_payments must agree on total payout."""
+        pattern = ClaimDevelopment(
+            pattern_name="WITH_TAIL",
+            development_factors=[0.40, 0.30, 0.28],
+            tail_factor=0.02,
+        )
+        # After all development + tail, cumulative should be 1.0
+        assert pattern.get_cumulative_paid(len(pattern.development_factors) + 1) == pytest.approx(
+            1.0
+        )
+        # And should stay at 1.0 for all later years
+        assert pattern.get_cumulative_paid(100) == pytest.approx(1.0)
+
+    def test_bf_ultimate_uses_paid_to_date_issue_805(self):
+        """#805: BF ultimate = paid_to_date + bf_ibnr, not incurred + bf_ibnr."""
+        projector = CashFlowProjector(a_priori_loss_ratio=0.70)
+
+        cohort = ClaimCohort(accident_year=2020)
+        claim = Claim(
+            "CL001",
+            2020,
+            2020,
+            1_000_000,
+            development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+        )
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+        projector.project_payments(2020, 2020)
+
+        # pct=0.40, paid=400k, incurred=1M
+        # BF IBNR = 0.70 * 2M * 0.60 = 840k
+        # Correct BF ultimate = 400k + 840k = 1.24M
+        # Wrong BF ultimate (old bug) = 1M + 840k = 1.84M
+        # CL = 400k / 0.40 = 1M
+        # Blended = 0.40 * 1M + 0.60 * 1.24M = 1.144M, IBNR = 144k
+        earned_premium = {2020: 2_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(144_000)
+        # Must NOT be the old buggy value
+        assert ibnr != pytest.approx(504_000)
+
+    def test_bf_only_immature_paid_basis_issue_805(self):
+        """#805: at 0% development with BF-only, ultimate = 0 + bf_ibnr (paid basis)."""
+        projector = CashFlowProjector(a_priori_loss_ratio=0.60)
+
+        cohort = ClaimCohort(accident_year=2023)
+        claim = Claim(
+            "CL001",
+            2023,
+            2023,
+            500_000,
+            development_pattern=ClaimDevelopment.create_long_tail_10yr(),
+        )
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+
+        # dev_years=0, pct=0.0, paid=0
+        # BF IBNR = 0.60 * 1M * 1.0 = 600k
+        # BF ultimate = 0 + 600k = 600k
+        # IBNR = max(0, 600k - 500k) = 100k
+        earned_premium = {2023: 1_000_000}
+        ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
+        assert ibnr == pytest.approx(100_000)
