@@ -202,7 +202,8 @@ class TestInsurancePricer:
     def test_calculate_technical_premium(self, pricer):
         """Test technical premium calculation.
 
-        Technical premium = pure_premium * (1 + risk_loading).
+        Technical premium = pure_premium * (1 + risk_loading)
+                          + pure_premium * lae_ratio.
         Expense/profit loading is applied separately via loss ratio
         in calculate_market_premium() to avoid double-counting.
         """
@@ -211,8 +212,12 @@ class TestInsurancePricer:
 
         technical = pricer.calculate_technical_premium(pure_premium, limit)
 
-        # Should equal pure * (1 + risk_loading) = 100K * 1.10 = 110K
-        expected = pure_premium * (1 + pricer.parameters.risk_loading)
+        # Should equal pure * (1 + risk_loading) + pure * lae_ratio
+        # = 100K * 1.10 + 100K * 0.15 = 110K + 15K = 125K
+        expected = (
+            pure_premium * (1 + pricer.parameters.risk_loading)
+            + pure_premium * pricer.parameters.lae_ratio
+        )
         assert technical == expected
 
         # Should be higher than pure premium due to risk loading
@@ -241,6 +246,51 @@ class TestInsurancePricer:
         technical = pricer.calculate_technical_premium(pure_premium, limit)
         max_premium = limit * pricer.parameters.max_rate_on_line
         assert technical == max_premium
+
+    def test_lae_loading_included_in_technical_premium(self, pricer):
+        """Test that LAE loading is included in technical premium.
+
+        Per ASOP 29, LAE (ALAE + ULAE) must be reflected in the premium.
+        Technical premium = risk-loaded pure premium + LAE loading.
+        """
+        pure_premium = 200_000
+        limit = 10_000_000
+
+        technical = pricer.calculate_technical_premium(pure_premium, limit)
+
+        risk_loaded = pure_premium * (1 + pricer.parameters.risk_loading)
+        lae_loading = pure_premium * pricer.parameters.lae_ratio
+
+        assert technical == risk_loaded + lae_loading
+        assert technical > risk_loaded, "LAE loading must increase technical premium"
+        assert lae_loading == pure_premium * (
+            pricer.parameters.alae_ratio + pricer.parameters.ulae_ratio
+        )
+
+    def test_lae_loading_flows_to_market_premium(self, pricer):
+        """Test that LAE loading flows through to market premium.
+
+        Market premium = technical premium / loss ratio, so including
+        LAE in the technical premium should increase the market premium
+        by lae_loading / loss_ratio.
+        """
+        pure_premium = 100_000
+        limit = 5_000_000
+        lae_ratio = pricer.parameters.lae_ratio
+
+        # Calculate with current (LAE-inclusive) pricer
+        technical = pricer.calculate_technical_premium(pure_premium, limit)
+        market = pricer.calculate_market_premium(technical)
+
+        # What the values would be without LAE
+        risk_loaded_only = pure_premium * (1 + pricer.parameters.risk_loading)
+        market_without_lae = risk_loaded_only / pricer.market_cycle.value
+
+        # The difference should equal lae_loading / loss_ratio
+        lae_loading = pure_premium * lae_ratio
+        expected_diff = lae_loading / pricer.market_cycle.value
+
+        assert market - market_without_lae == pytest.approx(expected_diff)
 
     def test_calculate_market_premium(self, pricer):
         """Test market premium calculation."""
