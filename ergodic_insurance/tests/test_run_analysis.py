@@ -1,10 +1,14 @@
 """Tests for the run_analysis quick-start factory function."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from ergodic_insurance._run_analysis import AnalysisResults, run_analysis
+from ergodic_insurance.config import Config
+from ergodic_insurance.insurance_program import InsuranceProgram
 
 # ---------------------------------------------------------------------------
 # Import tests
@@ -123,8 +127,6 @@ class TestRunAnalysis:
 
     def test_default_severity_std_logs_info(self, caplog):
         """Omitting loss_severity_std emits an info-level log (#463)."""
-        import logging
-
         with caplog.at_level(logging.INFO, logger="ergodic_insurance._run_analysis"):
             run_analysis(
                 loss_severity_mean=1_000_000,
@@ -140,8 +142,6 @@ class TestRunAnalysis:
 
     def test_explicit_severity_std_no_warning(self, caplog):
         """Providing loss_severity_std explicitly should NOT emit the default log."""
-        import logging
-
         with caplog.at_level(logging.INFO, logger="ergodic_insurance._run_analysis"):
             run_analysis(
                 loss_severity_mean=1_000_000,
@@ -347,3 +347,203 @@ class TestEdgeCases:
         )
         text = results.summary()
         assert "Ergodic Advantage" in text
+
+
+# ---------------------------------------------------------------------------
+# Pre-built Config / InsuranceProgram tests (#796)
+# ---------------------------------------------------------------------------
+
+
+class TestRunAnalysisWithConfig:
+    """Tests for passing a pre-built Config to run_analysis()."""
+
+    def test_config_accepted(self):
+        """run_analysis(config=Config(...)) works."""
+        config = Config.from_company(initial_assets=20_000_000, operating_margin=0.10)
+        results = run_analysis(
+            config=config,
+            n_simulations=3,
+            time_horizon=5,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert isinstance(results, AnalysisResults)
+        assert results.config.manufacturer.initial_assets == 20_000_000
+        assert results.config.manufacturer.base_operating_margin == 0.10
+
+    def test_config_from_yaml_style(self):
+        """Config built with explicit sub-configs is preserved."""
+        config = Config.from_company(
+            initial_assets=30_000_000,
+            industry="service",
+            tax_rate=0.21,
+            growth_rate=0.07,
+            time_horizon_years=15,
+        )
+        results = run_analysis(
+            config=config,
+            n_simulations=3,
+            seed=1,
+            compare_uninsured=False,
+        )
+        assert results.config.manufacturer.initial_assets == 30_000_000
+        assert results.config.manufacturer.tax_rate == 0.21
+        assert results.config.growth.annual_growth_rate == 0.07
+
+    def test_flat_params_override_config(self):
+        """Flat scalar parameters override corresponding config fields."""
+        config = Config.from_company(initial_assets=20_000_000, operating_margin=0.10)
+        results = run_analysis(
+            config=config,
+            initial_assets=50_000_000,  # override
+            n_simulations=3,
+            time_horizon=5,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert results.config.manufacturer.initial_assets == 50_000_000
+        # Non-overridden field stays from config
+        assert results.config.manufacturer.base_operating_margin == 0.10
+
+    def test_config_time_horizon_used_when_not_overridden(self):
+        """Config's time_horizon is used when flat time_horizon is not set."""
+        config = Config.from_company(time_horizon_years=15)
+        results = run_analysis(
+            config=config,
+            n_simulations=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        # Simulation should run for 15 years (from config)
+        assert len(results.insured_results[0].years) == 15
+
+    def test_flat_time_horizon_overrides_config(self):
+        """Flat time_horizon overrides config.simulation.time_horizon_years."""
+        config = Config.from_company(time_horizon_years=15)
+        results = run_analysis(
+            config=config,
+            time_horizon=8,  # override
+            n_simulations=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert len(results.insured_results[0].years) == 8
+
+    def test_config_growth_rate_used_when_not_overridden(self):
+        """Config's growth_rate is used when flat growth_rate is not set."""
+        config = Config.from_company(growth_rate=0.12)
+        results = run_analysis(
+            config=config,
+            n_simulations=3,
+            time_horizon=5,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert results.config.growth.annual_growth_rate == 0.12
+
+
+class TestRunAnalysisWithInsuranceProgram:
+    """Tests for passing a pre-built InsuranceProgram to run_analysis()."""
+
+    def test_insurance_program_accepted(self):
+        """run_analysis(insurance_program=InsuranceProgram.simple(...)) works."""
+        program = InsuranceProgram.simple(deductible=1_000_000, limit=10_000_000, rate=0.03)
+        results = run_analysis(
+            insurance_program=program,
+            n_simulations=3,
+            time_horizon=5,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert isinstance(results, AnalysisResults)
+        assert results.insurance_program.deductible == 1_000_000
+        assert results.insurance_program.layers[0].limit == 10_000_000
+
+    def test_insurance_program_with_config(self):
+        """Both config and insurance_program can be passed together."""
+        config = Config.from_company(initial_assets=25_000_000)
+        program = InsuranceProgram.simple(deductible=500_000, limit=5_000_000, rate=0.02)
+        results = run_analysis(
+            config=config,
+            insurance_program=program,
+            n_simulations=3,
+            time_horizon=5,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert results.config.manufacturer.initial_assets == 25_000_000
+        assert results.insurance_program.deductible == 500_000
+
+    def test_warning_when_flat_insurance_params_ignored(self, caplog):
+        """Warn when insurance_program and flat insurance params are both set."""
+        program = InsuranceProgram.simple(deductible=1_000_000, limit=10_000_000, rate=0.03)
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance._run_analysis"):
+            run_analysis(
+                insurance_program=program,
+                deductible=500_000,  # should be ignored
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        assert any(
+            "insurance_program" in rec.message and "takes precedence" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_flat_insurance_params_ignored_when_program_provided(self):
+        """Flat insurance params do not alter the pre-built InsuranceProgram."""
+        program = InsuranceProgram.simple(deductible=1_000_000, limit=10_000_000, rate=0.03)
+        results = run_analysis(
+            insurance_program=program,
+            deductible=999,
+            coverage_limit=999,
+            premium_rate=0.99,
+            n_simulations=2,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        # The program should be used as-is
+        assert results.insurance_program.deductible == 1_000_000
+        assert results.insurance_program.layers[0].limit == 10_000_000
+
+
+class TestBackwardCompatibility:
+    """Ensure existing call patterns still work after #796 changes."""
+
+    def test_all_defaults(self):
+        """run_analysis() with no arguments still works."""
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert isinstance(results, AnalysisResults)
+        # Default initial_assets
+        assert results.config.manufacturer.initial_assets == 10_000_000
+
+    def test_explicit_defaults_match_original(self):
+        """Explicitly passing the documented defaults matches no-arg behavior."""
+        r1 = run_analysis(
+            n_simulations=3,
+            time_horizon=5,
+            seed=42,
+            compare_uninsured=False,
+        )
+        r2 = run_analysis(
+            initial_assets=10_000_000,
+            operating_margin=0.08,
+            deductible=500_000,
+            coverage_limit=10_000_000,
+            premium_rate=0.025,
+            growth_rate=0.05,
+            tax_rate=0.25,
+            n_simulations=3,
+            time_horizon=5,
+            seed=42,
+            compare_uninsured=False,
+        )
+        for a, b in zip(r1.insured_results, r2.insured_results):
+            np.testing.assert_array_equal(a.equity, b.equity)

@@ -35,6 +35,16 @@ Examples:
         )
         df = results.to_dataframe()
 
+    With a pre-built Config::
+
+        config = Config.from_company(initial_assets=50_000_000, industry="service")
+        results = run_analysis(config=config, deductible=500_000, coverage_limit=10_000_000)
+
+    With a pre-built InsuranceProgram::
+
+        program = InsuranceProgram.simple(deductible=1_000_000, limit=10_000_000, rate=0.03)
+        results = run_analysis(initial_assets=50_000_000, insurance_program=program)
+
 Since:
     Version 0.5.0
 """
@@ -55,6 +65,12 @@ from .manufacturer import WidgetManufacturer
 from .simulation import Simulation, SimulationResults
 
 logger = logging.getLogger(__name__)
+
+# Sentinel to distinguish "user did not pass this argument" from "user
+# explicitly passed the default value".  Used by run_analysis() so that
+# pre-built Config / InsuranceProgram objects are respected when flat
+# scalar parameters are left at their defaults.
+_UNSET = object()
 
 
 @dataclass
@@ -366,24 +382,27 @@ class AnalysisResults:
 
 def run_analysis(
     # Company parameters
-    initial_assets: float = 10_000_000,
-    operating_margin: float = 0.08,
+    initial_assets=_UNSET,
+    operating_margin=_UNSET,
     # Loss parameters
     loss_frequency: float = 2.5,
     loss_severity_mean: float = 1_000_000,
     loss_severity_std: Optional[float] = None,
     # Insurance parameters
-    deductible: float = 500_000,
-    coverage_limit: float = 10_000_000,
-    premium_rate: float = 0.025,
+    deductible=_UNSET,
+    coverage_limit=_UNSET,
+    premium_rate=_UNSET,
     # Simulation parameters
     n_simulations: int = 1000,
-    time_horizon: int = 20,
+    time_horizon=_UNSET,
     seed: Optional[int] = None,
     # Advanced options
-    growth_rate: float = 0.05,
-    tax_rate: float = 0.25,
+    growth_rate=_UNSET,
+    tax_rate=_UNSET,
     compare_uninsured: bool = True,
+    # Pre-built objects
+    config: Optional[Config] = None,
+    insurance_program: Optional[InsuranceProgram] = None,
 ) -> AnalysisResults:
     """Run a complete insured-vs-uninsured ergodic analysis.
 
@@ -393,10 +412,17 @@ def run_analysis(
     paths for both the insured and uninsured scenarios, and returns a
     rich :class:`AnalysisResults` container.
 
+    You can optionally pass a pre-built :class:`Config` and/or
+    :class:`InsuranceProgram` instead of (or in addition to) the flat
+    scalar parameters.  When both a pre-built object and flat parameters
+    are provided, the flat parameters override the corresponding fields
+    on the pre-built object.
+
     Args:
         initial_assets: Company starting assets in dollars.
+            Default ``10_000_000``.
         operating_margin: Annual operating margin as a decimal
-            (e.g. 0.08 for 8%).
+            (e.g. 0.08 for 8%).  Default ``0.08``.
         loss_frequency: Expected number of losses per year
             (Poisson lambda).
         loss_severity_mean: Mean loss size in dollars.
@@ -407,16 +433,28 @@ def run_analysis(
             workers' compensation 1.0–2.0.  Set explicitly when your loss
             data suggests a different CV.
         deductible: Self-insured retention in dollars.
+            Default ``500_000``.
         coverage_limit: Maximum insurance payout per occurrence.
+            Default ``10_000_000``.
         premium_rate: Annual premium as a fraction of
-            *coverage_limit* (e.g. 0.025 for 2.5%).
+            *coverage_limit* (e.g. 0.025 for 2.5%).  Default ``0.025``.
         n_simulations: Number of Monte Carlo paths to run.
-        time_horizon: Simulation length in years.
+        time_horizon: Simulation length in years.  Default ``20``.
         seed: Base random seed for reproducibility.
-        growth_rate: Annual revenue growth rate.
-        tax_rate: Corporate tax rate.
+        growth_rate: Annual revenue growth rate.  Default ``0.05``.
+        tax_rate: Corporate tax rate.  Default ``0.25``.
         compare_uninsured: If ``True`` (default), also run an uninsured
             scenario and compute the ergodic comparison.
+        config: Pre-built :class:`Config` object.  When provided, the
+            company / simulation parameters are drawn from this object
+            instead of constructed from flat scalars.  Any flat scalar
+            that is *explicitly* passed will override the corresponding
+            config field.
+        insurance_program: Pre-built :class:`InsuranceProgram` object.
+            When provided, the insurance parameters are drawn from this
+            object and flat insurance scalars (*deductible*,
+            *coverage_limit*, *premium_rate*) are ignored (a warning is
+            logged if they are also explicitly passed).
 
     Returns:
         AnalysisResults: Container with simulation results, comparison
@@ -443,6 +481,23 @@ def run_analysis(
             results = run_analysis()
             print(results.summary())
 
+        With a pre-built Config::
+
+            config = Config.from_company(
+                initial_assets=50_000_000, industry="service",
+            )
+            results = run_analysis(config=config, deductible=500_000,
+                                   coverage_limit=10_000_000)
+
+        With a pre-built InsuranceProgram::
+
+            program = InsuranceProgram.simple(
+                deductible=1_000_000, limit=10_000_000, rate=0.03,
+            )
+            results = run_analysis(
+                initial_assets=50_000_000, insurance_program=program,
+            )
+
         Export and plot::
 
             df = results.to_dataframe()
@@ -457,26 +512,59 @@ def run_analysis(
         )
 
     # --- Build configuration ---
-    config = Config.from_company(
-        initial_assets=initial_assets,
-        operating_margin=operating_margin,
-        tax_rate=tax_rate,
-        growth_rate=growth_rate,
-        time_horizon_years=time_horizon,
+    if config is not None:
+        # Apply explicitly-set flat params as overrides on the pre-built config
+        overrides: Dict[str, Any] = {}
+        if initial_assets is not _UNSET:
+            overrides["manufacturer.initial_assets"] = initial_assets
+        if operating_margin is not _UNSET:
+            overrides["manufacturer.base_operating_margin"] = operating_margin
+        if tax_rate is not _UNSET:
+            overrides["manufacturer.tax_rate"] = tax_rate
+        if growth_rate is not _UNSET:
+            overrides["growth.annual_growth_rate"] = growth_rate
+        if time_horizon is not _UNSET:
+            overrides["simulation.time_horizon_years"] = time_horizon
+        if overrides:
+            config = config.override(overrides)
+    else:
+        config = Config.from_company(
+            initial_assets=initial_assets if initial_assets is not _UNSET else 10_000_000,
+            operating_margin=operating_margin if operating_margin is not _UNSET else 0.08,
+            tax_rate=tax_rate if tax_rate is not _UNSET else 0.25,
+            growth_rate=growth_rate if growth_rate is not _UNSET else 0.05,
+            time_horizon_years=time_horizon if time_horizon is not _UNSET else 20,
+        )
+
+    # Resolve effective time_horizon and growth_rate for _run_batch
+    effective_time_horizon: int = (
+        time_horizon if time_horizon is not _UNSET else config.simulation.time_horizon_years
+    )
+    effective_growth_rate: float = (
+        growth_rate if growth_rate is not _UNSET else config.growth.annual_growth_rate
     )
 
     # --- Build insurance program ---
-    program = InsuranceProgram.simple(
-        deductible=deductible,
-        limit=coverage_limit,
-        rate=premium_rate,
-    )
+    if insurance_program is not None:
+        program = insurance_program
+        if deductible is not _UNSET or coverage_limit is not _UNSET or premium_rate is not _UNSET:
+            logger.warning(
+                "Both insurance_program and flat insurance parameters were provided. "
+                "The pre-built insurance_program takes precedence; flat insurance "
+                "parameters (deductible, coverage_limit, premium_rate) are ignored."
+            )
+    else:
+        program = InsuranceProgram.simple(
+            deductible=deductible if deductible is not _UNSET else 500_000,
+            limit=coverage_limit if coverage_limit is not _UNSET else 10_000_000,
+            rate=premium_rate if premium_rate is not _UNSET else 0.025,
+        )
 
     # --- Run insured simulations ---
     logger.info(
         "Running %d insured simulations over %d years ...",
         n_simulations,
-        time_horizon,
+        effective_time_horizon,
     )
     insured_results = _run_batch(
         config=config,
@@ -485,8 +573,8 @@ def run_analysis(
         loss_severity_std=loss_severity_std,
         insurance_policy=program,
         n_simulations=n_simulations,
-        time_horizon=time_horizon,
-        growth_rate=growth_rate,
+        time_horizon=effective_time_horizon,
+        growth_rate=effective_growth_rate,
         base_seed=seed,
     )
 
@@ -498,7 +586,7 @@ def run_analysis(
         logger.info(
             "Running %d uninsured simulations over %d years ...",
             n_simulations,
-            time_horizon,
+            effective_time_horizon,
         )
         uninsured_results = _run_batch(
             config=config,
@@ -507,8 +595,8 @@ def run_analysis(
             loss_severity_std=loss_severity_std,
             insurance_policy=None,
             n_simulations=n_simulations,
-            time_horizon=time_horizon,
-            growth_rate=growth_rate,
+            time_horizon=effective_time_horizon,
+            growth_rate=effective_growth_rate,
             base_seed=seed,
         )
 
