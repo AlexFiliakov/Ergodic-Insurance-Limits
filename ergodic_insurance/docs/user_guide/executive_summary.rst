@@ -117,6 +117,15 @@ Key Takeaways for Decision Makers
 
    The best growth strategy means nothing if you don't survive to enjoy it.
 
+Important Notices
+-----------------
+
+**Research Use Only.** This framework is an early-stage research tool intended for qualified actuaries and researchers. It does not constitute an actuarial opinion or rate filing. Outputs should be treated as directional guidance, not prescriptive recommendations. See :doc:`actuarial_standards` for full disclosures required by ASOP No. 41.
+
+**Intended Users.** Framework outputs are intended for qualified actuaries who can independently validate the methodology and results. Non-technical stakeholders should rely only on summaries prepared by a qualified actuary who has reviewed the outputs.
+
+**Limitations.** Results depend heavily on input assumptions and should not be used for regulatory filings, rate opinions, or reserve opinions without independent actuarial analysis. See :doc:`actuarial_standards` for complete limitation and constraint statements.
+
 Your Next Steps
 ---------------
 
@@ -127,6 +136,7 @@ This guide will show you how to:
 3. Quantify the value of different strategies
 4. Make data-driven insurance decisions
 5. Monitor and adjust as conditions change
+6. Review professional standards compliance in :doc:`actuarial_standards`
 
 Ready to transform your insurance from a grudge purchase to a growth enabler?
 
