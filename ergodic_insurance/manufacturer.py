@@ -718,8 +718,9 @@ class WidgetManufacturer(
         # Cache net income for calculate_metrics() to avoid double tax mutation (Issue #617)
         self._period_net_income = net_income
 
-        # Update balance sheet with retained earnings
-        self.update_balance_sheet(net_income, growth_rate)
+        # Update balance sheet with retained earnings (Issue #637: pass depreciation
+        # so non-cash charges are added back to cash in the closing entry)
+        self.update_balance_sheet(net_income, growth_rate, depreciation_expense)
 
         # Amortize prepaid insurance if applicable
         if time_resolution == "monthly":
