@@ -51,9 +51,9 @@ def _calculate_p_value(
     if alternative == "two-sided":
         return float(np.mean(np.abs(bootstrap_vals - null_val) >= np.abs(observed_val - null_val)))
     if alternative == "less":
-        return float(np.mean(bootstrap_vals <= observed_val))
+        return float(np.mean((bootstrap_vals - null_val) <= (observed_val - null_val)))
     # greater
-    return float(np.mean(bootstrap_vals >= observed_val))
+    return float(np.mean((bootstrap_vals - null_val) >= (observed_val - null_val)))
 
 
 def _bootstrap_confidence_interval(

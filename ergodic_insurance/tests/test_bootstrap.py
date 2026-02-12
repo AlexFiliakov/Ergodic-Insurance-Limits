@@ -15,12 +15,99 @@ from ergodic_insurance.bootstrap_analysis import (
 )
 from ergodic_insurance.statistical_tests import (
     HypothesisTestResult,
+    _calculate_p_value,
     bootstrap_hypothesis_test,
     difference_in_means_test,
     multiple_comparison_correction,
     paired_comparison_test,
     ratio_of_metrics_test,
 )
+
+
+class TestCalculatePValueNullVal:
+    """Tests for _calculate_p_value with non-zero null_val (#811).
+
+    Verifies that one-sided alternatives properly center comparisons
+    around null_val, consistent with the two-sided branch.
+    """
+
+    def test_one_sided_less_nonzero_null_val(self):
+        """One-sided 'less' p-value must center around null_val."""
+        bootstrap_vals = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+        observed_val = 4.0
+        null_val = 5.0
+
+        p = _calculate_p_value(bootstrap_vals, observed_val, "less", null_val)
+        # (bootstrap - 5) <= (4 - 5) = -1  →  [-2, -1, 0, 1, 2] <= -1
+        # True for -2, -1  →  2/5 = 0.4
+        assert p == pytest.approx(0.4)
+
+    def test_one_sided_greater_nonzero_null_val(self):
+        """One-sided 'greater' p-value must center around null_val."""
+        bootstrap_vals = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+        observed_val = 6.0
+        null_val = 5.0
+
+        p = _calculate_p_value(bootstrap_vals, observed_val, "greater", null_val)
+        # (bootstrap - 5) >= (6 - 5) = 1  →  [-2, -1, 0, 1, 2] >= 1
+        # True for 1, 2  →  2/5 = 0.4
+        assert p == pytest.approx(0.4)
+
+    def test_two_sided_nonzero_null_val(self):
+        """Two-sided p-value centers around null_val (baseline check)."""
+        bootstrap_vals = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+        observed_val = 7.0
+        null_val = 5.0
+
+        p = _calculate_p_value(bootstrap_vals, observed_val, "two-sided", null_val)
+        # |bootstrap - 5| >= |7 - 5| = 2  →  [2, 1, 0, 1, 2] >= 2
+        # True for 2, 2  →  2/5 = 0.4
+        assert p == pytest.approx(0.4)
+
+    def test_null_val_zero_unchanged(self):
+        """With null_val=0 (default), results are identical to old behavior."""
+        bootstrap_vals = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        observed_val = 3.0
+
+        p_less = _calculate_p_value(bootstrap_vals, observed_val, "less", 0.0)
+        p_greater = _calculate_p_value(bootstrap_vals, observed_val, "greater", 0.0)
+
+        # less: bootstrap <= 3 → [1,2,3] → 3/5
+        assert p_less == pytest.approx(0.6)
+        # greater: bootstrap >= 3 → [3,4,5] → 3/5
+        assert p_greater == pytest.approx(0.6)
+
+    def test_paired_comparison_nonzero_null_value(self):
+        """End-to-end: paired_comparison_test with non-zero null_value."""
+        rng = np.random.default_rng(42)
+        # Differences with true mean ~10
+        differences = rng.normal(10, 2, 500)
+
+        # Test against null_value=10 (should NOT reject)
+        result_not_reject = paired_comparison_test(
+            differences, null_value=10.0, alternative="less", n_bootstrap=2000, seed=42
+        )
+        assert result_not_reject.p_value > 0.05
+
+        # Test against null_value=15 (observed mean ~10 < 15, should reject)
+        result_reject = paired_comparison_test(
+            differences, null_value=15.0, alternative="less", n_bootstrap=2000, seed=42
+        )
+        assert result_reject.p_value < 0.05
+
+    def test_consistency_all_alternatives(self):
+        """For observed == null_val, less and greater p-values should each be ~0.5."""
+        rng = np.random.default_rng(99)
+        null_val = 10.0
+        bootstrap_vals = rng.normal(null_val, 1.0, 10000)
+        observed_val = null_val  # exactly at null
+
+        p_less = _calculate_p_value(bootstrap_vals, observed_val, "less", null_val)
+        p_greater = _calculate_p_value(bootstrap_vals, observed_val, "greater", null_val)
+
+        # Both should be approximately 0.5
+        assert 0.45 < p_less < 0.55
+        assert 0.45 < p_greater < 0.55
 
 
 class TestBootstrapAnalyzer:
