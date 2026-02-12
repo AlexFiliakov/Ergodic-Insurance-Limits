@@ -33,7 +33,6 @@ from dataclasses import dataclass
 import multiprocessing as mp
 from multiprocessing import shared_memory
 import os
-import pickle
 import platform
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -43,6 +42,8 @@ import warnings
 import numpy as np
 import psutil
 from tqdm import tqdm
+
+from ergodic_insurance.safe_pickle import safe_dumps, safe_loads
 
 
 @dataclass
@@ -229,8 +230,8 @@ class SharedMemoryManager:
         if not self.config.enable_shared_objects:
             return ""
 
-        # Serialize object
-        serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        # Serialize object with HMAC integrity verification
+        serialized = safe_dumps(obj)
 
         # Compress if enabled
         if self.config.compression:
@@ -275,7 +276,7 @@ class SharedMemoryManager:
 
             data = zlib.decompress(data)
 
-        return pickle.loads(data)
+        return safe_loads(data)
 
     def get_object_size(self, name: str) -> int:
         """Get the actual stored size of a shared object.

@@ -5,7 +5,6 @@ Targets specific uncovered lines: 187-202, 215-216, 229, 236-238, 269-271,
 """
 
 from multiprocessing import shared_memory
-import pickle
 import platform
 import time
 from unittest.mock import MagicMock, Mock, patch
@@ -137,10 +136,8 @@ class TestSharedMemoryManagerCompression:
             shm_name = manager.share_object("compressed", obj)
             assert shm_name != ""
 
-            serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-            compressed = zlib.compress(serialized)
-
-            retrieved = manager.get_object(shm_name, len(compressed), compressed=True)
+            actual_size = manager.get_object_size("compressed")
+            retrieved = manager.get_object(shm_name, actual_size, compressed=True)
             assert retrieved == obj
         finally:
             manager.cleanup()
@@ -510,6 +507,8 @@ class TestObjectSizeTracking:
     )
     def test_share_object_stores_size(self):
         """share_object stores actual serialized size in _object_sizes."""
+        from ergodic_insurance.safe_pickle import safe_dumps
+
         config = SharedMemoryConfig(compression=False)
         manager = SharedMemoryManager(config)
 
@@ -517,7 +516,7 @@ class TestObjectSizeTracking:
             obj = {"key": "value", "data": [1, 2, 3]}
             manager.share_object("test", obj)
 
-            expected_size = len(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))
+            expected_size = len(safe_dumps(obj))
             assert manager.get_object_size("test") == expected_size
         finally:
             manager.cleanup()
@@ -531,6 +530,8 @@ class TestObjectSizeTracking:
         """share_object stores compressed size when compression enabled."""
         import zlib
 
+        from ergodic_insurance.safe_pickle import safe_dumps
+
         config = SharedMemoryConfig(compression=True)
         manager = SharedMemoryManager(config)
 
@@ -538,13 +539,13 @@ class TestObjectSizeTracking:
             obj = {"data": list(range(1000))}
             manager.share_object("compressed", obj)
 
-            raw = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-            expected_compressed_size = len(zlib.compress(raw))
+            hmac_pickle = safe_dumps(obj)
+            expected_compressed_size = len(zlib.compress(hmac_pickle))
             actual_size = manager.get_object_size("compressed")
 
             assert actual_size == expected_compressed_size
-            # Compressed size should be smaller than raw
-            assert actual_size < len(raw)
+            # Compressed size should be smaller than uncompressed
+            assert actual_size < len(hmac_pickle)
         finally:
             manager.cleanup()
 
@@ -609,11 +610,13 @@ class TestGetObjectClosesHandle:
 
     def test_get_object_closes_shm(self):
         """get_object closes the SharedMemory handle after reading data."""
+        from ergodic_insurance.safe_pickle import safe_dumps
+
         config = SharedMemoryConfig(cleanup_on_exit=False)
         manager = SharedMemoryManager(config)
 
         obj = {"test": 42}
-        serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        serialized = safe_dumps(obj)
 
         mock_shm = MagicMock()
         mock_shm.buf = serialized + b"\x00" * 100
