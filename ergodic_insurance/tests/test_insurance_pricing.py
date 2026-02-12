@@ -651,6 +651,133 @@ class TestInsurancePolicyIntegration:
         assert policy.layers[0].rate != 0.015
 
 
+class TestAnnualAggregateCIBootstrap:
+    """Tests for Issue #614: CI computed on annual aggregates via bootstrap.
+
+    Confidence intervals should reflect the distribution of the annual aggregate
+    loss cost (sum of all losses in each simulated year), not the distribution
+    of individual loss amounts. Per Werner & Modlin Chapter 8 and ASOP 25,
+    pricing variability should be measured at the aggregate level.
+    """
+
+    @pytest.fixture
+    def loss_generator(self):
+        """Create a loss generator for testing."""
+        return ManufacturingLossGenerator(seed=42)
+
+    def test_ci_bounds_bracket_pure_premium(self, loss_generator):
+        """Bootstrap CI of the mean annual aggregate should bracket the pure premium.
+
+        The pure premium is the sample mean of the annual aggregate distribution.
+        A correctly constructed CI of the mean should contain the sample mean.
+        """
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=MarketCycle.NORMAL,
+            seed=42,
+        )
+        pure_premium, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=50,
+        )
+        if pure_premium > 0:
+            lower, upper = stats["confidence_interval"]
+            assert (
+                lower <= pure_premium
+            ), f"CI lower ({lower}) should be <= pure_premium ({pure_premium})"
+            assert (
+                upper >= pure_premium
+            ), f"CI upper ({upper}) should be >= pure_premium ({pure_premium})"
+
+    def test_ci_narrows_with_more_simulation_years(self):
+        """CI width should decrease with more simulation years.
+
+        Bootstrap CI of the mean shrinks as sample size grows (law of large
+        numbers). This is a key distinction from CI on individual losses,
+        which would not shrink in the same way.
+        """
+        # Use high-frequency generator so every year has losses
+        lg_few = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            seed=42,
+        )
+        pricer_few = InsurancePricer(loss_generator=lg_few, seed=99)
+        _, stats_few = pricer_few.calculate_pure_premium(
+            attachment_point=50_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+
+        lg_many = ManufacturingLossGenerator.create_simple(
+            frequency=20.0,
+            severity_mean=100_000,
+            severity_std=50_000,
+            seed=42,
+        )
+        pricer_many = InsurancePricer(loss_generator=lg_many, seed=99)
+        _, stats_many = pricer_many.calculate_pure_premium(
+            attachment_point=50_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=200,
+        )
+
+        width_few = stats_few["confidence_interval"][1] - stats_few["confidence_interval"][0]
+        width_many = stats_many["confidence_interval"][1] - stats_many["confidence_interval"][0]
+
+        assert width_many < width_few, (
+            f"CI width with 200 years ({width_many:.0f}) should be < "
+            f"CI width with 10 years ({width_few:.0f})"
+        )
+
+    def test_annual_aggregates_in_statistics(self, loss_generator):
+        """Statistics dict should include annual_aggregates for transparency."""
+        pricer = InsurancePricer(
+            loss_generator=loss_generator,
+            market_cycle=MarketCycle.NORMAL,
+            seed=42,
+        )
+        _, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=10,
+        )
+        assert "annual_aggregates" in stats
+        assert len(stats["annual_aggregates"]) == 10
+
+    def test_zero_loss_years_included_in_aggregates(self):
+        """Years with no layer losses should contribute 0 to annual aggregates.
+
+        This ensures the aggregate distribution correctly captures the
+        probability of zero-loss years.
+        """
+        # Very low frequency + high attachment -> many zero-loss years
+        lg = ManufacturingLossGenerator.create_simple(
+            frequency=0.1,
+            severity_mean=50_000,
+            severity_std=20_000,
+            seed=42,
+        )
+        pricer = InsurancePricer(loss_generator=lg, seed=42)
+        _, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=20,
+        )
+        aggregates = stats["annual_aggregates"]
+        assert len(aggregates) == 20
+        # With low frequency and high attachment, most years should be zero
+        zero_years = sum(1 for a in aggregates if a == 0)
+        assert zero_years > 0, "Expected some zero-loss years with low frequency"
+
+
 class TestBackwardCompatibility:
     """Test backward compatibility with existing code."""
 

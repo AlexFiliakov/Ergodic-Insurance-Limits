@@ -233,6 +233,7 @@ class InsurancePricer:
         layer_losses = []
         frequencies = []
         severities = []
+        annual_aggregates = []
 
         for _ in range(years):
             # Generate annual losses
@@ -246,6 +247,9 @@ class InsurancePricer:
                 if loss.amount > attachment_point:
                     layer_loss = min(loss.amount - attachment_point, limit)
                     annual_layer_losses.append(layer_loss)
+
+            # Track annual aggregate (including zero-loss years)
+            annual_aggregates.append(sum(annual_layer_losses))
 
             # Track statistics
             if annual_layer_losses:
@@ -261,13 +265,16 @@ class InsurancePricer:
             expected_severity = float(np.mean(severities) if severities else 0)
             pure_premium = expected_frequency * expected_severity
 
-            # Calculate confidence interval
-            if len(layer_losses) > 1:
-                lower = np.percentile(layer_losses, (1 - self.parameters.confidence_level) * 50)
-                upper = np.percentile(layer_losses, 50 + self.parameters.confidence_level * 50)
-                confidence_interval = (float(lower), float(upper))
-            else:
-                confidence_interval = (pure_premium * 0.8, pure_premium * 1.2)
+            # Bootstrap confidence interval on mean annual aggregate (Issue #614)
+            # CI reflects aggregate pricing uncertainty, not individual loss variability
+            aggregates_arr = np.array(annual_aggregates)
+            n_bootstrap = 10_000
+            indices = self.rng.integers(0, years, size=(n_bootstrap, years))
+            boot_means = aggregates_arr[indices].mean(axis=1)
+            alpha = 1 - self.parameters.confidence_level
+            lower = float(np.percentile(boot_means, 100 * alpha / 2))
+            upper = float(np.percentile(boot_means, 100 * (1 - alpha / 2)))
+            confidence_interval = (lower, upper)
         else:
             expected_frequency = 0.0
             expected_severity = 0.0
@@ -284,6 +291,7 @@ class InsurancePricer:
             "max_loss_in_layer": max(layer_losses) if layer_losses else 0,
             "attachment_point": attachment_point,
             "limit": limit,
+            "annual_aggregates": annual_aggregates,
         }
 
         return pure_premium, statistics
