@@ -547,12 +547,17 @@ class InsurancePricer:
         pure_premium: float,
         limit: float,
     ) -> float:
-        """Convert pure premium to technical premium with risk loading.
+        """Convert pure premium to technical premium with risk and LAE loading.
 
         Technical premium adds a risk loading for parameter uncertainty
-        to the pure premium. Expense and profit margins are applied
+        to the pure premium, plus LAE (loss adjustment expense) as a known
+        cost component per ASOP 29.  Expense and profit margins are applied
         separately via the loss ratio in calculate_market_premium()
         to avoid double-counting.
+
+        Formula:
+            technical_premium = pure_premium * (1 + risk_loading)
+                              + pure_premium * lae_ratio
 
         Args:
             pure_premium: Expected loss cost
@@ -564,8 +569,11 @@ class InsurancePricer:
         # Add risk loading for uncertainty
         risk_loading = 1 + self.parameters.risk_loading
 
+        # LAE is a known cost component added on top of risk-loaded premium
+        lae_loading = pure_premium * self.parameters.lae_ratio
+
         # Calculate technical premium (expense/profit applied via loss ratio)
-        technical_premium = pure_premium * risk_loading
+        technical_premium = (pure_premium * risk_loading) + lae_loading
 
         # Apply minimum premium
         technical_premium = max(technical_premium, self.parameters.min_premium)
