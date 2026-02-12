@@ -88,7 +88,7 @@ def integrate_loss_ergodic_analysis(
     simulation_results = []
     for sim_idx in range(n_simulations):
         mfg_copy = copy.deepcopy(manufacturer)
-        sim = Simulation(manufacturer=mfg_copy, time_horizon=time_horizon, seed=sim_idx)
+        sim = Simulation(manufacturer=mfg_copy, time_horizon=time_horizon, seed=sim_idx, copy=False)
 
         # Initialize result storage
         sim.years = np.arange(time_horizon)
