@@ -166,8 +166,8 @@ class TestParallelProcessing:
         engine.config.progress_bar = True
         engine.config.n_simulations = 100
 
-        # Mock print to capture output
-        with patch("builtins.print") as mock_print:
+        # Mock logger to capture output
+        with patch("ergodic_insurance.monte_carlo.logger") as mock_logger:
             # Create mock results with good convergence
             mock_results = MonteCarloResults(
                 final_assets=np.random.normal(10_000_000, 100_000, 100),
@@ -192,9 +192,9 @@ class TestParallelProcessing:
                         max_iterations=200,
                     )
 
-                    # Check that progress was printed
-                    mock_print.assert_called()
-                    call_args = str(mock_print.call_args_list)
+                    # Check that progress was logged
+                    mock_logger.debug.assert_called()
+                    call_args = str(mock_logger.debug.call_args_list)
                     assert "R-hat" in call_args
 
 
