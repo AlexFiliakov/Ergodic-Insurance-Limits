@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.convergence import ConvergenceDiagnostics, ConvergenceStats
+from ergodic_insurance.ergodic_types import ClaimResult
 from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 from ergodic_insurance.progress_monitor import ProgressMonitor, ProgressStats
 
@@ -338,7 +339,13 @@ class TestMonteCarloIntegration:
         loss_generator.generate_losses.return_value = ([], {})
 
         # Set up insurance program mock
-        insurance_program.process_claim.return_value = {"total_recovery": 0}
+        insurance_program.process_claim.return_value = ClaimResult(
+            total_claim=0.0,
+            deductible_paid=0.0,
+            insurance_recovery=0.0,
+            uncovered_loss=0.0,
+            reinstatement_premiums=0.0,
+        )
         insurance_program.calculate_annual_premium.return_value = 100_000
 
         return loss_generator, insurance_program, manufacturer
