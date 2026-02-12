@@ -41,6 +41,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from .claim_development import ClaimDevelopment
+
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
     from .insurance import InsuranceLayer, InsurancePolicy
@@ -86,6 +88,12 @@ class PricingParameters:
         ulae_ratio: Unallocated LAE ratio as fraction of pure premium (default
             0.05). Covers general claims department overhead. Typical range
             is 0.03-0.08.
+        development_pattern: Optional claim development pattern for developing
+            losses to ultimate (default None). When set, simulated losses are
+            adjusted by age-to-ultimate factors per ASOP 25 so that immature
+            accident years are brought to their expected ultimate value before
+            pure premium calculation. Use ``None`` to skip development
+            (equivalent to assuming all losses are already at ultimate).
     """
 
     loss_ratio: float = 0.70
@@ -98,6 +106,7 @@ class PricingParameters:
     max_rate_on_line: float = 0.50
     alae_ratio: float = 0.10
     ulae_ratio: float = 0.05
+    development_pattern: Optional[ClaimDevelopment] = None
 
     def __post_init__(self) -> None:
         import warnings
@@ -133,6 +142,7 @@ class LayerPricing:
         rate_on_line: Premium as percentage of limit
         confidence_interval: (lower, upper) bounds at confidence level
         lae_loading: LAE component calculated from dedicated ALAE/ULAE ratios
+        development_factor: Average age-to-ultimate LDF applied (1.0 = no development)
     """
 
     attachment_point: float
@@ -145,6 +155,7 @@ class LayerPricing:
     rate_on_line: float
     confidence_interval: Tuple[float, float]
     lae_loading: float = 0.0
+    development_factor: float = 1.0
 
 
 class InsurancePricer:
@@ -237,7 +248,13 @@ class InsurancePricer:
         """Calculate pure premium for a layer using frequency/severity.
 
         Pure premium represents the expected loss cost without expenses,
-        profit, or risk loading.
+        profit, or risk loading.  When a ``development_pattern`` is
+        configured on the pricing parameters, each simulation year's
+        aggregate losses are developed to ultimate using age-to-ultimate
+        factors (ASOP 25 / CAS Ratemaking Chapter 4).  Older simulation
+        years are treated as more mature while the most recent year is
+        treated as the least mature, mirroring standard experience-rating
+        practice.
 
         Args:
             attachment_point: Where layer coverage starts
@@ -293,7 +310,38 @@ class InsurancePricer:
         if layer_losses:
             expected_frequency = float(np.mean(frequencies))
             expected_severity = float(np.mean(severities) if severities else 0)
-            pure_premium = expected_frequency * expected_severity
+            undeveloped_pure_premium = expected_frequency * expected_severity
+
+            # ---------------------------------------------------------
+            # Develop losses to ultimate (Issue #714, ASOP 25)
+            # ---------------------------------------------------------
+            # Each simulation year is treated as an accident year at a
+            # specific maturity.  Year 0 has had ``years`` years of
+            # development; the most recent year (``years - 1``) has had
+            # only 1 year.  Dividing each year's observed aggregate by
+            # the cumulative percent developed produces the estimated
+            # ultimate aggregate (standard assumed-pattern chain-ladder).
+            pattern = self.parameters.development_pattern
+            if pattern is not None:
+                developed_aggregates: List[float] = []
+                for year_idx, agg in enumerate(annual_aggregates):
+                    dev_age = years - year_idx  # maturity in years
+                    pct_developed = pattern.get_cumulative_paid(dev_age)
+                    if pct_developed > 0:
+                        developed_aggregates.append(agg / pct_developed)
+                    else:
+                        # No development information — use raw aggregate
+                        developed_aggregates.append(agg)
+
+                pure_premium = float(np.mean(developed_aggregates))
+                development_factor = (
+                    pure_premium / undeveloped_pure_premium if undeveloped_pure_premium > 0 else 1.0
+                )
+                # Update annual aggregates for CI calculation
+                annual_aggregates = developed_aggregates
+            else:
+                pure_premium = undeveloped_pure_premium
+                development_factor = 1.0
 
             # Bootstrap confidence interval on mean annual aggregate (Issue #614)
             # CI reflects aggregate pricing uncertainty, not individual loss variability
@@ -309,12 +357,16 @@ class InsurancePricer:
             expected_frequency = 0.0
             expected_severity = 0.0
             pure_premium = 0.0
+            undeveloped_pure_premium = 0.0
+            development_factor = 1.0
             confidence_interval = (0.0, 0.0)
 
         statistics = {
             "expected_frequency": expected_frequency,
             "expected_severity": expected_severity,
             "pure_premium": pure_premium,
+            "undeveloped_pure_premium": undeveloped_pure_premium,
+            "development_factor": development_factor,
             "confidence_interval": confidence_interval,
             "years_simulated": years,
             "total_losses_in_layer": len(layer_losses),
@@ -434,6 +486,7 @@ class InsurancePricer:
             rate_on_line=rate_on_line,
             confidence_interval=stats["confidence_interval"],
             lae_loading=lae_loading,
+            development_factor=stats["development_factor"],
         )
 
     def price_insurance_program(
@@ -603,6 +656,7 @@ class InsurancePricer:
                 rate_on_line=rate_on_line,
                 confidence_interval=stats["confidence_interval"],
                 lae_loading=lae_loading,
+                development_factor=stats["development_factor"],
             )
 
         return results
@@ -718,12 +772,42 @@ class InsurancePricer:
         """Create pricer from configuration dictionary.
 
         Args:
-            config: Configuration dictionary
+            config: Configuration dictionary.  Supports an optional
+                ``development_pattern`` key whose value is the name of a
+                standard ``DevelopmentPatternType`` (e.g. ``"long_tail_10yr"``)
+                or a dict with ``factors`` and optional ``tail_factor``.
             loss_generator: Optional loss generator
 
         Returns:
             Configured InsurancePricer instance
         """
+        # Resolve development pattern
+        dev_cfg = config.get("development_pattern")
+        dev_pattern: Optional[ClaimDevelopment] = None
+        if dev_cfg is not None:
+            if isinstance(dev_cfg, ClaimDevelopment):
+                dev_pattern = dev_cfg
+            elif isinstance(dev_cfg, str):
+                _PATTERN_FACTORIES = {
+                    "immediate": ClaimDevelopment.create_immediate,
+                    "medium_tail_5yr": ClaimDevelopment.create_medium_tail_5yr,
+                    "long_tail_10yr": ClaimDevelopment.create_long_tail_10yr,
+                    "very_long_tail_15yr": ClaimDevelopment.create_very_long_tail_15yr,
+                }
+                factory = _PATTERN_FACTORIES.get(dev_cfg.lower())
+                if factory is None:
+                    raise ValueError(
+                        f"Unknown development pattern '{dev_cfg}'. "
+                        f"Valid names: {list(_PATTERN_FACTORIES.keys())}"
+                    )
+                dev_pattern = factory()
+            elif isinstance(dev_cfg, dict):
+                dev_pattern = ClaimDevelopment(
+                    pattern_name=dev_cfg.get("name", "custom"),
+                    development_factors=dev_cfg["factors"],
+                    tail_factor=dev_cfg.get("tail_factor", 0.0),
+                )
+
         # Extract pricing parameters
         params = PricingParameters(
             loss_ratio=config.get("loss_ratio", 0.70),
@@ -736,6 +820,7 @@ class InsurancePricer:
             max_rate_on_line=config.get("max_rate_on_line", 0.50),
             alae_ratio=config.get("alae_ratio", 0.10),
             ulae_ratio=config.get("ulae_ratio", 0.05),
+            development_pattern=dev_pattern,
         )
 
         # Get market cycle
