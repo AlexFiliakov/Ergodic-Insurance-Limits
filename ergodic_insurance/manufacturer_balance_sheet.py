@@ -666,19 +666,28 @@ class BalanceSheetMixin:
         }
 
     def update_balance_sheet(
-        self, net_income: Union[Decimal, float], growth_rate: Union[Decimal, float] = 0.0
+        self,
+        net_income: Union[Decimal, float],
+        growth_rate: Union[Decimal, float] = 0.0,
+        depreciation_expense: Union[Decimal, float, int] = 0,
     ) -> None:
         """Update balance sheet with retained earnings and dividend distribution.
 
         This method processes the financial results of a period by allocating
-        net income between retained earnings and dividend payments.
+        net income between retained earnings and dividend payments. Non-cash
+        charges (depreciation) are added back to the cash entry so that cash
+        reflects actual cash generated/consumed, not net income (Issue #637).
 
         Args:
-            net_income (float): Net income for the period in dollars.
-            growth_rate (float): Revenue growth rate parameter (currently unused).
+            net_income: Net income for the period in dollars.
+            growth_rate: Revenue growth rate parameter (currently unused).
+            depreciation_expense: Period depreciation expense to add back to cash.
+                Depreciation reduces net income but does not consume cash, so it
+                must be added back when computing the cash impact. Defaults to 0.
         """
-        # Convert input to Decimal
+        # Convert inputs to Decimal
         net_income_decimal = to_decimal(net_income)
+        depreciation_addback = to_decimal(depreciation_expense)
 
         # Validation: retention ratio should be applied to net income
         assert 0 <= self.retention_ratio <= 1, f"Invalid retention ratio: {self.retention_ratio}"
@@ -716,11 +725,17 @@ class BalanceSheetMixin:
                 self._last_dividends_paid = ZERO
                 return
 
+            # Issue #637: Depreciation did not consume cash, so actual cash
+            # needed to cover the loss is reduced by the depreciation add-back.
+            cash_consumed = max(loss_amount - depreciation_addback, ZERO)
+
             # Check 2: LIQUIDITY CHECK - must have cash to pay loss
-            if loss_amount > available_cash:
+            if cash_consumed > available_cash:
                 logger.error(
-                    f"LIQUIDITY CRISIS → INSOLVENCY: Loss ${loss_amount:,.2f} exceeds "
-                    f"available cash ${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
+                    f"LIQUIDITY CRISIS → INSOLVENCY: Cash drain ${cash_consumed:,.2f} "
+                    f"(loss ${loss_amount:,.2f} - depreciation add-back "
+                    f"${depreciation_addback:,.2f}) exceeds available cash "
+                    f"${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
                     f"Company cannot meet obligations despite positive book equity."
                 )
                 self._last_dividends_paid = ZERO
@@ -728,7 +743,8 @@ class BalanceSheetMixin:
                 return
 
             # Check 3: Would paying the loss trigger equity insolvency?
-            equity_after_loss = current_equity - loss_amount
+            # Equity impact accounts for depreciation add-back to cash (Issue #637)
+            equity_after_loss = current_equity - loss_amount + depreciation_addback
             if equity_after_loss <= tolerance:
                 logger.error(
                     f"EQUITY INSOLVENCY: Loss ${loss_amount:,.2f} would push equity to "
@@ -745,6 +761,17 @@ class BalanceSheetMixin:
                     description=f"Year {self.current_year} operating loss (pre-insolvency)",
                     month=self.current_month,
                 )
+                # Issue #637: Add back non-cash depreciation to cash
+                if depreciation_addback > ZERO:
+                    self.ledger.record_double_entry(
+                        date=self.current_year,
+                        debit_account=AccountName.CASH,
+                        credit_account=AccountName.DEPRECIATION_EXPENSE,
+                        amount=depreciation_addback,
+                        transaction_type=TransactionType.DEPRECIATION,
+                        description=f"Year {self.current_year} depreciation add-back (non-cash, Issue #637)",
+                        month=self.current_month,
+                    )
                 self._last_dividends_paid = ZERO
                 self.handle_insolvency()
                 return
@@ -759,6 +786,17 @@ class BalanceSheetMixin:
                 description=f"Year {self.current_year} operating loss",
                 month=self.current_month,
             )
+            # Issue #637: Add back non-cash depreciation to cash
+            if depreciation_addback > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.DEPRECIATION_EXPENSE,
+                    amount=depreciation_addback,
+                    transaction_type=TransactionType.DEPRECIATION,
+                    description=f"Year {self.current_year} depreciation add-back (non-cash, Issue #637)",
+                    month=self.current_month,
+                )
 
             self._last_dividends_paid = ZERO
             logger.info(
@@ -767,7 +805,9 @@ class BalanceSheetMixin:
             )
         else:
             # Positive retained earnings - check cash constraints for dividends
-            projected_cash = self.cash + retained_earnings
+            # Issue #637: Include depreciation add-back in projected cash since
+            # depreciation reduced net income but did not consume cash.
+            projected_cash = self.cash + retained_earnings + depreciation_addback
 
             if projected_cash <= ZERO:
                 actual_dividends = ZERO
@@ -800,6 +840,18 @@ class BalanceSheetMixin:
                     amount=total_retained,
                     transaction_type=TransactionType.RETAINED_EARNINGS,
                     description=f"Year {self.current_year} retained earnings",
+                    month=self.current_month,
+                )
+
+            # Issue #637: Add back non-cash depreciation to cash
+            if depreciation_addback > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.DEPRECIATION_EXPENSE,
+                    amount=depreciation_addback,
+                    transaction_type=TransactionType.DEPRECIATION,
+                    description=f"Year {self.current_year} depreciation add-back (non-cash, Issue #637)",
                     month=self.current_month,
                 )
 
