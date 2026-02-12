@@ -241,7 +241,7 @@ if results.performance_metrics:
 
 ## 3. Configuration Profiles and Presets
 
-When running many scenarios, manually specifying every parameter becomes tedious and error-prone. The `ConfigManager` provides a **three-tier configuration system**: profiles (complete configs), modules (reusable components), and presets (quick-apply templates for market conditions).
+When running many scenarios, manually specifying every parameter becomes tedious and error-prone. The `ConfigManager` provides a **configuration system** with three tiers: profiles (complete configs), modules (reusable components), and presets (quick-apply templates for market conditions).
 
 ### Loading Profiles
 

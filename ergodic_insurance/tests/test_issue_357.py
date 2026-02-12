@@ -2,8 +2,8 @@
 
 Covers:
   1. switch_pricing_scenario actually applies rates to insurance layers.
-  2. ConfigV2.with_overrides performs recursive (deep) merge.
-  3. Cycle detection in profile inheritance for both ConfigV2.with_inheritance
+  2. Config.with_overrides performs recursive (deep) merge.
+  3. Cycle detection in profile inheritance for both Config.with_inheritance
      and ConfigManager._load_with_inheritance.
 """
 
@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from ergodic_insurance.config import (
-    ConfigV2,
+    Config,
     DebtConfig,
     GrowthConfig,
     InsuranceConfig,
@@ -34,8 +34,8 @@ from ergodic_insurance.config_manager import ConfigManager
 # ---------------------------------------------------------------------------
 
 
-def _make_configv2(**overrides: object) -> ConfigV2:
-    """Create a minimal valid ConfigV2 for testing."""
+def _make_configv2(**overrides: object) -> Config:
+    """Create a minimal valid Config for testing."""
     defaults: dict = {
         "profile": ProfileMetadata(name="test", description="test"),
         "manufacturer": ManufacturerConfig(),
@@ -47,7 +47,7 @@ def _make_configv2(**overrides: object) -> ConfigV2:
         "logging": LoggingConfig(),
     }
     defaults.update(overrides)
-    return ConfigV2(**defaults)
+    return Config(**defaults)
 
 
 def _make_pricing_scenario(
@@ -85,7 +85,7 @@ class TestSwitchPricingScenario:
 
     def test_rates_applied_to_insurance_layers(self):
         """Scenario rates must update each layer's base_premium_rate."""
-        # Build a ConfigV2 with three insurance layers
+        # Build a Config with three insurance layers
         config = _make_configv2(
             insurance=InsuranceConfig(
                 enabled=True,
@@ -127,13 +127,13 @@ class TestSwitchPricingScenario:
 
             result = loader.switch_pricing_scenario(config, "baseline")
 
-        # Verify rates were actually applied (type(config)() preserves ConfigV2)
+        # Verify rates were actually applied (type(config)() preserves Config)
         assert result.insurance.layers[0].base_premium_rate == 0.010  # type: ignore[union-attr]
         assert result.insurance.layers[1].base_premium_rate == 0.005  # type: ignore[union-attr]
         assert result.insurance.layers[2].base_premium_rate == 0.002  # type: ignore[union-attr]
 
     def test_returns_same_type_as_input(self):
-        """Return type must match input type (ConfigV2 in, ConfigV2 out)."""
+        """Return type must match input type (Config in, Config out)."""
         config = _make_configv2(
             insurance=InsuranceConfig(
                 enabled=True,
@@ -158,7 +158,7 @@ class TestSwitchPricingScenario:
 
             result = loader.switch_pricing_scenario(config, "baseline")
 
-        assert isinstance(result, ConfigV2)
+        assert isinstance(result, Config)
 
     def test_no_insurance_still_returns_valid_config(self):
         """When there is no insurance section, config passes through unchanged."""
@@ -284,8 +284,8 @@ class TestWithOverridesDeepMerge:
 # ===========================================================================
 
 
-class TestCircularInheritanceConfigV2:
-    """ConfigV2.with_inheritance must raise on circular profiles."""
+class TestCircularInheritanceConfig:
+    """Config.with_inheritance must raise on circular profiles."""
 
     def test_direct_cycle_raises(self, tmp_path):
         """A extends B, B extends A → ValueError."""
@@ -327,7 +327,7 @@ class TestCircularInheritanceConfigV2:
         (profiles_dir / "profile-b.yaml").write_text(yaml.dump(profile_b))
 
         with pytest.raises(ValueError, match="[Cc]ircular"):
-            ConfigV2.with_inheritance(profiles_dir / "profile-a.yaml", tmp_path)
+            Config.with_inheritance(profiles_dir / "profile-a.yaml", tmp_path)
 
     def test_self_cycle_raises(self, tmp_path):
         """A extends A → ValueError."""
@@ -352,7 +352,7 @@ class TestCircularInheritanceConfigV2:
         (profiles_dir / "self-ref.yaml").write_text(yaml.dump(profile_a))
 
         with pytest.raises(ValueError, match="[Cc]ircular"):
-            ConfigV2.with_inheritance(profiles_dir / "self-ref.yaml", tmp_path)
+            Config.with_inheritance(profiles_dir / "self-ref.yaml", tmp_path)
 
     def test_no_cycle_succeeds(self, tmp_path):
         """Linear chain A → B (no cycle) should work fine."""
@@ -392,7 +392,8 @@ class TestCircularInheritanceConfigV2:
         (profiles_dir / "child.yaml").write_text(yaml.dump(profile_a))
 
         # Should not raise
-        result = ConfigV2.with_inheritance(profiles_dir / "child.yaml", tmp_path)
+        result = Config.with_inheritance(profiles_dir / "child.yaml", tmp_path)
+        assert result.profile is not None
         assert result.profile.name == "child"
 
 

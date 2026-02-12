@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from ergodic_insurance.config import (
-    ConfigV2,
+    Config,
     DebtConfig,
     GrowthConfig,
     InsuranceConfig,
@@ -411,12 +411,12 @@ class TestPresetConfig:
             assert config.preset_type == preset_type
 
 
-class TestConfigV2:
-    """Test ConfigV2 model."""
+class TestConfig:
+    """Test Config model."""
 
     def test_valid_config_v2(self):
-        """Test creating valid ConfigV2 instance."""
-        config = ConfigV2(
+        """Test creating valid Config instance."""
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test profile"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -450,13 +450,14 @@ class TestConfigV2:
                 severity_std=10000,
             ),
         )
+        assert config.profile is not None
         assert config.profile.name == "test"
         assert config.manufacturer.initial_assets == 10000000
         assert config.insurance is not None
         assert config.losses is not None
 
     def test_from_profile(self):
-        """Test loading ConfigV2 from profile file."""
+        """Test loading Config from profile file."""
         profile_data = {
             "profile": {"name": "test", "description": "Test profile"},
             "manufacturer": {
@@ -484,7 +485,8 @@ class TestConfigV2:
 
         with patch("builtins.open", mock_open(read_data=yaml_content)):
             with patch("pathlib.Path.exists", return_value=True):
-                config = ConfigV2.from_profile(Path("test_profile.yaml"))
+                config = Config.from_profile(Path("test_profile.yaml"))
+                assert config.profile is not None
                 assert config.profile.name == "test"
                 assert config.manufacturer.initial_assets == 10000000
 
@@ -492,7 +494,7 @@ class TestConfigV2:
         """Test error when profile file not found."""
         with patch("pathlib.Path.exists", return_value=False):
             with pytest.raises(FileNotFoundError) as exc_info:
-                ConfigV2.from_profile(Path("nonexistent.yaml"))
+                Config.from_profile(Path("nonexistent.yaml"))
             assert "Profile not found" in str(exc_info.value)
 
     def test_from_profile_with_yaml_anchors(self):
@@ -525,7 +527,8 @@ class TestConfigV2:
 
         with patch("builtins.open", mock_open(read_data=yaml_content)):
             with patch("pathlib.Path.exists", return_value=True):
-                config = ConfigV2.from_profile(Path("test_profile.yaml"))
+                config = Config.from_profile(Path("test_profile.yaml"))
+                assert config.profile is not None
                 assert config.profile.name == "test"
                 assert not hasattr(config, "_defaults")
 
@@ -581,7 +584,8 @@ class TestConfigV2:
         with patch("builtins.open", side_effect=mock_open_side_effect):
             with patch("pathlib.Path.exists") as mock_exists:
                 mock_exists.return_value = True
-                config = ConfigV2.with_inheritance(Path("child.yaml"), Path("/config"))
+                config = Config.with_inheritance(Path("child.yaml"), Path("/config"))
+                assert config.profile is not None
                 assert config.profile.name == "child"
                 assert config.manufacturer.initial_assets == 10000000  # From child
                 assert config.growth.annual_growth_rate == 0.05  # From child
@@ -601,7 +605,7 @@ class TestConfigV2:
             "simple": "override_value",
         }
 
-        result = ConfigV2._deep_merge(base, override)
+        result = Config._deep_merge(base, override)
 
         assert result["section1"]["key1"] == "value1"  # From base
         assert result["section1"]["key2"] == "override2"  # Overridden
@@ -612,7 +616,7 @@ class TestConfigV2:
 
     def test_apply_module(self):
         """Test applying a module to configuration."""
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -650,7 +654,7 @@ class TestConfigV2:
 
     def test_apply_preset(self):
         """Test applying a preset to configuration."""
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -684,7 +688,7 @@ class TestConfigV2:
 
     def test_with_overrides(self):
         """Test creating config with runtime overrides."""
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -728,7 +732,7 @@ class TestConfigV2:
 
     def test_with_overrides_simple_key(self):
         """Test overrides with simple (non-nested) keys."""
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -764,7 +768,7 @@ class TestConfigV2:
     def test_validate_completeness(self):
         """Test configuration completeness validation."""
         # Valid complete config
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -805,7 +809,7 @@ class TestConfigV2:
 
     def test_validate_completeness_missing_losses(self):
         """Test validation detects insurance without losses."""
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,
@@ -841,7 +845,7 @@ class TestConfigV2:
 
     def test_validate_completeness_insurance_disabled(self):
         """Test no validation issue when insurance is disabled."""
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10000000,

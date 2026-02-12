@@ -130,15 +130,15 @@ After careful analysis, the `_coverage.py` files consistently target different c
 
 ### 3C. Config Files Are Complementary
 
-- `test_config.py` - Config v1 Pydantic model validation (ManufacturerConfig, GrowthConfig, etc.)
-- `test_config_v2.py` - ConfigV2 model (ProfileMetadata, preset/module support)
+- `test_config.py` - Config Pydantic model validation (ManufacturerConfig, GrowthConfig, etc.)
+- `test_config_v2.py` - Config model (ProfileMetadata, preset/module support)
 - `test_config_validation.py` - IndustryConfig validation (asset ratios, working capital days)
-- `test_config_compat.py` - ConfigTranslator, LegacyConfigAdapter
+- `test_config_compat.py` - Legacy compatibility (deprecated, `config_compat` module removed)
 - `test_config_loader.py` - ConfigLoader file I/O
 - `test_config_manager.py` - ConfigManager system (profiles, modules, presets)
 - `test_config_manager_coverage.py` - Coverage gaps in ConfigManager
 - `test_config_migrator.py` - Config migration
-- `test_config_v2_integration.py` - V2 integration tests
+- `test_config_v2_integration.py` - Config integration tests
 
 **Verdict**: Each file tests a different config module/class. No redundancy.
 

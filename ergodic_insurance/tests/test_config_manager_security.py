@@ -15,7 +15,7 @@ from ergodic_insurance.config_manager import ConfigManager
 
 
 def _make_full_profile(name="test", description="Test profile", extends=None):
-    """Build a complete profile dictionary suitable for ConfigV2."""
+    """Build a complete profile dictionary suitable for Config."""
     profile = {
         "profile": {
             "name": name,

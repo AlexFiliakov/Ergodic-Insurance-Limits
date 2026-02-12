@@ -4,8 +4,9 @@ This module provides utilities for loading, validating, and managing
 configuration files, with support for caching, overrides, and
 scenario-based configurations.
 
-NOTE: This module now uses the new ConfigManager through the compatibility layer.
-It maintains the same interface for backward compatibility.
+.. deprecated::
+    ConfigLoader is deprecated. Use :class:`~ergodic_insurance.config_manager.ConfigManager`
+    for new code.
 """
 
 import logging
@@ -17,12 +18,10 @@ import yaml
 
 try:
     # Try relative imports first (when used as a package)
-    from .config import Config, ConfigV2, PricingScenarioConfig
-    from .config_compat import LegacyConfigAdapter
+    from .config import Config, PricingScenarioConfig
 except ImportError:
     # Fall back to absolute imports (when called directly or from notebooks)
-    from config import Config, ConfigV2, PricingScenarioConfig  # type: ignore
-    from config_compat import LegacyConfigAdapter  # type: ignore
+    from config import Config, PricingScenarioConfig  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,8 @@ class ConfigLoader:
     A comprehensive configuration management system that supports
     YAML file loading, validation, caching, and runtime overrides.
 
-    NOTE: This class now delegates to LegacyConfigAdapter for backward compatibility
-    while using the new ConfigManager internally.
+    .. deprecated::
+        Use :class:`~ergodic_insurance.config_manager.ConfigManager` instead.
     """
 
     DEFAULT_CONFIG_DIR = Path(__file__).parent / "data" / "parameters"
@@ -48,8 +47,7 @@ class ConfigLoader:
                        Defaults to data/parameters/.
         """
         self.config_dir = config_dir or self.DEFAULT_CONFIG_DIR
-        self._cache: Dict[Any, Config] = {}  # Changed to Any for tuple keys
-        self._adapter = LegacyConfigAdapter()
+        self._cache: Dict[Any, Config] = {}
         self._deprecation_warned = False
 
     def load(
@@ -100,10 +98,50 @@ class ConfigLoader:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        # Load using adapter and cache result
-        config: Config = self._adapter.load(config_name, overrides)
+        # Load config from YAML
+        config = self._load_from_yaml(config_name, overrides or {})
         self._cache[cache_key] = config
         return config
+
+    def _load_from_yaml(self, config_name: str, overrides: Dict[str, Any]) -> Config:
+        """Load a config from the YAML files in config_dir.
+
+        Args:
+            config_name: Name of config file (without .yaml extension).
+            overrides: Override parameters.
+
+        Returns:
+            Config object.
+        """
+        config_file = self.config_dir / f"{config_name}.yaml"
+        if not config_file.exists():
+            config_file = self.config_dir / config_name
+        if not config_file.exists():
+            raise FileNotFoundError(f"Configuration '{config_name}' not found in {self.config_dir}")
+
+        with open(config_file, "r") as f:
+            data = yaml.safe_load(f)
+
+        if data is None:
+            data = {}
+
+        # Remove YAML anchors
+        data = {k: v for k, v in data.items() if not k.startswith("_")}
+
+        # Apply overrides
+        for key, value in overrides.items():
+            if "." in key:
+                parts = key.split(".")
+                current = data
+                for part in parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[parts[-1]] = value
+            else:
+                data[key] = value
+
+        return Config(**data)
 
     def load_scenario(self, scenario: str, overrides: Optional[Dict[str, Any]] = None) -> Config:
         """Load a predefined scenario configuration.
@@ -244,20 +282,18 @@ class ConfigLoader:
         # Parse and validate using Pydantic
         return PricingScenarioConfig(**data)
 
-    def switch_pricing_scenario(
-        self, config: Union[Config, ConfigV2], scenario_name: str
-    ) -> Union[Config, ConfigV2]:
+    def switch_pricing_scenario(self, config: Config, scenario_name: str) -> Config:
         """Switch to a different pricing scenario.
 
         Updates the configuration's insurance parameters to use rates
         from the specified pricing scenario.
 
         Args:
-            config: Current configuration (Config or ConfigV2).
+            config: Current configuration.
             scenario_name: Name of scenario to switch to (inexpensive/baseline/expensive)
 
         Returns:
-            Updated configuration with new pricing scenario (same type as input).
+            Updated configuration with new pricing scenario.
         """
         # Load pricing scenarios
         pricing_config = self.load_pricing_scenarios()
@@ -287,8 +323,7 @@ class ConfigLoader:
             logger.info(f"First excess rate: {scenario.first_excess_rate:.1%}")
             logger.info(f"Higher excess rate: {scenario.higher_excess_rate:.1%}")
 
-        # Return updated config (preserves input type: Config or ConfigV2)
-        return type(config)(**config_dict)
+        return Config(**config_dict)
 
     def list_available_configs(self) -> list[str]:
         """List all available configuration files.

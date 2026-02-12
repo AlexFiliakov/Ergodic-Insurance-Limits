@@ -130,7 +130,7 @@ The data models diagram illustrates configuration structures, result objects, an
 
 Key structures:
 
-- **ConfigV2**: Modern Pydantic-based configuration with validation
+- **Config**: Pydantic-based configuration with validation
 - **SimulationResults**: Comprehensive result aggregation
 - **ValidationMetrics**: Performance and accuracy metrics
 - **StateManagement**: System state and progress tracking
@@ -170,7 +170,7 @@ The architecture employs several well-established design patterns:
    * - **Template Method**
      - LossDistribution abstract base class
    * - **Adapter Pattern**
-     - ConfigCompat bridges v1 and v2 configurations
+     - ConfigLoader bridges legacy and current configuration interfaces
    * - **Singleton Pattern**
      - ConfigManager ensures single configuration instance
    * - **Command Pattern**

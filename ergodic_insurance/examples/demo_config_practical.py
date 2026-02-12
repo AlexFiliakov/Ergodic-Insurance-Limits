@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ergodic_insurance import InsuranceProgram, MonteCarloEngine, WidgetManufacturer
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 from ergodic_insurance.config_manager import ConfigManager
 from ergodic_insurance.config_migrator import ConfigMigrator
 from ergodic_insurance.monte_carlo import MonteCarloConfig

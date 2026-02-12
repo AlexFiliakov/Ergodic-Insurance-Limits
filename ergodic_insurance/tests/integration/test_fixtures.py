@@ -13,7 +13,7 @@ import pytest
 
 from ergodic_insurance.claim_development import ClaimDevelopment
 from ergodic_insurance.config import (
-    ConfigV2,
+    Config,
     DebtConfig,
     GrowthConfig,
     InsuranceConfig,
@@ -58,13 +58,13 @@ def integration_test_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def default_config_v2() -> ConfigV2:
-    """Create a default ConfigV2 for integration testing.
+def default_config_v2() -> Config:
+    """Create a default Config for integration testing.
 
     Returns:
-        ConfigV2: Default configuration for testing.
+        Config: Default configuration for testing.
     """
-    return ConfigV2(
+    return Config(
         profile=ProfileMetadata(
             name="test_profile",
             description="Default configuration for integration testing",
