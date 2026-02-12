@@ -1,11 +1,12 @@
-"""Master configuration classes composing all sub-configurations.
+"""Master configuration class composing all sub-configurations.
 
-Contains the top-level ``Config`` (v1) and ``ConfigV2`` (3-tier system) classes
-that aggregate all domain-specific configuration sub-modules into unified
-configuration objects with loading, saving, and override capabilities.
+Contains the top-level ``Config`` class that aggregates all domain-specific
+configuration sub-modules into a unified configuration object with loading,
+saving, override, inheritance, and module/preset capabilities.
 
 Since:
     Version 0.9.0 (Issue #458)
+    Version 0.10.0 (Issue #638) — merged Config and ConfigV2 into one class
 """
 
 from pathlib import Path
@@ -36,8 +37,10 @@ from .utils import deep_merge
 class Config(BaseModel):
     """Complete configuration for the Ergodic Insurance simulation.
 
-    This is the main configuration class that combines all sub-configurations
+    This is the unified configuration class that combines all sub-configurations
     and provides methods for loading, saving, and manipulating configurations.
+    It supports both simple usage (all defaults) and advanced features like
+    profile inheritance, module composition, and preset application.
 
     All sub-configs have sensible defaults, so ``Config()`` with no arguments
     creates a valid configuration for a $10M widget manufacturer.
@@ -56,8 +59,24 @@ class Config(BaseModel):
         From basic company info::
 
             config = Config.from_company(initial_assets=50_000_000, operating_margin=0.12)
+
+        From a profile file::
+
+            config = Config.from_profile(Path("profiles/default.yaml"))
+
+        With profile inheritance::
+
+            config = Config.with_inheritance(
+                Path("profiles/custom.yaml"),
+                Path("config_dir"),
+            )
+
+    Since:
+        Version 0.9.0 — original Config + ConfigV2
+        Version 0.10.0 (Issue #638) — merged into single class
     """
 
+    # --- Core sections (all have defaults) ---
     manufacturer: ManufacturerConfig = Field(default_factory=ManufacturerConfig)
     working_capital: WorkingCapitalConfig = Field(default_factory=WorkingCapitalConfig)
     growth: GrowthConfig = Field(default_factory=GrowthConfig)
@@ -65,6 +84,34 @@ class Config(BaseModel):
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+
+    # --- Profile metadata (optional — populated when loaded from profile system) ---
+    profile: Optional[ProfileMetadata] = Field(
+        default=None,
+        description="Profile metadata; populated when loaded via the profile system",
+    )
+
+    # --- Extended config sections (optional) ---
+    insurance: Optional[InsuranceConfig] = None
+    losses: Optional[LossDistributionConfig] = None
+    excel_reporting: Optional[ExcelReportConfig] = None
+    working_capital_ratios: Optional[WorkingCapitalRatiosConfig] = None
+    expense_ratios: Optional[ExpenseRatioConfig] = None
+    depreciation: Optional[DepreciationConfig] = None
+    industry_config: Optional[IndustryConfig] = Field(
+        default=None, description="Industry-specific configuration for financial parameters"
+    )
+
+    # --- Extensibility fields ---
+    custom_modules: Dict[str, ModuleConfig] = Field(
+        default_factory=dict, description="Custom modules"
+    )
+    applied_presets: List[str] = Field(default_factory=list, description="List of applied presets")
+    overrides: Dict[str, Any] = Field(default_factory=dict, description="Runtime overrides")
+
+    # ------------------------------------------------------------------ #
+    #  Factory methods — simple usage
+    # ------------------------------------------------------------------ #
 
     @classmethod
     def from_company(
@@ -208,6 +255,85 @@ class Config(BaseModel):
         merged = deep_merge(config_dict, data)
         return cls(**merged)
 
+    # ------------------------------------------------------------------ #
+    #  Factory methods — profile system
+    # ------------------------------------------------------------------ #
+
+    @classmethod
+    def from_profile(cls, profile_path: Path) -> "Config":
+        """Load configuration from a profile file.
+
+        Args:
+            profile_path: Path to the profile YAML file.
+
+        Returns:
+            Loaded and validated Config instance.
+
+        Raises:
+            FileNotFoundError: If profile file doesn't exist.
+            ValidationError: If configuration is invalid.
+        """
+        if not profile_path.exists():
+            raise FileNotFoundError(f"Profile not found: {profile_path}")
+
+        with open(profile_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        # Remove YAML anchors
+        data = {k: v for k, v in data.items() if not k.startswith("_")}
+
+        return cls(**data)
+
+    @classmethod
+    def with_inheritance(
+        cls,
+        profile_path: Path,
+        config_dir: Path,
+        _visited: Optional[frozenset] = None,
+    ) -> "Config":
+        """Load configuration with profile inheritance.
+
+        Args:
+            profile_path: Path to the profile YAML file.
+            config_dir: Root configuration directory.
+            _visited: Internal set of already-visited profile paths for
+                cycle detection.  Callers should not pass this argument.
+
+        Returns:
+            Loaded Config with inheritance applied.
+
+        Raises:
+            ValueError: If circular inheritance is detected.
+        """
+        resolved = profile_path.resolve()
+        visited = _visited or frozenset()
+        if resolved in visited:
+            chain = " -> ".join(str(p) for p in visited)
+            raise ValueError(f"Circular profile inheritance detected: {chain} -> {resolved}")
+        visited = visited | {resolved}
+
+        with open(profile_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        # Handle inheritance
+        if "profile" in data and "extends" in data["profile"] and data["profile"]["extends"]:
+            parent_name = data["profile"]["extends"]
+            parent_path = config_dir / "profiles" / f"{parent_name}.yaml"
+
+            if parent_path.exists():
+                parent_config = cls.with_inheritance(parent_path, config_dir, _visited=visited)
+                parent_data = parent_config.model_dump()
+
+                # Deep merge parent with child
+                merged_data = cls._deep_merge(parent_data, data)
+                data = merged_data
+
+        return cls(**data)
+
+    # ------------------------------------------------------------------ #
+    #  Override / mutation helpers
+    # ------------------------------------------------------------------ #
+
     def override(self, overrides: Dict[str, Any]) -> "Config":
         """Create a new config with overridden parameters.
 
@@ -256,6 +382,61 @@ class Config(BaseModel):
 
         return Config.from_dict(override_dict, base_config=self)
 
+    def with_overrides(self, overrides: Dict[str, Any]) -> "Config":
+        """Create a new config with runtime overrides.
+
+        Accepts a dictionary with dot-notation keys to override nested
+        configuration values.  Section-level dictionaries are also supported
+        for backward compatibility with :class:`ConfigManager`.
+
+        Args:
+            overrides: Dictionary mapping dot-notation paths to values, or
+                section-level dictionaries.
+                Example: ``{"manufacturer.initial_assets": 20_000_000}``
+
+        Returns:
+            New Config instance with overrides applied.
+
+        Examples:
+            Dot-notation overrides::
+
+                new = config.with_overrides({
+                    "manufacturer.initial_assets": 20_000_000,
+                    "simulation.time_horizon_years": 100,
+                })
+
+            Section-level dict overrides::
+
+                new = config.with_overrides({
+                    "manufacturer": {"initial_assets": 20_000_000},
+                })
+        """
+        # Create a copy of current config
+        data = self.model_dump()
+
+        # Apply overrides
+        for key, value in overrides.items():
+            if "." in key:
+                # Dot-notation: "manufacturer.initial_assets" -> nested dict
+                parts = key.split(".")
+                current = data
+                for part in parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[parts[-1]] = value
+            else:
+                # Section-level: {"manufacturer": {"initial_assets": ...}}
+                if isinstance(value, dict) and key in data and isinstance(data[key], dict):
+                    data[key] = deep_merge(data[key], value)
+                else:
+                    data[key] = value
+
+        # Track overrides
+        data["overrides"] = overrides
+
+        return Config(**data)
+
     def _validate_override_path(self, key: str, parts: list) -> None:
         """Validate that a dot-notation path refers to valid config fields.
 
@@ -287,6 +468,80 @@ class Config(BaseModel):
                     f"field in '{section}'. Valid fields: {valid}"
                 )
 
+    # ------------------------------------------------------------------ #
+    #  Module / preset composition
+    # ------------------------------------------------------------------ #
+
+    def apply_module(self, module_path: Path) -> None:
+        """Apply a configuration module.
+
+        Merges module data via dict-dump-merge-reconstruct so that every
+        field change goes through Pydantic validation.
+
+        Args:
+            module_path: Path to the module YAML file.
+        """
+        with open(module_path, "r") as f:
+            module_data = yaml.safe_load(f)
+
+        # Dump -> merge -> reconstruct to enforce Pydantic validation
+        current_data = self.model_dump()
+        merged = deep_merge(current_data, module_data)
+        updated = self.model_validate(merged)
+
+        # Copy all validated fields back
+        for field_name in type(self).model_fields:
+            object.__setattr__(self, field_name, getattr(updated, field_name))
+
+    def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> None:
+        """Apply a preset to the configuration.
+
+        Merges preset data via dict-dump-merge-reconstruct so that every
+        field change goes through Pydantic validation.
+
+        Args:
+            preset_name: Name of the preset.
+            preset_data: Preset parameters to apply.
+        """
+        # Dump -> merge -> reconstruct to enforce Pydantic validation
+        current_data = self.model_dump()
+        current_data.setdefault("applied_presets", [])
+        current_data["applied_presets"].append(preset_name)
+        merged = deep_merge(current_data, preset_data)
+        updated = self.model_validate(merged)
+
+        # Copy all validated fields back
+        for field_name in type(self).model_fields:
+            object.__setattr__(self, field_name, getattr(updated, field_name))
+
+    # ------------------------------------------------------------------ #
+    #  Validation
+    # ------------------------------------------------------------------ #
+
+    def validate_completeness(self) -> List[str]:
+        """Validate configuration completeness.
+
+        Returns:
+            List of missing or invalid configuration items.
+        """
+        issues = []
+
+        # Check required sections
+        required_sections = ["manufacturer", "simulation", "growth"]
+        for section in required_sections:
+            if not getattr(self, section, None):
+                issues.append(f"Missing required section: {section}")
+
+        # Check for logical consistency
+        if self.insurance and self.insurance.enabled and not self.losses:
+            issues.append("Insurance enabled but no loss distribution configured")
+
+        return issues
+
+    # ------------------------------------------------------------------ #
+    #  Serialization
+    # ------------------------------------------------------------------ #
+
     def to_yaml(self, path: Path) -> None:
         """Save configuration to YAML file.
 
@@ -296,6 +551,10 @@ class Config(BaseModel):
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(self.model_dump(), f, default_flow_style=False, sort_keys=False)
+
+    # ------------------------------------------------------------------ #
+    #  Logging / paths
+    # ------------------------------------------------------------------ #
 
     def setup_logging(self) -> None:
         """Configure logging based on settings.
@@ -339,105 +598,9 @@ class Config(BaseModel):
         """
         Path(self.output.output_directory).mkdir(parents=True, exist_ok=True)
 
-
-class ConfigV2(BaseModel):
-    """Enhanced unified configuration model for the 3-tier system."""
-
-    profile: ProfileMetadata
-    manufacturer: ManufacturerConfig
-    working_capital: WorkingCapitalConfig
-    growth: GrowthConfig
-    debt: DebtConfig
-    simulation: SimulationConfig
-    output: OutputConfig
-    logging: LoggingConfig
-    insurance: Optional[InsuranceConfig] = None
-    losses: Optional[LossDistributionConfig] = None
-    excel_reporting: Optional[ExcelReportConfig] = None
-    working_capital_ratios: Optional[WorkingCapitalRatiosConfig] = None
-    expense_ratios: Optional[ExpenseRatioConfig] = None
-    depreciation: Optional[DepreciationConfig] = None
-    industry_config: Optional[IndustryConfig] = Field(
-        default=None, description="Industry-specific configuration for financial parameters"
-    )
-
-    # Additional fields for extensibility
-    custom_modules: Dict[str, ModuleConfig] = Field(
-        default_factory=dict, description="Custom modules"
-    )
-    applied_presets: List[str] = Field(default_factory=list, description="List of applied presets")
-    overrides: Dict[str, Any] = Field(default_factory=dict, description="Runtime overrides")
-
-    @classmethod
-    def from_profile(cls, profile_path: Path) -> "ConfigV2":
-        """Load configuration from a profile file.
-
-        Args:
-            profile_path: Path to the profile YAML file.
-
-        Returns:
-            Loaded and validated ConfigV2 instance.
-
-        Raises:
-            FileNotFoundError: If profile file doesn't exist.
-            ValidationError: If configuration is invalid.
-        """
-        if not profile_path.exists():
-            raise FileNotFoundError(f"Profile not found: {profile_path}")
-
-        with open(profile_path, "r") as f:
-            data = yaml.safe_load(f)
-
-        # Remove YAML anchors
-        data = {k: v for k, v in data.items() if not k.startswith("_")}
-
-        return cls(**data)
-
-    @classmethod
-    def with_inheritance(
-        cls,
-        profile_path: Path,
-        config_dir: Path,
-        _visited: Optional[frozenset] = None,
-    ) -> "ConfigV2":
-        """Load configuration with profile inheritance.
-
-        Args:
-            profile_path: Path to the profile YAML file.
-            config_dir: Root configuration directory.
-            _visited: Internal set of already-visited profile paths for
-                cycle detection.  Callers should not pass this argument.
-
-        Returns:
-            Loaded ConfigV2 with inheritance applied.
-
-        Raises:
-            ValueError: If circular inheritance is detected.
-        """
-        resolved = profile_path.resolve()
-        visited = _visited or frozenset()
-        if resolved in visited:
-            chain = " -> ".join(str(p) for p in visited)
-            raise ValueError(f"Circular profile inheritance detected: {chain} -> {resolved}")
-        visited = visited | {resolved}
-
-        with open(profile_path, "r") as f:
-            data = yaml.safe_load(f)
-
-        # Handle inheritance
-        if "profile" in data and "extends" in data["profile"] and data["profile"]["extends"]:
-            parent_name = data["profile"]["extends"]
-            parent_path = config_dir / "profiles" / f"{parent_name}.yaml"
-
-            if parent_path.exists():
-                parent_config = cls.with_inheritance(parent_path, config_dir, _visited=visited)
-                parent_data = parent_config.model_dump()
-
-                # Deep merge parent with child
-                merged_data = cls._deep_merge(parent_data, data)
-                data = merged_data
-
-        return cls(**data)
+    # ------------------------------------------------------------------ #
+    #  Internal helpers
+    # ------------------------------------------------------------------ #
 
     @staticmethod
     def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -451,120 +614,3 @@ class ConfigV2(BaseModel):
             Merged dictionary.
         """
         return deep_merge(base, override)
-
-    def apply_module(self, module_path: Path) -> None:
-        """Apply a configuration module.
-
-        Merges module data via dict-dump-merge-reconstruct so that every
-        field change goes through Pydantic validation.
-
-        Args:
-            module_path: Path to the module YAML file.
-        """
-        with open(module_path, "r") as f:
-            module_data = yaml.safe_load(f)
-
-        # Dump → merge → reconstruct to enforce Pydantic validation
-        current_data = self.model_dump()
-        merged = deep_merge(current_data, module_data)
-        updated = self.model_validate(merged)
-
-        # Copy all validated fields back
-        for field_name in type(self).model_fields:
-            object.__setattr__(self, field_name, getattr(updated, field_name))
-
-    def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> None:
-        """Apply a preset to the configuration.
-
-        Merges preset data via dict-dump-merge-reconstruct so that every
-        field change goes through Pydantic validation.
-
-        Args:
-            preset_name: Name of the preset.
-            preset_data: Preset parameters to apply.
-        """
-        # Dump → merge → reconstruct to enforce Pydantic validation
-        current_data = self.model_dump()
-        current_data.setdefault("applied_presets", [])
-        current_data["applied_presets"].append(preset_name)
-        merged = deep_merge(current_data, preset_data)
-        updated = self.model_validate(merged)
-
-        # Copy all validated fields back
-        for field_name in type(self).model_fields:
-            object.__setattr__(self, field_name, getattr(updated, field_name))
-
-    def with_overrides(self, overrides: Dict[str, Any]) -> "ConfigV2":
-        """Create a new config with runtime overrides.
-
-        Accepts a dictionary with dot-notation keys to override nested
-        configuration values.  Section-level dictionaries are also supported
-        for backward compatibility with :class:`ConfigManager`.
-
-        Args:
-            overrides: Dictionary mapping dot-notation paths to values, or
-                section-level dictionaries.
-                Example: ``{"manufacturer.initial_assets": 20_000_000}``
-
-        Returns:
-            New ConfigV2 instance with overrides applied.
-
-        Examples:
-            Dot-notation overrides::
-
-                new = config.with_overrides({
-                    "manufacturer.initial_assets": 20_000_000,
-                    "simulation.time_horizon_years": 100,
-                })
-
-            Section-level dict overrides::
-
-                new = config.with_overrides({
-                    "manufacturer": {"initial_assets": 20_000_000},
-                })
-        """
-        # Create a copy of current config
-        data = self.model_dump()
-
-        # Apply overrides
-        for key, value in overrides.items():
-            if "." in key:
-                # Dot-notation: "manufacturer.initial_assets" → nested dict
-                parts = key.split(".")
-                current = data
-                for part in parts[:-1]:
-                    if part not in current:
-                        current[part] = {}
-                    current = current[part]
-                current[parts[-1]] = value
-            else:
-                # Section-level: {"manufacturer": {"initial_assets": ...}}
-                if isinstance(value, dict) and key in data and isinstance(data[key], dict):
-                    data[key] = deep_merge(data[key], value)
-                else:
-                    data[key] = value
-
-        # Track overrides
-        data["overrides"] = overrides
-
-        return ConfigV2(**data)
-
-    def validate_completeness(self) -> List[str]:
-        """Validate configuration completeness.
-
-        Returns:
-            List of missing or invalid configuration items.
-        """
-        issues = []
-
-        # Check required sections
-        required_sections = ["manufacturer", "simulation", "growth"]
-        for section in required_sections:
-            if not getattr(self, section, None):
-                issues.append(f"Missing required section: {section}")
-
-        # Check for logical consistency
-        if self.insurance and self.insurance.enabled and not self.losses:
-            issues.append("Insurance enabled but no loss distribution configured")
-
-        return issues

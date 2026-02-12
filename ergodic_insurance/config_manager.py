@@ -56,16 +56,16 @@ _SAFE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.config import ConfigV2, PresetLibrary
+    from ergodic_insurance.config import Config, PresetLibrary
     from ergodic_insurance.config.utils import deep_merge as _deep_merge_fn
 except ImportError:
     try:
         # Try relative import (for package context)
-        from .config import ConfigV2, PresetLibrary
+        from .config import Config, PresetLibrary
         from .config.utils import deep_merge as _deep_merge_fn
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config import ConfigV2, PresetLibrary  # type: ignore[no-redef]
+        from config import Config, PresetLibrary  # type: ignore[no-redef]
         from config.utils import deep_merge as _deep_merge_fn  # type: ignore[no-redef]
 
 
@@ -129,7 +129,7 @@ class ConfigManager:
         self.presets_dir = self.config_dir / "presets"
 
         # Cache for loaded configurations
-        self._cache: Dict[str, ConfigV2] = {}
+        self._cache: Dict[str, Config] = {}
         self._preset_libraries: Dict[str, PresetLibrary] = {}
 
         # Validate directory structure
@@ -199,7 +199,7 @@ class ConfigManager:
 
     def load_profile(
         self, profile_name: str = "default", use_cache: bool = True, **overrides
-    ) -> ConfigV2:
+    ) -> Config:
         """Load a configuration profile with optional overrides.
 
         This method loads a configuration profile, applies any inheritance chain,
@@ -218,7 +218,7 @@ class ConfigManager:
                 - Any configuration section with nested parameters
 
         Returns:
-            ConfigV2: Fully loaded, validated, and merged configuration instance.
+            Config: Fully loaded, validated, and merged configuration instance.
 
         Raises:
             FileNotFoundError: If the specified profile doesn't exist.
@@ -281,12 +281,12 @@ class ConfigManager:
         config = self._load_with_inheritance(profile_path)
 
         # Apply includes (modules)
-        if config.profile.includes:
+        if config.profile and config.profile.includes:
             for module_name in config.profile.includes:
                 self._apply_module(config, module_name)
 
         # Apply presets
-        if config.profile.presets:
+        if config.profile and config.profile.presets:
             for preset_type, preset_name in config.profile.presets.items():
                 self._apply_preset(config, preset_type, preset_name)
 
@@ -307,7 +307,7 @@ class ConfigManager:
 
     def _load_with_inheritance(
         self, profile_path: Path, _visited: frozenset | None = None
-    ) -> ConfigV2:
+    ) -> Config:
         """Load a profile with inheritance support.
 
         Args:
@@ -316,7 +316,7 @@ class ConfigManager:
                 cycle detection.  Callers should not pass this argument.
 
         Returns:
-            Loaded ConfigV2 with inheritance applied.
+            Loaded Config with inheritance applied.
 
         Raises:
             ValueError: If circular inheritance is detected.
@@ -355,9 +355,9 @@ class ConfigManager:
             else:
                 warnings.warn(f"Parent profile '{parent_name}' not found")
 
-        return ConfigV2(**data)
+        return Config(**data)
 
-    def _apply_module(self, config: ConfigV2, module_name: str) -> None:
+    def _apply_module(self, config: Config, module_name: str) -> None:
         """Apply a configuration module to a config.
 
         Args:
@@ -402,7 +402,7 @@ class ConfigManager:
                 else:
                     setattr(config, key, value)
 
-    def _apply_preset(self, config: ConfigV2, preset_type: str, preset_name: str) -> None:
+    def _apply_preset(self, config: Config, preset_type: str, preset_name: str) -> None:
         """Apply a preset to a configuration.
 
         Args:
@@ -446,7 +446,7 @@ class ConfigManager:
         # Apply preset data
         config.apply_preset(f"{preset_type}:{preset_name}", preset_data)
 
-    def with_preset(self, config: ConfigV2, preset_type: str, preset_name: str) -> ConfigV2:
+    def with_preset(self, config: Config, preset_type: str, preset_name: str) -> Config:
         """Create a new configuration with a preset applied.
 
         Args:
@@ -455,17 +455,17 @@ class ConfigManager:
             preset_name: Name of the preset.
 
         Returns:
-            New ConfigV2 instance with preset applied.
+            New Config instance with preset applied.
         """
         # Create a copy
-        new_config = ConfigV2(**config.model_dump())
+        new_config = Config(**config.model_dump())
 
         # Apply the preset
         self._apply_preset(new_config, preset_type, preset_name)
 
         return new_config
 
-    def with_overrides(self, config: ConfigV2, overrides: Dict[str, Any]) -> ConfigV2:
+    def with_overrides(self, config: Config, overrides: Dict[str, Any]) -> Config:
         """Create a new configuration with runtime overrides.
 
         Args:
@@ -474,11 +474,11 @@ class ConfigManager:
                 keys or section-level dictionaries.
 
         Returns:
-            New ConfigV2 instance with overrides applied.
+            New Config instance with overrides applied.
         """
         return config.with_overrides(overrides)
 
-    def validate(self, config: ConfigV2) -> List[str]:
+    def validate(self, config: Config) -> List[str]:
         """Validate a configuration for completeness and consistency.
 
         Args:

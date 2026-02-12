@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Ergodic Insurance framework uses a **three-tier configuration architecture** to manage simulation parameters. This document provides detailed flow diagrams showing how configuration is loaded, resolved, validated, and delivered to consumers throughout the system.
+The Ergodic Insurance framework uses a **configuration architecture** with profiles, modules, and presets to manage simulation parameters. This document provides detailed flow diagrams showing how configuration is loaded, resolved, validated, and delivered to consumers throughout the system.
 
 The three tiers are:
 
@@ -18,7 +18,7 @@ The primary entry point is `ConfigManager.load_profile()`, which orchestrates th
 
 ## 1. Configuration Loading Pipeline
 
-This sequence diagram shows the complete lifecycle of a `load_profile()` call, from the caller through `ConfigManager`, into the file system, and back through validation into a fully resolved `ConfigV2` object.
+This sequence diagram shows the complete lifecycle of a `load_profile()` call, from the caller through `ConfigManager`, into the file system, and back through validation into a fully resolved `Config` object.
 
 ```{mermaid}
 sequenceDiagram
@@ -26,7 +26,7 @@ sequenceDiagram
     participant CM as ConfigManager
     participant Cache as LRU Cache
     participant FS as File System<br/>(data/config/)
-    participant CV2 as ConfigV2<br/>(Pydantic)
+    participant CFG as Config<br/>(Pydantic)
 
     Caller->>CM: load_profile(profile_name, use_cache, **overrides)
 
@@ -34,8 +34,8 @@ sequenceDiagram
 
     CM->>Cache: Check cache_key
     alt Cache hit (use_cache=True)
-        Cache-->>CM: Return cached ConfigV2
-        CM-->>Caller: ConfigV2 (cached)
+        Cache-->>CM: Return cached Config
+        CM-->>Caller: Config (cached)
     else Cache miss or use_cache=False
         Note over CM: Resolve profile file path
 
@@ -58,9 +58,9 @@ sequenceDiagram
             CM->>CM: _deep_merge(parent_data, child_data)
         end
 
-        CM->>CV2: ConfigV2(**merged_data)
-        Note over CV2: Pydantic validation<br/>(type checks, constraints,<br/>cross-field validators)
-        CV2-->>CM: Validated ConfigV2
+        CM->>CFG: Config(**merged_data)
+        Note over CFG: Pydantic validation<br/>(type checks, constraints,<br/>cross-field validators)
+        CFG-->>CM: Validated Config
 
         Note over CM: Apply modules from<br/>profile.includes list
 
@@ -68,7 +68,7 @@ sequenceDiagram
             CM->>FS: Read modules/{module_name}.yaml
             FS-->>CM: Module YAML data
             CM->>CM: _apply_module(config, module_name)
-            Note over CM: Deep merge module data<br/>into ConfigV2 fields
+            Note over CM: Deep merge module data<br/>into Config fields
         end
 
         Note over CM: Apply presets from<br/>profile.presets dict
@@ -83,16 +83,16 @@ sequenceDiagram
         Note over CM: Apply runtime overrides
 
         alt Has **overrides
-            CM->>CV2: config.with_overrides(**overrides)
-            Note over CV2: Creates new ConfigV2<br/>with merged overrides
-            CV2-->>CM: New ConfigV2
+            CM->>CFG: config.with_overrides(**overrides)
+            Note over CFG: Creates new Config<br/>with merged overrides
+            CFG-->>CM: New Config
         end
 
-        CM->>CV2: validate_completeness()
-        CV2-->>CM: List of issues (warnings)
+        CM->>CFG: validate_completeness()
+        CFG-->>CM: List of issues (warnings)
 
         CM->>Cache: Store config at cache_key
-        CM-->>Caller: ConfigV2 (validated)
+        CM-->>Caller: Config (validated)
     end
 ```
 
@@ -101,7 +101,7 @@ sequenceDiagram
 - The cache key is computed as `"{profile_name}_{sha256(overrides)[:16]}"` to ensure unique keys per parameter combination.
 - Inheritance resolution is **recursive** -- a profile can extend another profile which itself extends a third profile, forming an inheritance chain.
 - The `_deep_merge()` operation performs recursive dictionary merging, where child values override parent values at every nesting level.
-- Module application mutates the `ConfigV2` instance in-place using `setattr`, while `with_overrides()` creates a **new** `ConfigV2` instance.
+- Module application mutates the `Config` instance in-place using `setattr`, while `with_overrides()` creates a **new** `Config` instance.
 - Validation warnings (e.g., "Insurance enabled but no loss distribution configured") are emitted via Python `warnings.warn()` and do not block loading.
 
 ---
@@ -126,17 +126,17 @@ flowchart TD
     subgraph Inheritance["Phase 2: Inheritance Chain"]
         LOAD_YAML --> STRIP_ANCHORS["Strip YAML anchors<br/>(keys starting with _)"]
         STRIP_ANCHORS --> HAS_EXTENDS{profile.extends<br/>is set?}
-        HAS_EXTENDS -- No --> CREATE_CV2
+        HAS_EXTENDS -- No --> CREATE_CFG
         HAS_EXTENDS -- Yes --> LOAD_PARENT["Load parent profile<br/>_load_with_inheritance(parent)"]
         LOAD_PARENT --> PARENT_HAS_EXTENDS{Parent also<br/>has extends?}
         PARENT_HAS_EXTENDS -- Yes --> RECURSE["Recurse up<br/>inheritance chain"]
         RECURSE --> MERGE_PARENT
         PARENT_HAS_EXTENDS -- No --> MERGE_PARENT["_deep_merge(parent, child)<br/>Child overrides parent"]
-        MERGE_PARENT --> CREATE_CV2["Create ConfigV2(**merged_data)<br/>Pydantic validates all fields"]
+        MERGE_PARENT --> CREATE_CFG["Create Config(**merged_data)<br/>Pydantic validates all fields"]
     end
 
     subgraph Modules["Phase 3: Module Overlay"]
-        CREATE_CV2 --> HAS_INCLUDES{profile.includes<br/>is non-empty?}
+        CREATE_CFG --> HAS_INCLUDES{profile.includes<br/>is non-empty?}
         HAS_INCLUDES -- No --> CHECK_PRESETS
         HAS_INCLUDES -- Yes --> LOAD_MODULE["Load module YAML<br/>modules/{name}.yaml"]
         LOAD_MODULE --> MODULE_EXISTS{Module file<br/>exists?}
@@ -165,7 +165,7 @@ flowchart TD
     subgraph Overrides["Phase 5: Runtime Overrides"]
         CHECK_OVERRIDES{Runtime<br/>overrides<br/>provided?}
         CHECK_OVERRIDES -- No --> VALIDATE
-        CHECK_OVERRIDES -- Yes --> APPLY_OVERRIDES["config.with_overrides(**kwargs)<br/>Creates NEW ConfigV2 instance"]
+        CHECK_OVERRIDES -- Yes --> APPLY_OVERRIDES["config.with_overrides(**kwargs)<br/>Creates NEW Config instance"]
         APPLY_OVERRIDES --> VALIDATE
     end
 
@@ -177,7 +177,7 @@ flowchart TD
         HAS_ISSUES -- No --> CACHE_RESULT
     end
 
-    CACHE_RESULT["Cache result at<br/>computed cache_key"] --> RETURN([Return ConfigV2])
+    CACHE_RESULT["Cache result at<br/>computed cache_key"] --> RETURN([Return Config])
 
     style START fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style RETURN fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
@@ -196,9 +196,9 @@ A custom profile `custom/client_abc.yaml` with `extends: conservative` triggers 
 
 ---
 
-## 3. Migration Path from Legacy to v2
+## 3. Migration Path from Legacy System
 
-This flowchart documents how the legacy 12-file configuration system maps to the new 3-tier architecture, and shows both the automated migration tool (`ConfigMigrator`) and the runtime compatibility layer (`ConfigCompat` / `LegacyConfigAdapter`).
+This flowchart documents how the legacy 12-file configuration system maps to the current architecture, and shows the automated migration tool (`ConfigMigrator`).
 
 ```{mermaid}
 flowchart TB
@@ -268,36 +268,17 @@ flowchart TB
     CREATE_PRE -.-> LAYER_PRE
     CREATE_PRE -.-> RISK_PRE
 
-    subgraph CompatLayer["Runtime Compatibility (config_compat.py)"]
-        direction TB
-        ADAPTER["LegacyConfigAdapter"]
-        NAME_MAP["Name Mapping:<br/>baseline -> default<br/>optimistic -> aggressive<br/>conservative -> conservative"]
-        LOAD_LEGACY["load(config_name, overrides)"]
-        MAP_PROFILE["Map legacy name to profile"]
-        CALL_CM["ConfigManager.load_profile()"]
-        CONVERT["_convert_to_legacy(ConfigV2)<br/>Extract 7 core sections<br/>into legacy Config"]
-        FALLBACK["_load_legacy_direct()<br/>Fall back to parameters/ dir"]
-
-        ADAPTER --> LOAD_LEGACY
-        LOAD_LEGACY --> MAP_PROFILE
-        MAP_PROFILE --> NAME_MAP
-        NAME_MAP --> CALL_CM
-        CALL_CM --> CONVERT
-        CALL_CM -- FileNotFoundError --> FALLBACK
-    end
-
     subgraph Consumers["Consumer Code"]
-        OLD_CODE["Legacy Code<br/>ConfigLoader().load('baseline')"]
+        OLD_CODE["Legacy Code<br/>ConfigLoader().load('baseline')<br/>(deprecated)"]
         NEW_CODE["New Code<br/>ConfigManager().load_profile('default')"]
     end
 
-    OLD_CODE --> ADAPTER
+    OLD_CODE --> NewSystem
     NEW_CODE --> NewSystem
 
     style Legacy fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
     style MigrationTool fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style NewSystem fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style CompatLayer fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
     style Consumers fill:#fce4ec,stroke:#c62828,stroke-width:2px
 ```
 
@@ -311,17 +292,17 @@ flowchart TB
 
 4. **Validation**: `validate_migration()` checks that all expected files exist in the new directory structure.
 
-5. **Runtime compatibility**: The `LegacyConfigAdapter` maps old config names to new profile names, delegates to `ConfigManager`, and converts `ConfigV2` back to the legacy `Config` format. If the new profile is not found, it falls back to loading directly from `data/parameters/`.
+5. **Runtime compatibility**: The deprecated `ConfigLoader` delegates to `ConfigManager` internally, mapping old config names to new profile names.
 
 ---
 
 ## 4. Configuration Model Hierarchy
 
-This class diagram shows the `ConfigV2` model and all of its sub-models. Required fields are shown with solid borders; optional modules have dashed borders.
+This class diagram shows the `Config` model and all of its sub-models. Required fields are shown with solid borders; optional modules have dashed borders.
 
 ```{mermaid}
 classDiagram
-    class ConfigV2 {
+    class Config {
         +ProfileMetadata profile
         +ManufacturerConfig manufacturer
         +WorkingCapitalConfig working_capital
@@ -340,11 +321,11 @@ classDiagram
         +Dict custom_modules
         +List applied_presets
         +Dict overrides
-        +from_profile(Path) ConfigV2$
-        +with_inheritance(Path, Path) ConfigV2$
+        +from_profile(Path) Config$
+        +with_inheritance(Path, Path) Config$
         +apply_module(Path) void
         +apply_preset(str, Dict) void
-        +with_overrides(**kwargs) ConfigV2
+        +with_overrides(**kwargs) Config
         +validate_completeness() List~str~
     }
 
@@ -497,21 +478,21 @@ classDiagram
         +from_yaml(Path) PresetLibrary$
     }
 
-    ConfigV2 *-- ProfileMetadata : profile
-    ConfigV2 *-- ManufacturerConfig : manufacturer
-    ConfigV2 *-- WorkingCapitalConfig : working_capital
-    ConfigV2 *-- GrowthConfig : growth
-    ConfigV2 *-- DebtConfig : debt
-    ConfigV2 *-- SimulationConfig : simulation
-    ConfigV2 *-- OutputConfig : output
-    ConfigV2 *-- LoggingConfig : logging
-    ConfigV2 o-- InsuranceConfig : insurance (optional)
-    ConfigV2 o-- LossDistributionConfig : losses (optional)
-    ConfigV2 o-- ExcelReportConfig : excel_reporting (optional)
-    ConfigV2 o-- WorkingCapitalRatiosConfig : working_capital_ratios (optional)
-    ConfigV2 o-- ExpenseRatioConfig : expense_ratios (optional)
-    ConfigV2 o-- DepreciationConfig : depreciation (optional)
-    ConfigV2 o-- ModuleConfig : custom_modules (dict)
+    Config *-- ProfileMetadata : profile
+    Config *-- ManufacturerConfig : manufacturer
+    Config *-- WorkingCapitalConfig : working_capital
+    Config *-- GrowthConfig : growth
+    Config *-- DebtConfig : debt
+    Config *-- SimulationConfig : simulation
+    Config *-- OutputConfig : output
+    Config *-- LoggingConfig : logging
+    Config o-- InsuranceConfig : insurance (optional)
+    Config o-- LossDistributionConfig : losses (optional)
+    Config o-- ExcelReportConfig : excel_reporting (optional)
+    Config o-- WorkingCapitalRatiosConfig : working_capital_ratios (optional)
+    Config o-- ExpenseRatioConfig : expense_ratios (optional)
+    Config o-- DepreciationConfig : depreciation (optional)
+    Config o-- ModuleConfig : custom_modules (dict)
 
     InsuranceConfig *-- InsuranceLayerConfig : layers (list)
     ManufacturerConfig o-- ExpenseRatioConfig : expense_ratios (optional)
@@ -521,9 +502,9 @@ classDiagram
 
 **Design notes:**
 
-- **Composition over inheritance**: `ConfigV2` uses Pydantic `BaseModel` composition rather than class inheritance. Each sub-model is an independent, validated component.
+- **Composition over inheritance**: `Config` uses Pydantic `BaseModel` composition rather than class inheritance. Each sub-model is an independent, validated component.
 - **Required vs. optional**: The seven required sub-models (`profile`, `manufacturer`, `working_capital`, `growth`, `debt`, `simulation`, `output`, `logging`) define the minimum viable configuration. Optional modules (`insurance`, `losses`, etc.) are loaded only when declared in the profile's `includes` list.
-- **`with_overrides()` immutability**: Calling `with_overrides()` returns a **new** `ConfigV2` instance rather than mutating the existing one, enabling safe concurrent usage and cache correctness.
+- **`with_overrides()` immutability**: Calling `with_overrides()` returns a **new** `Config` instance rather than mutating the existing one, enabling safe concurrent usage and cache correctness.
 - **`validate_completeness()`** checks for logical consistency beyond Pydantic's type validation, for example verifying that insurance is not enabled without a loss distribution.
 
 ---
@@ -535,11 +516,8 @@ The following table summarizes the key classes and their responsibilities:
 | Class | Module | Responsibility |
 |-------|--------|----------------|
 | `ConfigManager` | `config_manager.py` | Main entry point; orchestrates loading, caching, inheritance, modules, presets, and overrides |
-| `ConfigLoader` | `config_loader.py` | **Deprecated.** Legacy YAML/JSON file loading; delegates to `LegacyConfigAdapter` internally |
-| `ConfigV2` | `config.py` | Pydantic-validated configuration container; holds all sub-models |
-| `Config` | `config.py` | Legacy configuration container (7 required sections, no optional modules) |
-| `LegacyConfigAdapter` | `config_compat.py` | Maps legacy `ConfigLoader` calls to `ConfigManager`; converts `ConfigV2` back to `Config` |
-| `ConfigTranslator` | `config_compat.py` | Bidirectional conversion between `Config` and `ConfigV2` formats |
+| `ConfigLoader` | `config_loader.py` | **Deprecated.** Legacy YAML/JSON file loading; delegates to `ConfigManager` internally |
+| `Config` | `config.py` | Pydantic-validated configuration container; holds all sub-models (required and optional) |
 | `ConfigMigrator` | `config_migrator.py` | One-time migration tool: converts 12 legacy YAML files to 3-tier directory structure |
 | `PresetLibrary` | `config.py` | Collection of `PresetConfig` entries loaded from a single preset YAML file |
 
@@ -577,6 +555,6 @@ ergodic_insurance/
 
 ## Related Documentation
 
-- [Configuration System v2.0 Architecture](configuration_v2.md) -- Detailed design specification and usage examples
+- [Configuration System Architecture](configuration_v2.md) -- Detailed design specification and usage examples
 - [Module Overview](module_overview.md) -- How modules interact across the framework
 - [Data Models](class_diagrams/data_models.md) -- Broader data model class diagrams

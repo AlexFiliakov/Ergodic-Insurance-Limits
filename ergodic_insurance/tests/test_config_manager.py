@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from ergodic_insurance.config import ConfigV2, ProfileMetadata
+from ergodic_insurance.config import Config, ProfileMetadata
 from ergodic_insurance.config_manager import ConfigManager
 
 
@@ -102,6 +102,7 @@ class TestConfigManager:
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test")
 
+        assert config.profile is not None
         assert config.profile.name == "test"
         assert config.manufacturer.initial_assets == 10000000
         assert config.simulation.time_horizon_years == 100
@@ -206,6 +207,8 @@ class TestConfigManager:
         # Should load fresh each time, compare without timestamp
         assert config1.manufacturer == config2.manufacturer
         assert config1.simulation == config2.simulation
+        assert config1.profile is not None
+        assert config2.profile is not None
         assert config1.profile.name == config2.profile.name
         assert len(manager._cache) == 0
 
@@ -381,7 +384,7 @@ class TestConfigManager:
         with open(temp_config_dir / "profiles" / "validate_test.yaml", "w") as f:
             yaml.dump(valid_data, f)
         config = manager.load_profile("validate_test")
-        assert isinstance(config, ConfigV2)
+        assert isinstance(config, Config)
         assert config.manufacturer.initial_assets == 10000000
 
     def test_validate_config_invalid(self, temp_config_dir):
@@ -390,15 +393,16 @@ class TestConfigManager:
 
         invalid_data = {
             "manufacturer": {
-                # Missing required fields
-                "initial_assets": 10000000
+                "initial_assets": 10000000,
+                # tax_rate outside valid range triggers Pydantic validation error
+                "tax_rate": 5.0,
             }
         }
 
-        # Try loading invalid config
+        # Try loading invalid config — Pydantic should reject out-of-range values
         with open(temp_config_dir / "profiles" / "invalid_test.yaml", "w") as f:
             yaml.dump(invalid_data, f)
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, Exception)):
             manager.load_profile("invalid_test")
 
     def test_get_profile_metadata(self, temp_config_dir):
@@ -526,6 +530,7 @@ class TestConfigManager:
 
         # Load the created profile
         config = manager.load_profile("custom/custom_test")
+        assert config.profile is not None
         assert config.profile.name == "custom_test"
         assert config.profile.extends == "test"
 

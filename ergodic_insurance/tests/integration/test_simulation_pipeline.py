@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.batch_processor import BatchProcessor
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
@@ -112,7 +112,7 @@ class TestSimulationPipeline:
 
     def test_parallel_vs_serial_consistency(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
         manufacturing_loss_generator: ManufacturingLossGenerator,
         enhanced_insurance_program: InsuranceProgram,
         base_manufacturer: WidgetManufacturer,
@@ -388,7 +388,7 @@ class TestSimulationPipeline:
 
     def test_batch_processing_integration(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
     ):
         """Test batch processing for large simulations.
 
@@ -457,7 +457,7 @@ class TestSimulationPipeline:
         assert len(combined_terminals) == n_simulations
 
     def _create_manufacturer_with_volatility(
-        self, config: ConfigV2, volatility: float, seed: int
+        self, config: Config, volatility: float, seed: int
     ) -> WidgetManufacturer:
         """Create manufacturer with specified volatility."""
         stochastic = GeometricBrownianMotion(
@@ -467,7 +467,7 @@ class TestSimulationPipeline:
 
     def test_scenario_manager_integration(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
         manufacturing_loss_generator: ManufacturingLossGenerator,
         enhanced_insurance_program: InsuranceProgram,
         base_manufacturer: WidgetManufacturer,
@@ -486,7 +486,7 @@ class TestSimulationPipeline:
 
         class ScenarioDict(TypedDict):
             name: str
-            config: ConfigV2
+            config: Config
             manufacturer: WidgetManufacturer
 
         # Create scenarios with different configurations
@@ -644,7 +644,7 @@ class TestSimulationPipeline:
     @pytest.mark.benchmark
     def test_performance_scaling(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
         manufacturing_loss_generator: ManufacturingLossGenerator,
         enhanced_insurance_program: InsuranceProgram,
         base_manufacturer: WidgetManufacturer,
@@ -706,7 +706,7 @@ class TestSimulationPipeline:
 
     def test_edge_cases_and_error_handling(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
         manufacturing_loss_generator: ManufacturingLossGenerator,
         enhanced_insurance_program: InsuranceProgram,
         base_manufacturer: WidgetManufacturer,

@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.business_optimizer import BusinessConstraints, BusinessOptimizer
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 from ergodic_insurance.config_manager import ConfigManager
 from ergodic_insurance.convergence import ConvergenceDiagnostics
 from ergodic_insurance.decision_engine import (
@@ -48,7 +48,7 @@ from .test_helpers import assert_convergence, calculate_ergodic_metrics, compare
 
 
 def create_monte_carlo_config(config_v2, n_simulations=200, ruin_evaluation=None):
-    """Create proper MonteCarloEngine config from ConfigV2."""
+    """Create proper MonteCarloEngine config from Config."""
     from ergodic_insurance.monte_carlo import MonteCarloConfig
 
     n_years = config_v2.simulation.time_horizon_years
@@ -71,7 +71,7 @@ class TestErgodicIntegration:
 
     def test_ergodic_analyzer_simulation_integration(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
     ):
         """Test ergodic analyzer with simulation results.
 
@@ -225,7 +225,7 @@ class TestConfigurationIntegration:
 
     def test_config_propagation_to_all_modules(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
     ):
         """Test that configuration properly propagates to all modules.
 
@@ -292,7 +292,7 @@ class TestConfigurationIntegration:
         # Verify that optimizer received the same manufacturer instance
         assert optimizer.manufacturer is manufacturer
 
-    def test_profile_inheritance_and_composition(self, default_config_v2: ConfigV2):
+    def test_profile_inheritance_and_composition(self, default_config_v2: Config):
         """Test configuration profile inheritance and module composition.
 
         Verifies that:
@@ -331,7 +331,7 @@ class TestOptimizationWorkflow:
 
     def test_business_optimizer_integration(
         self,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
     ):
         """Test business optimizer with real simulation data.
 
@@ -416,7 +416,7 @@ class TestOptimizationWorkflow:
             # the initialization assertions above already verified construction
             pass
 
-    def test_decision_engine_integration(self, default_config_v2: ConfigV2):
+    def test_decision_engine_integration(self, default_config_v2: Config):
         """Test decision engine with optimization results.
 
         Verifies that:
@@ -471,7 +471,7 @@ class TestStochasticIntegration:
         self,
         gbm_process: GeometricBrownianMotion,
         mean_reverting_process: MeanRevertingProcess,
-        default_config_v2: ConfigV2,
+        default_config_v2: Config,
     ):
         """Test stochastic processes with manufacturer model.
 
@@ -666,7 +666,7 @@ class TestEndToEndScenarios:
     """Test complete end-to-end scenarios."""
 
     @pytest.mark.benchmark
-    def test_startup_company_scenario(self, default_config_v2: ConfigV2):
+    def test_startup_company_scenario(self, default_config_v2: Config):
         """Test startup company scenario (low assets, high risk).
 
         Complete E2E test from issue requirements.
@@ -762,7 +762,7 @@ class TestEndToEndScenarios:
         assert t["elapsed"] < 60, f"Startup scenario took {t['elapsed']:.2f}s, should be < 60s"
 
     @pytest.mark.benchmark
-    def test_mature_company_scenario(self, default_config_v2: ConfigV2):
+    def test_mature_company_scenario(self, default_config_v2: Config):
         """Test mature company scenario (stable, optimized).
 
         Complete E2E test from issue requirements.
@@ -842,7 +842,7 @@ class TestEndToEndScenarios:
         # Verify timing
         assert t["elapsed"] < 60, f"Mature scenario took {t['elapsed']:.2f}s, should be < 60s"
 
-    def test_crisis_scenario(self, default_config_v2: ConfigV2):
+    def test_crisis_scenario(self, default_config_v2: Config):
         """Test crisis scenario (catastrophic losses).
 
         Complete E2E test from issue requirements.
@@ -945,7 +945,7 @@ class TestEndToEndScenarios:
         )
 
     @pytest.mark.skip(reason="Volatile stochastic test - may produce inconsistent results in CI")
-    def test_growth_scenario(self, default_config_v2: ConfigV2):
+    def test_growth_scenario(self, default_config_v2: Config):
         """Test growth scenario (rapid expansion).
 
         Complete E2E test from issue requirements.
@@ -1030,7 +1030,7 @@ class TestEndToEndScenarios:
         ), f"Growth scenario should have some volatility, got {volatility:.4f}"
 
     @pytest.mark.benchmark
-    def test_performance_benchmarks(self, default_config_v2: ConfigV2):
+    def test_performance_benchmarks(self, default_config_v2: Config):
         """Test that performance benchmarks are met.
 
         From issue requirements:
@@ -1111,7 +1111,7 @@ class TestClaimPaymentTiming:
     current_year at the time of processing, not current_year - 1.
     """
 
-    def test_simulation_year_zero_claim_payment(self, default_config_v2: ConfigV2):
+    def test_simulation_year_zero_claim_payment(self, default_config_v2: Config):
         """Test that claims are recorded in the current simulation year per GAAP.
 
         Per ASC 944-40-25, claims must be recorded in the period in which the
@@ -1151,7 +1151,7 @@ class TestClaimPaymentTiming:
         # The first scheduled payment correctly occurs in the year of incurrence.
         assert claim.year_incurred == manufacturer.current_year
 
-    def test_total_payments_equal_claim_amount(self, default_config_v2: ConfigV2):
+    def test_total_payments_equal_claim_amount(self, default_config_v2: Config):
         """Test that total paid amount across all years equals claim amount.
 
         Verifies that all scheduled payments sum to the original claim amount.
@@ -1182,7 +1182,7 @@ class TestClaimPaymentTiming:
             total_scheduled == claim_amount
         ), f"Total scheduled payments {total_scheduled} should equal claim {claim_amount}"
 
-    def test_with_and_without_insurance(self, default_config_v2: ConfigV2):
+    def test_with_and_without_insurance(self, default_config_v2: Config):
         """Test claim payment timing with and without insurance programs.
 
         Verifies that the timing fix works correctly for both insured and

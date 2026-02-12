@@ -64,7 +64,7 @@ class ExcelReportConfig(BaseModel):
     """Configuration for Excel report generation.
 
     This is the canonical definition used throughout the codebase.
-    Both ``ExcelReporter`` and the unified config hierarchy (``ConfigV2``)
+    Both ``ExcelReporter`` and the unified config hierarchy (``Config``)
     use this class.
 
     Attributes:

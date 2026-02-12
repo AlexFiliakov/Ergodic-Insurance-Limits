@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from ergodic_insurance.config import (
-    ConfigV2,
+    Config,
     DebtConfig,
     GrowthConfig,
     InsuranceConfig,
@@ -33,7 +33,7 @@ class TestIntegration:
     def test_full_config_lifecycle(self):
         """Test complete configuration lifecycle with all features."""
         # Create base config
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(
                 name="integration-test",
                 description="Integration test profile",

@@ -33,7 +33,6 @@ import yaml
 
 from ergodic_insurance.config import (
     Config,
-    ConfigV2,
     DebtConfig,
     ExcelReportConfig,
     ExpenseRatioConfig,
@@ -351,13 +350,13 @@ class TestExcelReportConfigEngine:
             assert cfg.engine == engine
 
 
-class TestConfigV2ApplyModuleNonDict:
-    """Test ConfigV2.apply_module with non-dict and non-BaseModel values (config.py lines 1714, 1736-1738)."""
+class TestConfigApplyModuleNonDict:
+    """Test Config.apply_module with non-dict and non-BaseModel values (config.py lines 1714, 1736-1738)."""
 
     @pytest.fixture
     def base_config_v2(self):
-        """Create a minimal ConfigV2 instance."""
-        return ConfigV2(
+        """Create a minimal Config instance."""
+        return Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10_000_000,
@@ -397,12 +396,12 @@ class TestConfigV2ApplyModuleNonDict:
             assert base_config_v2.overrides == {"key1": "val1"}
 
 
-class TestConfigV2ApplyPresetBranches:
-    """Test ConfigV2.apply_preset non-dict and non-BaseModel branches (config.py lines 1736-1738)."""
+class TestConfigApplyPresetBranches:
+    """Test Config.apply_preset non-dict and non-BaseModel branches (config.py lines 1736-1738)."""
 
     @pytest.fixture
     def base_config_v2(self):
-        return ConfigV2(
+        return Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10_000_000,
@@ -444,12 +443,12 @@ class TestConfigV2ApplyPresetBranches:
         assert base_config_v2.applied_presets == ["a", "b"]
 
 
-class TestConfigV2WithOverridesNewSection:
+class TestConfigWithOverridesNewSection:
     """Test with_overrides when nested key path does not exist (config.py line 1760)."""
 
     @pytest.fixture
     def base_config_v2(self):
-        return ConfigV2(
+        return Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10_000_000,
@@ -480,12 +479,12 @@ class TestConfigV2WithOverridesNewSection:
         assert new_config.manufacturer.initial_assets == 20_000_000
 
 
-class TestConfigV2ValidateCompleteness:
+class TestConfigValidateCompleteness:
     """Test validate_completeness (config.py line 1788)."""
 
     @pytest.fixture
     def base_config_v2(self):
-        return ConfigV2(
+        return Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10_000_000,

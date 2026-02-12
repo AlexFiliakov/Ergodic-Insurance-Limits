@@ -11,7 +11,7 @@ This directory contains comprehensive architecture documentation for the Ergodic
 - **[Module Overview](./module_overview.md)** - Detailed module structure and dependencies
 
 ### Subsystem Architecture
-- **[Configuration System v2](./configuration_v2.md)** - Three-tier configuration architecture (profiles, modules, presets)
+- **[Configuration System](./configuration_v2.md)** - Configuration architecture (profiles, modules, presets)
 - **[Configuration Flow](./configuration_flow.md)** - Config loading pipeline, inheritance resolution, and migration paths
 - **[Claim Lifecycle](./claim_lifecycle.md)** - End-to-end claim processing from generation through payment
 - **[Monte Carlo Architecture](./monte_carlo_architecture.md)** - Parallel worker architecture, convergence monitoring, and batch processing
@@ -36,7 +36,7 @@ This directory contains comprehensive architecture documentation for the Ergodic
 ### For Architects
 1. Review all diagrams to understand the complete architecture
 2. Study the [Monte Carlo Architecture](./monte_carlo_architecture.md) for parallel processing design
-3. Check [Configuration Flow](./configuration_flow.md) for the three-tier config system
+3. Check [Configuration Flow](./configuration_flow.md) for the config system architecture
 4. Review [Accounting System](./class_diagrams/accounting.md) for financial precision patterns
 5. Check the service layer for infrastructure considerations
 

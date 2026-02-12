@@ -86,13 +86,11 @@ ergodic\_insurance.config module
    :show-inheritance:
    :undoc-members:
 
-ergodic\_insurance.config\_compat module
-----------------------------------------
+ergodic\_insurance.config\_compat module (deprecated)
+-----------------------------------------------------
 
-.. automodule:: ergodic_insurance.config_compat
-   :members:
-   :show-inheritance:
-   :undoc-members:
+.. deprecated::
+   The ``config_compat`` module has been removed. Use ``Config`` from ``ergodic_insurance.config`` directly.
 
 ergodic\_insurance.config\_loader module
 ----------------------------------------
