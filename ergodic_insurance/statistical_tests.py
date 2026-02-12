@@ -593,45 +593,45 @@ def multiple_comparison_correction(
         reject = adjusted_p < alpha
 
     elif method == "holm":
-        # Holm-Bonferroni method
+        # Holm-Bonferroni step-down method (Holm, 1979)
         sorted_idx = np.argsort(p_values_array)
         sorted_p = p_values_array[sorted_idx]
 
+        # Compute raw adjusted p-values for all ranks
+        adjusted_p_sorted = np.zeros(n_tests)
+        for i in range(n_tests):
+            adjusted_p_sorted[i] = min(sorted_p[i] * (n_tests - i), 1.0)
+
+        # Enforce monotonically non-decreasing (cumulative max)
+        for i in range(1, n_tests):
+            adjusted_p_sorted[i] = max(adjusted_p_sorted[i], adjusted_p_sorted[i - 1])
+
+        # Map back to original order and determine rejections
         adjusted_p = np.zeros(n_tests)
         reject = np.zeros(n_tests, dtype=bool)
-
         for i in range(n_tests):
-            adj_p = sorted_p[i] * (n_tests - i)
-            adjusted_p[sorted_idx[i]] = min(adj_p, 1.0)
-
-            if adj_p < alpha:
-                reject[sorted_idx[i]] = True
-            else:
-                break  # Stop testing once we fail to reject
+            adjusted_p[sorted_idx[i]] = adjusted_p_sorted[i]
+            reject[sorted_idx[i]] = adjusted_p_sorted[i] < alpha
 
     elif method == "fdr":
-        # Benjamini-Hochberg FDR control
+        # Benjamini-Hochberg step-up FDR control (Benjamini & Hochberg, 1995)
         sorted_idx = np.argsort(p_values_array)
         sorted_p = p_values_array[sorted_idx]
 
+        # Compute adjusted p-values with cumulative min from largest rank down
+        adjusted_p_sorted = np.zeros(n_tests)
+        adjusted_p_sorted[n_tests - 1] = min(sorted_p[n_tests - 1] * n_tests / n_tests, 1.0)
+        for i in range(n_tests - 2, -1, -1):
+            adj_p = sorted_p[i] * n_tests / (i + 1)
+            adjusted_p_sorted[i] = min(adj_p, adjusted_p_sorted[i + 1])
+        adjusted_p_sorted = np.minimum(adjusted_p_sorted, 1.0)
+
+        # Map back to original order and determine rejections
         adjusted_p = np.zeros(n_tests)
         reject = np.zeros(n_tests, dtype=bool)
-
-        # Find largest i where P(i) <= (i/m) * alpha
-        _threshold_found = False
-        for i in range(n_tests - 1, -1, -1):
-            threshold = ((i + 1) / n_tests) * alpha
-            if sorted_p[i] <= threshold:
-                _threshold_found = True
-                # Reject all hypotheses up to i
-                for j in range(i + 1):
-                    reject[sorted_idx[j]] = True
-                break
-
-        # Adjust p-values
         for i in range(n_tests):
-            adj_p = sorted_p[i] * n_tests / (i + 1)
-            adjusted_p[sorted_idx[i]] = min(adj_p, 1.0)
+            adjusted_p[sorted_idx[i]] = adjusted_p_sorted[i]
+            reject[sorted_idx[i]] = adjusted_p_sorted[i] < alpha
 
     else:
         raise ValueError(f"Method must be 'bonferroni', 'holm', or 'fdr', got {method}")
