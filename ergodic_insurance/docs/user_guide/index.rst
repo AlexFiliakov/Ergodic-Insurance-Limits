@@ -23,6 +23,7 @@ No advanced mathematics or programming knowledge is required. We'll walk you thr
    case_studies
    advanced_topics
    hjb_solver_guide
+   actuarial_standards
    faq
    glossary
 
