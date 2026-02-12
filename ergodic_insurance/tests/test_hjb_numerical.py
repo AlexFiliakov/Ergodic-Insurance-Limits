@@ -2244,3 +2244,173 @@ class TestCrankNicolsonScheme:
             assert len(warning_calls) > 0, "Should warn about multi-D fallback"
 
         assert np.all(np.isfinite(value)), "Multi-D fallback should produce finite results"
+
+
+class TestVectorizedPolicyImprovement:
+    """Tests for vectorized and adaptive policy improvement strategies (#642)."""
+
+    @staticmethod
+    def _make_solver(
+        n_controls=1, num_points=5, n_state_pts=11, strategy="loop", memory_mb=256, diffusion=None
+    ):
+        """Helper to build a solver with a simple dynamics/cost problem."""
+        state_space = StateSpace([StateVariable("x", 0, 10, n_state_pts)])
+
+        cvars = [ControlVariable(f"u{i}", 0.0, 1.0, num_points) for i in range(n_controls)]
+
+        def dynamics(x, u, t):
+            return x * u[..., 0:1] * 0.1
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * u[..., 0]
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=cvars,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            diffusion=diffusion,
+            discount_rate=0.05,
+            time_horizon=None,
+        )
+        config = HJBSolverConfig(
+            max_iterations=3,
+            verbose=False,
+            control_search_strategy=strategy,
+            control_memory_budget_mb=memory_mb,
+        )
+        solver = HJBSolver(problem, config)
+
+        # Set a non-trivial value function so policy improvement has something to work with
+        grid = state_space.grids[0]
+        solver.value_function = np.log(np.maximum(grid, 1e-6))
+        solver.optimal_policy = {cv.name: np.full(state_space.shape, 0.5) for cv in cvars}
+        return solver
+
+    def test_vectorized_matches_loop_1_control(self):
+        """Vectorized strategy matches loop exactly for 1 control."""
+        solver_loop = self._make_solver(n_controls=1, num_points=5, strategy="loop")
+        solver_vec = self._make_solver(n_controls=1, num_points=5, strategy="vectorized")
+
+        solver_loop._policy_improvement()
+        solver_vec._policy_improvement()
+
+        for cv in solver_loop.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_vec.optimal_policy[cv.name],
+                solver_loop.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg=f"Vectorized != loop for control {cv.name} (1 control)",
+            )
+
+    def test_vectorized_matches_loop_2_controls(self):
+        """Vectorized strategy matches loop exactly for 2 controls."""
+        solver_loop = self._make_solver(n_controls=2, num_points=5, strategy="loop")
+        solver_vec = self._make_solver(n_controls=2, num_points=5, strategy="vectorized")
+
+        solver_loop._policy_improvement()
+        solver_vec._policy_improvement()
+
+        for cv in solver_loop.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_vec.optimal_policy[cv.name],
+                solver_loop.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg=f"Vectorized != loop for control {cv.name} (2 controls)",
+            )
+
+    def test_chunking_with_tiny_memory_produces_identical_results(self):
+        """Tiny memory budget forces multiple chunks but result is identical."""
+        solver_big = self._make_solver(
+            n_controls=1, num_points=8, strategy="vectorized", memory_mb=256
+        )
+        # 1 byte budget forces chunk_size=1
+        solver_tiny = self._make_solver(
+            n_controls=1, num_points=8, strategy="vectorized", memory_mb=1
+        )
+
+        solver_big._policy_improvement()
+        solver_tiny._policy_improvement()
+
+        for cv in solver_big.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_tiny.optimal_policy[cv.name],
+                solver_big.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg="Chunking changed results",
+            )
+
+    def test_adaptive_within_tolerance_of_full_search(self):
+        """Adaptive strategy finds controls close to full vectorized search."""
+        solver_vec = self._make_solver(n_controls=2, num_points=10, strategy="vectorized")
+        solver_adp = self._make_solver(n_controls=2, num_points=10, strategy="adaptive")
+
+        solver_vec._policy_improvement()
+        solver_adp._policy_improvement()
+
+        for cv in solver_vec.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_adp.optimal_policy[cv.name],
+                solver_vec.optimal_policy[cv.name],
+                rtol=1e-3,
+                atol=1e-2,
+                err_msg=f"Adaptive too far from vectorized for {cv.name}",
+            )
+
+    def test_vectorized_with_diffusion_matches_loop(self):
+        """Vectorized matches loop when diffusion term is present."""
+
+        def diffusion(x, u, t):
+            return np.ones_like(x) * 0.1
+
+        solver_loop = self._make_solver(
+            n_controls=1, num_points=5, strategy="loop", diffusion=diffusion
+        )
+        solver_vec = self._make_solver(
+            n_controls=1, num_points=5, strategy="vectorized", diffusion=diffusion
+        )
+
+        solver_loop._policy_improvement()
+        solver_vec._policy_improvement()
+
+        for cv in solver_loop.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_vec.optimal_policy[cv.name],
+                solver_loop.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg=f"Vectorized != loop with diffusion for {cv.name}",
+            )
+
+    def test_build_control_combos_matches_itertools(self):
+        """_build_control_combos output matches itertools.product."""
+        from itertools import product as itertools_product
+
+        samples = [np.array([1.0, 2.0, 3.0]), np.array([10.0, 20.0])]
+        combos = HJBSolver._build_control_combos(samples)
+
+        expected = np.array(list(itertools_product(*samples)))
+        np.testing.assert_array_equal(combos, expected)
+
+    def test_auto_strategy_works_for_small_problems(self):
+        """Auto strategy selects vectorized for small combo count and runs."""
+        solver = self._make_solver(n_controls=1, num_points=5, strategy="auto")
+        solver._policy_improvement()  # should not raise
+        # With 5 combos < 5000 threshold, auto should pick vectorized
+        assert solver.optimal_policy is not None
+
+    def test_gradient_strategy_raises(self):
+        """Gradient strategy raises NotImplementedError."""
+        solver = self._make_solver(n_controls=1, num_points=3, strategy="gradient")
+        with pytest.raises(NotImplementedError, match="Gradient-based"):
+            solver._policy_improvement()
+
+    def test_edge_case_minimal_grid(self):
+        """Minimal grid (3 state points, 3 control points) works for all strategies."""
+        for strategy in ("loop", "vectorized", "adaptive", "auto"):
+            solver = self._make_solver(n_controls=1, num_points=3, n_state_pts=3, strategy=strategy)
+            solver._policy_improvement()
+            for cv in solver.problem.control_variables:
+                assert np.all(
+                    np.isfinite(solver.optimal_policy[cv.name])
+                ), f"Non-finite policy with strategy={strategy}"
