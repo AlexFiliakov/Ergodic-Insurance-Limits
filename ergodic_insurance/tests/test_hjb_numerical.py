@@ -2414,3 +2414,155 @@ class TestVectorizedPolicyImprovement:
                 assert np.all(
                     np.isfinite(solver.optimal_policy[cv.name])
                 ), f"Non-finite policy with strategy={strategy}"
+
+
+class TestOperatorCache:
+    """Tests for sparse matrix factorization cache in _theta_step_1d (#636)."""
+
+    @staticmethod
+    def _make_solver(drift_scale=0.05, sigma_sq=None, num_points=20):
+        """Helper to build a 1D solver for cache tests."""
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=5,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        return solver
+
+    def test_cache_populated_on_first_call(self):
+        """Cache should be populated after the first _theta_step_1d call."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        assert len(solver._operator_cache) == 0
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=1.0, dim=0)
+        assert len(solver._operator_cache) == 1
+        assert (1.0, dt, 0) in solver._operator_cache
+
+    def test_cache_reused_on_subsequent_calls(self):
+        """Subsequent calls with same (theta, dt, dim) should hit the cache."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=1.0, dim=0)
+        cached_entry = solver._operator_cache[(1.0, dt, 0)]
+
+        # Second call should not change the cached entry (same object)
+        solver._theta_step_1d(old_v * 1.1, cost, drift, None, dt, theta=1.0, dim=0)
+        assert solver._operator_cache[(1.0, dt, 0)] is cached_entry
+
+    def test_invalidation_clears_cache(self):
+        """_invalidate_operator_cache should clear all entries."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=1.0, dim=0)
+        assert len(solver._operator_cache) == 1
+
+        solver._invalidate_operator_cache()
+        assert len(solver._operator_cache) == 0
+
+    def test_cached_result_matches_spsolve_reference(self):
+        """Cached splu solver must produce numerically identical results to spsolve."""
+        solver = self._make_solver(sigma_sq=0.04)
+        N = 20
+        old_v = np.log(np.linspace(1, 5, N))
+        cost = -np.linspace(1, 5, N) * 0.01
+        drift = np.linspace(1, 5, N) * 0.05
+        sigma_sq = np.full(N, 0.04)
+        dt = 0.01
+
+        # First call populates cache (splu path)
+        result_cached = solver._theta_step_1d(old_v, cost, drift, sigma_sq, dt, theta=1.0, dim=0)
+
+        # Build reference via spsolve (reproduce original logic)
+        L = solver._build_spatial_operator_1d(drift, sigma_sq, dim=0)
+        I_mat = sparse.eye(N, format="csr")
+        A = I_mat - 1.0 * dt * L
+        A = A.tolil()
+        A[0, :] = 0
+        A[0, 0] = 1.0
+        A[N - 1, :] = 0
+        A[N - 1, N - 1] = 1.0
+        A = A.tocsr()
+        rhs = old_v + dt * cost
+        rhs[0] = old_v[0]
+        rhs[N - 1] = old_v[N - 1]
+        result_ref = sparse.linalg.spsolve(A, rhs)
+
+        np.testing.assert_allclose(
+            result_cached,
+            result_ref,
+            rtol=1e-12,
+            err_msg="Cached splu result differs from spsolve reference",
+        )
+
+    def test_cn_rannacher_creates_two_cache_entries(self):
+        """CN with Rannacher startup should create distinct cache entries for theta=1.0 and theta=0.5."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        # Rannacher half-step (theta=1.0, dt/2)
+        solver._theta_step_1d(old_v, cost, drift, None, dt / 2.0, theta=1.0, dim=0)
+        # CN step (theta=0.5, dt)
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=0.5, dim=0)
+
+        assert len(solver._operator_cache) == 2
+        assert (1.0, dt / 2.0, 0) in solver._operator_cache
+        assert (0.5, dt, 0) in solver._operator_cache
+
+        # theta=1.0 entry should have B=None, theta=0.5 should have a B matrix
+        _, B_implicit = solver._operator_cache[(1.0, dt / 2.0, 0)]
+        _, B_cn = solver._operator_cache[(0.5, dt, 0)]
+        assert B_implicit is None
+        assert B_cn is not None
+
+    def test_different_drift_after_invalidation_gives_different_results(self):
+        """After invalidation with different drift, results should differ."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        dt = 0.01
+
+        drift_a = np.ones(N) * 0.05
+        result_a = solver._theta_step_1d(old_v, cost, drift_a, None, dt, theta=1.0, dim=0)
+
+        solver._invalidate_operator_cache()
+
+        drift_b = np.ones(N) * 0.50  # 10x larger drift
+        result_b = solver._theta_step_1d(old_v, cost, drift_b, None, dt, theta=1.0, dim=0)
+
+        # Results should differ because drift changed the operator
+        assert not np.allclose(
+            result_a, result_b, rtol=1e-6
+        ), "Different drift after invalidation should produce different results"
