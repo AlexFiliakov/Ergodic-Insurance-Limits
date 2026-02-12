@@ -485,9 +485,9 @@ class TestSummaryStatistics:
         es = summary.extreme_values["expected_shortfall_95%"]
         # The 95th percentile is high; ES must exceed it (upper tail average)
         threshold_upper = np.percentile(data, 95)
-        assert es >= threshold_upper, (
-            f"Expected shortfall {es} should be >= 95th percentile {threshold_upper}"
-        )
+        assert (
+            es >= threshold_upper
+        ), f"Expected shortfall {es} should be >= 95th percentile {threshold_upper}"
 
     def test_weighted_statistics(self):
         """Test weighted statistics calculation."""
