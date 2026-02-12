@@ -473,7 +473,21 @@ class TestSummaryStatistics:
         assert summary.extreme_values is not None
         assert "percentile_1" in summary.extreme_values
         assert "percentile_99" in summary.extreme_values
-        assert "expected_shortfall_5%" in summary.extreme_values
+        assert "expected_shortfall_95%" in summary.extreme_values
+
+    def test_expected_shortfall_uses_upper_tail(self):
+        """Test that expected shortfall is computed from the upper tail (worst losses)."""
+        # Construct data where upper and lower tails are clearly distinct
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 100])
+        calculator = SummaryStatistics()
+        summary = calculator.calculate_summary(data)
+
+        es = summary.extreme_values["expected_shortfall_95%"]
+        # The 95th percentile is high; ES must exceed it (upper tail average)
+        threshold_upper = np.percentile(data, 95)
+        assert (
+            es >= threshold_upper
+        ), f"Expected shortfall {es} should be >= 95th percentile {threshold_upper}"
 
     def test_weighted_statistics(self):
         """Test weighted statistics calculation."""
