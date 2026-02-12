@@ -47,7 +47,7 @@ Since:
     Version 0.1.0
 """
 
-import copy
+from copy import deepcopy
 from dataclasses import dataclass
 import logging
 from pathlib import Path
@@ -489,12 +489,12 @@ class Simulation:
         seed: Optional[int] = None,
         growth_rate: float = 0.0,
         letter_of_credit_rate: float = 0.015,
+        copy: bool = True,
     ):
         """Initialize simulation.
 
         Args:
-            manufacturer: WidgetManufacturer instance to simulate. This object
-                maintains the financial state and is modified during simulation.
+            manufacturer: WidgetManufacturer instance to simulate.
             loss_generator: ManufacturingLossGenerator or list of generators for
                 creating loss events. If a list is provided, losses from all
                 generators are combined. If None, a default generator with
@@ -507,10 +507,10 @@ class Simulation:
             seed: Random seed for reproducibility. Passed to loss generator(s).
             growth_rate: Revenue growth rate per period (default 0.0).
             letter_of_credit_rate: Annual LoC rate for collateral costs (default 0.015).
-
-        Note:
-            The manufacturer object is modified in-place during simulation.
-            Create a copy if you need to preserve the initial state.
+            copy: If True (default), deep-copy the manufacturer so the caller's
+                reference is never mutated. Set to False when the caller has
+                already copied the manufacturer or mutation is acceptable
+                (e.g., inside MonteCarloEngine loops).
 
         Examples:
             Setup with custom insurance::
@@ -537,10 +537,17 @@ class Simulation:
                     insurance_policy=policy,
                     time_horizon=20
                 )
+
+            Opt out of copying for performance-critical paths::
+
+                mfg_copy = deepcopy(manufacturer)
+                sim = Simulation(manufacturer=mfg_copy, copy=False)
         """
+        if copy:
+            manufacturer = deepcopy(manufacturer)
         self.manufacturer = manufacturer
         # Deep-copy the initial manufacturer state for re-entrancy (Issue #349)
-        self._initial_manufacturer = copy.deepcopy(manufacturer)
+        self._initial_manufacturer = deepcopy(manufacturer)
         self.growth_rate = growth_rate
         self.letter_of_credit_rate = letter_of_credit_rate
         self._seed = seed
@@ -721,7 +728,7 @@ class Simulation:
 
         # Reset mutable state so the simulation is re-entrant
         # Reset manufacturer from initial state (Issue #349)
-        self.manufacturer = copy.deepcopy(self._initial_manufacturer)
+        self.manufacturer = deepcopy(self._initial_manufacturer)
         # Reseed loss generators so repeated runs produce identical sequences
         if self._seed is not None:
             for gen in self.loss_generator:
@@ -835,7 +842,7 @@ class Simulation:
 
         # Reset mutable state so the simulation is re-entrant
         # Reset manufacturer from initial state (Issue #349)
-        self.manufacturer = copy.deepcopy(self._initial_manufacturer)
+        self.manufacturer = deepcopy(self._initial_manufacturer)
         if self._seed is not None:
             for gen in self.loss_generator:
                 if hasattr(gen, "reseed"):
