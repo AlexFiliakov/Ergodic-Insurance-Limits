@@ -785,9 +785,8 @@ class TestWidgetManufacturer:
         # Check if company became insolvent
         # Note: Company can be ruined due to payment insolvency even with positive equity
         if manufacturer.is_ruined:
-            # Company is ruined - could be due to negative equity OR unsustainable payment burden
-            # Payment insolvency can occur with positive equity if claim payments are unsustainable
-            assert manufacturer.is_ruined
+            # Company is ruined - verify equity is zero (limited liability enforcement)
+            assert manufacturer.equity == ZERO
         else:
             # Company survived - should have positive equity
             assert manufacturer.equity > 0

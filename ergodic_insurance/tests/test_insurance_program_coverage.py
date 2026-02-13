@@ -452,17 +452,9 @@ class TestGetProgramSummary:
 
 
 # ===========================================================================
-# InsuranceProgram: get_total_coverage empty (line 718)
+# TestGetTotalCoverageEmpty: REMOVED -- merged into test_insurance_program.py
+# TestInsuranceProgram.test_get_total_coverage_empty_layers
 # ===========================================================================
-
-
-class TestGetTotalCoverageEmpty:
-    """Test get_total_coverage with no layers."""
-
-    def test_empty_layers_returns_zero(self):
-        """Line 718: no layers returns 0.0."""
-        program = InsuranceProgram(layers=[], deductible=0)
-        assert program.get_total_coverage() == 0.0
 
 
 # ===========================================================================
@@ -484,37 +476,9 @@ class TestErgodicBenefitEmpty:
 
 
 # ===========================================================================
-# InsuranceProgram: _round_attachment_point ranges (line 874)
+# _round_attachment_point: REMOVED -- merged into test_insurance_program.py
+# TestInsuranceProgramOptimization.test_round_attachment_point (parametrized)
 # ===========================================================================
-
-
-class TestRoundAttachmentPointEdgeCases:
-    """Test _round_attachment_point for boundary ranges."""
-
-    @pytest.fixture
-    def program(self):
-        return InsuranceProgram.create_standard_manufacturing_program()
-
-    def test_below_100k(self, program):
-        """Line 894-895: values < 100K round to nearest 10K."""
-        assert program._round_attachment_point(55_000) == 60_000
-        # Use 6_000 instead of 5_000 to avoid banker's rounding (round(0.5)=0)
-        assert program._round_attachment_point(6_000) == 10_000
-
-    def test_between_100k_and_1m(self, program):
-        """Line 896-897: values 100K-1M round to nearest 50K."""
-        assert program._round_attachment_point(275_000) == 300_000
-        # Use 730_000 instead of 725_000 to avoid banker's rounding (round(14.5)=14)
-        assert program._round_attachment_point(730_000) == 750_000
-
-    def test_between_1m_and_10m(self, program):
-        """Line 898-899: values 1M-10M round to nearest 250K."""
-        # Use 3_200_000 instead of 3_125_000 to avoid banker's rounding (round(12.5)=12)
-        assert program._round_attachment_point(3_200_000) == 3_250_000
-
-    def test_above_10m(self, program):
-        """Line 900: values > 10M round to nearest 1M."""
-        assert program._round_attachment_point(15_500_000) == 16_000_000
 
 
 # ===========================================================================
@@ -525,32 +489,20 @@ class TestRoundAttachmentPointEdgeCases:
 class TestGetLayerCapacity:
     """Test _get_layer_capacity for different attachment thresholds."""
 
-    @pytest.fixture
-    def program(self):
-        return InsuranceProgram.create_standard_manufacturing_program()
-
-    def test_below_1m(self, program):
-        """Line 910-912: attachment < 1M returns 5M."""
-        assert program._get_layer_capacity(500_000) == 5_000_000
-
-    def test_below_10m(self, program):
-        """Line 910-912: attachment 1M-10M returns 25M."""
-        assert program._get_layer_capacity(5_000_000) == 25_000_000
-
-    def test_below_50m(self, program):
-        """Line 910-912: attachment 10M-50M returns 50M."""
-        assert program._get_layer_capacity(25_000_000) == 50_000_000
-
-    def test_above_50m(self, program):
-        """Line 910-912: attachment >= 50M returns 100M."""
-        assert program._get_layer_capacity(75_000_000) == 100_000_000
-
-    def test_default_fallback(self, program):
-        """Line 913: default fallback returns 100M."""
-        # This tests the unreachable fallback at the end
-        # The for loop always returns for float("inf"), so this is technically
-        # unreachable, but we test the boundary
-        assert program._get_layer_capacity(float("inf")) == 100_000_000
+    @pytest.mark.parametrize(
+        "attachment,expected",
+        [
+            pytest.param(500_000, 5_000_000, id="below-1m"),
+            pytest.param(5_000_000, 25_000_000, id="1m-10m"),
+            pytest.param(25_000_000, 50_000_000, id="10m-50m"),
+            pytest.param(75_000_000, 100_000_000, id="above-50m"),
+            pytest.param(float("inf"), 100_000_000, id="infinity-fallback"),
+        ],
+    )
+    def test_layer_capacity(self, attachment, expected):
+        """Test layer capacity thresholds."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+        assert program._get_layer_capacity(attachment) == expected
 
 
 # ===========================================================================
@@ -598,29 +550,20 @@ class TestOptimizeLayerWidthsZeroWeight:
 class TestGetBasePremiumRate:
     """Test _get_base_premium_rate for different attachment thresholds."""
 
-    @pytest.fixture
-    def program(self):
-        return InsuranceProgram.create_standard_manufacturing_program()
-
-    def test_below_1m(self, program):
-        """Line 999-1001: attachment < 1M returns 0.015."""
-        assert program._get_base_premium_rate(500_000) == 0.015
-
-    def test_between_1m_and_5m(self, program):
-        """Line 999-1001: attachment 1M-5M returns 0.010."""
-        assert program._get_base_premium_rate(3_000_000) == 0.010
-
-    def test_between_5m_and_25m(self, program):
-        """Line 999-1001: attachment 5M-25M returns 0.006."""
-        assert program._get_base_premium_rate(15_000_000) == 0.006
-
-    def test_above_25m(self, program):
-        """Line 999-1001: attachment >= 25M returns 0.003."""
-        assert program._get_base_premium_rate(50_000_000) == 0.003
-
-    def test_default_fallback(self, program):
-        """Line 1002: fallback returns 0.003."""
-        assert program._get_base_premium_rate(float("inf")) == 0.003
+    @pytest.mark.parametrize(
+        "attachment,expected",
+        [
+            pytest.param(500_000, 0.015, id="below-1m"),
+            pytest.param(3_000_000, 0.010, id="1m-5m"),
+            pytest.param(15_000_000, 0.006, id="5m-25m"),
+            pytest.param(50_000_000, 0.003, id="above-25m"),
+            pytest.param(float("inf"), 0.003, id="infinity-fallback"),
+        ],
+    )
+    def test_base_premium_rate(self, attachment, expected):
+        """Test base premium rate for different attachment thresholds."""
+        program = InsuranceProgram.create_standard_manufacturing_program()
+        assert program._get_base_premium_rate(attachment) == expected
 
 
 # ===========================================================================
@@ -765,15 +708,8 @@ class TestCalculateReinstatements:
 # ===========================================================================
 
 
-class TestCreateStandardProgram:
-    """Test create_standard_manufacturing_program returns correct structure."""
-
-    def test_default_deductible(self):
-        """Line 1224: uses default deductible and returns program."""
-        program = InsuranceProgram.create_standard_manufacturing_program()
-        assert program.deductible == 250_000
-        assert program.name == "Standard Manufacturing Program"
-        assert len(program.layers) == 4
+# TestCreateStandardProgram: REMOVED -- covered by test_insurance_program.py
+# TestInsuranceProgram.test_standard_manufacturing_program
 
 
 # ===========================================================================
@@ -897,111 +833,11 @@ class TestFromYamlAlternateKeys:
 
 
 # ===========================================================================
-# InsuranceProgram: simple() classmethod (line 531-569)
+# InsuranceProgram: simple() -- REMOVED, covered by test_insurance_program.py
+# TestInsuranceProgramSimple
 # ===========================================================================
 
-
-class TestInsuranceProgramSimpleCoverage:
-    """Coverage tests for InsuranceProgram.simple() classmethod."""
-
-    def test_simple_creates_single_layer(self):
-        """simple() creates a program with one EnhancedInsuranceLayer."""
-        program = InsuranceProgram.simple(
-            deductible=100_000,
-            limit=2_000_000,
-            rate=0.02,
-        )
-        assert len(program.layers) == 1
-        assert isinstance(program.layers[0], EnhancedInsuranceLayer)
-
-    def test_simple_attachment_equals_deductible(self):
-        """simple() sets the layer attachment point to the deductible."""
-        program = InsuranceProgram.simple(
-            deductible=250_000,
-            limit=5_000_000,
-            rate=0.015,
-        )
-        assert program.layers[0].attachment_point == 250_000
-
-    def test_simple_layer_has_zero_reinstatements(self):
-        """simple() creates layer with reinstatements=0."""
-        program = InsuranceProgram.simple(
-            deductible=100_000,
-            limit=1_000_000,
-            rate=0.03,
-        )
-        assert program.layers[0].reinstatements == 0
-
-    def test_simple_respects_name_kwarg(self):
-        """simple() passes name to InsuranceProgram."""
-        program = InsuranceProgram.simple(
-            deductible=100_000,
-            limit=1_000_000,
-            rate=0.02,
-            name="Custom Name",
-        )
-        assert program.name == "Custom Name"
-
-    def test_simple_forwards_extra_kwargs(self):
-        """simple() forwards extra kwargs to InsuranceProgram.__init__."""
-        program = InsuranceProgram.simple(
-            deductible=100_000,
-            limit=1_000_000,
-            rate=0.02,
-            pricing_enabled=True,
-        )
-        assert program.pricing_enabled is True
-
-    def test_simple_zero_deductible(self):
-        """simple() works with zero deductible."""
-        program = InsuranceProgram.simple(
-            deductible=0,
-            limit=1_000_000,
-            rate=0.02,
-        )
-        assert program.deductible == 0
-        assert program.layers[0].attachment_point == 0
-
-
 # ===========================================================================
-# InsuranceProgram: calculate_premium() alias (line 571-579)
+# InsuranceProgram: calculate_premium() -- REMOVED, covered by
+# test_insurance_program.py TestInsuranceProgramCalculatePremium
 # ===========================================================================
-
-
-class TestInsuranceProgramCalculatePremiumCoverage:
-    """Coverage tests for InsuranceProgram.calculate_premium() alias."""
-
-    def test_calculate_premium_is_alias(self):
-        """calculate_premium() delegates to calculate_annual_premium(0.0)."""
-        layers = [
-            EnhancedInsuranceLayer(
-                attachment_point=100_000,
-                limit=5_000_000,
-                base_premium_rate=0.015,
-            ),
-        ]
-        program = InsuranceProgram(layers, deductible=100_000)
-        assert program.calculate_premium() == program.calculate_annual_premium(0.0)
-
-    def test_calculate_premium_correct_value(self):
-        """calculate_premium() returns limit * rate for each layer."""
-        layers = [
-            EnhancedInsuranceLayer(
-                attachment_point=0,
-                limit=2_000_000,
-                base_premium_rate=0.01,
-            ),
-            EnhancedInsuranceLayer(
-                attachment_point=2_000_000,
-                limit=3_000_000,
-                base_premium_rate=0.005,
-            ),
-        ]
-        program = InsuranceProgram(layers)
-        expected = 2_000_000 * 0.01 + 3_000_000 * 0.005  # 20K + 15K = 35K
-        assert program.calculate_premium() == expected
-
-    def test_calculate_premium_empty_layers(self):
-        """calculate_premium() returns 0 for program with no layers."""
-        program = InsuranceProgram(layers=[])
-        assert program.calculate_premium() == 0.0

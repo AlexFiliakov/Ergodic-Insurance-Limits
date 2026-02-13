@@ -54,6 +54,15 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_bench)
 
 
+@pytest.fixture(autouse=True)
+def _close_matplotlib_figures():
+    """Auto-close all matplotlib figures after each test to prevent memory leaks."""
+    yield
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+
+
 @pytest.fixture
 def project_root():
     """Return the project root directory."""

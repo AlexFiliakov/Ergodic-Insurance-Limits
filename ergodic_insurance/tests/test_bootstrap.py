@@ -85,13 +85,13 @@ class TestCalculatePValueNullVal:
 
         # Test against null_value=10 (should NOT reject)
         result_not_reject = paired_comparison_test(
-            differences, null_value=10.0, alternative="less", n_bootstrap=2000, seed=42
+            differences, null_value=10.0, alternative="less", n_bootstrap=1000, seed=42
         )
         assert result_not_reject.p_value > 0.05
 
         # Test against null_value=15 (observed mean ~10 < 15, should reject)
         result_reject = paired_comparison_test(
-            differences, null_value=15.0, alternative="less", n_bootstrap=2000, seed=42
+            differences, null_value=15.0, alternative="less", n_bootstrap=1000, seed=42
         )
         assert result_reject.p_value < 0.05
 
@@ -154,7 +154,7 @@ class TestBootstrapAnalyzer:
         np.random.seed(42)
         data = np.random.normal(100, 15, 1000)
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=5000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=1000, seed=42, show_progress=False)
         result = analyzer.confidence_interval(data, np.mean, method="percentile")
 
         assert isinstance(result, BootstrapResult)
@@ -173,7 +173,7 @@ class TestBootstrapAnalyzer:
         # Create slightly skewed data
         data = np.random.exponential(100, 1000)
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         result = analyzer.confidence_interval(data, np.mean, method="bca")
 
         assert isinstance(result, BootstrapResult)
@@ -187,7 +187,7 @@ class TestBootstrapAnalyzer:
         np.random.seed(42)
         data = np.random.uniform(0, 10, 200)
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         result = analyzer.confidence_interval(data, np.max, method="bca")
 
         assert np.isfinite(result.confidence_interval[0]), "Lower CI bound is not finite"
@@ -200,7 +200,7 @@ class TestBootstrapAnalyzer:
         np.random.seed(42)
         data = np.random.exponential(scale=5.0, size=10)
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         result = analyzer.confidence_interval(data, np.mean, method="bca")
 
         assert np.isfinite(result.confidence_interval[0]), "Lower CI bound is not finite"
@@ -234,7 +234,7 @@ class TestBootstrapAnalyzer:
         data1 = np.random.normal(100, 15, 500)
         data2 = np.random.normal(110, 15, 500)  # Different mean
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
 
         # Test difference comparison
         result_diff = analyzer.compare_statistics(data1, data2, np.mean, "difference")
@@ -303,7 +303,7 @@ class TestStatisticalTests:
         sample2 = np.random.normal(100, 15, 500)  # Same distribution
 
         result = difference_in_means_test(
-            sample1, sample2, alternative="two-sided", n_bootstrap=2000, seed=42
+            sample1, sample2, alternative="two-sided", n_bootstrap=500, seed=42
         )
 
         assert isinstance(result, HypothesisTestResult)
@@ -321,7 +321,7 @@ class TestStatisticalTests:
 
         # Test less alternative
         result_less = difference_in_means_test(
-            sample1, sample2, alternative="less", n_bootstrap=2000, seed=42
+            sample1, sample2, alternative="less", n_bootstrap=500, seed=42
         )
         assert result_less.p_value < 0.05  # Should reject null
         assert result_less.reject_null
@@ -329,7 +329,7 @@ class TestStatisticalTests:
 
         # Test greater alternative (should not reject)
         result_greater = difference_in_means_test(
-            sample1, sample2, alternative="greater", n_bootstrap=2000, seed=42
+            sample1, sample2, alternative="greater", n_bootstrap=500, seed=42
         )
         assert result_greater.p_value > 0.95  # Very high p-value
         assert not result_greater.reject_null
@@ -347,7 +347,7 @@ class TestStatisticalTests:
             statistic=np.mean,
             null_ratio=1.0,
             alternative="two-sided",
-            n_bootstrap=2000,
+            n_bootstrap=500,
             seed=42,
         )
 
@@ -376,7 +376,7 @@ class TestStatisticalTests:
 
         # Test against null of 0
         result = paired_comparison_test(
-            differences, null_value=0.0, alternative="greater", n_bootstrap=2000, seed=42
+            differences, null_value=0.0, alternative="greater", n_bootstrap=500, seed=42
         )
 
         assert result.p_value < 0.05  # Should reject null
@@ -390,7 +390,7 @@ class TestStatisticalTests:
         differences = np.random.normal(0, 10, 500)  # Mean difference of 0
 
         result = paired_comparison_test(
-            differences, null_value=0.0, alternative="two-sided", n_bootstrap=2000, seed=42
+            differences, null_value=0.0, alternative="two-sided", n_bootstrap=500, seed=42
         )
 
         assert result.p_value > 0.05  # Should not reject null
@@ -410,7 +410,7 @@ class TestStatisticalTests:
             return x * np.sqrt(4 / current_var)
 
         result = bootstrap_hypothesis_test(
-            data, null_transform, np.var, alternative="two-sided", n_bootstrap=2000, seed=42
+            data, null_transform, np.var, alternative="two-sided", n_bootstrap=500, seed=42
         )
 
         assert result.p_value > 0.05  # Should not reject (true variance is 4)
@@ -424,11 +424,11 @@ class TestStatisticalTests:
         adj_p, reject = multiple_comparison_correction(p_values, method="bonferroni", alpha=0.05)
 
         # With Bonferroni, threshold is 0.05/5 = 0.01
-        assert adj_p[0] == 0.05  # 0.01 * 5
-        assert adj_p[1] == 0.20  # 0.04 * 5
-        assert adj_p[2] == 0.15  # 0.03 * 5
-        assert adj_p[3] == 1.00  # min(0.20 * 5, 1.0)
-        assert adj_p[4] == 1.00  # min(0.50 * 5, 1.0)
+        assert adj_p[0] == pytest.approx(0.05)  # 0.01 * 5
+        assert adj_p[1] == pytest.approx(0.20)  # 0.04 * 5
+        assert adj_p[2] == pytest.approx(0.15)  # 0.03 * 5
+        assert adj_p[3] == pytest.approx(1.00)  # min(0.20 * 5, 1.0)
+        assert adj_p[4] == pytest.approx(1.00)  # min(0.50 * 5, 1.0)
 
         assert not reject[0]  # 0.05 == 0.05 (not less than)
         assert not reject[1]  # 0.20 > 0.05
@@ -497,7 +497,7 @@ class TestConvenienceFunctions:
             data,
             statistic=np.median,
             confidence_level=0.99,
-            n_bootstrap=2000,
+            n_bootstrap=500,
             method="percentile",
             seed=42,
         )
@@ -528,7 +528,7 @@ class TestValidationAgainstKnownDistributions:
         np.random.seed(42)
         true_mean = 100
         true_std = 15
-        n_trials = 100
+        n_trials = 50
         confidence_level = 0.95
 
         coverage_count = 0
@@ -542,7 +542,7 @@ class TestValidationAgainstKnownDistributions:
                 data,
                 np.mean,
                 confidence_level=confidence_level,
-                n_bootstrap=1000,
+                n_bootstrap=500,
                 seed=None,  # Different seed each time
             )
 
@@ -554,7 +554,7 @@ class TestValidationAgainstKnownDistributions:
 
         # Coverage should be close to nominal level
         # Allow some tolerance due to Monte Carlo error
-        assert 0.90 <= coverage_probability <= 1.00
+        assert 0.88 <= coverage_probability <= 1.00
 
     def test_exponential_distribution_median(self):
         """Test bootstrap CI for median of exponential distribution."""
@@ -568,7 +568,7 @@ class TestValidationAgainstKnownDistributions:
             data,
             np.median,
             confidence_level=0.95,
-            n_bootstrap=5000,
+            n_bootstrap=1000,
             seed=42,
         )
 

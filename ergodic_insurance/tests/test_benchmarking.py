@@ -327,9 +327,9 @@ class TestSystemProfiler:
             profiler.memory_samples = [200.0, 250.0, 300.0, 280.0]
 
             avg_cpu, peak_memory, avg_memory = profiler.get_metrics()
-            assert avg_cpu == 70.0  # Average of [60, 70, 80] (first sample excluded)
-            assert peak_memory == 300.0  # Max of memory samples
-            assert avg_memory == 257.5  # Average of [200, 250, 300, 280]
+            assert avg_cpu == pytest.approx(70.0)  # Average of [60, 70, 80] (first sample excluded)
+            assert peak_memory == pytest.approx(300.0)  # Max of memory samples
+            assert avg_memory == pytest.approx(257.5)  # Average of [200, 250, 300, 280]
 
 
 class TestBenchmarkSuite:

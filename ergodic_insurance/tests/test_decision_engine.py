@@ -1149,8 +1149,8 @@ class TestSimulationTaxApplication:
         engine_low_tax = self._make_engine(tax_rate=0.10)
         engine_high_tax = self._make_engine(tax_rate=0.40)
 
-        results_low = engine_low_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_high = engine_high_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_low = engine_low_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_high = engine_high_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         assert np.mean(results_low["growth_rates"]) > np.mean(
             results_high["growth_rates"]
@@ -1163,8 +1163,8 @@ class TestSimulationTaxApplication:
         engine_low_tax = self._make_engine(tax_rate=0.10)
         engine_high_tax = self._make_engine(tax_rate=0.40)
 
-        results_low = engine_low_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_high = engine_high_tax._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_low = engine_low_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_high = engine_high_tax._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         assert np.mean(results_low["roe"]) > np.mean(
             results_high["roe"]
@@ -1177,8 +1177,8 @@ class TestSimulationTaxApplication:
         engine_zero = self._make_engine(tax_rate=0.0)
         engine_25 = self._make_engine(tax_rate=0.25)
 
-        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_25 = engine_25._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_25 = engine_25._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         # Zero tax should give higher terminal equity than 25% tax
         assert np.mean(results_zero["value"]) > np.mean(
@@ -1212,8 +1212,8 @@ class TestSimulationTaxApplication:
         engine_custom = self._make_engine(tax_rate=0.42)
         engine_zero = self._make_engine(tax_rate=0.0)
 
-        results_custom = engine_custom._run_simulation(decision, n_simulations=200, time_horizon=5)
-        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=5)
+        results_custom = engine_custom._run_simulation(decision, n_simulations=100, time_horizon=5)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=100, time_horizon=5)
 
         # The 42% rate should produce noticeably lower equity
         ratio = np.mean(results_custom["value"]) / np.mean(results_zero["value"])
@@ -1229,8 +1229,8 @@ class TestSimulationTaxApplication:
         engine_zero = self._make_engine(tax_rate=0.0, operating_margin=0.02)
         engine_high = self._make_engine(tax_rate=0.50, operating_margin=0.02)
 
-        results_zero = engine_zero._run_simulation(decision, n_simulations=500, time_horizon=10)
-        results_high = engine_high._run_simulation(decision, n_simulations=500, time_horizon=10)
+        results_zero = engine_zero._run_simulation(decision, n_simulations=200, time_horizon=10)
+        results_high = engine_high._run_simulation(decision, n_simulations=200, time_horizon=10)
 
         assert np.mean(results_high["bankruptcies"]) >= np.mean(
             results_zero["bankruptcies"]

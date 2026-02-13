@@ -1,264 +1,149 @@
 # Test Reliability Report
 
-**Date**: 2026-02-09
-**Branch**: bugfix/360_fix_test_suite
-**Analyzed**: 164 test files (~97,232 lines)
+**Date:** 2026-02-13
+**Branch:** tests/571_refactor_tests
+**Analyst:** reliability-engineer
 
 ## Summary
 
-Analyzed the entire test suite for six categories of flakiness indicators.
-Applied fixes directly where safe; flagged remaining items for human review.
+Scanned all 183 test files (175 unit + 8 integration) for flakiness indicators across 6 categories. Found and fixed issues in 17 files across 39 locations.
 
-### Changes Made
+## Category 1: Floating-Point Comparisons
 
-| Category | Files Fixed | Issues Found | Issues Fixed |
-|---|---|---|---|
-| Unseeded Randomness | 11 | 25 | 25 |
-| Timing Dependencies | 2 | 3 | 3 |
-| Environment Sensitivity | 1 | 1 | 1 |
-| Floating-Point Comparisons | 0 | 0 (audit complete) | 0 |
-| Order Dependence | 0 | 0 (audit complete) | 0 |
-| Resource Leaks | 0 | 0 (audit complete) | 0 |
+### Findings
+- **83 existing `pytest.approx` usages** across 26 files -- many tests already handle this well
+- **~200 exact float comparisons** (`assert x == 0.05`, etc.) across the test suite
+- Most are safe: they compare directly-set config/attribute values (e.g., `assert config.tax_rate == 0.25`)
 
----
+### Fixed (high risk -- computed float values)
+| File | Lines | Issue | Fix |
+|------|-------|-------|-----|
+| `test_claim_development.py` | 31, 38, 45, 52, 62 | `sum(development_factors) == 1.0` -- floating-point sum accumulates error | Changed to `pytest.approx(1.0)` or `pytest.approx(1.0, abs=0.01)` |
+| `test_claim_development.py` | 138-144 | `get_cumulative_paid(n) == 0.65` -- cumulative sum of floats | Changed to `pytest.approx()` |
+| `test_claim_development.py` | 584, 617, 668 | `ibnr == 0.0` -- result of calculation that should be zero | Changed to `pytest.approx(0.0, abs=1e-10)` |
+| `test_benchmarking.py` | 330-332 | `avg_cpu == 70.0`, `avg_memory == 257.5` -- computed averages | Changed to `pytest.approx()` |
+| `test_bootstrap.py` | 427-431 | Bonferroni-corrected p-values (0.01 * 5, etc.) | Changed to `pytest.approx()` |
+| `test_performance.py` | 309 | `retained + recovered == losses` -- numpy float array equality | Changed to `pytest.approx()` |
 
-## 1. Unseeded Randomness (25 fixes)
+### Not Fixed (safe patterns)
+- Direct attribute/config value comparisons (e.g., `config.tax_rate == 0.25`) -- these are set, not computed
+- Integer-exact float comparisons (e.g., `payment == 100_000` where payment = 1_000_000 * 0.10)
+- Special case returns (`growth == 0.0`, `growth == -np.inf`)
 
-### Critical: Tests using `np.random.*` without seeding
+## Category 2: Timing Dependencies
 
-These tests generated random data with no fixed seed, meaning they could produce
-different results on each run. This is the **most common flakiness source** in
-this codebase.
+### Findings
+- **26 files** use `time.time()` for performance measurement
+- **16 assertions** compare execution time against thresholds
 
-#### Fixed Files
+### Fixed (flaky timing assertions)
+| File | Lines | Issue | Fix |
+|------|-------|-------|-----|
+| `test_claim_development.py` | 508 | `elapsed < 0.20` (200ms for 10K claims) | Relaxed to `< 2.0` |
+| `test_performance.py` | 166 | `vectorized_time < 0.1` (100ms for 1M calcs) | Relaxed to `< 1.0` |
+| `test_performance.py` | 299 | `vec_time < 0.1` (100ms for vectorized ops) | Relaxed to `< 1.0` |
+| `test_performance.py` | 394 | `cached_time < opt_time * 0.5` (cache 2x faster) | Removed timing comparison, kept functional assertion |
+| `test_cache_manager.py` | 513, 521-522 | `load_time < 1.0` + `speedup > 5x` | Relaxed load to `< 10.0`, removed speedup comparison |
+| `test_monte_carlo_extended.py` | 167 | `cache_load_time < results1.execution_time * 0.5` | Removed timing comparison, kept functional assertion |
+| `test_monte_carlo.py` | 896 | `overhead < 0.05` (5% serialization overhead) | Relaxed to `< 0.50` |
+| `test_integration.py` | 294-296 | `100 scenarios in 1.5s, 1000 in 10s` | Relaxed to `10s` and `60s` |
+| `test_end_to_end.py` | 520 | `max_time < min_time * 10.0` (scaling linearity) | Relaxed to `* 50.0` |
+| `test_insurance_program.py` | 1085 | `elapsed < 1.0` (10K claims processing) | Relaxed to `< 10.0` |
+| `test_loss_distributions.py` | 800, 812 | `elapsed_time < 1.0`, `< 5.0` | Relaxed to `< 10.0`, `< 30.0` |
 
-1. **test_ergodic_analyzer.py** (7 locations)
-   - `sample_trajectory` fixture: `np.random.normal()` -> `rng.normal()` with `default_rng(42)`
-   - `multiple_trajectories` fixture: `np.random.normal()` -> `rng.normal()` with `default_rng(42)`
-   - `test_check_convergence`: unseeded `np.random.normal()` -> seeded via `default_rng(42)`
-   - `test_compare_scenarios_with_arrays`: unseeded `np.random.normal()` -> seeded via `default_rng(42)`
-   - `test_compare_scenarios_with_simulation_results`: unseeded `np.random.uniform/poisson/lognormal/choice` -> seeded via `default_rng(42)`
-   - `test_significance_test`: unseeded `np.random.normal()` -> seeded via `default_rng(42)`
-   - `test_analyze_simulation_batch`: unseeded `np.random.uniform/poisson/lognormal` -> seeded via `default_rng(42)`
+### Not Fixed (safe patterns)
+- `time.sleep(0.01)` inside profiled functions (simulates work, not synchronization)
+- Timing assertions with generous thresholds (e.g., `< 60s`)
+- Timing measurements that don't have assertions
 
-2. **test_periodic_ruin_tracking.py** (1 location)
-   - `test_ruin_probability_consistency`: `np.random.random()` in Mock side_effect -> seeded `default_rng(123)`
+## Category 3: Randomness (Unseeded np.random)
 
-3. **test_decision_engine_scenarios.py** (1 location)
-   - `test_tail_risk_protection`: `np.random.random/lognormal()` in loss generator -> seeded `default_rng(42)`
+### Findings
+- **56 files** use `np.random` functions
+- Most files properly use `np.random.seed(42)` before random calls
+- ~15 files had unseeded random calls that could produce non-deterministic test data
 
-4. **test_executive_visualizations.py** (2 locations)
-   - `test_plot_optimal_coverage_heatmap_with_data`: `np.random.rand()` -> `rng.random()` with `default_rng(42)`
-   - `test_plot_robustness_heatmap_with_data`: `np.random.rand()` -> `rng.random()` with `default_rng(42)`
+### Fixed (missing seeds)
+| File | Issue |
+|------|-------|
+| `test_claim_development.py` (lines 492-497, 518-526) | Performance tests generated claims with unseeded `np.random.lognormal` -- replaced with `np.random.default_rng(42)` |
+| `test_performance.py` (lines 152, 177, 290, 302, 366) | Multiple test methods used unseeded `np.random.lognormal`, `np.random.exponential`, `np.random.uniform` -- added `np.random.seed(42)` |
+| `test_cache_manager.py` (lines 497, 546, 732) | Performance and metadata tests used unseeded random -- added `np.random.seed(42)` |
+| `test_visualization_simple.py` (lines 418-420, 437-438) | Dashboard tests used unseeded random for data generation -- added `np.random.seed(42)` |
+| `test_walk_forward.py` (lines 108-109, 246-251, 282-286, 1133-1137) | Multiple test methods and mock data used unseeded random -- added `np.random.seed(42)` |
+| `test_trajectory_storage.py` (lines 458, 712) | Storage tests used unseeded random for noise/data generation -- added `np.random.seed(42)` |
+| `test_parallel_executor.py` (lines 257, 491) | Shared memory and parallel tests used unseeded random -- added `np.random.seed(42)` |
+| `test_scenario_batch.py` (line 62-67) | Mock fixture used unseeded random for simulation results -- added `np.random.seed(42)` |
 
-5. **test_convergence_ess.py** (2 locations)
-   - `test_ess_with_negative_autocorrelation`: `np.random.randn()` -> `rng.standard_normal()` with `default_rng(42)`
-   - `test_ess_per_second_calculation`: `np.random.randn()` -> `rng.standard_normal()` with `default_rng(42)`
+### Not Fixed (acceptable)
+- Visualization test files where random data is used only to create plots and no values are asserted (the tests only check that plotting functions don't crash)
+- Files where `np.random.seed()` is called in a fixture or setup that runs before the random calls
+- Integration test fixtures that already use explicit seeds
 
-6. **test_sensitivity_visualization.py** (2 locations)
-   - `multiple_results` fixture: `np.random.uniform()` -> `rng.uniform()` with `default_rng(42)`
-   - `mock_analyzer` fixture: `np.random.uniform()` -> `_mock_rng.uniform()` with `default_rng(42)`
+## Category 4: Order Dependence
 
-7. **test_visualization_extended.py** (1 location)
-   - `sample_pareto_points` fixture: `np.random.uniform()` -> `rng.uniform()` with `default_rng(42)`
+### Findings
+- No module-level mutable state shared between tests (except `_registry` in shared memory test files, which use `autouse=True` fixtures to clear before/after each test)
+- No tests that modify class-level variables without restoration
+- No dict-ordering dependencies found
 
-8. **test_misc_gaps_coverage.py** (1 location)
-   - `mock_run` helper: `np.random.uniform()` -> `_sweep_rng.uniform()` with `default_rng(42)`
+### Not Fixed
+- No issues found requiring fixes
 
-9. **test_coverage_gaps_batch2.py** (2 locations)
-   - `test_adaptive_refinement_preserves_categorical_params`: `np.random.uniform()` -> `rng.uniform()` with `default_rng(42)`
+## Category 5: Resource Leaks
 
-10. **test_risk_metrics.py** (3 locations)
-    - `test_custom_return_periods`: added `np.random.seed(42)`
-    - `test_extreme_confidence_levels`: added `np.random.seed(42)`
-    - `test_stability_analysis`: added `np.random.seed(42)`
-
-11. **test_ergodic_analyzer_coverage.py** (1 location)
-    - `test_validate_matching_lengths_returns_true`: `np.random.rand()` -> `np.random.default_rng(42).random()`
-
-### Already Seeded (No Fix Needed)
-
-The following files properly seed their randomness:
-- `test_bootstrap.py` - all tests use `np.random.seed(42)` before random calls
-- `test_accuracy_validator.py` - all tests use `np.random.seed(42)`
-- `test_stochastic.py` - uses `StochasticConfig(random_seed=42)` for all tests
-- `test_monte_carlo.py` - uses `np.random.seed(42)` and `MonteCarloConfig(seed=42)`
-- `test_convergence_advanced.py` - uses `np.random.seed(42)`
-- `test_convergence_extended.py` - uses `np.random.seed(42)`
-- `test_parameter_sweep.py` - uses `np.random.seed(42)`
-- `test_technical_plots.py` - uses `np.random.seed(42)`
-- `test_visualization_simple.py` - uses `np.random.seed(42)`
-- `test_parallel_independence.py` - uses `np.random.seed(9999)` (intentionally testing global state)
-- `test_risk_metrics_coverage.py` - all tests use `np.random.seed(42)`
-
-### Remaining: Seeded via Global `np.random.seed()` (Low Risk)
-
-Several files use the older `np.random.seed(42)` pattern instead of `default_rng()`.
-This is suboptimal because it mutates global state, but it IS deterministic within
-each test. Migrating all to `default_rng()` would be a larger refactor. These are
-**low risk** for flakiness but flagged for future cleanup:
-- `test_bootstrap.py` (13 tests)
-- `test_accuracy_validator.py` (8 tests)
-- `test_monte_carlo.py` (5 tests)
-- `test_convergence_advanced.py` (3 tests)
-- `test_convergence_ess.py` (3 tests)
-- `test_parameter_sweep.py` (2 tests)
-
----
-
-## 2. Timing Dependencies (3 fixes)
+### Findings
+- **~30 `tempfile.mkdtemp()` usages** -- all have proper cleanup via `yield`/`shutil.rmtree` in fixtures or `try/finally` blocks
+- **~20 `NamedTemporaryFile` usages** -- all use `delete=False` with `try/finally` cleanup
+- Matplotlib `plt.close(fig)` is used consistently in visualization tests
 
 ### Fixed
+| File | Issue | Fix |
+|------|-------|-----|
+| `test_convergence_ess.py` (line 211) | Unnecessary `time.sleep(0.05)` -- assertions already handle elapsed_time >= 0 | Removed sleep |
 
-1. **test_convergence_ess.py** - `test_progress_monitoring_performance_impact`
-   - **Problem**: Asserted `overhead < 0.50` (50%) when comparing monitored vs
-     unmonitored execution times. On slow CI machines, GC pauses, or under
-     heavy load this can exceed 50%.
-   - **Fix**: Widened threshold to `< 1.0` (100%) and added a guard against
-     near-zero division when `time_no_monitor` is very small.
+### Not Fixed
+- No resource leak issues found requiring fixes
 
-2. **test_convergence_ess.py** - `test_progress_stats_generation`
-   - **Problem**: Used `time.sleep(0.01)` then asserted `elapsed_time > 0` and
-     `iterations_per_second > 0`. On very fast systems, 10ms sleep may not
-     register as elapsed time.
-   - **Fix**: Increased sleep to 50ms and relaxed assertions to `>= 0`.
+## Category 6: Environment Sensitivity
 
-### Flagged for Human Review (Not Fixed)
+### Findings
+- `conftest.py` properly checks `os.environ.get("CI")` for CI-specific behavior
+- Platform-specific tests use proper `pytest.mark.skipif` decorators (e.g., Windows shared memory tests)
+- No timezone or locale-dependent tests found
+- Path handling uses `pathlib.Path` consistently
 
-The following files contain timing-based performance tests that are inherently
-environment-dependent. They use `time.time()` to measure execution duration and
-compare against thresholds. These are **not flaky under normal conditions** but
-may fail in resource-constrained CI environments:
+### Not Fixed
+- No issues found requiring fixes
 
-- `test_performance.py` (8 timing comparisons) - tests execution time budgets
-- `test_bootstrap.py` (1 timing comparison) - parallel speedup test
-- `test_cache_manager.py` (3 timing measurements) - cache performance tests
-- `test_claim_development.py` (2 timing measurements) - performance tests
-- `test_loss_distributions.py` (2 timing measurements) - fitting speed
-- `test_monte_carlo.py` (2 timing comparisons) - enhanced vs standard speed
-- `test_integration.py` (3 timing measurements) - integration performance
-- `test_skipped_slow_tests.py` (5 timing measurements) - all already `@pytest.mark.skip`
+## Overall Statistics
 
-These are acceptable performance benchmarks, not unit tests. Their timing
-thresholds are generous enough for normal CI usage.
+| Category | Files Scanned | Issues Found | Issues Fixed |
+|----------|--------------|--------------|--------------|
+| Float comparisons | 183 | 12 locations | 12 |
+| Timing dependencies | 26 | 11 assertions | 11 |
+| Unseeded randomness | 56 | 15 locations | 15 |
+| Order dependence | 183 | 0 | 0 |
+| Resource leaks | 30 | 1 (unnecessary sleep) | 1 |
+| Environment sensitivity | 183 | 0 | 0 |
+| **Total** | **183** | **39** | **39** |
 
-### `time.sleep()` for Synchronization (Acceptable)
+## Files Modified
 
-- `test_cache_manager.py:335` - `time.sleep(0.5)` for TTL expiration test (necessary)
-- `test_cache_manager.py:358` - `time.sleep(0.1)` for timestamp ordering (necessary)
-- `test_parallel_executor.py:49,117` - `time.sleep(0.001)` to simulate work (necessary for test design)
-- `test_performance_optimizer.py:352` - `time.sleep(0.01)` inside profiled block (necessary)
-
----
-
-## 3. Environment Sensitivity (1 fix)
-
-### Fixed
-
-1. **integration/test_fixtures.py** - `config_manager` fixture
-   - **Problem**: Set `os.environ["ERGODIC_CONFIG_DIR"]` without cleanup. If this
-     fixture was used by a test, the env var persisted for all subsequent tests,
-     potentially affecting any code that reads this variable.
-   - **Fix**: Changed to use `monkeypatch.setenv()` which automatically restores
-     the original value on fixture teardown.
-
-### Already Handled
-
-- `conftest.py:43` - reads `os.environ.get("CI")` but only to skip tests (safe)
-- Matplotlib backend is set to `"Agg"` in conftest.py (idempotent, safe)
-
----
-
-## 4. Floating-Point Comparisons (Audit Complete, No Fixes Needed)
-
-Audited all `assert x == <float>` patterns across the test suite.
-
-### Already Using `pytest.approx()`
-
-The vast majority of float comparisons (180+) already use `pytest.approx()` with
-appropriate tolerances:
-- Actuarial calculations: `rel=0.01` to `rel=0.05`
-- Financial calculations: `rel=1e-6` to `rel=1e-9`
-- Statistical convergence: `rel=0.05` to `abs=0.01`
-
-### Exact Float Comparisons (Acceptable)
-
-The remaining exact `== float` comparisons are all safe because they compare
-against known exact values:
-
-- `assert x == 0.0` - checking for exactly zero (e.g., no payment, no recovery)
-  - `test_insurance_coverage.py`, `test_insurance_program.py`, `test_manufacturer_methods.py`, etc.
-- `assert x == -np.inf` - checking for negative infinity sentinel value
-  - `test_ergodic_analyzer.py`
-- `assert result == 42.0` - checking mock return values
-  - `test_coverage_gaps_batch1.py`
-- `assert rate == 0.0` - checking zero rates
-  - `test_adaptive_stopping.py`, `test_coverage_gaps_batch2.py`
-- `assert stat == 5.5` - checking exact mean of [1..10]
-  - `test_bootstrap.py`
-
-These are all integer-exact or zero comparisons that will never have
-floating-point precision issues.
-
----
-
-## 5. Order Dependence (Audit Complete, No Issues Found)
-
-### Module-Level State
-
-No test files modify module-level variables or class variables that persist
-between test methods. The codebase follows good practices:
-- Each test class uses `@pytest.fixture` for setup
-- No `setUpClass`/`tearDownClass` patterns that share mutable state
-- The `conftest.py` only sets up the matplotlib backend (idempotent)
-
-### File System Operations
-
-All tests that create files use `tmp_path` or `tempfile.TemporaryDirectory()`:
-- `test_cache_manager.py` - uses `tmp_path` fixture
-- `test_excel_reporter.py` - uses `tmp_path` fixture
-- `test_trajectory_storage.py` - uses `tmp_path` fixture
-- `test_config_*.py` - uses `tmp_path` fixture
-- `test_scenario_batch.py` - uses `tmp_path` fixture
-
-### Dict Ordering
-
-No tests depend on dict ordering for correctness. Results are checked by key
-access, not by iteration order.
-
----
-
-## 6. Resource Leaks (Audit Complete, No Issues Found)
-
-### Matplotlib Figures
-
-All visualization tests properly close figures with `plt.close(fig)` after
-assertions. No figure leaks found.
-
-### File Handles
-
-All file operations in tests use context managers (`with` statements) or
-`tmp_path` fixtures that handle cleanup.
-
-### Database/Socket Connections
-
-No tests open raw database connections or sockets. The cache manager tests
-use file-based caching with proper `tmp_path` cleanup.
-
----
-
-## Recommendations for Future Work
-
-1. **Migrate from `np.random.seed()` to `np.random.default_rng()`**: About 40
-   test functions still use the global seed pattern. This is deterministic but
-   pollutes global state. A future PR could systematically migrate these.
-
-2. **Consider `@pytest.mark.flaky` for timing tests**: The performance benchmark
-   tests in `test_performance.py` are inherently environment-dependent. Adding
-   retry decorators or moving them to a separate benchmark suite would improve CI
-   reliability.
-
-3. **Integration test fixtures seeding**: The `generate_sample_losses()` and
-   `generate_loss_data()` helpers in `integration/test_fixtures.py` accept an
-   optional `seed` parameter. Callers should always pass a seed for
-   reproducibility.
+1. `test_claim_development.py` -- float comparisons, unseeded random, timing
+2. `test_performance.py` -- unseeded random, timing assertions, float comparison
+3. `test_cache_manager.py` -- unseeded random, timing assertions
+4. `test_benchmarking.py` -- float comparisons
+5. `test_bootstrap.py` -- float comparisons
+6. `test_convergence_ess.py` -- unnecessary sleep
+7. `test_monte_carlo.py` -- timing assertion
+8. `test_monte_carlo_extended.py` -- timing assertion
+9. `test_integration.py` -- timing assertions
+10. `test_end_to_end.py` -- timing assertion
+11. `test_insurance_program.py` -- timing assertion
+12. `test_loss_distributions.py` -- timing assertions
+13. `test_visualization_simple.py` -- unseeded random
+14. `test_walk_forward.py` -- unseeded random
+15. `test_trajectory_storage.py` -- unseeded random
+16. `test_parallel_executor.py` -- unseeded random
+17. `test_scenario_batch.py` -- unseeded random

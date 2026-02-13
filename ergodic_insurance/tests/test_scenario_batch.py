@@ -56,6 +56,7 @@ def sample_scenario():
 @pytest.fixture
 def mock_simulation_results():
     """Create mock simulation results."""
+    np.random.seed(42)
     n_sims = 100
     n_years = 5
 
