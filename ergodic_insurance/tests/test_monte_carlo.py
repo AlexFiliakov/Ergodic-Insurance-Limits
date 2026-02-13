@@ -46,6 +46,60 @@ class TestMonteCarloConfig:
         assert config.parallel is False
         assert config.seed == 42
 
+    # --- __post_init__ validation tests (Issue #1135) ---
+
+    @pytest.mark.parametrize("value", [0, -1, -100])
+    def test_n_simulations_must_be_positive(self, value):
+        """n_simulations <= 0 should raise ValueError."""
+        with pytest.raises(ValueError, match="n_simulations must be positive"):
+            MonteCarloConfig(n_simulations=value)
+
+    @pytest.mark.parametrize("value", [0, -1, -5])
+    def test_n_years_must_be_positive(self, value):
+        """n_years <= 0 should raise ValueError."""
+        with pytest.raises(ValueError, match="n_years must be positive"):
+            MonteCarloConfig(n_years=value)
+
+    @pytest.mark.parametrize("value", [0, -1, -3])
+    def test_n_chains_must_be_at_least_one(self, value):
+        """n_chains < 1 should raise ValueError."""
+        with pytest.raises(ValueError, match="n_chains must be >= 1"):
+            MonteCarloConfig(n_chains=value)
+
+    @pytest.mark.parametrize("value", [0, -1, -1000])
+    def test_chunk_size_must_be_positive(self, value):
+        """chunk_size <= 0 should raise ValueError."""
+        with pytest.raises(ValueError, match="chunk_size must be positive"):
+            MonteCarloConfig(chunk_size=value)
+
+    @pytest.mark.parametrize("value", [0.0, 1.0, -0.1, 1.5])
+    def test_bootstrap_confidence_level_must_be_between_0_and_1(self, value):
+        """bootstrap_confidence_level outside (0,1) should raise ValueError."""
+        with pytest.raises(ValueError, match="bootstrap_confidence_level must be between 0 and 1"):
+            MonteCarloConfig(bootstrap_confidence_level=value)
+
+    def test_valid_boundary_values(self):
+        """Edge-valid values should not raise."""
+        config = MonteCarloConfig(
+            n_simulations=1,
+            n_years=1,
+            n_chains=1,
+            chunk_size=1,
+            bootstrap_confidence_level=0.5,
+        )
+        assert config.n_simulations == 1
+        assert config.n_years == 1
+        assert config.n_chains == 1
+        assert config.chunk_size == 1
+        assert config.bootstrap_confidence_level == 0.5
+
+    def test_bootstrap_confidence_near_boundaries(self):
+        """Values very close to 0 and 1 (but inside) should be accepted."""
+        config_low = MonteCarloConfig(bootstrap_confidence_level=0.001)
+        assert config_low.bootstrap_confidence_level == 0.001
+        config_high = MonteCarloConfig(bootstrap_confidence_level=0.999)
+        assert config_high.bootstrap_confidence_level == 0.999
+
 
 class TestMonteCarloResults:
     """Test MonteCarloResults dataclass."""

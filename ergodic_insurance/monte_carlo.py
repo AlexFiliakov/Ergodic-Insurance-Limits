@@ -345,6 +345,38 @@ class MonteCarloConfig:
     crn_base_seed: Optional[int] = None  # Common Random Numbers seed for cross-scenario comparison
     use_gpu: bool = False  # Use GPU-accelerated vectorized simulation (Issue #961)
 
+    def __post_init__(self):
+        """Validate configuration parameters.
+
+        Raises:
+            ValueError: If any parameter is out of its valid range.
+        """
+        if self.n_simulations <= 0:
+            raise ValueError(
+                f"n_simulations must be positive, got {self.n_simulations}. "
+                "Use at least 1000 for meaningful results."
+            )
+        if self.n_years <= 0:
+            raise ValueError(
+                f"n_years must be positive, got {self.n_years}. "
+                "Set to the number of years to simulate (e.g. 10)."
+            )
+        if self.n_chains < 1:
+            raise ValueError(
+                f"n_chains must be >= 1, got {self.n_chains}. "
+                "Use at least 2 chains for convergence diagnostics."
+            )
+        if self.chunk_size <= 0:
+            raise ValueError(
+                f"chunk_size must be positive, got {self.chunk_size}. "
+                "Typical values are 1000-10000."
+            )
+        if not (0 < self.bootstrap_confidence_level < 1):
+            raise ValueError(
+                f"bootstrap_confidence_level must be between 0 and 1 (exclusive), "
+                f"got {self.bootstrap_confidence_level}. Use e.g. 0.95 for a 95% CI."
+            )
+
 
 @dataclass
 class MonteCarloResults:
