@@ -1173,9 +1173,14 @@ class FinancialStatementGenerator:
         data.append(("  Net Property, Plant & Equipment", net_ppe, "", "subtotal"))
         data.append(("", "", "", ""))
 
-        # Deferred Tax Assets (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5)
+        # Deferred Tax Assets (Issue #367, ASC 740; Issue #464, ASC 740-10-30-5;
+        # Issue #821, ASC 740-10-45-6: DTA/DTL netted within jurisdiction)
         deferred_tax_asset = metrics.get("deferred_tax_asset", 0)
         dta_valuation_allowance = metrics.get("dta_valuation_allowance", 0)
+        deferred_tax_liability = metrics.get("deferred_tax_liability", 0)
+        gross_dta = to_decimal(deferred_tax_asset) - to_decimal(dta_valuation_allowance)
+        # ASC 740-10-45-6: Net DTA/DTL within jurisdiction
+        net_dta = max(gross_dta - to_decimal(deferred_tax_liability), ZERO)
         if deferred_tax_asset > 0 or dta_valuation_allowance > 0:
             data.append(("Other Non-Current Assets", "", "", ""))
             data.append(("  Deferred Tax Asset (Gross)", deferred_tax_asset, "", ""))
@@ -1183,8 +1188,16 @@ class FinancialStatementGenerator:
                 data.append(
                     ("  Less: Valuation Allowance", -to_decimal(dta_valuation_allowance), "", "")
                 )
-            net_dta = to_decimal(deferred_tax_asset) - to_decimal(dta_valuation_allowance)
-            data.append(("  Deferred Tax Asset (Net)", net_dta, "", "subtotal"))
+            if to_decimal(deferred_tax_liability) > ZERO:
+                data.append(
+                    (
+                        "  Less: Deferred Tax Liability (Netting)",
+                        -to_decimal(min(to_decimal(deferred_tax_liability), gross_dta)),
+                        "",
+                        "",
+                    )
+                )
+            data.append(("  Deferred Tax Asset (Net, ASC 740-10-45-6)", net_dta, "", "subtotal"))
             data.append(("", "", "", ""))
 
         # Restricted Assets
@@ -1272,11 +1285,15 @@ class FinancialStatementGenerator:
         data.append(("Non-Current Liabilities", "", "", ""))
         long_term_claims = claim_liabilities - current_claims
         data.append(("  Long-Term Claim Reserves", long_term_claims, "", ""))
-        # Deferred Tax Liability (Issue #367, ASC 740)
-        deferred_tax_liability = metrics.get("deferred_tax_liability", 0)
-        if deferred_tax_liability > 0:
-            data.append(("  Deferred Tax Liability", deferred_tax_liability, "", ""))
-        total_non_current = long_term_claims + to_decimal(deferred_tax_liability)
+        # Issue #821: Deferred Tax Liability, netted per ASC 740-10-45-6
+        deferred_tax_liability = to_decimal(metrics.get("deferred_tax_liability", 0))
+        deferred_tax_asset = to_decimal(metrics.get("deferred_tax_asset", 0))
+        dta_valuation_allowance = to_decimal(metrics.get("dta_valuation_allowance", 0))
+        gross_dta = deferred_tax_asset - dta_valuation_allowance
+        net_dtl = max(deferred_tax_liability - gross_dta, ZERO)
+        if net_dtl > 0:
+            data.append(("  Deferred Tax Liability (Net, ASC 740-10-45-6)", net_dtl, "", ""))
+        total_non_current = long_term_claims + net_dtl
         data.append(("  Total Non-Current Liabilities", total_non_current, "", "subtotal"))
         data.append(("", "", "", ""))
 

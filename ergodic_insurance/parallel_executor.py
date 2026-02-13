@@ -30,12 +30,14 @@ Date:
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
+import logging
 import multiprocessing as mp
 from multiprocessing import shared_memory
 import os
-import pickle
 import platform
+import threading
 import time
+import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import uuid
 import warnings
@@ -43,6 +45,10 @@ import warnings
 import numpy as np
 import psutil
 from tqdm import tqdm
+
+from ergodic_insurance.safe_pickle import safe_dumps, safe_loads
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -229,8 +235,8 @@ class SharedMemoryManager:
         if not self.config.enable_shared_objects:
             return ""
 
-        # Serialize object
-        serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        # Serialize object with HMAC integrity verification
+        serialized = safe_dumps(obj)
 
         # Compress if enabled
         if self.config.compression:
@@ -275,7 +281,7 @@ class SharedMemoryManager:
 
             data = zlib.decompress(data)
 
-        return pickle.loads(data)
+        return safe_loads(data)
 
     def get_object_size(self, name: str) -> int:
         """Get the actual stored size of a shared object.
@@ -337,6 +343,8 @@ class PerformanceMetrics:
     cpu_utilization: float = 0.0
     items_per_second: float = 0.0
     speedup: float = 1.0
+    total_items: int = 0
+    failed_items: int = 0
 
     def summary(self) -> str:
         """Generate performance summary.
@@ -346,19 +354,27 @@ class PerformanceMetrics:
         """
         overhead = self.serialization_time / self.total_time * 100 if self.total_time > 0 else 0
 
-        return (
-            f"Performance Summary\n"
-            f"{'='*50}\n"
-            f"Total Time: {self.total_time:.2f}s\n"
-            f"Setup: {self.setup_time:.2f}s\n"
-            f"Computation: {self.computation_time:.2f}s\n"
-            f"Serialization: {self.serialization_time:.2f}s ({overhead:.1f}% overhead)\n"
-            f"Reduction: {self.reduction_time:.2f}s\n"
-            f"Peak Memory: {self.memory_peak / 1024**2:.1f} MB\n"
-            f"CPU Utilization: {self.cpu_utilization:.1f}%\n"
-            f"Throughput: {self.items_per_second:.0f} items/s\n"
-            f"Speedup: {self.speedup:.2f}x\n"
-        )
+        lines = [
+            f"Performance Summary\n",
+            f"{'='*50}\n",
+            f"Total Time: {self.total_time:.2f}s\n",
+            f"Setup: {self.setup_time:.2f}s\n",
+            f"Computation: {self.computation_time:.2f}s\n",
+            f"Serialization: {self.serialization_time:.2f}s ({overhead:.1f}% overhead)\n",
+            f"Reduction: {self.reduction_time:.2f}s\n",
+            f"Peak Memory: {self.memory_peak / 1024**2:.1f} MB\n",
+            f"CPU Utilization: {self.cpu_utilization:.1f}%\n",
+            f"Throughput: {self.items_per_second:.0f} items/s\n",
+            f"Speedup: {self.speedup:.2f}x\n",
+        ]
+
+        if self.failed_items > 0:
+            failure_rate = self.failed_items / self.total_items * 100 if self.total_items > 0 else 0
+            lines.append(
+                f"Failed Items: {self.failed_items}/{self.total_items}" f" ({failure_rate:.1f}%)\n"
+            )
+
+        return "".join(lines)
 
 
 class ParallelExecutor:
@@ -375,6 +391,7 @@ class ParallelExecutor:
         chunking_strategy: Optional[ChunkingStrategy] = None,
         shared_memory_config: Optional[SharedMemoryConfig] = None,
         monitor_performance: bool = True,
+        max_failure_rate: Optional[float] = None,
     ):
         """Initialize parallel executor.
 
@@ -383,6 +400,10 @@ class ParallelExecutor:
             chunking_strategy: Strategy for work distribution
             shared_memory_config: Configuration for shared memory
             monitor_performance: Enable performance monitoring
+            max_failure_rate: Maximum fraction of items that may fail before
+                raising a ``RuntimeError``.  For example, ``0.1`` means raise
+                if more than 10 % of items fail.  ``None`` (default) disables
+                the threshold check.
         """
         # Detect CPU profile
         self.cpu_profile = CPUProfile.detect()
@@ -403,6 +424,9 @@ class ParallelExecutor:
         # Initialize shared memory manager
         self.shared_memory_manager = SharedMemoryManager(self.shared_memory_config)
 
+        # Failure threshold
+        self.max_failure_rate = max_failure_rate
+
         # Performance monitoring
         self.monitor_performance = monitor_performance
         self.performance_metrics = PerformanceMetrics()
@@ -414,6 +438,8 @@ class ParallelExecutor:
         reduce_function: Optional[Callable] = None,
         shared_data: Optional[Dict[str, Any]] = None,
         progress_bar: bool = True,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
     ) -> Any:
         """Execute parallel map-reduce operation.
 
@@ -423,6 +449,11 @@ class ParallelExecutor:
             reduce_function: Function to combine results (None for list)
             shared_data: Data to share across all workers
             progress_bar: Show progress bar
+            progress_callback: Optional callback invoked with
+                ``(completed, total, elapsed_seconds)`` after each chunk.
+            cancel_event: Optional :class:`threading.Event`; when set the
+                executor stops after the current chunk and returns partial
+                results.
 
         Returns:
             Any: Combined results from reduce function or list of results
@@ -447,7 +478,15 @@ class ParallelExecutor:
 
         # Execute parallel work
         comp_start = time.time()
-        chunk_results = self._execute_parallel(work_function, chunks, shared_refs, progress_bar)
+        chunk_results = self._execute_parallel(
+            work_function,
+            chunks,
+            shared_refs,
+            progress_bar,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
+            total_items=n_items,
+        )
         self.performance_metrics.computation_time = time.time() - comp_start
 
         # Reduce results
@@ -578,6 +617,9 @@ class ParallelExecutor:
         chunks: List[Tuple[int, int, List]],
         shared_refs: Dict[str, Tuple[str, Any]],
         progress_bar: bool,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+        total_items: int = 0,
     ) -> List[Any]:
         """Execute work in parallel.
 
@@ -586,17 +628,24 @@ class ParallelExecutor:
             chunks: Work chunks
             shared_refs: Shared memory references
             progress_bar: Show progress
+            progress_callback: Optional callback with (completed, total, elapsed)
+            cancel_event: Optional cancel event
+            total_items: Total number of work items (for progress reporting)
 
         Returns:
             List[Any]: Results from all chunks
         """
         results = []
+        total_failed = 0
 
         # Create process pool with optimized settings
         # Set CPU affinity if on Linux
         if platform.system() == "Linux":
             # Use taskset equivalent via ProcessPoolExecutor initializer
             pass  # Platform-specific optimization
+
+        exec_start = time.time()
+        completed_items = 0
 
         with ProcessPoolExecutor(
             max_workers=self.n_workers, mp_context=mp.get_context()  # Use default context
@@ -607,7 +656,7 @@ class ParallelExecutor:
                 future = executor.submit(
                     _execute_chunk, work_function, chunk, shared_refs, self.shared_memory_config
                 )
-                futures[future] = chunk[0]  # Track by start index
+                futures[future] = chunk  # Track full chunk tuple
 
             # Process results
             if progress_bar:
@@ -615,19 +664,60 @@ class ParallelExecutor:
 
             # Collect results in order
             for future in as_completed(futures):
+                # Check for cancellation
+                if cancel_event is not None and cancel_event.is_set():
+                    for f in futures:
+                        f.cancel()
+                    break
+
                 try:
-                    result = future.result()
-                    results.append((futures[future], result))
+                    chunk_results, chunk_failed = future.result()
+                    chunk_info = futures[future]
+                    results.append((chunk_info[0], chunk_results))
+                    total_failed += chunk_failed
+
+                    # Update completed count
+                    completed_items += chunk_info[1] - chunk_info[0]
 
                     if progress_bar:
                         pbar.update(1)
+
+                    if progress_callback is not None and total_items > 0:
+                        progress_callback(completed_items, total_items, time.time() - exec_start)
                 except (ValueError, TypeError, RuntimeError) as e:
                     warnings.warn(f"Chunk execution failed: {e}", UserWarning)
                     # Return empty list for failed chunks instead of None
-                    results.append((futures[future], []))
+                    chunk_info = futures[future]
+                    results.append((chunk_info[0], []))
+                    # Count all items in the failed chunk as failures
+                    total_failed += chunk_info[1] - chunk_info[0]
 
             if progress_bar:
                 pbar.close()
+
+        # Update failure metrics
+        self.performance_metrics.total_items = total_items
+        self.performance_metrics.failed_items = total_failed
+
+        if total_failed > 0:
+            logger.warning(
+                "%d of %d work items failed (%.1f%%)",
+                total_failed,
+                total_items,
+                total_failed / total_items * 100 if total_items > 0 else 0,
+            )
+
+        # Check failure rate threshold
+        if (
+            self.max_failure_rate is not None
+            and total_items > 0
+            and total_failed / total_items > self.max_failure_rate
+        ):
+            raise RuntimeError(
+                f"Failure rate {total_failed}/{total_items} "
+                f"({total_failed / total_items:.1%}) exceeds maximum "
+                f"allowed rate of {self.max_failure_rate:.1%}"
+            )
 
         # Sort results by original order
         results.sort(key=lambda x: x[0])
@@ -684,9 +774,10 @@ def _execute_chunk(
         shared_memory_config: Shared memory configuration
 
     Returns:
-        Any: Results from the chunk
+        Tuple[List[Any], int]: A tuple of (results, failed_count) where
+            failed items are represented as ``None`` in the results list.
     """
-    _start_idx, _end_idx, items = chunk
+    start_idx, _end_idx, items = chunk
 
     # Reconstruct shared data
     shared_data = {}
@@ -705,7 +796,8 @@ def _execute_chunk(
     # Process items - return partial results on individual failures
     try:
         results = []
-        for item in items:
+        failed_count = 0
+        for idx, item in enumerate(items):
             try:
                 if shared_data:
                     result = work_function(item, **shared_data)
@@ -713,9 +805,16 @@ def _execute_chunk(
                     result = work_function(item)
                 results.append(result)
             except Exception:
+                failed_count += 1
+                item_idx = start_idx + idx
+                logger.warning(
+                    "Work item %d failed: %s",
+                    item_idx,
+                    traceback.format_exc().strip(),
+                )
                 results.append(None)
 
-        return results
+        return results, failed_count
     finally:
         if sm_manager is not None:
             sm_manager.cleanup()

@@ -370,13 +370,16 @@ class TestDepreciationTracking:
         equity_change = manufacturer.equity - initial_equity
         assert float(equity_change) == pytest.approx(float(-depreciation_expense), rel=1e-9)
 
-    def test_depreciation_reduces_equity_through_step(self):
-        """Test that step() produces equity decrease when depreciation dominates.
+    def test_depreciation_equity_through_step(self):
+        """Test equity behavior when depreciation exceeds retained earnings.
 
-        With a configuration where depreciation exceeds retained earnings,
-        equity should decrease even when net income is positive.
+        After Issue #637, depreciation is a non-cash charge that is added back
+        to cash in update_balance_sheet(). This means equity change equals
+        approximately retained earnings (net_income * retention_ratio), not
+        retained earnings minus depreciation. Depreciation still reduces net
+        PP&E but the add-back to cash offsets its impact on total assets.
 
-        Regression for GitHub Issue #286.
+        Updated from GitHub Issue #286 to reflect Issue #637 fix.
         """
         config = ManufacturerConfig(
             initial_assets=10_000_000,
@@ -393,10 +396,11 @@ class TestDepreciationTracking:
         # Net income should be positive (profitable operation)
         assert metrics["net_income"] > 0
 
-        # But equity should decrease because depreciation (500K) + tax accrual
-        # exceed retained earnings
+        # With Issue #637 fix, depreciation is added back to cash so equity
+        # change reflects retained earnings, not retained - depreciation.
+        # Equity should increase (or at least not decrease due to depreciation).
         equity_change = manufacturer.equity - initial_equity
-        assert equity_change < 0, (
-            f"Equity should decrease when depreciation exceeds retained earnings, "
-            f"but equity_change={equity_change}"
+        assert equity_change > 0, (
+            f"With depreciation add-back (Issue #637), equity should increase "
+            f"when net income is positive, but equity_change={equity_change}"
         )

@@ -134,6 +134,51 @@ class TestNumericalMethods:
         assert result_mixed[0] == 0.0  # backward diff undefined at first point
         assert result_mixed[-1] == 0.0  # forward diff undefined at last point
 
+    def test_upwind_direction_matches_hjb_sign_convention(self):
+        """Verify the upwind direction is correct for the HJB sign convention.
+
+        The HJB PDE is V_t = drift*V_x + ..., which is V_t + (-drift)*V_x = 0.
+        The effective advection coefficient is a = -drift, so:
+          drift > 0 => a < 0 => forward diff (upwind)
+          drift < 0 => a > 0 => backward diff (upwind)
+
+        This is the OPPOSITE of the standard advection rule for V_t + a*V_x = 0
+        where a = drift.  The test solves a pure advection problem using the
+        explicit scheme and verifies stability.  The wrong direction would be
+        unconditionally unstable at CFL ~ 1.
+        """
+        N = 51
+        state_space = StateSpace([StateVariable("x", 0, 10, N)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.ones_like(x) * 2.0,  # positive drift
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            discount_rate=0.0,
+            time_horizon=None,
+        )
+        config = HJBSolverConfig(max_iterations=1, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        # Set a smooth value function
+        grid = state_space.grids[0]
+        solver.value_function = np.sin(grid * np.pi / 10.0)
+
+        # One explicit step with the upwind scheme
+        drift_arr = np.ones(N) * 2.0
+        advection = solver._apply_upwind_scheme(solver.value_function, drift_arr, 0)
+
+        dx = grid[1] - grid[0]
+        dt = 0.4 * dx / 2.0  # CFL ~ 0.4
+        V_new = solver.value_function + dt * advection
+
+        # The solution should stay bounded (no amplification)
+        assert np.all(np.isfinite(V_new)), "Upwind scheme produced non-finite values"
+        assert (
+            np.max(np.abs(V_new)) <= np.max(np.abs(solver.value_function)) * 1.1
+        ), "Upwind scheme amplified the solution (wrong direction?)"
+
     def test_numerical_stability_extreme_values(self):
         """Test solver stability with extreme parameter values."""
         # Test with very small grid spacing
@@ -2244,3 +2289,325 @@ class TestCrankNicolsonScheme:
             assert len(warning_calls) > 0, "Should warn about multi-D fallback"
 
         assert np.all(np.isfinite(value)), "Multi-D fallback should produce finite results"
+
+
+class TestVectorizedPolicyImprovement:
+    """Tests for vectorized and adaptive policy improvement strategies (#642)."""
+
+    @staticmethod
+    def _make_solver(
+        n_controls=1, num_points=5, n_state_pts=11, strategy="loop", memory_mb=256, diffusion=None
+    ):
+        """Helper to build a solver with a simple dynamics/cost problem."""
+        state_space = StateSpace([StateVariable("x", 0, 10, n_state_pts)])
+
+        cvars = [ControlVariable(f"u{i}", 0.0, 1.0, num_points) for i in range(n_controls)]
+
+        def dynamics(x, u, t):
+            return x * u[..., 0:1] * 0.1
+
+        def running_cost(x, u, t):
+            return -x[..., 0] * u[..., 0]
+
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=cvars,
+            utility_function=LogUtility(),
+            dynamics=dynamics,
+            running_cost=running_cost,
+            diffusion=diffusion,
+            discount_rate=0.05,
+            time_horizon=None,
+        )
+        config = HJBSolverConfig(
+            max_iterations=3,
+            verbose=False,
+            control_search_strategy=strategy,
+            control_memory_budget_mb=memory_mb,
+        )
+        solver = HJBSolver(problem, config)
+
+        # Set a non-trivial value function so policy improvement has something to work with
+        grid = state_space.grids[0]
+        solver.value_function = np.log(np.maximum(grid, 1e-6))
+        solver.optimal_policy = {cv.name: np.full(state_space.shape, 0.5) for cv in cvars}
+        return solver
+
+    def test_vectorized_matches_loop_1_control(self):
+        """Vectorized strategy matches loop exactly for 1 control."""
+        solver_loop = self._make_solver(n_controls=1, num_points=5, strategy="loop")
+        solver_vec = self._make_solver(n_controls=1, num_points=5, strategy="vectorized")
+
+        solver_loop._policy_improvement()
+        solver_vec._policy_improvement()
+
+        for cv in solver_loop.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_vec.optimal_policy[cv.name],
+                solver_loop.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg=f"Vectorized != loop for control {cv.name} (1 control)",
+            )
+
+    def test_vectorized_matches_loop_2_controls(self):
+        """Vectorized strategy matches loop exactly for 2 controls."""
+        solver_loop = self._make_solver(n_controls=2, num_points=5, strategy="loop")
+        solver_vec = self._make_solver(n_controls=2, num_points=5, strategy="vectorized")
+
+        solver_loop._policy_improvement()
+        solver_vec._policy_improvement()
+
+        for cv in solver_loop.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_vec.optimal_policy[cv.name],
+                solver_loop.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg=f"Vectorized != loop for control {cv.name} (2 controls)",
+            )
+
+    def test_chunking_with_tiny_memory_produces_identical_results(self):
+        """Tiny memory budget forces multiple chunks but result is identical."""
+        solver_big = self._make_solver(
+            n_controls=1, num_points=8, strategy="vectorized", memory_mb=256
+        )
+        # 1 byte budget forces chunk_size=1
+        solver_tiny = self._make_solver(
+            n_controls=1, num_points=8, strategy="vectorized", memory_mb=1
+        )
+
+        solver_big._policy_improvement()
+        solver_tiny._policy_improvement()
+
+        for cv in solver_big.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_tiny.optimal_policy[cv.name],
+                solver_big.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg="Chunking changed results",
+            )
+
+    def test_adaptive_within_tolerance_of_full_search(self):
+        """Adaptive strategy finds controls close to full vectorized search."""
+        solver_vec = self._make_solver(n_controls=2, num_points=10, strategy="vectorized")
+        solver_adp = self._make_solver(n_controls=2, num_points=10, strategy="adaptive")
+
+        solver_vec._policy_improvement()
+        solver_adp._policy_improvement()
+
+        for cv in solver_vec.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_adp.optimal_policy[cv.name],
+                solver_vec.optimal_policy[cv.name],
+                rtol=1e-3,
+                atol=1e-2,
+                err_msg=f"Adaptive too far from vectorized for {cv.name}",
+            )
+
+    def test_vectorized_with_diffusion_matches_loop(self):
+        """Vectorized matches loop when diffusion term is present."""
+
+        def diffusion(x, u, t):
+            return np.ones_like(x) * 0.1
+
+        solver_loop = self._make_solver(
+            n_controls=1, num_points=5, strategy="loop", diffusion=diffusion
+        )
+        solver_vec = self._make_solver(
+            n_controls=1, num_points=5, strategy="vectorized", diffusion=diffusion
+        )
+
+        solver_loop._policy_improvement()
+        solver_vec._policy_improvement()
+
+        for cv in solver_loop.problem.control_variables:
+            np.testing.assert_allclose(
+                solver_vec.optimal_policy[cv.name],
+                solver_loop.optimal_policy[cv.name],
+                rtol=1e-12,
+                err_msg=f"Vectorized != loop with diffusion for {cv.name}",
+            )
+
+    def test_build_control_combos_matches_itertools(self):
+        """_build_control_combos output matches itertools.product."""
+        from itertools import product as itertools_product
+
+        samples = [np.array([1.0, 2.0, 3.0]), np.array([10.0, 20.0])]
+        combos = HJBSolver._build_control_combos(samples)
+
+        expected = np.array(list(itertools_product(*samples)))
+        np.testing.assert_array_equal(combos, expected)
+
+    def test_auto_strategy_works_for_small_problems(self):
+        """Auto strategy selects vectorized for small combo count and runs."""
+        solver = self._make_solver(n_controls=1, num_points=5, strategy="auto")
+        solver._policy_improvement()  # should not raise
+        # With 5 combos < 5000 threshold, auto should pick vectorized
+        assert solver.optimal_policy is not None
+
+    def test_gradient_strategy_raises(self):
+        """Gradient strategy raises NotImplementedError."""
+        solver = self._make_solver(n_controls=1, num_points=3, strategy="gradient")
+        with pytest.raises(NotImplementedError, match="Gradient-based"):
+            solver._policy_improvement()
+
+    def test_edge_case_minimal_grid(self):
+        """Minimal grid (3 state points, 3 control points) works for all strategies."""
+        for strategy in ("loop", "vectorized", "adaptive", "auto"):
+            solver = self._make_solver(n_controls=1, num_points=3, n_state_pts=3, strategy=strategy)
+            solver._policy_improvement()
+            for cv in solver.problem.control_variables:
+                assert np.all(
+                    np.isfinite(solver.optimal_policy[cv.name])
+                ), f"Non-finite policy with strategy={strategy}"
+
+
+class TestOperatorCache:
+    """Tests for sparse matrix factorization cache in _theta_step_1d (#636)."""
+
+    @staticmethod
+    def _make_solver(drift_scale=0.05, sigma_sq=None, num_points=20):
+        """Helper to build a 1D solver for cache tests."""
+        sv = StateVariable("x", 1.0, 5.0, num_points)
+        state_space = StateSpace([sv])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 3)],
+            utility_function=LogUtility(),
+            dynamics=lambda x, u, t: x * drift_scale,
+            running_cost=lambda x, u, t: -x[..., 0] * 0.01,
+            diffusion=(lambda x, u, t: np.full_like(x, sigma_sq)) if sigma_sq else None,
+            discount_rate=0.05,
+        )
+        config = HJBSolverConfig(
+            time_step=0.01,
+            max_iterations=5,
+            scheme=TimeSteppingScheme.IMPLICIT,
+            verbose=False,
+        )
+        solver = HJBSolver(problem, config)
+        return solver
+
+    def test_cache_populated_on_first_call(self):
+        """Cache should be populated after the first _theta_step_1d call."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        assert len(solver._operator_cache) == 0
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=1.0, dim=0)
+        assert len(solver._operator_cache) == 1
+        assert (1.0, dt, 0) in solver._operator_cache
+
+    def test_cache_reused_on_subsequent_calls(self):
+        """Subsequent calls with same (theta, dt, dim) should hit the cache."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=1.0, dim=0)
+        cached_entry = solver._operator_cache[(1.0, dt, 0)]
+
+        # Second call should not change the cached entry (same object)
+        solver._theta_step_1d(old_v * 1.1, cost, drift, None, dt, theta=1.0, dim=0)
+        assert solver._operator_cache[(1.0, dt, 0)] is cached_entry
+
+    def test_invalidation_clears_cache(self):
+        """_invalidate_operator_cache should clear all entries."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=1.0, dim=0)
+        assert len(solver._operator_cache) == 1
+
+        solver._invalidate_operator_cache()
+        assert len(solver._operator_cache) == 0
+
+    def test_cached_result_matches_spsolve_reference(self):
+        """Cached splu solver must produce numerically identical results to spsolve."""
+        solver = self._make_solver(sigma_sq=0.04)
+        N = 20
+        old_v = np.log(np.linspace(1, 5, N))
+        cost = -np.linspace(1, 5, N) * 0.01
+        drift = np.linspace(1, 5, N) * 0.05
+        sigma_sq = np.full(N, 0.04)
+        dt = 0.01
+
+        # First call populates cache (splu path)
+        result_cached = solver._theta_step_1d(old_v, cost, drift, sigma_sq, dt, theta=1.0, dim=0)
+
+        # Build reference via spsolve (reproduce original logic)
+        L = solver._build_spatial_operator_1d(drift, sigma_sq, dim=0)
+        I_mat = sparse.eye(N, format="csr")
+        A = I_mat - 1.0 * dt * L
+        A = A.tolil()
+        A[0, :] = 0
+        A[0, 0] = 1.0
+        A[N - 1, :] = 0
+        A[N - 1, N - 1] = 1.0
+        A = A.tocsr()
+        rhs = old_v + dt * cost
+        rhs[0] = old_v[0]
+        rhs[N - 1] = old_v[N - 1]
+        result_ref = sparse.linalg.spsolve(A, rhs)
+
+        np.testing.assert_allclose(
+            result_cached,
+            result_ref,
+            rtol=1e-12,
+            err_msg="Cached splu result differs from spsolve reference",
+        )
+
+    def test_cn_rannacher_creates_two_cache_entries(self):
+        """CN with Rannacher startup should create distinct cache entries for theta=1.0 and theta=0.5."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        drift = np.ones(N) * 0.05
+        dt = 0.01
+
+        # Rannacher half-step (theta=1.0, dt/2)
+        solver._theta_step_1d(old_v, cost, drift, None, dt / 2.0, theta=1.0, dim=0)
+        # CN step (theta=0.5, dt)
+        solver._theta_step_1d(old_v, cost, drift, None, dt, theta=0.5, dim=0)
+
+        assert len(solver._operator_cache) == 2
+        assert (1.0, dt / 2.0, 0) in solver._operator_cache
+        assert (0.5, dt, 0) in solver._operator_cache
+
+        # theta=1.0 entry should have B=None, theta=0.5 should have a B matrix
+        _, B_implicit = solver._operator_cache[(1.0, dt / 2.0, 0)]
+        _, B_cn = solver._operator_cache[(0.5, dt, 0)]
+        assert B_implicit is None
+        assert B_cn is not None
+
+    def test_different_drift_after_invalidation_gives_different_results(self):
+        """After invalidation with different drift, results should differ."""
+        solver = self._make_solver()
+        N = 20
+        old_v = np.linspace(1, 5, N)
+        cost = np.zeros(N)
+        dt = 0.01
+
+        drift_a = np.ones(N) * 0.05
+        result_a = solver._theta_step_1d(old_v, cost, drift_a, None, dt, theta=1.0, dim=0)
+
+        solver._invalidate_operator_cache()
+
+        drift_b = np.ones(N) * 0.50  # 10x larger drift
+        result_b = solver._theta_step_1d(old_v, cost, drift_b, None, dt, theta=1.0, dim=0)
+
+        # Results should differ because drift changed the operator
+        assert not np.allclose(
+            result_a, result_b, rtol=1e-6
+        ), "Different drift after invalidation should produce different results"

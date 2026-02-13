@@ -387,3 +387,108 @@ class TestValuationAllowanceAccounting:
             f"Assets={total_assets:,.2f}, Liabilities={total_liabilities:,.2f}, "
             f"Equity={equity:,.2f}"
         )
+
+
+class TestRevenueExcludesDTA:
+    """Tests for Issue #1055: calculate_revenue must not inflate revenue via VA/DTA."""
+
+    @pytest.fixture
+    def config(self):
+        return ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.15,
+            tax_rate=0.25,
+            retention_ratio=1.0,
+            nol_carryforward_enabled=True,
+            nol_limitation_pct=0.80,
+        )
+
+    @pytest.fixture
+    def manufacturer(self, config):
+        return WidgetManufacturer(config)
+
+    def _force_loss_year(self, mfg):
+        """Helper to force a loss year on the manufacturer."""
+        revenue = mfg.calculate_revenue()
+        operating_income = mfg.calculate_operating_income(revenue)
+        excessive_costs = operating_income + to_decimal(500_000)
+        return mfg.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
+
+    def test_revenue_does_not_add_back_valuation_allowance(self, manufacturer):
+        """Revenue must not add back VA to the asset base (Issue #1055).
+
+        After 3 loss years, a valuation allowance exists. Revenue should
+        be based on operating assets only, never inflated by adding VA back.
+        """
+        for _ in range(3):
+            self._force_loss_year(manufacturer)
+
+        va = manufacturer.dta_valuation_allowance
+        assert va > ZERO, "Precondition: VA should exist after 3 loss years"
+
+        revenue = manufacturer.calculate_revenue()
+        net_dta = manufacturer.net_deferred_tax_asset
+        operating_assets = manufacturer.total_assets - net_dta
+        expected_revenue = max(ZERO, operating_assets) * to_decimal(
+            manufacturer.asset_turnover_ratio
+        )
+        assert revenue == expected_revenue
+
+    def test_revenue_excludes_net_dta(self, manufacturer):
+        """Revenue base should exclude net DTA entirely (Issue #1055).
+
+        A DTA represents future tax benefits, not productive capacity.
+        """
+        # After loss years, DTA is created — revenue should use
+        # (total_assets - net_dta) as the base
+        self._force_loss_year(manufacturer)
+        net_dta = manufacturer.net_deferred_tax_asset
+        assert net_dta > ZERO, "Precondition: DTA should exist after loss year"
+
+        revenue = manufacturer.calculate_revenue()
+        operating_assets = manufacturer.total_assets - net_dta
+        expected = max(ZERO, operating_assets) * to_decimal(manufacturer.asset_turnover_ratio)
+        assert abs(revenue - expected) < to_decimal(
+            "0.01"
+        ), f"Revenue {revenue} should equal operating_assets * turnover {expected}"
+
+    def test_revenue_decreases_when_va_increases(self, manufacturer):
+        """Revenue should decrease (or not increase) when VA increases (Issue #1055).
+
+        Increasing VA reduces net_DTA on the balance sheet, which reduces
+        total_assets. Since revenue is based on operating assets (total_assets
+        minus net_DTA), and net_DTA decreases when VA increases, the operating
+        assets stay constant — but total_assets drop, so this tests the old bug
+        where revenue INCREASED when VA went up.
+        """
+        # 2 loss years — no VA yet
+        self._force_loss_year(manufacturer)
+        self._force_loss_year(manufacturer)
+        assert manufacturer.dta_valuation_allowance == ZERO
+        revenue_no_va = manufacturer.calculate_revenue()
+
+        # 3rd loss year triggers VA
+        self._force_loss_year(manufacturer)
+        assert manufacturer.dta_valuation_allowance > ZERO
+        revenue_with_va = manufacturer.calculate_revenue()
+
+        # Revenue should NOT increase just because VA appeared.
+        # (The company lost money — if anything, revenue base should shrink.)
+        assert revenue_with_va <= revenue_no_va, (
+            f"Revenue should not increase when VA increases: "
+            f"before VA={revenue_no_va}, after VA={revenue_with_va}"
+        )
+
+    def test_downstream_operating_income_not_inflated(self, manufacturer):
+        """Operating income should not be inflated by the old VA add-back (Issue #1055)."""
+        for _ in range(3):
+            self._force_loss_year(manufacturer)
+
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        # Operating income should be based on non-inflated revenue
+        expected_base = revenue * to_decimal(manufacturer.base_operating_margin)
+        # Operating income = base - premiums - losses - LAE - reserve dev
+        assert operating_income <= expected_base

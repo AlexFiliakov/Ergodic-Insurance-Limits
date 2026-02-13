@@ -28,7 +28,7 @@ classDiagram
         +loss_generator: ManufacturingLossGenerator
         +insurance_program: InsuranceProgram
         +manufacturer: WidgetManufacturer
-        +config: SimulationConfig
+        +config: MonteCarloConfig
         +run() MonteCarloResults
         +export_results(results, filepath)
         +compute_bootstrap_confidence_intervals() dict
@@ -424,7 +424,7 @@ classDiagram
         +loss_generator: ManufacturingLossGenerator
         +insurance_program: InsuranceProgram
         +manufacturer: WidgetManufacturer
-        +config: SimulationConfig
+        +config: MonteCarloConfig
         +convergence_diagnostics: ConvergenceDiagnostics
         +parallel_executor: ParallelExecutor
         +trajectory_storage: TrajectoryStorage
@@ -453,13 +453,13 @@ classDiagram
         +metrics: dict
         +convergence: dict
         +execution_time: float
-        +config: SimulationConfig
+        +config: MonteCarloConfig
         +performance_metrics: PerformanceMetrics
         +bootstrap_confidence_intervals: dict
         +summary() str
     }
 
-    class SimulationConfig {
+    class MonteCarloConfig {
         <<dataclass>>
         +n_simulations: int
         +n_years: int
@@ -472,7 +472,7 @@ classDiagram
 
     Simulation --> SimulationResults : produces
     MonteCarloEngine --> MonteCarloResults : produces
-    MonteCarloEngine --> SimulationConfig : configured by
+    MonteCarloEngine --> MonteCarloConfig : configured by
 ```
 
 ## Class Interactions

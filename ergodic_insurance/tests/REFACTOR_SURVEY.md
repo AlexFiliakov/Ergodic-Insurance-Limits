@@ -152,7 +152,7 @@ The root `conftest.py`:
 - test_capex.py
 - test_cash_flow_statement.py
 - test_cash_reconciliation.py
-- test_config_compat.py
+- test_config_compat.py (deprecated, config_compat module removed)
 - test_config_v2.py
 - test_config_v2_integration.py
 - test_config_validation.py

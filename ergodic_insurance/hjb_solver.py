@@ -32,6 +32,12 @@ _DRIFT_THRESHOLD = 1e-10
 _MARGINAL_UTILITY_FLOOR = 1e-10
 _GAMMA_TOLERANCE = 1e-10
 
+# Policy improvement strategy thresholds
+_VECTORIZE_COMBO_THRESHOLD = 5000  # Below: full vectorized batch
+_COARSE_STRIDE = 3  # Adaptive: every 3rd point
+_REFINE_RADIUS = 2  # Adaptive: +/-2 points around optimum
+_DEFAULT_MEMORY_BUDGET_MB = 256  # Max memory for batched evaluation
+
 
 class NumericalDivergenceError(RuntimeError):
     """Raised when the HJB solver detects NaN or Inf in the value function."""
@@ -383,6 +389,8 @@ class HJBSolverConfig:
     inner_max_iterations: int = 100
     inner_tolerance_factor: float = 0.1  # inner_tol = tolerance * this
     rannacher_steps: int = 2  # Number of implicit half-step pairs for CN startup
+    control_search_strategy: str = "auto"  # "auto", "vectorized", "adaptive", "loop", "gradient"
+    control_memory_budget_mb: int = 256  # Max memory for batched control evaluation
 
 
 class HJBSolver:
@@ -409,6 +417,11 @@ class HJBSolver:
 
         # Boundary values for Dirichlet BCs (captured from initial/terminal condition)
         self._boundary_values: dict[int, dict[str, np.ndarray]] | None = None
+
+        # Cache for factorized sparse operators: (theta, dt, dim) -> (solve_func, B_or_None)
+        self._operator_cache: Dict[
+            Tuple[float, float, int], Tuple[Any, Optional[sparse.spmatrix]]
+        ] = {}
 
         # Set up finite difference operators
         self._setup_operators()
@@ -517,9 +530,14 @@ class HJBSolver:
 
         dx_sq = dx_mean**2
 
-        # Operator coefficients (consistent with _apply_upwind_scheme)
-        # drift > 0: forward diff drift*(V[i+1]-V[i])/dx_fwd
-        # drift < 0: backward diff drift*(V[i]-V[i-1])/dx_back
+        # Operator coefficients (consistent with _apply_upwind_scheme).
+        #
+        # The HJB PDE is V_t = drift*V_x + ..., which is V_t + (-drift)*V_x = 0.
+        # The effective advection coefficient is a = -drift, so the upwind
+        # direction is OPPOSITE to standard advection references that assume
+        # V_t + a*V_x = 0 with a = drift.  Concretely:
+        #   drift > 0  =>  a < 0  =>  upwind = forward diff
+        #   drift < 0  =>  a > 0  =>  upwind = backward diff
         sub[interior] = -drift_neg / dx_back + D / dx_sq
         main[interior] = -drift_pos / dx_fwd + drift_neg / dx_back - 2.0 * D / dx_sq - rho
         sup[interior] = drift_pos / dx_fwd + D / dx_sq
@@ -533,6 +551,14 @@ class HJBSolver:
             format="csr",
         )
         return L
+
+    def _invalidate_operator_cache(self):
+        """Clear the cached sparse matrix factorizations.
+
+        Must be called whenever drift or diffusion coefficients may change
+        (i.e., at the start of each policy evaluation cycle).
+        """
+        self._operator_cache.clear()
 
     def _theta_step_1d(
         self,
@@ -565,33 +591,50 @@ class HJBSolver:
             Updated value function, shape (N,).
         """
         N = len(old_v)
-        L = self._build_spatial_operator_1d(drift_1d, sigma_sq_1d, dim)
-        I_mat = sparse.eye(N, format="csr")
+        cache_key = (theta, dt, dim)
 
-        # LHS: A = I - theta*dt*L
-        A = I_mat - theta * dt * L
+        if cache_key in self._operator_cache:
+            # Cache hit: reuse factorized solver and B matrix
+            solve_func, B = self._operator_cache[cache_key]
+        else:
+            # Cache miss: build, factorize, and store
+            L = self._build_spatial_operator_1d(drift_1d, sigma_sq_1d, dim)
+            I_mat = sparse.eye(N, format="csr")
+
+            # LHS: A = I - theta*dt*L
+            A = I_mat - theta * dt * L
+
+            # Set boundary rows to identity (boundary values handled by
+            # _apply_boundary_conditions after return)
+            A = A.tolil()
+            A[0, :] = 0
+            A[0, 0] = 1.0
+            A[N - 1, :] = 0
+            A[N - 1, N - 1] = 1.0
+            A = A.tocsc()
+
+            # Factorize once via SuperLU
+            solve_func = sparse.linalg.splu(A).solve
+
+            # Build B matrix for Crank-Nicolson (theta < 1)
+            if theta < 1.0:
+                B = I_mat + (1.0 - theta) * dt * L
+            else:
+                B = None
+
+            self._operator_cache[cache_key] = (solve_func, B)
 
         # RHS: B @ old_v + dt * cost
-        if theta < 1.0:
-            B = I_mat + (1.0 - theta) * dt * L
+        if B is not None:
             rhs = B @ old_v + dt * cost
         else:
             rhs = old_v + dt * cost
-
-        # Set boundary rows to identity (boundary values handled by
-        # _apply_boundary_conditions after return)
-        A = A.tolil()
-        A[0, :] = 0
-        A[0, 0] = 1.0
-        A[N - 1, :] = 0
-        A[N - 1, N - 1] = 1.0
-        A = A.tocsr()
 
         # Preserve old boundary values in RHS (will be overwritten by BCs)
         rhs[0] = old_v[0]
         rhs[N - 1] = old_v[N - 1]
 
-        new_v: np.ndarray = sparse.linalg.spsolve(A, rhs)
+        new_v: np.ndarray = solve_func(rhs)
         return new_v
 
     def _build_difference_matrix(
@@ -700,7 +743,10 @@ class HJBSolver:
         bwd_diff = np.zeros_like(value)
         bwd_diff[tuple(hi)] = (value[tuple(hi)] - value[tuple(lo)]) / dx_bc
 
-        # Upwind selection: forward for positive drift, backward for negative
+        # Upwind selection based on the HJB sign convention V_t = drift*V_x + ...
+        # The effective advection coefficient is -drift, so:
+        #   drift > 0 => forward diff (upwind for negative effective coefficient)
+        #   drift < 0 => backward diff (upwind for positive effective coefficient)
         mask_pos = drift > 0
         mask_neg = drift < 0
 
@@ -995,6 +1041,9 @@ class HJBSolver:
         if self.value_function is None or self.optimal_policy is None:
             return
 
+        # Policy may have changed since last evaluation; invalidate cached operators
+        self._invalidate_operator_cache()
+
         dt = self.config.time_step
         scheme = self.config.scheme
 
@@ -1203,16 +1252,262 @@ class HJBSolver:
 
         return diffs
 
+    @staticmethod
+    def _build_control_combos(control_samples: List[np.ndarray]) -> np.ndarray:
+        """Build all control combinations as an (n_combos, n_controls) array.
+
+        Uses np.meshgrid instead of itertools.product for efficient
+        Cartesian product construction.
+        """
+        grids = np.meshgrid(*control_samples, indexing="ij")
+        return np.column_stack([g.ravel() for g in grids])
+
+    def _compute_chunk_size(self, n_combos: int, n_states: int, n_controls: int) -> int:
+        """Determine batch size from memory budget.
+
+        Each combo-state pair requires storage for controls, drift,
+        cost, and advection arrays (~4 * n_dims * 8 bytes per pair).
+        """
+        ndim = self.problem.state_space.ndim
+        budget_bytes = self.config.control_memory_budget_mb * 1024 * 1024
+        # Estimate bytes per combo: states * (controls + drift + cost + advection) * 8
+        bytes_per_combo = n_states * (n_controls + ndim + 1 + 1) * 8
+        if bytes_per_combo == 0:
+            return n_combos
+        chunk = max(1, budget_bytes // bytes_per_combo)
+        return min(chunk, n_combos)
+
+    def _evaluate_and_update_best(
+        self,
+        combos: np.ndarray,
+        state_points: np.ndarray,
+        n_states: int,
+        n_controls: int,
+        ndim: int,
+        fwd_arr: np.ndarray,
+        bwd_arr: np.ndarray,
+        d2V_flat: Optional[np.ndarray],
+        best_values: np.ndarray,
+        best_controls: np.ndarray,
+    ) -> None:
+        """Evaluate Hamiltonian for a batch of control combos and update best.
+
+        Processes combos in chunks determined by the memory budget,
+        vectorizing over both states and combos within each chunk.
+        """
+        chunk_size = self._compute_chunk_size(len(combos), n_states, n_controls)
+
+        for start in range(0, len(combos), chunk_size):
+            chunk = combos[start : start + chunk_size]
+            n_chunk = len(chunk)
+
+            # Tile state_points for all combos in chunk: (n_chunk * n_states, state_dim)
+            states_tiled = np.tile(state_points, (n_chunk, 1))
+            # Repeat each combo for all states: (n_chunk * n_states, n_controls)
+            controls_tiled = np.repeat(chunk, n_states, axis=0)
+
+            # Evaluate dynamics and running cost in one vectorized call
+            drift = self.problem.dynamics(states_tiled, controls_tiled, 0.0)
+            cost = self.problem.running_cost(states_tiled, controls_tiled, 0.0)
+
+            # Reduce cost to 1D
+            cost = np.asarray(cost)
+            if cost.ndim > 1:
+                if cost.shape[-1] > 1:
+                    cost = np.mean(cost, axis=-1)
+                else:
+                    cost = cost[..., 0]
+            cost = cost.flatten()
+
+            # Reshape to (n_chunk, n_states)
+            cost_2d = cost.reshape(n_chunk, n_states)
+
+            # Compute advection: upwind scheme
+            drift_flat = np.asarray(drift).reshape(n_chunk * n_states, -1)
+            n_dims = min(drift_flat.shape[1], ndim)
+            drift_pos = np.maximum(drift_flat[:, :n_dims], 0.0)
+            drift_neg = np.minimum(drift_flat[:, :n_dims], 0.0)
+
+            # Tile fwd/bwd arrays for all combos in chunk
+            fwd_tiled = np.tile(fwd_arr[:, :n_dims], (n_chunk, 1))
+            bwd_tiled = np.tile(bwd_arr[:, :n_dims], (n_chunk, 1))
+
+            advection = np.sum(drift_pos * fwd_tiled + drift_neg * bwd_tiled, axis=1)
+            advection_2d = advection.reshape(n_chunk, n_states)
+
+            hamiltonian_2d = cost_2d + advection_2d
+
+            # Add diffusion term
+            if self.problem.diffusion is not None and d2V_flat is not None:
+                sigma_sq = self.problem.diffusion(states_tiled, controls_tiled, 0.0)
+                sigma_sq = np.asarray(sigma_sq).reshape(n_chunk * n_states, -1)
+                n_diff = min(sigma_sq.shape[1], d2V_flat.shape[1], n_dims)
+                diff_term = 0.5 * np.sum(
+                    sigma_sq[:, :n_diff] * np.tile(d2V_flat[:, :n_diff], (n_chunk, 1)),
+                    axis=1,
+                )
+                hamiltonian_2d += diff_term.reshape(n_chunk, n_states)
+
+            # Find best combo per state within this chunk
+            chunk_best_idx = np.argmax(hamiltonian_2d, axis=0)  # (n_states,)
+            chunk_best_vals = hamiltonian_2d[chunk_best_idx, np.arange(n_states)]
+
+            # Update global best
+            improved = chunk_best_vals > best_values
+            best_values[improved] = chunk_best_vals[improved]
+            best_controls[improved] = chunk[chunk_best_idx[improved]]
+
+    def _policy_improvement_loop(
+        self,
+        state_points: np.ndarray,
+        n_states: int,
+        n_controls: int,
+        ndim: int,
+        fwd_arr: np.ndarray,
+        bwd_arr: np.ndarray,
+        d2V_flat: Optional[np.ndarray],
+        best_values: np.ndarray,
+        best_controls: np.ndarray,
+        control_samples: List[np.ndarray],
+    ) -> None:
+        """Legacy loop-based policy improvement (original implementation)."""
+        for control_combo in itertools_product(*control_samples):
+            control_array = np.array(control_combo)
+            control_broadcast = np.tile(control_array, (n_states, 1))
+
+            drift = self.problem.dynamics(state_points, control_broadcast, 0.0)
+            cost = self.problem.running_cost(state_points, control_broadcast, 0.0)
+
+            cost = np.asarray(cost)
+            if cost.ndim > 1:
+                if cost.shape[-1] > 1:
+                    cost = np.mean(cost, axis=-1)
+                else:
+                    cost = cost[..., 0]
+            cost = cost.flatten()
+
+            drift_flat = np.asarray(drift).reshape(n_states, -1)
+            n_dims = min(drift_flat.shape[1], ndim)
+            drift_pos = np.maximum(drift_flat[:, :n_dims], 0.0)
+            drift_neg = np.minimum(drift_flat[:, :n_dims], 0.0)
+            advection_flat = np.sum(
+                drift_pos * fwd_arr[:, :n_dims] + drift_neg * bwd_arr[:, :n_dims],
+                axis=1,
+            )
+
+            hamiltonian = cost + advection_flat
+
+            if self.problem.diffusion is not None and d2V_flat is not None:
+                sigma_sq = self.problem.diffusion(state_points, control_broadcast, 0.0)
+                sigma_sq = np.asarray(sigma_sq).reshape(n_states, -1)
+                n_diff = min(sigma_sq.shape[1], d2V_flat.shape[1], n_dims)
+                hamiltonian += 0.5 * np.sum(sigma_sq[:, :n_diff] * d2V_flat[:, :n_diff], axis=1)
+
+            improved = hamiltonian > best_values
+            best_values[improved] = hamiltonian[improved]
+            best_controls[improved] = control_array
+
+    def _policy_improvement_vectorized(
+        self,
+        state_points: np.ndarray,
+        n_states: int,
+        n_controls: int,
+        ndim: int,
+        fwd_arr: np.ndarray,
+        bwd_arr: np.ndarray,
+        d2V_flat: Optional[np.ndarray],
+        best_values: np.ndarray,
+        best_controls: np.ndarray,
+        control_samples: List[np.ndarray],
+    ) -> None:
+        """Fully vectorized policy improvement over all control combos."""
+        combos = self._build_control_combos(control_samples)
+        self._evaluate_and_update_best(
+            combos,
+            state_points,
+            n_states,
+            n_controls,
+            ndim,
+            fwd_arr,
+            bwd_arr,
+            d2V_flat,
+            best_values,
+            best_controls,
+        )
+
+    def _policy_improvement_adaptive(
+        self,
+        state_points: np.ndarray,
+        n_states: int,
+        n_controls: int,
+        ndim: int,
+        fwd_arr: np.ndarray,
+        bwd_arr: np.ndarray,
+        d2V_flat: Optional[np.ndarray],
+        best_values: np.ndarray,
+        best_controls: np.ndarray,
+        control_samples: List[np.ndarray],
+    ) -> None:
+        """Two-pass adaptive policy improvement: coarse search then local refinement."""
+        # Pass 1: Coarse grid (every _COARSE_STRIDE-th point per control)
+        coarse_samples = [s[::_COARSE_STRIDE] for s in control_samples]
+        coarse_combos = self._build_control_combos(coarse_samples)
+
+        self._evaluate_and_update_best(
+            coarse_combos,
+            state_points,
+            n_states,
+            n_controls,
+            ndim,
+            fwd_arr,
+            bwd_arr,
+            d2V_flat,
+            best_values,
+            best_controls,
+        )
+
+        # Pass 2: Refine around coarse optima
+        # Find unique coarse optima (each row of best_controls is a combo)
+        unique_optima = np.unique(best_controls, axis=0)
+
+        # For each unique optimum, build a refined grid of nearby combos
+        refined_combos_list = []
+        for optimum in unique_optima:
+            per_control_refined = []
+            for j, full_grid in enumerate(control_samples):
+                # Find the closest index in the full grid
+                closest_idx = int(np.argmin(np.abs(full_grid - optimum[j])))
+                lo = max(0, closest_idx - _REFINE_RADIUS)
+                hi = min(len(full_grid), closest_idx + _REFINE_RADIUS + 1)
+                per_control_refined.append(full_grid[lo:hi])
+            local_combos = self._build_control_combos(per_control_refined)
+            refined_combos_list.append(local_combos)
+
+        if refined_combos_list:
+            all_refined = np.vstack(refined_combos_list)
+            # Deduplicate
+            all_refined = np.unique(all_refined, axis=0)
+            self._evaluate_and_update_best(
+                all_refined,
+                state_points,
+                n_states,
+                n_controls,
+                ndim,
+                fwd_arr,
+                bwd_arr,
+                d2V_flat,
+                best_values,
+                best_controls,
+            )
+
     def _policy_improvement(self):
         """Improve policy by maximizing the Hamiltonian.
 
         H(x,u) = f(x,u) + drift(x,u)·∇V(x) + ½σ²(x,u)·∇²V(x)
 
-        Vectorized over all state points for each control combination.
-        Forward/backward differences of V are precomputed once so the
-        advection term is assembled via a single numpy expression per
-        control candidate, avoiding repeated ``_apply_upwind_scheme``
-        calls and grid reshape operations (#371).
+        Dispatches to vectorized, adaptive, or loop-based strategy
+        based on ``config.control_search_strategy``.  The precomputation
+        of upwind finite differences is shared across all strategies.
         """
         if self.value_function is None or self.optimal_policy is None:
             return
@@ -1250,49 +1545,40 @@ class HJBSolver:
         # Get discrete control samples for each control variable
         control_samples = [cv.get_values() for cv in self.problem.control_variables]
 
-        # Iterate over control combinations, vectorized over all states
-        for control_combo in itertools_product(*control_samples):
-            control_array = np.array(control_combo)
-            control_broadcast = np.tile(control_array, (n_states, 1))
+        # Shared arguments for all strategies
+        args = (
+            state_points,
+            n_states,
+            n_controls,
+            ndim,
+            fwd_arr,
+            bwd_arr,
+            d2V_flat,
+            best_values,
+            best_controls,
+            control_samples,
+        )
 
-            # Evaluate dynamics and running cost at all states simultaneously
-            drift = self.problem.dynamics(state_points, control_broadcast, 0.0)
-            cost = self.problem.running_cost(state_points, control_broadcast, 0.0)
-
-            # Reduce cost to 1D (one value per state point)
-            cost = np.asarray(cost)
-            if cost.ndim > 1:
-                if cost.shape[-1] > 1:
-                    cost = np.mean(cost, axis=-1)
-                else:
-                    cost = cost[..., 0]
-            cost = cost.flatten()
-
-            # Compute advection using precomputed upwind differences.
-            # advection = sum_dim( max(drift,0)*fwd + min(drift,0)*bwd )
-            drift_flat = np.asarray(drift).reshape(n_states, -1)
-            n_dims = min(drift_flat.shape[1], ndim)
-            drift_pos = np.maximum(drift_flat[:, :n_dims], 0.0)
-            drift_neg = np.minimum(drift_flat[:, :n_dims], 0.0)
-            advection_flat = np.sum(
-                drift_pos * fwd_arr[:, :n_dims] + drift_neg * bwd_arr[:, :n_dims],
-                axis=1,
+        # Determine strategy
+        strategy = self.config.control_search_strategy
+        if strategy == "gradient":
+            raise NotImplementedError(
+                "Gradient-based control search is reserved for future implementation."
             )
 
-            # Full Hamiltonian: H = f(x,u) + drift(x,u) * grad_V(x) + 0.5*sigma^2(x,u) * d2V(x)
-            hamiltonian = cost + advection_flat
+        if strategy == "auto":
+            n_combos = 1
+            for s in control_samples:
+                n_combos *= len(s)
+            strategy = "vectorized" if n_combos <= _VECTORIZE_COMBO_THRESHOLD else "adaptive"
 
-            # Add diffusion term to Hamiltonian
-            if self.problem.diffusion is not None and d2V_flat is not None:
-                sigma_sq = self.problem.diffusion(state_points, control_broadcast, 0.0)
-                sigma_sq = np.asarray(sigma_sq).reshape(n_states, -1)
-                n_diff = min(sigma_sq.shape[1], d2V_flat.shape[1], n_dims)
-                hamiltonian += 0.5 * np.sum(sigma_sq[:, :n_diff] * d2V_flat[:, :n_diff], axis=1)
-
-            # Update best control where this combo improves the Hamiltonian
-            improved = hamiltonian > best_values
-            best_values[improved] = hamiltonian[improved]
-            best_controls[improved] = control_array
+        if strategy == "vectorized":
+            self._policy_improvement_vectorized(*args)
+        elif strategy == "adaptive":
+            self._policy_improvement_adaptive(*args)
+        else:
+            # "loop" or any unrecognized value falls back to legacy
+            self._policy_improvement_loop(*args)
 
         # Write optimal controls back to policy arrays
         for j, cv in enumerate(self.problem.control_variables):

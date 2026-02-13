@@ -178,7 +178,7 @@ class WidgetManufacturer(
         self.tax_rate = config.tax_rate
         self.retention_ratio = config.retention_ratio
 
-        # Tax handler with NOL carryforward tracking (Issue #365)
+        # Tax handler with NOL carryforward tracking (Issue #365, #808)
         self.tax_handler = TaxHandler(
             tax_rate=config.tax_rate,
             accrual_manager=self.accrual_manager,
@@ -186,6 +186,7 @@ class WidgetManufacturer(
             nol_limitation_pct=(
                 config.nol_limitation_pct if config.nol_carryforward_enabled else 0.0
             ),
+            apply_tcja_limitation=config.apply_tcja_limitation,
         )
         self._nol_carryforward_enabled = config.nol_carryforward_enabled
 
@@ -198,6 +199,9 @@ class WidgetManufacturer(
         self.period_insurance_premiums: Decimal = ZERO
         self.period_insurance_losses: Decimal = ZERO
         self.period_insurance_lae: Decimal = ZERO  # LAE per ASC 944-40 (Issue #468)
+
+        # Cached net income from step() for use by calculate_metrics() (Issue #617)
+        self._period_net_income: Optional[Decimal] = None
 
         # Track actual dividends paid
         self._last_dividends_paid: Decimal = ZERO
@@ -512,6 +516,30 @@ class WidgetManufacturer(
                 logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
 
             if unpayable_amount > ZERO:
+                # Discharge unpayable amount from AccrualManager (Issue #1063)
+                self.accrual_manager.process_payment(accrual_type, unpayable_amount, period)
+
+                # Reverse phantom liability from ledger per ASC 405-20 (Issue #1063)
+                # Dr ACCRUED_XXX (reduce liability), Cr RETAINED_EARNINGS (equity absorbs)
+                if accrual_type == AccrualType.TAXES:
+                    discharge_account = AccountName.ACCRUED_TAXES
+                elif accrual_type == AccrualType.WAGES:
+                    discharge_account = AccountName.ACCRUED_WAGES
+                elif accrual_type == AccrualType.INTEREST:
+                    discharge_account = AccountName.ACCRUED_INTEREST
+                else:
+                    discharge_account = AccountName.ACCRUED_EXPENSES
+
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=discharge_account,
+                    credit_account=AccountName.RETAINED_EARNINGS,
+                    amount=unpayable_amount,
+                    transaction_type=TransactionType.WRITE_OFF,
+                    description=f"Liability discharge: unpayable {accrual_type.value} (ASC 405-20)",
+                    month=self.current_month,
+                )
+
                 logger.warning(
                     f"LIMITED LIABILITY: Discharged ${unpayable_amount:,.2f} of unpayable {accrual_type.value} from liabilities"
                 )
@@ -704,6 +732,36 @@ class WidgetManufacturer(
         else:
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
 
+        # Issue #687: Record summary income entries in the ledger so that
+        # closing entries (#803) can properly close income statement accounts
+        # to retained earnings instead of routing through Dr/Cr CASH.
+        # revenue and operating_income are already period amounts at this point.
+        base_expenses = revenue * to_decimal(1 - self.base_operating_margin)
+        # Cash operating expenses exclude depreciation (non-cash)
+        period_cash_expenses = base_expenses - depreciation_expense
+
+        if revenue > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.CASH,
+                credit_account=AccountName.SALES_REVENUE,
+                amount=revenue,
+                transaction_type=TransactionType.REVENUE,
+                description=f"Year {self.current_year} revenue recognition",
+                month=self.current_month,
+            )
+
+        if period_cash_expenses > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.OPERATING_EXPENSES,
+                credit_account=AccountName.CASH,
+                amount=period_cash_expenses,
+                transaction_type=TransactionType.EXPENSE,
+                description=f"Year {self.current_year} cash operating expenses",
+                month=self.current_month,
+            )
+
         # Calculate net income
         net_income = self.calculate_net_income(
             operating_income,
@@ -712,8 +770,18 @@ class WidgetManufacturer(
             time_resolution=time_resolution,
         )
 
-        # Update balance sheet with retained earnings
-        self.update_balance_sheet(net_income, growth_rate)
+        # Cache net income for calculate_metrics() to avoid double tax mutation (Issue #617)
+        self._period_net_income = net_income
+
+        # Update balance sheet with retained earnings (Issue #803: proper closing
+        # entries close income statement accounts to RE instead of Dr/Cr CASH)
+        self.update_balance_sheet(
+            net_income,
+            growth_rate,
+            depreciation_expense,
+            period_revenue=revenue,
+            period_cash_expenses=period_cash_expenses,
+        )
 
         # Amortize prepaid insurance if applicable
         if time_resolution == "monthly":
@@ -845,6 +913,9 @@ class WidgetManufacturer(
 
         # Reset dividend tracking
         self._last_dividends_paid = ZERO
+
+        # Reset cached net income (Issue #617)
+        self._period_net_income = None
 
         # Reset initial values (for exposure bases)
         initial_assets = to_decimal(self.config.initial_assets)

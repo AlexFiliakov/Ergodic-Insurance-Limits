@@ -1,438 +1,62 @@
-"""Backward compatibility layer for the legacy configuration system.
+"""Backward compatibility stub — this module is deprecated.
 
-This module provides adapters and shims to ensure existing code continues
-to work while transitioning to the new 3-tier configuration system.
+The Config and ConfigV2 classes have been unified into a single ``Config``
+class (Issue #638).  All functionality previously provided by this module
+(LegacyConfigAdapter, ConfigTranslator, load_config, migrate_config_usage)
+is no longer needed.
+
+Use ``ergodic_insurance.config.Config`` directly, or
+``ergodic_insurance.config_manager.ConfigManager`` for profile management.
+
+.. deprecated:: 0.10.0
+    This module will be removed in a future version.
 """
 
-import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 import warnings
 
-logger = logging.getLogger(__name__)
+warnings.warn(
+    "The config_compat module is deprecated and will be removed in a future version. "
+    "Use ergodic_insurance.config.Config directly — it now includes all ConfigV2 features. "
+    "Use ergodic_insurance.config_manager.ConfigManager for profile management.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-import yaml
-
+# Re-export names for code that still imports from here
 try:
-    # Try absolute import first (for installed package)
-    from ergodic_insurance.config import Config, ConfigV2
+    from ergodic_insurance.config import Config
     from ergodic_insurance.config_manager import ConfigManager
 except ImportError:
     try:
-        # Try relative import (for package context)
-        from .config import Config, ConfigV2
+        from .config import Config
         from .config_manager import ConfigManager
     except ImportError:
-        # Fall back to direct import (for notebooks/scripts)
         from config import Config  # type: ignore[no-redef]
-        from config import ConfigV2  # type: ignore[no-redef]
         from config_manager import ConfigManager  # type: ignore[no-redef]
 
-
-class LegacyConfigAdapter:
-    """Adapter to support old ConfigLoader interface using new ConfigManager."""
-
-    def __init__(self):
-        """Initialize the legacy adapter."""
-        # Use the correct config directory with profiles subdirectory
-        config_dir = Path(__file__).parent / "data" / "config"
-        self.config_manager = ConfigManager(config_dir)
-        self._profile_mapping = {
-            "baseline": "default",
-            "conservative": "conservative",
-            "optimistic": "aggressive",
-            "aggressive": "aggressive",
-        }
-        self._deprecated_warning_shown = False
-
-    def load(
-        self,
-        config_name: str = "baseline",
-        override_params: Optional[Dict[str, Any]] = None,
-    ) -> Config:
-        """Load configuration using legacy interface.
-
-        Args:
-            config_name: Legacy configuration name.
-            override_params: Dictionary of override parameters.  Supports
-                dot-notation keys (``"manufacturer.tax_rate": 0.21``) and
-                section-level dicts (``{"manufacturer": {"tax_rate": 0.21}}``).
-
-        Returns:
-            Config object for backward compatibility.
-        """
-        # Show deprecation warning once
-        if not self._deprecated_warning_shown:
-            warnings.warn(
-                "ConfigLoader is deprecated and will be removed in version 3.0.0. "
-                "Please migrate to ConfigManager.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self._deprecated_warning_shown = True
-
-        # Map legacy config names to new profiles
-        profile_name = self._profile_mapping.get(config_name, config_name)
-
-        # Combine overrides
-        overrides: Dict[str, Any] = {}
-        if override_params:
-            overrides.update(self._flatten_dict(override_params))
-
-        # Load using new system
-        try:
-            config_v2 = self.config_manager.load_profile(profile_name, use_cache=True, **overrides)
-
-            # Convert to legacy Config format
-            return self._convert_to_legacy(config_v2)
-
-        except FileNotFoundError:
-            # Fall back to loading from legacy location
-            return self._load_legacy_direct(config_name, overrides)
-
-    def load_config(
-        self,
-        config_path: Optional[Union[str, Path]] = None,
-        config_name: str = "baseline",
-        overrides: Optional[Dict[str, Any]] = None,
-    ) -> Config:
-        """Alternative legacy loading method.
-
-        Args:
-            config_path: Path to configuration file (ignored, for compatibility).
-            config_name: Configuration name.
-            overrides: Override parameters as a dictionary.
-
-        Returns:
-            Config object.
-        """
-        return self.load(config_name, override_params=overrides)
-
-    def _convert_to_legacy(self, config_v2: ConfigV2) -> Config:
-        """Convert ConfigV2 to legacy Config format.
-
-        Args:
-            config_v2: New format configuration.
-
-        Returns:
-            Legacy format Config object.
-
-        Note:
-            V2-only fields not present in legacy Config are dropped during
-            conversion.  A warning is emitted for each non-empty field that
-            is lost so callers can detect silent data loss.
-        """
-        # Warn about V2-only fields that will be dropped
-        v2_only_fields = [
-            "insurance",
-            "losses",
-            "excel_reporting",
-            "working_capital_ratios",
-            "expense_ratios",
-            "depreciation",
-            "industry_config",
-        ]
-        dropped = []
-        for field_name in v2_only_fields:
-            value = getattr(config_v2, field_name, None)
-            if value is not None:
-                dropped.append(field_name)
-        if config_v2.custom_modules:
-            dropped.append("custom_modules")
-        if config_v2.applied_presets:
-            dropped.append("applied_presets")
-        if config_v2.overrides:
-            dropped.append("overrides")
-        if dropped:
-            logger.warning(
-                "ConfigV2 → Config conversion drops non-empty V2-only fields: %s",
-                ", ".join(dropped),
-            )
-
-        # Extract the sections needed for legacy Config
-        try:
-            # Try absolute import first (for installed package)
-            from ergodic_insurance.config import (
-                Config,
-                DebtConfig,
-                GrowthConfig,
-                LoggingConfig,
-                ManufacturerConfig,
-                OutputConfig,
-                SimulationConfig,
-                WorkingCapitalConfig,
-            )
-        except ImportError:
-            try:
-                # Try relative import (for package context)
-                from .config import (
-                    Config,
-                    DebtConfig,
-                    GrowthConfig,
-                    LoggingConfig,
-                    ManufacturerConfig,
-                    OutputConfig,
-                    SimulationConfig,
-                    WorkingCapitalConfig,
-                )
-            except ImportError:
-                # Fall back to direct import (for notebooks/scripts)
-                from config import (  # type: ignore[no-redef]
-                    Config,
-                    DebtConfig,
-                    GrowthConfig,
-                    LoggingConfig,
-                    ManufacturerConfig,
-                    OutputConfig,
-                    SimulationConfig,
-                    WorkingCapitalConfig,
-                )
-
-        return Config(
-            manufacturer=ManufacturerConfig(**config_v2.manufacturer.model_dump()),
-            working_capital=WorkingCapitalConfig(**config_v2.working_capital.model_dump()),
-            growth=GrowthConfig(**config_v2.growth.model_dump()),
-            debt=DebtConfig(**config_v2.debt.model_dump()),
-            simulation=SimulationConfig(**config_v2.simulation.model_dump()),
-            output=OutputConfig(**config_v2.output.model_dump()),
-            logging=LoggingConfig(**config_v2.logging.model_dump()),
-        )
-
-    def _load_legacy_direct(self, config_name: str, overrides: Dict[str, Any]) -> Config:
-        """Load configuration directly from legacy location.
-
-        Args:
-            config_name: Legacy configuration name.
-            overrides: Override parameters.
-
-        Returns:
-            Config object.
-        """
-        # Try to find legacy config file
-        # Use absolute path based on current module location
-        module_path = Path(__file__).parent
-        legacy_dir = module_path / "data" / "parameters"
-        config_file = legacy_dir / f"{config_name}.yaml"
-
-        if not config_file.exists():
-            # Try without .yaml extension
-            config_file = legacy_dir / config_name
-
-        if not config_file.exists():
-            raise FileNotFoundError(
-                f"Configuration '{config_name}' not found in legacy or new locations"
-            )
-
-        # Load the legacy config
-        with open(config_file, "r") as f:
-            data = yaml.safe_load(f)
-
-        # Handle empty or invalid YAML files
-        if data is None:
-            data = {}
-
-        # Remove YAML anchors
-        data = {k: v for k, v in data.items() if not k.startswith("_")}
-
-        # Apply overrides
-        for key, value in overrides.items():
-            if "." in key:
-                # Handle dot-notation nested keys
-                parts = key.split(".")
-                current = data
-                for part in parts[:-1]:
-                    if part not in current:
-                        current[part] = {}
-                    current = current[part]
-                current[parts[-1]] = value
-            else:
-                data[key] = value
-
-        return Config(**data)
-
-    def _flatten_dict(self, d: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
-        """Flatten nested dictionary to dot-notation keys.
-
-        Args:
-            d: Dictionary to flatten.
-            parent_key: Parent key for recursion.
-
-        Returns:
-            Flattened dictionary with dot-notation keys.
-        """
-        items: List[tuple] = []
-        for k, v in d.items():
-            new_key = f"{parent_key}.{k}" if parent_key else k
-            if isinstance(v, dict):
-                items.extend(self._flatten_dict(v, new_key).items())
-            else:
-                items.append((new_key, v))
-        return dict(items)
+# Deprecated aliases
+ConfigV2 = Config
+LegacyConfigAdapter = None
+ConfigTranslator = None
 
 
-# Lazy-initialized global adapter to avoid filesystem side effects at import time
-_adapter: Optional[LegacyConfigAdapter] = None
-
-
-def _get_adapter() -> LegacyConfigAdapter:
-    """Return the global adapter, creating it on first use."""
-    global _adapter
-    if _adapter is None:
-        _adapter = LegacyConfigAdapter()
-    return _adapter
-
-
-def load_config(
-    config_name: str = "baseline", override_params: Optional[Dict[str, Any]] = None
-) -> Config:
-    """Legacy function interface for loading configurations.
-
-    Args:
-        config_name: Configuration name.
-        override_params: Override parameters as a dictionary.  Supports
-            dot-notation keys and section-level dicts.
-
-    Returns:
-        Config object.
-    """
-    return _get_adapter().load(config_name, override_params)
-
-
-def migrate_config_usage(file_path: Path) -> None:
-    """Helper to migrate old config usage in a Python file.
-
-    Args:
-        file_path: Path to Python file to migrate.
-    """
-    with open(file_path, "r") as f:
-        content = f.read()
-
-    # Track if changes were made
-    original_content = content
-
-    # Replace imports
-    content = content.replace(
-        "from ergodic_insurance.config_loader import ConfigLoader",
-        "from ergodic_insurance.config_manager import ConfigManager",
+def load_config(config_name="baseline", override_params=None):
+    """Deprecated. Use ConfigManager.load_profile() instead."""
+    warnings.warn(
+        "config_compat.load_config() is deprecated. " "Use ConfigManager().load_profile() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    content = content.replace(
-        "from ergodic_insurance.config_loader import load_config",
-        "from ergodic_insurance.config_compat import load_config  # TODO: Migrate to ConfigManager",
+    manager = ConfigManager()
+    overrides = override_params or {}
+    return manager.load_profile(config_name, **overrides)
+
+
+def migrate_config_usage(file_path):
+    """Deprecated. No longer needed — Config and ConfigV2 are unified."""
+    warnings.warn(
+        "migrate_config_usage() is deprecated and no longer needed. "
+        "Config and ConfigV2 are now the same class.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-
-    # Replace ConfigLoader usage
-    content = content.replace("ConfigLoader()", "ConfigManager()")
-    content = content.replace("ConfigLoader.load(", "ConfigManager().load_profile(")
-
-    # Save if changes were made
-    if content != original_content:
-        # Create backup
-        backup_path = file_path.with_suffix(".bak")
-        with open(backup_path, "w") as f:
-            f.write(original_content)
-
-        # Write updated content
-        with open(file_path, "w") as f:
-            f.write(content)
-
-        print(f"✓ Migrated {file_path}")
-        print(f"  Backup saved to {backup_path}")
-    else:
-        print(f"  No changes needed for {file_path}")
-
-
-class ConfigTranslator:
-    """Utilities for translating between old and new configuration formats."""
-
-    @staticmethod
-    def legacy_to_v2(legacy_config: Config) -> Dict[str, Any]:
-        """Convert legacy Config to ConfigV2 format.
-
-        Args:
-            legacy_config: Legacy configuration object.
-
-        Returns:
-            Dictionary suitable for ConfigV2 initialization.
-        """
-        v2_data = {
-            "profile": {
-                "name": "migrated",
-                "description": "Migrated from legacy configuration",
-                "version": "2.0.0",
-            }
-        }
-
-        # Convert each section
-        v2_data.update(legacy_config.model_dump())
-
-        return v2_data
-
-    @staticmethod
-    def v2_to_legacy(config_v2: ConfigV2) -> Dict[str, Any]:
-        """Convert ConfigV2 to legacy Config format.
-
-        Args:
-            config_v2: New format configuration.
-
-        Returns:
-            Dictionary suitable for legacy Config initialization.
-        """
-        # Extract only the sections that exist in legacy Config
-        legacy_sections = [
-            "manufacturer",
-            "working_capital",
-            "growth",
-            "debt",
-            "simulation",
-            "output",
-            "logging",
-        ]
-
-        legacy_data = {}
-        for section in legacy_sections:
-            if hasattr(config_v2, section):
-                value = getattr(config_v2, section)
-                if value is not None:
-                    legacy_data[section] = (
-                        value.model_dump() if hasattr(value, "model_dump") else value
-                    )
-
-        return legacy_data
-
-    @staticmethod
-    def validate_translation(
-        original: Union[Config, ConfigV2], translated: Union[Config, ConfigV2]
-    ) -> bool:
-        """Validate that translation preserved essential data.
-
-        Args:
-            original: Original configuration.
-            translated: Translated configuration.
-
-        Returns:
-            True if translation is valid.
-        """
-        # Check critical fields
-        critical_fields = [
-            ("manufacturer", "initial_assets"),
-            ("simulation", "time_horizon_years"),
-            ("growth", "annual_growth_rate"),
-        ]
-
-        for section, field in critical_fields:
-            if hasattr(original, section) and hasattr(translated, section):
-                orig_section = getattr(original, section)
-                trans_section = getattr(translated, section)
-
-                if orig_section and trans_section:
-                    orig_value = getattr(orig_section, field, None)
-                    trans_value = getattr(trans_section, field, None)
-
-                    if orig_value != trans_value:
-                        warnings.warn(
-                            f"Translation mismatch: {section}.{field} "
-                            f"({orig_value} != {trans_value})"
-                        )
-                        return False
-
-        return True

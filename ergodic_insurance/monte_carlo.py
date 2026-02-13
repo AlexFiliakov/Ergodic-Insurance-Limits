@@ -1,14 +1,18 @@
 """High-performance Monte Carlo simulation engine for insurance optimization."""
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
+import logging
 import os
 from pathlib import Path
 import pickle
+import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import warnings
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 from tqdm import tqdm
@@ -38,16 +42,35 @@ from .summary_statistics import SummaryReportGenerator, SummaryStatistics
 from .trajectory_storage import StorageConfig, TrajectoryStorage
 
 
-def _create_manufacturer(config_dict: Dict[str, Any]) -> Any:
-    """Create manufacturer instance from config dictionary."""
-    # WidgetManufacturer is already imported at module level
-    if "config" in config_dict and hasattr(config_dict["config"], "__dict__"):
-        return WidgetManufacturer(config_dict["config"])
-    # Create from raw values
-    manufacturer = WidgetManufacturer.__new__(WidgetManufacturer)
-    for key, value in config_dict.items():
-        setattr(manufacturer, key, value)
-    return manufacturer
+def _create_manufacturer(config_dict: Dict[str, Any]) -> "WidgetManufacturer":
+    """Create a fresh manufacturer instance from a config dictionary.
+
+    Uses :meth:`WidgetManufacturer.create_fresh` so that construction always
+    goes through ``__init__`` validation.  The previous implementation used
+    ``__new__`` with an unchecked ``setattr`` loop, which allowed arbitrary
+    attribute injection (see issue #886).
+
+    Args:
+        config_dict: Dictionary that **must** contain a ``"config"`` key
+            holding a :class:`ManufacturerConfig` instance.  An optional
+            ``"stochastic_process"`` key is forwarded to the factory method.
+
+    Returns:
+        A validated :class:`WidgetManufacturer` in its initial state.
+
+    Raises:
+        TypeError: If ``config_dict["config"]`` is missing or is not a
+            proper configuration object.
+    """
+    config = config_dict.get("config")
+    if config is None or not hasattr(config, "__dict__"):
+        raise TypeError(
+            "_create_manufacturer requires config_dict['config'] to be a "
+            "ManufacturerConfig instance, got "
+            f"{type(config).__name__ if config is not None else 'None'}"
+        )
+    stochastic_process = config_dict.get("stochastic_process")
+    return WidgetManufacturer.create_fresh(config, stochastic_process)
 
 
 def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
@@ -183,7 +206,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
         for loss_event in year_losses:
             if loss_event.amount > 0:
                 claim_result = insurance_program.process_claim(loss_event.amount)
-                event_recovery = claim_result.get("insurance_recovery", 0)
+                event_recovery = claim_result.insurance_recovery
                 event_retained = loss_event.amount - event_recovery
 
                 total_recovery += event_recovery
@@ -225,7 +248,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
         # Check for ruin - use insolvency tolerance from shared config
         tolerance = shared.get("insolvency_tolerance", 10_000)
-        if float(manufacturer.equity) <= tolerance:
+        if float(manufacturer.equity) <= tolerance or manufacturer.is_ruined:
             # Mark ruin for all future evaluation points
             if ruin_evaluation:
                 for eval_year in ruin_at_year:
@@ -244,7 +267,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
 
 @dataclass
-class SimulationConfig:
+class MonteCarloConfig:
     """Configuration for Monte Carlo simulation.
 
     Attributes:
@@ -320,6 +343,7 @@ class SimulationConfig:
     apply_stochastic: bool = False  # Whether to apply stochastic shocks
     enable_ledger_pruning: bool = False  # Prune old ledger entries to bound memory (Issue #315)
     crn_base_seed: Optional[int] = None  # Common Random Numbers seed for cross-scenario comparison
+    use_gpu: bool = False  # Use GPU-accelerated vectorized simulation (Issue #961)
 
 
 @dataclass
@@ -354,7 +378,7 @@ class MonteCarloResults:
     metrics: Dict[str, float]
     convergence: Dict[str, ConvergenceStats]
     execution_time: float
-    config: SimulationConfig
+    config: MonteCarloConfig
     performance_metrics: Optional[PerformanceMetrics] = None
     aggregated_results: Optional[Dict[str, Any]] = None
     time_series_aggregation: Optional[Dict[str, Any]] = None
@@ -435,13 +459,13 @@ class MonteCarloEngine:
     Examples:
         Basic Monte Carlo simulation::
 
-            from .monte_carlo import MonteCarloEngine, SimulationConfig
+            from .monte_carlo import MonteCarloEngine, MonteCarloConfig
             from .loss_distributions import ManufacturingLossGenerator
             from .insurance_program import InsuranceProgram
             from .manufacturer import WidgetManufacturer
 
             # Configure simulation
-            config = SimulationConfig(
+            config = MonteCarloConfig(
                 n_simulations=10000,
                 n_years=20,
                 parallel=True,
@@ -468,7 +492,7 @@ class MonteCarloEngine:
         Advanced simulation with convergence monitoring::
 
             # Enable convergence checking
-            config = SimulationConfig(
+            config = MonteCarloConfig(
                 n_simulations=100000,
                 check_convergence=True,
                 convergence_tolerance=0.001,
@@ -498,7 +522,7 @@ class MonteCarloEngine:
         convergence_diagnostics: Convergence monitoring tools
 
     See Also:
-        :class:`SimulationConfig`: Configuration parameters
+        :class:`MonteCarloConfig`: Configuration parameters
         :class:`MonteCarloResults`: Simulation results container
         :class:`ParallelExecutor`: Enhanced parallel processing
         :class:`ConvergenceDiagnostics`: Convergence analysis tools
@@ -509,7 +533,7 @@ class MonteCarloEngine:
         loss_generator: ManufacturingLossGenerator,
         insurance_program: InsuranceProgram,
         manufacturer: WidgetManufacturer,
-        config: Optional[SimulationConfig] = None,
+        config: Optional[MonteCarloConfig] = None,
     ):
         """Initialize Monte Carlo engine.
 
@@ -522,7 +546,7 @@ class MonteCarloEngine:
         self.loss_generator = loss_generator
         self.insurance_program = insurance_program
         self.manufacturer = manufacturer
-        self.config = config or SimulationConfig()
+        self.config = config or MonteCarloConfig()
 
         # Set up convergence diagnostics
         self.convergence_diagnostics = ConvergenceDiagnostics()
@@ -576,8 +600,21 @@ class MonteCarloEngine:
             self.time_series_aggregator = TimeSeriesAggregator(agg_config)
             self.summary_statistics = SummaryStatistics()
 
-    def run(self) -> MonteCarloResults:
+    def run(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Execute Monte Carlo simulation.
+
+        Args:
+            progress_callback: Optional callback invoked with
+                ``(completed, total, elapsed_seconds)`` after each batch of
+                simulations completes.  Useful for GUI progress bars, web
+                dashboards, or any non-terminal environment.
+            cancel_event: Optional :class:`threading.Event`.  When set, the
+                engine will stop after the current batch and return partial
+                results.
 
         Returns:
             MonteCarloResults object with all outputs
@@ -589,7 +626,7 @@ class MonteCarloEngine:
         if self.config.cache_results:
             cached = self._load_cache(cache_key)
             if cached is not None:
-                print("Loaded cached results")
+                logger.info("Loaded cached results")
                 return cached
 
         # Reinitialize parallel executor if config has changed
@@ -614,13 +651,27 @@ class MonteCarloEngine:
                 )
 
         # Run simulation with appropriate executor
-        if self.config.parallel:
+        if self.config.use_gpu:
+            results = self._run_gpu(
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+            )
+        elif self.config.parallel:
             if self.config.use_enhanced_parallel and self.parallel_executor:
-                results = self._run_enhanced_parallel()
+                results = self._run_enhanced_parallel(
+                    progress_callback=progress_callback,
+                    cancel_event=cancel_event,
+                )
             else:
-                results = self._run_parallel()
+                results = self._run_parallel(
+                    progress_callback=progress_callback,
+                    cancel_event=cancel_event,
+                )
         else:
-            results = self._run_sequential()
+            results = self._run_sequential(
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+            )
 
         # Calculate metrics
         results.metrics = self._calculate_metrics(results)
@@ -676,7 +727,11 @@ class MonteCarloEngine:
 
         return results
 
-    def _run_sequential(self) -> MonteCarloResults:
+    def _run_sequential(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Run simulation sequentially."""
         n_sims = self.config.n_simulations
         n_years = self.config.n_years
@@ -697,8 +752,18 @@ class MonteCarloEngine:
         if self.config.progress_bar:
             iterator = tqdm(iterator, desc="Running simulations")
 
+        # How often to fire the progress callback / check cancellation
+        callback_interval = max(1, n_sims // 100)
+        seq_start = time.time()
+
         # Run simulations
+        completed = 0
         for i in iterator:
+            # Check for cancellation
+            if cancel_event is not None and i % callback_interval == 0 and cancel_event.is_set():
+                logger.info("Cancellation requested at simulation %d/%d", i, n_sims)
+                break
+
             sim_results = self._run_single_simulation(i)
             final_assets[i] = sim_results["final_assets"]
             final_equity[i] = sim_results["final_equity"]
@@ -709,6 +774,12 @@ class MonteCarloEngine:
             # Collect periodic ruin data
             if self.config.ruin_evaluation:
                 ruin_at_year_all.append(sim_results["ruin_at_year"])
+
+            completed = i + 1
+
+            # Fire progress callback
+            if progress_callback is not None and completed % callback_interval == 0:
+                progress_callback(completed, n_sims, time.time() - seq_start)
 
             # Checkpoint if needed
             if (
@@ -723,6 +794,19 @@ class MonteCarloEngine:
                     insurance_recoveries[: i + 1],
                     retained_losses[: i + 1],
                 )
+
+        # Fire final callback so callers always see (total, total, ...)
+        if progress_callback is not None and completed > 0 and completed != n_sims:
+            progress_callback(completed, n_sims, time.time() - seq_start)
+
+        # Truncate arrays if cancelled early
+        if completed < n_sims:
+            final_assets = final_assets[:completed]
+            final_equity = final_equity[:completed]
+            annual_losses = annual_losses[:completed]
+            insurance_recoveries = insurance_recoveries[:completed]
+            retained_losses = retained_losses[:completed]
+            n_sims = completed
 
         # Calculate growth rates using equity (#355: total assets includes
         # liabilities, giving misleading growth when leverage changes)
@@ -760,7 +844,11 @@ class MonteCarloEngine:
             config=self.config,
         )
 
-    def _run_parallel(self) -> MonteCarloResults:
+    def _run_parallel(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Run simulation in parallel using multiprocessing."""
         # Check if we're on Windows and have scipy import issues
         # Fall back to sequential execution in these cases
@@ -774,7 +862,9 @@ class MonteCarloEngine:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return self._run_sequential()
+            return self._run_sequential(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
 
         n_sims = self.config.n_simulations
         n_workers = self.config.n_workers
@@ -801,6 +891,8 @@ class MonteCarloEngine:
 
         # Run chunks in parallel using standalone function
         all_results = []
+        par_start = time.time()
+        completed_sims = 0
         try:
             with ProcessPoolExecutor(max_workers=n_workers) as executor:
                 # Submit all tasks using the standalone function
@@ -821,11 +913,26 @@ class MonteCarloEngine:
                     pbar = tqdm(total=len(chunks), desc="Processing chunks")
 
                 for future in as_completed(futures):
+                    # Check for cancellation before processing next result
+                    if cancel_event is not None and cancel_event.is_set():
+                        logger.info("Cancellation requested during parallel execution")
+                        # Cancel remaining futures
+                        for f in futures:
+                            f.cancel()
+                        break
+
                     chunk_results = future.result()
                     all_results.append(chunk_results)
 
+                    # Track completed simulations for callback
+                    chunk_info = futures[future]
+                    completed_sims += chunk_info[1] - chunk_info[0]
+
                     if self.config.progress_bar:
                         pbar.update(1)
+
+                    if progress_callback is not None:
+                        progress_callback(completed_sims, n_sims, time.time() - par_start)
 
                 if self.config.progress_bar:
                     pbar.close()
@@ -836,12 +943,18 @@ class MonteCarloEngine:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return self._run_sequential()
+            return self._run_sequential(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
 
         # Combine results
         return self._combine_chunk_results(all_results)
 
-    def _run_enhanced_parallel(self) -> MonteCarloResults:
+    def _run_enhanced_parallel(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
         """Run simulation using enhanced parallel executor.
 
         Uses CPU-optimized parallel execution with shared memory and
@@ -870,7 +983,9 @@ class MonteCarloEngine:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            return self._run_parallel()
+            return self._run_parallel(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
 
         # Prepare shared data including the actual loss generator and insurance
         # program so _simulate_path_enhanced uses the configured model (issue #299).
@@ -880,7 +995,10 @@ class MonteCarloEngine:
             "ruin_evaluation": self.config.ruin_evaluation,
             "insolvency_tolerance": self.config.insolvency_tolerance,
             "enable_ledger_pruning": self.config.enable_ledger_pruning,
-            "manufacturer_config": self.manufacturer.__dict__.copy(),
+            "manufacturer_config": {
+                "config": self.manufacturer.config,
+                "stochastic_process": self.manufacturer.stochastic_process,
+            },
             "loss_generator": self.loss_generator,
             "insurance_program": self.insurance_program,
             "base_seed": self.config.seed,
@@ -1008,6 +1126,8 @@ class MonteCarloEngine:
             reduce_function=combine_results_enhanced,
             shared_data=shared_data,
             progress_bar=self.config.progress_bar,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
         )
 
         # Add performance metrics from executor
@@ -1015,6 +1135,71 @@ class MonteCarloEngine:
             results.performance_metrics = self.parallel_executor.performance_metrics
 
         return results  # type: ignore[no-any-return]
+
+    def _run_gpu(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
+        """Run simulation using GPU-accelerated vectorized engine.
+
+        Falls back to parallel CPU execution if CuPy is not available.
+        """
+        from .gpu_backend import is_gpu_available
+        from .gpu_mc_engine import extract_params, run_gpu_simulation
+
+        if not is_gpu_available():
+            logger.info("GPU not available, falling back to parallel CPU execution")
+            warnings.warn(
+                "use_gpu=True but CuPy is not available. Falling back to CPU parallel.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return self._run_parallel(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
+
+        # Extract flat parameters
+        gpu_params = extract_params(
+            self.manufacturer,
+            self.insurance_program,
+            self.loss_generator,
+            self.config,
+        )
+
+        # Run vectorized simulation
+        raw_results = run_gpu_simulation(
+            gpu_params,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
+        )
+
+        # Calculate derived metrics
+        final_assets = raw_results["final_assets"]
+        final_equity = raw_results["final_equity"]
+        growth_rates = self._calculate_growth_rates(final_equity)
+
+        n_sims = len(final_assets)
+        ruin_probability = {
+            str(self.config.n_years): (
+                float(np.mean(final_assets <= self.config.insolvency_tolerance))
+                if n_sims > 0
+                else 0.0
+            )
+        }
+
+        return MonteCarloResults(
+            final_assets=final_assets,
+            annual_losses=raw_results["annual_losses"],
+            insurance_recoveries=raw_results["insurance_recoveries"],
+            retained_losses=raw_results["retained_losses"],
+            growth_rates=growth_rates,
+            ruin_probability=ruin_probability,
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=self.config,
+        )
 
     def _run_single_simulation(self, sim_id: int) -> Dict[str, Any]:
         """Run a single simulation path.
@@ -1080,13 +1265,13 @@ class MonteCarloEngine:
 
             # Apply insurance PER OCCURRENCE (not aggregate) and create
             # ClaimLiability objects with LoC collateral (Issue #342).
-            total_recovery = 0
-            total_retained = 0
+            total_recovery = 0.0
+            total_retained = 0.0
 
             for event in events:
                 # Process each event separately through insurance
                 claim_result = self.insurance_program.process_claim(event.amount)
-                event_recovery = claim_result.get("insurance_recovery", 0)
+                event_recovery = claim_result.insurance_recovery
                 event_retained = event.amount - event_recovery
 
                 total_recovery += event_recovery
@@ -1663,8 +1848,9 @@ class MonteCarloEngine:
 
                 if early_stopping and not should_continue:
                     if show_progress:
-                        print(
-                            f"\n✓ Early stopping: Convergence achieved at {completed_iterations:,} iterations"
+                        logger.info(
+                            "Early stopping: Convergence achieved at %s iterations",
+                            f"{completed_iterations:,}",
                         )
                     break
             else:
@@ -1793,14 +1979,13 @@ class MonteCarloEngine:
         if max_iterations is None:
             max_iterations = self.config.n_simulations * 10
 
-        # Save original config values that will be temporarily modified
-        original_n_sims = self.config.n_simulations
-        original_seed = self.config.seed
-        self.config.n_simulations = check_interval
-
-        # Use a local variable for seed advancement so config.seed is not
-        # permanently mutated (issue #299).
         batch_seed = self.config.seed
+
+        # Work on a shallow copy so the caller's config object is never
+        # mutated (issue #1018).  Only self.config is swapped; the
+        # original dataclass instance stays untouched.
+        original_config = self.config
+        self.config = replace(original_config, n_simulations=check_interval)
 
         all_results = []
         total_iterations = 0
@@ -1808,7 +1993,7 @@ class MonteCarloEngine:
 
         try:
             while not converged and total_iterations < max_iterations:
-                # Set seed for this batch
+                # Set seed for this batch (mutates only the local copy)
                 self.config.seed = batch_seed
 
                 # Run batch
@@ -1830,15 +2015,14 @@ class MonteCarloEngine:
                     converged = max_r_hat < target_r_hat
 
                     if self.config.progress_bar:
-                        print(f"Iteration {total_iterations}: R-hat = {max_r_hat:.3f}")
+                        logger.debug("Iteration %d: R-hat = %.3f", total_iterations, max_r_hat)
 
                 # Advance seed for next batch
                 if batch_seed is not None:
                     batch_seed += check_interval
         finally:
-            # Restore original config regardless of how we exit
-            self.config.n_simulations = original_n_sims
-            self.config.seed = original_seed
+            # Restore original config reference
+            self.config = original_config
 
         return combined
 
@@ -1902,3 +2086,15 @@ class MonteCarloEngine:
             config=self.config,
         )
         return analyzer.analyze_ruin_probability(config)
+
+
+def __getattr__(name):
+    if name == "SimulationConfig":
+        warnings.warn(
+            "SimulationConfig has been renamed to MonteCarloConfig. "
+            "Please update your imports. The old name will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return MonteCarloConfig
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

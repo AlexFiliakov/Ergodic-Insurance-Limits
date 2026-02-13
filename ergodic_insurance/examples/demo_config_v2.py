@@ -6,7 +6,7 @@ with profiles, modules, and presets.
 """
 
 from ergodic_insurance import WidgetManufacturer
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 from ergodic_insurance.config_manager import ConfigManager
 
 
@@ -177,7 +177,7 @@ def demo_validation():
         config = manager.load_profile("default")
         print("  [OK] Configuration is valid")
         print(f"  Type: {type(config).__name__}")
-        assert isinstance(config, ConfigV2)
+        assert isinstance(config, Config)
     except Exception as e:
         print(f"  [ERROR] {e}")
 

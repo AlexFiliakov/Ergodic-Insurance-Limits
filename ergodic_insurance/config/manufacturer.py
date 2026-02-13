@@ -242,6 +242,13 @@ class ManufacturerConfig(BaseModel):
         "Set to 0.80 per IRC §172(a)(2) post-TCJA. "
         "Set to 1.0 for pre-2018 NOLs or non-US jurisdictions.",
     )
+    apply_tcja_limitation: bool = Field(
+        default=True,
+        description="Apply TCJA 80% NOL deduction limitation per IRC §172(a)(2). "
+        "When True (default), NOL deductions are limited to nol_limitation_pct of "
+        "taxable income (post-2017 rules). When False, NOLs can offset 100% of "
+        "taxable income (pre-2018 rules). See Issue #808.",
+    )
     retention_ratio: float = Field(
         default=0.7, ge=0, le=1, description="Portion of earnings retained"
     )

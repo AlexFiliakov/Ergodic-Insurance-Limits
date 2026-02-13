@@ -21,7 +21,7 @@ from ergodic_insurance.loss_distributions import (
     ManufacturingLossGenerator,
 )
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
 
 # ---------------------------------------------------------------------------
@@ -292,7 +292,7 @@ class TestConfigSeedPreservation:
         # Reset to same known state so we can compare after construction
         np.random.seed(9999)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=5,
             parallel=False,

@@ -11,7 +11,7 @@ parameters, etc.) that can be composed into a master configuration.
 
 Sub-modules:
     constants: Module-level financial constants (e.g., DEFAULT_RISK_FREE_RATE).
-    core: Master Config and ConfigV2 classes that compose all sub-configs.
+    core: Master Config class that composes all sub-configs.
     insurance: Insurance layer, program, and loss distribution configs.
     manufacturer: Business entity, expense ratio, and industry profile configs.
     market: Pricing scenarios, transition probabilities, and market cycles.
@@ -23,6 +23,7 @@ Sub-modules:
 Key Features:
     - Type-safe configuration with automatic validation
     - Hierarchical configuration structure
+    - Profile inheritance and module composition
     - Environment variable support
     - JSON/YAML serialization support
     - Default values with business logic constraints
@@ -68,10 +69,13 @@ Note:
 
 Since:
     Version 0.1.0 (monolithic), refactored in 0.9.0 (Issue #458)
+    Version 0.10.0 (Issue #638) — Config and ConfigV2 merged into single Config
 """
 
+import warnings
+
 from .constants import DEFAULT_RISK_FREE_RATE
-from .core import Config, ConfigV2
+from .core import Config
 from .insurance import InsuranceConfig, InsuranceLayerConfig, LossDistributionConfig
 from .manufacturer import (
     DepreciationConfig,
@@ -93,18 +97,37 @@ from .presets import ModuleConfig, PresetConfig, PresetLibrary, ProfileMetadata
 from .reporting import ExcelReportConfig, LoggingConfig, OutputConfig
 from .simulation import (
     DebtConfig,
+    GPUConfig,
     GrowthConfig,
     SimulationConfig,
     WorkingCapitalConfig,
     WorkingCapitalRatiosConfig,
 )
 
+
+def __getattr__(name: str):
+    """Emit deprecation warning when accessing removed names."""
+    if name == "ConfigV2":
+        warnings.warn(
+            "ConfigV2 is deprecated and will be removed in a future version. "
+            "Use Config instead — it now includes all ConfigV2 features.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return Config
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Backward-compat alias so ``from ergodic_insurance.config import ConfigV2``
+# continues to work at type-check time (the __getattr__ above handles runtime).
+ConfigV2 = Config
+
 __all__ = [
     # Constants
     "DEFAULT_RISK_FREE_RATE",
     # Core
     "Config",
-    "ConfigV2",
+    "ConfigV2",  # deprecated alias — points to Config
     # Insurance
     "InsuranceConfig",
     "InsuranceLayerConfig",
@@ -140,4 +163,6 @@ __all__ = [
     "SimulationConfig",
     "WorkingCapitalConfig",
     "WorkingCapitalRatiosConfig",
+    # GPU
+    "GPUConfig",
 ]

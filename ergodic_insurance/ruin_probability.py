@@ -128,7 +128,7 @@ class RuinProbabilityAnalyzer:
             manufacturer: WidgetManufacturer instance
             loss_generator: ManufacturingLossGenerator instance
             insurance_program: InsuranceProgram instance
-            config: SimulationConfig instance
+            config: MonteCarloConfig instance
         """
         self.manufacturer = manufacturer
         self.loss_generator = loss_generator
@@ -462,7 +462,7 @@ class RuinProbabilityAnalyzer:
         # Calculate and apply insurance
         total_loss = sum(event.amount for event in events)
         claim_result = self.insurance_program.process_claim(total_loss)
-        recovery = claim_result.get("total_recovery", 0)
+        recovery = claim_result.insurance_recovery
         retained = total_loss - recovery
 
         # Apply retained loss using proper claim processing to enforce limited liability

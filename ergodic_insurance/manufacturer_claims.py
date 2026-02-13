@@ -410,6 +410,17 @@ class ClaimProcessingMixin:
             self.insurance_accounting.record_claim_recovery(
                 recovery_amount=insurance_payment, claim_id=claim_id, year=self.current_year
             )
+            # Record receivable in ledger: Dr INSURANCE_RECEIVABLES / Cr INSURANCE_LOSS
+            # per ASC 410-30 — recognize receivable at claim inception (Issue #625)
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.INSURANCE_RECEIVABLES,
+                credit_account=AccountName.INSURANCE_LOSS,
+                amount=insurance_payment,
+                transaction_type=TransactionType.INSURANCE_CLAIM,
+                description="Insurance receivable for claim recovery",
+                month=self.current_month,
+            )
             logger.info(f"Insurance covering ${insurance_payment:,.2f} - recorded as receivable")
 
         # Optionally record the loss in the income statement
@@ -784,6 +795,17 @@ class ClaimProcessingMixin:
         self._apply_reserve_noise(new_claim)
         self.claim_liabilities.append(new_claim)
 
+        # Record indemnity portion (Issue #849)
+        self.ledger.record_double_entry(
+            date=self.current_year,
+            debit_account=AccountName.INSURANCE_LOSS,
+            credit_account=AccountName.CLAIM_LIABILITIES,
+            amount=amount,
+            transaction_type=TransactionType.INSURANCE_CLAIM,
+            description="Recognize claim liability (indemnity via accrual)",
+        )
+        self.period_insurance_losses += amount
+
         # Record LAE expense separately (Issue #468)
         if lae_amount > ZERO:
             self.ledger.record_double_entry(
@@ -810,7 +832,10 @@ class ClaimProcessingMixin:
         """Apply initial estimation noise to a claim when reserve development is enabled.
 
         Stores the true ultimate amount and replaces original/remaining with
-        a noisy estimate. No-op if reserve development is disabled.
+        a noisy estimate. Records the noise delta in the ledger so the trial
+        balance reflects the estimated (noisy) claim liability (Issue #849).
+
+        No-op if reserve development is disabled.
 
         Args:
             claim: The ClaimLiability to apply noise to (modified in place).
@@ -826,8 +851,33 @@ class ClaimProcessingMixin:
         claim._noise_std = noise_std
         noise_factor = 1.0 + rng.gauss(0.0, noise_std)
         noisy_estimate = to_decimal(max(float(true_amount) * noise_factor, 0.0))
+        noise_delta = noisy_estimate - true_amount
         claim.original_amount = noisy_estimate
         claim.remaining_amount = noisy_estimate
+
+        # Record initial estimation adjustment so the ledger's CLAIM_LIABILITIES
+        # balance matches the claim object's remaining_amount (Issue #849).
+        month = getattr(self, "current_month", 0)
+        if noise_delta > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RESERVE_DEVELOPMENT,
+                credit_account=AccountName.CLAIM_LIABILITIES,
+                amount=noise_delta,
+                transaction_type=TransactionType.RESERVE_DEVELOPMENT,
+                description="Initial reserve estimation noise (adverse)",
+                month=month,
+            )
+        elif noise_delta < ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.CLAIM_LIABILITIES,
+                credit_account=AccountName.RESERVE_DEVELOPMENT,
+                amount=abs(noise_delta),
+                transaction_type=TransactionType.RESERVE_DEVELOPMENT,
+                description="Initial reserve estimation noise (favorable)",
+                month=month,
+            )
 
     def re_estimate_reserves(self) -> None:
         """Re-estimate all outstanding claim reserves per ASC 944-40-25.

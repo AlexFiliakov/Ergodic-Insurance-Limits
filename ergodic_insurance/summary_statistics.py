@@ -461,10 +461,9 @@ class SummaryStatistics:
         if len(upper_tail) > 1 and np.mean(upper_tail) != 0:
             extreme_stats["upper_tail_index"] = float(np.std(upper_tail) / np.mean(upper_tail))
 
-        # Expected shortfall (CVaR)
-        var_95 = np.percentile(data, 5)
-        expected_shortfall = np.mean(data[data <= var_95])
-        extreme_stats["expected_shortfall_5%"] = float(expected_shortfall)
+        # Expected shortfall (CVaR) - average of losses in the upper tail
+        expected_shortfall = np.mean(data[data >= threshold_upper])
+        extreme_stats["expected_shortfall_95%"] = float(expected_shortfall)
 
         return extreme_stats
 

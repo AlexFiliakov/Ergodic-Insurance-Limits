@@ -5,7 +5,6 @@ Targets specific uncovered lines: 187-202, 215-216, 229, 236-238, 269-271,
 """
 
 from multiprocessing import shared_memory
-import pickle
 import platform
 import time
 from unittest.mock import MagicMock, Mock, patch
@@ -137,10 +136,8 @@ class TestSharedMemoryManagerCompression:
             shm_name = manager.share_object("compressed", obj)
             assert shm_name != ""
 
-            serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-            compressed = zlib.compress(serialized)
-
-            retrieved = manager.get_object(shm_name, len(compressed), compressed=True)
+            actual_size = manager.get_object_size("compressed")
+            retrieved = manager.get_object(shm_name, actual_size, compressed=True)
             assert retrieved == obj
         finally:
             manager.cleanup()
@@ -336,16 +333,18 @@ class TestExecuteChunkErrorHandling:
                 raise ValueError("bad value")
             return x
 
-        results = _execute_chunk(fail_on_two, chunk, {}, config)
+        results, failed_count = _execute_chunk(fail_on_two, chunk, {}, config)
         assert results == [1, None, 3]
+        assert failed_count == 1
 
     def test_execute_chunk_no_shared_refs(self):
         """_execute_chunk works without shared refs."""
         chunk = (0, 3, [1, 2, 3])
         config = SharedMemoryConfig()
 
-        results = _execute_chunk(_simple_square, chunk, {}, config)
+        results, failed_count = _execute_chunk(_simple_square, chunk, {}, config)
         assert results == [1, 4, 9]
+        assert failed_count == 0
 
     def test_execute_chunk_with_shared_data(self):
         """_execute_chunk works with shared data passed as kwargs."""
@@ -362,8 +361,40 @@ class TestExecuteChunkErrorHandling:
             def multiply(x, **kwargs):
                 return x * kwargs.get("multiplier", 1)
 
-            results = _execute_chunk(multiply, chunk, shared_refs, config)
+            results, failed_count = _execute_chunk(multiply, chunk, shared_refs, config)
             assert results == [50, 100]
+            assert failed_count == 0
+
+    def test_execute_chunk_logs_exception(self):
+        """_execute_chunk logs warning on item failure."""
+        chunk = (10, 13, [1, 2, 3])
+        config = SharedMemoryConfig()
+
+        def fail_on_two(x):
+            if x == 2:
+                raise ValueError("bad value")
+            return x
+
+        with patch("ergodic_insurance.parallel_executor.logger") as mock_logger:
+            _execute_chunk(fail_on_two, chunk, {}, config)
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args
+            # First positional arg after format string is item index (11 = start_idx 10 + offset 1)
+            assert call_args[0][1] == 11
+
+    def test_execute_chunk_multiple_failures(self):
+        """_execute_chunk counts multiple failures correctly."""
+        chunk = (0, 5, [1, 2, 3, 4, 5])
+        config = SharedMemoryConfig()
+
+        def fail_on_even(x):
+            if x % 2 == 0:
+                raise ValueError("even")
+            return x
+
+        results, failed_count = _execute_chunk(fail_on_even, chunk, {}, config)
+        assert results == [1, None, 3, None, 5]
+        assert failed_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +541,8 @@ class TestObjectSizeTracking:
     )
     def test_share_object_stores_size(self):
         """share_object stores actual serialized size in _object_sizes."""
+        from ergodic_insurance.safe_pickle import safe_dumps
+
         config = SharedMemoryConfig(compression=False)
         manager = SharedMemoryManager(config)
 
@@ -517,7 +550,7 @@ class TestObjectSizeTracking:
             obj = {"key": "value", "data": [1, 2, 3]}
             manager.share_object("test", obj)
 
-            expected_size = len(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))
+            expected_size = len(safe_dumps(obj))
             assert manager.get_object_size("test") == expected_size
         finally:
             manager.cleanup()
@@ -531,6 +564,8 @@ class TestObjectSizeTracking:
         """share_object stores compressed size when compression enabled."""
         import zlib
 
+        from ergodic_insurance.safe_pickle import safe_dumps
+
         config = SharedMemoryConfig(compression=True)
         manager = SharedMemoryManager(config)
 
@@ -538,13 +573,13 @@ class TestObjectSizeTracking:
             obj = {"data": list(range(1000))}
             manager.share_object("compressed", obj)
 
-            raw = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
-            expected_compressed_size = len(zlib.compress(raw))
+            hmac_pickle = safe_dumps(obj)
+            expected_compressed_size = len(zlib.compress(hmac_pickle))
             actual_size = manager.get_object_size("compressed")
 
             assert actual_size == expected_compressed_size
-            # Compressed size should be smaller than raw
-            assert actual_size < len(raw)
+            # Compressed size should be smaller than uncompressed
+            assert actual_size < len(hmac_pickle)
         finally:
             manager.cleanup()
 
@@ -596,9 +631,10 @@ class TestExecuteChunkWorkerCleanup:
             def always_fail(x, **kwargs):
                 raise ValueError("boom")
 
-            results = _execute_chunk(always_fail, chunk, shared_refs, config)
+            results, failed_count = _execute_chunk(always_fail, chunk, shared_refs, config)
             mock_manager.cleanup.assert_called_once()
             assert results == [None, None]
+            assert failed_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -609,11 +645,13 @@ class TestGetObjectClosesHandle:
 
     def test_get_object_closes_shm(self):
         """get_object closes the SharedMemory handle after reading data."""
+        from ergodic_insurance.safe_pickle import safe_dumps
+
         config = SharedMemoryConfig(cleanup_on_exit=False)
         manager = SharedMemoryManager(config)
 
         obj = {"test": 42}
-        serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        serialized = safe_dumps(obj)
 
         mock_shm = MagicMock()
         mock_shm.buf = serialized + b"\x00" * 100

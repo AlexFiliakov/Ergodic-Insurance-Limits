@@ -41,6 +41,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from .claim_development import ClaimDevelopment
+from .loss_distributions import LossDistribution
+
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
     from .insurance import InsuranceLayer, InsurancePolicy
@@ -72,13 +75,26 @@ class PricingParameters:
 
     Attributes:
         loss_ratio: Target loss ratio for pricing (claims/premium)
-        expense_ratio: Operating expense ratio (default 0.25)
+        expense_ratio: Operating expense ratio excluding LAE (default 0.25).
+            Covers commissions, overhead, admin, and other non-LAE expenses.
         profit_margin: Target profit margin (default 0.05)
         risk_loading: Additional loading for uncertainty (default 0.10)
         confidence_level: Confidence level for pricing (default 0.95)
         simulation_years: Years to simulate for pricing (default 10)
         min_premium: Minimum premium floor (default 1000)
         max_rate_on_line: Maximum rate on line cap (default 0.50)
+        alae_ratio: Allocated LAE ratio as fraction of pure premium (default
+            0.10). Covers claim-specific costs such as legal fees and expert
+            witnesses. Typical range for commercial lines is 0.08-0.15.
+        ulae_ratio: Unallocated LAE ratio as fraction of pure premium (default
+            0.05). Covers general claims department overhead. Typical range
+            is 0.03-0.08.
+        development_pattern: Optional claim development pattern for developing
+            losses to ultimate (default None). When set, simulated losses are
+            adjusted by age-to-ultimate factors per ASOP 25 so that immature
+            accident years are brought to their expected ultimate value before
+            pure premium calculation. Use ``None`` to skip development
+            (equivalent to assuming all losses are already at ultimate).
     """
 
     loss_ratio: float = 0.70
@@ -89,6 +105,27 @@ class PricingParameters:
     simulation_years: int = 10
     min_premium: float = 1000.0
     max_rate_on_line: float = 0.50
+    alae_ratio: float = 0.10
+    ulae_ratio: float = 0.05
+    development_pattern: Optional[ClaimDevelopment] = None
+
+    def __post_init__(self) -> None:
+        import warnings
+
+        if self.alae_ratio + self.ulae_ratio > self.expense_ratio:
+            warnings.warn(
+                f"LAE ratio ({self.alae_ratio + self.ulae_ratio:.2f}) exceeds "
+                f"expense ratio ({self.expense_ratio:.2f}). This is unusual — "
+                f"verify that expense_ratio accounts for all operating expenses "
+                f"or adjust alae_ratio/ulae_ratio.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+    @property
+    def lae_ratio(self) -> float:
+        """Combined LAE ratio (ALAE + ULAE) as fraction of pure premium."""
+        return self.alae_ratio + self.ulae_ratio
 
 
 @dataclass
@@ -105,7 +142,8 @@ class LayerPricing:
         market_premium: Final premium after market adjustments
         rate_on_line: Premium as percentage of limit
         confidence_interval: (lower, upper) bounds at confidence level
-        lae_loading: LAE component embedded in the expense ratio (Issue #468)
+        lae_loading: LAE component calculated from dedicated ALAE/ULAE ratios
+        development_factor: Average age-to-ultimate LDF applied (1.0 = no development)
     """
 
     attachment_point: float
@@ -118,6 +156,170 @@ class LayerPricing:
     rate_on_line: float
     confidence_interval: Tuple[float, float]
     lae_loading: float = 0.0
+    development_factor: float = 1.0
+
+
+class LayerPricer:
+    """Analytical layer pricing using limited expected values.
+
+    Computes expected losses in an excess layer (attachment, attachment + limit)
+    directly from a fitted severity distribution, without simulation. This
+    replaces ad-hoc rate heuristics with actuarially sound formulas based on
+    the limited expected value (LEV), increased limits factors (ILFs), loss
+    elimination ratios (LERs), and exposure curves (Lee diagrams).
+
+    The fundamental identity is:
+        E[loss in layer (a, a+l)] = LEV(a + l) - LEV(a)
+
+    where LEV(d) = E[min(X, d)] is the limited expected value at *d*.
+
+    References:
+        - Lee (1988) — Loss Distributions (exposure curves)
+        - Miccolis (1977) — On the Theory of Increased Limits and Excess of Loss Pricing
+        - Klugman, Panjer, Willmot — *Loss Models*, Chapter 5
+
+    Args:
+        severity_distribution: Fitted severity distribution with a
+            ``limited_expected_value(limit)`` method.
+        frequency: Expected annual claim frequency for the distribution.
+
+    Example:
+        Analytical pricing of an excess layer::
+
+            from ergodic_insurance.loss_distributions import ParetoLoss
+            from ergodic_insurance.insurance_pricing import LayerPricer
+
+            severity = ParetoLoss(alpha=2.5, xm=100_000)
+            pricer = LayerPricer(severity, frequency=5.0)
+
+            # Expected loss in the $1M xs $500K layer
+            layer_loss = pricer.expected_layer_loss(500_000, 1_000_000)
+
+            # Increased Limits Factor at $2M relative to $500K basic limit
+            ilf = pricer.increased_limits_factor(2_000_000, basic_limit=500_000)
+    """
+
+    def __init__(
+        self,
+        severity_distribution: LossDistribution,
+        frequency: float = 1.0,
+    ) -> None:
+        self.severity = severity_distribution
+        self.frequency = frequency
+
+    def expected_layer_loss(self, attachment: float, limit: float) -> float:
+        """Calculate the expected loss in an excess layer.
+
+        E[loss in (a, a+l)] = LEV(a + l) - LEV(a)
+
+        This is the pure premium for a single occurrence in the layer,
+        multiplied by frequency to get the annual expected layer loss.
+
+        Args:
+            attachment: Layer attachment point (deductible).
+            limit: Layer limit (width of coverage).
+
+        Returns:
+            Annual expected loss cost for the layer.
+        """
+        if limit <= 0:
+            return 0.0
+        lev_top = self.severity.limited_expected_value(attachment + limit)
+        lev_bottom = self.severity.limited_expected_value(attachment)
+        per_occurrence = lev_top - lev_bottom
+        return float(self.frequency * max(per_occurrence, 0.0))
+
+    def increased_limits_factor(self, limit: float, basic_limit: float) -> float:
+        """Calculate the Increased Limits Factor (ILF).
+
+        ILF(L) = LEV(L) / LEV(B)
+
+        where B is the basic limit and L is the desired limit.
+        Used to price policies at higher limits relative to a base.
+
+        Reference: Miccolis (1977); CAS Study Note on ILF ratemaking.
+
+        Args:
+            limit: Target policy limit.
+            basic_limit: Basic (reference) limit.
+
+        Returns:
+            ILF ratio (>= 1.0 when limit >= basic_limit).
+        """
+        lev_basic = self.severity.limited_expected_value(basic_limit)
+        if lev_basic <= 0:
+            return 1.0
+        lev_limit = self.severity.limited_expected_value(limit)
+        return float(lev_limit / lev_basic)
+
+    def loss_elimination_ratio(self, deductible: float) -> float:
+        """Calculate the Loss Elimination Ratio (LER).
+
+        LER(d) = LEV(d) / E[X]
+
+        The proportion of total expected losses eliminated by a deductible *d*.
+        An LER of 0.40 means the deductible removes 40% of expected losses.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Definition 5.2.
+
+        Args:
+            deductible: Deductible amount.
+
+        Returns:
+            LER in [0, 1]. Returns 0.0 if E[X] is infinite.
+        """
+        ev = self.severity.expected_value()
+        if not np.isfinite(ev) or ev <= 0:
+            return 0.0
+        lev_d = self.severity.limited_expected_value(deductible)
+        return float(min(lev_d / ev, 1.0))
+
+    def exposure_curve(self, n_points: int = 100) -> Dict[str, List[float]]:
+        """Compute the exposure curve (Lee diagram).
+
+        The exposure curve relates the retention as a fraction of the policy
+        limit to the proportion of expected losses retained. Formally:
+
+            G(r) = LEV(r * M) / LEV(M)
+
+        where M is the maximum possible loss (or a large practical upper bound)
+        and r ranges from 0 to 1.
+
+        Useful for visualising how much loss is retained vs. ceded at
+        different attachment points.
+
+        Reference: Lee (1988).
+
+        Args:
+            n_points: Number of points on the curve (default 100).
+
+        Returns:
+            Dictionary with 'retention_pct' and 'loss_eliminated_pct' lists,
+            each of length *n_points* + 1 (including the origin).
+        """
+        ev = self.severity.expected_value()
+        if not np.isfinite(ev) or ev <= 0:
+            diagonal = [0.0] + [i / n_points for i in range(1, n_points + 1)]
+            return {"retention_pct": diagonal, "loss_eliminated_pct": diagonal}
+
+        # Use a practical upper bound: 20x expected value
+        max_loss = ev * 20.0
+        lev_max = self.severity.limited_expected_value(max_loss)
+        if lev_max <= 0:
+            diagonal = [0.0] + [i / n_points for i in range(1, n_points + 1)]
+            return {"retention_pct": diagonal, "loss_eliminated_pct": diagonal}
+
+        retention_pcts: List[float] = []
+        loss_elim_pcts: List[float] = []
+
+        for i in range(n_points + 1):
+            pct = i / n_points
+            retention_pcts.append(pct)
+            d = pct * max_loss
+            lev_d = self.severity.limited_expected_value(d)
+            loss_elim_pcts.append(float(lev_d / lev_max))
+
+        return {"retention_pct": retention_pcts, "loss_eliminated_pct": loss_elim_pcts}
 
 
 class InsurancePricer:
@@ -210,7 +412,13 @@ class InsurancePricer:
         """Calculate pure premium for a layer using frequency/severity.
 
         Pure premium represents the expected loss cost without expenses,
-        profit, or risk loading.
+        profit, or risk loading.  When a ``development_pattern`` is
+        configured on the pricing parameters, each simulation year's
+        aggregate losses are developed to ultimate using age-to-ultimate
+        factors (ASOP 25 / CAS Ratemaking Chapter 4).  Older simulation
+        years are treated as more mature while the most recent year is
+        treated as the least mature, mirroring standard experience-rating
+        practice.
 
         Args:
             attachment_point: Where layer coverage starts
@@ -233,11 +441,15 @@ class InsurancePricer:
         layer_losses = []
         frequencies = []
         severities = []
+        annual_aggregates = []
 
-        for _ in range(years):
-            # Generate annual losses
+        for year_idx in range(years):
+            # Generate annual losses (time enables loss cost trending per ASOP 13)
             losses, _stats = self.loss_generator.generate_losses(
-                duration=1.0, revenue=expected_revenue, include_catastrophic=True
+                duration=1.0,
+                revenue=expected_revenue,
+                include_catastrophic=True,
+                time=float(year_idx),
             )
 
             # Calculate losses hitting this layer
@@ -246,6 +458,9 @@ class InsurancePricer:
                 if loss.amount > attachment_point:
                     layer_loss = min(loss.amount - attachment_point, limit)
                     annual_layer_losses.append(layer_loss)
+
+            # Track annual aggregate (including zero-loss years)
+            annual_aggregates.append(sum(annual_layer_losses))
 
             # Track statistics
             if annual_layer_losses:
@@ -259,31 +474,70 @@ class InsurancePricer:
         if layer_losses:
             expected_frequency = float(np.mean(frequencies))
             expected_severity = float(np.mean(severities) if severities else 0)
-            pure_premium = expected_frequency * expected_severity
+            undeveloped_pure_premium = expected_frequency * expected_severity
 
-            # Calculate confidence interval
-            if len(layer_losses) > 1:
-                lower = np.percentile(layer_losses, (1 - self.parameters.confidence_level) * 50)
-                upper = np.percentile(layer_losses, 50 + self.parameters.confidence_level * 50)
-                confidence_interval = (float(lower), float(upper))
+            # ---------------------------------------------------------
+            # Develop losses to ultimate (Issue #714, ASOP 25)
+            # ---------------------------------------------------------
+            # Each simulation year is treated as an accident year at a
+            # specific maturity.  Year 0 has had ``years`` years of
+            # development; the most recent year (``years - 1``) has had
+            # only 1 year.  Dividing each year's observed aggregate by
+            # the cumulative percent developed produces the estimated
+            # ultimate aggregate (standard assumed-pattern chain-ladder).
+            pattern = self.parameters.development_pattern
+            if pattern is not None:
+                developed_aggregates: List[float] = []
+                for year_idx, agg in enumerate(annual_aggregates):
+                    dev_age = years - year_idx  # maturity in years
+                    pct_developed = pattern.get_cumulative_paid(dev_age)
+                    if pct_developed > 0:
+                        developed_aggregates.append(agg / pct_developed)
+                    else:
+                        # No development information — use raw aggregate
+                        developed_aggregates.append(agg)
+
+                pure_premium = float(np.mean(developed_aggregates))
+                development_factor = (
+                    pure_premium / undeveloped_pure_premium if undeveloped_pure_premium > 0 else 1.0
+                )
+                # Update annual aggregates for CI calculation
+                annual_aggregates = developed_aggregates
             else:
-                confidence_interval = (pure_premium * 0.8, pure_premium * 1.2)
+                pure_premium = undeveloped_pure_premium
+                development_factor = 1.0
+
+            # Bootstrap confidence interval on mean annual aggregate (Issue #614)
+            # CI reflects aggregate pricing uncertainty, not individual loss variability
+            aggregates_arr = np.array(annual_aggregates)
+            n_bootstrap = 10_000
+            indices = self.rng.integers(0, years, size=(n_bootstrap, years))
+            boot_means = aggregates_arr[indices].mean(axis=1)
+            alpha = 1 - self.parameters.confidence_level
+            lower = float(np.percentile(boot_means, 100 * alpha / 2))
+            upper = float(np.percentile(boot_means, 100 * (1 - alpha / 2)))
+            confidence_interval = (lower, upper)
         else:
             expected_frequency = 0.0
             expected_severity = 0.0
             pure_premium = 0.0
+            undeveloped_pure_premium = 0.0
+            development_factor = 1.0
             confidence_interval = (0.0, 0.0)
 
         statistics = {
             "expected_frequency": expected_frequency,
             "expected_severity": expected_severity,
             "pure_premium": pure_premium,
+            "undeveloped_pure_premium": undeveloped_pure_premium,
+            "development_factor": development_factor,
             "confidence_interval": confidence_interval,
             "years_simulated": years,
             "total_losses_in_layer": len(layer_losses),
             "max_loss_in_layer": max(layer_losses) if layer_losses else 0,
             "attachment_point": attachment_point,
             "limit": limit,
+            "annual_aggregates": annual_aggregates,
         }
 
         return pure_premium, statistics
@@ -293,12 +547,17 @@ class InsurancePricer:
         pure_premium: float,
         limit: float,
     ) -> float:
-        """Convert pure premium to technical premium with risk loading.
+        """Convert pure premium to technical premium with risk and LAE loading.
 
         Technical premium adds a risk loading for parameter uncertainty
-        to the pure premium. Expense and profit margins are applied
+        to the pure premium, plus LAE (loss adjustment expense) as a known
+        cost component per ASOP 29.  Expense and profit margins are applied
         separately via the loss ratio in calculate_market_premium()
         to avoid double-counting.
+
+        Formula:
+            technical_premium = pure_premium * (1 + risk_loading)
+                              + pure_premium * lae_ratio
 
         Args:
             pure_premium: Expected loss cost
@@ -310,8 +569,11 @@ class InsurancePricer:
         # Add risk loading for uncertainty
         risk_loading = 1 + self.parameters.risk_loading
 
+        # LAE is a known cost component added on top of risk-loaded premium
+        lae_loading = pure_premium * self.parameters.lae_ratio
+
         # Calculate technical premium (expense/profit applied via loss ratio)
-        technical_premium = pure_premium * risk_loading
+        technical_premium = (pure_premium * risk_loading) + lae_loading
 
         # Apply minimum premium
         technical_premium = max(technical_premium, self.parameters.min_premium)
@@ -382,8 +644,8 @@ class InsurancePricer:
         # Calculate rate on line
         rate_on_line = market_premium / limit if limit > 0 else 0.0
 
-        # LAE loading is the portion of expenses attributable to loss adjustment (Issue #468)
-        lae_loading = pure_premium * self.parameters.expense_ratio
+        # LAE loading from dedicated ALAE/ULAE ratios (Issue #616)
+        lae_loading = pure_premium * self.parameters.lae_ratio
 
         return LayerPricing(
             attachment_point=attachment_point,
@@ -396,6 +658,7 @@ class InsurancePricer:
             rate_on_line=rate_on_line,
             confidence_interval=stats["confidence_interval"],
             lae_loading=lae_loading,
+            development_factor=stats["development_factor"],
         )
 
     def price_insurance_program(
@@ -545,8 +808,8 @@ class InsurancePricer:
 
         results = {}
 
-        # LAE loading is the portion of expenses attributable to loss adjustment (Issue #468)
-        lae_loading = pure_premium * self.parameters.expense_ratio
+        # LAE loading from dedicated ALAE/ULAE ratios (Issue #616)
+        lae_loading = pure_premium * self.parameters.lae_ratio
 
         # Apply different market cycle adjustments to the same technical premium
         for cycle in MarketCycle:
@@ -565,6 +828,7 @@ class InsurancePricer:
                 rate_on_line=rate_on_line,
                 confidence_interval=stats["confidence_interval"],
                 lae_loading=lae_loading,
+                development_factor=stats["development_factor"],
             )
 
         return results
@@ -680,12 +944,42 @@ class InsurancePricer:
         """Create pricer from configuration dictionary.
 
         Args:
-            config: Configuration dictionary
+            config: Configuration dictionary.  Supports an optional
+                ``development_pattern`` key whose value is the name of a
+                standard ``DevelopmentPatternType`` (e.g. ``"long_tail_10yr"``)
+                or a dict with ``factors`` and optional ``tail_factor``.
             loss_generator: Optional loss generator
 
         Returns:
             Configured InsurancePricer instance
         """
+        # Resolve development pattern
+        dev_cfg = config.get("development_pattern")
+        dev_pattern: Optional[ClaimDevelopment] = None
+        if dev_cfg is not None:
+            if isinstance(dev_cfg, ClaimDevelopment):
+                dev_pattern = dev_cfg
+            elif isinstance(dev_cfg, str):
+                _PATTERN_FACTORIES = {
+                    "immediate": ClaimDevelopment.create_immediate,
+                    "medium_tail_5yr": ClaimDevelopment.create_medium_tail_5yr,
+                    "long_tail_10yr": ClaimDevelopment.create_long_tail_10yr,
+                    "very_long_tail_15yr": ClaimDevelopment.create_very_long_tail_15yr,
+                }
+                factory = _PATTERN_FACTORIES.get(dev_cfg.lower())
+                if factory is None:
+                    raise ValueError(
+                        f"Unknown development pattern '{dev_cfg}'. "
+                        f"Valid names: {list(_PATTERN_FACTORIES.keys())}"
+                    )
+                dev_pattern = factory()
+            elif isinstance(dev_cfg, dict):
+                dev_pattern = ClaimDevelopment(
+                    pattern_name=dev_cfg.get("name", "custom"),
+                    development_factors=dev_cfg["factors"],
+                    tail_factor=dev_cfg.get("tail_factor", 0.0),
+                )
+
         # Extract pricing parameters
         params = PricingParameters(
             loss_ratio=config.get("loss_ratio", 0.70),
@@ -696,6 +990,9 @@ class InsurancePricer:
             simulation_years=config.get("simulation_years", 10),
             min_premium=config.get("min_premium", 1000.0),
             max_rate_on_line=config.get("max_rate_on_line", 0.50),
+            alae_ratio=config.get("alae_ratio", 0.10),
+            ulae_ratio=config.get("ulae_ratio", 0.05),
+            development_pattern=dev_pattern,
         )
 
         # Get market cycle

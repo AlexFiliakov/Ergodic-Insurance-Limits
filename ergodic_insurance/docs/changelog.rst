@@ -41,8 +41,8 @@ API Changes
 ~~~~~~~~~~~
 
 * ``ConfigLoader`` deprecated in favor of ``ConfigManager``
-* New ``ConfigV2`` Pydantic models replace dictionary configs
-* ``load_config()`` → ``load_profile()`` with enhanced options
+* Unified ``Config`` Pydantic model replaces dictionary configs (``ConfigV2`` is a deprecated alias)
+* ``load_config()`` -> ``load_profile()`` with enhanced options
 
 Bug Fixes
 ~~~~~~~~~

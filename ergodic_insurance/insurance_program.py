@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import numpy as np
 import yaml
 
+from .ergodic_types import ClaimResult, LayerPayment
+
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
     from .insurance_pricing import InsurancePricer, MarketCycle
@@ -528,6 +530,33 @@ class InsuranceProgram:
         self.pricing_results: List[Any] = []
 
     @classmethod
+    def create_fresh(cls, source: "InsuranceProgram") -> "InsuranceProgram":
+        """Create a fresh program from an existing program's configuration.
+
+        Factory method that avoids ``copy.deepcopy`` by constructing a new
+        instance directly from immutable layer definitions.  Use this in hot
+        loops (e.g. Monte Carlo workers) where each simulation needs clean
+        initial state.
+
+        The new instance shares the same :class:`EnhancedInsuranceLayer`
+        objects (which are immutable after construction) but builds fresh
+        :class:`LayerState` wrappers with zeroed counters.
+
+        Args:
+            source: An existing program whose configuration is reused.
+
+        Returns:
+            A new ``InsuranceProgram`` with pristine mutable state.
+        """
+        return cls(
+            layers=source.layers,
+            deductible=source.deductible,
+            name=source.name,
+            pricing_enabled=source.pricing_enabled,
+            pricer=source.pricer,
+        )
+
+    @classmethod
     def simple(
         cls,
         deductible: float,
@@ -589,7 +618,7 @@ class InsuranceProgram:
         """
         return sum(layer.calculate_base_premium(time) for layer in self.layers)
 
-    def process_claim(self, claim_amount: float, timing_factor: float = 1.0) -> Dict[str, Any]:
+    def process_claim(self, claim_amount: float, timing_factor: float = 1.0) -> ClaimResult:
         """Process a single claim through the insurance structure.
 
         Args:
@@ -597,30 +626,26 @@ class InsuranceProgram:
             timing_factor: Pro-rata factor for reinstatement premiums.
 
         Returns:
-            Dictionary with claim allocation details.
+            Typed :class:`ClaimResult` with claim allocation details.
         """
         if claim_amount <= 0:
-            return {
-                "total_claim": 0.0,
-                "deductible_paid": 0.0,
-                "insurance_recovery": 0.0,
-                "uncovered_loss": 0.0,
-                "reinstatement_premiums": 0.0,
-                "layers_triggered": [],
-            }
+            return ClaimResult(
+                total_claim=0.0,
+                deductible_paid=0.0,
+                insurance_recovery=0.0,
+                uncovered_loss=0.0,
+                reinstatement_premiums=0.0,
+                layers_triggered=[],
+            )
 
         self.total_claims += 1
-        result: Dict[str, Any] = {
-            "total_claim": claim_amount,
-            "deductible_paid": min(claim_amount, self.deductible),
-            "insurance_recovery": 0.0,
-            "uncovered_loss": 0.0,
-            "reinstatement_premiums": 0.0,
-            "layers_triggered": [],
-        }
+        deductible_paid = min(claim_amount, self.deductible)
+        insurance_recovery = 0.0
+        reinstatement_premiums = 0.0
+        layers_triggered: list[LayerPayment] = []
 
         # Maximum recoverable is claim minus deductible
-        max_recoverable = claim_amount - result["deductible_paid"]
+        max_recoverable = claim_amount - deductible_paid
 
         # Process through each layer
         for i, state in enumerate(self.layer_states):
@@ -631,35 +656,43 @@ class InsuranceProgram:
             layer_loss = state.layer.calculate_layer_loss(claim_amount)
 
             # Process the claim
-            payment, reinstatement_premium = state.process_claim(layer_loss, timing_factor)
+            payment, reinst_premium = state.process_claim(layer_loss, timing_factor)
 
             if payment > 0:
-                result["insurance_recovery"] += payment
-                result["reinstatement_premiums"] += reinstatement_premium
-                result["layers_triggered"].append(
-                    {
-                        "layer_index": i,
-                        "attachment": state.layer.attachment_point,
-                        "payment": payment,
-                        "reinstatement_premium": reinstatement_premium,
-                        "exhausted": state.is_exhausted,
-                    }
+                insurance_recovery += payment
+                reinstatement_premiums += reinst_premium
+                layers_triggered.append(
+                    LayerPayment(
+                        layer_index=i,
+                        attachment=state.layer.attachment_point,
+                        payment=payment,
+                        reinstatement_premium=reinst_premium,
+                        exhausted=state.is_exhausted,
+                    )
                 )
 
         # Guard: total insurance recovery cannot exceed (claim - deductible)
-        if result["insurance_recovery"] > max_recoverable:
-            result["insurance_recovery"] = max_recoverable
+        if insurance_recovery > max_recoverable:
+            insurance_recovery = max_recoverable
 
         # Calculate uncovered loss
-        total_covered = result["deductible_paid"] + result["insurance_recovery"]
+        uncovered_loss = 0.0
+        total_covered = deductible_paid + insurance_recovery
         if total_covered < claim_amount:
-            result["uncovered_loss"] = claim_amount - total_covered
+            uncovered_loss = claim_amount - total_covered
             # Company pays uncovered portion
-            result["deductible_paid"] += result["uncovered_loss"]
+            deductible_paid += uncovered_loss
 
-        self.total_premiums_paid += result["reinstatement_premiums"]
+        self.total_premiums_paid += reinstatement_premiums
 
-        return result
+        return ClaimResult(
+            total_claim=claim_amount,
+            deductible_paid=deductible_paid,
+            insurance_recovery=insurance_recovery,
+            uncovered_loss=uncovered_loss,
+            reinstatement_premiums=reinstatement_premiums,
+            layers_triggered=layers_triggered,
+        )
 
     def process_annual_claims(
         self, claims: List[float], claim_times: Optional[List[float]] = None
@@ -694,10 +727,10 @@ class InsuranceProgram:
             timing_factor = 1.0 - time  # Remaining portion of year
             claim_result = self.process_claim(claim, timing_factor)
 
-            results["total_deductible"] += claim_result["deductible_paid"]
-            results["total_recovery"] += claim_result["insurance_recovery"]
-            results["total_uncovered"] += claim_result["uncovered_loss"]
-            results["total_reinstatement_premiums"] += claim_result["reinstatement_premiums"]
+            results["total_deductible"] += claim_result.deductible_paid
+            results["total_recovery"] += claim_result.insurance_recovery
+            results["total_uncovered"] += claim_result.uncovered_loss
+            results["total_reinstatement_premiums"] += claim_result.reinstatement_premiums
             results["claim_details"].append(claim_result)
 
         # Compile layer summaries
@@ -822,7 +855,7 @@ class InsuranceProgram:
         self,
         loss_history: List[List[float]],
         manufacturer_profile: Optional[Dict[str, Any]] = None,
-        time_horizon: int = 100,
+        time_horizon: int = 50,
     ) -> Dict[str, float]:
         """Calculate ergodic benefit of insurance structure.
 
@@ -832,7 +865,8 @@ class InsuranceProgram:
         Args:
             loss_history: Historical loss data (list of annual loss lists).
             manufacturer_profile: Company profile with assets, revenue, etc.
-            time_horizon: Time horizon for ergodic calculation.
+            time_horizon: Time horizon for ergodic calculation (default 50,
+                matching ``SimulationConfig.time_horizon_years``).
 
         Returns:
             Dictionary with ergodic metrics.

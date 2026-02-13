@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .ergodic_analyzer import ErgodicData
     from .exposure_base import ExposureBase
     from .insurance_program import InsuranceProgram
+    from .trends import Trend
 
 
 class LossDistribution(ABC):
@@ -50,6 +51,24 @@ class LossDistribution(ABC):
 
         Returns:
             Expected value when analytically available, otherwise estimated.
+        """
+
+    @abstractmethod
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value E[min(X, limit)].
+
+        The limited expected value (LEV) is the expected claim cost when
+        losses are capped at a given limit. It is the fundamental building
+        block for layer pricing, increased limits factors, and loss
+        elimination ratios.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Chapter 5.
+
+        Args:
+            limit: The maximum value to which losses are capped.
+
+        Returns:
+            E[min(X, limit)], the expected value of the loss limited to *limit*.
         """
 
     def reset_seed(self, seed) -> None:
@@ -139,6 +158,31 @@ class LognormalLoss(LossDistribution):
         """
         return self.mean
 
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value for the lognormal distribution.
+
+        LEV(d) = E[X] * Phi((ln(d) - mu - sigma^2) / sigma)
+                 + d * (1 - Phi((ln(d) - mu) / sigma))
+
+        where Phi is the standard normal CDF.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Theorem 5.3.
+
+        Args:
+            limit: The cap on individual losses.
+
+        Returns:
+            E[min(X, d)] for the lognormal distribution.
+        """
+        if limit <= 0:
+            return 0.0
+
+        ln_d = np.log(limit)
+        z1 = (ln_d - self.mu - self.sigma**2) / self.sigma
+        z2 = (ln_d - self.mu) / self.sigma
+
+        return float(self.mean * stats.norm.cdf(z1) + limit * (1 - stats.norm.cdf(z2)))
+
 
 class ParetoLoss(LossDistribution):
     """Pareto loss severity distribution for catastrophic events.
@@ -193,6 +237,40 @@ class ParetoLoss(LossDistribution):
         if self.alpha <= 1:
             return np.inf
         return self.alpha * self.xm / (self.alpha - 1)
+
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value for the Pareto Type I distribution.
+
+        For X ~ Pareto(alpha, xm) with S(x) = (xm/x)^alpha, x >= xm:
+
+        LEV(d) = d                                              if d <= xm
+        LEV(d) = alpha*xm/(alpha-1) - xm^alpha * d^(1-alpha) / (alpha-1)
+                                                                if d > xm, alpha > 1
+        LEV(d) = xm * (1 + ln(d/xm))                          if d > xm, alpha = 1
+
+        Derived via the survival function integral: LEV(d) = integral_0^d S(x) dx.
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Chapter 5.
+
+        Args:
+            limit: The cap on individual losses.
+
+        Returns:
+            E[min(X, d)] for the Pareto distribution.
+        """
+        if limit <= 0:
+            return 0.0
+
+        if limit <= self.xm:
+            return limit
+
+        if self.alpha == 1.0:
+            return float(self.xm * (1.0 + np.log(limit / self.xm)))
+
+        return float(
+            self.alpha * self.xm / (self.alpha - 1)
+            - (self.xm**self.alpha) * limit ** (1 - self.alpha) / (self.alpha - 1)
+        )
 
 
 class GeneralizedParetoLoss(LossDistribution):
@@ -269,6 +347,47 @@ class GeneralizedParetoLoss(LossDistribution):
         if self.severity_shape >= 1:
             return np.inf
         return self.severity_scale / (1 - self.severity_shape)
+
+    def limited_expected_value(self, limit: float) -> float:
+        """Calculate the limited expected value for the Generalized Pareto distribution.
+
+        For X ~ GPD(xi, beta) with loc=0:
+
+        When xi != 0:
+            LEV(d) = (beta / (1 - xi)) * [1 - (1 + xi*d/beta)^(1 - 1/xi)]
+            valid for d < -beta/xi when xi < 0 (upper bound of support).
+
+        When xi == 0 (exponential):
+            LEV(d) = beta * (1 - exp(-d/beta))
+
+        For d >= upper bound (xi < 0): LEV(d) = E[X] (full expected value).
+
+        Reference: Klugman, Panjer, Willmot — *Loss Models*, Chapter 5;
+                   Hosking & Wallis (1987).
+
+        Args:
+            limit: The cap on individual losses.
+
+        Returns:
+            E[min(X, d)] for the GPD.
+        """
+        if limit <= 0:
+            return 0.0
+
+        xi = self.severity_shape
+        beta = self.severity_scale
+
+        if abs(xi) < 1e-12:
+            # Exponential case (xi -> 0)
+            return float(beta * (1 - np.exp(-limit / beta)))
+
+        # Check upper bound for xi < 0 (bounded support: x < -beta/xi)
+        if xi < 0:
+            upper_bound = -beta / xi
+            if limit >= upper_bound:
+                return self.expected_value()
+
+        return float((beta / (1 - xi)) * (1 - (1 + xi * limit / beta) ** (1 - 1 / xi)))
 
 
 @dataclass
@@ -838,6 +957,8 @@ class ManufacturingLossGenerator:
         extreme_params: Optional[dict] = None,
         exposure: Optional["ExposureBase"] = None,
         seed: Optional[int] = None,
+        frequency_trend: Optional["Trend"] = None,
+        severity_trend: Optional["Trend"] = None,
     ):
         """Initialize manufacturing loss generator.
 
@@ -851,6 +972,10 @@ class ManufacturingLossGenerator:
                 - severity_scale (float): GPD scale parameter β > 0 (required)
             exposure: Optional exposure object for dynamic frequency scaling.
             seed: Random seed for reproducibility.
+            frequency_trend: Optional trend for scaling claim frequency over time.
+                Applied as a multiplicative factor to base frequencies.
+            severity_trend: Optional trend for scaling claim severity over time.
+                Applied as a multiplicative factor to loss amounts.
         """
         # Use provided parameters or defaults
         attritional_params = attritional_params or {}
@@ -859,6 +984,10 @@ class ManufacturingLossGenerator:
 
         # Store exposure object
         self.exposure = exposure
+
+        # Store trend objects for loss cost trending (ASOP 13)
+        self.frequency_trend = frequency_trend
+        self.severity_trend = severity_trend
 
         # Pass exposure to each generator if provided
         if exposure is not None:
@@ -937,6 +1066,8 @@ class ManufacturingLossGenerator:
         catastrophic_frequency: float = 0.001,
         catastrophic_pareto_alpha: float = 2.5,
         catastrophic_severity_factor: float = 5.0,
+        frequency_trend: Optional["Trend"] = None,
+        severity_trend: Optional["Trend"] = None,
     ) -> "ManufacturingLossGenerator":
         """Create a simple loss generator (migration helper from ClaimGenerator).
 
@@ -1027,6 +1158,8 @@ class ManufacturingLossGenerator:
             large_params=large_params,
             catastrophic_params=catastrophic_params,
             seed=seed,
+            frequency_trend=frequency_trend,
+            severity_trend=severity_trend,
         )
 
     def generate_losses(
@@ -1049,14 +1182,40 @@ class ManufacturingLossGenerator:
         else:
             actual_revenue = revenue
 
-        # Generate each type of loss
-        attritional_losses = self.attritional.generate_losses(duration, actual_revenue)
-        large_losses = self.large.generate_losses(duration, actual_revenue)
+        # Compute trend multipliers (ASOP 13 loss cost trending)
+        freq_multiplier = self.frequency_trend.get_multiplier(time) if self.frequency_trend else 1.0
+        sev_multiplier = self.severity_trend.get_multiplier(time) if self.severity_trend else 1.0
 
-        if include_catastrophic:
-            catastrophic_losses = self.catastrophic.generate_losses(duration, actual_revenue)
-        else:
-            catastrophic_losses = []
+        # Temporarily scale base frequencies for frequency trending
+        generators: List[
+            Union[AttritionalLossGenerator, LargeLossGenerator, CatastrophicLossGenerator]
+        ] = [self.attritional, self.large, self.catastrophic]
+        original_frequencies = [g.frequency_generator.base_frequency for g in generators]
+        try:
+            for g in generators:
+                g.frequency_generator.base_frequency *= freq_multiplier
+
+            # Generate each type of loss
+            attritional_losses = self.attritional.generate_losses(duration, actual_revenue)
+            large_losses = self.large.generate_losses(duration, actual_revenue)
+
+            if include_catastrophic:
+                catastrophic_losses = self.catastrophic.generate_losses(duration, actual_revenue)
+            else:
+                catastrophic_losses = []
+        finally:
+            # Restore original base frequencies to avoid state corruption
+            for g, orig_freq in zip(generators, original_frequencies):
+                g.frequency_generator.base_frequency = orig_freq
+
+        # Apply severity trend to all loss amounts
+        if sev_multiplier != 1.0:
+            for loss in attritional_losses:
+                loss.amount *= sev_multiplier
+            for loss in large_losses:
+                loss.amount *= sev_multiplier
+            for loss in catastrophic_losses:
+                loss.amount *= sev_multiplier
 
         # Combine all losses
         all_losses = attritional_losses + large_losses + catastrophic_losses
@@ -1113,6 +1272,8 @@ class ManufacturingLossGenerator:
             "annual_expected_loss": (
                 sum(loss.amount for loss in all_losses) / duration if duration > 0 else 0
             ),
+            "frequency_trend_multiplier": freq_multiplier,
+            "severity_trend_multiplier": sev_multiplier,
         }
 
         return all_losses, statistics

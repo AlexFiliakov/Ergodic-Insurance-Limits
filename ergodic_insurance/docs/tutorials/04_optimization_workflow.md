@@ -334,7 +334,7 @@ from ergodic_insurance.strategy_backtester import (
     AdaptiveStrategy,
     StrategyBacktester,
 )
-from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig
 
 # 1. No insurance (baseline)
 no_insurance = NoInsuranceStrategy()
@@ -367,7 +367,7 @@ adaptive = AdaptiveStrategy(
 
 ```python
 # Configure the simulation
-sim_config = SimulationConfig(
+sim_config = MonteCarloConfig(
     n_simulations=500,
     n_years=10,
     seed=42,

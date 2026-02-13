@@ -15,7 +15,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig
 from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
 
 
@@ -404,28 +404,28 @@ class TestAllCustomParameters:
 
 
 class TestConfigDictPropagation:
-    """Test that SimulationConfig fields propagate to config_dict
+    """Test that MonteCarloConfig fields propagate to config_dict
     in the parallel execution path."""
 
     def test_simulation_config_has_step_fields(self):
-        """SimulationConfig should have the 4 step parameter fields."""
-        config = SimulationConfig()
+        """MonteCarloConfig should have the 4 step parameter fields."""
+        config = MonteCarloConfig()
         assert hasattr(config, "letter_of_credit_rate")
         assert hasattr(config, "growth_rate")
         assert hasattr(config, "time_resolution")
         assert hasattr(config, "apply_stochastic")
 
     def test_simulation_config_defaults(self):
-        """SimulationConfig defaults should match worker defaults."""
-        config = SimulationConfig()
+        """MonteCarloConfig defaults should match worker defaults."""
+        config = MonteCarloConfig()
         assert config.letter_of_credit_rate == 0.015
         assert config.growth_rate == 0.0
         assert config.time_resolution == "annual"
         assert config.apply_stochastic is False
 
     def test_simulation_config_custom_values(self):
-        """SimulationConfig should accept custom step parameter values."""
-        config = SimulationConfig(
+        """MonteCarloConfig should accept custom step parameter values."""
+        config = MonteCarloConfig(
             letter_of_credit_rate=0.05,
             growth_rate=0.10,
             time_resolution="monthly",

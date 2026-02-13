@@ -25,6 +25,8 @@ from ergodic_insurance.benchmarking import (
     run_quick_benchmark,
 )
 
+pytestmark = pytest.mark.benchmark
+
 
 class TestBenchmarkMetrics:
     """Test BenchmarkMetrics dataclass."""

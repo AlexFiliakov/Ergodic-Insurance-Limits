@@ -22,6 +22,7 @@ from scipy import optimize
 from .config import BusinessOptimizerConfig
 from .decision_engine import InsuranceDecisionEngine
 from .ergodic_analyzer import ErgodicAnalyzer
+from .gpu_backend import GPUConfig, is_gpu_available
 from .loss_distributions import LossDistribution
 from .manufacturer import WidgetManufacturer
 
@@ -172,6 +173,7 @@ class BusinessOptimizer:
         ergodic_analyzer: Optional[ErgodicAnalyzer] = None,
         loss_distribution: Optional[LossDistribution] = None,
         optimizer_config: Optional[BusinessOptimizerConfig] = None,
+        gpu_config: Optional[GPUConfig] = None,
     ):
         """Initialize business optimizer.
 
@@ -182,9 +184,13 @@ class BusinessOptimizer:
             loss_distribution: Loss distribution model (optional)
             optimizer_config: Configuration for optimizer heuristic parameters (optional).
                 If None, uses default BusinessOptimizerConfig values.
+            gpu_config: GPU acceleration configuration (optional).
+                If None, GPU acceleration is not used.
         """
         self.manufacturer = manufacturer
         self.optimizer_config = optimizer_config or BusinessOptimizerConfig()
+        self.gpu_config = gpu_config
+        self._gpu_batch_objective: Optional[Any] = None  # lazy init
 
         # Create default loss distribution if not provided
         if loss_distribution is None:
@@ -198,6 +204,48 @@ class BusinessOptimizer:
         )
         self.ergodic_analyzer = ergodic_analyzer
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def _get_gpu_batch_objective(self):
+        """Lazily initialize GPU batch objective evaluator."""
+        if self._gpu_batch_objective is None:
+            use_gpu = self.gpu_config is not None and self.gpu_config.enabled and is_gpu_available()
+            if use_gpu or self.gpu_config is not None:
+                from .gpu_objective import GPUBatchObjective
+
+                self._gpu_batch_objective = GPUBatchObjective(
+                    equity=float(self.manufacturer.equity),
+                    total_assets=float(self.manufacturer.total_assets),
+                    revenue=float(self.manufacturer.calculate_revenue()),
+                    optimizer_config=self.optimizer_config,
+                    gpu_config=self.gpu_config,
+                )
+        return self._gpu_batch_objective
+
+    def with_manufacturer(self, manufacturer: WidgetManufacturer) -> "BusinessOptimizer":
+        """Create a lightweight optimizer for a different manufacturer.
+
+        Reuses the optimizer config, loss distribution, decision engine, and
+        ergodic analyzer from this instance, avoiding the overhead of
+        reconstructing shared components (YAML I/O, engine initialization).
+
+        The decision engine retains a reference to the original manufacturer,
+        which is correct because methods like maximize_roe_with_insurance read
+        directly from self.manufacturer rather than through the decision engine.
+
+        Args:
+            manufacturer: New manufacturer to optimize for.
+
+        Returns:
+            A new BusinessOptimizer sharing this instance's internal components.
+        """
+        return BusinessOptimizer(
+            manufacturer=manufacturer,
+            decision_engine=self.decision_engine,
+            ergodic_analyzer=self.ergodic_analyzer,
+            loss_distribution=self.loss_distribution,
+            optimizer_config=self.optimizer_config,
+            gpu_config=self.gpu_config,
+        )
 
     def maximize_roe_with_insurance(
         self, constraints: BusinessConstraints, time_horizon: int = 10, n_simulations: int = 1000
@@ -311,6 +359,198 @@ class BusinessOptimizer:
         )
 
         # Generate recommendations
+        recommendations = self._generate_roe_recommendations(
+            optimal_coverage, optimal_deductible, optimal_premium, optimal_roe
+        )
+
+        return OptimalStrategy(
+            coverage_limit=optimal_coverage,
+            deductible=optimal_deductible,
+            premium_rate=optimal_premium,
+            expected_roe=optimal_roe,
+            bankruptcy_risk=bankruptcy_risk,
+            growth_rate=growth_rate,
+            capital_efficiency=capital_efficiency,
+            recommendations=recommendations,
+        )
+
+    def maximize_roe_gpu(
+        self,
+        constraints: BusinessConstraints,
+        time_horizon: int = 10,
+        n_simulations: int = 1000,
+        method: str = "scipy",
+        n_starts: int = 10,
+        top_k: int = 5,
+        de_pop_size: int = 50,
+        de_generations: int = 100,
+    ) -> OptimalStrategy:
+        """GPU-accelerated ROE maximization with batched objective evaluation.
+
+        Uses GPU-batched evaluation for faster optimization. Falls back to
+        CPU-based maximize_roe_with_insurance if GPU is unavailable.
+
+        Args:
+            constraints: Business constraints to satisfy
+            time_horizon: Planning horizon in years
+            n_simulations: Number of Monte Carlo simulations per evaluation
+            method: Optimization method - 'scipy' (SLSQP with GPU gradient),
+                'multi_start' (GPU-screened multi-start), or 'de' (GPU differential evolution)
+            n_starts: Number of starting points for multi-start method
+            top_k: Number of top starting points to optimize
+            de_pop_size: Population size for differential evolution
+            de_generations: Number of generations for DE
+
+        Returns:
+            Optimal insurance strategy maximizing ROE
+
+        Since:
+            Version 0.11.0 (Issue #966)
+        """
+        batch_obj = self._get_gpu_batch_objective()
+        if batch_obj is None:
+            self.logger.info("GPU batch objective unavailable, falling back to CPU")
+            return self.maximize_roe_with_insurance(constraints, time_horizon, n_simulations)
+
+        from .gpu_objective import (
+            GPUDifferentialEvolution,
+            GPUMultiStartScreener,
+            GPUObjectiveWrapper,
+        )
+
+        self.logger.info(
+            f"GPU-accelerated ROE maximization: method={method}, "
+            f"horizon={time_horizon}y, sims={n_simulations}"
+        )
+
+        total_assets = float(self.manufacturer.total_assets)
+        revenue = float(self.manufacturer.calculate_revenue())
+
+        bounds = [
+            (1e6, min(total_assets * 2, 100e6)),
+            (0, 1e6),
+            (0.001, 0.10),
+        ]
+
+        # Build constraint functions
+        constraint_list = []
+
+        def premium_constraint(x):
+            _, _, premium_rate = x
+            coverage_limit = x[0]
+            annual_premium = coverage_limit * premium_rate
+            max_premium = revenue * constraints.max_premium_budget
+            return max_premium - annual_premium
+
+        constraint_list.append({"type": "ineq", "fun": premium_constraint})
+
+        def risk_constraint(x):
+            bankruptcy_risk = self._estimate_bankruptcy_risk(
+                coverage_limit=x[0],
+                deductible=x[1],
+                premium_rate=x[2],
+                time_horizon=time_horizon,
+            )
+            return constraints.max_risk_tolerance - bankruptcy_risk
+
+        constraint_list.append({"type": "ineq", "fun": risk_constraint})
+
+        def coverage_constraint(x):
+            return x[0] - total_assets * constraints.min_coverage_ratio
+
+        constraint_list.append({"type": "ineq", "fun": coverage_constraint})
+
+        if method == "de":
+            de_optimizer = GPUDifferentialEvolution(
+                batch_objective=batch_obj,
+                bounds=bounds,
+                objective_name="roe",
+                time_horizon=time_horizon,
+                n_simulations=n_simulations,
+                seed=self.optimizer_config.seed,
+            )
+            result = de_optimizer.optimize(
+                pop_size=de_pop_size,
+                n_generations=de_generations,
+            )
+        else:
+            wrapper = GPUObjectiveWrapper(
+                batch_objective=batch_obj,
+                objective_name="roe",
+                time_horizon=time_horizon,
+                n_simulations=n_simulations,
+            )
+
+            if method == "multi_start":
+                screener = GPUMultiStartScreener(
+                    batch_objective=batch_obj,
+                    objective_name="roe",
+                    time_horizon=time_horizon,
+                    n_simulations=n_simulations,
+                )
+                rng = np.random.default_rng(self.optimizer_config.seed)
+                all_starts = [
+                    np.array(
+                        [
+                            rng.uniform(bounds[0][0], bounds[0][1]),
+                            rng.uniform(bounds[1][0], bounds[1][1]),
+                            rng.uniform(bounds[2][0], bounds[2][1]),
+                        ]
+                    )
+                    for _ in range(n_starts)
+                ]
+                best_starts = screener.screen_starting_points(np.array(all_starts), top_k=top_k)
+                best_result = None
+                for start in best_starts:
+                    try:
+                        res = optimize.minimize(
+                            wrapper,
+                            start,
+                            method="SLSQP",
+                            jac=wrapper.gradient,
+                            bounds=bounds,
+                            constraints=constraint_list,
+                            options={"maxiter": 100, "ftol": 1e-6},
+                        )
+                        if best_result is None or res.fun < best_result.fun:
+                            best_result = res
+                    except (ValueError, RuntimeError) as e:
+                        self.logger.warning(f"Multi-start attempt failed: {e}")
+                        continue
+                if best_result is None:
+                    self.logger.warning("All multi-start attempts failed, falling back to CPU")
+                    return self.maximize_roe_with_insurance(
+                        constraints, time_horizon, n_simulations
+                    )
+                result = best_result
+            else:
+                # Default scipy with GPU-batched gradient
+                x0 = np.array([total_assets * 0.8, 100000, 0.02])
+                result = optimize.minimize(
+                    wrapper,
+                    x0,
+                    method="SLSQP",
+                    jac=wrapper.gradient,
+                    bounds=bounds,
+                    constraints=constraint_list,
+                    options={"maxiter": 100, "ftol": 1e-6},
+                )
+
+        if not result.success:
+            self.logger.warning(f"GPU optimization did not converge: {result.message}")
+
+        optimal_coverage, optimal_deductible, optimal_premium = result.x
+        optimal_roe = -result.fun if method != "de" else -result.fun
+
+        bankruptcy_risk = self._estimate_bankruptcy_risk(
+            optimal_coverage, optimal_deductible, optimal_premium, time_horizon
+        )
+        growth_rate = self._estimate_growth_rate(
+            optimal_coverage, optimal_deductible, optimal_premium, time_horizon
+        )
+        capital_efficiency = self._calculate_capital_efficiency(
+            optimal_coverage, optimal_deductible, optimal_premium
+        )
         recommendations = self._generate_roe_recommendations(
             optimal_coverage, optimal_deductible, optimal_premium, optimal_roe
         )

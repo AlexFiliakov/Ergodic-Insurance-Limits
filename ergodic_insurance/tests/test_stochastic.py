@@ -80,7 +80,7 @@ class TestStochasticProcesses:
         assert abs(log_std - 0.15) < 0.02
 
     def test_mean_reverting_process(self):
-        """Test mean-reverting process."""
+        """Test mean-reverting process reverts toward target."""
         config = StochasticConfig(volatility=0.1, drift=0.0, random_seed=456)
         process = MeanRevertingProcess(config, mean_level=1.0, reversion_speed=0.5)
 
@@ -96,6 +96,59 @@ class TestStochasticProcesses:
         final_values = shocks[-20:]
         mean_final = np.mean(final_values)
         assert 0.8 < mean_final < 1.2  # Should be close to 1.0
+
+    def test_mean_reverting_shocks_always_positive(self):
+        """Test that exponential OU shocks are always strictly positive."""
+        config = StochasticConfig(volatility=0.5, drift=0.0, random_seed=789)
+        process = MeanRevertingProcess(config, mean_level=1.0, reversion_speed=0.5)
+
+        # Test across a wide range of current values, including near-zero
+        for current_value in [0.01, 0.1, 1.0, 5.0, 100.0]:
+            for _ in range(500):
+                shock = process.generate_shock(current_value)
+                assert (
+                    shock > 0
+                ), f"Shock must be positive, got {shock} at current_value={current_value}"
+
+    def test_mean_reverting_volatility_state_independent(self):
+        """Test that multiplicative shock volatility doesn't depend on current value."""
+        config = StochasticConfig(volatility=0.2, drift=0.0, random_seed=42)
+        n_samples = 5000
+
+        # Generate log-shock distributions at two very different current values
+        stds = []
+        for current_value in [0.5, 50.0]:
+            process = MeanRevertingProcess(
+                StochasticConfig(volatility=0.2, drift=0.0, random_seed=42),
+                mean_level=1.0,
+                reversion_speed=0.0,  # No reversion to isolate volatility
+            )
+            log_shocks = [np.log(process.generate_shock(current_value)) for _ in range(n_samples)]
+            stds.append(np.std(log_shocks))
+
+        # With exponential OU at theta=0, log-shock std = sigma*sqrt(dt) regardless
+        # of current_value. Allow 5% relative tolerance.
+        assert (
+            abs(stds[0] - stds[1]) / stds[0] < 0.05
+        ), f"Volatility should be state-independent: std@0.5={stds[0]:.4f}, std@50={stds[1]:.4f}"
+
+    def test_mean_reverting_rejects_nonpositive_mean(self):
+        """Test that MeanRevertingProcess rejects non-positive mean_level."""
+        config = StochasticConfig(volatility=0.1, drift=0.0, random_seed=42)
+        with pytest.raises(ValueError, match="mean_level must be positive"):
+            MeanRevertingProcess(config, mean_level=0.0)
+        with pytest.raises(ValueError, match="mean_level must be positive"):
+            MeanRevertingProcess(config, mean_level=-1.0)
+
+    def test_mean_reverting_near_zero_current(self):
+        """Test that near-zero current_value doesn't break the process."""
+        config = StochasticConfig(volatility=0.1, drift=0.0, random_seed=42)
+        process = MeanRevertingProcess(config, mean_level=1.0, reversion_speed=0.5)
+
+        # Near-zero current value should still produce a valid positive shock
+        shock = process.generate_shock(1e-12)
+        assert shock > 0
+        assert np.isfinite(shock)
 
     def test_process_factory(self):
         """Test factory function for creating processes."""

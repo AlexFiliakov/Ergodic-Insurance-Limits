@@ -4,7 +4,8 @@ import pytest
 
 from ergodic_insurance.accrual_manager import AccrualType, PaymentSchedule
 from ergodic_insurance.config import ManufacturerConfig
-from ergodic_insurance.decimal_utils import to_decimal
+from ergodic_insurance.decimal_utils import ZERO, to_decimal
+from ergodic_insurance.ledger import AccountName
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -223,3 +224,145 @@ class TestAccrualIntegration:
         assert wage_accruals[0].is_fully_paid
         assert wage_accruals[1].remaining_balance == to_decimal(15000)
         assert wage_accruals[2].remaining_balance == to_decimal(30000)
+
+    def test_discharge_reverses_liability_from_ledger(self, manufacturer):
+        """Test that discharged accruals create a reversal ledger entry (Issue #1063).
+
+        Per ASC 405-20, when a liability is extinguished due to limited liability,
+        the ledger must record Dr ACCRUED_XXX / Cr RETAINED_EARNINGS.
+        """
+        # Create a wage accrual and its matching ledger entry
+        wage_amount = to_decimal(100_000)
+        manufacturer.record_wage_accrual(wage_amount, PaymentSchedule.IMMEDIATE)
+
+        # Manually record the liability in the ledger (Dr WAGE_EXPENSE / Cr ACCRUED_WAGES)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.WAGE_EXPENSE,
+            credit_account=AccountName.ACCRUED_WAGES,
+            amount=wage_amount,
+            transaction_type="accrual",
+            description="Wage accrual for test",
+        )
+
+        accrued_wages_before = manufacturer.ledger.get_balance(AccountName.ACCRUED_WAGES)
+        assert accrued_wages_before == wage_amount
+
+        # Process with max_payable < total due → partial discharge
+        max_payable = to_decimal(40_000)
+        manufacturer.process_accrued_payments("annual", max_payable=max_payable)
+
+        # The unpayable amount (60,000) should be discharged from the ledger
+        accrued_wages_after = manufacturer.ledger.get_balance(AccountName.ACCRUED_WAGES)
+        assert (
+            accrued_wages_after == ZERO
+        ), f"ACCRUED_WAGES should be zero after full discharge, got {accrued_wages_after}"
+
+        # RETAINED_EARNINGS should absorb the discharged amount
+        re_balance = manufacturer.ledger.get_balance(AccountName.RETAINED_EARNINGS)
+        assert re_balance >= to_decimal(
+            60_000
+        ), f"RETAINED_EARNINGS should include discharged amount, got {re_balance}"
+
+        # Trial balance must remain balanced
+        assert manufacturer.ledger.verify_balance()
+
+    def test_discharge_clears_accrual_manager(self, manufacturer):
+        """Test that discharged accruals are also cleared from AccrualManager (Issue #1063)."""
+        wage_amount = to_decimal(50_000)
+        manufacturer.record_wage_accrual(wage_amount, PaymentSchedule.IMMEDIATE)
+
+        # Process with zero payable → full discharge
+        manufacturer.process_accrued_payments("annual", max_payable=to_decimal(0))
+
+        # AccrualManager should have no remaining balance
+        remaining = manufacturer.accrual_manager.get_total_accrued_expenses()
+        assert (
+            remaining == ZERO
+        ), f"AccrualManager should have zero remaining after discharge, got {remaining}"
+
+    def test_tax_accrual_creates_ledger_entry(self, manufacturer):
+        """Test that tax accrual creates Dr TAX_EXPENSE / Cr ACCRUED_TAXES (Issue #1081)."""
+        # Run a step to generate income and accrue taxes
+        metrics = manufacturer.step(time_resolution="annual")
+
+        if metrics["net_income"] > 0:
+            # TAX_EXPENSE should now be in the ledger
+            tax_expense_balance = manufacturer.ledger.get_balance(AccountName.TAX_EXPENSE)
+            assert (
+                tax_expense_balance > ZERO
+            ), "TAX_EXPENSE ledger balance should be positive after profitable year"
+
+            # ACCRUED_TAXES in ledger should match AccrualManager
+            accrued_taxes_ledger = manufacturer.ledger.get_balance(AccountName.ACCRUED_TAXES)
+            accrued_taxes_manager = sum(
+                a.remaining_balance
+                for a in manufacturer.accrual_manager.get_accruals_by_type(AccrualType.TAXES)
+                if not a.is_fully_paid
+            )
+            assert accrued_taxes_ledger == accrued_taxes_manager, (
+                f"Ledger ACCRUED_TAXES ({accrued_taxes_ledger}) should match "
+                f"AccrualManager ({accrued_taxes_manager})"
+            )
+
+            # Trial balance must remain balanced
+            assert manufacturer.ledger.verify_balance()
+
+    def test_tax_accrual_and_payment_ledger_flow(self, manufacturer):
+        """Test full tax lifecycle: accrual → payment → ledger stays balanced (Issue #1081)."""
+        # Year 1: Generate income, accrue taxes
+        metrics_y1 = manufacturer.step(time_resolution="annual")
+        accrued_taxes_y1 = metrics_y1["accrued_taxes"]
+
+        if accrued_taxes_y1 > 0:
+            # Verify accrual is in ledger
+            assert manufacturer.ledger.get_balance(AccountName.ACCRUED_TAXES) > ZERO
+
+            # Year 2: Monthly steps should pay quarterly taxes
+            for month in range(12):
+                manufacturer.step(time_resolution="monthly")
+
+            # After payment, ACCRUED_TAXES should have decreased
+            # (new accruals may have been added too)
+            assert manufacturer.ledger.verify_balance()
+
+    def test_discharge_all_accrual_types(self, manufacturer):
+        """Test discharge works for taxes, wages, and interest (Issue #1063)."""
+        # Record accruals for multiple types
+        manufacturer.record_wage_accrual(to_decimal(10_000), PaymentSchedule.IMMEDIATE)
+        manufacturer.accrual_manager.record_expense_accrual(
+            AccrualType.INTEREST,
+            to_decimal(5_000),
+            PaymentSchedule.IMMEDIATE,
+        )
+        manufacturer.accrual_manager.record_expense_accrual(
+            AccrualType.TAXES,
+            to_decimal(20_000),
+            PaymentSchedule.IMMEDIATE,
+        )
+
+        # Record matching ledger liabilities
+        for account, amount in [
+            (AccountName.ACCRUED_WAGES, to_decimal(10_000)),
+            (AccountName.ACCRUED_INTEREST, to_decimal(5_000)),
+            (AccountName.ACCRUED_TAXES, to_decimal(20_000)),
+        ]:
+            manufacturer.ledger.record_double_entry(
+                date=manufacturer.current_year,
+                debit_account=AccountName.OPERATING_EXPENSES,
+                credit_account=account,
+                amount=amount,
+                transaction_type="accrual",
+                description="Test accrual",
+            )
+
+        # Discharge all (zero payable)
+        manufacturer.process_accrued_payments("annual", max_payable=to_decimal(0))
+
+        # All accrued liability accounts should be zero
+        assert manufacturer.ledger.get_balance(AccountName.ACCRUED_WAGES) == ZERO
+        assert manufacturer.ledger.get_balance(AccountName.ACCRUED_INTEREST) == ZERO
+        assert manufacturer.ledger.get_balance(AccountName.ACCRUED_TAXES) == ZERO
+
+        # Trial balance must remain balanced
+        assert manufacturer.ledger.verify_balance()

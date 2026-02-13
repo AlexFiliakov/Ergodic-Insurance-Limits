@@ -72,6 +72,17 @@ Import Recipes:
     Ergodic & risk analysis::
 
         from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+        from ergodic_insurance.ergodic_types import (
+            ErgodicData, ErgodicAnalysisResults, ValidationResults,
+            ScenarioComparison, BatchAnalysisResults,
+        )
+        from ergodic_insurance.scenario_analysis import (
+            compare_scenarios, analyze_simulation_batch,
+        )
+        from ergodic_insurance.integrated_analysis import (
+            integrate_loss_ergodic_analysis,
+            validate_insurance_ergodic_impact,
+        )
         from ergodic_insurance.risk_metrics import RiskMetrics
         from ergodic_insurance.ruin_probability import RuinProbabilityAnalyzer
 
@@ -155,6 +166,7 @@ __all__ = [
     # Simulation
     "Simulation",
     "SimulationResults",
+    "StrategyComparisonResult",
 ]
 
 
@@ -198,9 +210,10 @@ def __getattr__(name):
         )
 
         return locals()[name]
-    if name in ("InsurancePricer", "MarketCycle"):
+    if name in ("InsurancePricer", "MarketCycle", "LayerPricer"):
         from .insurance_pricing import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             InsurancePricer,
+            LayerPricer,
             MarketCycle,
         )
 
@@ -257,14 +270,41 @@ def __getattr__(name):
         from .ergodic_analyzer import ErgodicAnalyzer  # pylint: disable=import-outside-toplevel
 
         return ErgodicAnalyzer
+    if name in (
+        "ScenarioComparison",
+        "ScenarioMetrics",
+        "ErgodicAdvantage",
+        "BatchAnalysisResults",
+        "TimeAverageStats",
+        "EnsembleAverageStats",
+        "ConvergenceStats",
+        "SurvivalAnalysisStats",
+        "ClaimResult",
+        "LayerPayment",
+    ):
+        from .ergodic_types import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            BatchAnalysisResults,
+            ClaimResult,
+            ConvergenceStats,
+            EnsembleAverageStats,
+            ErgodicAdvantage,
+            LayerPayment,
+            ScenarioComparison,
+            ScenarioMetrics,
+            SurvivalAnalysisStats,
+            TimeAverageStats,
+        )
+
+        return locals()[name]
     if name == "WidgetManufacturer":
         from .manufacturer import WidgetManufacturer  # pylint: disable=import-outside-toplevel
 
         return WidgetManufacturer
-    if name in ("Simulation", "SimulationResults"):
+    if name in ("Simulation", "SimulationResults", "StrategyComparisonResult"):
         from .simulation import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             Simulation,
             SimulationResults,
+            StrategyComparisonResult,
         )
 
         return locals()[name]
@@ -361,6 +401,57 @@ def __getattr__(name):
             DataQualityWarning,
             ErgodicInsuranceWarning,
             ExportWarning,
+        )
+
+        return locals()[name]
+    if name in ("GPUSimulationParams", "run_gpu_simulation"):
+        from .gpu_mc_engine import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            GPUSimulationParams,
+            run_gpu_simulation,
+        )
+
+        return locals()[name]
+    if name in (
+        "get_array_module",
+        "to_device",
+        "to_numpy",
+        "gpu_info",
+        "is_gpu_available",
+        "set_random_seed",
+        "gpu_memory_pool",
+        "gpu_device",
+        "GPUConfig",
+        "detect_colab_environment",
+        "colab_setup_helper",
+        "is_gpu_array",
+    ):
+        from .gpu_backend import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            GPUConfig,
+            colab_setup_helper,
+            detect_colab_environment,
+            get_array_module,
+            gpu_device,
+            gpu_info,
+            gpu_memory_pool,
+            is_gpu_array,
+            is_gpu_available,
+            set_random_seed,
+            to_device,
+            to_numpy,
+        )
+
+        return locals()[name]
+    if name in (
+        "GPUBatchObjective",
+        "GPUObjectiveWrapper",
+        "GPUMultiStartScreener",
+        "GPUDifferentialEvolution",
+    ):
+        from .gpu_objective import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            GPUBatchObjective,
+            GPUDifferentialEvolution,
+            GPUMultiStartScreener,
+            GPUObjectiveWrapper,
         )
 
         return locals()[name]

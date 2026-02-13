@@ -33,6 +33,15 @@ class ExecutiveReport(ReportBuilder):
         key_metrics: Dictionary of key performance metrics.
     """
 
+    _ALLOWED_FIGURE_GENERATORS = frozenset({"generate_roe_frontier", "generate_convergence_plot"})
+    _ALLOWED_TABLE_GENERATORS = frozenset(
+        {
+            "generate_performance_table",
+            "generate_decision_matrix",
+            "generate_convergence_table",
+        }
+    )
+
     def __init__(
         self,
         results: Dict[str, Any],
@@ -454,10 +463,21 @@ class ExecutiveReport(ReportBuilder):
             Decision matrix DataFrame.
         """
         # Create decision criteria
-        criteria = ["ROE", "Risk Level", "Growth Rate", "Implementation Cost", "Complexity"]
+        criteria = [
+            "ROE",
+            "Risk Level",
+            "Growth Rate",
+            "Implementation Cost",
+            "Complexity",
+        ]
 
         # Define alternatives
-        alternatives = ["No Insurance", "Basic Coverage", "Optimized Structure", "Full Coverage"]
+        alternatives = [
+            "No Insurance",
+            "Basic Coverage",
+            "Optimized Structure",
+            "Full Coverage",
+        ]
 
         # Generate scores (example - would be based on actual analysis)
         scores = np.array(
@@ -560,7 +580,12 @@ class ExecutiveReport(ReportBuilder):
                     "Target": "> 1000",
                     "Status": "PASS",
                 },
-                {"Metric": "Autocorrelation", "Value": 0.045, "Target": "< 0.1", "Status": "PASS"},
+                {
+                    "Metric": "Autocorrelation",
+                    "Value": 0.045,
+                    "Target": "< 0.1",
+                    "Status": "PASS",
+                },
                 {
                     "Metric": "Batch Means p-value",
                     "Value": 0.342,

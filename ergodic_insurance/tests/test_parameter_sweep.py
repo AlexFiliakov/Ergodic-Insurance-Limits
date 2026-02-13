@@ -169,27 +169,22 @@ class TestParameterSweeper:
         """Test handling of optimization failure."""
         with patch.object(sweeper, "_create_manufacturer") as mock_create:
             mock_manufacturer = MagicMock()
-            mock_manufacturer.total_assets = (
-                10e6  # Add total_assets attribute for BusinessOptimizer
-            )
             mock_create.return_value = mock_manufacturer
 
-            # Patch at the source module where BusinessOptimizer is defined
-            with patch("ergodic_insurance.business_optimizer.BusinessOptimizer") as MockOptimizer:
-                mock_opt_instance = MockOptimizer.return_value
-                # Use ValueError which is caught by _run_single
-                mock_opt_instance.maximize_roe_with_insurance.side_effect = ValueError(
-                    "Optimization failed"
-                )
+            # Configure the mock optimizer's with_manufacturer to return
+            # an optimizer that fails on maximize_roe_with_insurance
+            mock_opt = MagicMock()
+            mock_opt.maximize_roe_with_insurance.side_effect = ValueError("Optimization failed")
+            sweeper.optimizer.with_manufacturer.return_value = mock_opt
 
-                params = {"initial_assets": 10e6}
-                metrics = ["optimal_roe", "ruin_probability"]
+            params = {"initial_assets": 10e6}
+            metrics = ["optimal_roe", "ruin_probability"]
 
-                result = sweeper._run_single(params, metrics)
+            result = sweeper._run_single(params, metrics)
 
-                assert result["initial_assets"] == 10e6
-                assert np.isnan(result["optimal_roe"])
-                assert np.isnan(result["ruin_probability"])
+            assert result["initial_assets"] == 10e6
+            assert np.isnan(result["optimal_roe"])
+            assert np.isnan(result["ruin_probability"])
 
     def test_sweep_execution(self, sweeper):
         """Test full sweep execution."""
@@ -555,3 +550,64 @@ class TestParameterSweeper:
         assert loaded is not None
         assert len(loaded) == 3
         assert loaded["param1"].tolist() == [1, 2, 3]
+
+    def test_run_single_reuses_optimizer_via_with_manufacturer(self, sweeper):
+        """Test that _run_single reuses self.optimizer via with_manufacturer (#497)."""
+        mock_manufacturer = MagicMock()
+        mock_result = MagicMock()
+        mock_result.expected_roe = 0.15
+        mock_result.bankruptcy_risk = 0.005
+        mock_result.coverage_limit = 5e6
+        mock_result.premium_rate = 0.02
+        mock_result.deductible = 100_000
+
+        mock_new_optimizer = MagicMock()
+        mock_new_optimizer.maximize_roe_with_insurance.return_value = mock_result
+        sweeper.optimizer.with_manufacturer.return_value = mock_new_optimizer
+
+        with patch.object(sweeper, "_create_manufacturer", return_value=mock_manufacturer):
+            params = {"initial_assets": 10e6, "time_horizon": 10}
+            sweeper._run_single(params, ["optimal_roe"])
+
+        # Verify with_manufacturer was called instead of constructing a new optimizer
+        sweeper.optimizer.with_manufacturer.assert_called_once_with(mock_manufacturer)
+        mock_new_optimizer.maximize_roe_with_insurance.assert_called_once()
+
+    def test_run_single_caches_template_when_no_optimizer(self):
+        """Test that _run_single creates and caches a template optimizer (#497)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sweeper = ParameterSweeper(optimizer=None, cache_dir=tmpdir, use_parallel=False)
+
+            mock_result = MagicMock()
+            mock_result.expected_roe = 0.12
+            mock_result.bankruptcy_risk = 0.01
+            mock_result.coverage_limit = 3e6
+            mock_result.premium_rate = 0.03
+            mock_result.deductible = 50_000
+
+            with patch.object(sweeper, "_create_manufacturer") as mock_create:
+                mock_manufacturer = MagicMock()
+                mock_create.return_value = mock_manufacturer
+
+                # Patch at the source module so the local import picks it up
+                with patch("ergodic_insurance.business_optimizer.BusinessOptimizer") as MockBO:
+                    mock_instance = MockBO.return_value
+                    mock_instance.maximize_roe_with_insurance.return_value = mock_result
+                    # Make with_manufacturer return a mock that also works
+                    mock_cloned = MagicMock()
+                    mock_cloned.maximize_roe_with_insurance.return_value = mock_result
+                    mock_instance.with_manufacturer.return_value = mock_cloned
+
+                    # First call: should construct BusinessOptimizer and cache it
+                    sweeper._run_single({"initial_assets": 10e6}, ["optimal_roe"])
+                    assert MockBO.call_count == 1
+                    assert sweeper._template_optimizer is not None
+
+                    # Clear result cache so second call isn't a cache hit
+                    sweeper.results_cache.clear()
+
+                    # Second call: should reuse template via with_manufacturer
+                    sweeper._run_single({"initial_assets": 20e6}, ["optimal_roe"])
+                    # No additional BusinessOptimizer construction
+                    assert MockBO.call_count == 1
+                    mock_instance.with_manufacturer.assert_called_once()

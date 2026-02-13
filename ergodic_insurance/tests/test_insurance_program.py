@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 import yaml
 
+from ergodic_insurance.ergodic_types import ClaimResult, LayerPayment
 from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
     InsuranceProgram,
@@ -1045,6 +1046,7 @@ class TestCatastrophicScenarios:
         assert result["uncovered_loss"] == 5_000_000
         assert result["deductible_paid"] == 5_000_000  # Company pays uncovered
 
+    @pytest.mark.benchmark
     def test_performance_batch_processing(self):
         """Test performance requirement: process 10K claims in < 100ms."""
         import time
@@ -1399,3 +1401,231 @@ class TestInsuranceProgramCalculatePremium:
         ]
         program = InsuranceProgram(layers, deductible=500_000)
         assert program.calculate_premium() == 4_500_000 * 0.015
+
+
+class TestInsuranceProgramCreateFresh:
+    """Tests for InsuranceProgram.create_fresh() factory method (Issue #624)."""
+
+    @pytest.fixture
+    def multi_layer_program(self):
+        """Create a multi-layer program for create_fresh tests."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=500_000,
+                limit=4_500_000,
+                base_premium_rate=0.02,
+                reinstatements=2,
+                reinstatement_premium=1.0,
+                reinstatement_type=ReinstatementType.PRO_RATA,
+            ),
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000,
+                limit=10_000_000,
+                base_premium_rate=0.01,
+                reinstatements=1,
+            ),
+        ]
+        return InsuranceProgram(
+            layers=layers,
+            deductible=500_000,
+            name="Test Program",
+        )
+
+    def test_create_fresh_returns_new_instance(self, multi_layer_program):
+        """create_fresh() returns a distinct InsuranceProgram."""
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        assert fresh is not multi_layer_program
+
+    def test_create_fresh_preserves_config(self, multi_layer_program):
+        """Immutable configuration is identical in the fresh copy."""
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        assert fresh.deductible == multi_layer_program.deductible
+        assert fresh.name == multi_layer_program.name
+        assert fresh.pricing_enabled == multi_layer_program.pricing_enabled
+        assert fresh.pricer is multi_layer_program.pricer
+        assert len(fresh.layers) == len(multi_layer_program.layers)
+
+    def test_create_fresh_shares_layer_objects(self, multi_layer_program):
+        """EnhancedInsuranceLayer objects are shared (immutable), not copied."""
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        for orig_layer, fresh_layer in zip(multi_layer_program.layers, fresh.layers):
+            assert orig_layer is fresh_layer
+
+    def test_create_fresh_has_independent_layer_states(self, multi_layer_program):
+        """LayerState wrappers are new objects, not shared."""
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        for orig_state, fresh_state in zip(multi_layer_program.layer_states, fresh.layer_states):
+            assert orig_state is not fresh_state
+
+    def test_create_fresh_zeroed_state(self, multi_layer_program):
+        """Fresh program starts with pristine mutable state."""
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        assert fresh.total_claims == 0
+        assert fresh.total_premiums_paid == 0.0
+        assert fresh.pricing_results == []
+        for state in fresh.layer_states:
+            assert state.used_limit == 0.0
+            assert state.reinstatements_used == 0
+            assert state.total_claims_paid == 0.0
+            assert state.reinstatement_premiums_paid == 0.0
+            assert state.is_exhausted is False
+            assert state.aggregate_used == 0.0
+            assert state.current_limit == state.layer.limit
+
+    def test_create_fresh_after_claims_gives_clean_state(self, multi_layer_program):
+        """create_fresh() from a mutated source still yields zeroed state."""
+        # Mutate the source
+        multi_layer_program.process_claim(3_000_000)
+        multi_layer_program.process_claim(6_000_000)
+        assert multi_layer_program.total_claims == 2
+
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        assert fresh.total_claims == 0
+        assert fresh.total_premiums_paid == 0.0
+        for state in fresh.layer_states:
+            assert state.used_limit == 0.0
+            assert state.total_claims_paid == 0.0
+
+    def test_create_fresh_isolation_from_source(self, multi_layer_program):
+        """Mutations on fresh copy do not affect the source."""
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        fresh.process_claim(2_000_000)
+
+        assert multi_layer_program.total_claims == 0
+        assert multi_layer_program.total_premiums_paid == 0.0
+        for state in multi_layer_program.layer_states:
+            assert state.total_claims_paid == 0.0
+
+    def test_create_fresh_produces_identical_claim_results(self, multi_layer_program):
+        """Claim results match between fresh copy and deepcopy."""
+        import copy
+
+        fresh = InsuranceProgram.create_fresh(multi_layer_program)
+        deep = copy.deepcopy(multi_layer_program)
+
+        claims = [1_000_000, 3_000_000, 8_000_000, 500_000]
+        for amount in claims:
+            r_fresh = fresh.process_claim(amount)
+            r_deep = deep.process_claim(amount)
+            assert r_fresh["insurance_recovery"] == r_deep["insurance_recovery"]
+            assert r_fresh["deductible_paid"] == r_deep["deductible_paid"]
+            assert r_fresh["reinstatement_premiums"] == r_deep["reinstatement_premiums"]
+
+    def test_create_fresh_preserves_layer_order(self):
+        """Layers remain sorted by attachment point regardless of input order."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=5_000_000, limit=5_000_000, base_premium_rate=0.01
+            ),
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
+        ]
+        program = InsuranceProgram(layers=layers)
+        fresh = InsuranceProgram.create_fresh(program)
+        assert fresh.layers[0].attachment_point < fresh.layers[1].attachment_point
+
+
+class TestClaimResultDataclass:
+    """Test that process_claim returns a typed ClaimResult (#797)."""
+
+    def test_returns_claim_result_type(self):
+        """process_claim returns a ClaimResult, not a plain dict."""
+        program = InsuranceProgram([], deductible=250_000)
+        result = program.process_claim(100_000)
+        assert isinstance(result, ClaimResult)
+
+    def test_attribute_access(self):
+        """Fields are accessible as attributes."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+
+        assert result.total_claim == 2_000_000
+        assert result.deductible_paid == 250_000
+        assert result.insurance_recovery == 1_750_000
+        assert result.uncovered_loss == 0.0
+        assert result.reinstatement_premiums == 0.0
+        assert len(result.layers_triggered) == 1
+
+    def test_layers_triggered_are_layer_payment(self):
+        """Each item in layers_triggered is a LayerPayment dataclass."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+
+        layer = result.layers_triggered[0]
+        assert isinstance(layer, LayerPayment)
+        assert layer.layer_index == 0
+        assert layer.attachment == 250_000
+        assert layer.payment == 1_750_000
+        assert layer.exhausted is False
+
+    def test_zero_claim_returns_claim_result(self):
+        """Zero/negative claims still return ClaimResult."""
+        program = InsuranceProgram([])
+        result = program.process_claim(0)
+        assert isinstance(result, ClaimResult)
+        assert result.total_claim == 0.0
+        assert result.insurance_recovery == 0.0
+
+    def test_backward_compat_getitem(self):
+        """Dict-style bracket access still works with deprecation warning."""
+        program = InsuranceProgram([], deductible=250_000)
+        result = program.process_claim(100_000)
+
+        with pytest.warns(DeprecationWarning, match="Dict-style access"):
+            assert result["total_claim"] == 100_000
+
+    def test_backward_compat_get(self):
+        """Dict-style .get() still works with deprecation warning."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+
+        with pytest.warns(DeprecationWarning, match="Dict-style access"):
+            assert result.get("insurance_recovery", 0) == 1_750_000
+
+    def test_backward_compat_contains(self):
+        """'key in result' still works."""
+        program = InsuranceProgram([])
+        result = program.process_claim(100_000)
+        assert "total_claim" in result
+        assert "nonexistent" not in result
+
+    def test_backward_compat_keys(self):
+        """result.keys() returns field names."""
+        program = InsuranceProgram([])
+        result = program.process_claim(100_000)
+        assert set(result.keys()) == {
+            "total_claim",
+            "deductible_paid",
+            "insurance_recovery",
+            "uncovered_loss",
+            "reinstatement_premiums",
+            "layers_triggered",
+        }
+
+    def test_layer_payment_backward_compat(self):
+        """LayerPayment also supports dict-style access."""
+        layers = [
+            EnhancedInsuranceLayer(
+                attachment_point=250_000, limit=5_000_000, base_premium_rate=0.01
+            )
+        ]
+        program = InsuranceProgram(layers, deductible=250_000)
+        result = program.process_claim(2_000_000)
+        layer = result.layers_triggered[0]
+
+        with pytest.warns(DeprecationWarning, match="Dict-style access"):
+            assert layer["payment"] == 1_750_000

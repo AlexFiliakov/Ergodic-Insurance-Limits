@@ -19,7 +19,7 @@ from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 from ergodic_insurance.optimization import EnhancedSLSQPOptimizer
 from ergodic_insurance.tests.test_fixtures import GoldenTestData, ScenarioBuilder, TestDataGenerator
 
@@ -67,7 +67,7 @@ class TestCompleteManufacturerLifecycle:
         )
 
         # Phase 4: Run simulation
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,  # Small but meaningful
             n_years=20,  # Full lifecycle
             parallel=False,
@@ -121,7 +121,7 @@ class TestCompleteManufacturerLifecycle:
             frequency_scale=0.3, severity_scale=0.2, seed=999
         )
 
-        config = SimulationConfig(n_simulations=200, n_years=10, parallel=False, seed=42)
+        config = MonteCarloConfig(n_simulations=200, n_years=10, parallel=False, seed=42)
 
         # Scenario 1: With insurance
         insurance = TestDataGenerator.create_simple_insurance_program(
@@ -294,7 +294,7 @@ class TestInsuranceProgramEvaluation:
                 loss_generator=scenario.loss_generator,
                 insurance_program=insurance,
                 manufacturer=scenario.manufacturer,
-                config=SimulationConfig(
+                config=MonteCarloConfig(
                     n_simulations=50, n_years=scenario.time_horizon, parallel=False, seed=42
                 ),
             )
@@ -341,7 +341,7 @@ class TestMonteCarloConvergence:
 
         insurance = TestDataGenerator.create_simple_insurance_program()
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=500, n_years=5, parallel=False, seed=42  # Enough for convergence
         )
 
@@ -432,7 +432,7 @@ class TestDecisionFramework:
 
         for option in options[:3]:  # Test subset for speed
             # Run mini simulation
-            config = SimulationConfig(n_simulations=20, n_years=5, parallel=False, seed=42)
+            config = MonteCarloConfig(n_simulations=20, n_years=5, parallel=False, seed=42)
 
             engine = MonteCarloEngine(
                 loss_generator=loss_generator,
@@ -471,6 +471,7 @@ class TestDecisionFramework:
 class TestPerformanceWithRealData:
     """Test performance characteristics with real computations."""
 
+    @pytest.mark.benchmark
     def test_simulation_performance_scaling(self):
         """Test that simulation performance scales appropriately.
 
@@ -491,7 +492,7 @@ class TestPerformanceWithRealData:
         times = []
 
         for n_sims in scales:
-            config = SimulationConfig(n_simulations=n_sims, n_years=5, parallel=False, seed=42)
+            config = MonteCarloConfig(n_simulations=n_sims, n_years=5, parallel=False, seed=42)
 
             engine = MonteCarloEngine(
                 loss_generator=loss_generator,
@@ -518,6 +519,7 @@ class TestPerformanceWithRealData:
         max_time = max(time_per_sim)
         assert max_time < min_time * 10.0
 
+    @pytest.mark.benchmark
     def test_cache_effectiveness_real_data(self):
         """Test cache effectiveness with real simulations.
 
@@ -535,7 +537,7 @@ class TestPerformanceWithRealData:
             loss_generator = TestDataGenerator.create_test_loss_generator(seed=12345)
             insurance = TestDataGenerator.create_simple_insurance_program()
 
-            config = SimulationConfig(
+            config = MonteCarloConfig(
                 n_simulations=100, n_years=5, parallel=False, cache_results=True, seed=42
             )
 

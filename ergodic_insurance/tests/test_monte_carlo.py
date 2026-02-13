@@ -16,7 +16,7 @@ from ergodic_insurance.convergence import ConvergenceStats
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from ergodic_insurance.ruin_probability import (
     RuinProbabilityAnalyzer,
     RuinProbabilityConfig,
@@ -24,12 +24,12 @@ from ergodic_insurance.ruin_probability import (
 )
 
 
-class TestSimulationConfig:
-    """Test SimulationConfig dataclass."""
+class TestMonteCarloConfig:
+    """Test MonteCarloConfig dataclass."""
 
     def test_default_config(self):
         """Test default configuration values."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.n_simulations == 100_000
         assert config.n_years == 10
         assert config.n_chains == 4
@@ -40,7 +40,7 @@ class TestSimulationConfig:
 
     def test_custom_config(self):
         """Test custom configuration."""
-        config = SimulationConfig(n_simulations=50_000, n_years=5, parallel=False, seed=42)
+        config = MonteCarloConfig(n_simulations=50_000, n_years=5, parallel=False, seed=42)
         assert config.n_simulations == 50_000
         assert config.n_years == 5
         assert config.parallel is False
@@ -52,7 +52,7 @@ class TestMonteCarloResults:
 
     def test_results_summary(self):
         """Test results summary generation."""
-        config = SimulationConfig(n_simulations=1000, n_years=5)
+        config = MonteCarloConfig(n_simulations=1000, n_years=5)
         results = MonteCarloResults(
             final_assets=np.array([100_000, 150_000, 80_000]),
             annual_losses=np.zeros((3, 5)),
@@ -107,7 +107,7 @@ class TestMonteCarloEngine:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create config with small values for testing
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=2,
             parallel=False,
@@ -309,6 +309,58 @@ class TestMonteCarloEngine:
         assert results is not None
         assert len(results.final_assets) >= 50  # At least one batch
 
+    def test_convergence_monitoring_does_not_mutate_config(self, setup_engine):
+        """Config object must not be mutated by run_with_convergence_monitoring (issue #1018)."""
+        engine, loss_generator, _, _ = setup_engine
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
+        )
+
+        # Capture original config reference and values
+        original_config = engine.config
+        original_n_sims = original_config.n_simulations
+        original_seed = original_config.seed
+
+        # External reference that the user might hold
+        user_config_ref = engine.config
+
+        engine.run_with_convergence_monitoring(
+            target_r_hat=1.1, check_interval=50, max_iterations=200
+        )
+
+        # engine.config must point back to the original object
+        assert engine.config is original_config
+
+        # The original config object must be unchanged
+        assert original_config.n_simulations == original_n_sims
+        assert original_config.seed == original_seed
+
+        # A user's external reference must also be unaffected
+        assert user_config_ref.n_simulations == original_n_sims
+        assert user_config_ref.seed == original_seed
+
+    def test_convergence_monitoring_restores_config_on_error(self, setup_engine):
+        """Config reference must be restored even when run() raises (issue #1018)."""
+        engine, loss_generator, _, _ = setup_engine
+
+        loss_generator.generate_losses.side_effect = RuntimeError("boom")
+
+        original_config = engine.config
+        original_n_sims = original_config.n_simulations
+        original_seed = original_config.seed
+
+        with pytest.raises(RuntimeError, match="boom"):
+            engine.run_with_convergence_monitoring(
+                target_r_hat=1.1, check_interval=50, max_iterations=200
+            )
+
+        # Config must be fully restored after exception
+        assert engine.config is original_config
+        assert original_config.n_simulations == original_n_sims
+        assert original_config.seed == original_seed
+
     def test_single_simulation(self, setup_engine):
         """Test single simulation path."""
         engine, loss_generator, _, manufacturer = setup_engine
@@ -459,7 +511,7 @@ class TestRuinProbabilityEstimation:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create config
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             parallel=False,
@@ -742,7 +794,7 @@ class TestEnhancedParallelExecution:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Create enhanced config with parallel mode enabled for enhanced features
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1000,
             n_years=5,
             parallel=True,
@@ -944,7 +996,7 @@ class TestClaimLiabilityMCEngine:
         )
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=3,
             parallel=False,
@@ -1052,7 +1104,7 @@ class TestClaimLiabilityMCEngine:
         )
         manufacturer = WidgetManufacturer(manufacturer_config)
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=1,
             n_years=1,
             parallel=False,

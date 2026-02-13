@@ -20,10 +20,10 @@ The `MonteCarloEngine` runs thousands of independent simulation paths in paralle
 
 ### Setting Up the Engine
 
-The engine requires three components: a **loss generator** (how losses arrive), an **insurance program** (how losses are transferred), and a **manufacturer** (the business being modeled). Configuration is handled through `SimulationConfig`.
+The engine requires three components: a **loss generator** (how losses arrive), an **insurance program** (how losses are transferred), and a **manufacturer** (the business being modeled). Configuration is handled through `MonteCarloConfig`.
 
 ```python
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloConfig
 from ergodic_insurance import (
     InsuranceProgram, EnhancedInsuranceLayer, ManufacturerConfig,
 )
@@ -63,7 +63,7 @@ program = InsuranceProgram(
 )
 
 # Simulation configuration
-sim_config = SimulationConfig(
+sim_config = MonteCarloConfig(
     n_simulations=1_000,      # Start moderate; scale up later
     n_years=50,               # Long horizon for ergodic effects
     parallel=True,            # Use multiple CPU cores
@@ -154,7 +154,7 @@ The `MonteCarloEngine` handles parallelism internally through the `ParallelExecu
 
 ### How Parallelism Works
 
-When `parallel=True` in `SimulationConfig`, the engine distributes simulation paths across worker processes. Each worker receives a chunk of simulation IDs, runs them independently, and returns results for aggregation. Shared read-only data (manufacturer config, insurance program) is passed to workers efficiently.
+When `parallel=True` in `MonteCarloConfig`, the engine distributes simulation paths across worker processes. Each worker receives a chunk of simulation IDs, runs them independently, and returns results for aggregation. Shared read-only data (manufacturer config, insurance program) is passed to workers efficiently.
 
 ```python
 from ergodic_insurance.parallel_executor import ParallelExecutor
@@ -172,7 +172,7 @@ print(f"Available memory: {executor.cpu_profile.available_memory / 1e9:.1f} GB")
 
 ### Tuning for Your Hardware
 
-The key parameters live in `SimulationConfig`:
+The key parameters live in `MonteCarloConfig`:
 
 | Parameter | Default | Guidance |
 |-----------|---------|----------|
@@ -185,7 +185,7 @@ The key parameters live in `SimulationConfig`:
 
 ```python
 # Configuration for a 4-core laptop running 10K simulations
-laptop_config = SimulationConfig(
+laptop_config = MonteCarloConfig(
     n_simulations=10_000,
     n_years=30,
     parallel=True,
@@ -198,7 +198,7 @@ laptop_config = SimulationConfig(
 )
 
 # Configuration for a 16-core workstation running 100K simulations
-workstation_config = SimulationConfig(
+workstation_config = MonteCarloConfig(
     n_simulations=100_000,
     n_years=50,
     parallel=True,
@@ -221,7 +221,7 @@ engine = MonteCarloEngine(
     loss_generator=loss_gen,
     insurance_program=program,
     manufacturer=WidgetManufacturer(mfg_config),
-    config=SimulationConfig(
+    config=MonteCarloConfig(
         n_simulations=5_000,
         n_years=20,
         parallel=True,
@@ -241,7 +241,7 @@ if results.performance_metrics:
 
 ## 3. Configuration Profiles and Presets
 
-When running many scenarios, manually specifying every parameter becomes tedious and error-prone. The `ConfigManager` provides a **three-tier configuration system**: profiles (complete configs), modules (reusable components), and presets (quick-apply templates for market conditions).
+When running many scenarios, manually specifying every parameter becomes tedious and error-prone. The `ConfigManager` provides a **configuration system** with three tiers: profiles (complete configs), modules (reusable components), and presets (quick-apply templates for market conditions).
 
 ### Loading Profiles
 
@@ -350,7 +350,7 @@ for cycle_name, cycle in [("soft", MarketCycle.SOFT),
         loss_generator=ManufacturingLossGenerator(seed=42),
         insurance_program=priced_program,
         manufacturer=WidgetManufacturer(mfg_config),
-        config=SimulationConfig(n_simulations=1_000, n_years=30, seed=42)
+        config=MonteCarloConfig(n_simulations=1_000, n_years=30, seed=42)
     )
     market_results[cycle_name] = engine.run()
 
@@ -463,7 +463,7 @@ for label, prog in [("With reinstatements", enhanced_program),
         loss_generator=ManufacturingLossGenerator(seed=42),
         insurance_program=prog,
         manufacturer=WidgetManufacturer(mfg_config),
-        config=SimulationConfig(n_simulations=1_000, n_years=30, seed=42)
+        config=MonteCarloConfig(n_simulations=1_000, n_years=30, seed=42)
     )
     res = engine.run()
     print(f"{label}: Mean retained loss = "
@@ -542,7 +542,7 @@ stochastic_manufacturer = WidgetManufacturer(mfg_config)
 stochastic_manufacturer.stochastic_process = gbm
 
 # Enable stochastic shocks in simulation
-stochastic_sim_config = SimulationConfig(
+stochastic_sim_config = MonteCarloConfig(
     n_simulations=1_000,
     n_years=30,
     apply_stochastic=True,   # Activate stochastic shocks each step
@@ -572,7 +572,7 @@ NovaTech needs to present four scenarios to the board: base case, recession, exp
 
 ```python
 from ergodic_insurance.scenario_manager import ScenarioManager, ScenarioConfig
-from ergodic_insurance.monte_carlo import SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig
 
 # Create the scenario manager
 scenario_mgr = ScenarioManager()
@@ -612,7 +612,7 @@ scenarios = {
 for name, spec in scenarios.items():
     scenario_mgr.create_scenario(
         name=name,
-        simulation_config=SimulationConfig(
+        simulation_config=MonteCarloConfig(
             n_simulations=1_000,
             n_years=30,
             seed=42
@@ -679,7 +679,7 @@ deductible_search = scenario_mgr.create_grid_search(
             values=[100_000, 250_000, 500_000, 750_000, 1_000_000]
         )
     ],
-    simulation_config=SimulationConfig(
+    simulation_config=MonteCarloConfig(
         n_simulations=500,
         n_years=20,
         seed=42
@@ -694,11 +694,11 @@ for sc in deductible_search:
 
 ### Common Random Numbers for Fair Comparison
 
-When comparing scenarios, you want differences in results to come from the scenario parameters, not from random variation. The `crn_base_seed` option in `SimulationConfig` ensures that each `(simulation_id, year)` combination uses the same underlying random draws across scenarios.
+When comparing scenarios, you want differences in results to come from the scenario parameters, not from random variation. The `crn_base_seed` option in `MonteCarloConfig` ensures that each `(simulation_id, year)` combination uses the same underlying random draws across scenarios.
 
 ```python
 # Enable Common Random Numbers for precise comparison
-crn_config = SimulationConfig(
+crn_config = MonteCarloConfig(
     n_simulations=1_000,
     n_years=30,
     seed=42,
@@ -760,7 +760,7 @@ print(f"Monte Carlo report saved to: {mc_output}")
 If you need a quick text summary without generating an Excel file, enable the summary report in the simulation config:
 
 ```python
-summary_config = SimulationConfig(
+summary_config = MonteCarloConfig(
     n_simulations=1_000,
     n_years=30,
     generate_summary_report=True,
@@ -798,7 +798,7 @@ As you scale to 10,000+ simulations or 50+ year horizons, runtime and memory bec
 
 ```python
 # Memory-optimized config for 100K simulations on 16GB RAM
-memory_config = SimulationConfig(
+memory_config = MonteCarloConfig(
     n_simulations=100_000,
     n_years=50,
     use_float32=True,
@@ -815,7 +815,7 @@ memory_config = SimulationConfig(
 Set `cache_results=True` (the default) to avoid re-running identical simulations. The engine hashes the configuration and components to generate a cache key.
 
 ```python
-cached_config = SimulationConfig(
+cached_config = MonteCarloConfig(
     n_simulations=10_000,
     n_years=30,
     cache_results=True,    # Default: True
@@ -868,7 +868,7 @@ for scale in benchmark_config.scales:
 For reporting, you often need confidence intervals around your key metrics. Enable bootstrap CI computation in the simulation config.
 
 ```python
-ci_config = SimulationConfig(
+ci_config = MonteCarloConfig(
     n_simulations=5_000,
     n_years=30,
     compute_bootstrap_ci=True,
@@ -903,7 +903,7 @@ Run **1,000 Monte Carlo simulations** comparing NovaTech's current two-layer pro
 
 **Tasks:**
 1. Create both insurance programs.
-2. Configure `SimulationConfig` with `parallel=True`, `n_workers=4`, and `n_simulations=1_000`.
+2. Configure `MonteCarloConfig` with `parallel=True`, `n_workers=4`, and `n_simulations=1_000`.
 3. Run both through `MonteCarloEngine` with identical seeds.
 4. Compare: ruin probability, mean final assets, and mean growth rate.
 5. Print a formatted comparison table.
@@ -942,7 +942,7 @@ Build a four-layer insurance tower with reinstatements and aggregate limits, the
 4. Compare: ruin probability at years 10, 20, 30, and 50 for both conditions.
 5. Identify which layer is most critical for survival in the catastrophe scenario.
 
-**Hint:** Use `ruin_evaluation=[10, 20, 30, 50]` in `SimulationConfig` to get ruin probabilities at specific horizons.
+**Hint:** Use `ruin_evaluation=[10, 20, 30, 50]` in `MonteCarloConfig` to get ruin probabilities at specific horizons.
 
 ---
 

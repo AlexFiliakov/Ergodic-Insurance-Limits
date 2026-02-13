@@ -239,6 +239,55 @@ class TestBusinessOptimizer:
         assert optimizer.decision_engine == decision_engine
         assert optimizer.ergodic_analyzer == ergodic_analyzer
 
+    def test_with_manufacturer_shares_components(self, manufacturer):
+        """Test with_manufacturer creates optimizer sharing internal components (#497)."""
+        loss_dist = LognormalLoss(mean=200000, cv=2.0)
+        decision_engine = Mock(spec=InsuranceDecisionEngine)
+        ergodic_analyzer = Mock(spec=ErgodicAnalyzer)
+
+        original = BusinessOptimizer(
+            manufacturer,
+            decision_engine=decision_engine,
+            ergodic_analyzer=ergodic_analyzer,
+            loss_distribution=loss_dist,
+        )
+
+        # Create a new manufacturer for the clone
+        new_manufacturer = Mock(spec=WidgetManufacturer)
+        new_manufacturer.total_assets = 20_000_000
+        new_manufacturer.equity = 8_000_000
+        new_manufacturer.calculate_revenue = Mock(return_value=10_000_000)
+
+        cloned = original.with_manufacturer(new_manufacturer)
+
+        # New manufacturer should be set
+        assert cloned.manufacturer is new_manufacturer
+        assert cloned.manufacturer is not manufacturer
+
+        # Shared components should be reused (same object identity)
+        assert cloned.optimizer_config is original.optimizer_config
+        assert cloned.loss_distribution is original.loss_distribution
+        assert cloned.decision_engine is original.decision_engine
+        assert cloned.ergodic_analyzer is original.ergodic_analyzer
+
+        # Original should be unchanged
+        assert original.manufacturer is manufacturer
+
+    def test_with_manufacturer_produces_working_optimizer(self, optimizer, manufacturer):
+        """Test that with_manufacturer result can run optimization (#497)."""
+        new_manufacturer = Mock(spec=WidgetManufacturer)
+        new_manufacturer.total_assets = 20_000_000
+        new_manufacturer.equity = 8_000_000
+        new_manufacturer.calculate_revenue = Mock(return_value=10_000_000)
+
+        cloned = optimizer.with_manufacturer(new_manufacturer)
+        constraints = BusinessConstraints()
+        strategy = cloned.maximize_roe_with_insurance(
+            constraints=constraints, time_horizon=5, n_simulations=10
+        )
+        assert isinstance(strategy, OptimalStrategy)
+        assert strategy.coverage_limit > 0
+
     def test_maximize_roe_with_insurance(self, optimizer):
         """Test ROE maximization."""
         constraints = BusinessConstraints(

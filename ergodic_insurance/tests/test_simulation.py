@@ -283,7 +283,10 @@ class TestSimulation:
             manufacturer=manufacturer, loss_generator=loss_generator, time_horizon=100, seed=42
         )
 
-        assert sim.manufacturer == manufacturer
+        # copy=True (default) deep-copies the manufacturer (Issue #802)
+        assert sim.manufacturer is not manufacturer
+        assert sim.manufacturer.current_assets == manufacturer.current_assets
+        assert sim.manufacturer.current_equity == manufacturer.current_equity
         assert sim.loss_generator == [loss_generator]  # Simulation wraps single generator in list
         assert sim.time_horizon == 100
         assert sim.seed == 42
@@ -326,7 +329,7 @@ class TestSimulation:
         # Check that some losses were generated
         assert np.sum(results.claim_counts) >= 0
 
-    @pytest.mark.skip(reason="Performance benchmark, not regular test")
+    @pytest.mark.benchmark
     def test_run_performance(self, manufacturer, loss_generator):
         """Test that 1000-year simulation completes in reasonable time."""
         sim = Simulation(

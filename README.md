@@ -101,6 +101,22 @@ flowchart LR
 - **ConfigManager** with profile loading, module composition, and runtime overrides
 - **Industry-specific configs** (manufacturing, service, retail) and market condition presets
 
+## Professional Standards and Disclaimers
+
+This framework provides actuarial research tools subject to [ASOP No. 41: Actuarial Communications](https://www.actuarialstandardsboard.org/asops/actuarial-communications/) and [ASOP No. 56: Modeling](http://www.actuarialstandardsboard.org/asops/modeling-3/). Full compliance disclosures are in `ergodic_insurance/docs/user_guide/actuarial_standards.rst`.
+
+**Research Use Only.** This is an early-stage research tool. It does not constitute an actuarial opinion or rate filing. Outputs are intended for qualified actuaries who can independently validate the methodology and results.
+
+**Responsible Actuary:** Alex Filiakov, ACAS. Review is ongoing; the responsible actuary does not currently take responsibility for the accuracy of the methodology or results. See the full [Actuarial Standards Compliance](ergodic_insurance/docs/user_guide/actuarial_standards.rst) document.
+
+**Key Limitations:**
+- Outputs should not be used for regulatory filings, rate opinions, or reserve opinions without independent actuarial analysis.
+- Results are illustrative and depend on input assumptions. Treat them as directional guidance, not prescriptive recommendations.
+- The framework embeds simplifying assumptions (Poisson frequency, log-normal severity, no regulatory capital, deterministic margins) documented in the compliance disclosures.
+- Development involved extensive reliance on Large Language Models for research and code generation.
+
+**Conflict of Interest:** The responsible actuary is employed by an insurance broker. See the compliance document for full disclosure and mitigation measures.
+
 ## Published Results
 
 - [Ergodic Insurance Part 1: From Cost Center to Growth Engine: When N=1](https://medium.com/@alexfiliakov/ergodic-insurance-part-1-from-cost-center-to-growth-engine-when-n-1-52c17b048a94)
@@ -139,9 +155,22 @@ uv sync
 pip install -e .
 ```
 
-3. Install pre-commit hooks for code quality:
+### Developer Setup
+
+If you plan to contribute, run the one-time setup script to install dev
+dependencies and pre-commit hooks (black, isort, mypy, pylint, conventional
+commit enforcement):
+
 ```bash
+python ergodic_insurance/scripts/setup_dev.py
+```
+
+Or do it manually:
+
+```bash
+pip install -e ".[dev]"
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 
 ## Quick Start
@@ -243,6 +272,19 @@ Ergodic-Insurance-Limits/
 See the [Codebase Onboarding Guide](docs/Codebase%20Onboarding%20Guide.md) for the project preliminaries.
 
 See the list of [Open Issues](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues) for improvement ideas.
+
+### First-Time Setup
+
+After cloning, run the developer setup script to install dependencies and
+pre-commit hooks:
+
+```bash
+python ergodic_insurance/scripts/setup_dev.py
+```
+
+This installs the package in editable mode with dev extras, and configures
+`pre-commit` and `commit-msg` hooks so that **black**, **isort**, **mypy**,
+**pylint**, and conventional commit checks run automatically on every commit.
 
 ### Code Quality Tools
 

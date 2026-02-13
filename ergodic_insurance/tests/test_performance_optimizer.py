@@ -218,6 +218,88 @@ class TestSmartCache:
         cache.get(("key1",))
         assert cache.access_counts[("key1",)] == 3
 
+    def test_heap_evicts_least_accessed(self):
+        """Test that heap-based eviction removes the least-accessed entry."""
+        cache = SmartCache(max_size=3)
+
+        cache.set(("a",), 1)
+        cache.set(("b",), 2)
+        cache.set(("c",), 3)
+
+        # Access "b" twice and "c" once — "a" has lowest count (1)
+        cache.get(("b",))
+        cache.get(("b",))
+        cache.get(("c",))
+
+        # Inserting a 4th key should evict "a" (access_count=1)
+        cache.set(("d",), 4)
+
+        assert ("a",) not in cache.cache
+        assert cache.get(("b",)) == 2
+        assert cache.get(("c",)) == 3
+        assert cache.get(("d",)) == 4
+
+    def test_heap_multiple_evictions(self):
+        """Test multiple sequential evictions via the heap."""
+        cache = SmartCache(max_size=2)
+
+        cache.set(("a",), 1)
+        cache.set(("b",), 2)
+
+        # Evict to make room — "a" and "b" both have count=1,
+        # "a" was inserted first so its heap entry is popped first.
+        cache.set(("c",), 3)
+        assert len(cache.cache) == 2
+        assert ("a",) not in cache.cache
+
+        cache.set(("d",), 4)
+        assert len(cache.cache) == 2
+        assert ("b",) not in cache.cache
+
+    def test_set_existing_key_does_not_evict(self):
+        """Test that updating an existing key does not trigger eviction."""
+        cache = SmartCache(max_size=2)
+
+        cache.set(("a",), 1)
+        cache.set(("b",), 2)
+
+        # Overwrite "a" — should NOT evict anything
+        cache.set(("a",), 10)
+        assert len(cache.cache) == 2
+        assert cache.get(("a",)) == 10
+        assert cache.get(("b",)) == 2
+
+    def test_clear_resets_heap(self):
+        """Test that clear() resets internal heap state."""
+        cache = SmartCache(max_size=3)
+
+        cache.set(("a",), 1)
+        cache.set(("b",), 2)
+        cache.get(("a",))
+
+        cache.clear()
+
+        assert len(cache._heap) == 0
+        assert cache._counter == 0
+
+    def test_eviction_with_many_stale_entries(self):
+        """Test eviction when heap contains many stale entries."""
+        cache = SmartCache(max_size=2)
+
+        cache.set(("a",), 1)
+        cache.set(("b",), 2)
+
+        # Generate many stale heap entries by repeated gets
+        for _ in range(50):
+            cache.get(("a",))
+            cache.get(("b",))
+
+        # Both keys now have high access counts; their old heap entries are stale.
+        # Inserting a new key should still evict correctly.
+        cache.set(("c",), 3)
+        assert len(cache.cache) == 2
+        assert ("c",) in cache.cache
+
 
 class TestVectorizedOperations:
     """Test VectorizedOperations class."""
@@ -479,6 +561,61 @@ class TestPerformanceOptimizer:
 
         assert np.array_equal(result1["retained_losses"], result2["retained_losses"])
         assert optimizer.cache.hits > 0
+
+    def test_hash_cache_key_no_tobytes_copy(self):
+        """Test that cache key uses a hash, not raw tobytes() (#499)."""
+        optimizer = PerformanceOptimizer(config=OptimizationConfig(enable_caching=True))
+
+        losses = np.random.exponential(100000, 10000)
+        layers = [(100000, 500000, 0.015)]
+
+        optimizer.optimize_insurance_calculation(losses, layers)
+
+        # The cache key should be a (hexdigest_string, tuple) — not
+        # a (bytes, tuple) which would be the case with tobytes().
+        for key in optimizer.cache.cache:
+            assert isinstance(key[0], str), "Cache key should be a hash string, not bytes"
+            assert len(key[0]) == 64, "SHA-256 hex digest should be 64 chars"
+
+    def test_hash_cache_key_same_array_hits(self):
+        """Test that identical arrays produce the same hash key."""
+        optimizer = PerformanceOptimizer(config=OptimizationConfig(enable_caching=True))
+
+        losses = np.array([1.0, 2.0, 3.0])
+        layers = [(0.0, 100.0, 0.01)]
+
+        optimizer.optimize_insurance_calculation(losses, layers)
+        assert optimizer.cache.misses == 1
+
+        # Same data — should hit cache
+        optimizer.optimize_insurance_calculation(losses.copy(), layers)
+        assert optimizer.cache.hits == 1
+
+    def test_hash_cache_key_different_array_misses(self):
+        """Test that different arrays produce different hash keys."""
+        optimizer = PerformanceOptimizer(config=OptimizationConfig(enable_caching=True))
+
+        losses1 = np.array([1.0, 2.0, 3.0])
+        losses2 = np.array([1.0, 2.0, 4.0])
+        layers = [(0.0, 100.0, 0.01)]
+
+        optimizer.optimize_insurance_calculation(losses1, layers)
+        optimizer.optimize_insurance_calculation(losses2, layers)
+        assert optimizer.cache.misses == 2  # Two distinct keys
+
+    def test_hash_cache_key_non_contiguous_array(self):
+        """Test that non-contiguous arrays still produce correct cache keys."""
+        optimizer = PerformanceOptimizer(config=OptimizationConfig(enable_caching=True))
+
+        base = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        non_contiguous = base[:, 0]  # Column slice — not C-contiguous
+        assert not non_contiguous.flags["C_CONTIGUOUS"]
+
+        layers = [(0.0, 100.0, 0.01)]
+
+        # Should work without error
+        result = optimizer.optimize_insurance_calculation(non_contiguous, layers)
+        assert "retained_losses" in result
 
     def test_profile_function_decorator(self):
         """Test profile function decorator."""

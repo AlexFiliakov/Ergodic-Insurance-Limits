@@ -13,7 +13,7 @@ from ergodic_insurance.convergence import ConvergenceStats
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import LossEvent, ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine, MonteCarloResults
 from ergodic_insurance.tests.test_fixtures import ScenarioBuilder, TestDataGenerator
 
 
@@ -46,7 +46,7 @@ class TestMonteCarloExtended:
         manufacturer = WidgetManufacturer(manufacturer_config)
 
         # Simple config
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=100,
             n_years=2,
             parallel=False,
@@ -138,6 +138,7 @@ class TestMonteCarloExtended:
         assert results.execution_time > 0, "Execution time should be tracked"
         assert len(results.metrics) > 0, "Results should include computed metrics"
 
+    @pytest.mark.benchmark
     def test_cache_operations(self, setup_simple_engine):
         """Test cache save and load operations."""
         engine = setup_simple_engine

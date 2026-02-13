@@ -3,7 +3,7 @@
 import pytest
 
 from ergodic_insurance.config import (
-    ConfigV2,
+    Config,
     DebtConfig,
     GrowthConfig,
     IndustryConfig,
@@ -22,10 +22,10 @@ class TestIndustrySwitching:
     """Test switching between different industry configurations."""
 
     def create_base_config_v2(self, industry_config=None):
-        """Helper to create a basic ConfigV2 with required fields."""
+        """Helper to create a basic Config with required fields."""
         from ergodic_insurance.config import ProfileMetadata
 
-        return ConfigV2(
+        return Config(
             profile=ProfileMetadata(
                 name="test-profile", description="Test profile for industry switching"
             ),
@@ -157,7 +157,7 @@ class TestIndustryConfigCompatibility:
         from ergodic_insurance.config import ProfileMetadata
 
         # Create config without industry_config
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(
                 name="test-profile", description="Test without industry config"
             ),
@@ -188,7 +188,7 @@ class TestIndustryConfigCompatibility:
         from ergodic_insurance.config import ProfileMetadata
 
         # Start without industry config
-        config = ConfigV2(
+        config = Config(
             profile=ProfileMetadata(name="test-profile", description="Test profile"),
             manufacturer=ManufacturerConfig(
                 initial_assets=10_000_000,

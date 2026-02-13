@@ -247,13 +247,13 @@ quick_test = mc_analyzer.run_simulations(
 )
 
 # 2. Use parallel processing via MonteCarloEngine
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloEngine, MonteCarloConfig
 
 engine = MonteCarloEngine(
     loss_generator=loss_generator,
     insurance_program=insurance_program,
     manufacturer=manufacturer,
-    config=SimulationConfig(
+    config=MonteCarloConfig(
         n_simulations=10_000,
         n_years=20,
         parallel=True,

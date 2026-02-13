@@ -83,6 +83,7 @@ class MetricsCalculationMixin:
         metrics["accounts_receivable"] = self.accounts_receivable
         metrics["inventory"] = self.inventory
         metrics["prepaid_insurance"] = self.prepaid_insurance
+        metrics["insurance_receivables"] = self.insurance_receivables  # Issue #814
         metrics["accounts_payable"] = self.accounts_payable
         metrics["short_term_borrowings"] = self.short_term_borrowings
 
@@ -107,11 +108,22 @@ class MetricsCalculationMixin:
         annual_depreciation = self.gross_ppe / to_decimal(10) if self.gross_ppe > ZERO else ZERO
         operating_income = self.calculate_operating_income(revenue)
         collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
-        net_income = self.calculate_net_income(
-            operating_income,
-            collateral_costs,
-            use_accrual=False,
-        )
+
+        # Use cached net income from step() to avoid double-firing tax calculation,
+        # which would mutate NOL state and record duplicate DTA journal entries (Issue #617)
+        cached = getattr(self, "_period_net_income", None)
+        if cached is not None:
+            net_income = cached
+        else:
+            logger.warning(
+                "calculate_metrics() called without prior step() — "
+                "computing net income directly (tax state will be mutated)"
+            )
+            net_income = self.calculate_net_income(
+                operating_income,
+                collateral_costs,
+                use_accrual=False,
+            )
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income

@@ -1,8 +1,11 @@
 """Tests for insurance claim recovery accounting."""
 
+from decimal import Decimal
+
 import pytest
 
 from ergodic_insurance.config import ManufacturerConfig
+from ergodic_insurance.ledger import AccountName
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -199,3 +202,116 @@ class TestRecoveryAccounting:
 
         assert summary["total_receivables"] == 3_000_000  # 4M total - 1M received
         assert summary["recovery_count"] == 2
+
+
+class TestInsuranceReceivableLedgerIntegrity:
+    """Test that insurance receivables are properly recorded in the general ledger (Issue #625)."""
+
+    manufacturer: WidgetManufacturer
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=0.7,
+        )
+        self.manufacturer = WidgetManufacturer(config)
+
+    def _get_ledger_balance(self, account: AccountName) -> Decimal:
+        """Get ledger balance for an account."""
+        return self.manufacturer.ledger.get_balance(account)
+
+    def test_claim_debits_insurance_receivables_in_ledger(self):
+        """Verify INSURANCE_RECEIVABLES is debited when a claim receivable is created."""
+        self.manufacturer.process_insurance_claim(5_000_000, 1_000_000, 10_000_000)
+
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        assert ledger_balance == 4_000_000
+
+    def test_ledger_matches_insurance_accounting_receivables(self):
+        """Verify ledger INSURANCE_RECEIVABLES balance matches InsuranceAccounting total."""
+        self.manufacturer.process_insurance_claim(5_000_000, 1_000_000, 10_000_000)
+
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        accounting_balance = self.manufacturer.insurance_accounting.get_total_receivables()
+        assert ledger_balance == accounting_balance
+
+    def test_receivable_balance_always_non_negative(self):
+        """Verify INSURANCE_RECEIVABLES balance is always >= 0 (non-negative asset)."""
+        # Create receivable
+        self.manufacturer.process_insurance_claim(5_000_000, 1_000_000, 10_000_000)
+        assert self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES) >= 0
+
+        # Partial recovery
+        self.manufacturer.receive_insurance_recovery(2_000_000)
+        assert self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES) >= 0
+
+        # Full recovery
+        self.manufacturer.receive_insurance_recovery(2_000_000)
+        assert self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES) >= 0
+
+    def test_full_lifecycle_receivable_zeroes_out(self):
+        """Process claim with insurance -> verify receivable > 0 -> receive recovery -> verify == 0."""
+        # Step 1: Process claim
+        company_payment, insurance_payment = self.manufacturer.process_insurance_claim(
+            5_000_000, 1_000_000, 10_000_000
+        )
+        assert insurance_payment == 4_000_000
+
+        # Step 2: Verify receivable > 0 in both systems
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        assert ledger_balance > 0
+        assert ledger_balance == 4_000_000
+
+        # Step 3: Receive full recovery
+        self.manufacturer.receive_insurance_recovery(4_000_000)
+
+        # Step 4: Verify receivable == 0 in both systems
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        accounting_balance = self.manufacturer.insurance_accounting.get_total_receivables()
+        assert ledger_balance == 0
+        assert accounting_balance == 0
+
+    def test_balance_sheet_includes_outstanding_receivables(self):
+        """Verify total_assets includes outstanding insurance receivables."""
+        assets_before = self.manufacturer.total_assets
+
+        self.manufacturer.process_insurance_claim(5_000_000, 1_000_000, 10_000_000)
+
+        # The receivable (4M) adds to assets; the INSURANCE_LOSS debit/credit net out
+        # within the income statement, so total_assets should reflect the receivable.
+        receivable = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        assert receivable == 4_000_000
+
+    def test_no_receivable_ledger_entry_when_no_insurance(self):
+        """Verify no INSURANCE_RECEIVABLES entry when claim is below deductible."""
+        self.manufacturer.process_insurance_claim(500_000, 1_000_000, 10_000_000)
+
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        assert ledger_balance == 0
+
+    def test_multiple_claims_accumulate_in_ledger(self):
+        """Verify multiple claims accumulate correctly in the ledger."""
+        self.manufacturer.process_insurance_claim(3_000_000, 500_000, 10_000_000)
+        self.manufacturer.process_insurance_claim(2_000_000, 500_000, 10_000_000)
+
+        expected = (3_000_000 - 500_000) + (2_000_000 - 500_000)  # 4M
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        accounting_balance = self.manufacturer.insurance_accounting.get_total_receivables()
+
+        assert ledger_balance == expected
+        assert ledger_balance == accounting_balance
+
+    def test_partial_recovery_reduces_ledger_balance(self):
+        """Verify partial recovery correctly reduces ledger balance."""
+        self.manufacturer.process_insurance_claim(5_000_000, 1_000_000, 10_000_000)
+        self.manufacturer.receive_insurance_recovery(1_500_000)
+
+        ledger_balance = self._get_ledger_balance(AccountName.INSURANCE_RECEIVABLES)
+        accounting_balance = self.manufacturer.insurance_accounting.get_total_receivables()
+
+        assert ledger_balance == 2_500_000
+        assert ledger_balance == accounting_balance

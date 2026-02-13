@@ -63,7 +63,8 @@ class TestProcessInsuranceClaim:
         assert len(manufacturer.claim_liabilities) == 1
 
         # Assets not immediately reduced (paid over time)
-        assert manufacturer.total_assets == initial_assets
+        # total_assets now includes insurance_receivables (Issue #814)
+        assert manufacturer.total_assets == initial_assets + insurance_payment
 
     def test_claim_above_limit(self, manufacturer):
         """Test claim that exceeds insurance limit."""
@@ -86,7 +87,8 @@ class TestProcessInsuranceClaim:
         assert manufacturer.restricted_assets == expected_company
 
         # Assets not immediately reduced (paid over time)
-        assert manufacturer.total_assets == initial_assets
+        # total_assets now includes insurance_receivables (Issue #814)
+        assert manufacturer.total_assets == initial_assets + insurance_payment
 
     def test_zero_claim(self, manufacturer):
         """Test handling of zero claim amount."""
@@ -148,8 +150,8 @@ class TestProcessInsuranceClaim:
 
         # Company payment is the deductible amount (but capped by limited liability)
         assert company_payment == deductible
-        # Assets remain unchanged (collateral posted, paid over time)
-        assert manufacturer.total_assets == 50_000
+        # Assets include insurance_receivables (Issue #814)
+        assert manufacturer.total_assets == 50_000 + insurance_payment
         # LIMITED LIABILITY: Collateral capped at equity / (1 + lae_ratio) to leave room for LAE
         # equity_cap = 50K / 1.12 ≈ 44,643; total liability = 44,643 * 1.12 = 50K = equity
         lae_ratio = to_decimal(manufacturer.config.lae_ratio)
@@ -158,7 +160,9 @@ class TestProcessInsuranceClaim:
         # Remaining deductible cannot be paid (limited liability violation)
         # Company should be marked as insolvent
         assert manufacturer.is_ruined is True
-        assert manufacturer.equity == pytest.approx(0, abs=1)
+        # Equity reflects insurance_receivables (Issue #814) — cash-based equity is ~0
+        # but the insurance receivable asset adds to total equity
+        assert manufacturer.equity == pytest.approx(insurance_payment, abs=1)
         # Insurance still covers its portion
         assert insurance_payment == claim_amount - deductible
 
@@ -390,23 +394,20 @@ class TestStepMethod:
         # Assets should increase with retained earnings
         assert manufacturer.total_assets > initial_assets
 
-        # Equity change reflects depreciation, tax accruals, and retained earnings.
+        # Equity change reflects retained earnings, depreciation add-back, and tax accruals.
         # With PP&E ratio=0.5 → gross_ppe=5M → depreciation=500K/yr (10yr life).
-        # Revenue=10M, base margin=10% → base operating income=1M.
-        # Operating income = 1M - 500K depreciation = 500K.
-        # Tax = 500K * 25% = 125K → net income = 375K.
-        # Retained earnings = 375K * 50% = 187.5K (added to cash).
-        # Depreciation (500K) + tax accrual (~125K) > retained earnings (187.5K),
-        # so equity decreases even with positive net income.
+        # Revenue=10M, base margin=10% → operating income=1M (depreciation embedded in margin).
+        # Tax = 1M * 25% = 250K → net income = 750K.
+        # Retained earnings = 750K * 50% = 375K (added to cash).
+        # Depreciation add-back restores 500K non-cash charge to cash (Issue #637).
+        # Net cash impact ≈ +375K retained + 500K add-back − 500K capex + WC changes.
+        # With profitable operation and depreciation add-back, equity increases.
         equity_change = manufacturer.equity - initial_equity
         retained_earnings = metrics["net_income"] * to_decimal(manufacturer.retention_ratio)
-        # Equity should decrease but by less than depreciation alone
+        # Equity should increase with profitable operation and depreciation add-back
         assert (
-            equity_change < 0
-        ), "Equity should decrease due to depreciation exceeding retained earnings"
-        assert (
-            equity_change > -500_000
-        ), "Equity decrease should be partially offset by retained earnings"
+            equity_change > 0
+        ), "Equity should increase with profitable operation and depreciation add-back"
 
         # Balance sheet should remain balanced (Assets = Liabilities + Equity)
         assert float(manufacturer.total_assets) == pytest.approx(
@@ -418,16 +419,18 @@ class TestStepMethod:
         # Create a claim to establish collateral
         manufacturer.process_insurance_claim(500_000, 100_000, 1_000_000)
 
-        # Run step without collateral first
-        manufacturer_no_collateral = WidgetManufacturer(manufacturer.config)
-        metrics_no_collateral = manufacturer_no_collateral.step(letter_of_credit_rate=0.015)
+        # Create an identical manufacturer with the same claim but zero LoC rate
+        # so both have the same total_assets (including insurance_receivables)
+        manufacturer_zero_rate = WidgetManufacturer(manufacturer.config)
+        manufacturer_zero_rate.process_insurance_claim(500_000, 100_000, 1_000_000)
+        metrics_zero_rate = manufacturer_zero_rate.step(letter_of_credit_rate=0.0)
 
-        # Run step with collateral
+        # Run step with collateral at 1.5% LoC rate
         metrics = manufacturer.step(letter_of_credit_rate=0.015)
 
         # Net income should be lower due to collateral costs
         # The difference should be approximately the after-tax collateral costs
-        assert metrics["net_income"] < metrics_no_collateral["net_income"]
+        assert metrics["net_income"] < metrics_zero_rate["net_income"]
 
     def test_letter_of_credit_calculation_accuracy(self, manufacturer):
         """Test that letter of credit costs are calculated correctly at 1.5% annually."""

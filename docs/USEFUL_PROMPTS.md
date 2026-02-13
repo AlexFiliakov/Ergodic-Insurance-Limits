@@ -8,35 +8,10 @@ Use subagents to parallelize the work whenever possible and resolve issue # . En
 
 Use subagents to parallelize the work whenever possible and resolve issue #. Ensure all relevant tests pass, but skip full-suite validation because it times out. Work in a new branch. Plan, execute, review. Commit and make a pull request, but don't push to main.
 
-## High-Powered Debug
+## Research Failing Test
 
-Create an agent team to review my Python package for actuarial/risk management use. Spawn five reviewers:
-- One focused on performance optimization opportunities
-- One validating financial implementation and GAAP adherence
-- One checking the mathematical implementation correctness
-- One reviewing API usability for actuarial and risk management professionals
-- One validating existing GitHub issues for accuracy and completeness
+See pull request # which has failing tests. Investigate the failing tests thoroughly to come up with clear resolution plans. Where multiple approaches are viable, clearly explain each approach and make a recommendation with justification. Report your findings and recommended fix approaches in a comment on the pull request.
 
-Have each teammate:
-1. Review their specific domain independently
-2. Document findings with file paths and line numbers
-3. Create detailed GitHub issues for bugs and enhancements
-4. Include competing implementation approaches with pros/cons
-5. Recommend the best course of action with justification
-6. Validate every aspect of its assigned domain. Include edge cases, unusual patterns, and potential future issues. If any area lacks coverage or validation, document it as an issue.
-7. Each reviewer should identify at least 10 actionable issues in their domain. If fewer issues are found, explain why the codebase is already well-optimized in that area.
-8. Each reviewer should maintain their own Markdown file in `\docs` documenting:
-  - Areas reviewed so far
-  - Number of issues identified
-  - Remaining areas to cover
+## Fix Failing Test From Comments
 
-Each issue should be implementation-ready with:
-- Clear problem statement
-- Specific code locations affected
-- Alternative solutions evaluated
-- Recommended approach with reasoning
-- Acceptance criteria for completion
-
-This package is used in production financial systems. A thorough review is critical to prevent calculation errors that could affect compliance and financial reporting.
-
----
+See pull request # which has failing tests. The resolution approach is described in the pull request comments. Use parallel subagents as needed to fix the failing test, then test the repairs, but don't run a full test-suite because it will time out. Once relevant tests pass, commit and push the fixes.

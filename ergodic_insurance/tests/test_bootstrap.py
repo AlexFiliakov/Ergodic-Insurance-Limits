@@ -15,12 +15,99 @@ from ergodic_insurance.bootstrap_analysis import (
 )
 from ergodic_insurance.statistical_tests import (
     HypothesisTestResult,
+    _calculate_p_value,
     bootstrap_hypothesis_test,
     difference_in_means_test,
     multiple_comparison_correction,
     paired_comparison_test,
     ratio_of_metrics_test,
 )
+
+
+class TestCalculatePValueNullVal:
+    """Tests for _calculate_p_value with non-zero null_val (#811).
+
+    Verifies that one-sided alternatives properly center comparisons
+    around null_val, consistent with the two-sided branch.
+    """
+
+    def test_one_sided_less_nonzero_null_val(self):
+        """One-sided 'less' p-value must center around null_val."""
+        bootstrap_vals = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+        observed_val = 4.0
+        null_val = 5.0
+
+        p = _calculate_p_value(bootstrap_vals, observed_val, "less", null_val)
+        # (bootstrap - 5) <= (4 - 5) = -1  →  [-2, -1, 0, 1, 2] <= -1
+        # True for -2, -1  →  2/5 = 0.4
+        assert p == pytest.approx(0.4)
+
+    def test_one_sided_greater_nonzero_null_val(self):
+        """One-sided 'greater' p-value must center around null_val."""
+        bootstrap_vals = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+        observed_val = 6.0
+        null_val = 5.0
+
+        p = _calculate_p_value(bootstrap_vals, observed_val, "greater", null_val)
+        # (bootstrap - 5) >= (6 - 5) = 1  →  [-2, -1, 0, 1, 2] >= 1
+        # True for 1, 2  →  2/5 = 0.4
+        assert p == pytest.approx(0.4)
+
+    def test_two_sided_nonzero_null_val(self):
+        """Two-sided p-value centers around null_val (baseline check)."""
+        bootstrap_vals = np.array([3.0, 4.0, 5.0, 6.0, 7.0])
+        observed_val = 7.0
+        null_val = 5.0
+
+        p = _calculate_p_value(bootstrap_vals, observed_val, "two-sided", null_val)
+        # |bootstrap - 5| >= |7 - 5| = 2  →  [2, 1, 0, 1, 2] >= 2
+        # True for 2, 2  →  2/5 = 0.4
+        assert p == pytest.approx(0.4)
+
+    def test_null_val_zero_unchanged(self):
+        """With null_val=0 (default), results are identical to old behavior."""
+        bootstrap_vals = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        observed_val = 3.0
+
+        p_less = _calculate_p_value(bootstrap_vals, observed_val, "less", 0.0)
+        p_greater = _calculate_p_value(bootstrap_vals, observed_val, "greater", 0.0)
+
+        # less: bootstrap <= 3 → [1,2,3] → 3/5
+        assert p_less == pytest.approx(0.6)
+        # greater: bootstrap >= 3 → [3,4,5] → 3/5
+        assert p_greater == pytest.approx(0.6)
+
+    def test_paired_comparison_nonzero_null_value(self):
+        """End-to-end: paired_comparison_test with non-zero null_value."""
+        rng = np.random.default_rng(42)
+        # Differences with true mean ~10
+        differences = rng.normal(10, 2, 500)
+
+        # Test against null_value=10 (should NOT reject)
+        result_not_reject = paired_comparison_test(
+            differences, null_value=10.0, alternative="less", n_bootstrap=2000, seed=42
+        )
+        assert result_not_reject.p_value > 0.05
+
+        # Test against null_value=15 (observed mean ~10 < 15, should reject)
+        result_reject = paired_comparison_test(
+            differences, null_value=15.0, alternative="less", n_bootstrap=2000, seed=42
+        )
+        assert result_reject.p_value < 0.05
+
+    def test_consistency_all_alternatives(self):
+        """For observed == null_val, less and greater p-values should each be ~0.5."""
+        rng = np.random.default_rng(99)
+        null_val = 10.0
+        bootstrap_vals = rng.normal(null_val, 1.0, 10000)
+        observed_val = null_val  # exactly at null
+
+        p_less = _calculate_p_value(bootstrap_vals, observed_val, "less", null_val)
+        p_greater = _calculate_p_value(bootstrap_vals, observed_val, "greater", null_val)
+
+        # Both should be approximately 0.5
+        assert 0.45 < p_less < 0.55
+        assert 0.45 < p_greater < 0.55
 
 
 class TestBootstrapAnalyzer:
@@ -616,3 +703,132 @@ class TestEdgeCases:
         assert result.statistic == 42.0
         assert result.confidence_interval[0] == 42.0
         assert result.confidence_interval[1] == 42.0
+
+
+class TestMultipleComparisonMonotonicity:
+    """Tests for monotonicity enforcement in Holm-Bonferroni and BH-FDR.
+
+    Addresses issue #666: adjusted p-values must satisfy monotonicity
+    constraints per Holm (1979) and Benjamini & Hochberg (1995).
+    """
+
+    # --- Holm-Bonferroni tests ---
+
+    def test_holm_adjusted_pvalues_nondecreasing(self):
+        """Holm adjusted p-values must be non-decreasing in sorted order."""
+        # p-values chosen so raw adj = [0.04, 0.09, 0.08, 0.20] before fix
+        p_values = [0.01, 0.04, 0.03, 0.20]
+        adj_p, _ = multiple_comparison_correction(p_values, method="holm")
+
+        # Map adjusted p-values to sorted order
+        sorted_idx = np.argsort(p_values)
+        adj_sorted = adj_p[sorted_idx]
+
+        # Must be non-decreasing
+        for i in range(1, len(adj_sorted)):
+            assert adj_sorted[i] >= adj_sorted[i - 1], (
+                f"Holm adjusted p-values not non-decreasing at rank {i}: "
+                f"{adj_sorted[i]} < {adj_sorted[i - 1]}"
+            )
+
+    def test_holm_monotonicity_specific_values(self):
+        """Verify exact adjusted p-values after monotonicity enforcement."""
+        # sorted: [0.01, 0.03, 0.04, 0.20]
+        # raw adj: [0.04, 0.09, 0.08, 0.20]
+        # cummax:  [0.04, 0.09, 0.09, 0.20]
+        p_values = [0.01, 0.04, 0.03, 0.20]
+        adj_p, reject = multiple_comparison_correction(p_values, method="holm", alpha=0.05)
+
+        assert np.isclose(adj_p[0], 0.04)  # p=0.01, rank 0: 0.01*4=0.04
+        assert np.isclose(adj_p[2], 0.09)  # p=0.03, rank 1: max(0.09, 0.04)=0.09
+        assert np.isclose(adj_p[1], 0.09)  # p=0.04, rank 2: max(0.08, 0.09)=0.09
+        assert np.isclose(adj_p[3], 0.20)  # p=0.20, rank 3: max(0.20, 0.09)=0.20
+
+        assert reject[0]  # 0.04 < 0.05
+        assert not reject[1]  # 0.09 >= 0.05
+        assert not reject[2]  # 0.09 >= 0.05
+        assert not reject[3]  # 0.20 >= 0.05
+
+    def test_holm_computes_all_adjusted_pvalues(self):
+        """All adjusted p-values must be computed, not left as zero."""
+        p_values = [0.01, 0.04, 0.03, 0.20, 0.50]
+        adj_p, _ = multiple_comparison_correction(p_values, method="holm")
+
+        # No adjusted p-value should be zero (all raw p > 0)
+        assert np.all(adj_p > 0), f"Some adjusted p-values are zero: {adj_p}"
+
+    # --- Benjamini-Hochberg FDR tests ---
+
+    def test_fdr_adjusted_pvalues_nondecreasing(self):
+        """BH-FDR adjusted p-values must be non-decreasing in sorted order."""
+        # This input triggers non-monotonicity without the fix
+        p_values = [0.001, 0.008, 0.039, 0.041, 0.20]
+        adj_p, _ = multiple_comparison_correction(p_values, method="fdr")
+
+        sorted_idx = np.argsort(p_values)
+        adj_sorted = adj_p[sorted_idx]
+
+        for i in range(1, len(adj_sorted)):
+            assert adj_sorted[i] >= adj_sorted[i - 1], (
+                f"BH-FDR adjusted p-values not non-decreasing at rank {i}: "
+                f"{adj_sorted[i]} < {adj_sorted[i - 1]}"
+            )
+
+    def test_fdr_monotonicity_specific_values(self):
+        """Verify exact BH-FDR adjusted p-values after monotonicity."""
+        # sorted: [0.001, 0.008, 0.039, 0.041, 0.20], n=5
+        # raw adj: [0.005, 0.020, 0.065, 0.05125, 0.200]
+        # cummin from right: [0.005, 0.020, 0.05125, 0.05125, 0.200]
+        p_values = [0.001, 0.008, 0.039, 0.041, 0.20]
+        adj_p, reject = multiple_comparison_correction(p_values, method="fdr", alpha=0.05)
+
+        assert np.isclose(adj_p[0], 0.005)  # 0.001*5/1=0.005
+        assert np.isclose(adj_p[1], 0.020)  # 0.008*5/2=0.020
+        assert np.isclose(adj_p[2], 0.05125)  # min(0.065, 0.05125)=0.05125
+        assert np.isclose(adj_p[3], 0.05125)  # 0.041*5/4=0.05125
+        assert np.isclose(adj_p[4], 0.200)  # 0.20*5/5=0.200
+
+        assert reject[0]  # 0.005 < 0.05
+        assert reject[1]  # 0.020 < 0.05
+        assert not reject[2]  # 0.05125 >= 0.05
+        assert not reject[3]  # 0.05125 >= 0.05
+        assert not reject[4]  # 0.200 >= 0.05
+
+    def test_fdr_already_monotone_unchanged(self):
+        """BH-FDR: already-monotone p-values should not be altered."""
+        # Widely spaced p-values: raw adj already monotone
+        p_values = [0.001, 0.01, 0.1, 0.5]
+        adj_p, _ = multiple_comparison_correction(p_values, method="fdr")
+
+        # raw adj: [0.004, 0.02, 0.1333, 0.5] — already non-decreasing
+        assert np.isclose(adj_p[0], 0.004)
+        assert np.isclose(adj_p[1], 0.02)
+        assert np.isclose(adj_p[2], 4 * 0.1 / 3)
+        assert np.isclose(adj_p[3], 0.5)
+
+    # --- General properties ---
+
+    def test_adjusted_pvalues_bounded_0_1(self):
+        """All adjusted p-values must be in [0, 1]."""
+        p_values = [0.0001, 0.5, 0.99, 0.001]
+        for method in ["bonferroni", "holm", "fdr"]:
+            adj_p, _ = multiple_comparison_correction(p_values, method=method)
+            assert np.all(adj_p >= 0), f"{method}: negative adjusted p-values"
+            assert np.all(adj_p <= 1.0), f"{method}: adjusted p-values > 1"
+
+    def test_single_pvalue(self):
+        """Single p-value: adjusted should equal raw (capped at 1)."""
+        for method in ["bonferroni", "holm", "fdr"]:
+            adj_p, reject = multiple_comparison_correction([0.03], method=method, alpha=0.05)
+            assert np.isclose(adj_p[0], 0.03), f"{method}: single p-value changed"
+            assert reject[0], f"{method}: single p-value 0.03 should reject at 0.05"
+
+    def test_holm_matches_bonferroni_for_smallest(self):
+        """Holm's smallest adjusted p-value equals the Bonferroni correction."""
+        p_values = [0.01, 0.04, 0.03, 0.20]
+        adj_holm, _ = multiple_comparison_correction(p_values, method="holm")
+        adj_bonf, _ = multiple_comparison_correction(p_values, method="bonferroni")
+
+        # The smallest sorted p gets multiplied by n in both methods
+        min_idx = np.argmin(p_values)
+        assert np.isclose(adj_holm[min_idx], adj_bonf[min_idx])

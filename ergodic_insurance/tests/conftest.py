@@ -39,14 +39,19 @@ from ergodic_insurance.tests.integration.test_fixtures import (
 
 
 def pytest_collection_modifyitems(config, items):
-    """Auto-skip requires_multiprocessing tests in CI (they crash xdist workers)."""
+    """Auto-skip requires_multiprocessing and benchmark tests in CI."""
     if os.environ.get("CI"):
-        skip_marker = pytest.mark.skip(
+        skip_mp = pytest.mark.skip(
             reason="Multiprocessing/shared memory tests crash xdist workers in CI"
+        )
+        skip_bench = pytest.mark.skip(
+            reason="Benchmark tests skipped in CI (variable performance on shared runners)"
         )
         for item in items:
             if "requires_multiprocessing" in item.keywords:
-                item.add_marker(skip_marker)
+                item.add_marker(skip_mp)
+            if "benchmark" in item.keywords:
+                item.add_marker(skip_bench)
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ both budget hardware (4-8 cores) and high-end workstations.
 
 | File | Purpose |
 |------|---------|
-| `ergodic_insurance/monte_carlo.py` | Main orchestrator (`MonteCarloEngine`, `SimulationConfig`, `MonteCarloResults`) |
+| `ergodic_insurance/monte_carlo.py` | Main orchestrator (`MonteCarloEngine`, `MonteCarloConfig`, `MonteCarloResults`) |
 | `ergodic_insurance/monte_carlo_worker.py` | Standalone worker function (`run_chunk_standalone`) |
 | `ergodic_insurance/simulation.py` | Single-path simulation (`Simulation`, `SimulationResults`) |
 | `ergodic_insurance/parallel_executor.py` | Enhanced parallel executor (`ParallelExecutor`, `SharedMemoryManager`) |
@@ -22,12 +22,12 @@ both budget hardware (4-8 cores) and high-end workstations.
 ## 1. Overall Monte Carlo Execution Flow
 
 This flowchart shows the complete lifecycle from configuration through result delivery.
-The engine decides at runtime which execution path to take based on the `SimulationConfig`
+The engine decides at runtime which execution path to take based on the `MonteCarloConfig`
 flags `parallel` and `use_enhanced_parallel`.
 
 ```{mermaid}
 flowchart TD
-    A[SimulationConfig] --> B[MonteCarloEngine.__init__]
+    A[MonteCarloConfig] --> B[MonteCarloEngine.__init__]
     B --> C{cache_results?}
     C -- Yes --> D[Check Cache]
     D -- Hit --> E[Return Cached MonteCarloResults]
@@ -163,7 +163,7 @@ simulation.
 
 ```{mermaid}
 classDiagram
-    class SimulationConfig {
+    class MonteCarloConfig {
         +int n_simulations
         +int n_years
         +int n_chains
@@ -198,7 +198,7 @@ classDiagram
         +Dict metrics
         +Dict convergence
         +float execution_time
-        +SimulationConfig config
+        +MonteCarloConfig config
         +PerformanceMetrics performance_metrics
         +Dict aggregated_results
         +Dict bootstrap_confidence_intervals
@@ -209,7 +209,7 @@ classDiagram
         +ManufacturingLossGenerator loss_generator
         +InsuranceProgram insurance_program
         +WidgetManufacturer manufacturer
-        +SimulationConfig config
+        +MonteCarloConfig config
         +ConvergenceDiagnostics convergence_diagnostics
         +ParallelExecutor parallel_executor
         +TrajectoryStorage trajectory_storage
@@ -299,7 +299,7 @@ classDiagram
         +calculate_r_hat() float
     }
 
-    MonteCarloEngine --> SimulationConfig : uses
+    MonteCarloEngine --> MonteCarloConfig : uses
     MonteCarloEngine --> MonteCarloResults : produces
     MonteCarloEngine --> ParallelExecutor : enhanced parallel
     MonteCarloEngine --> ConvergenceDiagnostics : convergence checks
@@ -584,7 +584,7 @@ across all the major components.
 ```{mermaid}
 flowchart LR
     subgraph Input
-        SC[SimulationConfig]
+        SC[MonteCarloConfig]
         MFG[WidgetManufacturer]
         LG[ManufacturingLossGenerator]
         IP[InsuranceProgram]

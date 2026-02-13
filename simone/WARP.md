@@ -73,7 +73,7 @@ The codebase follows a modular TypeScript architecture with clear separation of 
 ### Key Design Patterns
 
 - **Strategy Pattern**: Simulation class designed to be extensible for different financial models
-- **Builder Pattern**: SimulationConfig allows flexible parameter configuration
+- **Builder Pattern**: MonteCarloConfig allows flexible parameter configuration
 - **Immutable Results**: Simulation results are read-only once generated
 - **Type Safety**: Comprehensive TypeScript interfaces ensure data consistency
 

@@ -12,7 +12,7 @@ from ergodic_insurance.config import ManufacturerConfig
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer, InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 from ergodic_insurance.trajectory_storage import StorageConfig, TrajectoryStorage
 
 
@@ -58,7 +58,7 @@ class TestMonteCarloTrajectoryIntegration:
         )
 
         # Create simulation config with storage enabled
-        sim_config = SimulationConfig(
+        sim_config = MonteCarloConfig(
             n_simulations=100,
             n_years=10,
             parallel=False,  # Disable parallel for simpler testing
@@ -81,7 +81,7 @@ class TestMonteCarloTrajectoryIntegration:
         """Test that storage can be enabled in simulation config."""
         storage_config = StorageConfig(storage_dir="./test_storage")
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             enable_trajectory_storage=True,
             trajectory_storage_config=storage_config,
         )
@@ -134,7 +134,7 @@ class TestMonteCarloTrajectoryIntegration:
 
     def test_storage_disabled_by_default(self):
         """Test that storage is disabled by default."""
-        config = SimulationConfig()
+        config = MonteCarloConfig()
         assert config.enable_trajectory_storage is False
         assert config.trajectory_storage_config is None
 

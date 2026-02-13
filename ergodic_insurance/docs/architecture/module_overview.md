@@ -7,10 +7,9 @@ graph LR
        %% Configuration Layer
        subgraph Config["Configuration Management"]
            CONFIG_BASE["config.py<br/>Base Configuration"]
-           CONFIG_V2["config.py<br/>Enhanced Config"]
+           CONFIG_V2["config.py<br/>Config Models"]
            CONFIG_MGR["config_manager.py<br/>Config Manager"]
            CONFIG_LOADER["config_loader.py<br/>Config Loader"]
-           CONFIG_COMPAT["config_compat.py<br/>Compatibility Layer"]
            CONFIG_MIG["config_migrator.py<br/>Migration Tools"]
        end
 
@@ -128,7 +127,7 @@ graph LR
        CONFIG_BASE --> MANUFACTURER
        CONFIG_V2 --> CONFIG_MGR
        CONFIG_MGR --> CONFIG_LOADER
-       CONFIG_COMPAT --> CONFIG_MGR
+       CONFIG_LOADER --> CONFIG_MGR
 
        %% Business Logic: Decimal utilities feed into accounting modules
        DECIMAL_UTILS --> LEDGER
@@ -209,7 +208,7 @@ graph LR
        classDef report fill:#fff8e1,stroke:#f9a825,stroke-width:2px
        classDef advanced fill:#fafafa,stroke:#424242,stroke-width:2px
 
-       class CONFIG_BASE,CONFIG_V2,CONFIG_MGR,CONFIG_LOADER,CONFIG_COMPAT,CONFIG_MIG config
+       class CONFIG_BASE,CONFIG_V2,CONFIG_MGR,CONFIG_LOADER,CONFIG_MIG config
        class MANUFACTURER,INSURANCE,INS_PROGRAM,INS_PRICING,CLAIM_DEV,EXPOSURE,LEDGER,ACCRUAL,INS_ACCT,DECIMAL_UTILS,TRENDS business
        class SIM_CORE,MONTE_CARLO,MONTE_WORKER,STOCHASTIC,LOSS_DIST simulation
        class ERGODIC_ANALYZER,BUSINESS_OPT,DECISION_ENGINE,OPTIMIZATION,HJB_SOLVER,OPTIMAL_CTRL analysis

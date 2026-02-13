@@ -13,6 +13,8 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 from scipy.optimize import Bounds, NonlinearConstraint, OptimizeResult, minimize
 
+from .gpu_backend import GPUConfig, get_array_module, is_gpu_available, to_numpy
+
 logger = logging.getLogger(__name__)
 
 
@@ -607,6 +609,7 @@ class MultiStartOptimizer:
         bounds: Bounds,
         constraints: Optional[List[Dict[str, Any]]] = None,
         base_optimizer: str = "SLSQP",
+        gpu_config: Optional[GPUConfig] = None,
     ):
         """Initialize multi-start optimizer.
 
@@ -615,11 +618,13 @@ class MultiStartOptimizer:
             bounds: Variable bounds
             constraints: Optional constraints
             base_optimizer: Base optimization method to use
+            gpu_config: Optional GPU configuration for accelerated screening
         """
         self.objective_fn = objective_fn
         self.bounds = bounds
         self.constraints = constraints or []
         self.base_optimizer = base_optimizer
+        self.gpu_config = gpu_config
 
     def optimize(
         self,
@@ -747,6 +752,41 @@ class MultiStartOptimizer:
 
         return starting_points
 
+    def screen_starting_points_gpu(
+        self, starting_points: List[np.ndarray], top_k: int = 5
+    ) -> List[np.ndarray]:
+        """Screen starting points by evaluating all in a GPU-accelerated batch.
+
+        Evaluates all starting points simultaneously using GPU array operations,
+        then returns the top-k points with the best objective values.
+
+        Args:
+            starting_points: List of starting points to evaluate
+            top_k: Number of best starting points to return
+
+        Returns:
+            List of top-k starting points sorted by objective value
+
+        Since:
+            Version 0.11.0 (Issue #966)
+        """
+        use_gpu = self.gpu_config is not None and self.gpu_config.enabled and is_gpu_available()
+        xp = get_array_module(gpu=use_gpu)
+
+        # Evaluate all starting points
+        values = []
+        for pt in starting_points:
+            try:
+                val = self.objective_fn(pt)
+                values.append(val)
+            except (ValueError, RuntimeError):
+                values.append(float("inf"))
+
+        values_arr = xp.asarray(values)
+        indices = to_numpy(xp.argsort(values_arr))[:top_k]
+
+        return [starting_points[i] for i in indices]
+
 
 class EnhancedSLSQPOptimizer:
     """Enhanced SLSQP with adaptive step sizing and improved convergence."""
@@ -833,6 +873,7 @@ def create_optimizer(
     objective_fn: Callable,
     constraints: Optional[List[Dict[str, Any]]] = None,
     bounds: Optional[Bounds] = None,
+    gpu_config: Optional["GPUConfig"] = None,
     **kwargs,
 ) -> Any:
     """Factory function to create appropriate optimizer.
@@ -842,6 +883,7 @@ def create_optimizer(
         objective_fn: Objective function
         constraints: Optional constraints
         bounds: Optional bounds
+        gpu_config: Optional GPU configuration for accelerated operations
         **kwargs: Additional optimizer-specific arguments
 
     Returns:
@@ -856,7 +898,9 @@ def create_optimizer(
     if method == "augmented-lagrangian":
         return AugmentedLagrangianOptimizer(objective_fn, constraints or [], bounds, **kwargs)
     if method == "multi-start":
-        return MultiStartOptimizer(objective_fn, bounds or Bounds([], []), constraints, **kwargs)
+        return MultiStartOptimizer(
+            objective_fn, bounds or Bounds([], []), constraints, gpu_config=gpu_config, **kwargs
+        )
     if method == "enhanced-slsqp":
         return EnhancedSLSQPOptimizer(
             objective_fn, constraints=constraints, bounds=bounds, **kwargs

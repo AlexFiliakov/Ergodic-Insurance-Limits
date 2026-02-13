@@ -22,7 +22,7 @@ from ergodic_insurance.config import Config
 from ergodic_insurance.insurance_program import InsuranceProgram
 from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
 from ergodic_insurance.manufacturer import WidgetManufacturer
-from ergodic_insurance.monte_carlo import MonteCarloResults, SimulationConfig
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloResults
 from ergodic_insurance.scenario_manager import (
     ParameterSpec,
     ScenarioConfig,
@@ -46,7 +46,7 @@ def sample_scenario():
         scenario_id="test_scenario_001",
         name="Test Scenario",
         description="Test scenario for unit tests",
-        simulation_config=SimulationConfig(n_simulations=100, n_years=5),
+        simulation_config=MonteCarloConfig(n_simulations=100, n_years=5),
         parameter_overrides={"manufacturer.initial_assets": 15000000},
         tags={"test", "sample"},
         priority=50,
@@ -69,7 +69,7 @@ def mock_simulation_results():
         metrics={"var_95": 14000000, "var_99": 12000000, "tvar_95": 13000000, "tvar_99": 11000000},
         convergence={},
         execution_time=5.5,
-        config=SimulationConfig(n_simulations=100, n_years=5),
+        config=MonteCarloConfig(n_simulations=100, n_years=5),
     )
 
 
@@ -157,8 +157,8 @@ class TestParameterSpec:
         spec = ParameterSpec(
             name="test_param", min_value=0.0, max_value=1.0, n_samples=10, distribution="uniform"
         )
-        np.random.seed(42)
-        values = spec.generate_values(ScenarioType.RANDOM_SEARCH)
+        rng = np.random.default_rng(42)
+        values = spec.generate_values(ScenarioType.RANDOM_SEARCH, rng=rng)
         assert len(values) == 10
         assert all(0 <= v <= 1 for v in values)
 
@@ -167,8 +167,8 @@ class TestParameterSpec:
         spec = ParameterSpec(
             name="test_param", min_value=1.0, max_value=100.0, n_samples=10, distribution="log"
         )
-        np.random.seed(42)
-        values = spec.generate_values(ScenarioType.RANDOM_SEARCH)
+        rng = np.random.default_rng(42)
+        values = spec.generate_values(ScenarioType.RANDOM_SEARCH, rng=rng)
         assert len(values) == 10
         assert all(1 <= v <= 100 for v in values)
         # Log distribution should have more values in lower range
@@ -761,6 +761,7 @@ class TestPerformance:
         assert len(scenarios) == 100
         assert len(manager.scenarios) == 100
 
+    @pytest.mark.benchmark
     def test_checkpoint_performance(self, mock_components):
         """Test checkpoint save/load performance."""
         loss_gen, insurance, manufacturer = mock_components

@@ -171,3 +171,46 @@ Simulations terminate when ALL of the following are satisfied:
 {% if metadata.date %}
 *Last Updated: {{ metadata.date.strftime('%B %Y') }}*
 {% endif %}
+
+---
+
+## Professional Standards Disclosures (ASOP 41 / ASOP 56)
+
+### Applicable Standards
+
+This methodology documentation is subject to ASOP No. 41 (Actuarial Communications) and ASOP No. 56 (Modeling). Full compliance disclosures are provided in the project's Actuarial Standards Compliance document.
+
+### Responsible Actuary
+
+Alex Filiakov, ACAS. The reviewing actuary does not currently take responsibility for the accuracy of the methodology. Review and validation are ongoing.
+
+### Material Deviations from Standard Practice
+
+The following simplifications deviate from standard actuarial practice:
+
+| Deviation | Nature | ASOP Affected | Effect |
+|-----------|--------|---------------|--------|
+| Poisson frequency | Uses Poisson instead of ODP | ASOP 43, ASOP 25 | Understates claim count variance |
+| No regulatory capital | Omits capital constraints | ASOP 56 | May produce infeasible retentions for regulated entities |
+| Deterministic margins | Fixed operating margins | ASOP 56 | Understates total business volatility |
+| Simplified taxes | Flat 25% rate | General practice | Minor effect on relative strategy ranking |
+| No credit risk | Certain insurance recovery | ASOP 56 | Overstates certainty of recoveries |
+| Fixed development | No reserve development uncertainty | ASOP 43 | Understates retained loss volatility |
+| No loss correlation | Independent losses across time | ASOP 56 | May understate clustering risk |
+| Ergodic framework | Time-average vs. ensemble-average | Novel methodology | Produces qualitatively different recommendations |
+
+### Reliance on External Methods
+
+The theoretical foundation relies on: Peters (2019) "The ergodicity problem in economics" (*Nature Physics*); Peters & Gell-Mann (2016) "Evaluating gambles using dynamics" (*Chaos*); Kelly (1956) "A new interpretation of information rate" (*Bell System Technical Journal*). Standard actuarial techniques (compound Poisson, log-normal severity, chain ladder) are drawn from established literature.
+
+### Assumption Responsibility
+
+Framework-embedded assumptions (stochastic models, simplifications, default parameters) are the responsibility of the developer. User-selected parameters (loss distributions, financial data, insurance structures) are the responsibility of the user. See the Actuarial Standards Compliance document for the complete responsibility matrix.
+
+### Model Validation
+
+Validation is conducted through the project's automated test suite (unit, integration, regression, and convergence tests) run via CI on every code change. Formal independent validation has not been completed. Published validation results are available at [https://applications.mostlyoptimal.com/](https://applications.mostlyoptimal.com/).
+
+### Uncertainty Caution
+
+All results are subject to parameter uncertainty, model uncertainty, and stochastic variation. Results should be treated as directional guidance, not prescriptive recommendations. Users should conduct sensitivity analysis across plausible parameter ranges before relying on any specific output.

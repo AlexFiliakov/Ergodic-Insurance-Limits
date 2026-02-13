@@ -47,12 +47,13 @@ Since:
     Version 0.1.0
 """
 
-import copy
+from copy import deepcopy
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+import threading
 import time
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -408,6 +409,29 @@ class SimulationResults:
         return base_stats
 
 
+@dataclass
+class StrategyComparisonResult:
+    """Result of comparing multiple insurance strategies.
+
+    Returned by :meth:`Simulation.compare_insurance_strategies`. Contains the
+    shared uninsured baseline, per-strategy Monte Carlo results, and a summary
+    DataFrame for quick comparison.
+
+    Attributes:
+        baseline: MonteCarloResults from the shared uninsured baseline run.
+        strategy_results: Dict mapping strategy name to its MonteCarloResults.
+        summary_df: DataFrame comparing strategies (same columns as the
+            previous ``pd.DataFrame`` return type for backward compatibility).
+        crn_seed: The Common Random Numbers base seed used for paired
+            comparison across all runs.
+    """
+
+    baseline: Any  # MonteCarloResults (avoid top-level import cycle)
+    strategy_results: Dict[str, Any]
+    summary_df: pd.DataFrame
+    crn_seed: Optional[int] = None
+
+
 class Simulation:
     """Simulation engine for widget manufacturer time evolution.
 
@@ -485,16 +509,16 @@ class Simulation:
             Union[ManufacturingLossGenerator, List[ManufacturingLossGenerator]]
         ] = None,
         insurance_policy: Optional[Union[InsuranceProgram, InsurancePolicy]] = None,
-        time_horizon: int = 100,
+        time_horizon: int = 50,
         seed: Optional[int] = None,
         growth_rate: float = 0.0,
         letter_of_credit_rate: float = 0.015,
+        copy: bool = True,
     ):
         """Initialize simulation.
 
         Args:
-            manufacturer: WidgetManufacturer instance to simulate. This object
-                maintains the financial state and is modified during simulation.
+            manufacturer: WidgetManufacturer instance to simulate.
             loss_generator: ManufacturingLossGenerator or list of generators for
                 creating loss events. If a list is provided, losses from all
                 generators are combined. If None, a default generator with
@@ -507,10 +531,10 @@ class Simulation:
             seed: Random seed for reproducibility. Passed to loss generator(s).
             growth_rate: Revenue growth rate per period (default 0.0).
             letter_of_credit_rate: Annual LoC rate for collateral costs (default 0.015).
-
-        Note:
-            The manufacturer object is modified in-place during simulation.
-            Create a copy if you need to preserve the initial state.
+            copy: If True (default), deep-copy the manufacturer so the caller's
+                reference is never mutated. Set to False when the caller has
+                already copied the manufacturer or mutation is acceptable
+                (e.g., inside MonteCarloEngine loops).
 
         Examples:
             Setup with custom insurance::
@@ -537,10 +561,17 @@ class Simulation:
                     insurance_policy=policy,
                     time_horizon=20
                 )
+
+            Opt out of copying for performance-critical paths::
+
+                mfg_copy = deepcopy(manufacturer)
+                sim = Simulation(manufacturer=mfg_copy, copy=False)
         """
+        if copy:
+            manufacturer = deepcopy(manufacturer)
         self.manufacturer = manufacturer
         # Deep-copy the initial manufacturer state for re-entrancy (Issue #349)
-        self._initial_manufacturer = copy.deepcopy(manufacturer)
+        self._initial_manufacturer = deepcopy(manufacturer)
         self.growth_rate = growth_rate
         self.letter_of_credit_rate = letter_of_credit_rate
         self._seed = seed
@@ -665,7 +696,12 @@ class Simulation:
 
         return metrics
 
-    def run(self, progress_interval: int = 100) -> SimulationResults:
+    def run(
+        self,
+        progress_interval: int = 100,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> SimulationResults:
         """Run the full simulation over the specified time horizon.
 
         Executes a complete simulation trajectory, processing claims each year,
@@ -675,6 +711,13 @@ class Simulation:
         Args:
             progress_interval: How often to log progress (in years). Set to 0
                 to disable progress logging. Useful for long simulations.
+            progress_callback: Optional callback invoked with
+                ``(completed_years, total_years, elapsed_seconds)`` after each
+                year completes.  Useful for GUI progress bars, web dashboards,
+                or any non-terminal environment.
+            cancel_event: Optional :class:`threading.Event`.  When set, the
+                simulation will stop after the current year and return partial
+                results (same pattern as insolvency early-stop).
 
         Returns:
             SimulationResults object containing:
@@ -721,7 +764,7 @@ class Simulation:
 
         # Reset mutable state so the simulation is re-entrant
         # Reset manufacturer from initial state (Issue #349)
-        self.manufacturer = copy.deepcopy(self._initial_manufacturer)
+        self.manufacturer = deepcopy(self._initial_manufacturer)
         # Reseed loss generators so repeated runs produce identical sequences
         if self._seed is not None:
             for gen in self.loss_generator:
@@ -739,7 +782,21 @@ class Simulation:
         logger.info(f"Starting {self.time_horizon}-year simulation with dynamic loss generation")
 
         # Run simulation
+        completed_years = 0
+        cancelled = False
         for year in range(self.time_horizon):
+            # Check for cancellation
+            if cancel_event is not None and cancel_event.is_set():
+                logger.info("Cancellation requested at year %d/%d", year, self.time_horizon)
+                cancelled = True
+                # Fill remaining years with zeros
+                self.assets[year:] = 0
+                self.equity[year:] = 0
+                self.roe[year:] = np.nan
+                self.revenue[year:] = 0
+                self.net_income[year:] = 0
+                break
+
             # Log progress
             if year > 0 and year % progress_interval == 0:
                 elapsed = time.time() - start_time
@@ -770,6 +827,12 @@ class Simulation:
             self.net_income[year] = metrics.get("net_income", 0)
             self.claim_counts[year] = metrics.get("claim_count", 0)
             self.claim_amounts[year] = metrics.get("claim_amount", 0)
+
+            completed_years = year + 1
+
+            # Fire progress callback after each year
+            if progress_callback is not None:
+                progress_callback(completed_years, self.time_horizon, time.time() - start_time)
 
             # Check for insolvency using manufacturer's insolvency tolerance
             tolerance = self.manufacturer.config.insolvency_tolerance
@@ -835,7 +898,7 @@ class Simulation:
 
         # Reset mutable state so the simulation is re-entrant
         # Reset manufacturer from initial state (Issue #349)
-        self.manufacturer = copy.deepcopy(self._initial_manufacturer)
+        self.manufacturer = deepcopy(self._initial_manufacturer)
         if self._seed is not None:
             for gen in self.loss_generator:
                 if hasattr(gen, "reseed"):
@@ -988,11 +1051,11 @@ class Simulation:
         manufacturer = WidgetManufacturer(config=config.manufacturer)
 
         # Create simulation config
-        from .monte_carlo import SimulationConfig
+        from .monte_carlo import MonteCarloConfig
 
-        sim_config = SimulationConfig(
+        sim_config = MonteCarloConfig(
             n_simulations=n_scenarios,
-            n_years=getattr(config.simulation, "years", 10),
+            n_years=config.simulation.time_horizon_years,
             parallel=n_jobs > 1 if n_jobs else True,
             n_workers=n_jobs,
             chunk_size=batch_size,
@@ -1099,8 +1162,13 @@ class Simulation:
         n_scenarios: int = 1000,
         n_jobs: int = 7,
         seed: Optional[int] = None,
-    ) -> pd.DataFrame:
+    ) -> StrategyComparisonResult:
         """Compare multiple insurance strategies via Monte Carlo.
+
+        Runs a single uninsured baseline and one insured simulation per
+        strategy, using Common Random Numbers (CRN) for proper paired
+        comparison.  This requires N+1 total Monte Carlo runs for N
+        strategies instead of the previous 2N.
 
         Args:
             config: Configuration object.
@@ -1111,26 +1179,71 @@ class Simulation:
             seed: Random seed.
 
         Returns:
-            DataFrame comparing results across strategies.
+            :class:`StrategyComparisonResult` containing per-strategy results,
+            the shared uninsured baseline, and a summary DataFrame.
         """
-        results = []
+        from .monte_carlo import MonteCarloConfig
+
+        # Derive CRN base seed for paired comparison
+        if seed is not None:
+            crn_seed = seed
+        else:
+            crn_seed = int(np.random.SeedSequence().generate_state(1)[0])
+
+        # Build shared simulation config with CRN enabled
+        sim_config = MonteCarloConfig(
+            n_simulations=n_scenarios,
+            n_years=config.simulation.time_horizon_years,
+            parallel=n_jobs > 1 if n_jobs else True,
+            n_workers=n_jobs,
+            checkpoint_interval=n_scenarios + 1,  # Don't checkpoint for comparisons
+            seed=seed,
+            crn_base_seed=crn_seed,
+        )
+
+        # --- Run uninsured baseline ONCE ---
+        logger.info("Running shared uninsured baseline simulation...")
+        baseline_results = MonteCarloEngine(
+            loss_generator=ManufacturingLossGenerator(seed=seed),
+            insurance_program=InsuranceProgram(layers=[]),
+            manufacturer=WidgetManufacturer(config=config.manufacturer),
+            config=sim_config,
+        ).run()
+
+        # --- Run each strategy (insured only) ---
+        strategy_mc_results: Dict[str, Any] = {}
+        results_rows: List[Dict[str, Any]] = []
 
         for policy_name, policy in insurance_policies.items():
-            logger.info(f"Running Monte Carlo for policy: {policy_name}")
+            logger.info(f"Running Monte Carlo for strategy: {policy_name}")
 
-            # Run Monte Carlo
-            mc_results = cls.run_monte_carlo(
-                config=config,
-                insurance_policy=policy,
-                n_scenarios=n_scenarios,
-                n_jobs=n_jobs,
-                seed=seed,
-                checkpoint_frequency=n_scenarios + 1,  # Don't checkpoint for comparisons
-                resume=False,
-            )
+            # Normalize InsurancePolicy -> InsuranceProgram
+            if isinstance(policy, InsurancePolicy):
+                import warnings as _warnings
 
-            # Extract key metrics from the SimulationResults object
-            sim_results = mc_results["results_with_insurance"]
+                _warnings.warn(
+                    "Passing InsurancePolicy to compare_insurance_strategies "
+                    "is deprecated. Use InsuranceProgram instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                converted = policy.to_enhanced_program()
+                insurance_program: InsuranceProgram = (
+                    converted if converted is not None else InsuranceProgram(layers=[])
+                )
+            else:
+                insurance_program = policy
+
+            sim_results = MonteCarloEngine(
+                loss_generator=ManufacturingLossGenerator(seed=seed),
+                insurance_program=insurance_program,
+                manufacturer=WidgetManufacturer(config=config.manufacturer),
+                config=sim_config,
+            ).run()
+
+            strategy_mc_results[policy_name] = sim_results
+
+            # Extract key metrics
             final_assets = sim_results.final_assets
             growth_rates = sim_results.growth_rates
 
@@ -1146,22 +1259,22 @@ class Simulation:
             p95 = float(np.percentile(final_assets, 95)) if len(final_assets) > 0 else 0.0
             p99 = float(np.percentile(final_assets, 99)) if len(final_assets) > 0 else 0.0
 
-            result_row = {
-                "policy": policy_name,
-                "annual_premium": policy.calculate_premium(),
-                "total_coverage": policy.get_total_coverage(),
-                "survival_rate": survival_rate,
-                "mean_final_equity": mean_final,
-                "std_final_equity": std_final,
-                "geometric_return": geo_mean,
-                "arithmetic_return": arith_mean,
-                "p95_final_equity": p95,
-                "p99_final_equity": p99,
-            }
+            results_rows.append(
+                {
+                    "policy": policy_name,
+                    "annual_premium": policy.calculate_premium(),
+                    "total_coverage": policy.get_total_coverage(),
+                    "survival_rate": survival_rate,
+                    "mean_final_equity": mean_final,
+                    "std_final_equity": std_final,
+                    "geometric_return": geo_mean,
+                    "arithmetic_return": arith_mean,
+                    "p95_final_equity": p95,
+                    "p99_final_equity": p99,
+                }
+            )
 
-            results.append(result_row)
-
-        comparison_df = pd.DataFrame(results)
+        comparison_df = pd.DataFrame(results_rows)
 
         # Add relative metrics
         if len(comparison_df) > 0:
@@ -1172,4 +1285,9 @@ class Simulation:
                 comparison_df["arithmetic_return"] / comparison_df["std_final_equity"]
             )
 
-        return comparison_df
+        return StrategyComparisonResult(
+            baseline=baseline_results,
+            strategy_results=strategy_mc_results,
+            summary_df=comparison_df,
+            crn_seed=crn_seed,
+        )

@@ -128,6 +128,112 @@ class TestReEntrancy:
         assert results1.equity[0] == results2.equity[0]
 
 
+class TestCopyParameter:
+    """Test that Simulation.__init__ copy parameter protects caller's manufacturer (Issue #802)."""
+
+    def test_caller_manufacturer_not_mutated_by_default(self, manufacturer_config, loss_generator):
+        """Default copy=True protects the caller's manufacturer from mutation."""
+        manufacturer = WidgetManufacturer(manufacturer_config)
+        original_assets = manufacturer.current_assets
+        original_equity = manufacturer.current_equity
+
+        sim = Simulation(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            time_horizon=10,
+            seed=42,
+        )
+        sim.run()
+
+        assert manufacturer.current_assets == original_assets
+        assert manufacturer.current_equity == original_equity
+
+    def test_copy_false_shares_reference(self, manufacturer_config, loss_generator):
+        """copy=False shares the caller's manufacturer reference with the simulation."""
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        sim = Simulation(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            time_horizon=10,
+            seed=42,
+            copy=False,
+        )
+
+        # With copy=False, sim.manufacturer IS the caller's object
+        assert sim.manufacturer is manufacturer
+
+    def test_copy_true_isolates_reference(self, manufacturer_config, loss_generator):
+        """copy=True (default) creates an independent copy of the manufacturer."""
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        sim = Simulation(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            time_horizon=10,
+            seed=42,
+        )
+
+        # With copy=True, sim.manufacturer is a different object
+        assert sim.manufacturer is not manufacturer
+
+    def test_copy_false_exposes_caller_to_step_annual_mutation(self, manufacturer_config):
+        """copy=False means step_annual() directly mutates the caller's manufacturer."""
+        manufacturer = WidgetManufacturer(manufacturer_config)
+        original_equity = manufacturer.current_equity
+
+        sim = Simulation(
+            manufacturer=manufacturer,
+            time_horizon=10,
+            seed=42,
+            copy=False,
+        )
+
+        # Directly call step_annual (bypasses run()'s reset)
+        large_loss = LossEvent(time=0, amount=1_000_000)
+        sim.step_annual(0, [large_loss])
+
+        # The caller's manufacturer was mutated
+        assert manufacturer.current_equity != original_equity
+
+    def test_reuse_manufacturer_across_simulations(self, manufacturer_config, loss_generator):
+        """Default copy=True allows safe reuse across multiple simulations."""
+        manufacturer = WidgetManufacturer(manufacturer_config)
+
+        sim_a = Simulation(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            time_horizon=10,
+            seed=42,
+        )
+        results_a = sim_a.run()
+
+        sim_b = Simulation(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            time_horizon=10,
+            seed=42,
+        )
+        results_b = sim_b.run()
+
+        # Both simulations start from identical initial state
+        np.testing.assert_array_equal(results_a.assets, results_b.assets)
+        np.testing.assert_array_equal(results_a.equity, results_b.equity)
+
+    def test_re_entrancy_preserved_with_copy(self, manufacturer, loss_generator):
+        """Re-entrancy still works with copy=True."""
+        sim = Simulation(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            time_horizon=5,
+            seed=42,
+        )
+        results1 = sim.run()
+        results2 = sim.run()
+
+        np.testing.assert_array_equal(results1.assets, results2.assets)
+
+
 class TestInsolvencyDetection:
     """Test that insolvency is detected in the year it occurs."""
 
@@ -354,9 +460,9 @@ class TestEnhancedParallelConfigParams:
 
     def test_shared_data_includes_step_params(self, manufacturer_config):
         """Verify shared_data includes step parameters for enhanced parallel."""
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=10,
             n_years=2,
             parallel=True,
@@ -426,9 +532,9 @@ class TestMonteCarloSequentialConfigParams:
 
     def test_sequential_uses_config_growth_rate(self, manufacturer_config):
         """Verify sequential MC path uses config growth_rate, not hardcoded 0.0."""
-        from ergodic_insurance.monte_carlo import MonteCarloEngine, SimulationConfig
+        from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloEngine
 
-        config = SimulationConfig(
+        config = MonteCarloConfig(
             n_simulations=2,
             n_years=3,
             parallel=False,

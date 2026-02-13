@@ -18,7 +18,7 @@ import warnings
 import pytest
 import yaml
 
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 from ergodic_insurance.config_manager import ConfigManager
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ from ergodic_insurance.config_manager import ConfigManager
 
 
 def _make_full_profile(name="test", description="Test profile", extends=None):
-    """Build a complete profile dictionary suitable for ConfigV2."""
+    """Build a complete profile dictionary suitable for Config."""
     profile = {
         "profile": {
             "name": name,
@@ -159,6 +159,7 @@ class TestCustomProfilePath:
         """Loading custom/<name> should fall through to custom directory (line 216)."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("custom/my_custom")
+        assert config.profile is not None
         assert config.profile.name == "my_custom"
 
 
@@ -185,6 +186,7 @@ class TestInheritanceEdgeCases:
 
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("inheritor")
+        assert config.profile is not None
         assert config.profile.name == "inheritor"
 
     def test_inherit_from_missing_parent_warns(self, temp_config_dir):
@@ -199,6 +201,7 @@ class TestInheritanceEdgeCases:
             config = manager.load_profile("orphan", use_cache=False)
             parent_warnings = [x for x in w if "Parent profile" in str(x.message)]
             assert len(parent_warnings) > 0
+        assert config.profile is not None
         assert config.profile.name == "orphan"
 
 
@@ -318,7 +321,7 @@ class TestWithPresetAndOverrides:
     """Test public with_preset and with_overrides methods."""
 
     def test_with_preset_creates_new_config(self, temp_config_dir):
-        """with_preset returns a new ConfigV2 instance (lines 381-386)."""
+        """with_preset returns a new Config instance (lines 381-386)."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
 
@@ -422,6 +425,7 @@ class TestCustomProfileWithoutPrefix:
 
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("only_custom")
+        assert config.profile is not None
         assert config.profile.name == "only_custom"
 
 
@@ -452,7 +456,7 @@ class TestModuleApplyNonPydanticDict:
     def test_module_with_dict_for_plain_dict_attr(self, temp_config_dir):
         """Module updates a dict attribute that is not a Pydantic model (line 325).
 
-        The 'overrides' field on ConfigV2 is a plain dict, not a Pydantic model.
+        The 'overrides' field on Config is a plain dict, not a Pydantic model.
         """
         module_data = {"overrides": {"custom_key": "custom_value"}}
         with open(temp_config_dir / "modules" / "dict_module.yaml", "w") as f:

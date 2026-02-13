@@ -1,15 +1,14 @@
-# Configuration System v2.0 Architecture
+# Configuration System Architecture
 
 ## Overview
 
-The configuration system has been completely redesigned in v2.0 to provide a modern, flexible, and maintainable approach to managing simulation parameters. It uses Pydantic v2 models for strict validation and type safety, supports a three-tier file architecture (profiles, modules, presets), and maintains full backward compatibility with the legacy 12-file configuration system through dedicated adapter and migration utilities.
+The configuration system provides a modern, flexible, and maintainable approach to managing simulation parameters. It uses Pydantic v2 models for strict validation and type safety and supports a three-tier file architecture (profiles, modules, presets).
 
 **Key source files:**
 
-- `ergodic_insurance/config.py` -- All Pydantic models (`Config`, `ConfigV2`, sub-models, presets, industry configs)
-- `ergodic_insurance/config_manager.py` -- `ConfigManager` (main interface for the 3-tier system)
+- `ergodic_insurance/config.py` -- All Pydantic models (`Config`, sub-models, presets, industry configs)
+- `ergodic_insurance/config_manager.py` -- `ConfigManager` (main interface for the configuration system)
 - `ergodic_insurance/config_loader.py` -- `ConfigLoader` (deprecated legacy interface)
-- `ergodic_insurance/config_compat.py` -- `LegacyConfigAdapter`, `ConfigTranslator`, `migrate_config_usage()`
 - `ergodic_insurance/config_migrator.py` -- `ConfigMigrator` (automated file migration)
 - `ergodic_insurance/stochastic_processes.py` -- `StochasticConfig` (stochastic process parameters)
 - `ergodic_insurance/reporting/config.py` -- `ReportConfig` and related reporting models
@@ -19,11 +18,10 @@ The configuration system has been completely redesigned in v2.0 to provide a mod
 ```{mermaid}
 graph TB
     %% Main Components
-    subgraph ConfigSystem["Configuration System v2.0"]
+    subgraph ConfigSystem["Configuration System"]
         CM["ConfigManager<br/>Main Interface"]
-        CV2["ConfigV2<br/>Pydantic Models"]
+        CFG["Config<br/>Pydantic Models"]
         CL["ConfigLoader<br/>Legacy (Deprecated)"]
-        COMPAT["LegacyConfigAdapter<br/>Backward Compatibility"]
         MIGRATOR["ConfigMigrator<br/>Migration Tool"]
     end
 
@@ -69,9 +67,8 @@ graph TB
     end
 
     %% Relationships
-    CM --> CV2
-    CL --> COMPAT
-    COMPAT --> CM
+    CM --> CFG
+    CL --> CM
     MIGRATOR --> Profiles
     MIGRATOR --> Modules
     MIGRATOR --> Presets
@@ -98,7 +95,7 @@ graph TB
     CONSERV -.applies.-> Presets
     AGGRESS -.applies.-> Presets
 
-    CV2 --> Models
+    CFG --> Models
     Models --> PROF_META
     Models --> MANU_CFG
     Models --> WC_CFG
@@ -123,7 +120,7 @@ graph TB
     classDef models fill:#ffebee,stroke:#c62828,stroke-width:2px
 
     class CM manager
-    class CL,COMPAT deprecated
+    class CL deprecated
     class MIGRATOR manager
     class DEFAULT,CONSERV,AGGRESS,CUSTOM profiles
     class MOD_INS,MOD_LOSS,MOD_STOCH,MOD_BUS modules
@@ -131,7 +128,7 @@ graph TB
     class PROF_META,MANU_CFG,WC_CFG,INS_CFG,SIM_CFG,LOSS_CFG,GROWTH_CFG,DEBT_CFG,OUTPUT_CFG,LOG_CFG,EXCEL_CFG,WCR_CFG,EXP_CFG,DEP_CFG models
 ```
 
-## Three-Tier Configuration Architecture
+## Configuration Architecture
 
 ```{mermaid}
 graph LR
@@ -204,14 +201,14 @@ sequenceDiagram
     participant CM as ConfigManager
     participant Cache as _cache (dict)
     participant FS as File System
-    participant CV2 as ConfigV2
+    participant CFG as Config
 
     User->>CM: load_profile("conservative", use_cache=True, **overrides)
     CM->>CM: Compute cache_key (SHA-256 of profile + overrides)
     CM->>Cache: Check cache_key
     alt Cache hit
-        Cache-->>CM: Return cached ConfigV2
-        CM-->>User: Return ConfigV2
+        Cache-->>CM: Return cached Config
+        CM-->>User: Return Config
     else Cache miss
         CM->>FS: Find profiles/conservative.yaml
         CM->>CM: _load_with_inheritance(profile_path)
@@ -219,29 +216,29 @@ sequenceDiagram
         Note over CM: profile.extends = "default"
         CM->>FS: Read profiles/default.yaml (parent)
         CM->>CM: _deep_merge(parent_data, child_data)
-        CM->>CV2: ConfigV2(**merged_data)
-        CV2-->>CM: Validated config instance
+        CM->>CFG: Config(**merged_data)
+        CFG-->>CM: Validated config instance
 
         loop For each module in profile.includes
             CM->>FS: Read modules/{module}.yaml
-            CM->>CV2: apply_module(module_data)
+            CM->>CFG: apply_module(module_data)
         end
 
         loop For each preset in profile.presets
             CM->>FS: Read presets/{type}.yaml
-            CM->>CV2: apply_preset(preset_name, preset_data)
+            CM->>CFG: apply_preset(preset_name, preset_data)
         end
 
         alt Runtime overrides provided
-            CM->>CV2: with_overrides(**overrides)
-            CV2-->>CM: New ConfigV2 with overrides
+            CM->>CFG: with_overrides(**overrides)
+            CFG-->>CM: New Config with overrides
         end
 
-        CM->>CV2: validate_completeness()
-        CV2-->>CM: List of issues (warnings if any)
+        CM->>CFG: validate_completeness()
+        CFG-->>CM: List of issues (warnings if any)
 
         CM->>Cache: Store result
-        CM-->>User: Return ConfigV2
+        CM-->>User: Return Config
     end
 ```
 
@@ -259,7 +256,7 @@ graph TD
 
     DEFAULT -->|"1. Load base values"| CONSERVATIVE
     CONSERVATIVE -->|"2. Deep merge child overrides"| CUSTOM_CLIENT
-    CUSTOM_CLIENT -->|"3. Final merged config"| RESULT["ConfigV2 Instance"]
+    CUSTOM_CLIENT -->|"3. Final merged config"| RESULT["Config Instance"]
 
     classDef base fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
     classDef derived fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
@@ -320,7 +317,7 @@ class ConfigManager:
         profile_name: str = "default",
         use_cache: bool = True,
         **overrides
-    ) -> ConfigV2:
+    ) -> Config:
         """Load a configuration profile with optional overrides."""
 
     # --- Discovery ---
@@ -348,19 +345,19 @@ class ConfigManager:
         """Create and save a new profile YAML file."""
 
     def with_preset(
-        self, config: ConfigV2,
+        self, config: Config,
         preset_type: str, preset_name: str
-    ) -> ConfigV2:
-        """Return a new ConfigV2 with a preset applied."""
+    ) -> Config:
+        """Return a new Config with a preset applied."""
 
     def with_overrides(
-        self, config: ConfigV2, **overrides
-    ) -> ConfigV2:
-        """Return a new ConfigV2 with runtime overrides."""
+        self, config: Config, **overrides
+    ) -> Config:
+        """Return a new Config with runtime overrides."""
 
     # --- Validation ---
 
-    def validate(self, config: ConfigV2) -> List[str]:
+    def validate(self, config: Config) -> List[str]:
         """Validate config for completeness and consistency."""
 
     # --- Cache ---
@@ -379,15 +376,15 @@ class ConfigManager:
 - **Validation at load time** -- Pydantic field validation plus business logic checks
 - **Profile creation** -- programmatic creation of new profile YAML files
 
-### ConfigV2
+### Config
 
 **Source:** `ergodic_insurance/config.py`
 
 The main Pydantic BaseModel that holds the entire configuration state. It composes required sub-models for core business parameters and optional sub-models for extended functionality.
 
 ```python
-class ConfigV2(BaseModel):
-    """Enhanced unified configuration model for the 3-tier system."""
+class Config(BaseModel):
+    """Unified configuration model for the configuration system."""
 
     # --- Required sections ---
     profile: ProfileMetadata
@@ -422,7 +419,7 @@ class ConfigV2(BaseModel):
 | `with_inheritance(profile_path, config_dir)` | Class method: load with recursive inheritance |
 | `apply_module(module_path)` | Apply a module YAML file to this config (in-place) |
 | `apply_preset(preset_name, preset_data)` | Apply preset parameters (in-place) |
-| `with_overrides(overrides)` | Return a new ConfigV2 with overrides (supports `"section.field"` dot notation) |
+| `with_overrides(overrides)` | Return a new Config with overrides (supports `"section.field"` dot notation) |
 | `validate_completeness()` | Return list of missing or inconsistent items |
 | `_deep_merge(base, override)` | Static method: recursive dictionary merge |
 
@@ -684,28 +681,7 @@ class StochasticConfig(BaseModel):
     time_step: float = 1.0  # (0, 1], time step in years
 ```
 
-This model is separate from the main `ConfigV2` hierarchy and is consumed directly by `StochasticProcess` subclasses.
-
-### Config (Legacy)
-
-**Source:** `ergodic_insurance/config.py`
-
-The original configuration model, still used by components that have not yet migrated to `ConfigV2`. It contains only the core required sections (no optional modules or profile metadata).
-
-```python
-class Config(BaseModel):
-    """Complete configuration for the Ergodic Insurance simulation (legacy)."""
-
-    manufacturer: ManufacturerConfig
-    working_capital: WorkingCapitalConfig
-    growth: GrowthConfig
-    debt: DebtConfig
-    simulation: SimulationConfig
-    output: OutputConfig
-    logging: LoggingConfig
-```
-
-**Key methods:** `from_yaml(path)`, `from_dict(data, base_config)`, `override(**kwargs)`, `to_yaml(path)`, `setup_logging()`, `validate_paths()`.
+This model is separate from the main `Config` hierarchy and is consumed directly by `StochasticProcess` subclasses.
 
 ## Class Diagram
 
@@ -718,24 +694,24 @@ classDiagram
         +presets_dir: Path
         -_cache: Dict
         -_preset_libraries: Dict
-        +load_profile(profile_name, use_cache, **overrides) ConfigV2
+        +load_profile(profile_name, use_cache, **overrides) Config
         +list_profiles() List~str~
         +list_modules() List~str~
         +list_presets() Dict
         +get_profile_metadata(profile_name) Dict
         +create_profile(name, description, ...) Path
-        +with_preset(config, preset_type, preset_name) ConfigV2
-        +with_overrides(config, **overrides) ConfigV2
+        +with_preset(config, preset_type, preset_name) Config
+        +with_overrides(config, **overrides) Config
         +validate(config) List~str~
         +clear_cache() void
-        -_load_with_inheritance(profile_path) ConfigV2
+        -_load_with_inheritance(profile_path) Config
         -_apply_module(config, module_name) void
         -_apply_preset(config, preset_type, preset_name) void
         -_deep_merge(base, override) Dict
         -_validate_structure() void
     }
 
-    class ConfigV2 {
+    class Config {
         +profile: ProfileMetadata
         +manufacturer: ManufacturerConfig
         +working_capital: WorkingCapitalConfig
@@ -754,11 +730,11 @@ classDiagram
         +custom_modules: Dict
         +applied_presets: List~str~
         +overrides: Dict
-        +from_profile(profile_path)$ ConfigV2
-        +with_inheritance(profile_path, config_dir)$ ConfigV2
+        +from_profile(profile_path)$ Config
+        +with_inheritance(profile_path, config_dir)$ Config
         +apply_module(module_path) void
         +apply_preset(preset_name, preset_data) void
-        +with_overrides(**kwargs) ConfigV2
+        +with_overrides(**kwargs) Config
         +validate_completeness() List~str~
     }
 
@@ -813,22 +789,6 @@ classDiagram
         +time_step: float
     }
 
-    class LegacyConfigAdapter {
-        +config_manager: ConfigManager
-        -_profile_mapping: Dict
-        +load(config_name, override_params, **kwargs) Config
-        +load_config(config_path, config_name, **overrides) Config
-        -_convert_to_legacy(config_v2) Config
-        -_load_legacy_direct(config_name, overrides) Config
-        -_flatten_dict(d, parent_key) Dict
-    }
-
-    class ConfigTranslator {
-        +legacy_to_v2(legacy_config)$ Dict
-        +v2_to_legacy(config_v2)$ Dict
-        +validate_translation(original, translated)$ bool
-    }
-
     class ConfigMigrator {
         +legacy_dir: Path
         +new_dir: Path
@@ -855,74 +815,22 @@ classDiagram
         +clear_cache() void
     }
 
-    ConfigManager --> ConfigV2 : creates
-    ConfigV2 *-- ProfileMetadata
-    ConfigV2 *-- ManufacturerConfig
-    ConfigV2 *-- InsuranceConfig
-    ConfigV2 *-- SimulationConfig
-    LegacyConfigAdapter --> ConfigManager : delegates to
-    LegacyConfigAdapter --> Config : returns
-    ConfigLoader --> LegacyConfigAdapter : delegates to
-    ConfigMigrator ..> ConfigV2 : produces YAML for
+    ConfigManager --> Config : creates
+    Config *-- ProfileMetadata
+    Config *-- ManufacturerConfig
+    Config *-- InsuranceConfig
+    Config *-- SimulationConfig
+    ConfigLoader --> ConfigManager : delegates to
+    ConfigMigrator ..> Config : produces YAML for
 ```
 
 ## Backward Compatibility
-
-### ConfigCompat (LegacyConfigAdapter)
-
-**Source:** `ergodic_insurance/config_compat.py`
-
-Maps the legacy `ConfigLoader` interface to the new `ConfigManager`. This is the primary backward compatibility mechanism.
-
-```python
-class LegacyConfigAdapter:
-    """Adapter for old ConfigLoader interface."""
-
-    def __init__(self):
-        # Internal ConfigManager with correct config directory
-        self.config_manager = ConfigManager(config_dir)
-
-        # Legacy name mapping
-        self._profile_mapping = {
-            "baseline": "default",
-            "conservative": "conservative",
-            "optimistic": "aggressive",
-            "aggressive": "aggressive",
-        }
-
-    def load(self, config_name: str, override_params=None, **kwargs) -> Config:
-        """Load config using old interface.
-        1. Maps legacy name to profile name
-        2. Loads via ConfigManager.load_profile()
-        3. Converts ConfigV2 -> Config via _convert_to_legacy()
-        4. Falls back to direct YAML loading if profile not found
-        """
-```
-
-**Name mapping:**
-
-| Legacy Name | Profile Name |
-|-------------|-------------|
-| `baseline` | `default` |
-| `conservative` | `conservative` |
-| `optimistic` | `aggressive` |
-| `aggressive` | `aggressive` |
-
-### ConfigTranslator
-
-**Source:** `ergodic_insurance/config_compat.py`
-
-Static utility methods for converting between `Config` and `ConfigV2` formats:
-
-- `legacy_to_v2(legacy_config)` -- Adds a `ProfileMetadata` wrapper and returns a dict suitable for `ConfigV2(**data)`
-- `v2_to_legacy(config_v2)` -- Extracts only the 7 legacy sections (`manufacturer`, `working_capital`, `growth`, `debt`, `simulation`, `output`, `logging`)
-- `validate_translation(original, translated)` -- Checks that critical fields (`initial_assets`, `time_horizon_years`, `annual_growth_rate`) match after conversion
 
 ### ConfigLoader (Deprecated)
 
 **Source:** `ergodic_insurance/config_loader.py`
 
-The original configuration loader. Now delegates all loading to `LegacyConfigAdapter` internally. Emits a `DeprecationWarning` on first use.
+The original configuration loader. Now delegates to `ConfigManager` internally. Emits a `DeprecationWarning` on first use.
 
 ```python
 class ConfigLoader:
@@ -936,14 +844,6 @@ class ConfigLoader:
     def list_available_configs(self) -> List[str]: ...
     def clear_cache(self) -> None: ...
 ```
-
-### Migration Helper
-
-A standalone function `migrate_config_usage(file_path)` in `config_compat.py` automates import and class name replacements in Python source files:
-
-- `ConfigLoader` -> `ConfigManager`
-- `ConfigLoader.load(` -> `ConfigManager().load_profile(`
-- Creates `.bak` backup before modifying files
 
 ## Migration Path
 
@@ -1170,7 +1070,7 @@ def test_profile_loads():
 
     for profile in manager.list_profiles():
         config = manager.load_profile(profile)
-        assert isinstance(config, ConfigV2)
+        assert isinstance(config, Config)
         assert config.manufacturer.initial_assets > 0
 
 def test_validation():
@@ -1218,12 +1118,12 @@ config = manager.load_profile("default", manufacturer={"initial_assets": 5e6})
 The configuration API is considered stable as of v2.0:
 
 - `ConfigManager.load_profile()` -- **Stable**
-- `ConfigV2` models -- **Stable**
+- `Config` models -- **Stable**
 - Profile YAML format -- **Stable**
 - Module/Preset format -- **Stable**
 - `ConfigLoader` -- **Deprecated** (will be removed in v3.0.0)
-- `LegacyConfigAdapter` -- **Transitional** (will be removed in v3.0.0)
+- `ConfigV2` -- **Deprecated alias** (use `Config` directly)
 
 ## Conclusion
 
-The v2.0 configuration system provides a modern, flexible, and maintainable approach to managing complex simulation parameters while maintaining full backward compatibility. The 3-tier architecture enables both simplicity for basic use cases and power for advanced scenarios. The `ConfigManager` serves as the single entry point, with `LegacyConfigAdapter` providing a seamless bridge for existing code, and `ConfigMigrator` offering automated tooling for transitioning legacy YAML files to the new structure.
+The configuration system provides a modern, flexible, and maintainable approach to managing complex simulation parameters. The architecture enables both simplicity for basic use cases and power for advanced scenarios. The `ConfigManager` serves as the single entry point, and `ConfigMigrator` offers automated tooling for transitioning legacy YAML files to the new structure.

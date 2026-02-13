@@ -43,6 +43,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 import warnings
 
@@ -50,18 +51,21 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+# Pattern for safe names: alphanumeric, hyphens, and underscores only
+_SAFE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+
 try:
     # Try absolute import first (for installed package)
-    from ergodic_insurance.config import ConfigV2, PresetLibrary
+    from ergodic_insurance.config import Config, PresetLibrary
     from ergodic_insurance.config.utils import deep_merge as _deep_merge_fn
 except ImportError:
     try:
         # Try relative import (for package context)
-        from .config import ConfigV2, PresetLibrary
+        from .config import Config, PresetLibrary
         from .config.utils import deep_merge as _deep_merge_fn
     except ImportError:
         # Fall back to direct import (for notebooks/scripts)
-        from config import ConfigV2, PresetLibrary  # type: ignore[no-redef]
+        from config import Config, PresetLibrary  # type: ignore[no-redef]
         from config.utils import deep_merge as _deep_merge_fn  # type: ignore[no-redef]
 
 
@@ -125,7 +129,7 @@ class ConfigManager:
         self.presets_dir = self.config_dir / "presets"
 
         # Cache for loaded configurations
-        self._cache: Dict[str, ConfigV2] = {}
+        self._cache: Dict[str, Config] = {}
         self._preset_libraries: Dict[str, PresetLibrary] = {}
 
         # Validate directory structure
@@ -147,9 +151,55 @@ class ConfigManager:
         if not self.presets_dir.exists():
             logger.debug(f"Presets directory not found: {self.presets_dir}")
 
+    @staticmethod
+    def _validate_name(name: str, *, allow_slashes: bool = False) -> None:
+        """Validate that a name contains only safe characters.
+
+        Args:
+            name: The name to validate.
+            allow_slashes: If True, allow forward slashes for subdirectory paths
+                (e.g., ``custom/client_abc``).
+
+        Raises:
+            ValueError: If the name contains unsafe characters.
+        """
+        if allow_slashes:
+            parts = name.replace("\\", "/").split("/")
+            for part in parts:
+                if not _SAFE_NAME_PATTERN.match(part):
+                    raise ValueError(
+                        f"Invalid name '{name}': each path component must contain "
+                        "only alphanumeric characters, hyphens, and underscores"
+                    )
+        else:
+            if not _SAFE_NAME_PATTERN.match(name):
+                raise ValueError(
+                    f"Invalid name '{name}': must contain only alphanumeric "
+                    "characters, hyphens, and underscores"
+                )
+
+    @staticmethod
+    def _validate_path_containment(path: Path, allowed_parent: Path) -> None:
+        """Verify that *path* resolves to a location inside *allowed_parent*.
+
+        Args:
+            path: The path to validate.
+            allowed_parent: The directory that must contain the path.
+
+        Raises:
+            ValueError: If the path resolves outside the allowed parent.
+        """
+        try:
+            path.resolve().relative_to(allowed_parent.resolve())
+        except ValueError:
+            raise ValueError(
+                f"Path traversal detected: resolved path is outside "
+                f"the allowed directory '{allowed_parent}'"
+            )
+
     def load_profile(
         self, profile_name: str = "default", use_cache: bool = True, **overrides
-    ) -> ConfigV2:
+    ) -> Config:
         """Load a configuration profile with optional overrides.
 
         This method loads a configuration profile, applies any inheritance chain,
@@ -168,7 +218,7 @@ class ConfigManager:
                 - Any configuration section with nested parameters
 
         Returns:
-            ConfigV2: Fully loaded, validated, and merged configuration instance.
+            Config: Fully loaded, validated, and merged configuration instance.
 
         Raises:
             FileNotFoundError: If the specified profile doesn't exist.
@@ -196,6 +246,9 @@ class ConfigManager:
                 )
         """
 
+        # Validate profile name against path traversal
+        self._validate_name(profile_name, allow_slashes=True)
+
         # Check cache first
         def make_hashable(obj):
             """Convert nested dicts/lists to hashable format."""
@@ -211,9 +264,11 @@ class ConfigManager:
 
         # Load the profile
         profile_path = self.profiles_dir / f"{profile_name}.yaml"
+        self._validate_path_containment(profile_path, self.profiles_dir)
         if not profile_path.exists():
             # Try custom profiles
             custom_path = self.profiles_dir / "custom" / f"{profile_name}.yaml"
+            self._validate_path_containment(custom_path, self.profiles_dir)
             if custom_path.exists():
                 profile_path = custom_path
             else:
@@ -226,12 +281,12 @@ class ConfigManager:
         config = self._load_with_inheritance(profile_path)
 
         # Apply includes (modules)
-        if config.profile.includes:
+        if config.profile and config.profile.includes:
             for module_name in config.profile.includes:
                 self._apply_module(config, module_name)
 
         # Apply presets
-        if config.profile.presets:
+        if config.profile and config.profile.presets:
             for preset_type, preset_name in config.profile.presets.items():
                 self._apply_preset(config, preset_type, preset_name)
 
@@ -252,7 +307,7 @@ class ConfigManager:
 
     def _load_with_inheritance(
         self, profile_path: Path, _visited: frozenset | None = None
-    ) -> ConfigV2:
+    ) -> Config:
         """Load a profile with inheritance support.
 
         Args:
@@ -261,7 +316,7 @@ class ConfigManager:
                 cycle detection.  Callers should not pass this argument.
 
         Returns:
-            Loaded ConfigV2 with inheritance applied.
+            Loaded Config with inheritance applied.
 
         Raises:
             ValueError: If circular inheritance is detected.
@@ -282,10 +337,13 @@ class ConfigManager:
         # Handle inheritance
         if "profile" in data and "extends" in data["profile"] and data["profile"]["extends"]:
             parent_name = data["profile"]["extends"]
+            self._validate_name(parent_name, allow_slashes=True)
             parent_path = self.profiles_dir / f"{parent_name}.yaml"
+            self._validate_path_containment(parent_path, self.profiles_dir)
 
             if not parent_path.exists():
                 parent_path = self.profiles_dir / "custom" / f"{parent_name}.yaml"
+                self._validate_path_containment(parent_path, self.profiles_dir)
 
             if parent_path.exists():
                 parent_config = self._load_with_inheritance(parent_path, _visited=visited)
@@ -297,16 +355,18 @@ class ConfigManager:
             else:
                 warnings.warn(f"Parent profile '{parent_name}' not found")
 
-        return ConfigV2(**data)
+        return Config(**data)
 
-    def _apply_module(self, config: ConfigV2, module_name: str) -> None:
+    def _apply_module(self, config: Config, module_name: str) -> None:
         """Apply a configuration module to a config.
 
         Args:
             config: Configuration to modify.
             module_name: Name of the module to apply.
         """
+        self._validate_name(module_name)
         module_path = self.modules_dir / f"{module_name}.yaml"
+        self._validate_path_containment(module_path, self.modules_dir)
         if not module_path.exists():
             warnings.warn(f"Module '{module_name}' not found")
             return
@@ -342,7 +402,7 @@ class ConfigManager:
                 else:
                     setattr(config, key, value)
 
-    def _apply_preset(self, config: ConfigV2, preset_type: str, preset_name: str) -> None:
+    def _apply_preset(self, config: Config, preset_type: str, preset_name: str) -> None:
         """Apply a preset to a configuration.
 
         Args:
@@ -350,13 +410,17 @@ class ConfigManager:
             preset_type: Type of preset (e.g., 'market', 'layers').
             preset_name: Name of the specific preset.
         """
+        self._validate_name(preset_type)
+
         # Load preset library if not cached
         library_key = preset_type
         if library_key not in self._preset_libraries:
             preset_file = self.presets_dir / f"{preset_type}.yaml"
+            self._validate_path_containment(preset_file, self.presets_dir)
             if not preset_file.exists():
                 # Try with underscores
                 preset_file = self.presets_dir / f"{preset_type.replace('-', '_')}.yaml"
+                self._validate_path_containment(preset_file, self.presets_dir)
 
             if not preset_file.exists():
                 warnings.warn(f"Preset library '{preset_type}' not found")
@@ -382,7 +446,7 @@ class ConfigManager:
         # Apply preset data
         config.apply_preset(f"{preset_type}:{preset_name}", preset_data)
 
-    def with_preset(self, config: ConfigV2, preset_type: str, preset_name: str) -> ConfigV2:
+    def with_preset(self, config: Config, preset_type: str, preset_name: str) -> Config:
         """Create a new configuration with a preset applied.
 
         Args:
@@ -391,17 +455,17 @@ class ConfigManager:
             preset_name: Name of the preset.
 
         Returns:
-            New ConfigV2 instance with preset applied.
+            New Config instance with preset applied.
         """
         # Create a copy
-        new_config = ConfigV2(**config.model_dump())
+        new_config = Config(**config.model_dump())
 
         # Apply the preset
         self._apply_preset(new_config, preset_type, preset_name)
 
         return new_config
 
-    def with_overrides(self, config: ConfigV2, overrides: Dict[str, Any]) -> ConfigV2:
+    def with_overrides(self, config: Config, overrides: Dict[str, Any]) -> Config:
         """Create a new configuration with runtime overrides.
 
         Args:
@@ -410,11 +474,11 @@ class ConfigManager:
                 keys or section-level dictionaries.
 
         Returns:
-            New ConfigV2 instance with overrides applied.
+            New Config instance with overrides applied.
         """
         return config.with_overrides(overrides)
 
-    def validate(self, config: ConfigV2) -> List[str]:
+    def validate(self, config: Config) -> List[str]:
         """Validate a configuration for completeness and consistency.
 
         Args:
@@ -520,9 +584,12 @@ class ConfigManager:
         Returns:
             Profile metadata dictionary.
         """
+        self._validate_name(profile_name, allow_slashes=True)
         profile_path = self.profiles_dir / f"{profile_name}.yaml"
+        self._validate_path_containment(profile_path, self.profiles_dir)
         if not profile_path.exists():
             profile_path = self.profiles_dir / "custom" / f"{profile_name}.yaml"
+            self._validate_path_containment(profile_path, self.profiles_dir)
 
         if not profile_path.exists():
             return {}
@@ -552,6 +619,9 @@ class ConfigManager:
         Returns:
             Path to the created profile file.
         """
+        # Validate profile name
+        self._validate_name(name)
+
         # Load base profile
         _base_config = self.load_profile(base_profile)
 
@@ -576,6 +646,7 @@ class ConfigManager:
             save_dir = self.profiles_dir
 
         save_path = save_dir / f"{name}.yaml"
+        self._validate_path_containment(save_path, self.profiles_dir)
 
         # Save the profile
         with open(save_path, "w") as f:

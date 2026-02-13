@@ -211,11 +211,11 @@ except ValidationError as e:
 ### 2. Use Type Hints
 
 ```python
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 
-def run_analysis(config: ConfigV2) -> dict:
+def run_analysis(config: Config) -> dict:
     """Run analysis with validated configuration."""
-    assert isinstance(config, ConfigV2)
+    assert isinstance(config, Config)
     # ... rest of function
 ```
 
@@ -312,7 +312,7 @@ def test_profile_loads():
     manager = ConfigManager()
     for profile in manager.list_profiles():
         config = manager.load_profile(profile)
-        assert isinstance(config, ConfigV2)
+        assert isinstance(config, Config)
 ```
 
 ### Integration Tests

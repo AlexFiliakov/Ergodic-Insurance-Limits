@@ -1,12 +1,12 @@
 # Configuration System Migration Guide
 
 ## Overview
-This guide helps you migrate from the legacy 12-file YAML configuration system to the new simplified 3-tier architecture.
+This guide helps you migrate from the legacy 12-file YAML configuration system to the simplified configuration architecture.
 
 ## What's New
 
-### 3-Tier Architecture
-The new system organizes configuration into three clear layers:
+### Configuration Architecture
+The system organizes configuration into three clear layers:
 
 1. **Profiles** (`data/config/profiles/`): Complete configuration sets (default, conservative, aggressive)
 2. **Modules** (`data/config/modules/`): Reusable components (insurance, losses, stochastic, business)
@@ -186,10 +186,10 @@ variant = config.with_overrides(
 
 ```python
 # Validate a configuration
-from ergodic_insurance.config import ConfigV2
+from ergodic_insurance.config import Config
 
 config = manager.load_profile("default")
-assert isinstance(config, ConfigV2)  # New config type
+assert isinstance(config, Config)
 ```
 
 ## Troubleshooting

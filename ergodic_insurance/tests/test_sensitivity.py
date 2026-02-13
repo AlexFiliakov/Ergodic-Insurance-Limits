@@ -511,6 +511,71 @@ class TestSensitivityAnalyzer:
         assert analyzer._extract_metric(simple_result, "optimal_roe") == 0.15
         assert analyzer._extract_metric(simple_result, "bankruptcy_risk") == 0.01
 
+    def test_update_nested_config_no_deepcopy(self, analyzer):
+        """Verify _update_nested_config uses shallow copies, not deepcopy.
+
+        Sibling dicts should share identity with the original config,
+        proving that no full deep copy is performed (#484).
+        """
+        config: Dict[str, Any] = {
+            "a": {"b": {"c": 1}, "sibling": {"x": 99}},
+            "d": 2,
+        }
+
+        new_config = analyzer._update_nested_config(config, "a.b.c", 5)
+
+        # Modified value is updated
+        assert new_config["a"]["b"]["c"] == 5
+        # Original is unmodified
+        assert config["a"]["b"]["c"] == 1
+
+        # Sibling dict shares identity (shallow copy, not deep copy)
+        assert new_config["a"]["sibling"] is config["a"]["sibling"]
+
+    def test_analyze_two_way_parallel(self, analyzer):
+        """Parallel analyze_two_way produces same results as sequential (#492)."""
+        common_kwargs: Dict[str, Any] = {
+            "param1": "frequency",
+            "param2": "severity_mean",
+            "param1_range": (4, 6),
+            "param2_range": (80000, 120000),
+            "n_points1": 3,
+            "n_points2": 3,
+            "metric": "optimal_roe",
+        }
+
+        sequential = analyzer.analyze_two_way(**common_kwargs)
+
+        # Clear cache so parallel path actually runs optimizations
+        analyzer.clear_cache()
+
+        parallel = analyzer.analyze_two_way(**common_kwargs, max_workers=2)
+
+        np.testing.assert_array_equal(sequential.metric_grid, parallel.metric_grid)
+        assert sequential.parameter1 == parallel.parameter1
+        assert sequential.parameter2 == parallel.parameter2
+
+    def test_analyze_two_way_parallel_with_cache(self, analyzer):
+        """Cached results are not re-submitted to workers (#492)."""
+        kwargs: Dict[str, Any] = {
+            "param1": "frequency",
+            "param2": "severity_mean",
+            "param1_range": (4, 6),
+            "param2_range": (80000, 120000),
+            "n_points1": 3,
+            "n_points2": 3,
+            "metric": "optimal_roe",
+        }
+
+        # First run fills cache
+        analyzer.analyze_two_way(**kwargs)
+        calls_after_first = analyzer.optimizer.call_count
+
+        # Second run with max_workers — all results should come from cache
+        analyzer.analyze_two_way(**kwargs, max_workers=2)
+
+        assert analyzer.optimizer.call_count == calls_after_first
+
 
 class TestIntegration:
     """Integration tests for sensitivity analysis."""
