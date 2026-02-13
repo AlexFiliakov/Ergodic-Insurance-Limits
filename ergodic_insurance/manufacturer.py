@@ -162,6 +162,7 @@ class WidgetManufacturer(
         config: ManufacturerConfig,
         stochastic_process: Optional[StochasticProcess] = None,
         use_float: bool = False,
+        simulation_mode: bool = False,
     ):
         """Initialize manufacturer with configuration parameters.
 
@@ -171,6 +172,8 @@ class WidgetManufacturer(
                 process for adding revenue volatility. Defaults to None.
             use_float (bool): If True, enable float mode for this instance
                 to avoid Decimal overhead in Monte Carlo hot paths (Issue #1142).
+            simulation_mode (bool): If True, the ledger only maintains balance
+                caches without storing individual entries (Issue #1146).
         """
         self._use_float = use_float
         if use_float:
@@ -180,7 +183,7 @@ class WidgetManufacturer(
         self.stochastic_process = stochastic_process
 
         # Initialize the event-sourcing ledger FIRST
-        self.ledger = Ledger()
+        self.ledger = Ledger(simulation_mode=simulation_mode)
 
         # Track original prepaid premium for amortization calculation
         self._original_prepaid_premium: Decimal = to_decimal(0)
@@ -997,7 +1000,7 @@ class WidgetManufacturer(
         initial_cash: Decimal = initial_assets * (ONE - ppe_ratio) - working_capital_assets
 
         # Reset ledger FIRST (single source of truth)
-        self.ledger = Ledger()
+        self.ledger = Ledger(simulation_mode=self.ledger._simulation_mode)
         self._record_initial_balances(
             cash=initial_cash,
             accounts_receivable=initial_accounts_receivable,
@@ -1038,6 +1041,7 @@ class WidgetManufacturer(
         config: ManufacturerConfig,
         stochastic_process: Optional[StochasticProcess] = None,
         use_float: bool = False,
+        simulation_mode: bool = False,
     ) -> "WidgetManufacturer":
         """Create a fresh manufacturer from configuration alone.
 
@@ -1051,8 +1055,14 @@ class WidgetManufacturer(
                 caller is responsible for ensuring independence (e.g. by
                 deep-copying the process once before passing it in).
             use_float: If True, enable float mode (Issue #1142).
+            simulation_mode: If True, ledger skips entry storage (Issue #1146).
 
         Returns:
             A new WidgetManufacturer in its initial state.
         """
-        return cls(config=config, stochastic_process=stochastic_process, use_float=use_float)
+        return cls(
+            config=config,
+            stochastic_process=stochastic_process,
+            use_float=use_float,
+            simulation_mode=simulation_mode,
+        )

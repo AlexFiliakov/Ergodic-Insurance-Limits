@@ -1395,12 +1395,12 @@ class TestMonteCarloConfigExtended:
         assert config2.crn_base_seed == 12345
 
     def test_enable_ledger_pruning_config(self):
-        """enable_ledger_pruning defaults to False."""
+        """enable_ledger_pruning defaults to True (Issue #1146)."""
         config = MonteCarloConfig()
-        assert config.enable_ledger_pruning is False
+        assert config.enable_ledger_pruning is True
 
-        config2 = MonteCarloConfig(enable_ledger_pruning=True)
-        assert config2.enable_ledger_pruning is True
+        config2 = MonteCarloConfig(enable_ledger_pruning=False)
+        assert config2.enable_ledger_pruning is False
 
     def test_bootstrap_config_defaults(self):
         """Bootstrap-related config fields should have sensible defaults."""

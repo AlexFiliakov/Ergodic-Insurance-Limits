@@ -216,7 +216,7 @@ class TransactionType(Enum):
     RETAINED_EARNINGS = "retained_earnings"  # Internal equity allocation
 
 
-@dataclass
+@dataclass(slots=True)
 class LedgerEntry:
     """A single entry in the accounting ledger.
 
@@ -410,7 +410,7 @@ class Ledger:
         simulation trial should use its own ``Ledger`` instance.
     """
 
-    def __init__(self, strict_validation: bool = True) -> None:
+    def __init__(self, strict_validation: bool = True, simulation_mode: bool = False) -> None:
         """Initialize an empty ledger.
 
         Args:
@@ -418,7 +418,12 @@ class Ledger:
                 raise ValueError. If False, unknown accounts are added
                 as ASSET type (backward compatible behavior). The strict
                 mode is recommended to catch typos early (Issue #260).
+            simulation_mode: If True, only maintain the ``_balances`` cache
+                without storing individual entries (Issue #1146).  This
+                drastically reduces memory in Monte Carlo hot loops where
+                only final balances matter.
         """
+        self._simulation_mode = simulation_mode
         self.entries: List[LedgerEntry] = []
         self.chart_of_accounts: Dict[str, AccountType] = _CHART_OF_ACCOUNTS_BY_STRING.copy()
         self._strict_validation = strict_validation
@@ -491,7 +496,8 @@ class Ledger:
             # Backward compatible: add unknown account as ASSET
             self.chart_of_accounts[entry.account] = AccountType.ASSET
 
-        self.entries.append(entry)
+        if not self._simulation_mode:
+            self.entries.append(entry)
         self._update_balance_cache(entry)
 
     def record_double_entry(
@@ -1125,8 +1131,9 @@ class Ledger:
         # Copy chart of accounts (shallow copy is fine - values are enums)
         result.chart_of_accounts = self.chart_of_accounts.copy()
 
-        # Copy validation setting
+        # Copy validation and simulation mode settings
         result._strict_validation = self._strict_validation
+        result._simulation_mode = self._simulation_mode
 
         # Deep copy balance cache
         result._balances = copy.deepcopy(self._balances, memo)
