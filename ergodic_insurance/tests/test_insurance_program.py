@@ -345,8 +345,8 @@ class TestInsuranceProgram:
         assert program.layers[0].attachment_point == 0
         assert program.layers[1].attachment_point == 5_000_000
 
-    def test_calculate_annual_premium(self):
-        """Test annual premium calculation."""
+    def test_calculate_premium(self):
+        """Test premium calculation."""
         layers = [
             EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
             EnhancedInsuranceLayer(
@@ -355,7 +355,7 @@ class TestInsuranceProgram:
         ]
 
         program = InsuranceProgram(layers)
-        assert program.calculate_annual_premium() == 200_000  # 100K + 100K
+        assert program.calculate_premium() == 200_000  # 100K + 100K
 
     def test_process_small_claim(self):
         """Test processing a small claim within deductible."""
@@ -1342,10 +1342,10 @@ class TestInsuranceProgramSimple:
 
 
 class TestInsuranceProgramCalculatePremium:
-    """Tests for InsuranceProgram.calculate_premium() alias."""
+    """Tests for InsuranceProgram.calculate_premium() and deprecation of calculate_annual_premium()."""
 
-    def test_calculate_premium_matches_annual(self):
-        """calculate_premium() should match calculate_annual_premium(0.0)."""
+    def test_calculate_annual_premium_deprecation(self):
+        """calculate_annual_premium() should emit DeprecationWarning."""
         layers = [
             EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.02),
             EnhancedInsuranceLayer(
@@ -1355,7 +1355,9 @@ class TestInsuranceProgramCalculatePremium:
             ),
         ]
         program = InsuranceProgram(layers)
-        assert program.calculate_premium() == program.calculate_annual_premium(0.0)
+        with pytest.warns(DeprecationWarning, match="calculate_annual_premium.*deprecated"):
+            result = program.calculate_annual_premium()
+        assert result == program.calculate_premium()
 
     def test_calculate_premium_value(self):
         """calculate_premium() returns correct total premium."""

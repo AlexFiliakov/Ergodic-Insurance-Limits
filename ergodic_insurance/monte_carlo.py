@@ -229,7 +229,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
             manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
         )
         revenue_scaling_factor = float(current_revenue) / base_revenue if base_revenue > 0 else 1.0
-        base_annual_premium = insurance_program.calculate_annual_premium()
+        base_annual_premium = insurance_program.calculate_premium()
         annual_premium = base_annual_premium * revenue_scaling_factor
         if annual_premium > 0:
             manufacturer.record_insurance_premium(annual_premium)
@@ -1336,7 +1336,7 @@ class MonteCarloEngine:
             )
 
             # Calculate scaled annual premium
-            base_annual_premium = self.insurance_program.calculate_annual_premium()
+            base_annual_premium = self.insurance_program.calculate_premium()
             annual_premium = base_annual_premium * revenue_scaling_factor
 
             if annual_premium > 0:

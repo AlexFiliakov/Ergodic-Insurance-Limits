@@ -54,7 +54,7 @@ classDiagram
         +layers: List~EnhancedInsuranceLayer~
         +deductible: float
         +layer_states: List~LayerState~
-        +calculate_annual_premium() float
+        +calculate_premium() float
         +process_claim(amount) dict
         +calculate_ergodic_benefit() dict
         +optimize_layer_structure() OptimalStructure
@@ -238,7 +238,7 @@ classDiagram
         +layer_states: List~LayerState~
         +pricing_enabled: bool
         +pricer: InsurancePricer
-        +calculate_annual_premium() float
+        +calculate_premium() float
         +process_claim(amount) dict
         +process_annual_claims(claims) dict
         +reset_annual()

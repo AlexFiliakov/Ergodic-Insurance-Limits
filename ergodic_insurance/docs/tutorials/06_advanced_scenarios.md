@@ -325,7 +325,7 @@ hard_pricer = InsurancePricer(
 # Price NovaTech's program under each condition
 for label, pricer in [("Soft", soft_pricer), ("Normal", normal_pricer), ("Hard", hard_pricer)]:
     priced_program = pricer.price_insurance_program(program, expected_revenue=25_000_000)
-    total_premium = priced_program.calculate_annual_premium()
+    total_premium = priced_program.calculate_premium()
     print(f"{label:>6} market premium: ${total_premium:>12,.0f}")
 ```
 
@@ -435,7 +435,7 @@ for i, layer in enumerate(enhanced_program.layers, 1):
             print(f"  Aggregate Limit: ${layer.aggregate_limit:,.0f}")
     print()
 
-print(f"Total Premium: ${enhanced_program.calculate_annual_premium():,.0f}")
+print(f"Total Premium: ${enhanced_program.calculate_premium():,.0f}")
 print(f"Total Coverage: ${enhanced_program.get_total_coverage():,.0f}")
 ```
 

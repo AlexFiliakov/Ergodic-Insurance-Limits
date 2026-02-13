@@ -179,7 +179,7 @@ def run_basic_simulation(
 
     program = InsuranceProgram([all_layers])
 
-    # total_premium = program.calculate_annual_premium()
+    # total_premium = program.calculate_premium()
 
     ### Set Up the Simulation With Insurance #######
 

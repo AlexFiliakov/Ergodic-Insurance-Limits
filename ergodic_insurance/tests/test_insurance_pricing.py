@@ -972,7 +972,7 @@ class TestBackwardCompatibility:
         program = InsuranceProgram.create_standard_manufacturing_program()
 
         # Should work normally
-        assert program.calculate_annual_premium() > 0
+        assert program.calculate_premium() > 0
         assert not program.pricing_enabled
         assert program.pricer is None
 
@@ -1018,7 +1018,7 @@ class TestBackwardCompatibility:
         assert program.layers[0].base_premium_rate == 0.015
 
         # Premium calculation should use fixed rate
-        premium = program.calculate_annual_premium()
+        premium = program.calculate_premium()
         assert premium == 4_750_000 * 0.015
 
 

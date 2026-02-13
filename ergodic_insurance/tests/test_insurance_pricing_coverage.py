@@ -172,7 +172,7 @@ class TestSimulateCycleTransitionFallback:
     """Tests for simulate_cycle_transition fallback premium (line 602)."""
 
     def test_fallback_premium_calculation(self):
-        """Line 602: When pricing_results missing, use calculate_annual_premium."""
+        """Line 602: When pricing_results missing, use calculate_premium."""
         loss_gen = _make_loss_generator()
         pricer = InsurancePricer(
             loss_generator=loss_gen,
