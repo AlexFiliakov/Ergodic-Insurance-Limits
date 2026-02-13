@@ -486,7 +486,7 @@ class Simulation:
             Union[ManufacturingLossGenerator, List[ManufacturingLossGenerator]]
         ] = None,
         insurance_policy: Optional[Union[InsuranceProgram, InsurancePolicy]] = None,
-        time_horizon: int = 100,
+        time_horizon: int = 50,
         seed: Optional[int] = None,
         growth_rate: float = 0.0,
         letter_of_credit_rate: float = 0.015,

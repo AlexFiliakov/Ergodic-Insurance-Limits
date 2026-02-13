@@ -439,7 +439,7 @@ def run_analysis(
         premium_rate: Annual premium as a fraction of
             *coverage_limit* (e.g. 0.025 for 2.5%).  Default ``0.025``.
         n_simulations: Number of Monte Carlo paths to run.
-        time_horizon: Simulation length in years.  Default ``20``.
+        time_horizon: Simulation length in years.  Default ``50``.
         seed: Base random seed for reproducibility.
         growth_rate: Annual revenue growth rate.  Default ``0.05``.
         tax_rate: Corporate tax rate.  Default ``0.25``.
@@ -533,7 +533,7 @@ def run_analysis(
             operating_margin=operating_margin if operating_margin is not _UNSET else 0.08,
             tax_rate=tax_rate if tax_rate is not _UNSET else 0.25,
             growth_rate=growth_rate if growth_rate is not _UNSET else 0.05,
-            time_horizon_years=time_horizon if time_horizon is not _UNSET else 20,
+            time_horizon_years=time_horizon if time_horizon is not _UNSET else 50,
         )
 
     # Resolve effective time_horizon and growth_rate for _run_batch

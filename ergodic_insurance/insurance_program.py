@@ -855,7 +855,7 @@ class InsuranceProgram:
         self,
         loss_history: List[List[float]],
         manufacturer_profile: Optional[Dict[str, Any]] = None,
-        time_horizon: int = 100,
+        time_horizon: int = 50,
     ) -> Dict[str, float]:
         """Calculate ergodic benefit of insurance structure.
 
@@ -865,7 +865,8 @@ class InsuranceProgram:
         Args:
             loss_history: Historical loss data (list of annual loss lists).
             manufacturer_profile: Company profile with assets, revenue, etc.
-            time_horizon: Time horizon for ergodic calculation.
+            time_horizon: Time horizon for ergodic calculation (default 50,
+                matching ``SimulationConfig.time_horizon_years``).
 
         Returns:
             Dictionary with ergodic metrics.
