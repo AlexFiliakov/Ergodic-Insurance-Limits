@@ -1055,7 +1055,7 @@ class Simulation:
 
         sim_config = MonteCarloConfig(
             n_simulations=n_scenarios,
-            n_years=getattr(config.simulation, "years", 10),
+            n_years=config.simulation.time_horizon_years,
             parallel=n_jobs > 1 if n_jobs else True,
             n_workers=n_jobs,
             chunk_size=batch_size,
@@ -1193,7 +1193,7 @@ class Simulation:
         # Build shared simulation config with CRN enabled
         sim_config = MonteCarloConfig(
             n_simulations=n_scenarios,
-            n_years=getattr(config.simulation, "years", 10),
+            n_years=config.simulation.time_horizon_years,
             parallel=n_jobs > 1 if n_jobs else True,
             n_workers=n_jobs,
             checkpoint_interval=n_scenarios + 1,  # Don't checkpoint for comparisons

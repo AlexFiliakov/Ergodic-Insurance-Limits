@@ -610,6 +610,36 @@ class TestRunMonteCarlo:
 
         assert output["ergodic_analysis"]["premium_rate"] == pytest.approx(expected_rate, rel=1e-6)
 
+    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    def test_run_monte_carlo_respects_time_horizon_years(self, MockMCEngine, test_policy):
+        """Regression test for #1080: run_monte_carlo must use
+        config.simulation.time_horizon_years, not a hardcoded fallback."""
+        config = _make_full_config()
+        # Override to a non-default value that differs from 10
+        config.simulation.time_horizon_years = 25
+
+        mock_engine = MagicMock()
+        mock_results = self._make_mock_mc_results(has_statistics=False)
+        mock_engine.run.return_value = mock_results
+        MockMCEngine.return_value = mock_engine
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            Simulation.run_monte_carlo(
+                config=config,
+                insurance_policy=test_policy,
+                n_scenarios=10,
+                n_jobs=1,
+                seed=42,
+            )
+
+        # Both insured and uninsured engines should receive n_years=25
+        for call_args in MockMCEngine.call_args_list:
+            sim_config = call_args[1]["config"]
+            assert (
+                sim_config.n_years == 25
+            ), f"Expected n_years=25 from time_horizon_years, got {sim_config.n_years}"
+
 
 # ---------------------------------------------------------------------------
 # Tests for Lines 1070-1130: compare_insurance_strategies class method
@@ -980,6 +1010,32 @@ class TestCompareInsuranceStrategies:
         for call in MockMCEngine.call_args_list:
             kwargs = call[1]
             assert kwargs["config"].crn_base_seed == result.crn_seed
+
+    @patch("ergodic_insurance.simulation.MonteCarloEngine")
+    def test_compare_respects_time_horizon_years(self, MockMCEngine, policy_dict):
+        """Regression test for #1080: compare_insurance_strategies must use
+        config.simulation.time_horizon_years, not a hardcoded fallback."""
+        config = _make_full_config()
+        config.simulation.time_horizon_years = 30
+
+        mock_engine = MagicMock()
+        mock_engine.run.return_value = self._make_mock_engine_result()
+        MockMCEngine.return_value = mock_engine
+
+        Simulation.compare_insurance_strategies(
+            config=config,
+            insurance_policies=policy_dict,
+            n_scenarios=10,
+            n_jobs=1,
+            seed=42,
+        )
+
+        # All engines (baseline + strategies) should receive n_years=30
+        for call_args in MockMCEngine.call_args_list:
+            sim_config = call_args[1]["config"]
+            assert (
+                sim_config.n_years == 30
+            ), f"Expected n_years=30 from time_horizon_years, got {sim_config.n_years}"
 
 
 # ---------------------------------------------------------------------------

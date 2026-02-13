@@ -13,6 +13,7 @@ from ergodic_insurance.claim_development import (
     Claim,
     ClaimCohort,
     ClaimDevelopment,
+    DevelopmentPattern,
     DevelopmentPatternType,
     load_development_patterns,
     load_ibnr_factors,
@@ -544,7 +545,7 @@ class TestIBNRActuarialMethods:
     """Test actuarial IBNR estimation methods (Issue #390)."""
 
     def test_cl_only_no_elr(self):
-        """CL-only: deterministic payments recover initial_estimate -> IBNR = 0."""
+        """CL-only: paid-basis IBNR = ultimate - paid_to_date."""
         projector = CashFlowProjector()
 
         cohort = ClaimCohort(accident_year=2020)
@@ -562,12 +563,15 @@ class TestIBNRActuarialMethods:
         projector.project_payments(2020, 2020)
 
         # Paid = 400k (40%), CL ultimate = 400k / 0.40 = 1M
-        # IBNR = 1M - 1M = 0 (deterministic CL recovers case estimate)
+        # IBNR = 1M - 400k = 600k (paid-basis)
         ibnr = projector.estimate_ibnr(evaluation_year=2021)
-        assert ibnr == pytest.approx(0.0)
+        assert ibnr == pytest.approx(600_000)
 
     def test_cl_no_payments_falls_back(self):
-        """No payments and no premium -> no method available -> IBNR = 0."""
+        """No payments and no premium -> fallback to incurred as ultimate.
+
+        With paid-basis IBNR, IBNR = incurred - paid_to_date = 1M - 0 = 1M.
+        """
         projector = CashFlowProjector()
 
         cohort = ClaimCohort(accident_year=2020)
@@ -581,9 +585,10 @@ class TestIBNRActuarialMethods:
         cohort.add_claim(claim)
         projector.add_cohort(cohort)
 
-        # No project_payments, no premium, no ELR -> no method
+        # No project_payments, no premium, no ELR -> blended_ultimate = incurred
+        # IBNR = incurred - paid_to_date = 1M - 0 = 1M (paid-basis)
         ibnr = projector.estimate_ibnr(evaluation_year=2021)
-        assert ibnr == pytest.approx(0.0, abs=1e-10)
+        assert ibnr == pytest.approx(1_000_000)
 
     def test_bf_only_immature_year(self):
         """BF dominates at 0% development (E2)."""
@@ -603,10 +608,10 @@ class TestIBNRActuarialMethods:
         # dev_years=0, pct_developed=0.0 -> CL undefined (no payments), BF only
         # BF IBNR = 0.70 * 2_000_000 * (1 - 0) = 1_400_000
         # BF ultimate = paid(0) + 1_400_000 = 1_400_000
-        # IBNR = max(0, 1_400_000 - 1_000_000) = 400_000
+        # IBNR = max(0, 1_400_000 - 0) = 1_400_000 (paid-basis)
         earned_premium = {2023: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(400_000)
+        assert ibnr == pytest.approx(1_400_000)
 
     def test_blended_cl_bf(self):
         """Verify maturity-adaptive CL/BF weights."""
@@ -631,10 +636,10 @@ class TestIBNRActuarialMethods:
         # BF IBNR = 0.70 * 2M * 0.60 = 840k
         # BF ultimate = paid + bf_ibnr = 400k + 840k = 1.24M
         # Blended = 0.40 * 1M + 0.60 * 1.24M = 400k + 744k = 1_144k
-        # IBNR = 1_144k - 1M = 144k
+        # IBNR = 1_144k - 400k = 744k (paid-basis)
         earned_premium = {2020: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(144_000)
+        assert ibnr == pytest.approx(744_000)
 
     def test_blended_with_earned_premium(self):
         """BF with earned premium uses standard formula."""
@@ -659,10 +664,10 @@ class TestIBNRActuarialMethods:
         # BF IBNR = 0.70 * 1M * 0.60 = 420k
         # BF ultimate = paid + bf_ibnr = 200k + 420k = 620k
         # Blended = 0.40 * 500k + 0.60 * 620k = 200k + 372k = 572k
-        # IBNR = 572k - 500k = 72k
+        # IBNR = 572k - 200k = 372k (paid-basis)
         earned_premium = {2020: 1_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(72_000)
+        assert ibnr == pytest.approx(372_000)
 
     def test_fully_developed_zero_ibnr(self):
         """E5: IBNR=0 at full maturity."""
@@ -739,10 +744,10 @@ class TestIBNRActuarialMethods:
         # BF IBNR = 0.80 * 2M * 0.60 = 960k
         # BF ult = paid + bf_ibnr = 400k + 960k = 1.36M
         # Blended = 0.40 * 1M + 0.60 * 1.36M = 400k + 816k = 1_216k
-        # IBNR = 216k
+        # IBNR = 1_216k - 400k = 816k (paid-basis)
         earned_premium = {2020: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(216_000)
+        assert ibnr == pytest.approx(816_000)
 
     def test_elr_tier3_industry_benchmark(self):
         """ibnr_factors from YAML are used for Tier 3."""
@@ -763,10 +768,10 @@ class TestIBNRActuarialMethods:
         # Tier 3 ELR = 0.65 (from ibnr_factors)
         # BF IBNR = 0.65 * 2M * 1.0 = 1_300_000
         # BF ultimate = paid(0) + 1_300_000 = 1_300_000
-        # IBNR = max(0, 1_300_000 - 1_000_000) = 300_000
+        # IBNR = max(0, 1_300_000 - 0) = 1_300_000 (paid-basis)
         earned_premium = {2023: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(300_000)
+        assert ibnr == pytest.approx(1_300_000)
 
     def test_elr_tier2_cape_cod(self):
         """Cape Cod ELR derived from >=2 cohorts with premium."""
@@ -1121,8 +1126,9 @@ class TestEmpiricalChainLadder:
         ibnr_empirical = proj_empirical.estimate_ibnr(evaluation_year=2020)
         ibnr_assumed = proj_assumed.estimate_ibnr(evaluation_year=2020)
 
-        # Assumed-pattern CL always recovers case estimate → IBNR = 0
-        assert ibnr_assumed == pytest.approx(0.0)
+        # With paid-basis IBNR, assumed-pattern CL also produces positive IBNR
+        # (ultimate - paid > 0 for immature cohorts)
+        assert ibnr_assumed > 0
         # Empirical CL with adverse development → positive IBNR
         assert ibnr_empirical > 0
         assert ibnr_empirical != ibnr_assumed
@@ -1137,9 +1143,9 @@ class TestEmpiricalChainLadder:
         )
         # Single cohort: no link ratios (need >=2 contributors).
         # Assumed-pattern CL at eval 2022: dev_years=2, pct=0.65,
-        # paid=650k, CL = 650k / 0.65 = 1M, IBNR = 0.
+        # paid=650k, CL = 650k / 0.65 = 1M, IBNR = 1M - 650k = 350k (paid-basis).
         ibnr = projector.estimate_ibnr(evaluation_year=2022)
-        assert ibnr == pytest.approx(0.0)
+        assert ibnr == pytest.approx(350_000)
 
     def test_bf_blend_with_empirical_cl(self):
         """BF blend still works correctly with empirical CL ultimate."""
@@ -1299,8 +1305,9 @@ class TestEmpiricalChainLadder:
         projector.add_cohort(cohort)
         projector.project_payments(2020, 2020)
 
+        # CL ultimate = 400k / 0.40 = 1M; IBNR = 1M - 400k = 600k (paid-basis)
         ibnr = projector.estimate_ibnr(evaluation_year=2021)
-        assert ibnr == pytest.approx(0.0)
+        assert ibnr == pytest.approx(600_000)
 
     def test_empirical_cl_with_premium_and_bf(self):
         """Empirical CL ultimate feeds into BF blend correctly.
@@ -1394,12 +1401,14 @@ class TestRegressions:
         # Correct BF ultimate = 400k + 840k = 1.24M
         # Wrong BF ultimate (old bug) = 1M + 840k = 1.84M
         # CL = 400k / 0.40 = 1M
-        # Blended = 0.40 * 1M + 0.60 * 1.24M = 1.144M, IBNR = 144k
+        # Blended = 0.40 * 1M + 0.60 * 1.24M = 1.144M
+        # IBNR = 1.144M - 400k = 744k (paid-basis)
         earned_premium = {2020: 2_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2021, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(144_000)
-        # Must NOT be the old buggy value
-        assert ibnr != pytest.approx(504_000)
+        assert ibnr == pytest.approx(744_000)
+        # Must NOT be the old buggy value (if BF used incurred instead of paid:
+        # BF ult = 1M + 840k = 1.84M, blended = 1.504M, IBNR = 1.504M - 400k = 1_104k)
+        assert ibnr != pytest.approx(1_104_000)
 
     def test_bf_only_immature_paid_basis_issue_805(self):
         """#805: at 0% development with BF-only, ultimate = 0 + bf_ibnr (paid basis)."""
@@ -1419,7 +1428,315 @@ class TestRegressions:
         # dev_years=0, pct=0.0, paid=0
         # BF IBNR = 0.60 * 1M * 1.0 = 600k
         # BF ultimate = 0 + 600k = 600k
-        # IBNR = max(0, 600k - 500k) = 100k
+        # IBNR = max(0, 600k - 0) = 600k (paid-basis)
         earned_premium = {2023: 1_000_000}
         ibnr = projector.estimate_ibnr(evaluation_year=2023, earned_premium=earned_premium)
-        assert ibnr == pytest.approx(100_000)
+        assert ibnr == pytest.approx(600_000)
+
+
+class TestDevelopmentPattern:
+    """Tests for DevelopmentPattern class (#1054)."""
+
+    def test_basic_construction(self):
+        """DevelopmentPattern can be constructed with valid CDFs."""
+        dp = DevelopmentPattern(
+            pattern_name="test",
+            cumulative_ldfs=[2.5, 1.5, 1.2, 1.0],
+            tail_cdf=1.0,
+        )
+        assert dp.pattern_name == "test"
+        assert dp.cumulative_ldfs == [2.5, 1.5, 1.2, 1.0]
+        assert dp.tail_cdf == 1.0
+
+    def test_pct_developed(self):
+        """pct_developed returns 1/CDF clamped to [0, 1]."""
+        dp = DevelopmentPattern(
+            pattern_name="test",
+            cumulative_ldfs=[2.5, 1.5, 1.25, 1.0],
+        )
+        assert dp.pct_developed(0) == 0.0
+        assert dp.pct_developed(1) == pytest.approx(1.0 / 2.5)  # 0.40
+        assert dp.pct_developed(2) == pytest.approx(1.0 / 1.5)  # ~0.667
+        assert dp.pct_developed(3) == pytest.approx(1.0 / 1.25)  # 0.80
+        assert dp.pct_developed(4) == pytest.approx(1.0)  # fully developed
+        assert dp.pct_developed(10) == pytest.approx(1.0)  # beyond pattern
+
+    def test_cdf_at(self):
+        """cdf_at returns correct CDF at each age."""
+        dp = DevelopmentPattern(
+            pattern_name="test",
+            cumulative_ldfs=[2.5, 1.5, 1.25, 1.0],
+            tail_cdf=1.0,
+        )
+        # Age < 1 returns first (largest) CDF
+        assert dp.cdf_at(0) == 2.5
+        assert dp.cdf_at(-1) == 2.5
+        # Ages within pattern
+        assert dp.cdf_at(1) == 2.5
+        assert dp.cdf_at(2) == 1.5
+        assert dp.cdf_at(3) == 1.25
+        assert dp.cdf_at(4) == 1.0
+        # Beyond pattern returns tail
+        assert dp.cdf_at(5) == 1.0
+        assert dp.cdf_at(100) == 1.0
+
+    def test_validation_empty(self):
+        """Empty cumulative_ldfs raises ValueError."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            DevelopmentPattern("bad", cumulative_ldfs=[], tail_cdf=1.0)
+
+    def test_validation_below_one(self):
+        """CDFs below 1.0 raise ValueError."""
+        with pytest.raises(ValueError, match="must be >= 1.0"):
+            DevelopmentPattern("bad", cumulative_ldfs=[0.9, 0.8])
+
+    def test_validation_non_monotonic(self):
+        """Non-monotonically decreasing CDFs raise ValueError."""
+        with pytest.raises(ValueError, match="non-increasing"):
+            DevelopmentPattern("bad", cumulative_ldfs=[1.5, 2.0, 1.0])
+
+    def test_validation_tail_below_one(self):
+        """tail_cdf below 1.0 raises ValueError."""
+        with pytest.raises(ValueError, match="tail_cdf must be >= 1.0"):
+            DevelopmentPattern("bad", cumulative_ldfs=[2.0, 1.5], tail_cdf=0.5)
+
+    def test_pct_developed_negative_age(self):
+        """Negative development age returns 0."""
+        dp = DevelopmentPattern("test", cumulative_ldfs=[2.0, 1.5, 1.0])
+        assert dp.pct_developed(-5) == 0.0
+
+
+class TestDevelopmentPatternFromPayment:
+    """Tests for DevelopmentPattern.from_payment_pattern (#1054)."""
+
+    def test_medium_tail_5yr(self):
+        """from_payment_pattern for MEDIUM_TAIL_5YR produces correct CDFs."""
+        payment = ClaimDevelopment.create_medium_tail_5yr()
+        dp = DevelopmentPattern.from_payment_pattern(payment)
+
+        # MEDIUM_TAIL_5YR: [0.40, 0.25, 0.15, 0.10, 0.10]
+        # cumulative: 0.40, 0.65, 0.80, 0.90, 1.00
+        # CDF: 2.50, ~1.538, 1.25, ~1.111, 1.0
+        assert dp.cumulative_ldfs[0] == pytest.approx(1.0 / 0.40)  # 2.5
+        assert dp.cumulative_ldfs[1] == pytest.approx(1.0 / 0.65)
+        assert dp.cumulative_ldfs[2] == pytest.approx(1.0 / 0.80)  # 1.25
+        assert dp.cumulative_ldfs[3] == pytest.approx(1.0 / 0.90)
+        assert dp.cumulative_ldfs[4] == pytest.approx(1.0)
+        assert dp.tail_cdf == pytest.approx(1.0)
+
+    def test_consistency_with_get_cumulative_paid(self):
+        """pct_developed matches get_cumulative_paid for all built-in patterns."""
+        patterns = [
+            ClaimDevelopment.create_immediate(),
+            ClaimDevelopment.create_medium_tail_5yr(),
+            ClaimDevelopment.create_long_tail_10yr(),
+            ClaimDevelopment.create_very_long_tail_15yr(),
+        ]
+        for payment in patterns:
+            dp = DevelopmentPattern.from_payment_pattern(payment)
+            for age in range(len(payment.development_factors) + 2):
+                expected_pct = payment.get_cumulative_paid(age)
+                actual_pct = dp.pct_developed(age)
+                assert actual_pct == pytest.approx(expected_pct, abs=1e-10), (
+                    f"Mismatch for {payment.pattern_name} at age {age}: "
+                    f"expected {expected_pct}, got {actual_pct}"
+                )
+
+    def test_from_payment_with_tail(self):
+        """Patterns with tail factor produce correct CDFs."""
+        payment = ClaimDevelopment(
+            pattern_name="WITH_TAIL",
+            development_factors=[0.4, 0.3, 0.28],
+            tail_factor=0.02,
+        )
+        dp = DevelopmentPattern.from_payment_pattern(payment)
+        # 4 CDFs (3 dev factors + 1 tail period)
+        assert len(dp.cumulative_ldfs) == 4
+        assert dp.cumulative_ldfs[-1] == pytest.approx(1.0)
+        assert dp.tail_cdf == pytest.approx(1.0)
+
+
+class TestDevelopmentPatternFromATA:
+    """Tests for DevelopmentPattern.from_age_to_age_factors (#1054)."""
+
+    def test_basic_construction(self):
+        """from_age_to_age_factors produces correct CDFs."""
+        # LDFs: 1.625, 1.231, 1.125, 1.111
+        dp = DevelopmentPattern.from_age_to_age_factors("test", [1.625, 1.231, 1.125, 1.111])
+        # CDF at age 1 = 1.625 * 1.231 * 1.125 * 1.111
+        expected_cdf_1 = 1.625 * 1.231 * 1.125 * 1.111
+        assert dp.cumulative_ldfs[0] == pytest.approx(expected_cdf_1)
+        # CDF at last age = 1.111
+        assert dp.cumulative_ldfs[-1] == pytest.approx(1.111)
+        assert dp.tail_cdf == 1.0
+
+    def test_with_tail(self):
+        """from_age_to_age_factors applies tail_factor correctly."""
+        dp = DevelopmentPattern.from_age_to_age_factors("test", [2.0, 1.5], tail_factor=1.05)
+        # CDF at age 1 = 2.0 * 1.5 * 1.05 = 3.15
+        assert dp.cumulative_ldfs[0] == pytest.approx(3.15)
+        # CDF at age 2 = 1.5 * 1.05 = 1.575
+        assert dp.cumulative_ldfs[1] == pytest.approx(1.575)
+        assert dp.tail_cdf == 1.05
+
+    def test_empty_factors_raises(self):
+        """Empty ata_factors raises ValueError."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            DevelopmentPattern.from_age_to_age_factors("bad", [])
+
+
+class TestCashFlowProjectorWithDevelopmentPattern:
+    """Tests for CashFlowProjector with explicit DevelopmentPattern (#1054)."""
+
+    def test_explicit_pattern_override(self):
+        """When development_pattern is set, it overrides per-claim patterns."""
+        # Create a DevelopmentPattern that says 50% developed at age 1
+        dp = DevelopmentPattern(
+            pattern_name="override",
+            cumulative_ldfs=[2.0, 1.0],  # age 1: 50%, age 2: 100%
+        )
+        projector = CashFlowProjector(development_pattern=dp)
+
+        cohort = ClaimCohort(accident_year=2020)
+        claim = Claim(
+            "CL001",
+            2020,
+            2020,
+            1_000_000,
+            development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+        )
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+        projector.project_payments(2020, 2020)
+
+        # pct_developed uses the explicit DevelopmentPattern (50%), not the
+        # claim's MEDIUM_TAIL_5YR (40%)
+        pct = projector._get_cohort_pct_developed(cohort, 1)
+        assert pct == pytest.approx(0.50)
+
+    def test_none_fallback(self):
+        """When development_pattern is None, per-claim patterns are used."""
+        projector = CashFlowProjector()  # No development_pattern
+
+        cohort = ClaimCohort(accident_year=2020)
+        claim = Claim(
+            "CL001",
+            2020,
+            2020,
+            1_000_000,
+            development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+        )
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+
+        pct = projector._get_cohort_pct_developed(cohort, 1)
+        assert pct == pytest.approx(0.40)
+
+
+class TestTailFactor:
+    """Tests for tail factor in CDF computation (#1059)."""
+
+    def test_cdf_to_ultimate_with_tail_factor(self):
+        """CDF is multiplied by tail factor."""
+        projector = CashFlowProjector()
+        ata = {0: 2.0, 1: 1.5}
+
+        # Without tail: CDF at age 0 = 2.0 * 1.5 = 3.0
+        assert projector._compute_cdf_to_ultimate(ata, 0) == pytest.approx(3.0)
+
+        # With tail factor 1.05: CDF at age 0 = 2.0 * 1.5 * 1.05 = 3.15
+        assert projector._compute_cdf_to_ultimate(ata, 0, tail_factor=1.05) == pytest.approx(3.15)
+
+    def test_cdf_beyond_max_with_tail(self):
+        """Beyond max observed age, returns tail_factor (not 1.0)."""
+        projector = CashFlowProjector()
+        ata = {0: 2.0, 1: 1.5}
+
+        # At age 2 (beyond max_factor_age=1), return tail_factor
+        assert projector._compute_cdf_to_ultimate(ata, 2, tail_factor=1.10) == pytest.approx(1.10)
+        # Default tail_factor=1.0 preserves old behavior
+        assert projector._compute_cdf_to_ultimate(ata, 2) == pytest.approx(1.0)
+
+    def test_fit_tail_factor_bondy(self):
+        """Bondy method returns last observed LDF."""
+        projector = CashFlowProjector()
+        ata = {0: 2.0, 1: 1.5, 2: 1.08}
+
+        tail = projector.fit_tail_factor(ata, method="bondy")
+        assert tail == pytest.approx(1.08)
+
+    def test_fit_tail_factor_bondy_out_of_range(self):
+        """Bondy returns 1.0 when last LDF > 2.0."""
+        projector = CashFlowProjector()
+        ata = {0: 3.0, 1: 2.5}
+
+        tail = projector.fit_tail_factor(ata, method="bondy")
+        assert tail == 1.0
+
+    def test_fit_tail_factor_empty(self):
+        """Empty factors → 1.0."""
+        projector = CashFlowProjector()
+        tail = projector.fit_tail_factor({}, method="bondy")
+        assert tail == 1.0
+
+    def test_reserve_tail_factor_in_ibnr(self):
+        """reserve_tail_factor > 1 increases IBNR."""
+        # Projector without tail
+        proj_no_tail = CashFlowProjector()
+        # Projector with tail
+        proj_tail = CashFlowProjector(reserve_tail_factor=1.10)
+
+        # 3 cohorts for empirical factors
+        for proj in [proj_no_tail, proj_tail]:
+            for ay in [2018, 2019, 2020]:
+                cohort = ClaimCohort(accident_year=ay)
+                claim = Claim(
+                    f"CL-{ay}",
+                    ay,
+                    ay,
+                    1_000_000,
+                    development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+                )
+                cohort.add_claim(claim)
+                proj.add_cohort(cohort)
+            proj.project_payments(2018, 2020)
+
+        ibnr_no_tail = proj_no_tail.estimate_ibnr(evaluation_year=2020)
+        ibnr_with_tail = proj_tail.estimate_ibnr(evaluation_year=2020)
+
+        # Tail factor increases IBNR
+        assert ibnr_with_tail > ibnr_no_tail
+
+
+class TestReserveIdentity:
+    """Tests for reserve identity (#1056)."""
+
+    def test_reserve_identity_case_plus_ibnr(self):
+        """Verify total_reserves = case_outstanding + IBNR."""
+        projector = CashFlowProjector(a_priori_loss_ratio=0.70)
+
+        cohort = ClaimCohort(accident_year=2020)
+        claim = Claim(
+            "CL001",
+            2020,
+            2020,
+            1_000_000,
+            development_pattern=ClaimDevelopment.create_medium_tail_5yr(),
+        )
+        cohort.add_claim(claim)
+        projector.add_cohort(cohort)
+        projector.project_payments(2020, 2020)
+
+        earned_premium = {2020: 2_000_000}
+        reserves = projector.calculate_total_reserves(
+            evaluation_year=2021, earned_premium=earned_premium
+        )
+
+        # total_reserves = case_reserves + ibnr
+        assert reserves["total_reserves"] == pytest.approx(
+            reserves["case_reserves"] + reserves["ibnr"]
+        )
+        # Case reserves = initial_estimate - paid = 1M - 400k = 600k
+        assert reserves["case_reserves"] == pytest.approx(600_000)
+        # IBNR should be positive (blended CL/BF on paid basis)
+        assert reserves["ibnr"] > 0
