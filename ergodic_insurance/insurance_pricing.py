@@ -112,6 +112,29 @@ class PricingParameters:
     def __post_init__(self) -> None:
         import warnings
 
+        # Validate that expense ratio + profit margin leave room for losses
+        if self.expense_ratio + self.profit_margin >= 1.0:
+            raise ValueError(
+                f"expense_ratio ({self.expense_ratio:.2f}) + "
+                f"profit_margin ({self.profit_margin:.2f}) = "
+                f"{self.expense_ratio + self.profit_margin:.2f} >= 1.0; "
+                f"no premium can cover losses under these parameters"
+            )
+
+        # Warn if loss_ratio is inconsistent with expense/profit parameters.
+        # The actuarial identity implies loss_ratio = 1 - V - Q.
+        indicated_lr = 1 - self.expense_ratio - self.profit_margin
+        if abs(self.loss_ratio - indicated_lr) > 0.01:
+            warnings.warn(
+                f"loss_ratio ({self.loss_ratio:.2f}) is inconsistent with "
+                f"1 - expense_ratio - profit_margin = {indicated_lr:.2f}. "
+                f"The actuarial pricing identity Premium = Pure_Premium / "
+                f"(1 - V - Q) expects these to match. Adjust loss_ratio or "
+                f"expense_ratio/profit_margin for consistency.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         if self.alae_ratio + self.ulae_ratio > self.expense_ratio:
             warnings.warn(
                 f"LAE ratio ({self.alae_ratio + self.ulae_ratio:.2f}) exceeds "
@@ -552,8 +575,8 @@ class InsurancePricer:
         Technical premium adds a risk loading for parameter uncertainty
         to the pure premium, plus LAE (loss adjustment expense) as a known
         cost component per ASOP 29.  Expense and profit margins are applied
-        separately via the loss ratio in calculate_market_premium()
-        to avoid double-counting.
+        separately via the actuarial pricing identity in
+        calculate_market_premium() to avoid double-counting.
 
         Formula:
             technical_premium = pure_premium * (1 + risk_loading)
@@ -589,26 +612,61 @@ class InsurancePricer:
         technical_premium: float,
         market_cycle: Optional[MarketCycle] = None,
     ) -> float:
-        """Apply market cycle adjustment to technical premium.
+        """Apply expense, profit, and market cycle loadings to technical premium.
 
-        Market premium = Technical premium / Loss ratio
+        Uses the standard actuarial pricing identity:
+
+            Premium = Pure_Premium / (1 - V - Q)
+
+        where *V* is the expense ratio and *Q* is the profit margin
+        (Werner & Modlin, *Basic Ratemaking*, Ch. 7).  The market cycle
+        then scales this indicated premium to reflect competitive pressure.
+
+        With default parameters (V=0.25, Q=0.05, loss_ratio=0.70) the
+        formula reduces to ``technical_premium / cycle_loss_ratio``,
+        preserving backward compatibility.
 
         Args:
-            technical_premium: Premium with expenses and loadings
+            technical_premium: Premium with risk and LAE loadings
             market_cycle: Optional market cycle override
 
         Returns:
-            Market-adjusted premium
+            Market-adjusted premium incorporating expenses, profit,
+            and competitive cycle effects
         """
-        cycle = market_cycle or self.market_cycle
-        loss_ratio = cycle.value
+        import warnings
 
-        # Market premium = Technical premium / Loss ratio
-        # Lower loss ratio (HARD market) means higher premiums
-        # Higher loss ratio (SOFT market) means lower premiums
-        # Example: HARD (0.6) -> premium/0.6 = 1.67x premium
-        # Example: SOFT (0.8) -> premium/0.8 = 1.25x premium
-        market_premium = technical_premium / loss_ratio
+        cycle = market_cycle or self.market_cycle
+        cycle_lr = cycle.value
+
+        V = self.parameters.expense_ratio
+        Q = self.parameters.profit_margin
+        indicated_lr = 1 - V - Q
+
+        # Actuarial base premium: covers losses, expenses, and profit
+        base_premium = technical_premium / indicated_lr
+
+        # Market cycle adjustment relative to the target loss ratio.
+        # Hard market (cycle_lr < target): premiums rise
+        # Soft market (cycle_lr > target): premiums fall
+        target_lr = self.parameters.loss_ratio
+        cycle_factor = target_lr / cycle_lr
+
+        market_premium = base_premium * cycle_factor
+
+        # Warn when the market cycle implies a combined ratio > 100%,
+        # meaning the insurer would operate at an underwriting loss.
+        combined_ratio = cycle_lr + V + Q
+        if combined_ratio > 1.0 + 1e-9:
+            warnings.warn(
+                f"Combined ratio ({combined_ratio:.1%}) exceeds 100%: "
+                f"market cycle loss ratio ({cycle_lr:.0%}) + "
+                f"expense ratio ({V:.0%}) + profit margin ({Q:.0%}). "
+                f"The insurer would operate at an underwriting loss "
+                f"under current market conditions.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         return market_premium
 
