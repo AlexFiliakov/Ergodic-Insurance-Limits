@@ -50,10 +50,10 @@ class AccrualItem:
     description: str = ""
 
     def __post_init__(self) -> None:
-        """Convert amounts to Decimal if needed (runtime check for backwards compatibility)."""
+        """Convert amounts to consistent numeric type (Decimal or float depending on mode)."""
         if not isinstance(self.amount, Decimal):
             object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
-        # Convert any float amounts in amounts_paid to Decimal
+        # Convert any amounts in amounts_paid to consistent type
         converted_paid = [
             to_decimal(a) if not isinstance(a, Decimal) else a for a in self.amounts_paid
         ]
@@ -63,7 +63,7 @@ class AccrualItem:
     def remaining_balance(self) -> Decimal:
         """Calculate remaining unpaid balance."""
         # Convert any float values that may have been added after construction
-        paid_total = sum((to_decimal(a) for a in self.amounts_paid), ZERO)
+        paid_total = sum((to_decimal(a) for a in self.amounts_paid), to_decimal(0))
         return self.amount - paid_total
 
     @property
@@ -298,7 +298,7 @@ class AccrualManager:
             List of (period, amount) tuples for quarterly payments (Decimal amounts)
         """
         annual_tax = to_decimal(annual_tax)
-        quarterly_amount = annual_tax / Decimal(4)
+        quarterly_amount = annual_tax / to_decimal(4)
         payment_periods = self._get_fiscal_payment_periods()
 
         return [(period, quarterly_amount) for period in payment_periods]
@@ -338,7 +338,7 @@ class AccrualManager:
 
     def get_total_accrued_expenses(self) -> Decimal:
         """Get total outstanding accrued expenses as Decimal."""
-        total = ZERO
+        total = to_decimal(0)
         for expense_list in self.accrued_expenses.values():
             for accrual in expense_list:
                 if not accrual.is_fully_paid:
@@ -353,7 +353,7 @@ class AccrualManager:
                 for accrual in self.accrued_revenues
                 if not accrual.is_fully_paid
             ),
-            ZERO,
+            to_decimal(0),
         )
 
     def get_accruals_by_type(self, item_type: AccrualType) -> List[AccrualItem]:
@@ -385,7 +385,7 @@ class AccrualManager:
 
         # Check expense accruals
         for expense_type, accruals in self.accrued_expenses.items():
-            amount_due = ZERO
+            amount_due = to_decimal(0)
             for accrual in accruals:
                 if not accrual.is_fully_paid:
                     # Count how many payment dates are due (including past-due)
@@ -401,8 +401,8 @@ class AccrualManager:
                     if unpaid_due > 0:
                         # Calculate proportional payment amount
                         total_periods = len(accrual.payment_dates)
-                        amount_per_payment = accrual.amount / Decimal(total_periods)
-                        amount_due += amount_per_payment * Decimal(unpaid_due)
+                        amount_per_payment = accrual.amount / to_decimal(total_periods)
+                        amount_due += amount_per_payment * to_decimal(unpaid_due)
 
             if amount_due > ZERO:
                 payments_due[expense_type] = amount_due
@@ -432,7 +432,7 @@ class AccrualManager:
                     for a in self.accrued_expenses[AccrualType.WAGES]
                     if not a.is_fully_paid
                 ),
-                ZERO,
+                to_decimal(0),
             ),
             "accrued_taxes": sum(
                 (
@@ -440,7 +440,7 @@ class AccrualManager:
                     for a in self.accrued_expenses[AccrualType.TAXES]
                     if not a.is_fully_paid
                 ),
-                ZERO,
+                to_decimal(0),
             ),
             "accrued_interest": sum(
                 (
@@ -448,7 +448,7 @@ class AccrualManager:
                     for a in self.accrued_expenses[AccrualType.INTEREST]
                     if not a.is_fully_paid
                 ),
-                ZERO,
+                to_decimal(0),
             ),
         }
 

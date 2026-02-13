@@ -112,15 +112,15 @@ class SolvencyMixin:
         revenue = self.calculate_revenue()
 
         # 1. Current Ratio = Current Assets / Current Liabilities
-        reported_cash = max(self.cash, ZERO)
+        reported_cash = max(self.cash, to_decimal(0))
         current_assets = (
             reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
         )
         # Current liabilities = total_liabilities - long-term claims - DTL
         claim_total = sum(
-            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
+            (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)
         )
-        dtl = getattr(self, "deferred_tax_liability", ZERO)
+        dtl = getattr(self, "deferred_tax_liability", to_decimal(0))
         current_liabilities = self.total_liabilities - claim_total - dtl
         if current_liabilities > ZERO:
             current_ratio = current_assets / current_liabilities
@@ -145,7 +145,7 @@ class SolvencyMixin:
             )
 
         # 2. DSCR = Operating Income / Debt Service (current year claim payments)
-        current_year_payments: Decimal = ZERO
+        current_year_payments: Decimal = to_decimal(0)
         for claim_item in self.claim_liabilities:
             years_since = self.current_year - claim_item.year_incurred
             current_year_payments += claim_item.get_payment(years_since)
@@ -176,7 +176,7 @@ class SolvencyMixin:
             )
 
         # 3. Equity Ratio = Operational Equity / Total Assets
-        va = getattr(self, "dta_valuation_allowance", ZERO)
+        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
         operational_equity = self.equity + va
         if self.total_assets > ZERO:
             equity_ratio = operational_equity / self.total_assets
@@ -244,20 +244,20 @@ class SolvencyMixin:
         """
         total_assets = self.total_assets
         if total_assets <= ZERO:
-            return ZERO
+            return to_decimal(0)
 
         total_liabilities = self.total_liabilities
         revenue = self.calculate_revenue()
 
         # Current assets and current liabilities for working capital
-        reported_cash = max(self.cash, ZERO)
+        reported_cash = max(self.cash, to_decimal(0))
         current_assets = (
             reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
         )
         claim_total = sum(
-            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
+            (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)
         )
-        dtl = getattr(self, "deferred_tax_liability", ZERO)
+        dtl = getattr(self, "deferred_tax_liability", to_decimal(0))
         current_liabilities = total_liabilities - claim_total - dtl
 
         working_capital = current_assets - current_liabilities
@@ -310,7 +310,7 @@ class SolvencyMixin:
         # Use operational equity for solvency — add back valuation allowance
         # since it's a non-cash accounting adjustment that doesn't affect the
         # company's ability to continue operations (Issue #464)
-        va = getattr(self, "dta_valuation_allowance", ZERO)
+        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
         operational_equity = self.equity + va
         if operational_equity <= ZERO:
             self.handle_insolvency()
@@ -385,7 +385,7 @@ class SolvencyMixin:
         revenue_pattern = getattr(self.config, "revenue_pattern", "uniform")
 
         annual_revenue = self.calculate_revenue()
-        annual_premium = getattr(self, "period_insurance_premiums", ZERO)
+        annual_premium = getattr(self, "period_insurance_premiums", to_decimal(0))
 
         operating_margin = to_decimal(self.base_operating_margin)
         estimated_annual_income = annual_revenue * operating_margin
@@ -403,7 +403,7 @@ class SolvencyMixin:
             nol_deduction = min(tax_handler.nol_carryforward, max_nol_deduction)
             taxable_income = estimated_annual_income - nol_deduction
         else:
-            taxable_income = max(ZERO, estimated_annual_income)
+            taxable_income = max(to_decimal(0), estimated_annual_income)
 
         annual_tax = taxable_income * to_decimal(self.tax_rate)
         quarterly_tax = annual_tax / to_decimal(4)

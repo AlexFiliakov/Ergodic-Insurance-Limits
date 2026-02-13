@@ -58,7 +58,13 @@ try:
         PaymentSchedule,
     )
     from ergodic_insurance.config import ManufacturerConfig
-    from ergodic_insurance.decimal_utils import ONE, ZERO, MetricsDict, to_decimal
+    from ergodic_insurance.decimal_utils import (
+        ONE,
+        ZERO,
+        MetricsDict,
+        enable_float_mode,
+        to_decimal,
+    )
     from ergodic_insurance.insurance_accounting import InsuranceAccounting
     from ergodic_insurance.ledger import AccountName, Ledger, TransactionType
     from ergodic_insurance.stochastic_processes import StochasticProcess
@@ -66,7 +72,7 @@ except ImportError:
     try:
         from .accrual_manager import AccrualManager, AccrualType, PaymentSchedule
         from .config import ManufacturerConfig
-        from .decimal_utils import ONE, ZERO, MetricsDict, to_decimal
+        from .decimal_utils import ONE, ZERO, MetricsDict, enable_float_mode, to_decimal
         from .insurance_accounting import InsuranceAccounting
         from .ledger import AccountName, Ledger, TransactionType
         from .stochastic_processes import StochasticProcess
@@ -77,7 +83,13 @@ except ImportError:
             PaymentSchedule,
         )
         from config import ManufacturerConfig  # type: ignore[no-redef]
-        from decimal_utils import ONE, ZERO, MetricsDict, to_decimal  # type: ignore[no-redef]
+        from decimal_utils import (  # type: ignore[no-redef]
+            ONE,
+            ZERO,
+            MetricsDict,
+            enable_float_mode,
+            to_decimal,
+        )
         from insurance_accounting import InsuranceAccounting  # type: ignore[no-redef]
         from ledger import AccountName, Ledger, TransactionType  # type: ignore[no-redef]
         from stochastic_processes import StochasticProcess  # type: ignore[no-redef]
@@ -149,6 +161,7 @@ class WidgetManufacturer(
         self,
         config: ManufacturerConfig,
         stochastic_process: Optional[StochasticProcess] = None,
+        use_float: bool = False,
     ):
         """Initialize manufacturer with configuration parameters.
 
@@ -156,7 +169,13 @@ class WidgetManufacturer(
             config (ManufacturerConfig): Manufacturing configuration parameters.
             stochastic_process (Optional[StochasticProcess]): Optional stochastic
                 process for adding revenue volatility. Defaults to None.
+            use_float (bool): If True, enable float mode for this instance
+                to avoid Decimal overhead in Monte Carlo hot paths (Issue #1142).
         """
+        self._use_float = use_float
+        if use_float:
+            enable_float_mode()
+
         self.config = config
         self.stochastic_process = stochastic_process
 
@@ -164,7 +183,7 @@ class WidgetManufacturer(
         self.ledger = Ledger()
 
         # Track original prepaid premium for amortization calculation
-        self._original_prepaid_premium: Decimal = ZERO
+        self._original_prepaid_premium: Decimal = to_decimal(0)
 
         # Insurance accounting module
         self.insurance_accounting = InsuranceAccounting()
@@ -182,7 +201,7 @@ class WidgetManufacturer(
         self.tax_handler = TaxHandler(
             tax_rate=config.tax_rate,
             accrual_manager=self.accrual_manager,
-            nol_carryforward=Decimal("0"),
+            nol_carryforward=to_decimal(0),
             nol_limitation_pct=(
                 config.nol_limitation_pct if config.nol_carryforward_enabled else 0.0
             ),
@@ -196,23 +215,23 @@ class WidgetManufacturer(
         self.current_month = 0
 
         # Insurance cost tracking for tax purposes
-        self.period_insurance_premiums: Decimal = ZERO
-        self.period_insurance_losses: Decimal = ZERO
-        self.period_insurance_lae: Decimal = ZERO  # LAE per ASC 944-40 (Issue #468)
+        self.period_insurance_premiums: Decimal = to_decimal(0)
+        self.period_insurance_losses: Decimal = to_decimal(0)
+        self.period_insurance_lae: Decimal = to_decimal(0)  # LAE per ASC 944-40 (Issue #468)
 
         # Cached net income from step() for use by calculate_metrics() (Issue #617)
         self._period_net_income: Optional[Decimal] = None
 
         # Track actual dividends paid
-        self._last_dividends_paid: Decimal = ZERO
+        self._last_dividends_paid: Decimal = to_decimal(0)
 
         # Solvency tracking
         self.is_ruined = False
         self.ruin_month: Optional[int] = None
 
         # Reserve development tracking (Issue #470, ASC 944-40-25)
-        self.period_adverse_development: Decimal = ZERO
-        self.period_favorable_development: Decimal = ZERO
+        self.period_adverse_development: Decimal = to_decimal(0)
+        self.period_favorable_development: Decimal = to_decimal(0)
         self._enable_reserve_development = config.enable_reserve_development
         self._reserve_rng: Optional[random.Random] = (
             random.Random(42) if self._enable_reserve_development else None
@@ -260,6 +279,14 @@ class WidgetManufacturer(
             collateral=initial_collateral,
             restricted_assets=initial_restricted_assets,
         )
+
+        # Pre-compute frequently used config conversions (Issue #1142)
+        self._cache_config_values()
+
+    def _cache_config_values(self) -> None:
+        """Pre-compute to_decimal() conversions for config values (Issue #1142)."""
+        self._cached_capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
+        self._cached_base_margin_complement = to_decimal(1 - self.base_operating_margin)
 
     def _record_initial_balances(
         self,
@@ -465,12 +492,14 @@ class WidgetManufacturer(
 
         payments_due = self.accrual_manager.get_payments_due(period)
 
-        total_due = sum((to_decimal(v) for v in payments_due.values()), ZERO)
+        total_due = sum((to_decimal(v) for v in payments_due.values()), to_decimal(0))
         if max_payable is not None:
             max_total_payable: Decimal = min(total_due, to_decimal(max_payable))
         else:
             current_equity = self.equity
-            max_total_payable = min(total_due, current_equity) if current_equity > ZERO else ZERO
+            max_total_payable = (
+                min(total_due, current_equity) if current_equity > ZERO else to_decimal(0)
+            )
 
         if total_due > max_total_payable:
             logger.warning(
@@ -478,9 +507,11 @@ class WidgetManufacturer(
                 f"Due: ${total_due:,.2f}, Payable: ${max_total_payable:,.2f}"
             )
 
-        payment_ratio: Decimal = max_total_payable / total_due if total_due > ZERO else ZERO
+        payment_ratio: Decimal = (
+            max_total_payable / total_due if total_due > ZERO else to_decimal(0)
+        )
 
-        total_paid: Decimal = ZERO
+        total_paid: Decimal = to_decimal(0)
         for accrual_type, amount_due in payments_due.items():
             payable_amount: Decimal = to_decimal(amount_due) * payment_ratio
             unpayable_amount = to_decimal(amount_due) - payable_amount
@@ -654,11 +685,11 @@ class WidgetManufacturer(
         self.accrual_manager.current_period = period
         accrual_payments_due = self.accrual_manager.get_payments_due(period)
         total_accrual_due: Decimal = sum(
-            (to_decimal(v) for v in accrual_payments_due.values()), ZERO
+            (to_decimal(v) for v in accrual_payments_due.values()), to_decimal(0)
         )
 
         # Calculate total claim payments scheduled
-        total_claim_due: Decimal = ZERO
+        total_claim_due: Decimal = to_decimal(0)
         if time_resolution == "annual" or self.current_month == 0:
             for claim_item in self.claim_liabilities:
                 years_since = self.current_year - claim_item.year_incurred
@@ -669,7 +700,9 @@ class WidgetManufacturer(
         total_payments_due = total_accrual_due + total_claim_due
         available_liquidity = self.cash + self.restricted_assets
         max_total_payable: Decimal = (
-            min(total_payments_due, available_liquidity) if available_liquidity > ZERO else ZERO
+            min(total_payments_due, available_liquidity)
+            if available_liquidity > ZERO
+            else to_decimal(0)
         )
 
         # Allocate capped amount proportionally
@@ -678,8 +711,8 @@ class WidgetManufacturer(
             max_accrual_payable: Decimal = total_accrual_due * allocation_ratio
             max_claim_payable: Decimal = total_claim_due * allocation_ratio
         else:
-            max_accrual_payable = ZERO
-            max_claim_payable = ZERO
+            max_accrual_payable = to_decimal(0)
+            max_claim_payable = to_decimal(0)
 
         if total_payments_due > max_total_payable:
             logger.warning(
@@ -707,11 +740,11 @@ class WidgetManufacturer(
         elif time_resolution == "monthly":
             depreciation_expense = self.record_depreciation(useful_life_years=10 * 12)
         else:
-            depreciation_expense = ZERO
+            depreciation_expense = to_decimal(0)
 
         # Record capital expenditure (reinvestment in PP&E) (Issue #543)
         # Capex is capitalized (Dr GROSS_PPE, Cr CASH) — does not affect income.
-        capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
+        capex_ratio = self._cached_capex_ratio
         if capex_ratio > ZERO and depreciation_expense > ZERO:
             capex_amount = depreciation_expense * capex_ratio
             self.record_capex(capex_amount)
@@ -736,7 +769,7 @@ class WidgetManufacturer(
         # closing entries (#803) can properly close income statement accounts
         # to retained earnings instead of routing through Dr/Cr CASH.
         # revenue and operating_income are already period amounts at this point.
-        base_expenses = revenue * to_decimal(1 - self.base_operating_margin)
+        base_expenses = revenue * self._cached_base_margin_complement
         # Cash operating expenses exclude depreciation (non-cash)
         period_cash_expenses = base_expenses - depreciation_expense
 
@@ -844,7 +877,7 @@ class WidgetManufacturer(
         # Cap at remaining tax basis (cannot depreciate below zero)
         tax_net = self.gross_ppe - self.tax_handler.tax_accumulated_depreciation
         if tax_net <= ZERO:
-            tax_depr = ZERO
+            tax_depr = to_decimal(0)
         else:
             tax_depr = min(tax_depr, tax_net)
 
@@ -853,7 +886,7 @@ class WidgetManufacturer(
         # Compute desired DTL = (tax_accum - book_accum) * tax_rate
         # Positive when tax depreciation is ahead of book depreciation
         temp_diff = self.tax_handler.tax_accumulated_depreciation - self.accumulated_depreciation
-        desired_dtl = max(ZERO, temp_diff * to_decimal(self.config.tax_rate))
+        desired_dtl = max(to_decimal(0), temp_diff * to_decimal(self.config.tax_rate))
         current_dtl = self.ledger.get_balance(AccountName.DEFERRED_TAX_LIABILITY)
         dtl_change = desired_dtl - current_dtl
 
@@ -901,18 +934,18 @@ class WidgetManufacturer(
         self.metrics_history = []
 
         # Reset period insurance cost tracking
-        self.period_insurance_premiums = ZERO
-        self.period_insurance_losses = ZERO
-        self.period_insurance_lae = ZERO
+        self.period_insurance_premiums = to_decimal(0)
+        self.period_insurance_losses = to_decimal(0)
+        self.period_insurance_lae = to_decimal(0)
 
         # Reset reserve development tracking (Issue #470)
-        self.period_adverse_development = ZERO
-        self.period_favorable_development = ZERO
+        self.period_adverse_development = to_decimal(0)
+        self.period_favorable_development = to_decimal(0)
         if self._enable_reserve_development and self._reserve_rng is not None:
             self._reserve_rng.seed(42)
 
         # Reset dividend tracking
-        self._last_dividends_paid = ZERO
+        self._last_dividends_paid = to_decimal(0)
 
         # Reset cached net income (Issue #617)
         self._period_net_income = None
@@ -929,14 +962,14 @@ class WidgetManufacturer(
         self.tax_handler = TaxHandler(
             tax_rate=self.config.tax_rate,
             accrual_manager=self.accrual_manager,
-            nol_carryforward=Decimal("0"),
+            nol_carryforward=to_decimal(0),
             nol_limitation_pct=(
                 self.config.nol_limitation_pct if self._nol_carryforward_enabled else 0.0
             ),
         )
 
         # Track original prepaid premium for amortization calculation
-        self._original_prepaid_premium = ZERO
+        self._original_prepaid_premium = to_decimal(0)
 
         # FIX 1 (Issue #305): Use config.ppe_ratio directly, same as __init__()
         # Previously, reset() recalculated ppe_ratio from margin thresholds,
@@ -1004,6 +1037,7 @@ class WidgetManufacturer(
         cls,
         config: ManufacturerConfig,
         stochastic_process: Optional[StochasticProcess] = None,
+        use_float: bool = False,
     ) -> "WidgetManufacturer":
         """Create a fresh manufacturer from configuration alone.
 
@@ -1016,8 +1050,9 @@ class WidgetManufacturer(
             stochastic_process: Optional stochastic process instance.  The
                 caller is responsible for ensuring independence (e.g. by
                 deep-copying the process once before passing it in).
+            use_float: If True, enable float mode (Issue #1142).
 
         Returns:
             A new WidgetManufacturer in its initial state.
         """
-        return cls(config=config, stochastic_process=stochastic_process)
+        return cls(config=config, stochastic_process=stochastic_process, use_float=use_float)

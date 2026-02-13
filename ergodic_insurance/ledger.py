@@ -37,7 +37,7 @@ import itertools
 from typing import Any, Dict, List, Optional, Tuple, Union
 import warnings
 
-from .decimal_utils import ZERO, to_decimal
+from .decimal_utils import ZERO, is_float_mode, to_decimal
 
 # Lightweight monotonic counter for transaction reference IDs.
 # Replaces uuid4() to avoid syscall overhead in the Monte Carlo inner loop.
@@ -247,8 +247,13 @@ class LedgerEntry:
 
     def __post_init__(self) -> None:
         """Validate entry after initialization."""
-        # Convert amount to Decimal if not already (runtime check for backwards compatibility)
-        if not isinstance(self.amount, Decimal):
+        # Convert amount to the mode-appropriate type (Issue #1142).
+        # In float mode, accept float as-is; in Decimal mode, convert
+        # non-Decimal values to Decimal.
+        if is_float_mode():
+            if not isinstance(self.amount, (Decimal, float)):
+                object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
+        elif not isinstance(self.amount, Decimal):
             object.__setattr__(self, "amount", to_decimal(self.amount))  # type: ignore[unreachable]
         if self.amount < ZERO:
             raise ValueError(f"Ledger entry amount must be non-negative, got {self.amount}")
@@ -423,8 +428,9 @@ class Ledger:
         self._pruned_balances: Dict[str, Decimal] = {}
         self._prune_cutoff: Optional[int] = None
         # Aggregate debit/credit totals for pruned entries (Issue #362)
-        self._pruned_debits: Decimal = ZERO
-        self._pruned_credits: Decimal = ZERO
+        # Use to_decimal(0) so the type adapts to float mode (Issue #1142)
+        self._pruned_debits = to_decimal(0)
+        self._pruned_credits = to_decimal(0)
 
     def _update_balance_cache(self, entry: LedgerEntry) -> None:
         """Update running balance cache after recording an entry.
@@ -438,7 +444,7 @@ class Ledger:
         account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
 
         if account not in self._balances:
-            self._balances[account] = ZERO
+            self._balances[account] = to_decimal(0)
 
         # Apply entry based on account type and entry type
         if account_type in (AccountType.ASSET, AccountType.EXPENSE):
@@ -626,8 +632,9 @@ class Ledger:
         account_str = _resolve_account_name(account)
 
         # O(1) lookup for current balance (Issue #259)
+        # Use to_decimal(0) so the default adapts to float mode (Issue #1142)
         if as_of_date is None:
-            return self._balances.get(account_str, ZERO)
+            return self._balances.get(account_str, to_decimal(0))
 
         # Warn when querying dates in the pruned range (Issue #362)
         if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
@@ -642,7 +649,7 @@ class Ledger:
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
         # Start from pruned snapshot if entries have been pruned (Issue #315)
-        total = self._pruned_balances.get(account_str, ZERO)
+        total = self._pruned_balances.get(account_str, to_decimal(0))
         for entry in self.entries:
             if entry.account != account_str:
                 continue
@@ -681,7 +688,7 @@ class Ledger:
         account_str = _resolve_account_name(account)
         account_type = self.chart_of_accounts.get(account_str, AccountType.ASSET)
 
-        total = ZERO
+        total = to_decimal(0)
         for entry in self.entries:
             if entry.account != account_str:
                 continue
@@ -782,7 +789,7 @@ class Ledger:
         # Resolve account name if provided
         account_str = _resolve_account_name(account) if account is not None else None
 
-        total = ZERO
+        total = to_decimal(0)
 
         for entry in self.entries:
             if entry.transaction_type != transaction_type:
@@ -928,11 +935,11 @@ class Ledger:
         """
         total_debits = self._pruned_debits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.DEBIT),
-            ZERO,
+            to_decimal(0),
         )
         total_credits = self._pruned_credits + sum(
             (e.amount for e in self.entries if e.entry_type == EntryType.CREDIT),
-            ZERO,
+            to_decimal(0),
         )
 
         difference = total_debits - total_credits
@@ -991,7 +998,7 @@ class Ledger:
 
             account = entry.account
             if account not in totals:
-                totals[account] = ZERO
+                totals[account] = to_decimal(0)
 
             account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
             if account_type in (AccountType.ASSET, AccountType.EXPENSE):
@@ -1046,7 +1053,7 @@ class Ledger:
                 # Accumulate into snapshot
                 account = entry.account
                 if account not in snapshot:
-                    snapshot[account] = ZERO
+                    snapshot[account] = to_decimal(0)
                 account_type = self.chart_of_accounts.get(account, AccountType.ASSET)
                 if account_type in (AccountType.ASSET, AccountType.EXPENSE):
                     if entry.entry_type == EntryType.DEBIT:
@@ -1084,8 +1091,8 @@ class Ledger:
         self._balances.clear()
         self._pruned_balances.clear()
         self._prune_cutoff = None
-        self._pruned_debits = ZERO
-        self._pruned_credits = ZERO
+        self._pruned_debits = to_decimal(0)
+        self._pruned_credits = to_decimal(0)
 
     def __len__(self) -> int:
         """Return the number of entries in the ledger."""

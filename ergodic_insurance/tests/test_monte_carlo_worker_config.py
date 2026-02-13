@@ -74,7 +74,7 @@ class TestDefaultStepConfig:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             # Need to patch on the class because deepcopy creates a new instance
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
@@ -101,7 +101,7 @@ class TestCustomLetterOfCreditRate:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -116,7 +116,7 @@ class TestCustomLetterOfCreditRate:
 
         # Run with low LoC rate
         config_low = {"n_years": 1, "letter_of_credit_rate": 0.001}
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 (0, 1, 42), loss_generator, insurance_program, manufacturer, config_low
             )
@@ -124,7 +124,7 @@ class TestCustomLetterOfCreditRate:
 
         # Run with high LoC rate
         config_high = {"n_years": 1, "letter_of_credit_rate": 0.10}
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 (0, 1, 42), loss_generator, insurance_program, manufacturer, config_high
             )
@@ -143,7 +143,7 @@ class TestCustomLetterOfCreditRate:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             result = run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -165,7 +165,7 @@ class TestCustomGrowthRate:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -229,7 +229,7 @@ class TestCustomTimeResolution:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -246,7 +246,7 @@ class TestCustomTimeResolution:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -288,7 +288,7 @@ class TestCustomApplyStochastic:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -348,7 +348,7 @@ class TestAllCustomParameters:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -368,7 +368,7 @@ class TestAllCustomParameters:
         }
         chunk = (0, 1, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )
@@ -392,7 +392,7 @@ class TestAllCustomParameters:
         }
         chunk = (0, n_sims, 42)
 
-        with patch.object(WidgetManufacturer, "step", wraps=manufacturer.step) as mock_step:
+        with patch.object(WidgetManufacturer, "step", return_value={}) as mock_step:
             run_chunk_standalone(
                 chunk, loss_generator, insurance_program, manufacturer, config_dict
             )

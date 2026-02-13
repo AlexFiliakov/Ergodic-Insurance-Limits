@@ -24,7 +24,7 @@ def test_configuration_files_exist():
     # Package-level config files (pytest config consolidated into pyproject.toml)
     assert (package_root / "requirements.txt").exists()
     assert (package_root / "README.md").exists()
-    # Repo-level config files (pyproject.toml consolidated to repo root)
+    # Repo-level config files (pytest config consolidated into pyproject.toml)
     assert (repo_root / "pyproject.toml").exists()
 
 
