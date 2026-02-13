@@ -155,9 +155,22 @@ uv sync
 pip install -e .
 ```
 
-3. Install pre-commit hooks for code quality:
+### Developer Setup
+
+If you plan to contribute, run the one-time setup script to install dev
+dependencies and pre-commit hooks (black, isort, mypy, pylint, conventional
+commit enforcement):
+
 ```bash
+python ergodic_insurance/scripts/setup_dev.py
+```
+
+Or do it manually:
+
+```bash
+pip install -e ".[dev]"
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 
 ## Quick Start
@@ -259,6 +272,19 @@ Ergodic-Insurance-Limits/
 See the [Codebase Onboarding Guide](docs/Codebase%20Onboarding%20Guide.md) for the project preliminaries.
 
 See the list of [Open Issues](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues) for improvement ideas.
+
+### First-Time Setup
+
+After cloning, run the developer setup script to install dependencies and
+pre-commit hooks:
+
+```bash
+python ergodic_insurance/scripts/setup_dev.py
+```
+
+This installs the package in editable mode with dev extras, and configures
+`pre-commit` and `commit-msg` hooks so that **black**, **isort**, **mypy**,
+**pylint**, and conventional commit checks run automatically on every commit.
 
 ### Code Quality Tools
 
