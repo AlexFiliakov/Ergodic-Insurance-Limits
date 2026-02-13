@@ -1,7 +1,7 @@
 """High-performance Monte Carlo simulation engine for insurance optimization."""
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import logging
 import os
@@ -1908,14 +1908,13 @@ class MonteCarloEngine:
         if max_iterations is None:
             max_iterations = self.config.n_simulations * 10
 
-        # Save original config values that will be temporarily modified
-        original_n_sims = self.config.n_simulations
-        original_seed = self.config.seed
-        self.config.n_simulations = check_interval
-
-        # Use a local variable for seed advancement so config.seed is not
-        # permanently mutated (issue #299).
         batch_seed = self.config.seed
+
+        # Work on a shallow copy so the caller's config object is never
+        # mutated (issue #1018).  Only self.config is swapped; the
+        # original dataclass instance stays untouched.
+        original_config = self.config
+        self.config = replace(original_config, n_simulations=check_interval)
 
         all_results = []
         total_iterations = 0
@@ -1923,7 +1922,7 @@ class MonteCarloEngine:
 
         try:
             while not converged and total_iterations < max_iterations:
-                # Set seed for this batch
+                # Set seed for this batch (mutates only the local copy)
                 self.config.seed = batch_seed
 
                 # Run batch
@@ -1951,9 +1950,8 @@ class MonteCarloEngine:
                 if batch_seed is not None:
                     batch_seed += check_interval
         finally:
-            # Restore original config regardless of how we exit
-            self.config.n_simulations = original_n_sims
-            self.config.seed = original_seed
+            # Restore original config reference
+            self.config = original_config
 
         return combined
 
