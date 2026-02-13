@@ -19,9 +19,9 @@ Since:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import logging
 import threading
-from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
@@ -311,16 +311,16 @@ def generate_losses_for_year(
     lg_freq = _scaled_freq(
         params.large_base_freq, params.large_scaling_exp, params.large_ref_revenue
     )
-    cat_freq = _scaled_freq(
-        params.cat_base_freq, params.cat_scaling_exp, params.cat_ref_revenue
-    )
+    cat_freq = _scaled_freq(params.cat_base_freq, params.cat_scaling_exp, params.cat_ref_revenue)
 
     att_counts = rng.poisson(att_freq).astype(np.int32)
     lg_counts = rng.poisson(lg_freq).astype(np.int32)
     cat_counts = rng.poisson(cat_freq).astype(np.int32)
 
     total_counts = att_counts + lg_counts + cat_counts
-    max_events = min(int(np.max(total_counts)) if total_counts.size > 0 else 0, _MAX_EVENTS_PER_YEAR)
+    max_events = min(
+        int(np.max(total_counts)) if total_counts.size > 0 else 0, _MAX_EVENTS_PER_YEAR
+    )
 
     # Edge case: no events at all
     if max_events == 0:
@@ -429,7 +429,9 @@ def apply_insurance_vectorized(
     agg_limits_list = params.layer_aggregate_limits
 
     # Identify which layers are aggregate-limited
-    has_aggregate = [lt in (1, 2) or agg < float("inf") for lt, agg in zip(limit_types, agg_limits_list)]
+    has_aggregate = [
+        lt in (1, 2) or agg < float("inf") for lt, agg in zip(limit_types, agg_limits_list)
+    ]
     any_aggregate = any(has_aggregate)
 
     if not any_aggregate:
@@ -598,12 +600,12 @@ def run_gpu_simulation(
 
             # Revenue = max(assets, 0) * turnover * (1 + growth_rate)^year
             growth_factor = dtype.type((1.0 + params.growth_rate) ** year)
-            revenues = xp.maximum(assets, 0.0) * dtype.type(params.asset_turnover_ratio) * growth_factor
+            revenues = (
+                xp.maximum(assets, 0.0) * dtype.type(params.asset_turnover_ratio) * growth_factor
+            )
 
             # Generate losses
-            loss_amounts, n_events = generate_losses_for_year(
-                params, revenues, xp, rng, dtype
-            )
+            loss_amounts, n_events = generate_losses_for_year(params, revenues, xp, rng, dtype)
 
             # Apply insurance
             year_total_losses, year_recoveries, year_retained = apply_insurance_vectorized(

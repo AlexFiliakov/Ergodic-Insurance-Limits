@@ -15,8 +15,8 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.gpu_mc_engine import (
-    GPUSimulationParams,
     _MAX_EVENTS_PER_YEAR,
+    GPUSimulationParams,
     apply_insurance_vectorized,
     extract_params,
     generate_losses_for_year,
@@ -379,9 +379,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0, 500_000.0, 500_000.0]], dtype=dtype)
         n_events = xp.array([3], dtype=xp.int32)
 
-        _, recoveries, _ = apply_insurance_vectorized(
-            loss_amounts, n_events, params, xp, dtype
-        )
+        _, recoveries, _ = apply_insurance_vectorized(loss_amounts, n_events, params, xp, dtype)
 
         assert abs(float(recoveries[0]) - 800_000.0) < 1.0
 
@@ -752,9 +750,9 @@ class TestStatisticalEquivalence:
         mean_retained_none = np.mean(np.sum(result_none["retained_losses"], axis=1))
         mean_retained_ins = np.mean(np.sum(result_ins["retained_losses"], axis=1))
 
-        assert mean_retained_ins < mean_retained_none, (
-            "Insurance should reduce mean retained losses"
-        )
+        assert (
+            mean_retained_ins < mean_retained_none
+        ), "Insurance should reduce mean retained losses"
 
     def test_ruin_probability_bounded(self):
         """Ruin probability should be between 0 and 1."""
@@ -828,8 +826,8 @@ class TestMonteCarloEngineGPUIntegration:
 
     def test_gpu_path_fallback_warns(self):
         """With use_gpu=True and no GPU, a warning is issued and CPU is used."""
-        import ergodic_insurance.gpu_backend as gpu_mod
         from ergodic_insurance.config import ManufacturerConfig
+        import ergodic_insurance.gpu_backend as gpu_mod
         from ergodic_insurance.insurance_program import InsuranceProgram
         from ergodic_insurance.loss_distributions import ManufacturingLossGenerator
         from ergodic_insurance.manufacturer import WidgetManufacturer
@@ -861,7 +859,9 @@ class TestMonteCarloEngineGPUIntegration:
                 warnings.simplefilter("always")
                 results = engine.run()
 
-                gpu_warnings = [x for x in w if "use_gpu" in str(x.message).lower() or "GPU" in str(x.message)]
+                gpu_warnings = [
+                    x for x in w if "use_gpu" in str(x.message).lower() or "GPU" in str(x.message)
+                ]
                 assert len(gpu_warnings) > 0, "Expected a GPU fallback warning"
 
         # Should still produce valid results

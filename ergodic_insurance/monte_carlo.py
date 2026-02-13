@@ -1181,11 +1181,11 @@ class MonteCarloEngine:
 
         n_sims = len(final_assets)
         ruin_probability = {
-            str(self.config.n_years): float(
-                np.mean(final_assets <= self.config.insolvency_tolerance)
+            str(self.config.n_years): (
+                float(np.mean(final_assets <= self.config.insolvency_tolerance))
+                if n_sims > 0
+                else 0.0
             )
-            if n_sims > 0
-            else 0.0
         }
 
         return MonteCarloResults(
