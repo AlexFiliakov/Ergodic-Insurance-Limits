@@ -43,7 +43,7 @@ Create an agent team to perform a thorough review of this Python package for act
 
 Before filing any new issue, each reviewer **must**:
 
-1. Read all 30+ existing open GitHub issues (`gh issue list --state open --limit 200`)
+1. Read all 570+ existing open GitHub issues (`gh issue list --state open --limit 200`)
 2. Check that their finding is **not already covered** by an existing issue
 3. If a related issue exists, reference it in the new issue body rather than filing a duplicate
 
@@ -222,15 +222,15 @@ Every GitHub issue must include:
 
 ### Progress Tracking
 
-Each reviewer must maintain a Markdown file in `docs/reviews/` documenting their progress:
+Each reviewer must maintain a Markdown file in `docs/reviews/reviews_2026_02_12` documenting their progress:
 
-- **Performance**: `docs/reviews/REVIEW_PERFORMANCE.md`
-- **Financial**: `docs/reviews/REVIEW_FINANCIAL.md`
-- **Mathematical**: `docs/reviews/REVIEW_MATHEMATICAL.md`
-- **Actuarial Methodology**: `docs/reviews/REVIEW_ACTUARIAL_METHODOLOGY.md`
-- **API Usability**: `docs/reviews/REVIEW_API_USABILITY.md`
-- **Security**: `docs/reviews/REVIEW_SECURITY.md`
-- **Issue Validation**: `docs/reviews/REVIEW_ISSUE_VALIDATION.md`
+- **Performance**: `docs/reviews/reviews_2026_02_12REVIEW_PERFORMANCE.md`
+- **Financial**: `docs/reviews/reviews_2026_02_12REVIEW_FINANCIAL.md`
+- **Mathematical**: `docs/reviews/reviews_2026_02_12REVIEW_MATHEMATICAL.md`
+- **Actuarial Methodology**: `docs/reviews/reviews_2026_02_12REVIEW_ACTUARIAL_METHODOLOGY.md`
+- **API Usability**: `docs/reviews/reviews_2026_02_12REVIEW_API_USABILITY.md`
+- **Security**: `docs/reviews/reviews_2026_02_12REVIEW_SECURITY.md`
+- **Issue Validation**: `docs/reviews/reviews_2026_02_12REVIEW_ISSUE_VALIDATION.md`
 
 Each file should contain:
 
@@ -262,9 +262,9 @@ Each file should contain:
 
 ### Minimum Issue Targets
 
-Each domain reviewer should identify **at least 10 actionable issues**. If fewer than 10 are found in any domain, the reviewer must include a section in their Markdown tracker explaining:
+Each domain reviewer should identify **at least 10 actionable "priority-high" issues**. If fewer than 10 "priority-high" issues are found in any domain, the reviewer must include a section in their Markdown tracker explaining:
 - Which specific areas were reviewed
-- Why the codebase is already well-optimized in those areas
+- Why the codebase is already well-optimized in those areas with regard to high priority issues as defined above
 - Any borderline findings that were considered but not filed, and why
 
 ---
@@ -280,7 +280,7 @@ Each domain reviewer should identify **at least 10 actionable issues**. If fewer
 
 ### Final Deliverable
 
-When all reviewers complete their work, the team lead produces a summary in `docs/reviews/REVIEW_SUMMARY.md`:
+When all reviewers complete their work, the team lead produces a summary in `docs/reviews/reviews_2026_02_12REVIEW_SUMMARY.md`:
 
 ```markdown
 # Codebase Review Summary
