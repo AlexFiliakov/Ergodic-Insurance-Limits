@@ -13,6 +13,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from ergodic_insurance.gpu_backend import GPUConfig
+
 logger = logging.getLogger(__name__)
 
 

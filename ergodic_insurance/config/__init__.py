@@ -97,6 +97,7 @@ from .presets import ModuleConfig, PresetConfig, PresetLibrary, ProfileMetadata
 from .reporting import ExcelReportConfig, LoggingConfig, OutputConfig
 from .simulation import (
     DebtConfig,
+    GPUConfig,
     GrowthConfig,
     SimulationConfig,
     WorkingCapitalConfig,
@@ -162,4 +163,6 @@ __all__ = [
     "SimulationConfig",
     "WorkingCapitalConfig",
     "WorkingCapitalRatiosConfig",
+    # GPU
+    "GPUConfig",
 ]
