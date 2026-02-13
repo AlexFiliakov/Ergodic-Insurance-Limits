@@ -768,14 +768,11 @@ class WidgetManufacturer(
         else:
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
 
-        # Issue #687: Record summary income entries in the ledger so that
-        # closing entries (#803) can properly close income statement accounts
-        # to retained earnings instead of routing through Dr/Cr CASH.
-        # revenue and operating_income are already period amounts at this point.
-        base_expenses = revenue * self._cached_base_margin_complement
-        # Cash operating expenses exclude depreciation (non-cash)
-        period_cash_expenses = base_expenses - depreciation_expense
-
+        # Issue #687/#1213: Record revenue in the ledger so that closing
+        # entries (#803) can properly close income statement accounts to
+        # retained earnings.  Cash outflows are computed from net_income in
+        # _record_closing_entries so that depreciation embedded in the margin
+        # is never double-counted (see Issue #1213).
         if revenue > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
@@ -784,17 +781,6 @@ class WidgetManufacturer(
                 amount=revenue,
                 transaction_type=TransactionType.REVENUE,
                 description=f"Year {self.current_year} revenue recognition",
-                month=self.current_month,
-            )
-
-        if period_cash_expenses > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.OPERATING_EXPENSES,
-                credit_account=AccountName.CASH,
-                amount=period_cash_expenses,
-                transaction_type=TransactionType.EXPENSE,
-                description=f"Year {self.current_year} cash operating expenses",
                 month=self.current_month,
             )
 
@@ -809,14 +795,15 @@ class WidgetManufacturer(
         # Cache net income for calculate_metrics() to avoid double tax mutation (Issue #617)
         self._period_net_income = net_income
 
-        # Update balance sheet with retained earnings (Issue #803: proper closing
-        # entries close income statement accounts to RE instead of Dr/Cr CASH)
+        # Update balance sheet with retained earnings (Issue #803/#1213: closing
+        # entries close income statement accounts to RE using net_income directly,
+        # avoiding the period_cash_expenses decomposition that double-counted
+        # depreciation embedded in base_operating_margin)
         self.update_balance_sheet(
             net_income,
             growth_rate,
             depreciation_expense,
             period_revenue=revenue,
-            period_cash_expenses=period_cash_expenses,
         )
 
         # Amortize prepaid insurance if applicable
