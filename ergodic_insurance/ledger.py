@@ -33,11 +33,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+import itertools
 from typing import Any, Dict, List, Optional, Tuple, Union
-import uuid
 import warnings
 
 from .decimal_utils import ZERO, to_decimal
+
+# Lightweight monotonic counter for transaction reference IDs.
+# Replaces uuid4() to avoid syscall overhead in the Monte Carlo inner loop.
+_entry_counter = itertools.count()
 
 
 class AccountType(Enum):
@@ -226,8 +230,8 @@ class LedgerEntry:
         entry_type: DEBIT or CREDIT
         transaction_type: Classification for cash flow mapping
         description: Human-readable description of the transaction
-        reference_id: UUID linking both sides of a double-entry transaction
-        timestamp: Actual datetime when entry was recorded (for audit)
+        reference_id: Lightweight ID linking both sides of a double-entry transaction
+        timestamp: Datetime when entry was recorded (None in simulation hot path)
         month: Optional month within the year (0-11)
     """
 
@@ -237,8 +241,8 @@ class LedgerEntry:
     entry_type: EntryType
     transaction_type: TransactionType
     description: str = ""
-    reference_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: datetime = field(default_factory=datetime.now)
+    reference_id: str = field(default_factory=lambda: f"txn_{next(_entry_counter)}")
+    timestamp: Optional[datetime] = None
     month: int = 0  # Month within year (0-11)
 
     def __post_init__(self) -> None:
@@ -563,9 +567,8 @@ class Ledger:
             # Return None sentinel for zero-amount transactions (Issue #315)
             return (None, None)
 
-        # Generate shared reference ID
-        ref_id = str(uuid.uuid4())
-        timestamp = datetime.now()
+        # Shared reference ID for both sides of the double-entry
+        ref_id = f"txn_{next(_entry_counter)}"
 
         debit_entry = LedgerEntry(
             date=date,
@@ -575,7 +578,6 @@ class Ledger:
             transaction_type=transaction_type,
             description=description,
             reference_id=ref_id,
-            timestamp=timestamp,
             month=month,
         )
 
@@ -587,7 +589,6 @@ class Ledger:
             transaction_type=transaction_type,
             description=description,
             reference_id=ref_id,
-            timestamp=timestamp,
             month=month,
         )
 
