@@ -198,6 +198,24 @@ class IncomeCalculationMixin:
 
         net_income = income_before_tax - actual_tax_expense
 
+        # Record tax accrual ledger entry (Issue #1081)
+        # When tax is accrued to AccrualManager, mirror it in the ledger
+        tax_was_accrued = (
+            use_accrual
+            and actual_tax_expense > ZERO
+            and (time_resolution == "annual" or self.current_month in [2, 5, 8, 11])
+        )
+        if tax_was_accrued:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.TAX_EXPENSE,
+                credit_account=AccountName.ACCRUED_TAXES,
+                amount=actual_tax_expense,
+                transaction_type=TransactionType.TAX_ACCRUAL,
+                description=f"Year {self.current_year} tax accrual",
+                month=self.current_month,
+            )
+
         # Record DTA journal entries for NOL changes (Issue #365)
         if self._nol_carryforward_enabled:
             new_dta = self.tax_handler.deferred_tax_asset
