@@ -199,17 +199,17 @@ class TestGrowthRatesUseEquity:
         import inspect
 
         from ergodic_insurance.monte_carlo import _simulate_path_enhanced
-        from ergodic_insurance.monte_carlo_worker import run_chunk_standalone
+        from ergodic_insurance.monte_carlo_worker import _run_chunk_impl
 
         source_enhanced = inspect.getsource(_simulate_path_enhanced)
         assert (
             "final_equity" in source_enhanced
         ), "_simulate_path_enhanced should include final_equity in its return dict"
 
-        source_worker = inspect.getsource(run_chunk_standalone)
+        source_worker = inspect.getsource(_run_chunk_impl)
         assert (
             "final_equity" in source_worker
-        ), "run_chunk_standalone should include final_equity in its return dict"
+        ), "_run_chunk_impl should include final_equity in its return dict"
 
 
 class TestRuinConvergenceHorizon:
