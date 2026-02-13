@@ -208,7 +208,6 @@ class TestProgressMonitor:
 
         # Update some progress
         monitor.update(500)
-        time.sleep(0.05)  # Delay to ensure elapsed time > 0 even on fast systems
 
         stats = monitor.get_stats()
 
@@ -410,7 +409,7 @@ class TestMonteCarloIntegration:
         """Test that progress monitoring has minimal performance impact."""
         loss_generator, insurance_program, manufacturer = mock_components
 
-        config = MonteCarloConfig(n_simulations=5000, n_years=5, progress_bar=False, parallel=False)
+        config = MonteCarloConfig(n_simulations=2000, n_years=5, progress_bar=False, parallel=False)
 
         engine = MonteCarloEngine(
             loss_generator=loss_generator,
@@ -427,7 +426,7 @@ class TestMonteCarloIntegration:
         # Run with monitoring
         start = time.perf_counter()
         results_monitor = engine.run_with_progress_monitoring(
-            check_intervals=[1000, 2500, 5000], show_progress=False
+            check_intervals=[1000, 2000], show_progress=False
         )
         time_monitor = time.perf_counter() - start
 

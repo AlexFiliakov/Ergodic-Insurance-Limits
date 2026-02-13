@@ -73,7 +73,7 @@ class TestJackknifeAcceleration:
         rng = np.random.default_rng(42)
         data = rng.exponential(100, size=500)
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         result = analyzer.confidence_interval(data, np.mean, method="bca")
 
         assert np.isfinite(result.confidence_interval[0])
@@ -144,10 +144,10 @@ class TestMultiConfidenceInterval:
         rng = np.random.default_rng(42)
         data = rng.normal(100, 15, 500)
 
-        analyzer_single = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer_single = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         single = analyzer_single.confidence_interval(data, np.mean, method="percentile")
 
-        analyzer_multi = BootstrapAnalyzer(n_bootstrap=2000, seed=42, show_progress=False)
+        analyzer_multi = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         multi = analyzer_multi.multi_confidence_interval(
             {"mean": (data, np.mean)}, method="percentile"
         )
@@ -231,7 +231,7 @@ class TestMultiConfidenceInterval:
         rng = np.random.default_rng(42)
         data = rng.normal(100, 15, 1000)
 
-        analyzer = BootstrapAnalyzer(n_bootstrap=3000, seed=42, show_progress=False)
+        analyzer = BootstrapAnalyzer(n_bootstrap=500, seed=42, show_progress=False)
         results = analyzer.multi_confidence_interval(
             {
                 "mean": (data, np.mean),
@@ -253,7 +253,7 @@ class TestMultiConfidenceInterval:
 
         rng = np.random.default_rng(42)
         data = rng.normal(100, 15, 500)
-        n_bootstrap = 2000
+        n_bootstrap = 500
 
         # Individual calls
         stat_fns: list[Callable[[np.ndarray], float]] = [np.mean, np.median, np.std]

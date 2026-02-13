@@ -22,31 +22,19 @@ class TestInsuranceLayer:
         assert layer.limit == 5_000_000
         assert layer.rate == 0.01
 
-    def test_calculate_recovery_below_attachment(self):
-        """Test recovery calculation when loss is below attachment point."""
+    @pytest.mark.parametrize(
+        "loss,expected",
+        [
+            pytest.param(500_000, 0.0, id="below-attachment"),
+            pytest.param(1_000_000, 0.0, id="at-attachment"),
+            pytest.param(3_000_000, 2_000_000, id="within-layer"),
+            pytest.param(10_000_000, 5_000_000, id="exceeds-layer"),
+        ],
+    )
+    def test_calculate_recovery(self, loss, expected):
+        """Test recovery calculation for various loss amounts."""
         layer = InsuranceLayer(attachment_point=1_000_000, limit=5_000_000, rate=0.01)
-        recovery = layer.calculate_recovery(500_000)
-        assert recovery == 0.0
-
-    def test_calculate_recovery_within_layer(self):
-        """Test recovery calculation when loss is within layer coverage."""
-        layer = InsuranceLayer(attachment_point=1_000_000, limit=5_000_000, rate=0.01)
-        # Loss of 3M: 1M attachment + 2M into layer
-        recovery = layer.calculate_recovery(3_000_000)
-        assert recovery == 2_000_000
-
-    def test_calculate_recovery_exceeds_layer(self):
-        """Test recovery calculation when loss exceeds layer limit."""
-        layer = InsuranceLayer(attachment_point=1_000_000, limit=5_000_000, rate=0.01)
-        # Loss of 10M: 1M attachment + 9M excess (capped at 5M limit)
-        recovery = layer.calculate_recovery(10_000_000)
-        assert recovery == 5_000_000
-
-    def test_calculate_recovery_at_attachment(self):
-        """Test recovery calculation when loss equals attachment point."""
-        layer = InsuranceLayer(attachment_point=1_000_000, limit=5_000_000, rate=0.01)
-        recovery = layer.calculate_recovery(1_000_000)
-        assert recovery == 0.0
+        assert layer.calculate_recovery(loss) == expected
 
     def test_calculate_premium(self):
         """Test premium calculation."""
@@ -397,7 +385,17 @@ class TestOverRecoveryGuard:
         assert insurance <= 3_000_000  # Capped at claim amount
         assert company + insurance == 3_000_000
 
-    def test_recovery_never_exceeds_claim(self):
+    @pytest.mark.parametrize(
+        "claim",
+        [
+            pytest.param(100_000, id="below-deductible"),
+            pytest.param(500_000, id="at-deductible"),
+            pytest.param(1_000_000, id="within-layer"),
+            pytest.param(5_000_000, id="mid-layer"),
+            pytest.param(15_000_000, id="exceeds-layers"),
+        ],
+    )
+    def test_recovery_never_exceeds_claim(self, claim):
         """Test that recovery <= claim for various configurations."""
         layers = [
             InsuranceLayer(attachment_point=100_000, limit=10_000_000, rate=0.01),
@@ -406,13 +404,12 @@ class TestOverRecoveryGuard:
         with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
             policy = InsurancePolicy(layers=layers, deductible=500_000)
 
-        for claim in [100_000, 500_000, 1_000_000, 5_000_000, 15_000_000]:
-            company, insurance = policy.process_claim(claim)
-            assert insurance <= claim, f"Over-recovery for claim {claim}"
-            assert insurance <= claim - min(
-                claim, 500_000
-            ), f"Recovery exceeds (claim - deductible) for claim {claim}"
-            assert company + insurance == claim
+        company, insurance = policy.process_claim(claim)
+        assert insurance <= claim, f"Over-recovery for claim {claim}"
+        assert insurance <= claim - min(
+            claim, 500_000
+        ), f"Recovery exceeds (claim - deductible) for claim {claim}"
+        assert company + insurance == claim
 
     def test_calculate_recovery_capped(self):
         """Test calculate_recovery also respects the cap."""
@@ -472,8 +469,8 @@ class TestOverRecoveryGuard:
 class TestFromSimple:
     """Tests for InsurancePolicy.from_simple() convenience constructor."""
 
-    def test_creates_single_layer_policy(self):
-        """from_simple() should create a policy with exactly one layer."""
+    def test_from_simple_structure(self):
+        """from_simple() creates a single-layer policy with correct fields."""
         with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
             policy = InsurancePolicy.from_simple(
                 deductible=500_000,
@@ -481,35 +478,8 @@ class TestFromSimple:
                 premium_rate=0.025,
             )
         assert len(policy.layers) == 1
-
-    def test_deductible_set_correctly(self):
-        """Deductible on the policy matches the argument."""
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy.from_simple(
-                deductible=500_000,
-                limit=10_000_000,
-                premium_rate=0.025,
-            )
         assert policy.deductible == 500_000
-
-    def test_layer_attachment_equals_deductible(self):
-        """The single layer's attachment point equals the deductible."""
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy.from_simple(
-                deductible=500_000,
-                limit=10_000_000,
-                premium_rate=0.025,
-            )
         assert policy.layers[0].attachment_point == 500_000
-
-    def test_layer_limit_and_rate(self):
-        """Layer limit and rate match the arguments."""
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy.from_simple(
-                deductible=500_000,
-                limit=10_000_000,
-                premium_rate=0.025,
-            )
         assert policy.layers[0].limit == 10_000_000
         assert policy.layers[0].rate == 0.025
 

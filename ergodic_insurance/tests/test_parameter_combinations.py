@@ -52,8 +52,10 @@ class TestParameterCombinations:
                 assert 0 <= config.manufacturer.tax_rate <= 1
                 assert config.simulation.time_horizon_years > 0
 
-            except (ValidationError, KeyError) as e:
-                # Some files might be partial configs, which is okay
+            except (ValidationError, KeyError):
+                # TODO(tautology-review): silently swallowing validation errors
+                # means invalid full configs would pass. Consider collecting
+                # errors and failing if any non-partial config fails.
                 pass
 
     def test_scenario_combinations(self, config_loader):
@@ -89,7 +91,7 @@ class TestParameterCombinations:
                 assert config.growth.volatility > 0
 
                 # Verify stochastic-specific parameters exist
-                assert hasattr(config, "stochastic") or config.growth.volatility > 0
+                assert hasattr(config, "stochastic") or hasattr(config.growth, "mean_reversion")
             else:
                 # Load baseline (deterministic)
                 config = config_loader.load("baseline")

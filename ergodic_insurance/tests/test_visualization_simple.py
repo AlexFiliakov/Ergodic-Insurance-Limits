@@ -412,6 +412,7 @@ class TestVisualizationPlots:
     def test_create_interactive_dashboard(self):
         """Test interactive dashboard creation."""
         # Create sample data
+        np.random.seed(42)
         simulation_data = pd.DataFrame(
             {
                 "year": [1, 2, 3] * 100,
@@ -431,6 +432,7 @@ class TestVisualizationPlots:
 
     def test_create_interactive_dashboard_with_options(self):
         """Test interactive dashboard with various options."""
+        np.random.seed(42)
         simulation_data = pd.DataFrame(
             {
                 "year": [1, 2, 3] * 10,

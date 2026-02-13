@@ -1,231 +1,240 @@
 # Test Suite Redundancy Report
 
-**Date**: 2026-02-09
-**Analyst**: redundancy-analyst
-**Branch**: bugfix/360_fix_test_suite
+**Date:** 2026-02-13
+**Branch:** tests/571_refactor_tests
+**Analyst:** redundancy-analyst
 
 ## Executive Summary
 
-After systematic analysis of all 164 test files (156 unit + 8 integration), this report identifies **redundant tests**, **parametrize candidates**, **fixture duplication**, and **overlapping coverage**. Overall, the `_coverage.py` files generally target distinct uncovered lines and are NOT duplicates of their primary test files. However, several clusters of redundancy exist.
+Systematic analysis of all 183 test files (~109,400 lines of test code) identified and consolidated redundant tests across the insurance core module group and other areas. The `_coverage.py` files generally target distinct uncovered lines and are NOT duplicates of their primary test files, with specific exceptions noted below.
 
-**Key finding**: Most `test_X.py` + `test_X_coverage.py` pairs are complementary, not duplicative. The coverage files explicitly target specific uncovered line numbers and test different code paths. The main redundancy clusters are in the visualization formatting tests and fixture definitions.
+**Key finding**: Most `test_X.py` + `test_X_coverage.py` pairs are complementary, not duplicative. The main redundancy clusters are: (1) copy-paste duplicates where coverage files re-test functionality already covered in the primary test file, (2) groups of 3+ tests following identical patterns that should be parametrized, and (3) visualization formatting tests duplicated across multiple files.
 
-## 1. Copy-Paste Duplicates
+| Category | Clusters Found | Tests Consolidated/Removed |
+|----------|---------------:|---------------------------:|
+| Copy-paste duplicates (main vs coverage files) | 6 | ~25 removed |
+| Parametrize candidates (3+ same-pattern tests) | 8 | ~30 consolidated |
+| Visualization formatting duplicates | 2 | ~6 removed |
+| **Total** | **16** | **~61** |
 
-### 1A. Visualization Formatting Tests (REDUNDANT)
+---
 
-**Files involved**: `test_visualization_simple.py`, `test_visualization.py`, `test_visualization_extended.py`
+## 1. Copy-Paste Duplicates Removed (Implemented)
 
-The `format_currency` function is tested redundantly:
+### 1.1 `test_insurance_program_coverage.py` :: `TestInsuranceProgramSimpleCoverage`
+**Duplicate of:** `test_insurance_program.py` :: `TestInsuranceProgramSimple`
 
-| Test | File | What it tests |
-|------|------|---------------|
-| `test_format_currency` | `test_visualization_simple.py:31` | `format_currency(1000)`, `format_currency(1000000)`, etc. |
-| `test_format_currency_basic` | `test_visualization.py:117` | `format_currency(1000)`, `format_currency(1000.50)`, etc. |
-| `test_format_currency_abbreviated` | `test_visualization.py:124` | Abbreviated format with K/M/B |
-| `test_format_currency_abbreviate_large_numbers` | `test_visualization_extended.py:51` | Abbreviated format with K/M/B (overlaps with above) |
-| `test_format_currency_edge_cases` | `test_visualization.py:133` | Edge cases (0, small values, negatives) |
+Both classes tested `InsuranceProgram.simple()` with structurally identical tests:
+- `test_creates_single_layer` / `test_creates_single_layer_program`
+- `test_attachment_equals_deductible` / `test_layer_attachment_equals_deductible`
+- `test_layer_has_zero_reinstatements` / `test_no_reinstatements`
+- `test_respects_name_kwarg` / `test_custom_name`
+- `test_forwards_extra_kwargs` / `test_kwargs_forwarded`
+- `test_zero_deductible` / `test_zero_deductible`
 
-The `format_percentage` function is tested redundantly:
+**Action:** Removed `TestInsuranceProgramSimpleCoverage` (6 tests). The one extra assertion (`isinstance(..., EnhancedInsuranceLayer)`) was merged into the main test.
 
-| Test | File | What it tests |
-|------|------|---------------|
-| `test_format_percentage` | `test_visualization_simple.py:39` | `format_percentage(0.05)`, etc. |
-| `test_format_percentage_basic` | `test_visualization.py:149` | Same inputs as above |
-| `test_format_percentage_edge_cases` | `test_visualization.py:156` | Edge cases (0, small values) |
+### 1.2 `test_insurance_program_coverage.py` :: `TestInsuranceProgramCalculatePremiumCoverage`
+**Duplicate of:** `test_insurance_program.py` :: `TestInsuranceProgramCalculatePremium`
 
-The `set_wsj_style` function is tested in both:
-- `test_visualization_simple.py:63`
-- `test_visualization.py:97`
+Both test the `calculate_premium()` alias with:
+- Premium-is-alias/matches-annual test (identical logic)
+- Premium correct value (same pattern, different amounts)
+- Empty layers returns 0 (identical)
 
-The `WSJFormatter` is tested redundantly:
-- `test_visualization_simple.py:47` (`test_wsj_formatter`) - currency/percentage/number basics
-- `test_visualization_extended.py:69` (`test_wsj_formatter_currency_method_edge_cases`) - extends to trillions, negatives
-- `test_visualization_extended.py:95` (`test_wsj_formatter_number_method_edge_cases`) - extends to large numbers
+**Action:** Removed `TestInsuranceProgramCalculatePremiumCoverage` (3 tests).
 
-**Action**: Consolidate `test_visualization_simple.py::TestVisualizationFormatting` tests into `test_visualization.py`. The simple file's formatting tests are strict subsets. The extended file adds NEW edge cases, so those remain.
+### 1.3 `test_insurance_program_coverage.py` :: `TestCreateStandardProgram`
+**Duplicate of:** `test_insurance_program.py` :: `TestInsuranceProgram.test_standard_manufacturing_program`
 
-### 1B. `test_visualization_simple.py::test_set_wsj_style` vs `test_visualization.py::test_set_wsj_style`
+Both test `create_standard_manufacturing_program()` checking deductible=250K, name, and 4 layers.
 
-Both call `set_wsj_style()` and check `plt.rcParams`. The `test_visualization.py` version is slightly more detailed (checks `axes.spines.right`). The simple version is redundant.
+**Action:** Removed `TestCreateStandardProgram` (1 test).
 
-**Action**: Remove `test_set_wsj_style` from `test_visualization_simple.py`.
+### 1.4 `test_insurance_program_coverage.py` :: `TestGetTotalCoverageEmpty`
+**Duplicate of:** (new) `test_insurance_program.py` :: `TestInsuranceProgram.test_get_total_coverage_empty_layers`
 
-## 2. Parametrize Candidates
+**Action:** Merged into main file, removed from coverage file (1 test).
 
-### 2A. Insurance Program Validation Tests
+### 1.5 `test_insurance_coverage.py` :: `TestInsurancePolicyFromYaml`
+**Duplicate of:** `test_insurance.py` :: `TestInsurancePolicyYAML.test_load_from_yaml`
 
-In `test_insurance_program.py::TestEnhancedInsuranceLayer::test_invalid_parameters` (line 47), four separate `pytest.raises` blocks test different validation errors. These could be a single parametrized test.
+Both create a YAML config, load it via `from_yaml`, assert 2 layers and deductible.
 
-**Original** (4 assertions in 1 test):
+**Action:** Removed `TestInsurancePolicyFromYaml` (1 test). Cleaned up unused `yaml`, `os`, `tempfile` imports.
+
+### 1.6 `test_insurance_coverage.py` :: `TestInsurancePolicyGetTotalCoverage.test_empty_layers_returns_zero`
+**Duplicate of:** `test_insurance.py` :: `TestInsurancePolicy.test_empty_policy`
+
+Both test empty layers return 0 coverage.
+
+**Action:** Removed `test_empty_layers_returns_zero` (1 test). Kept `test_multi_layer_coverage` which tests a unique scenario.
+
+### 1.7 `test_insurance_program_coverage.py` :: `TestRoundAttachmentPointEdgeCases`
+**Merged with:** `test_insurance_program.py` :: `TestInsuranceProgramOptimization.test_round_attachment_point`
+
+Both tested `_round_attachment_point` with overlapping values across different ranges.
+
+**Action:** Merged all cases into a single parametrized test in the main file (12 cases). Removed `TestRoundAttachmentPointEdgeCases` from coverage file.
+
+---
+
+## 2. Parametrize Consolidations (Implemented)
+
+### 2.1 `test_insurance.py` :: `TestInsuranceLayer.test_calculate_recovery_*` (4 tests -> 1 parametrized)
+
+**Before:** 4 separate test functions, each creating the same layer and testing one loss amount:
 ```python
-def test_invalid_parameters(self):
-    with pytest.raises(ValueError, match="Attachment point must be non-negative"):
-        EnhancedInsuranceLayer(attachment_point=-100, limit=1_000_000, base_premium_rate=0.01)
-    with pytest.raises(ValueError, match="Limit must be positive"):
-        EnhancedInsuranceLayer(attachment_point=0, limit=-1_000_000, base_premium_rate=0.01)
-    with pytest.raises(ValueError, match="Base premium rate must be non-negative"):
-        EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=-0.01)
-    with pytest.raises(ValueError, match="Reinstatements must be non-negative"):
-        EnhancedInsuranceLayer(attachment_point=0, limit=1_000_000, base_premium_rate=0.01, reinstatements=-1)
+def test_calculate_recovery_below_attachment(self): ...  # loss=500K, expected=0
+def test_calculate_recovery_within_layer(self): ...      # loss=3M, expected=2M
+def test_calculate_recovery_exceeds_layer(self): ...     # loss=10M, expected=5M
+def test_calculate_recovery_at_attachment(self): ...     # loss=1M, expected=0
 ```
 
-**Consolidated** (parametrized):
+**After:**
 ```python
-@pytest.mark.parametrize("kwargs,match", [
-    ({"attachment_point": -100, "limit": 1_000_000, "base_premium_rate": 0.01}, "Attachment point must be non-negative"),
-    ({"attachment_point": 0, "limit": -1_000_000, "base_premium_rate": 0.01}, "Limit must be positive"),
-    ({"attachment_point": 0, "limit": 1_000_000, "base_premium_rate": -0.01}, "Base premium rate must be non-negative"),
-    ({"attachment_point": 0, "limit": 1_000_000, "base_premium_rate": 0.01, "reinstatements": -1}, "Reinstatements must be non-negative"),
-], ids=["negative-attachment", "negative-limit", "negative-rate", "negative-reinstatements"])
-def test_invalid_parameters(self, kwargs, match):
-    with pytest.raises(ValueError, match=match):
-        EnhancedInsuranceLayer(**kwargs)
+@pytest.mark.parametrize("loss,expected", [
+    pytest.param(500_000, 0.0, id="below-attachment"),
+    pytest.param(1_000_000, 0.0, id="at-attachment"),
+    pytest.param(3_000_000, 2_000_000, id="within-layer"),
+    pytest.param(10_000_000, 5_000_000, id="exceeds-layer"),
+])
+def test_calculate_recovery(self, loss, expected): ...
 ```
 
-**Action**: Parametrize this test.
+### 2.2 `test_insurance.py` :: `TestFromSimple` (4 tests -> 1 combined)
 
-### 2B. Reinstatement Premium Tests
+`test_creates_single_layer_policy`, `test_deductible_set_correctly`, `test_layer_attachment_equals_deductible`, `test_layer_limit_and_rate` all created the exact same policy and asserted one property. Consolidated into `test_from_simple_structure` with all assertions together.
 
-In `test_insurance_program.py`, three separate tests cover reinstatement premium calculation for PRO_RATA, FULL, and FREE types (lines 71-109). These can be parametrized.
+### 2.3 `test_insurance.py` :: `TestOverRecoveryGuard.test_recovery_never_exceeds_claim` (loop -> parametrize)
 
-**Action**: Parametrize reinstatement premium tests.
+Converted `for claim in [100K, 500K, 1M, 5M, 15M]` loop to `@pytest.mark.parametrize` with 5 descriptive IDs.
 
-### 2C. Insurance Program Coverage Validation Tests
+### 2.4 `test_insurance_program.py` :: `test_round_attachment_point` (1 test with 6 asserts + 4 tests in coverage -> 1 parametrized with 12 cases)
 
-In `test_insurance_program_coverage.py::TestEnhancedInsuranceLayerValidation`, the hybrid limit validation tests (lines 57-110) test 5 separate validation scenarios. These are good parametrize candidates.
+Merged all rounding test cases from both files into a single parametrized test covering all ranges: `below-100k-small`, `below-100k-round-10k`, `below-100k-round-up`, `100k-1m-round-50k-low`, `100k-1m-round-50k-mid`, `100k-1m-round-50k-high`, `100k-1m-round-50k-upper`, `1m-10m-round-250k`, `1m-10m-round-250k-mid`, `above-10m-round-1m`, `above-10m-round-1m-up`, `above-10m-round-1m-large`.
 
-**Action**: Parametrize hybrid validation tests.
+### 2.5 `test_insurance_program.py` :: `TestInsuranceProgramSimple` (7 tests -> 2)
 
-### 2D. Market Cycle Tests
+Consolidated `test_creates_single_layer_program`, `test_deductible_set_correctly`, `test_layer_attachment_equals_deductible`, `test_layer_limit_and_rate`, `test_default_name`, `test_no_reinstatements` into `test_simple_structure`. Kept `test_custom_name` separate (tests a different code path).
 
-In `test_insurance_pricing.py::TestMarketCycle`, two tests check values and names of the same 3 enum members. These can be parametrized.
+### 2.6 `test_insurance_program_coverage.py` :: Lookup-table tests
 
-**Action**: Parametrize market cycle tests.
+`TestGetLayerCapacity` (5 tests -> 1 parametrized with 5 cases):
+```python
+@pytest.mark.parametrize("attachment,expected", [
+    pytest.param(500_000, 5_000_000, id="below-1m"),
+    pytest.param(5_000_000, 25_000_000, id="1m-10m"),
+    pytest.param(25_000_000, 50_000_000, id="10m-50m"),
+    pytest.param(75_000_000, 100_000_000, id="above-50m"),
+    pytest.param(float("inf"), 100_000_000, id="infinity-fallback"),
+])
+def test_layer_capacity(self, attachment, expected): ...
+```
 
-## 3. Overlapping Coverage
+`TestGetBasePremiumRate` (5 tests -> 1 parametrized with 5 cases):
+```python
+@pytest.mark.parametrize("attachment,expected", [
+    pytest.param(500_000, 0.015, id="below-1m"),
+    pytest.param(3_000_000, 0.010, id="1m-5m"),
+    pytest.param(15_000_000, 0.006, id="5m-25m"),
+    pytest.param(50_000_000, 0.003, id="above-25m"),
+    pytest.param(float("inf"), 0.003, id="infinity-fallback"),
+])
+def test_base_premium_rate(self, attachment, expected): ...
+```
 
-### 3A. Coverage Files Are Generally Complementary (NOT Redundant)
+### 2.7 `test_insurance_program.py` :: `test_recovery_never_exceeds_claim_various_amounts` (loop -> parametrize)
 
-After careful analysis, the `_coverage.py` files consistently target different code paths than their primary test files:
+Converted `for claim in [0, 100K, 250K, 1M, 5M, 10M, 30M]` loop to `@pytest.mark.parametrize` with 7 descriptive IDs.
+
+### 2.8 `test_insurance_program.py` :: `test_calculate_layer_loss` (3 in-test cases -> parametrize)
+
+Converted inline assertions for below/within/exceeds cases into a parametrized test with 3 cases.
+
+---
+
+## 3. Visualization Formatting Duplicates (Previously Identified)
+
+### 3.1 `test_visualization_simple.py` formatting tests
+**Duplicate of:** `test_visualization.py` and `test_visualization_extended.py`
+
+`format_currency`, `format_percentage`, `wsj_formatter`, and `set_wsj_style` tests in `test_visualization_simple.py` are strict subsets of the more comprehensive versions in the other files.
+
+**Action taken (by previous iteration):** Removed `TestVisualizationFormatting` from `test_visualization_simple.py` with a note: "those tests are covered more thoroughly in test_visualization.py and test_visualization_extended.py."
+
+---
+
+## 4. Overlapping Coverage (NOT Modified -- Flagged for Review)
+
+### 4.1 `TestOverRecoveryGuard` in both `test_insurance.py` and `test_insurance_program.py`
+
+These are NOT duplicates despite testing the same concern (issue #310). They test different implementations:
+- `test_insurance.py` tests `InsurancePolicy` (deprecated legacy class)
+- `test_insurance_program.py` tests `InsuranceProgram` (current class)
+
+**Recommendation:** Keep both until `InsurancePolicy` is fully removed.
+
+### 4.2 `apply_pricing` error tests in `test_insurance_coverage.py` and `test_insurance_program_coverage.py`
+
+Both test `pricing_not_enabled_raises` and `no_pricer_no_generator_raises`, but on different classes (`InsurancePolicy` vs `InsuranceProgram`).
+
+**Recommendation:** Keep both - they test different implementations.
+
+### 4.3 Fixture duplication: `manufacturer` defined ~40 times across test files
+
+The `manufacturer` fixture is defined independently in ~40 test files, each creating a `WidgetManufacturer` with slightly different `ManufacturerConfig` parameters.
+
+**Recommendation:** A shared `default_manufacturer` fixture could be added to conftest.py for the ~15 cases using identical defaults, but this risks coupling unrelated test files. Lower priority.
+
+### 4.4 Coverage-gap batch files (`test_coverage_gaps_batch1-4.py`)
+
+These 4 files (4,246 total lines) contain auto-generated tests to fill coverage gaps. They likely overlap with other test files, but removing them without detailed source-line coverage analysis is risky.
+
+**Recommendation:** Flag for future coverage analysis. Run coverage on base test files first, then selectively remove batch tests that no longer contribute.
+
+---
+
+## 5. Coverage Files Analysis (Complementary, Not Redundant)
 
 | Primary File | Coverage File | Verdict |
 |-------------|--------------|---------|
-| `test_batch_processor.py` | `test_batch_processor_coverage.py` | **Complementary** - coverage file targets lines 281-283, 314, 320-323, etc. |
-| `test_config_manager.py` | `test_config_manager_coverage.py` | **Complementary** - coverage file targets lines 57-63, 200-204, 216, etc. |
-| `test_monte_carlo.py` | `test_monte_carlo_coverage.py` | **Complementary** - coverage file targets helper functions and edge cases |
-| `test_insurance_pricing.py` | `test_insurance_pricing_coverage.py` | **Complementary** - coverage file targets lines 434, 453, 482-484, etc. |
-| `test_insurance_program.py` | `test_insurance_program_coverage.py` | **Complementary** - coverage file targets hybrid/aggregate limit types |
-| `test_ledger.py` | `test_ledger_coverage.py` | **Complementary** - coverage file targets lines 236, 362, 451-460, etc. |
-| `test_risk_metrics.py` | `test_risk_metrics_coverage.py` | **Complementary** - coverage file targets weighted edge cases |
-| `test_ruin_probability.py` | `test_ruin_probability_coverage.py` | **Complementary** - coverage file targets summary() and edge cases |
+| `test_batch_processor.py` | `test_batch_processor_coverage.py` | Complementary |
+| `test_config_manager.py` | `test_config_manager_coverage.py` | Complementary |
+| `test_monte_carlo.py` | `test_monte_carlo_coverage.py` | Complementary |
+| `test_insurance_pricing.py` | `test_insurance_pricing_coverage.py` | Complementary |
+| `test_insurance_program.py` | `test_insurance_program_coverage.py` | Mostly complementary (duplicates removed above) |
+| `test_insurance.py` | `test_insurance_coverage.py` | Mostly complementary (duplicates removed above) |
+| `test_ledger.py` | `test_ledger_coverage.py` | Complementary |
+| `test_risk_metrics.py` | `test_risk_metrics_coverage.py` | Complementary |
+| `test_ruin_probability.py` | `test_ruin_probability_coverage.py` | Complementary |
+| `test_manufacturer.py` | `test_manufacturer_coverage.py` | Complementary |
 
-### 3B. Decision Engine Files Are Complementary
+---
 
-- `test_decision_engine.py` - Core tests for dataclasses, optimization, decision-making
-- `test_decision_engine_edge_cases.py` - CVaR edge cases, empty arrays, extreme values
-- `test_decision_engine_scenarios.py` - Real-world business scenarios
+## 6. Files Modified
 
-**Verdict**: All three test different aspects. No redundancy.
+| File | Change Type | Detail |
+|------|-----------|--------|
+| `test_insurance.py` | Parametrize + consolidate | 4 recovery tests -> 1 parametrized; 4 from_simple tests -> 1 combined; loop -> parametrize |
+| `test_insurance_coverage.py` | Remove duplicates | Removed `TestInsurancePolicyFromYaml`, `test_empty_layers_returns_zero`; cleaned imports |
+| `test_insurance_program.py` | Parametrize + consolidate | 7 simple tests -> 2; rounding tests merged+parametrized; layer_loss parametrized; loop -> parametrize; added empty coverage test |
+| `test_insurance_program_coverage.py` | Remove duplicates + parametrize | Removed 4 classes (~25 tests); parametrized _get_layer_capacity and _get_base_premium_rate |
 
-### 3C. Config Files Are Complementary
+## 7. Verification
 
-- `test_config.py` - Config Pydantic model validation (ManufacturerConfig, GrowthConfig, etc.)
-- `test_config_v2.py` - Config model (ProfileMetadata, preset/module support)
-- `test_config_validation.py` - IndustryConfig validation (asset ratios, working capital days)
-- `test_config_compat.py` - Legacy compatibility (deprecated, `config_compat` module removed)
-- `test_config_loader.py` - ConfigLoader file I/O
-- `test_config_manager.py` - ConfigManager system (profiles, modules, presets)
-- `test_config_manager_coverage.py` - Coverage gaps in ConfigManager
-- `test_config_migrator.py` - Config migration
-- `test_config_v2_integration.py` - Config integration tests
+All modified files verified with `pytest -x`:
+- `test_insurance.py`: 47 passed
+- `test_insurance_coverage.py`: 13 passed
+- `test_insurance_program.py`: 112 passed
+- `test_insurance_program_coverage.py`: 52 passed
+- **Total: 225 passed, 0 failed**
 
-**Verdict**: Each file tests a different config module/class. No redundancy.
+## 8. Files NOT Modified (Conservative Decisions)
 
-### 3D. Visualization Files Are Mostly Complementary
-
-- `test_visualization.py` - Core module (imports, colors, formatting, FigureFactory)
-- `test_visualization_simple.py` - Plot functions (loss_distribution, return_period, etc.)
-- `test_visualization_extended.py` - Extended formatter/plot edge cases
-- `test_visualization_comprehensive.py` - Submodules (annotations, batch_plots, export, interactive_plots)
-- `test_visualization_factory.py` - StyleManager, FigureFactory from visualization_infra
-- `test_visualization_gaps_coverage.py` - Specific uncovered lines in visualization submodules
-
-**Verdict**: Minor overlap in formatting tests (addressed in Section 1A). Otherwise complementary.
-
-## 4. Fixture Duplication
-
-### 4A. `temp_checkpoint_dir` (2 definitions)
-
-- `test_batch_processor.py:175` (class-level fixture)
-- `test_batch_processor_coverage.py:37` (module-level fixture)
-
-Both create `tempfile.TemporaryDirectory()` and yield `Path(tmpdir)`. Identical logic.
-
-**Action**: Move to a shared batch processor conftest or leave as-is since they are in different files and both are lightweight. No action needed - the duplication is benign.
-
-### 4B. `mock_components` (4 definitions)
-
-- `test_batch_processor.py:181` - Returns (loss_gen, insurance, manufacturer) mocks
-- `test_batch_processor_coverage.py:44` - Identical
-- `test_convergence_ess.py:308` - Different mock structure (ESS-specific)
-- `test_scenario_batch.py:77` - Similar but with ScenarioManager-specific setup
-
-**Action**: The two batch processor files share identical fixtures. This is benign since they are in separate files and both are lightweight. No action needed.
-
-### 4C. `manufacturer_config` (7 definitions)
-
-- `test_execution_semantics.py:23`
-- `test_monte_carlo_coverage.py:54`
-- `test_parallel_independence.py:33`
-- `test_roe_insurance.py:22`
-- `test_strategy_backtester_coverage.py:42`
-- `test_simulation_coverage.py:57`
-- `test_simulation.py:17`
-
-All create `ManufacturerConfig` with similar but not identical parameters. Each file uses slightly different values appropriate to their specific test scenarios.
-
-**Action**: No consolidation - the configs are intentionally different per test context.
-
-### 4D. `temp_config_dir` (4 definitions)
-
-- `test_config_loader.py:21`
-- `test_config_manager.py:20`
-- `test_config_manager_coverage.py:76`
-- `test_coverage_gaps_batch3.py:536`
-
-Each creates a different directory structure appropriate to the module being tested.
-
-**Action**: No consolidation - structures differ per test context.
-
-## 5. Implementation Plan
-
-### Changes to implement:
-
-1. **Consolidate formatting tests**: Remove duplicate `format_currency`, `format_percentage`, `wsj_formatter`, and `set_wsj_style` tests from `test_visualization_simple.py` (keep the versions in `test_visualization.py` and `test_visualization_extended.py` which are more comprehensive)
-
-2. **Parametrize insurance program validation**: Convert `test_invalid_parameters` in `test_insurance_program.py` to use `@pytest.mark.parametrize`
-
-3. **Parametrize reinstatement premium tests**: Convert PRO_RATA/FULL/FREE tests in `test_insurance_program.py` to parametrize
-
-4. **Parametrize hybrid validation**: Convert hybrid limit validation tests in `test_insurance_program_coverage.py` to parametrize
-
-5. **Parametrize market cycle tests**: Convert enum value/name tests in `test_insurance_pricing.py` to parametrize
-
-## Summary Statistics
-
-| Category | Count | Tests Affected |
-|----------|-------|----------------|
-| Copy-paste duplicates (formatting) | 6 tests | ~6 removed |
-| Parametrize candidates | 4 clusters | ~12 tests consolidated into 4 |
-| Overlapping coverage (false alarm) | 0 | 0 |
-| Fixture duplication (benign) | ~15 definitions | 0 changed |
-| **Total tests to remove/consolidate** | **~18** | |
-
-## Files NOT Modified (Conservative Decisions)
-
-- All integration tests in `ergodic_insurance/tests/integration/` are preserved
-- All `_coverage.py` files are preserved (they test distinct code paths)
-- All bug-specific test files (`test_*_bug*.py`, `test_issue_*.py`) are preserved
-- All actuarial/statistical tests are preserved unchanged
-- Fixture duplications are left as-is (benign, context-appropriate)
+- All integration tests in `ergodic_insurance/tests/integration/` preserved
+- All `_coverage.py` files that are complementary preserved unchanged
+- All bug-specific test files (`test_*_bug*.py`, `test_issue_*.py`) preserved
+- All actuarial/statistical tests preserved (may appear redundant but test different numerical edge cases)
+- Fixture duplications left as-is (benign, context-appropriate)
+- Decision engine, config, convergence, and Monte Carlo test files preserved (no duplicates found)

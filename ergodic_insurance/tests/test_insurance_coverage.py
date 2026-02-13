@@ -3,13 +3,10 @@
 Missing lines: 124, 126, 326, 404-428, 449, 453
 """
 
-import os
-import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import warnings
 
 import pytest
-import yaml
 
 from ergodic_insurance.insurance import InsuranceLayer, InsurancePolicy
 
@@ -154,36 +151,15 @@ class TestInsurancePolicyApplyPricing:
         assert policy.pricer is not None
 
 
-class TestInsurancePolicyFromYaml:
-    """Tests for from_yaml class method."""
+# TestInsurancePolicyFromYaml: REMOVED -- covered by test_insurance.py
+# TestInsurancePolicyYAML.test_load_from_yaml
 
-    def test_load_from_yaml(self, tmp_path):
-        """Load insurance policy from YAML config."""
-        config = {
-            "deductible": 500_000,
-            "layers": [
-                {"attachment_point": 500_000, "limit": 4_500_000, "rate": 0.03},
-                {"attachment_point": 5_000_000, "limit": 10_000_000, "rate": 0.02},
-            ],
-        }
-        yaml_path = tmp_path / "insurance.yaml"
-        with open(yaml_path, "w") as f:
-            yaml.dump(config, f)
-
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy.from_yaml(str(yaml_path))
-        assert len(policy.layers) == 2
-        assert policy.deductible == 500_000
+# TestInsurancePolicyGetTotalCoverage.test_empty_layers_returns_zero: REMOVED
+# -- covered by test_insurance.py TestInsurancePolicy.test_empty_policy
 
 
 class TestInsurancePolicyGetTotalCoverage:
     """Tests for get_total_coverage."""
-
-    def test_empty_layers_returns_zero(self):
-        """Empty layer list returns zero coverage."""
-        with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
-            policy = InsurancePolicy(layers=[], deductible=0)
-        assert policy.get_total_coverage() == 0.0
 
     def test_multi_layer_coverage(self):
         """Multi-layer total coverage calculation."""

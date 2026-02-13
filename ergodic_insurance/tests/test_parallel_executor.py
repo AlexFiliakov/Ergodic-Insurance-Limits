@@ -254,6 +254,7 @@ class TestSharedMemoryManager:
 
         try:
             # Create test array
+            np.random.seed(42)
             test_array = np.random.randn(100, 50)
 
             # Share array
@@ -487,6 +488,7 @@ class TestParallelExecutor:
             return np.dot(matrix[row_idx], vector)
 
         # Create test data
+        np.random.seed(42)
         matrix = np.random.randn(100, 50)
         vector = np.random.randn(50)
 

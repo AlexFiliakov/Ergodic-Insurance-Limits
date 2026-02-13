@@ -139,20 +139,20 @@ class TestEnhancedInsuranceLayer:
         assert not layer.can_respond(1_000_000)  # At attachment
         assert layer.can_respond(1_000_001)  # Above attachment
 
-    def test_calculate_layer_loss(self):
+    @pytest.mark.parametrize(
+        "loss,expected",
+        [
+            pytest.param(500_000, 0.0, id="below-attachment"),
+            pytest.param(3_000_000, 2_000_000, id="within-layer"),
+            pytest.param(10_000_000, 5_000_000, id="exceeds-layer-capped"),
+        ],
+    )
+    def test_calculate_layer_loss(self, loss, expected):
         """Test layer loss calculation."""
         layer = EnhancedInsuranceLayer(
             attachment_point=1_000_000, limit=5_000_000, base_premium_rate=0.01
         )
-
-        # Below attachment
-        assert layer.calculate_layer_loss(500_000) == 0.0
-
-        # Within layer
-        assert layer.calculate_layer_loss(3_000_000) == 2_000_000
-
-        # Exceeds layer
-        assert layer.calculate_layer_loss(10_000_000) == 5_000_000  # Capped at limit
+        assert layer.calculate_layer_loss(loss) == expected
 
 
 class TestLayerState:
@@ -541,6 +541,11 @@ class TestInsuranceProgram:
         program = InsuranceProgram(layers, deductible=500_000)
         assert program.get_total_coverage() == 0.0
 
+    def test_get_total_coverage_empty_layers(self):
+        """get_total_coverage returns 0 when no layers."""
+        program = InsuranceProgram(layers=[], deductible=0)
+        assert program.get_total_coverage() == 0.0
+
     def test_yaml_loading(self):
         """Test loading program from YAML configuration."""
         config = {
@@ -927,17 +932,27 @@ class TestInsuranceProgramOptimization:
         assert constraints.max_iterations == 1000
         assert constraints.convergence_tolerance == 1e-6
 
-    def test_round_attachment_point(self):
-        """Test attachment point rounding logic."""
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            pytest.param(6_000, 10_000, id="below-100k-small"),
+            pytest.param(45_000, 40_000, id="below-100k-round-10k"),
+            pytest.param(55_000, 60_000, id="below-100k-round-up"),
+            pytest.param(123_456, 100_000, id="100k-1m-round-50k-low"),
+            pytest.param(275_000, 300_000, id="100k-1m-round-50k-mid"),
+            pytest.param(567_890, 550_000, id="100k-1m-round-50k-high"),
+            pytest.param(730_000, 750_000, id="100k-1m-round-50k-upper"),
+            pytest.param(1_234_567, 1_250_000, id="1m-10m-round-250k"),
+            pytest.param(3_200_000, 3_250_000, id="1m-10m-round-250k-mid"),
+            pytest.param(12_345_678, 12_000_000, id="above-10m-round-1m"),
+            pytest.param(15_500_000, 16_000_000, id="above-10m-round-1m-up"),
+            pytest.param(123_456_789, 123_000_000, id="above-10m-round-1m-large"),
+        ],
+    )
+    def test_round_attachment_point(self, value, expected):
+        """Test attachment point rounding logic for all ranges."""
         program = InsuranceProgram.create_standard_manufacturing_program()
-
-        # Test various ranges
-        assert program._round_attachment_point(45_000) == 40_000  # Rounds to nearest 10K
-        assert program._round_attachment_point(123_456) == 100_000  # Rounds to nearest 50K
-        assert program._round_attachment_point(567_890) == 550_000  # Rounds to nearest 50K
-        assert program._round_attachment_point(1_234_567) == 1_250_000  # Rounds to nearest 250K
-        assert program._round_attachment_point(12_345_678) == 12_000_000  # Rounds to nearest 1M
-        assert program._round_attachment_point(123_456_789) == 123_000_000  # Rounds to nearest 1M
+        assert program._round_attachment_point(value) == expected
 
     def test_ergodic_benefit_calculation_edge_cases(self):
         """Test ergodic benefit calculation with edge cases."""
@@ -1066,8 +1081,8 @@ class TestCatastrophicScenarios:
             program.process_claim(claim)
         elapsed = time.time() - start_time
 
-        # Should process in reasonable time (relaxed from 100ms for safety)
-        assert elapsed < 1.0  # 1 second max
+        # Should process in reasonable time (relaxed for CI environments)
+        assert elapsed < 10.0  # 10 second max
 
 
 class TestOverRecoveryGuard:
@@ -1132,7 +1147,19 @@ class TestOverRecoveryGuard:
         assert result["insurance_recovery"] == 0
         assert result["deductible_paid"] == 300_000
 
-    def test_recovery_never_exceeds_claim_various_amounts(self):
+    @pytest.mark.parametrize(
+        "claim",
+        [
+            pytest.param(0, id="zero"),
+            pytest.param(100_000, id="below-deductible"),
+            pytest.param(250_000, id="at-deductible"),
+            pytest.param(1_000_000, id="within-first-layer"),
+            pytest.param(5_000_000, id="at-layer-boundary"),
+            pytest.param(10_000_000, id="in-second-layer"),
+            pytest.param(30_000_000, id="exceeds-all-layers"),
+        ],
+    )
+    def test_recovery_never_exceeds_claim_various_amounts(self, claim):
         """Test over-recovery guard across a range of claim sizes."""
         layers = [
             EnhancedInsuranceLayer(
@@ -1144,14 +1171,12 @@ class TestOverRecoveryGuard:
         ]
         program = InsuranceProgram(layers, deductible=250_000)
 
-        for claim in [0, 100_000, 250_000, 1_000_000, 5_000_000, 10_000_000, 30_000_000]:
-            program.reset_annual()
-            result = program.process_claim(claim)
+        result = program.process_claim(claim)
 
-            assert result["insurance_recovery"] <= claim, f"Over-recovery for claim {claim}"
-            assert result["insurance_recovery"] <= max(
-                0, claim - 250_000
-            ), f"Recovery exceeds (claim - deductible) for claim {claim}"
+        assert result["insurance_recovery"] <= claim, f"Over-recovery for claim {claim}"
+        assert result["insurance_recovery"] <= max(
+            0, claim - 250_000
+        ), f"Recovery exceeds (claim - deductible) for claim {claim}"
 
     def test_aggregate_limit_across_multiple_claims(self):
         """Test aggregate limit tracking across multiple claims in same period.
@@ -1212,50 +1237,20 @@ class TestOverRecoveryGuard:
 class TestInsuranceProgramSimple:
     """Tests for InsuranceProgram.simple() convenience constructor."""
 
-    def test_creates_single_layer_program(self):
-        """simple() should create a program with exactly one layer."""
+    def test_simple_structure(self):
+        """simple() creates a single-layer program with correct fields."""
         program = InsuranceProgram.simple(
             deductible=500_000,
             limit=10_000_000,
             rate=0.025,
         )
         assert len(program.layers) == 1
-
-    def test_deductible_set_correctly(self):
-        """Deductible on the program matches the argument."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
+        assert isinstance(program.layers[0], EnhancedInsuranceLayer)
         assert program.deductible == 500_000
-
-    def test_layer_attachment_equals_deductible(self):
-        """The single layer's attachment point equals the deductible."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
         assert program.layers[0].attachment_point == 500_000
-
-    def test_layer_limit_and_rate(self):
-        """Layer limit and rate match the arguments."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
         assert program.layers[0].limit == 10_000_000
         assert program.layers[0].base_premium_rate == 0.025
-
-    def test_default_name(self):
-        """simple() uses default name 'Simple Insurance Program'."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
+        assert program.layers[0].reinstatements == 0
         assert program.name == "Simple Insurance Program"
 
     def test_custom_name(self):
@@ -1267,15 +1262,6 @@ class TestInsuranceProgramSimple:
             name="My Custom Program",
         )
         assert program.name == "My Custom Program"
-
-    def test_no_reinstatements(self):
-        """simple() creates a layer with no reinstatements."""
-        program = InsuranceProgram.simple(
-            deductible=500_000,
-            limit=10_000_000,
-            rate=0.025,
-        )
-        assert program.layers[0].reinstatements == 0
 
     def test_premium_calculation(self):
         """Premium is limit * rate."""

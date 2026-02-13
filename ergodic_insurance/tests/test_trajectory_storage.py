@@ -454,6 +454,7 @@ class TestTrajectoryStorage:
         storage_uncompressed = TrajectoryStorage(config_uncompressed)
 
         # Store data with repetitive patterns that should compress well
+        np.random.seed(42)
         for i in range(n_simulations):
             noise = np.random.normal(0, 1000, n_years)  # Small noise
             annual_losses = base_pattern + noise
@@ -707,6 +708,7 @@ class TestMemoryEfficiency:
         storage = TrajectoryStorage(config)
 
         # Store many simulations
+        np.random.seed(42)
         n_years = 100
         for i in range(1000):
             annual_losses = np.random.lognormal(10, 2, n_years)
