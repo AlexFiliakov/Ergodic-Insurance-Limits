@@ -67,7 +67,7 @@ class TestPricingParameters:
     def test_custom_parameters(self):
         """Test custom pricing parameters."""
         params = PricingParameters(
-            loss_ratio=0.65,
+            loss_ratio=0.60,
             expense_ratio=0.30,
             profit_margin=0.10,
             risk_loading=0.15,
@@ -78,7 +78,7 @@ class TestPricingParameters:
             alae_ratio=0.12,
             ulae_ratio=0.06,
         )
-        assert params.loss_ratio == 0.65
+        assert params.loss_ratio == 0.60
         assert params.expense_ratio == 0.30
         assert params.profit_margin == 0.10
         assert params.risk_loading == 0.15
@@ -89,6 +89,28 @@ class TestPricingParameters:
         assert params.alae_ratio == 0.12
         assert params.ulae_ratio == 0.06
         assert params.lae_ratio == pytest.approx(0.18)
+
+    def test_expense_profit_sum_validation(self):
+        """Test that expense_ratio + profit_margin >= 1.0 raises ValueError."""
+        with pytest.raises(ValueError, match="no premium can cover losses"):
+            PricingParameters(expense_ratio=0.80, profit_margin=0.25)
+
+    def test_expense_profit_sum_at_boundary(self):
+        """Test that expense_ratio + profit_margin exactly 1.0 raises ValueError."""
+        with pytest.raises(ValueError, match="no premium can cover losses"):
+            PricingParameters(expense_ratio=0.60, profit_margin=0.40)
+
+    def test_inconsistent_loss_ratio_warning(self):
+        """Test warning when loss_ratio != 1 - expense_ratio - profit_margin."""
+        with pytest.warns(
+            UserWarning,
+            match="loss_ratio.*inconsistent",
+        ):
+            PricingParameters(
+                loss_ratio=0.65,
+                expense_ratio=0.30,
+                profit_margin=0.10,
+            )
 
 
 class TestLayerPricing:
@@ -312,6 +334,111 @@ class TestInsurancePricer:
 
         # Hard market should have highest premium
         assert hard_premium > normal_premium > soft_premium
+
+    def test_market_premium_actuarial_identity(self, pricer):
+        """Test that market premium follows Premium = Tech / (1 - V - Q).
+
+        With default parameters (V=0.25, Q=0.05, loss_ratio=0.70) and
+        NORMAL cycle (0.70), the formula reduces to tech / 0.70.
+        """
+        technical_premium = 100_000
+        market = pricer.calculate_market_premium(technical_premium, market_cycle=MarketCycle.NORMAL)
+
+        V = pricer.parameters.expense_ratio
+        Q = pricer.parameters.profit_margin
+        indicated_lr = 1 - V - Q
+        target_lr = pricer.parameters.loss_ratio
+        cycle_lr = MarketCycle.NORMAL.value
+
+        expected = (technical_premium / indicated_lr) * (target_lr / cycle_lr)
+        assert market == pytest.approx(expected)
+
+    def test_expense_ratio_affects_market_premium(self):
+        """Test that expense_ratio feeds into the actuarial formula (#1139).
+
+        The base premium is ``tech / (1 - V - Q)``.  When V is larger
+        the indicated loss ratio shrinks and the base premium rises.
+        With consistent params (loss_ratio == indicated_lr) the cycle
+        factor cancels the base, so the net result equals ``tech / cycle_lr``.
+        The real effect is visible when loss_ratio is kept at the market
+        benchmark while V is increased (deliberate mismatch, warned).
+        """
+        import warnings
+
+        loss_gen = ManufacturingLossGenerator(seed=42)
+        technical = 100_000
+
+        # Default insurer: V=0.25, Q=0.05
+        default_pricer = InsurancePricer(
+            loss_generator=loss_gen,
+            market_cycle=MarketCycle.NORMAL,
+        )
+        default_market = default_pricer.calculate_market_premium(
+            technical, market_cycle=MarketCycle.NORMAL
+        )
+
+        # High-expense insurer keeps the market benchmark loss_ratio=0.70
+        # while raising V to 0.30 → indicated_lr = 0.65 < loss_ratio = 0.70.
+        # base = tech / 0.65,  factor = 0.70 / 0.70 = 1.0
+        # market = tech / 0.65 > tech / 0.70
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            params = PricingParameters(loss_ratio=0.70, expense_ratio=0.30, profit_margin=0.05)
+        high_exp_pricer = InsurancePricer(
+            loss_generator=loss_gen,
+            market_cycle=MarketCycle.NORMAL,
+            parameters=params,
+        )
+        high_exp_market = high_exp_pricer.calculate_market_premium(
+            technical, market_cycle=MarketCycle.NORMAL
+        )
+
+        assert high_exp_market > default_market
+        assert high_exp_market == pytest.approx(100_000 / 0.65)
+        assert default_market == pytest.approx(100_000 / 0.70)
+
+    def test_profit_margin_affects_market_premium(self):
+        """Test that higher profit_margin increases market premium (#1139)."""
+        import warnings
+
+        technical = 100_000
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            params = PricingParameters(loss_ratio=0.70, expense_ratio=0.25, profit_margin=0.15)
+        pricer = InsurancePricer(market_cycle=MarketCycle.NORMAL, parameters=params)
+
+        market = pricer.calculate_market_premium(technical, market_cycle=MarketCycle.NORMAL)
+        # indicated_lr = 1 - 0.25 - 0.15 = 0.60, factor = 0.70/0.70 = 1.0
+        assert market == pytest.approx(100_000 / 0.60)
+        assert market > 100_000 / 0.70
+
+    def test_combined_ratio_warning(self):
+        """Test warning when cycle loss ratio + V + Q > 100%."""
+        loss_gen = ManufacturingLossGenerator(seed=42)
+        pricer = InsurancePricer(
+            loss_generator=loss_gen,
+            market_cycle=MarketCycle.NORMAL,
+        )
+
+        # SOFT market (0.80) + V (0.25) + Q (0.05) = 1.10 > 1.0
+        with pytest.warns(UserWarning, match="Combined ratio.*exceeds 100%"):
+            pricer.calculate_market_premium(100_000, market_cycle=MarketCycle.SOFT)
+
+    def test_no_combined_ratio_warning_normal(self):
+        """Test no combined-ratio warning for NORMAL market with defaults."""
+        loss_gen = ManufacturingLossGenerator(seed=42)
+        pricer = InsurancePricer(
+            loss_generator=loss_gen,
+            market_cycle=MarketCycle.NORMAL,
+        )
+
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # NORMAL (0.70) + 0.25 + 0.05 = 1.00 — no warning
+            pricer.calculate_market_premium(100_000, market_cycle=MarketCycle.NORMAL)
 
     def test_price_layer(self, pricer):
         """Test pricing a single layer."""
