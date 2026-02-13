@@ -8,9 +8,9 @@ Since:
     Version 0.10.0 (Issue #960)
 """
 
-import warnings
 from types import ModuleType
 from unittest.mock import MagicMock, patch
+import warnings
 
 import numpy as np
 import pytest
@@ -30,7 +30,6 @@ from ergodic_insurance.gpu_backend import (
     to_device,
     to_numpy,
 )
-
 
 # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -457,6 +456,7 @@ class TestConfigIntegration:
         data = cfg.model_dump()
         assert data["gpu"]["random_seed"] == 99
         cfg2 = Config(**data)
+        assert cfg2.gpu is not None
         assert cfg2.gpu.random_seed == 99
 
     def test_lazy_import_from_top_level(self):

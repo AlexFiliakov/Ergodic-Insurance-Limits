@@ -18,8 +18,8 @@ Since:
 
 import contextlib
 import logging
+from typing import Any, Dict, Generator
 import warnings
-from typing import Any, Dict, Generator, Optional
 
 import numpy as np
 from pydantic import BaseModel, Field, model_validator
@@ -31,17 +31,17 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _CUPY_AVAILABLE: bool = False
-_cupy_module: Optional[Any] = None
+_cupy_module: Any = None
 
 try:
-    import cupy  # type: ignore[import-untyped]
+    import cupy
 
     _cupy_module = cupy
     _CUPY_AVAILABLE = True
     logger.debug("CuPy detected — GPU acceleration available")
 except ImportError:
     logger.debug("CuPy not installed — falling back to NumPy")
-except Exception:  # pragma: no cover — runtime CUDA errors
+except Exception:  # noqa: BLE001  # pragma: no cover — runtime CUDA errors
     logger.debug("CuPy import failed — falling back to NumPy")
 
 
@@ -84,7 +84,7 @@ class GPUConfig(BaseModel):
     device_id: int = Field(default=0, ge=0, description="CUDA device ordinal")
     memory_pool: bool = Field(default=True, description="Use CuPy memory pool allocator")
     pin_memory: bool = Field(default=False, description="Use pinned host memory for transfers")
-    random_seed: Optional[int] = Field(default=None, ge=0, description="GPU RNG seed")
+    random_seed: int | None = Field(default=None, ge=0, description="GPU RNG seed")
     synchronize: bool = Field(
         default=False, description="Synchronize after each kernel (for profiling)"
     )
@@ -165,7 +165,7 @@ def to_numpy(arr: Any) -> np.ndarray:
         A ``numpy.ndarray``.
     """
     if _CUPY_AVAILABLE and isinstance(arr, _cupy_module.ndarray):
-        return arr.get()
+        return arr.get()  # type: ignore[no-any-return]
     if isinstance(arr, np.ndarray):
         return arr
     return np.asarray(arr)
@@ -209,7 +209,7 @@ def gpu_info() -> Dict[str, Any]:
             "total_memory_bytes": device.mem_info[1],
             "cuda_version": _cupy_module.cuda.runtime.runtimeGetVersion(),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to query GPU info: %s", exc)
         return {"available": False, "error": str(exc)}
 
@@ -288,7 +288,7 @@ def detect_colab_environment() -> bool:
         True if the ``google.colab`` module is importable.
     """
     try:
-        import google.colab  # type: ignore[import-untyped]  # noqa: F401
+        import google.colab  # noqa: F401
 
         return True
     except ImportError:

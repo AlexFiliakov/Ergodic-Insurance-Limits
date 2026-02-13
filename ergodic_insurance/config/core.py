@@ -102,9 +102,7 @@ class Config(BaseModel):
     industry_config: Optional[IndustryConfig] = Field(
         default=None, description="Industry-specific configuration for financial parameters"
     )
-    gpu: Optional[GPUConfig] = Field(
-        default=None, description="GPU acceleration configuration"
-    )
+    gpu: Optional[GPUConfig] = Field(default=None, description="GPU acceleration configuration")
 
     # --- Extensibility fields ---
     custom_modules: Dict[str, ModuleConfig] = Field(
