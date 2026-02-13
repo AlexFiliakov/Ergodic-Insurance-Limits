@@ -456,7 +456,7 @@ class TestIntegrationWithStep:
 
         # Cash should be approximately initial + cumulative_net_income + cumulative_depreciation.
         # Allow generous tolerance because tax payments, accruals, and other
-        # cash-affecting entries (e.g., tax accrual → payment timing) cause the
+        # cash-affecting entries (e.g., tax accrual -> payment timing) cause the
         # exact cash figure to differ from the simple formula.
         cash_change = mfr.cash - initial_cash
         expected_change = cumulative_net_income + cumulative_depreciation

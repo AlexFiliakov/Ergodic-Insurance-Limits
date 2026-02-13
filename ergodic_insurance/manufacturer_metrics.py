@@ -83,6 +83,7 @@ class MetricsCalculationMixin:
         metrics["accounts_receivable"] = self.accounts_receivable
         metrics["inventory"] = self.inventory
         metrics["prepaid_insurance"] = self.prepaid_insurance
+        metrics["insurance_receivables"] = self.insurance_receivables  # Issue #814
         metrics["accounts_payable"] = self.accounts_payable
         metrics["short_term_borrowings"] = self.short_term_borrowings
 

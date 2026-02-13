@@ -1,9 +1,6 @@
-"""Unit tests for the WidgetManufacturer class.
+"""Unit tests for the WidgetManufacturer class."""
 
-This module contains comprehensive tests for the WidgetManufacturer financial
-model including balance sheet operations, insurance claim processing,
-and financial metrics calculations.
-"""
+# pylint: disable=too-many-lines
 
 from decimal import Decimal
 import math
@@ -385,7 +382,10 @@ class TestWidgetManufacturer:
 
         year0_payment = liability * to_decimal("0.10")  # 112,000
         assert total_paid == pytest.approx(year0_payment)
-        assert manufacturer.total_assets == pytest.approx(10_000_000 - year0_payment)
+        insurance_receivable = to_decimal(1_500_000 - 1_000_000)  # claim - deductible
+        assert manufacturer.total_assets == pytest.approx(
+            10_000_000 - year0_payment + insurance_receivable  # #814: includes ins. recv.
+        )
         assert manufacturer.claim_liabilities[0].remaining_amount == pytest.approx(
             liability - year0_payment
         )
@@ -397,7 +397,7 @@ class TestWidgetManufacturer:
         year1_payment = liability * to_decimal("0.20")  # 224,000
         assert total_paid == pytest.approx(year1_payment)
         assert manufacturer.total_assets == pytest.approx(
-            10_000_000 - year0_payment - year1_payment
+            10_000_000 - year0_payment - year1_payment + insurance_receivable
         )
         assert manufacturer.claim_liabilities[0].remaining_amount == pytest.approx(
             liability - year0_payment - year1_payment
@@ -495,10 +495,12 @@ class TestWidgetManufacturer:
         assert metrics["collateral"] == to_decimal(500_000)
         assert metrics["restricted_assets"] == to_decimal(500_000)
         assert metrics["claim_liabilities"] == pytest.approx(expected_liability)
-        # equity = Assets - Liabilities = 10M - 560K = 9,440K
-        expected_equity = 10_000_000 - float(expected_liability)
+        insurance_receivable = 500_000  # #814: claim - deductible now in total_assets
+        expected_equity = (10_000_000 + insurance_receivable) - float(expected_liability)
         assert float(metrics["collateral_to_equity"]) == pytest.approx(500_000 / expected_equity)
-        assert float(metrics["collateral_to_assets"]) == pytest.approx(0.05)  # 500k / 10M
+        assert float(metrics["collateral_to_assets"]) == pytest.approx(
+            500_000 / (10_000_000 + insurance_receivable)
+        )
 
     def test_calculate_metrics_zero_equity(self, manufacturer):
         """Test metrics calculation with zero equity (avoid division by zero)."""
@@ -845,13 +847,12 @@ class TestWidgetManufacturer:
         assert manufacturer.period_insurance_losses == 0  # No expense recorded
         assert manufacturer.total_claim_liabilities == pytest.approx(expected_liability)
 
-        # Assets should not be reduced immediately (only collateralized)
-        assert manufacturer.total_assets == initial_assets
+        insurance_receivable = to_decimal(200_000 - deductible)  # #814: now in total_assets
+        assert manufacturer.total_assets == initial_assets + insurance_receivable
         assert manufacturer.collateral == deductible
         assert manufacturer.restricted_assets == deductible
 
-        # Equity should be reduced by the full liability including LAE
-        expected_equity = initial_equity - expected_liability
+        expected_equity = initial_equity - expected_liability + insurance_receivable
         assert manufacturer.equity == pytest.approx(expected_equity)
 
     def test_no_double_counting_of_deductibles(self, manufacturer):
@@ -922,8 +923,8 @@ class TestWidgetManufacturer:
         assert manufacturer.period_insurance_losses == 0  # No expense from deductible
         assert manufacturer.total_claim_liabilities == pytest.approx(expected_liability)
 
-        # Equity should be reduced by the full liability including LAE
-        expected_equity_after_liability = initial_equity - expected_liability
+        insurance_receivable = to_decimal(1_000_000 - deductible)  # #814
+        expected_equity_after_liability = initial_equity - expected_liability + insurance_receivable
         assert manufacturer.equity == pytest.approx(expected_equity_after_liability)
 
         # Calculate net income - premium should reduce it with tax benefits
@@ -1019,12 +1020,17 @@ class TestWidgetManufacturer:
             expected_uninsured_liability
         )
 
-        # Both should have reduced equity by the liability amount (including LAE)
-        expected_equity = (
+        insurance_receivable = to_decimal(500_000 - deductible)  # #814: ins. receivable
+        expected_equity_uninsured = (
             to_decimal(manufacturer.config.initial_assets) - expected_uninsured_liability
         )
-        assert manufacturer_insured.equity == pytest.approx(expected_equity)
-        assert manufacturer_uninsured.equity == pytest.approx(expected_equity)
+        expected_equity_insured = (
+            to_decimal(manufacturer.config.initial_assets)
+            + insurance_receivable
+            - expected_insured_liability
+        )
+        assert manufacturer_insured.equity == pytest.approx(expected_equity_insured)
+        assert manufacturer_uninsured.equity == pytest.approx(expected_equity_uninsured)
 
     def test_collateral_costs_are_tax_deductible(self, manufacturer):
         """Test that letter of credit collateral costs are tax-deductible.

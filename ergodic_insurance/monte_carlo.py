@@ -229,7 +229,7 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
 
         # Check for ruin - use insolvency tolerance from shared config
         tolerance = shared.get("insolvency_tolerance", 10_000)
-        if float(manufacturer.equity) <= tolerance:
+        if float(manufacturer.equity) <= tolerance or manufacturer.is_ruined:
             # Mark ruin for all future evaluation points
             if ruin_evaluation:
                 for eval_year in ruin_at_year:

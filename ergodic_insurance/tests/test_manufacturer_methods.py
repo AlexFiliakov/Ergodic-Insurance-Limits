@@ -63,7 +63,8 @@ class TestProcessInsuranceClaim:
         assert len(manufacturer.claim_liabilities) == 1
 
         # Assets not immediately reduced (paid over time)
-        assert manufacturer.total_assets == initial_assets
+        # total_assets now includes insurance_receivables (Issue #814)
+        assert manufacturer.total_assets == initial_assets + insurance_payment
 
     def test_claim_above_limit(self, manufacturer):
         """Test claim that exceeds insurance limit."""
@@ -86,7 +87,8 @@ class TestProcessInsuranceClaim:
         assert manufacturer.restricted_assets == expected_company
 
         # Assets not immediately reduced (paid over time)
-        assert manufacturer.total_assets == initial_assets
+        # total_assets now includes insurance_receivables (Issue #814)
+        assert manufacturer.total_assets == initial_assets + insurance_payment
 
     def test_zero_claim(self, manufacturer):
         """Test handling of zero claim amount."""
@@ -148,8 +150,8 @@ class TestProcessInsuranceClaim:
 
         # Company payment is the deductible amount (but capped by limited liability)
         assert company_payment == deductible
-        # Assets remain unchanged (collateral posted, paid over time)
-        assert manufacturer.total_assets == 50_000
+        # Assets include insurance_receivables (Issue #814)
+        assert manufacturer.total_assets == 50_000 + insurance_payment
         # LIMITED LIABILITY: Collateral capped at equity / (1 + lae_ratio) to leave room for LAE
         # equity_cap = 50K / 1.12 ≈ 44,643; total liability = 44,643 * 1.12 = 50K = equity
         lae_ratio = to_decimal(manufacturer.config.lae_ratio)
@@ -158,7 +160,9 @@ class TestProcessInsuranceClaim:
         # Remaining deductible cannot be paid (limited liability violation)
         # Company should be marked as insolvent
         assert manufacturer.is_ruined is True
-        assert manufacturer.equity == pytest.approx(0, abs=1)
+        # Equity reflects insurance_receivables (Issue #814) — cash-based equity is ~0
+        # but the insurance receivable asset adds to total equity
+        assert manufacturer.equity == pytest.approx(insurance_payment, abs=1)
         # Insurance still covers its portion
         assert insurance_payment == claim_amount - deductible
 
@@ -415,16 +419,18 @@ class TestStepMethod:
         # Create a claim to establish collateral
         manufacturer.process_insurance_claim(500_000, 100_000, 1_000_000)
 
-        # Run step without collateral first
-        manufacturer_no_collateral = WidgetManufacturer(manufacturer.config)
-        metrics_no_collateral = manufacturer_no_collateral.step(letter_of_credit_rate=0.015)
+        # Create an identical manufacturer with the same claim but zero LoC rate
+        # so both have the same total_assets (including insurance_receivables)
+        manufacturer_zero_rate = WidgetManufacturer(manufacturer.config)
+        manufacturer_zero_rate.process_insurance_claim(500_000, 100_000, 1_000_000)
+        metrics_zero_rate = manufacturer_zero_rate.step(letter_of_credit_rate=0.0)
 
-        # Run step with collateral
+        # Run step with collateral at 1.5% LoC rate
         metrics = manufacturer.step(letter_of_credit_rate=0.015)
 
         # Net income should be lower due to collateral costs
         # The difference should be approximately the after-tax collateral costs
-        assert metrics["net_income"] < metrics_no_collateral["net_income"]
+        assert metrics["net_income"] < metrics_zero_rate["net_income"]
 
     def test_letter_of_credit_calculation_accuracy(self, manufacturer):
         """Test that letter of credit costs are calculated correctly at 1.5% annually."""
