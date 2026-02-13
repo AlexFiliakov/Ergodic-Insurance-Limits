@@ -408,3 +408,255 @@ class TestTOCTOURegressions:
 
         source = inspect.getsource(_secure_write_key)
         assert "O_BINARY" in source
+
+
+# ---------------------------------------------------------------------------
+# RestrictedUnpickler defense-in-depth (issue #984)
+# ---------------------------------------------------------------------------
+
+
+class TestIsModuleAllowed:
+    """Test the _is_module_allowed helper function."""
+
+    def test_exact_match(self):
+        """Exact module name in allowlist passes."""
+        from ergodic_insurance.safe_pickle import _is_module_allowed
+
+        assert _is_module_allowed("numpy") is True
+
+    def test_submodule_match(self):
+        """Submodule of an allowed parent passes."""
+        from ergodic_insurance.safe_pickle import _is_module_allowed
+
+        assert _is_module_allowed("numpy.core.multiarray") is True
+
+    def test_no_false_prefix_match(self):
+        """Module whose name merely starts with an allowed name is rejected."""
+        from ergodic_insurance.safe_pickle import _is_module_allowed
+
+        assert _is_module_allowed("numpytools") is False
+        assert _is_module_allowed("numpytools.evil") is False
+
+    def test_blocked_dangerous_modules(self):
+        """Known-dangerous modules are not in the allowlist."""
+        from ergodic_insurance.safe_pickle import _is_module_allowed
+
+        for mod in ("os", "subprocess", "nt", "posix", "shutil", "ctypes", "socket"):
+            assert _is_module_allowed(mod) is False, f"{mod} should be blocked"
+
+    def test_project_module(self):
+        """Project package and submodules pass."""
+        from ergodic_insurance.safe_pickle import _is_module_allowed
+
+        assert _is_module_allowed("ergodic_insurance") is True
+        assert _is_module_allowed("ergodic_insurance.monte_carlo") is True
+
+
+class TestRestrictedUnpicklerFindClass:
+    """Unit tests for RestrictedUnpickler.find_class decisions."""
+
+    def _make_unpickler(self):
+        from ergodic_insurance.safe_pickle import RestrictedUnpickler
+
+        return RestrictedUnpickler(io.BytesIO(b""))
+
+    # --- Blocked classes ---
+
+    def test_blocks_os_system(self):
+        """os.system is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked"):
+            self._make_unpickler().find_class("os", "system")
+
+    def test_blocks_subprocess_popen(self):
+        """subprocess.Popen is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked"):
+            self._make_unpickler().find_class("subprocess", "Popen")
+
+    def test_blocks_nt_system(self):
+        """nt.system (Windows os.system) is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked"):
+            self._make_unpickler().find_class("nt", "system")
+
+    def test_blocks_posix_system(self):
+        """posix.system (Unix os.system) is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked"):
+            self._make_unpickler().find_class("posix", "system")
+
+    def test_blocks_builtins_exec(self):
+        """builtins.exec is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*exec"):
+            self._make_unpickler().find_class("builtins", "exec")
+
+    def test_blocks_builtins_eval(self):
+        """builtins.eval is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*eval"):
+            self._make_unpickler().find_class("builtins", "eval")
+
+    def test_blocks_builtins_getattr(self):
+        """builtins.getattr (attribute-chain attack vector) is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*getattr"):
+            self._make_unpickler().find_class("builtins", "getattr")
+
+    def test_blocks_builtins_import(self):
+        """builtins.__import__ is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*__import__"):
+            self._make_unpickler().find_class("builtins", "__import__")
+
+    def test_blocks_builtins_open(self):
+        """builtins.open is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*open"):
+            self._make_unpickler().find_class("builtins", "open")
+
+    def test_blocks_builtins_compile(self):
+        """builtins.compile is rejected."""
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*compile"):
+            self._make_unpickler().find_class("builtins", "compile")
+
+    # --- Allowed classes ---
+
+    def test_allows_builtins_dict(self):
+        """builtins.dict is permitted."""
+        assert self._make_unpickler().find_class("builtins", "dict") is dict
+
+    def test_allows_builtins_set(self):
+        """builtins.set is permitted."""
+        assert self._make_unpickler().find_class("builtins", "set") is set
+
+    def test_allows_builtins_int(self):
+        """builtins.int is permitted."""
+        assert self._make_unpickler().find_class("builtins", "int") is int
+
+    def test_allows_numpy_ndarray(self):
+        """numpy.ndarray is permitted."""
+        np = pytest.importorskip("numpy")
+        result = self._make_unpickler().find_class("numpy", "ndarray")
+        assert result is np.ndarray
+
+    def test_allows_numpy_submodule(self):
+        """numpy submodule classes are permitted."""
+        pytest.importorskip("numpy")
+        # Should not raise — exact class depends on numpy version
+        self._make_unpickler().find_class("numpy.core.multiarray", "_reconstruct")
+
+    def test_allows_collections_ordereddict(self):
+        """collections.OrderedDict is permitted."""
+        from collections import OrderedDict
+
+        result = self._make_unpickler().find_class("collections", "OrderedDict")
+        assert result is OrderedDict
+
+    def test_allows_datetime(self):
+        """datetime.datetime is permitted."""
+        import datetime
+
+        result = self._make_unpickler().find_class("datetime", "datetime")
+        assert result is datetime.datetime
+
+    def test_allows_copyreg(self):
+        """copyreg._reconstructor is permitted (pickle infrastructure)."""
+        # copyreg._reconstructor exists at runtime but mypy doesn't see it,
+        # so we just verify find_class does not raise.
+        result = self._make_unpickler().find_class("copyreg", "_reconstructor")
+        assert callable(result)
+
+    def test_allows_project_module(self):
+        """ergodic_insurance submodule classes are permitted."""
+        result = self._make_unpickler().find_class(
+            "ergodic_insurance.safe_pickle", "deterministic_hash"
+        )
+        assert result is deterministic_hash
+
+
+class TestRestrictedUnpicklerEndToEnd:
+    """Integration tests: malicious payloads blocked through safe_load/safe_loads."""
+
+    def test_subprocess_blocked_with_valid_hmac(self, temp_key_dir):
+        """Payload calling subprocess.Popen is blocked even with valid HMAC."""
+        import subprocess
+
+        class _Exploit:
+            def __reduce__(self):
+                return (subprocess.Popen, (["echo", "pwned"],))
+
+        signed = safe_dumps(_Exploit(), key_dir=temp_key_dir)
+
+        with pytest.raises(pickle.UnpicklingError, match="blocked"):
+            safe_loads(signed, key_dir=temp_key_dir)
+
+    def test_eval_blocked_with_valid_hmac(self, temp_key_dir):
+        """Payload calling builtins.eval is blocked even with valid HMAC."""
+
+        class _Exploit:
+            def __reduce__(self):
+                return (eval, ("__import__('os').system('echo pwned')",))
+
+        signed = safe_dumps(_Exploit(), key_dir=temp_key_dir)
+
+        with pytest.raises(pickle.UnpicklingError, match="blocked.*eval"):
+            safe_loads(signed, key_dir=temp_key_dir)
+
+    def test_safe_load_file_blocks_malicious(self, temp_key_dir):
+        """File-based safe_load also uses the restricted unpickler."""
+        import subprocess
+
+        class _Exploit:
+            def __reduce__(self):
+                return (subprocess.Popen, (["echo", "pwned"],))
+
+        buf = io.BytesIO()
+        safe_dump(_Exploit(), buf, key_dir=temp_key_dir)
+        buf.seek(0)
+
+        with pytest.raises(pickle.UnpicklingError, match="blocked"):
+            safe_load(buf, key_dir=temp_key_dir)
+
+    def test_roundtrip_basic_types_still_work(self, temp_key_dir):
+        """RestrictedUnpickler does not break safe roundtrips of basic types."""
+        test_objects = [
+            42,
+            3.14,
+            "hello",
+            [1, 2, 3],
+            {"key": "value"},
+            (1, "a", None),
+            None,
+            True,
+            set([1, 2, 3]),
+            frozenset([4, 5]),
+            b"bytes data",
+        ]
+        for obj in test_objects:
+            data = safe_dumps(obj, key_dir=temp_key_dir)
+            loaded = safe_loads(data, key_dir=temp_key_dir)
+            assert loaded == obj, f"Roundtrip failed for {type(obj).__name__}"
+
+    def test_roundtrip_numpy_array(self, temp_key_dir):
+        """numpy arrays survive restricted roundtrip."""
+        np = pytest.importorskip("numpy")
+        arr = np.array([1.0, 2.0, 3.0])
+        data = safe_dumps(arr, key_dir=temp_key_dir)
+        loaded = safe_loads(data, key_dir=temp_key_dir)
+        np.testing.assert_array_equal(loaded, arr)
+
+    def test_roundtrip_datetime(self, temp_key_dir):
+        """datetime objects survive restricted roundtrip."""
+        import datetime
+
+        dt = datetime.datetime(2024, 1, 15, 12, 30, 0)
+        data = safe_dumps(dt, key_dir=temp_key_dir)
+        loaded = safe_loads(data, key_dir=temp_key_dir)
+        assert loaded == dt
+
+    def test_roundtrip_collections(self, temp_key_dir):
+        """collections types survive restricted roundtrip."""
+        from collections import OrderedDict, defaultdict
+
+        od = OrderedDict([("a", 1), ("b", 2)])
+        data = safe_dumps(od, key_dir=temp_key_dir)
+        loaded = safe_loads(data, key_dir=temp_key_dir)
+        assert loaded == od
+
+        dd = defaultdict(int, {"x": 10})
+        data = safe_dumps(dd, key_dir=temp_key_dir)
+        loaded = safe_loads(data, key_dir=temp_key_dir)
+        assert loaded == dd

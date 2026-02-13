@@ -15,6 +15,7 @@ non-deterministic built-in hash() function.
 
 import hashlib
 import hmac
+import io
 import logging
 import os
 from pathlib import Path
@@ -31,6 +32,127 @@ _MAX_KEY_RETRIES = 3  # retry limit for concurrent key creation races
 
 
 _logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Restricted unpickler allowlist — defense-in-depth (issue #984)
+# ---------------------------------------------------------------------------
+# Modules (and their submodules) whose classes may be instantiated during
+# unpickling.  An entry "foo" permits both the exact module "foo" and any
+# submodule "foo.bar", "foo.bar.baz", etc.  The builtins module is gated
+# separately via _ALLOWED_BUILTINS to block dangerous functions.
+
+_ALLOWED_MODULES: frozenset = frozenset(
+    {
+        # --- Project package ---
+        "ergodic_insurance",
+        # --- Scientific / data stack ---
+        "numpy",
+        "pandas",
+        "scipy",
+        "matplotlib",
+        # --- Pickle reconstruction infrastructure ---
+        "copyreg",
+        "_codecs",
+        "copy",
+        # --- Standard-library data types and their C accelerators ---
+        "collections",
+        "_collections",
+        "_collections_abc",
+        "datetime",
+        "_datetime",
+        "decimal",
+        "_decimal",
+        "fractions",
+        "enum",
+        "dataclasses",
+        "pathlib",
+        "uuid",
+        "array",
+        "io",
+        "_io",
+        "re",
+        "_sre",
+        "operator",
+        "_operator",
+        "functools",
+        "_functools",
+        "itertools",
+        "math",
+        "numbers",
+        "abc",
+        "types",
+        "struct",
+        "_struct",
+        "zlib",
+    }
+)
+
+# Built-in names that are safe for unpickling (data types only).
+# Dangerous callables — exec, eval, compile, getattr, __import__, open —
+# are intentionally excluded.
+_ALLOWED_BUILTINS: frozenset = frozenset(
+    {
+        # Primitive / scalar types
+        "bool",
+        "int",
+        "float",
+        "complex",
+        "str",
+        "bytes",
+        "bytearray",
+        # Container types
+        "dict",
+        "list",
+        "tuple",
+        "set",
+        "frozenset",
+        # Misc safe types
+        "slice",
+        "range",
+        "type",
+        "object",
+        "NoneType",
+    }
+)
+
+
+def _is_module_allowed(module: str) -> bool:
+    """Return True if *module* is in the allowlist or is a submodule of one."""
+    if module in _ALLOWED_MODULES:
+        return True
+    for allowed in _ALLOWED_MODULES:
+        if module.startswith(allowed + "."):
+            return True
+    return False
+
+
+class RestrictedUnpickler(pickle.Unpickler):
+    """Unpickler with a class allowlist to prevent arbitrary code execution.
+
+    Defense-in-depth: even if HMAC verification is bypassed (e.g. key
+    compromise), only classes from explicitly allowed modules can be
+    instantiated during deserialization.  This blocks common RCE vectors
+    such as os.system, subprocess.Popen, and builtins.exec.
+
+    See: https://docs.python.org/3/library/pickle.html#restricting-globals
+    """
+
+    def find_class(self, module: str, name: str) -> Any:
+        if module == "builtins":
+            if name in _ALLOWED_BUILTINS:
+                return super().find_class(module, name)
+            raise pickle.UnpicklingError(f"Restricted unpickler blocked builtins.{name}")
+
+        if _is_module_allowed(module):
+            return super().find_class(module, name)
+
+        raise pickle.UnpicklingError(f"Restricted unpickler blocked {module}.{name}")
+
+
+def _restricted_loads(data: bytes) -> Any:
+    """Deserialize *data* using the :class:`RestrictedUnpickler`."""
+    return RestrictedUnpickler(io.BytesIO(data)).load()
 
 
 def _get_key_path(key_dir: Optional[Path] = None) -> Path:
@@ -150,7 +272,7 @@ def safe_load(f, key_dir: Optional[Path] = None) -> Any:
             "File may have been tampered with or was created by a different key."
         )
 
-    return pickle.loads(data)  # noqa: S301 - HMAC-verified before loading
+    return _restricted_loads(data)
 
 
 def safe_dumps(
@@ -202,7 +324,7 @@ def safe_loads(data: bytes, key_dir: Optional[Path] = None) -> Any:
             "Data may have been tampered with or was created by a different key."
         )
 
-    return pickle.loads(payload)  # noqa: S301 - HMAC-verified before loading
+    return _restricted_loads(payload)
 
 
 def deterministic_hash(*args: str, length: int = 16) -> str:
