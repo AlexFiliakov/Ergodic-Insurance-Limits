@@ -404,6 +404,13 @@ def __getattr__(name):
         )
 
         return locals()[name]
+    if name in ("GPUSimulationParams", "run_gpu_simulation"):
+        from .gpu_mc_engine import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            GPUSimulationParams,
+            run_gpu_simulation,
+        )
+
+        return locals()[name]
     if name in (
         "get_array_module",
         "to_device",

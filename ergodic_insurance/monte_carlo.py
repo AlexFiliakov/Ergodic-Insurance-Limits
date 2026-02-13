@@ -343,6 +343,7 @@ class MonteCarloConfig:
     apply_stochastic: bool = False  # Whether to apply stochastic shocks
     enable_ledger_pruning: bool = False  # Prune old ledger entries to bound memory (Issue #315)
     crn_base_seed: Optional[int] = None  # Common Random Numbers seed for cross-scenario comparison
+    use_gpu: bool = False  # Use GPU-accelerated vectorized simulation (Issue #961)
 
 
 @dataclass
@@ -650,7 +651,12 @@ class MonteCarloEngine:
                 )
 
         # Run simulation with appropriate executor
-        if self.config.parallel:
+        if self.config.use_gpu:
+            results = self._run_gpu(
+                progress_callback=progress_callback,
+                cancel_event=cancel_event,
+            )
+        elif self.config.parallel:
             if self.config.use_enhanced_parallel and self.parallel_executor:
                 results = self._run_enhanced_parallel(
                     progress_callback=progress_callback,
@@ -1129,6 +1135,71 @@ class MonteCarloEngine:
             results.performance_metrics = self.parallel_executor.performance_metrics
 
         return results  # type: ignore[no-any-return]
+
+    def _run_gpu(
+        self,
+        progress_callback: Optional[Callable[[int, int, float], None]] = None,
+        cancel_event: Optional[threading.Event] = None,
+    ) -> MonteCarloResults:
+        """Run simulation using GPU-accelerated vectorized engine.
+
+        Falls back to parallel CPU execution if CuPy is not available.
+        """
+        from .gpu_backend import is_gpu_available
+        from .gpu_mc_engine import extract_params, run_gpu_simulation
+
+        if not is_gpu_available():
+            logger.info("GPU not available, falling back to parallel CPU execution")
+            warnings.warn(
+                "use_gpu=True but CuPy is not available. Falling back to CPU parallel.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return self._run_parallel(
+                progress_callback=progress_callback, cancel_event=cancel_event
+            )
+
+        # Extract flat parameters
+        gpu_params = extract_params(
+            self.manufacturer,
+            self.insurance_program,
+            self.loss_generator,
+            self.config,
+        )
+
+        # Run vectorized simulation
+        raw_results = run_gpu_simulation(
+            gpu_params,
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
+        )
+
+        # Calculate derived metrics
+        final_assets = raw_results["final_assets"]
+        final_equity = raw_results["final_equity"]
+        growth_rates = self._calculate_growth_rates(final_equity)
+
+        n_sims = len(final_assets)
+        ruin_probability = {
+            str(self.config.n_years): (
+                float(np.mean(final_assets <= self.config.insolvency_tolerance))
+                if n_sims > 0
+                else 0.0
+            )
+        }
+
+        return MonteCarloResults(
+            final_assets=final_assets,
+            annual_losses=raw_results["annual_losses"],
+            insurance_recoveries=raw_results["insurance_recoveries"],
+            retained_losses=raw_results["retained_losses"],
+            growth_rates=growth_rates,
+            ruin_probability=ruin_probability,
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=self.config,
+        )
 
     def _run_single_simulation(self, sim_id: int) -> Dict[str, Any]:
         """Run a single simulation path.

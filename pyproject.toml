@@ -112,6 +112,7 @@ markers = [
     "integration: marks tests as integration tests",
     "requires_multiprocessing: marks tests that require multiprocessing",
     "benchmark: performance benchmark test (skipped in CI)",
+    "gpu: marks tests requiring GPU/CuPy",
 ]
 
 [tool.coverage.run]
