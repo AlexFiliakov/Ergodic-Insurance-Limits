@@ -309,6 +309,58 @@ class TestMonteCarloEngine:
         assert results is not None
         assert len(results.final_assets) >= 50  # At least one batch
 
+    def test_convergence_monitoring_does_not_mutate_config(self, setup_engine):
+        """Config object must not be mutated by run_with_convergence_monitoring (issue #1018)."""
+        engine, loss_generator, _, _ = setup_engine
+
+        loss_generator.generate_losses.return_value = (
+            [LossEvent(time=0.5, amount=50_000, loss_type="test")],
+            {"total_amount": 50_000},
+        )
+
+        # Capture original config reference and values
+        original_config = engine.config
+        original_n_sims = original_config.n_simulations
+        original_seed = original_config.seed
+
+        # External reference that the user might hold
+        user_config_ref = engine.config
+
+        engine.run_with_convergence_monitoring(
+            target_r_hat=1.1, check_interval=50, max_iterations=200
+        )
+
+        # engine.config must point back to the original object
+        assert engine.config is original_config
+
+        # The original config object must be unchanged
+        assert original_config.n_simulations == original_n_sims
+        assert original_config.seed == original_seed
+
+        # A user's external reference must also be unaffected
+        assert user_config_ref.n_simulations == original_n_sims
+        assert user_config_ref.seed == original_seed
+
+    def test_convergence_monitoring_restores_config_on_error(self, setup_engine):
+        """Config reference must be restored even when run() raises (issue #1018)."""
+        engine, loss_generator, _, _ = setup_engine
+
+        loss_generator.generate_losses.side_effect = RuntimeError("boom")
+
+        original_config = engine.config
+        original_n_sims = original_config.n_simulations
+        original_seed = original_config.seed
+
+        with pytest.raises(RuntimeError, match="boom"):
+            engine.run_with_convergence_monitoring(
+                target_r_hat=1.1, check_interval=50, max_iterations=200
+            )
+
+        # Config must be fully restored after exception
+        assert engine.config is original_config
+        assert original_config.n_simulations == original_n_sims
+        assert original_config.seed == original_seed
+
     def test_single_simulation(self, setup_engine):
         """Test single simulation path."""
         engine, loss_generator, _, manufacturer = setup_engine
