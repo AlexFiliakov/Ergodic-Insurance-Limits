@@ -37,7 +37,6 @@ from .config.optimizer import BusinessOptimizerConfig
 from .gpu_backend import (
     GPUConfig,
     get_array_module,
-    gpu_memory_pool,
     is_gpu_available,
     set_random_seed,
     to_numpy,
@@ -68,7 +67,7 @@ class GPUBatchObjective:
             disabled and all operations use NumPy.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         equity: float,
         total_assets: float,
@@ -116,7 +115,7 @@ class GPUBatchObjective:
 
     # -- public batch evaluators -------------------------------------------
 
-    def evaluate_batch_roe(
+    def evaluate_batch_roe(  # pylint: disable=unused-argument
         self,
         param_sets: np.ndarray,
         time_horizon: int,
@@ -148,9 +147,7 @@ class GPUBatchObjective:
         annual_premium = coverage_limit * premium_rate * (1.0 - ded_ratio)
 
         premium_cost = annual_premium / self.equity
-        protection_benefit = cfg.protection_benefit_factor * (
-            coverage_limit / self.total_assets
-        )
+        protection_benefit = cfg.protection_benefit_factor * (coverage_limit / self.total_assets)
         retained_loss_drag = (deductible / self.equity) * cfg.protection_benefit_factor
 
         adjusted_roe = cfg.base_roe - premium_cost + protection_benefit - retained_loss_drag
@@ -215,7 +212,7 @@ class GPUBatchObjective:
         bankruptcy_risk = xp.clip(bankruptcy_risk, 0.0, 1.0)
         return to_numpy(bankruptcy_risk)
 
-    def evaluate_batch_growth_rate(
+    def evaluate_batch_growth_rate(  # pylint: disable=unused-argument
         self,
         param_sets: np.ndarray,
         time_horizon: int,
@@ -286,9 +283,7 @@ class GPUBatchObjective:
         ded_ratio = self._deductible_ratio(deductible, coverage_limit)
         annual_premium = coverage_limit * premium_rate * (1.0 - ded_ratio)
 
-        risk_transfer_benefit = (
-            coverage_limit * (1.0 - ded_ratio) * cfg.risk_transfer_benefit_rate
-        )
+        risk_transfer_benefit = coverage_limit * (1.0 - ded_ratio) * cfg.risk_transfer_benefit_rate
 
         net_benefit = risk_transfer_benefit - annual_premium
         efficiency_ratio = 1.0 + (net_benefit / self.total_assets)
@@ -327,7 +322,7 @@ class GPUObjectiveWrapper:
     # Objectives where higher is better — negate for scipy.minimize
     _MAXIMIZE_OBJECTIVES = {"roe", "growth_rate", "capital_efficiency"}
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         batch_objective: GPUBatchObjective,
         objective_name: str = "roe",
@@ -350,9 +345,7 @@ class GPUObjectiveWrapper:
         name = self.objective_name
         bo = self.batch_objective
         if name == "roe":
-            return bo.evaluate_batch_roe(
-                param_sets, self.time_horizon, self.n_simulations
-            )
+            return bo.evaluate_batch_roe(param_sets, self.time_horizon, self.n_simulations)
         if name == "bankruptcy_risk":
             return bo.evaluate_batch_bankruptcy_risk(param_sets, self.time_horizon)
         if name == "growth_rate":
@@ -443,7 +436,7 @@ class GPUObjectiveWrapper:
 # ---------------------------------------------------------------------------
 
 
-class GPUMultiStartScreener:
+class GPUMultiStartScreener:  # pylint: disable=too-few-public-methods
     """Screen starting points for multi-start optimization using batch GPU evaluation.
 
     Evaluates all candidate starting points in a single batch call and
@@ -475,9 +468,7 @@ class GPUMultiStartScreener:
         name = self.objective_name
         bo = self.batch_objective
         if name == "roe":
-            return bo.evaluate_batch_roe(
-                param_sets, self.time_horizon, self.n_simulations
-            )
+            return bo.evaluate_batch_roe(param_sets, self.time_horizon, self.n_simulations)
         if name == "bankruptcy_risk":
             return bo.evaluate_batch_bankruptcy_risk(param_sets, self.time_horizon)
         if name == "growth_rate":
@@ -564,7 +555,7 @@ class GPUDifferentialEvolution:
 
     _MAXIMIZE_OBJECTIVES = {"roe", "growth_rate", "capital_efficiency"}
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         batch_objective: GPUBatchObjective,
         bounds: List[Tuple[float, float]],
@@ -586,9 +577,7 @@ class GPUDifferentialEvolution:
         name = self.objective_name
         bo = self.batch_objective
         if name == "roe":
-            return bo.evaluate_batch_roe(
-                param_sets, self.time_horizon, self.n_simulations
-            )
+            return bo.evaluate_batch_roe(param_sets, self.time_horizon, self.n_simulations)
         if name == "bankruptcy_risk":
             return bo.evaluate_batch_bankruptcy_risk(param_sets, self.time_horizon)
         if name == "growth_rate":
@@ -630,9 +619,7 @@ class GPUDifferentialEvolution:
         upper = self.bounds[:, 1]
 
         # Initialize population uniformly within bounds
-        population = rng.uniform(
-            lower, upper, size=(pop_size, n_params)
-        )
+        population = rng.uniform(lower, upper, size=(pop_size, n_params))
 
         # Evaluate initial population
         raw_values = self._evaluate_batch(population)
@@ -643,7 +630,7 @@ class GPUDifferentialEvolution:
         best_x = population[best_idx].copy()
         best_fit = fitness[best_idx]
 
-        for gen in range(n_generations):
+        for _gen in range(n_generations):
             # --- Mutation: DE/rand/1 ---
             # For each member, pick three distinct others
             indices = np.arange(pop_size)
@@ -652,14 +639,10 @@ class GPUDifferentialEvolution:
             r2 = np.empty(pop_size, dtype=int)
             r3 = np.empty(pop_size, dtype=int)
             for i in range(pop_size):
-                choices = rng.choice(
-                    np.delete(indices, i), size=3, replace=False
-                )
+                choices = rng.choice(np.delete(indices, i), size=3, replace=False)
                 r1[i], r2[i], r3[i] = choices
 
-            mutant = population[r1] + mutation_factor * (
-                population[r2] - population[r3]
-            )
+            mutant = population[r1] + mutation_factor * (population[r2] - population[r3])
 
             # Clip mutant to bounds
             mutant = np.clip(mutant, lower, upper)

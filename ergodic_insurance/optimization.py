@@ -770,11 +770,7 @@ class MultiStartOptimizer:
         Since:
             Version 0.11.0 (Issue #966)
         """
-        use_gpu = (
-            self.gpu_config is not None
-            and self.gpu_config.enabled
-            and is_gpu_available()
-        )
+        use_gpu = self.gpu_config is not None and self.gpu_config.enabled and is_gpu_available()
         xp = get_array_module(gpu=use_gpu)
 
         # Evaluate all starting points

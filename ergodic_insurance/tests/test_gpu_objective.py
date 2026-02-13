@@ -33,7 +33,6 @@ from ergodic_insurance.gpu_objective import (
 )
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
-
 # ---------------------------------------------------------------------------
 #  Fixtures
 # ---------------------------------------------------------------------------
@@ -95,11 +94,13 @@ class TestGPUBatchObjective:
 
     def test_evaluate_batch_roe_shape(self, batch_objective):
         """Test ROE batch evaluation returns correct shape."""
-        param_sets = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.03],
-            [10_000_000, 200_000, 0.015],
-        ])
+        param_sets = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.03],
+                [10_000_000, 200_000, 0.015],
+            ]
+        )
         result = batch_objective.evaluate_batch_roe(param_sets, time_horizon=5)
         assert result.shape == (3,)
         assert result.dtype == np.float64
@@ -146,10 +147,12 @@ class TestGPUBatchObjective:
 
     def test_evaluate_batch_bankruptcy_risk_shape(self, batch_objective):
         """Test bankruptcy risk returns correct shape and bounds."""
-        param_sets = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.03],
-        ])
+        param_sets = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.03],
+            ]
+        )
         result = batch_objective.evaluate_batch_bankruptcy_risk(param_sets, time_horizon=5)
         assert result.shape == (2,)
         assert np.all(result >= 0)
@@ -183,10 +186,12 @@ class TestGPUBatchObjective:
 
     def test_evaluate_batch_growth_rate_shape(self, batch_objective):
         """Test growth rate returns correct shape and non-negative values."""
-        param_sets = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.03],
-        ])
+        param_sets = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.03],
+            ]
+        )
         result = batch_objective.evaluate_batch_growth_rate(param_sets, time_horizon=5)
         assert result.shape == (2,)
         assert np.all(result >= 0)
@@ -235,10 +240,12 @@ class TestGPUBatchObjective:
 
     def test_evaluate_batch_capital_efficiency_shape(self, batch_objective):
         """Test capital efficiency returns correct shape."""
-        param_sets = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.03],
-        ])
+        param_sets = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.03],
+            ]
+        )
         result = batch_objective.evaluate_batch_capital_efficiency(param_sets)
         assert result.shape == (2,)
         assert np.all(result >= 0)
@@ -262,9 +269,7 @@ class TestGPUBatchObjective:
             premium_rate=params[2],
         )
 
-        batch_eff = batch_objective.evaluate_batch_capital_efficiency(
-            np.array([params])
-        )
+        batch_eff = batch_objective.evaluate_batch_capital_efficiency(np.array([params]))
 
         assert abs(batch_eff[0] - scalar_eff) < 1e-10
 
@@ -273,29 +278,25 @@ class TestGPUBatchObjective:
         xp = batch_objective.xp
 
         # Zero coverage limit
-        ratio = batch_objective._deductible_ratio(
-            xp.array([100_000.0]), xp.array([0.0])
-        )
+        ratio = batch_objective._deductible_ratio(xp.array([100_000.0]), xp.array([0.0]))
         assert float(ratio[0]) == 0.0
 
         # Deductible exceeds coverage
-        ratio = batch_objective._deductible_ratio(
-            xp.array([10_000_000.0]), xp.array([5_000_000.0])
-        )
+        ratio = batch_objective._deductible_ratio(xp.array([10_000_000.0]), xp.array([5_000_000.0]))
         assert float(ratio[0]) == 1.0  # clamped
 
         # Normal case
-        ratio = batch_objective._deductible_ratio(
-            xp.array([100_000.0]), xp.array([5_000_000.0])
-        )
+        ratio = batch_objective._deductible_ratio(xp.array([100_000.0]), xp.array([5_000_000.0]))
         assert abs(float(ratio[0]) - 0.02) < 1e-10
 
     def test_multiple_param_sets_varied(self, batch_objective):
         """Test that different parameters produce different results."""
-        param_sets = np.array([
-            [5_000_000, 10_000, 0.02],
-            [5_000_000, 500_000, 0.02],
-        ])
+        param_sets = np.array(
+            [
+                [5_000_000, 10_000, 0.02],
+                [5_000_000, 500_000, 0.02],
+            ]
+        )
         roe = batch_objective.evaluate_batch_roe(param_sets, time_horizon=5)
         assert roe[0] != roe[1]  # Different deductibles should give different ROE
 
@@ -310,18 +311,14 @@ class TestGPUObjectiveWrapper:
 
     def test_call_returns_scalar(self, batch_objective):
         """Test __call__ returns a float scalar."""
-        wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="roe", time_horizon=5
-        )
+        wrapper = GPUObjectiveWrapper(batch_objective, objective_name="roe", time_horizon=5)
         x = np.array([5_000_000, 100_000, 0.02])
         result = wrapper(x)
         assert isinstance(result, float)
 
     def test_call_negates_maximization(self, batch_objective):
         """Test that maximization objectives are negated for scipy."""
-        wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="roe", time_horizon=5
-        )
+        wrapper = GPUObjectiveWrapper(batch_objective, objective_name="roe", time_horizon=5)
         x = np.array([5_000_000, 100_000, 0.02])
         raw = wrapper.evaluate_single(x)
         negated = wrapper(x)
@@ -349,9 +346,7 @@ class TestGPUObjectiveWrapper:
 
     def test_cache_clear(self, batch_objective):
         """Test cache clearing."""
-        wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="roe", time_horizon=5
-        )
+        wrapper = GPUObjectiveWrapper(batch_objective, objective_name="roe", time_horizon=5)
         x = np.array([5_000_000, 100_000, 0.02])
         wrapper(x)
         assert len(wrapper._cache) > 0
@@ -360,9 +355,7 @@ class TestGPUObjectiveWrapper:
 
     def test_gradient_shape(self, batch_objective):
         """Test gradient returns correct shape."""
-        wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="roe", time_horizon=5
-        )
+        wrapper = GPUObjectiveWrapper(batch_objective, objective_name="roe", time_horizon=5)
         x = np.array([5_000_000, 100_000, 0.02])
         grad = wrapper.gradient(x)
         assert grad.shape == (3,)
@@ -375,7 +368,9 @@ class TestGPUObjectiveWrapper:
         stream mismatches between batched and sequential evaluations.
         """
         wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="bankruptcy_risk", time_horizon=5,
+            batch_objective,
+            objective_name="bankruptcy_risk",
+            time_horizon=5,
             cache_enabled=False,
         )
         x = np.array([5_000_000, 100_000, 0.02])
@@ -390,9 +385,7 @@ class TestGPUObjectiveWrapper:
 
     def test_unknown_objective_raises(self, batch_objective):
         """Test unknown objective name raises ValueError."""
-        wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="unknown", time_horizon=5
-        )
+        wrapper = GPUObjectiveWrapper(batch_objective, objective_name="unknown", time_horizon=5)
         x = np.array([5_000_000, 100_000, 0.02])
         with pytest.raises(ValueError, match="Unknown objective"):
             wrapper(x)
@@ -401,9 +394,7 @@ class TestGPUObjectiveWrapper:
         """Test all supported objective names work."""
         x = np.array([5_000_000, 100_000, 0.02])
         for name in ["roe", "bankruptcy_risk", "growth_rate", "capital_efficiency"]:
-            wrapper = GPUObjectiveWrapper(
-                batch_objective, objective_name=name, time_horizon=5
-            )
+            wrapper = GPUObjectiveWrapper(batch_objective, objective_name=name, time_horizon=5)
             result = wrapper(x)
             assert isinstance(result, float)
             assert np.isfinite(result)
@@ -419,38 +410,34 @@ class TestGPUMultiStartScreener:
 
     def test_screen_returns_correct_count(self, batch_objective):
         """Test screening returns requested number of points."""
-        screener = GPUMultiStartScreener(
-            batch_objective, objective_name="roe", time_horizon=5
-        )
+        screener = GPUMultiStartScreener(batch_objective, objective_name="roe", time_horizon=5)
         rng = np.random.default_rng(42)
-        starts = rng.uniform(
-            [1e6, 0, 0.001], [20e6, 1e6, 0.10], size=(20, 3)
-        )
+        starts = rng.uniform([1e6, 0, 0.001], [20e6, 1e6, 0.10], size=(20, 3))
         top = screener.screen_starting_points(starts, top_k=5)
         assert len(top) == 5
 
     def test_screen_top_k_exceeds_total(self, batch_objective):
         """Test requesting more points than available."""
-        screener = GPUMultiStartScreener(
-            batch_objective, objective_name="roe", time_horizon=5
+        screener = GPUMultiStartScreener(batch_objective, objective_name="roe", time_horizon=5)
+        starts = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.03],
+            ]
         )
-        starts = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.03],
-        ])
         top = screener.screen_starting_points(starts, top_k=10)
         assert len(top) == 2  # Only 2 available
 
     def test_screen_roe_sorts_descending(self, batch_objective):
         """Test maximization objectives sort best-first (descending)."""
-        screener = GPUMultiStartScreener(
-            batch_objective, objective_name="roe", time_horizon=5
+        screener = GPUMultiStartScreener(batch_objective, objective_name="roe", time_horizon=5)
+        starts = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.01],
+                [2_000_000, 500_000, 0.05],
+            ]
         )
-        starts = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.01],
-            [2_000_000, 500_000, 0.05],
-        ])
         top = screener.screen_starting_points(starts, top_k=3)
         # Evaluate to verify ordering
         values = batch_objective.evaluate_batch_roe(np.array(top), time_horizon=5)
@@ -462,15 +449,15 @@ class TestGPUMultiStartScreener:
         screener = GPUMultiStartScreener(
             batch_objective, objective_name="bankruptcy_risk", time_horizon=5
         )
-        starts = np.array([
-            [5_000_000, 100_000, 0.02],
-            [8_000_000, 50_000, 0.01],
-            [2_000_000, 500_000, 0.05],
-        ])
-        top = screener.screen_starting_points(starts, top_k=3)
-        values = batch_objective.evaluate_batch_bankruptcy_risk(
-            np.array(top), time_horizon=5
+        starts = np.array(
+            [
+                [5_000_000, 100_000, 0.02],
+                [8_000_000, 50_000, 0.01],
+                [2_000_000, 500_000, 0.05],
+            ]
         )
+        top = screener.screen_starting_points(starts, top_k=3)
+        values = batch_objective.evaluate_batch_bankruptcy_risk(np.array(top), time_horizon=5)
         for i in range(len(values) - 1):
             assert values[i] <= values[i + 1]
 
@@ -491,8 +478,11 @@ class TestGPUDifferentialEvolution:
             (0.001, 0.10),
         ]
         de = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="roe", time_horizon=5, seed=42,
+            batch_objective,
+            bounds=bounds,
+            objective_name="roe",
+            time_horizon=5,
+            seed=42,
         )
         result = de.optimize(pop_size=10, n_generations=5)
         assert hasattr(result, "x")
@@ -511,8 +501,11 @@ class TestGPUDifferentialEvolution:
             (0.001, 0.10),
         ]
         de = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="roe", time_horizon=5, seed=42,
+            batch_objective,
+            bounds=bounds,
+            objective_name="roe",
+            time_horizon=5,
+            seed=42,
         )
         result = de.optimize(pop_size=10, n_generations=10)
         for i, (lo, hi) in enumerate(bounds):
@@ -527,8 +520,11 @@ class TestGPUDifferentialEvolution:
             (0.001, 0.10),
         ]
         de = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="roe", time_horizon=5, seed=42,
+            batch_objective,
+            bounds=bounds,
+            objective_name="roe",
+            time_horizon=5,
+            seed=42,
         )
         result = de.optimize(pop_size=15, n_generations=3)
         assert result.population.shape == (15, 3)
@@ -540,8 +536,11 @@ class TestGPUDifferentialEvolution:
         pop_size = 10
         n_gens = 5
         de = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="roe", time_horizon=5, seed=42,
+            batch_objective,
+            bounds=bounds,
+            objective_name="roe",
+            time_horizon=5,
+            seed=42,
         )
         result = de.optimize(pop_size=pop_size, n_generations=n_gens)
         # Initial eval + one per generation
@@ -552,8 +551,11 @@ class TestGPUDifferentialEvolution:
         """Test DE with minimization objective (bankruptcy_risk)."""
         bounds = [(1e6, 20e6), (0, 1e6), (0.001, 0.10)]
         de = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="bankruptcy_risk", time_horizon=5, seed=42,
+            batch_objective,
+            bounds=bounds,
+            objective_name="bankruptcy_risk",
+            time_horizon=5,
+            seed=42,
         )
         result = de.optimize(pop_size=10, n_generations=5)
         assert result.fun >= 0  # Risk should be non-negative
@@ -853,14 +855,20 @@ class TestCPUFallback:
         bounds = [(1e6, 20e6), (0, 1e6), (0.001, 0.10)]
 
         de1 = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="roe", time_horizon=5, seed=123,
+            batch_objective,
+            bounds=bounds,
+            objective_name="roe",
+            time_horizon=5,
+            seed=123,
         )
         result1 = de1.optimize(pop_size=10, n_generations=3)
 
         de2 = GPUDifferentialEvolution(
-            batch_objective, bounds=bounds,
-            objective_name="roe", time_horizon=5, seed=123,
+            batch_objective,
+            bounds=bounds,
+            objective_name="roe",
+            time_horizon=5,
+            seed=123,
         )
         result2 = de2.optimize(pop_size=10, n_generations=3)
 
@@ -872,7 +880,9 @@ class TestCPUFallback:
         from scipy import optimize as sp_optimize
 
         wrapper = GPUObjectiveWrapper(
-            batch_objective, objective_name="roe", time_horizon=5,
+            batch_objective,
+            objective_name="roe",
+            time_horizon=5,
             n_simulations=10,
         )
 

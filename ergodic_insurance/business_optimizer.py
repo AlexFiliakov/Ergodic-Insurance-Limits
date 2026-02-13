@@ -190,7 +190,7 @@ class BusinessOptimizer:
         self.manufacturer = manufacturer
         self.optimizer_config = optimizer_config or BusinessOptimizerConfig()
         self.gpu_config = gpu_config
-        self._gpu_batch_objective = None  # lazy init
+        self._gpu_batch_objective: Optional[Any] = None  # lazy init
 
         # Create default loss distribution if not provided
         if loss_distribution is None:
@@ -208,13 +208,10 @@ class BusinessOptimizer:
     def _get_gpu_batch_objective(self):
         """Lazily initialize GPU batch objective evaluator."""
         if self._gpu_batch_objective is None:
-            use_gpu = (
-                self.gpu_config is not None
-                and self.gpu_config.enabled
-                and is_gpu_available()
-            )
+            use_gpu = self.gpu_config is not None and self.gpu_config.enabled and is_gpu_available()
             if use_gpu or self.gpu_config is not None:
                 from .gpu_objective import GPUBatchObjective
+
                 self._gpu_batch_objective = GPUBatchObjective(
                     equity=float(self.manufacturer.equity),
                     total_assets=float(self.manufacturer.total_assets),
@@ -415,7 +412,11 @@ class BusinessOptimizer:
             self.logger.info("GPU batch objective unavailable, falling back to CPU")
             return self.maximize_roe_with_insurance(constraints, time_horizon, n_simulations)
 
-        from .gpu_objective import GPUObjectiveWrapper, GPUMultiStartScreener, GPUDifferentialEvolution
+        from .gpu_objective import (
+            GPUObjectiveWrapper,
+            GPUMultiStartScreener,
+            GPUDifferentialEvolution,
+        )
 
         self.logger.info(
             f"GPU-accelerated ROE maximization: method={method}, "
@@ -445,7 +446,9 @@ class BusinessOptimizer:
 
         def risk_constraint(x):
             bankruptcy_risk = self._estimate_bankruptcy_risk(
-                coverage_limit=x[0], deductible=x[1], premium_rate=x[2],
+                coverage_limit=x[0],
+                deductible=x[1],
+                premium_rate=x[2],
                 time_horizon=time_horizon,
             )
             return constraints.max_risk_tolerance - bankruptcy_risk
@@ -487,14 +490,16 @@ class BusinessOptimizer:
                 )
                 rng = np.random.default_rng(self.optimizer_config.seed)
                 all_starts = [
-                    np.array([
-                        rng.uniform(bounds[0][0], bounds[0][1]),
-                        rng.uniform(bounds[1][0], bounds[1][1]),
-                        rng.uniform(bounds[2][0], bounds[2][1]),
-                    ])
+                    np.array(
+                        [
+                            rng.uniform(bounds[0][0], bounds[0][1]),
+                            rng.uniform(bounds[1][0], bounds[1][1]),
+                            rng.uniform(bounds[2][0], bounds[2][1]),
+                        ]
+                    )
                     for _ in range(n_starts)
                 ]
-                best_starts = screener.screen_starting_points(all_starts, top_k=top_k)
+                best_starts = screener.screen_starting_points(np.array(all_starts), top_k=top_k)
                 best_result = None
                 for start in best_starts:
                     try:
@@ -514,7 +519,9 @@ class BusinessOptimizer:
                         continue
                 if best_result is None:
                     self.logger.warning("All multi-start attempts failed, falling back to CPU")
-                    return self.maximize_roe_with_insurance(constraints, time_horizon, n_simulations)
+                    return self.maximize_roe_with_insurance(
+                        constraints, time_horizon, n_simulations
+                    )
                 result = best_result
             else:
                 # Default scipy with GPU-batched gradient

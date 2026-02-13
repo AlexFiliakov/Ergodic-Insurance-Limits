@@ -421,9 +421,7 @@ class ParetoFrontier:
         xp = get_array_module(gpu=self._use_gpu)
 
         obj_names = [obj.name for obj in self.objectives]
-        obj_matrix = xp.asarray(
-            [[p.objectives[name] for name in obj_names] for p in points]
-        )
+        obj_matrix = xp.asarray([[p.objectives[name] for name in obj_names] for p in points])
 
         signs = xp.asarray(
             [1.0 if obj.type == ObjectiveType.MAXIMIZE else -1.0 for obj in self.objectives]
@@ -619,9 +617,7 @@ class ParetoFrontier:
 
         # Generate random samples on device
         if self._use_gpu:
-            random_samples = xp.random.uniform(
-                lower_gpu, upper_gpu, size=(n_samples, n_dims)
-            )
+            random_samples = xp.random.uniform(lower_gpu, upper_gpu, size=(n_samples, n_dims))
         else:
             random_samples = self._rng.uniform(lower, upper, size=(n_samples, n_dims))
             random_samples = xp.asarray(random_samples)
@@ -630,17 +626,13 @@ class ParetoFrontier:
             [[p.objectives[name] for name in obj_names] for p in self.frontier_points]
         )
 
-        maximize_mask = xp.asarray(
-            [obj.type == ObjectiveType.MAXIMIZE for obj in self.objectives]
-        )
+        maximize_mask = xp.asarray([obj.type == ObjectiveType.MAXIMIZE for obj in self.objectives])
 
         already_counted = xp.zeros(n_samples, dtype=bool)
         dominated_count = 0
 
         for p_row in pareto_matrix:
-            comparison = xp.where(
-                maximize_mask, p_row >= random_samples, p_row <= random_samples
-            )
+            comparison = xp.where(maximize_mask, p_row >= random_samples, p_row <= random_samples)
             dominated = xp.all(comparison, axis=1)
             new_dominated = dominated & ~already_counted
             dominated_count += int(xp.sum(new_dominated))
