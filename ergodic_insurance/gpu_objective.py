@@ -27,8 +27,8 @@ Since:
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np

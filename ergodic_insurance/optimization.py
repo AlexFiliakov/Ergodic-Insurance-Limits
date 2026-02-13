@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 from scipy.optimize import Bounds, NonlinearConstraint, OptimizeResult, minimize
 
-from .gpu_backend import get_array_module, to_numpy, is_gpu_available, GPUConfig
+from .gpu_backend import GPUConfig, get_array_module, is_gpu_available, to_numpy
 
 logger = logging.getLogger(__name__)
 

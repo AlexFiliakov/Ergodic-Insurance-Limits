@@ -413,9 +413,9 @@ class BusinessOptimizer:
             return self.maximize_roe_with_insurance(constraints, time_horizon, n_simulations)
 
         from .gpu_objective import (
-            GPUObjectiveWrapper,
-            GPUMultiStartScreener,
             GPUDifferentialEvolution,
+            GPUMultiStartScreener,
+            GPUObjectiveWrapper,
         )
 
         self.logger.info(

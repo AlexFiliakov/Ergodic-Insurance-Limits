@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import differential_evolution, minimize
 
-from .gpu_backend import GPUConfig, get_array_module, to_numpy, is_gpu_available
+from .gpu_backend import GPUConfig, get_array_module, is_gpu_available, to_numpy
 
 logger = logging.getLogger(__name__)
 
