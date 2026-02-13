@@ -21,7 +21,7 @@ def test_configuration_files_exist():
     package_root = Path(__file__).parent.parent
     repo_root = package_root.parent
 
-    # Package-level config files
+    # Package-level config files (pytest config consolidated into pyproject.toml)
     assert (package_root / "requirements.txt").exists()
     assert (package_root / "README.md").exists()
     # Repo-level config files (pytest config consolidated into pyproject.toml)
