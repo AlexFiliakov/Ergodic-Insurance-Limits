@@ -249,6 +249,7 @@ class InsuranceDecisionEngine:
         # Cache for performance
         self._decision_cache: Dict[str, InsuranceDecision] = {}
         self._metrics_cache: Dict[str, DecisionMetrics] = {}
+        self._baseline_cache: Dict[str, Dict[str, np.ndarray]] = {}
 
     def _load_pricing_scenarios(
         self, scenario_file: str = "insurance_pricing_scenarios"
@@ -1183,6 +1184,46 @@ class InsuranceDecisionEngine:
 
         return True
 
+    def _baseline_cache_key(self) -> str:
+        """Build a cache key for the without-insurance baseline.
+
+        The key captures manufacturer financials and loss distribution
+        parameters so the baseline is recomputed whenever either changes.
+        """
+        mfr = self.manufacturer
+        parts = [
+            f"assets={float(mfr.total_assets):.2f}",
+            f"equity={float(mfr.equity):.2f}",
+            f"turnover={mfr.asset_turnover_ratio}",
+            f"margin={mfr.base_operating_margin}",
+            f"tax={getattr(mfr, 'tax_rate', 0.25)}",
+        ]
+        if hasattr(self.loss_distribution, "expected_value"):
+            parts.append(f"ev={self.loss_distribution.expected_value():.4f}")
+        if hasattr(self.loss_distribution, "cv"):
+            parts.append(f"cv={self.loss_distribution.cv():.4f}")
+        cfg = self.engine_config
+        parts.append(f"n={cfg.metrics_n_simulations}")
+        parts.append(f"t={cfg.metrics_time_horizon}")
+        return "|".join(parts)
+
+    def _generate_loss_sequence(
+        self, n_simulations: int, time_horizon: int, seed: int = 42
+    ) -> np.ndarray:
+        """Pre-generate a (n_simulations, time_horizon) loss array.
+
+        Used for Common Random Numbers so with-insurance and without-insurance
+        simulations share the same loss draws.
+        """
+        rng = np.random.default_rng(seed)
+        if hasattr(self.loss_distribution, "expected_value"):
+            expected = max(self.loss_distribution.expected_value(), 1.0)
+            cv = self.loss_distribution.cv() if hasattr(self.loss_distribution, "cv") else 0.5
+            sigma_sq = np.log(1 + cv**2)
+            mu = np.log(expected) - sigma_sq / 2
+            return rng.lognormal(mu, np.sqrt(sigma_sq), size=(n_simulations, time_horizon))
+        return np.zeros((n_simulations, time_horizon))
+
     def calculate_decision_metrics(self, decision: InsuranceDecision) -> DecisionMetrics:
         """Calculate comprehensive metrics for a decision.
 
@@ -1204,25 +1245,36 @@ class InsuranceDecisionEngine:
             else 0.3
         )
 
-        # Run simulations to calculate metrics
-        n_simulations = 1000
-        time_horizon = 10  # years
+        # Use configurable simulation parameters
+        n_simulations = self.engine_config.metrics_n_simulations
+        time_horizon = self.engine_config.metrics_time_horizon
+
+        # Pre-generate shared loss sequence for CRN (paired comparison)
+        use_crn = self.engine_config.use_crn
+        loss_seq = self._generate_loss_sequence(n_simulations, time_horizon) if use_crn else None
 
         # Simulate with insurance
-        with_insurance_results = self._run_simulation(decision, n_simulations, time_horizon)
+        with_insurance_results = self._run_simulation(
+            decision, n_simulations, time_horizon, loss_sequence=loss_seq
+        )
 
-        # Simulate without insurance
-        no_insurance_decision = InsuranceDecision(
-            retained_limit=float("inf"),
-            layers=[],
-            total_premium=0,
-            total_coverage=0,
-            pricing_scenario=self.pricing_scenario,
-            optimization_method="none",
-        )
-        without_insurance_results = self._run_simulation(
-            no_insurance_decision, n_simulations, time_horizon
-        )
+        # Simulate without insurance — use cached baseline when possible
+        bl_key = self._baseline_cache_key()
+        if bl_key in self._baseline_cache:
+            without_insurance_results = self._baseline_cache[bl_key]
+        else:
+            no_insurance_decision = InsuranceDecision(
+                retained_limit=float("inf"),
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario=self.pricing_scenario,
+                optimization_method="none",
+            )
+            without_insurance_results = self._run_simulation(
+                no_insurance_decision, n_simulations, time_horizon, loss_sequence=loss_seq
+            )
+            self._baseline_cache[bl_key] = without_insurance_results
 
         # Import ROEAnalyzer for enhanced metrics
         from .risk_metrics import ROEAnalyzer
@@ -1347,6 +1399,7 @@ class InsuranceDecisionEngine:
         n_simulations: int,
         time_horizon: int,
         seed: Optional[int] = 42,
+        loss_sequence: Optional[np.ndarray] = None,
     ) -> Dict[str, np.ndarray]:
         """Run Monte Carlo simulation for given decision.
 
@@ -1355,6 +1408,9 @@ class InsuranceDecisionEngine:
             n_simulations: Number of Monte Carlo paths.
             time_horizon: Number of years per path.
             seed: Random seed for reproducibility. Pass None for non-deterministic.
+            loss_sequence: Pre-generated loss array of shape
+                ``(n_simulations, time_horizon)`` for Common Random Numbers.
+                When provided, *seed* is ignored for loss generation.
         """
         equity_ratio = (
             float(self.manufacturer.equity) / float(self.manufacturer.total_assets)
@@ -1386,12 +1442,14 @@ class InsuranceDecisionEngine:
             sim_roe_series = []
             sim_equity_series = []
 
-            for _ in range(time_horizon):
+            for t in range(time_horizon):
                 # Generate revenue
                 revenue = assets * self.manufacturer.asset_turnover_ratio
 
                 # Generate losses using loss distribution parameters
-                if hasattr(self.loss_distribution, "expected_value"):
+                if loss_sequence is not None:
+                    annual_losses = float(loss_sequence[i, t])
+                elif hasattr(self.loss_distribution, "expected_value"):
                     expected = max(self.loss_distribution.expected_value(), 1.0)
                     # Use distribution's CV if available, otherwise default 0.5
                     if hasattr(self.loss_distribution, "cv"):
@@ -1516,6 +1574,7 @@ class InsuranceDecisionEngine:
                     # Clear caches so modified parameters take effect
                     self._decision_cache.clear()
                     self._metrics_cache.clear()
+                    self._baseline_cache.clear()
 
                     # Re-optimize with modified parameter
                     constraints = DecisionOptimizationConstraints(
@@ -1556,6 +1615,7 @@ class InsuranceDecisionEngine:
             # Clear caches so restored state is used for subsequent calls
             self._decision_cache.clear()
             self._metrics_cache.clear()
+            self._baseline_cache.clear()
 
         # Flatten parameter sensitivities for the report
         flattened_sensitivities = {}

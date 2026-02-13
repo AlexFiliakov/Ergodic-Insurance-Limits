@@ -205,3 +205,22 @@ class DecisionEngineConfig(BaseModel):
         default=(5_000_000, 25_000_000),
         description="Attachment thresholds: (primary_ceiling, first_excess_ceiling).",
     )
+
+    # calculate_decision_metrics simulation parameters
+    metrics_n_simulations: int = Field(
+        default=1000,
+        ge=10,
+        description="Number of Monte Carlo simulations for decision metrics calculation.",
+    )
+    metrics_time_horizon: int = Field(
+        default=10,
+        ge=1,
+        description="Time horizon in years for decision metrics simulation.",
+    )
+    use_crn: bool = Field(
+        default=True,
+        description=(
+            "Use Common Random Numbers (CRN) for paired comparison between "
+            "with-insurance and without-insurance simulations."
+        ),
+    )
