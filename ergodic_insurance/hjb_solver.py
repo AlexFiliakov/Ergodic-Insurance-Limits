@@ -530,9 +530,14 @@ class HJBSolver:
 
         dx_sq = dx_mean**2
 
-        # Operator coefficients (consistent with _apply_upwind_scheme)
-        # drift > 0: forward diff drift*(V[i+1]-V[i])/dx_fwd
-        # drift < 0: backward diff drift*(V[i]-V[i-1])/dx_back
+        # Operator coefficients (consistent with _apply_upwind_scheme).
+        #
+        # The HJB PDE is V_t = drift*V_x + ..., which is V_t + (-drift)*V_x = 0.
+        # The effective advection coefficient is a = -drift, so the upwind
+        # direction is OPPOSITE to standard advection references that assume
+        # V_t + a*V_x = 0 with a = drift.  Concretely:
+        #   drift > 0  =>  a < 0  =>  upwind = forward diff
+        #   drift < 0  =>  a > 0  =>  upwind = backward diff
         sub[interior] = -drift_neg / dx_back + D / dx_sq
         main[interior] = -drift_pos / dx_fwd + drift_neg / dx_back - 2.0 * D / dx_sq - rho
         sup[interior] = drift_pos / dx_fwd + D / dx_sq
@@ -738,7 +743,10 @@ class HJBSolver:
         bwd_diff = np.zeros_like(value)
         bwd_diff[tuple(hi)] = (value[tuple(hi)] - value[tuple(lo)]) / dx_bc
 
-        # Upwind selection: forward for positive drift, backward for negative
+        # Upwind selection based on the HJB sign convention V_t = drift*V_x + ...
+        # The effective advection coefficient is -drift, so:
+        #   drift > 0 => forward diff (upwind for negative effective coefficient)
+        #   drift < 0 => backward diff (upwind for positive effective coefficient)
         mask_pos = drift > 0
         mask_neg = drift < 0
 

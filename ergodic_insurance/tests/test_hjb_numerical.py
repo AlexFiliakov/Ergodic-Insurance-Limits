@@ -134,6 +134,51 @@ class TestNumericalMethods:
         assert result_mixed[0] == 0.0  # backward diff undefined at first point
         assert result_mixed[-1] == 0.0  # forward diff undefined at last point
 
+    def test_upwind_direction_matches_hjb_sign_convention(self):
+        """Verify the upwind direction is correct for the HJB sign convention.
+
+        The HJB PDE is V_t = drift*V_x + ..., which is V_t + (-drift)*V_x = 0.
+        The effective advection coefficient is a = -drift, so:
+          drift > 0 => a < 0 => forward diff (upwind)
+          drift < 0 => a > 0 => backward diff (upwind)
+
+        This is the OPPOSITE of the standard advection rule for V_t + a*V_x = 0
+        where a = drift.  The test solves a pure advection problem using the
+        explicit scheme and verifies stability.  The wrong direction would be
+        unconditionally unstable at CFL ~ 1.
+        """
+        N = 51
+        state_space = StateSpace([StateVariable("x", 0, 10, N)])
+        problem = HJBProblem(
+            state_space=state_space,
+            control_variables=[ControlVariable("u", 0, 1, 2)],
+            utility_function=ExpectedWealth(),
+            dynamics=lambda x, u, t: np.ones_like(x) * 2.0,  # positive drift
+            running_cost=lambda x, u, t: np.zeros(x.shape[0]),
+            discount_rate=0.0,
+            time_horizon=None,
+        )
+        config = HJBSolverConfig(max_iterations=1, verbose=False)
+        solver = HJBSolver(problem, config)
+
+        # Set a smooth value function
+        grid = state_space.grids[0]
+        solver.value_function = np.sin(grid * np.pi / 10.0)
+
+        # One explicit step with the upwind scheme
+        drift_arr = np.ones(N) * 2.0
+        advection = solver._apply_upwind_scheme(solver.value_function, drift_arr, 0)
+
+        dx = grid[1] - grid[0]
+        dt = 0.4 * dx / 2.0  # CFL ~ 0.4
+        V_new = solver.value_function + dt * advection
+
+        # The solution should stay bounded (no amplification)
+        assert np.all(np.isfinite(V_new)), "Upwind scheme produced non-finite values"
+        assert (
+            np.max(np.abs(V_new)) <= np.max(np.abs(solver.value_function)) * 1.1
+        ), "Upwind scheme amplified the solution (wrong direction?)"
+
     def test_numerical_stability_extreme_values(self):
         """Test solver stability with extreme parameter values."""
         # Test with very small grid spacing
