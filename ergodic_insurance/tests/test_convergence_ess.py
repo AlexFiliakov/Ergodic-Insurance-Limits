@@ -345,7 +345,7 @@ class TestMonteCarloIntegration:
             uncovered_loss=0.0,
             reinstatement_premiums=0.0,
         )
-        insurance_program.calculate_annual_premium.return_value = 100_000
+        insurance_program.calculate_premium.return_value = 100_000
 
         return loss_generator, insurance_program, manufacturer
 

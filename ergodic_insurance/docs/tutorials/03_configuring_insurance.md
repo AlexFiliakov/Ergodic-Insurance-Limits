@@ -32,7 +32,7 @@ policy = InsuranceProgram.simple(
     rate=0.025                     # Annual premium = 2.5% x $5M = $125K
 )
 
-print(f"Annual Premium: ${policy.calculate_annual_premium():,.0f}")
+print(f"Annual Premium: ${policy.calculate_premium():,.0f}")
 print(f"Total Coverage: ${policy.get_total_coverage():,.0f}")
 ```
 
@@ -88,7 +88,7 @@ for i, layer in enumerate(tower.layers, 1):
         f"| Rate: {layer.base_premium_rate:.1%} | Premium: ${premium:,.0f}"
     )
 print(f"Total Coverage: ${tower.get_total_coverage():,.0f}")
-print(f"Total Annual Premium: ${tower.calculate_annual_premium():,.0f}")
+print(f"Total Annual Premium: ${tower.calculate_premium():,.0f}")
 ```
 
 **Expected Output:**
@@ -206,7 +206,7 @@ print("-" * 60)
 print(f"{'Final Equity':<30} ${results_insured.equity[-1]:>13,.0f} ${results_uninsured.equity[-1]:>13,.0f}")
 print(f"{'Time-Weighted ROE':<30} {insured_growth:>13.2%} {uninsured_growth:>13.2%}")
 print(f"{'Survived':<30} {'Yes' if results_insured.insolvency_year is None else 'No':>14} {'Yes' if results_uninsured.insolvency_year is None else 'No':>14}")
-print(f"{'Annual Premium Paid':<30} ${policy.calculate_annual_premium():>13,.0f} {'$0':>14}")
+print(f"{'Annual Premium Paid':<30} ${policy.calculate_premium():>13,.0f} {'$0':>14}")
 print(f"{'Growth Improvement':<30} {insured_growth - uninsured_growth:>+13.2%}")
 ```
 
@@ -344,7 +344,7 @@ program = InsuranceProgram(
 # Print program summary
 print(f"Deductible: ${program.deductible:,.0f}")
 print(f"Total Coverage: ${program.get_total_coverage():,.0f}")
-print(f"Total Annual Premium: ${program.calculate_annual_premium():,.0f}")
+print(f"Total Annual Premium: ${program.calculate_premium():,.0f}")
 ```
 
 ### Processing Claims Through InsuranceProgram
@@ -396,7 +396,7 @@ expected_annual_loss = expected_frequency * expected_severity
 print(f"Expected Annual Loss: ${expected_annual_loss:,.0f}")
 
 # Premium paid for the simple $5M xs $100K program
-annual_premium = policy.calculate_annual_premium()
+annual_premium = policy.calculate_premium()
 print(f"Annual Premium:       ${annual_premium:,.0f}")
 
 # Loading calculation
@@ -457,7 +457,7 @@ for load in loadings:
 
     results_by_loading.append({
         'loading': load,
-        'premium': test_policy.calculate_annual_premium(),
+        'premium': test_policy.calculate_premium(),
         'growth': growth,
         'vs_uninsured': growth - uninsured_growth
     })

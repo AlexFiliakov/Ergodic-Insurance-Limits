@@ -27,7 +27,7 @@ Example:
         )
 
         # Get total premium
-        total_premium = priced_program.calculate_annual_premium()
+        total_premium = priced_program.calculate_premium()
 
 Attributes:
     MarketCycle: Enum representing market conditions (HARD, NORMAL, SOFT)
@@ -939,7 +939,7 @@ class InsurancePricer:
                 total_premium = sum(pr.market_premium for pr in priced_program.pricing_results)
             else:
                 # Fallback to calculating from layers
-                total_premium = priced_program.calculate_annual_premium()
+                total_premium = priced_program.calculate_premium()
 
             # Store results
             results.append(

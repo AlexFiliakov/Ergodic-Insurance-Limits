@@ -153,7 +153,7 @@ def run_chunk_standalone(
                 manufacturer.config.initial_assets * manufacturer.config.asset_turnover_ratio
             )
             revenue_multiplier = float(revenue) / base_revenue if base_revenue > 0 else 1.0
-            base_premium = sim_insurance_program.calculate_annual_premium()
+            base_premium = sim_insurance_program.calculate_premium()
             annual_premium = base_premium * revenue_multiplier
 
             # Record the insurance premium for accounting purposes

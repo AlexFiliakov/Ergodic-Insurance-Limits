@@ -595,7 +595,7 @@ unins = comparison['uninsured']
 adv = comparison['ergodic_advantage']
 
 # Calculate cost-benefit ratio
-annual_premium = policy.calculate_annual_premium()
+annual_premium = policy.calculate_premium()
 expected_annual_loss = 0.2 * 1_000_000  # frequency x severity mean
 premium_loading = (annual_premium / expected_annual_loss - 1) * 100
 

@@ -402,7 +402,7 @@ class TestMonteCarloWorkerErrorHandling:
 
         # Create mock insurance program
         mock_insurance = MagicMock()
-        mock_insurance.calculate_annual_premium.return_value = 50000.0
+        mock_insurance.calculate_premium.return_value = 50000.0
 
         config_dict = {
             "n_years": 1,

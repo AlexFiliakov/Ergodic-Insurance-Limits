@@ -597,17 +597,7 @@ class InsuranceProgram:
         )
         return cls(layers=[layer], deductible=deductible, name=name, **kwargs)
 
-    def calculate_premium(self) -> float:
-        """Calculate total annual premium across all layers.
-
-        Convenience alias for ``calculate_annual_premium(0.0)``.
-
-        Returns:
-            Total annual premium in dollars.
-        """
-        return self.calculate_annual_premium(0.0)
-
-    def calculate_annual_premium(self, time: float = 0.0) -> float:
+    def calculate_premium(self, time: float = 0.0) -> float:
         """Calculate total annual premium for the program.
 
         Args:
@@ -617,6 +607,28 @@ class InsuranceProgram:
             Total base premium across all layers.
         """
         return sum(layer.calculate_base_premium(time) for layer in self.layers)
+
+    def calculate_annual_premium(self, time: float = 0.0) -> float:
+        """Calculate total annual premium for the program.
+
+        .. deprecated::
+            Use :meth:`calculate_premium` instead. This method will be
+            removed in a future release.
+
+        Args:
+            time: Time in years for exposure calculation (default 0.0).
+
+        Returns:
+            Total base premium across all layers.
+        """
+        import warnings
+
+        warnings.warn(
+            "calculate_annual_premium() is deprecated, use calculate_premium() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.calculate_premium(time)
 
     def process_claim(self, claim_amount: float, timing_factor: float = 1.0) -> ClaimResult:
         """Process a single claim through the insurance structure.
@@ -717,7 +729,7 @@ class InsuranceProgram:
             "total_recovery": 0.0,
             "total_uncovered": 0.0,
             "total_reinstatement_premiums": 0.0,
-            "base_premium": self.calculate_annual_premium(0.0),
+            "base_premium": self.calculate_premium(0.0),
             "claim_details": [],
             "layer_summaries": [],
         }
@@ -772,7 +784,7 @@ class InsuranceProgram:
             "deductible": self.deductible,
             "num_layers": len(self.layers),
             "total_coverage": self.get_total_coverage(),
-            "annual_base_premium": self.calculate_annual_premium(0.0),
+            "annual_base_premium": self.calculate_premium(0.0),
             "total_claims_processed": self.total_claims,
             "total_premiums_paid": self.total_premiums_paid,
             "layers": [
@@ -1177,7 +1189,7 @@ class InsuranceProgram:
                 best_structure = OptimalStructure(
                     layers=layers,
                     deductible=deductible,
-                    total_premium=test_program.calculate_annual_premium(0.0),
+                    total_premium=test_program.calculate_premium(0.0),
                     total_coverage=test_program.get_total_coverage(),
                     ergodic_benefit=best_ergodic_benefit,
                     roe_improvement=roe_improvement,
@@ -1201,7 +1213,7 @@ class InsuranceProgram:
             best_structure = OptimalStructure(
                 layers=basic_layers,
                 deductible=250_000,
-                total_premium=basic_program.calculate_annual_premium(0.0),
+                total_premium=basic_program.calculate_premium(0.0),
                 total_coverage=5_000_000,
                 ergodic_benefit=0.0,
                 roe_improvement=0.0,
@@ -1353,7 +1365,7 @@ class InsuranceProgram:
         summary: Dict[str, Any] = {
             "program_name": self.name,
             "pricing_enabled": self.pricing_enabled,
-            "total_premium": self.calculate_annual_premium(0.0),
+            "total_premium": self.calculate_premium(0.0),
             "layers": [],
         }
 

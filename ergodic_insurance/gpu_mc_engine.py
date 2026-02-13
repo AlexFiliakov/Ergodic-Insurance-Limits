@@ -165,7 +165,7 @@ def extract_params(
         agg = getattr(layer, "aggregate_limit", None)
         agg_limits.append(float(agg) if agg is not None else float("inf"))
 
-    base_premium = float(insurance_program.calculate_annual_premium())
+    base_premium = float(insurance_program.calculate_premium())
 
     # --- Loss generators ---
     def _freq_params(gen):

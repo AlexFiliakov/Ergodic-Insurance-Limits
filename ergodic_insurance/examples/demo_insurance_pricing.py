@@ -258,7 +258,7 @@ def demo_fixed_vs_calculated():
 
     # Create program with fixed rates
     fixed_program = InsuranceProgram.create_standard_manufacturing_program()
-    fixed_premium = fixed_program.calculate_annual_premium()
+    fixed_premium = fixed_program.calculate_premium()
 
     # Create identical structure with calculated rates
     layers = []
@@ -284,7 +284,7 @@ def demo_fixed_vs_calculated():
             market_cycle=cycle,
             deductible=fixed_program.deductible,
         )
-        market_premiums[cycle.name] = priced_program.calculate_annual_premium()
+        market_premiums[cycle.name] = priced_program.calculate_premium()
 
     # Display comparison
     table = Table(title="Fixed vs Calculated Premium Comparison")

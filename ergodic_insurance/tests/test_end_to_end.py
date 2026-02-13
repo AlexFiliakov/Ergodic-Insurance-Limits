@@ -242,7 +242,7 @@ class TestInsuranceProgramEvaluation:
             assert abs(recovery - expected) < 1e-10
 
         # Test premium calculation
-        total_premium = insurance_program.calculate_annual_premium()
+        total_premium = insurance_program.calculate_premium()
         expected_premium = 100_000 * 0.03 + 400_000 * 0.015 + 500_000 * 0.005
         assert abs(total_premium - expected_premium) < 1e-10
 
@@ -454,7 +454,7 @@ class TestDecisionFramework:
             if avg_growth > criteria["min_growth_rate"]:
                 score += 1
 
-            premium = option.calculate_annual_premium()
+            premium = option.calculate_premium()
             premium_ratio = premium / manufacturer.config.initial_assets
             if premium_ratio < criteria["max_premium_ratio"]:
                 score += 1

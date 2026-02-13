@@ -104,7 +104,7 @@ def test_full_simulation_with_dynamic_scaling():
     for year in range(10):
         # Simulate revenue growth of 5% per year
         state_provider.current_revenue = 10_000_000 * (1.05**year)
-        annual_premium = program.calculate_annual_premium(time=float(year))
+        annual_premium = program.calculate_premium(time=float(year))
         premiums.append(annual_premium)
 
     # Verify premiums increase with revenue
@@ -203,7 +203,7 @@ def test_exposure_not_provided_fallback():
 
 
 def test_insurance_program_annual_premium_with_time():
-    """Test that InsuranceProgram.calculate_annual_premium accepts time parameter."""
+    """Test that InsuranceProgram.calculate_premium accepts time parameter."""
     state_provider = MockStateProvider(base_revenue=10_000_000)
     exposure = RevenueExposure(state_provider=state_provider)
 
@@ -219,11 +219,11 @@ def test_insurance_program_annual_premium_with_time():
     program = InsuranceProgram(layers=layers)
 
     # Should accept time parameter
-    premium_t0 = program.calculate_annual_premium(time=0.0)
+    premium_t0 = program.calculate_premium(time=0.0)
 
     # Change revenue
     state_provider.current_revenue = 12_000_000
-    premium_t1 = program.calculate_annual_premium(time=1.0)
+    premium_t1 = program.calculate_premium(time=1.0)
 
     # Premium should have increased
     assert premium_t1 > premium_t0
