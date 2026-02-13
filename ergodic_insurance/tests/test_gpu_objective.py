@@ -716,7 +716,7 @@ class TestParetoFrontierGPU:
         def dummy_objective(x):
             return {"ROE": float(x[0]), "risk": float(x[1])}
 
-        bounds = [(0, 1), (0, 1)]
+        bounds = [(0.0, 1.0), (0.0, 1.0)]
         gpu_config = GPUConfig(enabled=False)
 
         frontier = ParetoFrontier(
