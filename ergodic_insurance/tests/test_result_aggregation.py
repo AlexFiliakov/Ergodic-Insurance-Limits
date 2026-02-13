@@ -1,11 +1,12 @@
 """Comprehensive tests for result aggregation framework."""
 
 import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 from typing import Any, Dict
 
-import h5py
 import numpy as np
 import pandas as pd
 import pytest
@@ -336,8 +337,14 @@ class TestResultExporter:
         finally:
             filepath.unlink()
 
+    @pytest.mark.skipif(
+        sys.platform == "win32" and os.environ.get("ENABLE_H5PY", "").lower() != "true",
+        reason="h5py disabled on Windows unless ENABLE_H5PY=true",
+    )
     def test_hdf5_export(self, sample_results):
         """Test HDF5 export functionality."""
+        import h5py
+
         with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
             filepath = Path(tmp.name)
 
