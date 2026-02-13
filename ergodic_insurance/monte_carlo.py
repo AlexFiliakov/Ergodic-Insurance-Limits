@@ -42,16 +42,35 @@ from .summary_statistics import SummaryReportGenerator, SummaryStatistics
 from .trajectory_storage import StorageConfig, TrajectoryStorage
 
 
-def _create_manufacturer(config_dict: Dict[str, Any]) -> Any:
-    """Create manufacturer instance from config dictionary."""
-    # WidgetManufacturer is already imported at module level
-    if "config" in config_dict and hasattr(config_dict["config"], "__dict__"):
-        return WidgetManufacturer(config_dict["config"])
-    # Create from raw values
-    manufacturer = WidgetManufacturer.__new__(WidgetManufacturer)
-    for key, value in config_dict.items():
-        setattr(manufacturer, key, value)
-    return manufacturer
+def _create_manufacturer(config_dict: Dict[str, Any]) -> "WidgetManufacturer":
+    """Create a fresh manufacturer instance from a config dictionary.
+
+    Uses :meth:`WidgetManufacturer.create_fresh` so that construction always
+    goes through ``__init__`` validation.  The previous implementation used
+    ``__new__`` with an unchecked ``setattr`` loop, which allowed arbitrary
+    attribute injection (see issue #886).
+
+    Args:
+        config_dict: Dictionary that **must** contain a ``"config"`` key
+            holding a :class:`ManufacturerConfig` instance.  An optional
+            ``"stochastic_process"`` key is forwarded to the factory method.
+
+    Returns:
+        A validated :class:`WidgetManufacturer` in its initial state.
+
+    Raises:
+        TypeError: If ``config_dict["config"]`` is missing or is not a
+            proper configuration object.
+    """
+    config = config_dict.get("config")
+    if config is None or not hasattr(config, "__dict__"):
+        raise TypeError(
+            "_create_manufacturer requires config_dict['config'] to be a "
+            "ManufacturerConfig instance, got "
+            f"{type(config).__name__ if config is not None else 'None'}"
+        )
+    stochastic_process = config_dict.get("stochastic_process")
+    return WidgetManufacturer.create_fresh(config, stochastic_process)
 
 
 def _simulate_year_losses(sim_id: int, year: int) -> Tuple[float, float, float]:
@@ -970,7 +989,10 @@ class MonteCarloEngine:
             "ruin_evaluation": self.config.ruin_evaluation,
             "insolvency_tolerance": self.config.insolvency_tolerance,
             "enable_ledger_pruning": self.config.enable_ledger_pruning,
-            "manufacturer_config": self.manufacturer.__dict__.copy(),
+            "manufacturer_config": {
+                "config": self.manufacturer.config,
+                "stochastic_process": self.manufacturer.stochastic_process,
+            },
             "loss_generator": self.loss_generator,
             "insurance_program": self.insurance_program,
             "base_seed": self.config.seed,

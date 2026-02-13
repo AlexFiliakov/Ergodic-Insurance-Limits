@@ -135,11 +135,11 @@ def small_engine(mock_loss_generator, insurance_program, manufacturer, small_con
 
 
 class TestCreateManufacturer:
-    """Tests for _create_manufacturer (lines 45-51)."""
+    """Tests for _create_manufacturer (issue #886 hardened version)."""
 
     def test_create_from_config_object(self, manufacturer_config):
         """When config_dict has a 'config' key with a real config object,
-        _create_manufacturer should instantiate via WidgetManufacturer(config)."""
+        _create_manufacturer should instantiate via create_fresh()."""
         config_dict = {"config": manufacturer_config}
         mfg = _create_manufacturer(config_dict)
         assert isinstance(mfg, WidgetManufacturer)
@@ -147,29 +147,42 @@ class TestCreateManufacturer:
             manufacturer_config.initial_assets, rel=0.01
         )
 
-    def test_create_from_raw_values(self):
-        """When config_dict does NOT have a 'config' key with __dict__,
-        attributes are set directly on a bare WidgetManufacturer instance.
+    def test_create_with_stochastic_process(self, manufacturer_config):
+        """When a stochastic_process key is present it is forwarded."""
+        mock_sp = Mock()
+        config_dict = {"config": manufacturer_config, "stochastic_process": mock_sp}
+        mfg = _create_manufacturer(config_dict)
+        assert isinstance(mfg, WidgetManufacturer)
+        assert mfg.stochastic_process is mock_sp
 
-        Note: We use simple attributes that do not trigger property setters
-        (WidgetManufacturer has complex properties like total_assets that
-        require internal accounting infrastructure)."""
+    def test_rejects_missing_config(self):
+        """config_dict without a 'config' key must raise TypeError (#886)."""
+        with pytest.raises(TypeError, match="ManufacturerConfig instance"):
+            _create_manufacturer({"custom_attr": "test_value"})
+
+    def test_rejects_non_object_config(self):
+        """config_dict['config'] that is not a proper object must raise TypeError (#886)."""
+        with pytest.raises(TypeError, match="ManufacturerConfig instance"):
+            _create_manufacturer({"config": "not_an_object", "simple_attr": 999})
+
+    def test_rejects_none_config(self):
+        """Explicitly passing config=None must raise TypeError (#886)."""
+        with pytest.raises(TypeError, match="ManufacturerConfig instance"):
+            _create_manufacturer({"config": None})
+
+    def test_no_arbitrary_attribute_injection(self, manufacturer_config):
+        """Extra keys in config_dict must NOT appear on the manufacturer (#886).
+
+        This is the core regression test: the old code used __new__ + blind
+        setattr which would have set '__class__' or any injected key."""
         config_dict = {
-            "custom_attr": "test_value",
-            "_some_numeric": 42,
+            "config": manufacturer_config,
+            "__class__": "injected",
+            "malicious_attr": "payload",
         }
         mfg = _create_manufacturer(config_dict)
         assert isinstance(mfg, WidgetManufacturer)
-        assert mfg.custom_attr == "test_value"  # type: ignore[attr-defined]
-        assert mfg._some_numeric == 42  # type: ignore[attr-defined]
-
-    def test_create_from_raw_values_with_string_config(self):
-        """If 'config' is present but is not an object with __dict__ (e.g. a string),
-        fall through to the raw-values path."""
-        config_dict = {"config": "not_an_object", "simple_attr": 999}
-        mfg = _create_manufacturer(config_dict)
-        assert isinstance(mfg, WidgetManufacturer)
-        assert mfg.simple_attr == 999  # type: ignore[attr-defined]
+        assert not hasattr(mfg, "malicious_attr")
 
 
 class TestSimulateYearLosses:
