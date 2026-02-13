@@ -166,6 +166,7 @@ __all__ = [
     # Simulation
     "Simulation",
     "SimulationResults",
+    "StrategyComparisonResult",
 ]
 
 
@@ -299,10 +300,11 @@ def __getattr__(name):
         from .manufacturer import WidgetManufacturer  # pylint: disable=import-outside-toplevel
 
         return WidgetManufacturer
-    if name in ("Simulation", "SimulationResults"):
+    if name in ("Simulation", "SimulationResults", "StrategyComparisonResult"):
         from .simulation import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             Simulation,
             SimulationResults,
+            StrategyComparisonResult,
         )
 
         return locals()[name]

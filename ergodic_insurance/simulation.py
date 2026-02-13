@@ -409,6 +409,29 @@ class SimulationResults:
         return base_stats
 
 
+@dataclass
+class StrategyComparisonResult:
+    """Result of comparing multiple insurance strategies.
+
+    Returned by :meth:`Simulation.compare_insurance_strategies`. Contains the
+    shared uninsured baseline, per-strategy Monte Carlo results, and a summary
+    DataFrame for quick comparison.
+
+    Attributes:
+        baseline: MonteCarloResults from the shared uninsured baseline run.
+        strategy_results: Dict mapping strategy name to its MonteCarloResults.
+        summary_df: DataFrame comparing strategies (same columns as the
+            previous ``pd.DataFrame`` return type for backward compatibility).
+        crn_seed: The Common Random Numbers base seed used for paired
+            comparison across all runs.
+    """
+
+    baseline: Any  # MonteCarloResults (avoid top-level import cycle)
+    strategy_results: Dict[str, Any]
+    summary_df: pd.DataFrame
+    crn_seed: Optional[int] = None
+
+
 class Simulation:
     """Simulation engine for widget manufacturer time evolution.
 
@@ -1139,8 +1162,13 @@ class Simulation:
         n_scenarios: int = 1000,
         n_jobs: int = 7,
         seed: Optional[int] = None,
-    ) -> pd.DataFrame:
+    ) -> StrategyComparisonResult:
         """Compare multiple insurance strategies via Monte Carlo.
+
+        Runs a single uninsured baseline and one insured simulation per
+        strategy, using Common Random Numbers (CRN) for proper paired
+        comparison.  This requires N+1 total Monte Carlo runs for N
+        strategies instead of the previous 2N.
 
         Args:
             config: Configuration object.
@@ -1151,26 +1179,71 @@ class Simulation:
             seed: Random seed.
 
         Returns:
-            DataFrame comparing results across strategies.
+            :class:`StrategyComparisonResult` containing per-strategy results,
+            the shared uninsured baseline, and a summary DataFrame.
         """
-        results = []
+        from .monte_carlo import MonteCarloConfig
+
+        # Derive CRN base seed for paired comparison
+        if seed is not None:
+            crn_seed = seed
+        else:
+            crn_seed = int(np.random.SeedSequence().generate_state(1)[0])
+
+        # Build shared simulation config with CRN enabled
+        sim_config = MonteCarloConfig(
+            n_simulations=n_scenarios,
+            n_years=getattr(config.simulation, "years", 10),
+            parallel=n_jobs > 1 if n_jobs else True,
+            n_workers=n_jobs,
+            checkpoint_interval=n_scenarios + 1,  # Don't checkpoint for comparisons
+            seed=seed,
+            crn_base_seed=crn_seed,
+        )
+
+        # --- Run uninsured baseline ONCE ---
+        logger.info("Running shared uninsured baseline simulation...")
+        baseline_results = MonteCarloEngine(
+            loss_generator=ManufacturingLossGenerator(seed=seed),
+            insurance_program=InsuranceProgram(layers=[]),
+            manufacturer=WidgetManufacturer(config=config.manufacturer),
+            config=sim_config,
+        ).run()
+
+        # --- Run each strategy (insured only) ---
+        strategy_mc_results: Dict[str, Any] = {}
+        results_rows: List[Dict[str, Any]] = []
 
         for policy_name, policy in insurance_policies.items():
-            logger.info(f"Running Monte Carlo for policy: {policy_name}")
+            logger.info(f"Running Monte Carlo for strategy: {policy_name}")
 
-            # Run Monte Carlo
-            mc_results = cls.run_monte_carlo(
-                config=config,
-                insurance_policy=policy,
-                n_scenarios=n_scenarios,
-                n_jobs=n_jobs,
-                seed=seed,
-                checkpoint_frequency=n_scenarios + 1,  # Don't checkpoint for comparisons
-                resume=False,
-            )
+            # Normalize InsurancePolicy -> InsuranceProgram
+            if isinstance(policy, InsurancePolicy):
+                import warnings as _warnings
 
-            # Extract key metrics from the SimulationResults object
-            sim_results = mc_results["results_with_insurance"]
+                _warnings.warn(
+                    "Passing InsurancePolicy to compare_insurance_strategies "
+                    "is deprecated. Use InsuranceProgram instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                converted = policy.to_enhanced_program()
+                insurance_program: InsuranceProgram = (
+                    converted if converted is not None else InsuranceProgram(layers=[])
+                )
+            else:
+                insurance_program = policy
+
+            sim_results = MonteCarloEngine(
+                loss_generator=ManufacturingLossGenerator(seed=seed),
+                insurance_program=insurance_program,
+                manufacturer=WidgetManufacturer(config=config.manufacturer),
+                config=sim_config,
+            ).run()
+
+            strategy_mc_results[policy_name] = sim_results
+
+            # Extract key metrics
             final_assets = sim_results.final_assets
             growth_rates = sim_results.growth_rates
 
@@ -1186,22 +1259,22 @@ class Simulation:
             p95 = float(np.percentile(final_assets, 95)) if len(final_assets) > 0 else 0.0
             p99 = float(np.percentile(final_assets, 99)) if len(final_assets) > 0 else 0.0
 
-            result_row = {
-                "policy": policy_name,
-                "annual_premium": policy.calculate_premium(),
-                "total_coverage": policy.get_total_coverage(),
-                "survival_rate": survival_rate,
-                "mean_final_equity": mean_final,
-                "std_final_equity": std_final,
-                "geometric_return": geo_mean,
-                "arithmetic_return": arith_mean,
-                "p95_final_equity": p95,
-                "p99_final_equity": p99,
-            }
+            results_rows.append(
+                {
+                    "policy": policy_name,
+                    "annual_premium": policy.calculate_premium(),
+                    "total_coverage": policy.get_total_coverage(),
+                    "survival_rate": survival_rate,
+                    "mean_final_equity": mean_final,
+                    "std_final_equity": std_final,
+                    "geometric_return": geo_mean,
+                    "arithmetic_return": arith_mean,
+                    "p95_final_equity": p95,
+                    "p99_final_equity": p99,
+                }
+            )
 
-            results.append(result_row)
-
-        comparison_df = pd.DataFrame(results)
+        comparison_df = pd.DataFrame(results_rows)
 
         # Add relative metrics
         if len(comparison_df) > 0:
@@ -1212,4 +1285,9 @@ class Simulation:
                 comparison_df["arithmetic_return"] / comparison_df["std_final_equity"]
             )
 
-        return comparison_df
+        return StrategyComparisonResult(
+            baseline=baseline_results,
+            strategy_results=strategy_mc_results,
+            summary_df=comparison_df,
+            crn_seed=crn_seed,
+        )
