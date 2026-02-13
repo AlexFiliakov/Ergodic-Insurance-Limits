@@ -434,4 +434,18 @@ def __getattr__(name):
         )
 
         return locals()[name]
+    if name in (
+        "GPUBatchObjective",
+        "GPUObjectiveWrapper",
+        "GPUMultiStartScreener",
+        "GPUDifferentialEvolution",
+    ):
+        from .gpu_objective import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            GPUBatchObjective,
+            GPUDifferentialEvolution,
+            GPUMultiStartScreener,
+            GPUObjectiveWrapper,
+        )
+
+        return locals()[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

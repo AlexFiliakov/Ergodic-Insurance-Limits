@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import differential_evolution, minimize
 
+from .gpu_backend import GPUConfig, get_array_module, to_numpy, is_gpu_available
+
 logger = logging.getLogger(__name__)
 
 
@@ -104,6 +106,7 @@ class ParetoFrontier:
         bounds: List[Tuple[float, float]],
         constraints: Optional[List[Dict[str, Any]]] = None,
         seed: Optional[int] = None,
+        gpu_config: Optional[GPUConfig] = None,
     ):
         """Initialize Pareto frontier generator.
 
@@ -113,6 +116,7 @@ class ParetoFrontier:
             bounds: Bounds for decision variables
             constraints: Optional constraints for optimization
             seed: Optional random seed for reproducibility
+            gpu_config: Optional GPU configuration for accelerated operations
         """
         self.objectives = objectives
         self.objective_function = objective_function
@@ -120,6 +124,8 @@ class ParetoFrontier:
         self.constraints = constraints or []
         self.frontier_points: List[ParetoPoint] = []
         self._rng = np.random.default_rng(seed)
+        self.gpu_config = gpu_config
+        self._use_gpu = gpu_config is not None and gpu_config.enabled and is_gpu_available()
         self._validate_objectives()
 
     def _validate_objectives(self) -> None:
@@ -397,43 +403,48 @@ class ParetoFrontier:
     def _filter_dominated_points(self, points: List[ParetoPoint]) -> List[ParetoPoint]:
         """Filter out dominated points to get true Pareto frontier.
 
-        Uses vectorized numpy dominance checking instead of nested Python loops.
+        Uses vectorized array operations (GPU-accelerated when available)
+        instead of nested Python loops.
 
         Args:
             points: List of candidate points
 
         Returns:
             List of non-dominated points
+
+        Since:
+            Updated for GPU in Version 0.11.0 (Issue #966)
         """
         if not points:
             return []
 
-        # Build objective matrix (rows=points, cols=objectives)
-        obj_names = [obj.name for obj in self.objectives]
-        obj_matrix = np.array([[p.objectives[name] for name in obj_names] for p in points])
+        xp = get_array_module(gpu=self._use_gpu)
 
-        # Normalize so "higher is better" for all objectives
-        signs = np.array(
+        obj_names = [obj.name for obj in self.objectives]
+        obj_matrix = xp.asarray(
+            [[p.objectives[name] for name in obj_names] for p in points]
+        )
+
+        signs = xp.asarray(
             [1.0 if obj.type == ObjectiveType.MAXIMIZE else -1.0 for obj in self.objectives]
         )
         normalized = obj_matrix * signs
 
         n = len(points)
-        is_dominated = np.zeros(n, dtype=bool)
+        is_dominated = xp.zeros(n, dtype=bool)
 
         for i in range(n):
-            if is_dominated[i]:
+            if bool(is_dominated[i]):
                 continue
-            # Vectorized: mark all points that point i dominates
-            geq = np.all(normalized[i] >= normalized, axis=1)
-            gt = np.any(normalized[i] > normalized, axis=1)
+            geq = xp.all(normalized[i] >= normalized, axis=1)
+            gt = xp.any(normalized[i] > normalized, axis=1)
             dominates = geq & gt
             dominates[i] = False
-            is_dominated |= dominates
+            is_dominated = is_dominated | dominates
 
-        # Mark dominated flags on original point objects
+        is_dominated_np = to_numpy(is_dominated)
         for i, point in enumerate(points):
-            point.is_dominated = bool(is_dominated[i])
+            point.is_dominated = bool(is_dominated_np[i])
 
         return [p for p in points if not p.is_dominated]
 
@@ -576,8 +587,7 @@ class ParetoFrontier:
     ) -> float:
         """Calculate hypervolume using Monte Carlo approximation for n-D.
 
-        Uses vectorized numpy sampling and dominance checking instead of
-        nested Python loops.
+        Uses GPU-accelerated sampling and dominance checking when available.
 
         Args:
             reference_point: Reference point
@@ -585,11 +595,14 @@ class ParetoFrontier:
 
         Returns:
             Approximate hypervolume value
+
+        Since:
+            Updated for GPU in Version 0.11.0 (Issue #966)
         """
+        xp = get_array_module(gpu=self._use_gpu)
         obj_names = [obj.name for obj in self.objectives]
         n_dims = len(obj_names)
 
-        # Define bounding box as arrays
         lower = np.empty(n_dims)
         upper = np.empty(n_dims)
         for i, obj in enumerate(self.objectives):
@@ -601,34 +614,41 @@ class ParetoFrontier:
                 lower[i] = min(values)
                 upper[i] = reference_point[obj.name]
 
-        # Generate all random samples at once
-        random_samples = self._rng.uniform(lower, upper, size=(n_samples, n_dims))
+        lower_gpu = xp.asarray(lower)
+        upper_gpu = xp.asarray(upper)
 
-        # Build pareto points matrix
-        pareto_matrix = np.array(
+        # Generate random samples on device
+        if self._use_gpu:
+            random_samples = xp.random.uniform(
+                lower_gpu, upper_gpu, size=(n_samples, n_dims)
+            )
+        else:
+            random_samples = self._rng.uniform(lower, upper, size=(n_samples, n_dims))
+            random_samples = xp.asarray(random_samples)
+
+        pareto_matrix = xp.asarray(
             [[p.objectives[name] for name in obj_names] for p in self.frontier_points]
         )
 
-        # Build maximize mask for vectorized comparison direction
-        maximize_mask = np.array([obj.type == ObjectiveType.MAXIMIZE for obj in self.objectives])
+        maximize_mask = xp.asarray(
+            [obj.type == ObjectiveType.MAXIMIZE for obj in self.objectives]
+        )
 
-        # For each pareto point, check dominance of all samples at once
-        already_counted = np.zeros(n_samples, dtype=bool)
+        already_counted = xp.zeros(n_samples, dtype=bool)
         dominated_count = 0
 
         for p_row in pareto_matrix:
-            # MAXIMIZE: pareto >= sample; MINIMIZE: pareto <= sample
-            comparison = np.where(maximize_mask, p_row >= random_samples, p_row <= random_samples)
-            dominated = np.all(comparison, axis=1)
+            comparison = xp.where(
+                maximize_mask, p_row >= random_samples, p_row <= random_samples
+            )
+            dominated = xp.all(comparison, axis=1)
             new_dominated = dominated & ~already_counted
-            dominated_count += np.sum(new_dominated)
-            already_counted |= dominated
-            if np.all(already_counted):
+            dominated_count += int(xp.sum(new_dominated))
+            already_counted = already_counted | dominated
+            if bool(xp.all(already_counted)):
                 break
 
-        # Calculate volume
-        total_volume = np.prod(upper - lower)
-
+        total_volume = float(xp.prod(upper_gpu - lower_gpu))
         return float((dominated_count / n_samples) * total_volume)
 
     def get_knee_points(self, n_knees: int = 1) -> List[ParetoPoint]:
