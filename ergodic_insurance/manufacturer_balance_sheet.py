@@ -70,7 +70,7 @@ class BalanceSheetMixin:
             Total short-term borrowings as a non-negative Decimal.
         """
         explicit = self.ledger.get_balance(AccountName.SHORT_TERM_BORROWINGS)
-        overdraft = max(-self.cash, ZERO)
+        overdraft = max(-self.cash, to_decimal(0))
         return explicit + overdraft
 
     @property
@@ -208,7 +208,7 @@ class BalanceSheetMixin:
             position is a liability.
         """
         gross_dta = self.deferred_tax_asset - self.dta_valuation_allowance
-        return max(gross_dta - self.deferred_tax_liability, ZERO)
+        return max(gross_dta - self.deferred_tax_liability, to_decimal(0))
 
     @property
     def net_deferred_tax_liability(self) -> Decimal:
@@ -223,7 +223,7 @@ class BalanceSheetMixin:
             position is an asset.
         """
         gross_dta = self.deferred_tax_asset - self.dta_valuation_allowance
-        return max(self.deferred_tax_liability - gross_dta, ZERO)
+        return max(self.deferred_tax_liability - gross_dta, to_decimal(0))
 
     @property
     def total_assets(self) -> Decimal:
@@ -237,7 +237,7 @@ class BalanceSheetMixin:
         """
         # Current assets — per ASC 210-10-45-1 (Issue #496), negative cash is
         # reclassified to short-term borrowings so it never reduces total assets.
-        reported_cash = max(self.cash, ZERO)
+        reported_cash = max(self.cash, to_decimal(0))
         current = (
             reported_cash
             + self.accounts_receivable
@@ -271,7 +271,7 @@ class BalanceSheetMixin:
         # Get accrued expenses from accrual manager (excludes INSURANCE_CLAIMS to avoid
         # double-counting with ClaimLiability objects which are the source of truth)
         accrual_items = self.accrual_manager.get_balance_sheet_items()
-        total_accrued_expenses = to_decimal(accrual_items.get("accrued_expenses", ZERO))
+        total_accrued_expenses = to_decimal(accrual_items.get("accrued_expenses", to_decimal(0)))
 
         # Subtract any insurance claims from accrual manager to prevent double-counting
         # ClaimLiability is the authoritative source for claim liabilities
@@ -281,7 +281,7 @@ class BalanceSheetMixin:
                 for a in self.accrual_manager.accrued_expenses.get(AccrualType.INSURANCE_CLAIMS, [])
                 if not a.is_fully_paid
             ),
-            ZERO,
+            to_decimal(0),
         )
         adjusted_accrued_expenses = total_accrued_expenses - insurance_claims_in_accrual
 
@@ -293,7 +293,7 @@ class BalanceSheetMixin:
 
         # Long-term liabilities (claim liabilities) - single source of truth
         claim_liability_total = sum(
-            (liability.remaining_amount for liability in self.claim_liabilities), ZERO
+            (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)
         )
 
         # Issue #821: Net DTL per ASC 740-10-45-6 (DTA/DTL netted within jurisdiction)
@@ -531,7 +531,7 @@ class BalanceSheetMixin:
         # Calculate reduction ratio
         if total_liquid <= total_reduction:
             # Use all liquid assets
-            reduction_ratio = ONE
+            reduction_ratio = to_decimal(1)
         else:
             reduction_ratio = total_reduction / total_liquid
 
@@ -786,12 +786,12 @@ class BalanceSheetMixin:
                     f"Cannot absorb loss of ${loss_amount:,.2f}. "
                     f"Company is already insolvent (threshold: ${tolerance:,.2f})."
                 )
-                self._last_dividends_paid = ZERO
+                self._last_dividends_paid = to_decimal(0)
                 return
 
             # Issue #637: Depreciation did not consume cash, so actual cash
             # needed to cover the loss is reduced by the depreciation add-back.
-            cash_consumed = max(loss_amount - depreciation_addback, ZERO)
+            cash_consumed = max(loss_amount - depreciation_addback, to_decimal(0))
 
             # Check 2: LIQUIDITY CHECK - must have cash to pay loss
             # When using closing entries, cash is already updated by step() income
@@ -804,7 +804,7 @@ class BalanceSheetMixin:
                     f"${available_cash:,.2f}. Equity=${current_equity:,.2f}. "
                     f"Company cannot meet obligations despite positive book equity."
                 )
-                self._last_dividends_paid = ZERO
+                self._last_dividends_paid = to_decimal(0)
                 self.handle_insolvency()
                 return
 
@@ -851,7 +851,7 @@ class BalanceSheetMixin:
                             description=f"Year {self.current_year} depreciation add-back (non-cash, Issue #637)",
                             month=self.current_month,
                         )
-                self._last_dividends_paid = ZERO
+                self._last_dividends_paid = to_decimal(0)
                 self.handle_insolvency()
                 return
 
@@ -886,7 +886,7 @@ class BalanceSheetMixin:
                         month=self.current_month,
                     )
 
-            self._last_dividends_paid = ZERO
+            self._last_dividends_paid = to_decimal(0)
             logger.info(
                 f"Absorbed loss: ${loss_amount:,.2f}. "
                 f"Remaining cash: ${self.cash:,.2f}, Remaining equity: ${self.equity:,.2f}"
@@ -903,7 +903,7 @@ class BalanceSheetMixin:
                 projected_cash = self.cash + retained_earnings + depreciation_addback
 
             if projected_cash <= ZERO:
-                actual_dividends = ZERO
+                actual_dividends = to_decimal(0)
                 additional_retained = dividends
                 logger.warning(
                     f"DIVIDEND CONSTRAINT: Projected cash ${projected_cash:,.2f} <= 0. "
@@ -919,7 +919,7 @@ class BalanceSheetMixin:
                 )
             else:
                 actual_dividends = dividends
-                additional_retained = ZERO
+                additional_retained = to_decimal(0)
 
             self._last_dividends_paid = actual_dividends
 
@@ -1098,7 +1098,7 @@ class BalanceSheetMixin:
                     f"Accumulated: ${self.accumulated_depreciation:,.2f}"
                 )
                 return depreciation_expense
-        return ZERO
+        return to_decimal(0)
 
     def record_capex(self, capex_amount: Union[Decimal, float]) -> Decimal:
         """Record capital expenditure (reinvestment in PP&E).
@@ -1116,7 +1116,7 @@ class BalanceSheetMixin:
         """
         amount = to_decimal(capex_amount)
         if amount <= ZERO:
-            return ZERO
+            return to_decimal(0)
 
         # Cannot spend more cash than available (Issue #543)
         available_cash = self.cash
@@ -1125,7 +1125,7 @@ class BalanceSheetMixin:
                 f"Skipping capex: no cash available "
                 f"(cash={available_cash:,.2f}, requested={amount:,.2f})"
             )
-            return ZERO
+            return to_decimal(0)
 
         actual_capex = min(amount, available_cash)
         if actual_capex < amount:
@@ -1165,7 +1165,7 @@ class BalanceSheetMixin:
         if rate == ZERO or not (time_resolution == "annual" or self.current_month == 11):
             return
 
-        base_growth = float(ONE + rate)  # Boundary: float for StochasticProcess
+        base_growth = float(to_decimal(1) + rate)  # Boundary: float for StochasticProcess
 
         # Add stochastic component to growth if enabled
         if apply_stochastic and self.stochastic_process is not None:
