@@ -96,6 +96,7 @@ class TestPerformanceBenchmarks:
 
     @pytest.mark.slow
     @pytest.mark.integration
+    @pytest.mark.benchmark
     def test_convergence_efficiency(self, setup_realistic_engine):
         """Test convergence monitoring efficiency with real small-scale simulations."""
         # Use test data generator for small but realistic simulations
