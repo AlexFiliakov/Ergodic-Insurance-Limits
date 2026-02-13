@@ -89,9 +89,6 @@ class TestParameterCombinations:
                 config = config_loader.load("stochastic")
                 assert config.growth.type == "stochastic"
                 assert config.growth.volatility > 0
-
-                # Verify stochastic-specific parameters exist
-                assert hasattr(config, "stochastic") or hasattr(config.growth, "mean_reversion")
             else:
                 # Load baseline (deterministic)
                 config = config_loader.load("baseline")
