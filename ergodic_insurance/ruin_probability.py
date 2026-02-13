@@ -459,11 +459,15 @@ class RuinProbabilityAnalyzer:
         revenue = manufacturer.calculate_revenue()
         events, _ = self.loss_generator.generate_losses(duration=1.0, revenue=revenue)
 
-        # Calculate and apply insurance
-        total_loss = sum(event.amount for event in events)
-        claim_result = self.insurance_program.process_claim(total_loss)
-        recovery = claim_result.insurance_recovery
-        retained = total_loss - recovery
+        # Process each loss event individually through the insurance program
+        # so that per-occurrence deductibles and layer attachments apply correctly
+        total_loss = 0.0
+        total_recovery = 0.0
+        for event in events:
+            total_loss += event.amount
+            claim_result = self.insurance_program.process_claim(event.amount)
+            total_recovery += claim_result.insurance_recovery
+        retained = total_loss - total_recovery
 
         # Apply retained loss using proper claim processing to enforce limited liability
         # This ensures cash never goes negative and equity is properly floored at $0
