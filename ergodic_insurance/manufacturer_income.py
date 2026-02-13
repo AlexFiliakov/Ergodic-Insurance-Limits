@@ -64,8 +64,8 @@ class IncomeCalculationMixin:
         """
         # Exclude net DTA from asset base — tax assets do not generate
         # revenue; they represent future tax benefits (Issue #1055)
-        net_dta = getattr(self, "net_deferred_tax_asset", ZERO)
-        available_assets = max(ZERO, self.total_assets - net_dta)
+        net_dta = getattr(self, "net_deferred_tax_asset", to_decimal(0))
+        available_assets = max(to_decimal(0), self.total_assets - net_dta)
         revenue = available_assets * to_decimal(self.asset_turnover_ratio)
 
         if apply_stochastic and self.stochastic_process is not None:
@@ -96,12 +96,12 @@ class IncomeCalculationMixin:
         base_operating_income = revenue_decimal * to_decimal(self.base_operating_margin)
 
         # Net reserve development: adverse increases expense, favorable decreases it
-        net_reserve_development = getattr(self, "period_adverse_development", ZERO) - getattr(
-            self, "period_favorable_development", ZERO
-        )
+        net_reserve_development = getattr(
+            self, "period_adverse_development", to_decimal(0)
+        ) - getattr(self, "period_favorable_development", to_decimal(0))
 
         # LAE tracked separately per ASC 944-40 (Issue #468)
-        period_lae: Decimal = getattr(self, "period_insurance_lae", ZERO)
+        period_lae: Decimal = getattr(self, "period_insurance_lae", to_decimal(0))
 
         actual_operating_income = (
             base_operating_income
@@ -175,11 +175,13 @@ class IncomeCalculationMixin:
         income_before_tax = operating_income_decimal - collateral_costs_decimal
 
         # Capture DTA before tax calculation for journal entry delta (Issue #365)
-        old_dta = self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else ZERO
+        old_dta = (
+            self.tax_handler.deferred_tax_asset if self._nol_carryforward_enabled else to_decimal(0)
+        )
 
         # Compute theoretical tax for logging (no side effects)
         theoretical_tax_for_log = max(
-            ZERO, to_decimal(income_before_tax) * to_decimal(self.tax_rate)
+            to_decimal(0), to_decimal(income_before_tax) * to_decimal(self.tax_rate)
         )
 
         # Read equity BEFORE tax accrual (critical for non-circular flow)

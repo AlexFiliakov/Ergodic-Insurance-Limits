@@ -145,10 +145,10 @@ class TaxHandler:
 
     tax_rate: float
     accrual_manager: "AccrualManager"
-    nol_carryforward: Decimal = field(default_factory=lambda: Decimal("0"))
+    nol_carryforward: Decimal = field(default_factory=lambda: to_decimal(0))
     nol_limitation_pct: float = 0.80
     apply_tcja_limitation: bool = True
-    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: Decimal("0"))
+    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: to_decimal(0))
     consecutive_loss_years: int = 0
 
     # Valuation allowance thresholds per ASC 740-10-30-5 (Issue #464)
@@ -157,7 +157,7 @@ class TaxHandler:
 
     def __post_init__(self) -> None:
         """Initialize graduated valuation allowance rate schedule."""
-        self._VA_RATES = {3: Decimal("0.50"), 4: Decimal("0.75")}
+        self._VA_RATES = {3: to_decimal("0.50"), 4: to_decimal("0.75")}
         # 5+ years: 100% (handled by default in valuation_allowance_rate)
 
     @property
@@ -180,7 +180,7 @@ class TaxHandler:
         - 5+ years: 100% (full allowance, sustained losses)
         """
         if self.consecutive_loss_years < self._VA_THRESHOLD:
-            return ZERO
+            return to_decimal(0)
         rate: Decimal = self._VA_RATES.get(self.consecutive_loss_years, to_decimal("1.00"))
         return rate
 
@@ -225,14 +225,14 @@ class TaxHandler:
             self.nol_carryforward += abs(income)
             # Track consecutive loss years for valuation allowance (Issue #464)
             self.consecutive_loss_years += 1
-            return ZERO, ZERO
+            return to_decimal(0), to_decimal(0)
 
         # Profit year: reset consecutive loss counter (Issue #464)
         self.consecutive_loss_years = 0
 
         if self.nol_carryforward <= ZERO:
             # No NOL available — standard tax
-            return max(ZERO, income * to_decimal(self.tax_rate)), ZERO
+            return max(to_decimal(0), income * to_decimal(self.tax_rate)), to_decimal(0)
 
         # Apply NOL deduction limitation per IRC §172(a)(2):
         # Post-TCJA (apply_tcja_limitation=True): limited to nol_limitation_pct (80%)
@@ -246,7 +246,7 @@ class TaxHandler:
         taxable_income = income - nol_utilized
         self.nol_carryforward -= nol_utilized
 
-        tax = max(ZERO, taxable_income * to_decimal(self.tax_rate))
+        tax = max(to_decimal(0), taxable_income * to_decimal(self.tax_rate))
         return tax, nol_utilized
 
     def apply_limited_liability_cap(
@@ -269,7 +269,7 @@ class TaxHandler:
         tax = to_decimal(tax_amount)
         equity = to_decimal(current_equity)
         if equity <= ZERO:
-            return ZERO, tax > ZERO
+            return to_decimal(0), tax > ZERO
 
         capped_amount = min(tax, equity)
         was_capped = capped_amount < tax
@@ -376,7 +376,7 @@ class TaxHandler:
             )
 
         if theoretical_tax <= ZERO:
-            return ZERO, False, nol_utilized
+            return to_decimal(0), False, nol_utilized
 
         # Step 2: Determine if this period should accrue taxes
         should_accrue = False

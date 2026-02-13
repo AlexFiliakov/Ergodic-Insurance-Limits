@@ -114,11 +114,11 @@ class ClaimProcessingMixin:
 
     def reset_period_insurance_costs(self) -> None:
         """Reset period insurance cost tracking for new period."""
-        self.period_insurance_premiums = ZERO
-        self.period_insurance_losses = ZERO
-        self.period_insurance_lae = ZERO
-        self.period_adverse_development = ZERO
-        self.period_favorable_development = ZERO
+        self.period_insurance_premiums = to_decimal(0)
+        self.period_insurance_losses = to_decimal(0)
+        self.period_insurance_lae = to_decimal(0)
+        self.period_adverse_development = to_decimal(0)
+        self.period_favorable_development = to_decimal(0)
 
     @property
     def total_claim_liabilities(self) -> Decimal:
@@ -127,7 +127,7 @@ class ClaimProcessingMixin:
         Returns:
             Decimal: Total outstanding liability in dollars.
         """
-        return sum((claim.remaining_amount for claim in self.claim_liabilities), ZERO)
+        return sum((claim.remaining_amount for claim in self.claim_liabilities), to_decimal(0))
 
     def record_prepaid_insurance(self, annual_premium: Union[Decimal, float]) -> None:
         """Record annual insurance premium payment as prepaid expense.
@@ -170,7 +170,7 @@ class ClaimProcessingMixin:
         Returns:
             Decimal: Amount amortized (insurance expense for the period).
         """
-        total_amortized = ZERO
+        total_amortized = to_decimal(0)
 
         for _ in range(months):
             if self.prepaid_insurance > ZERO:
@@ -212,9 +212,9 @@ class ClaimProcessingMixin:
         """
         if amount <= 0:
             return {
-                "cash_received": ZERO,
-                "receivable_reduction": ZERO,
-                "remaining_receivables": ZERO,
+                "cash_received": to_decimal(0),
+                "receivable_reduction": to_decimal(0),
+                "remaining_receivables": to_decimal(0),
             }
 
         result = self.insurance_accounting.receive_recovery_payment(amount, claim_id)
@@ -267,7 +267,7 @@ class ClaimProcessingMixin:
         else:
             if claim <= deductible:
                 company_payment = claim
-                insurance_payment = ZERO
+                insurance_payment = to_decimal(0)
             else:
                 company_payment = deductible
                 insurance_payment = min(claim - deductible, limit)
@@ -285,9 +285,13 @@ class ClaimProcessingMixin:
             available_cash = self.cash
             # Cap at equity / (1 + lae_ratio) so total liability including LAE
             # does not exceed equity (limited liability, Issue #468)
-            equity_cap = current_equity / (ONE + lae_ratio) if lae_ratio > ZERO else current_equity
+            equity_cap = (
+                current_equity / (to_decimal(1) + lae_ratio) if lae_ratio > ZERO else current_equity
+            )
             max_payable: Decimal = (
-                min(company_payment, equity_cap, available_cash) if current_equity > ZERO else ZERO
+                min(company_payment, equity_cap, available_cash)
+                if current_equity > ZERO
+                else to_decimal(0)
             )
             unpayable_amount = company_payment - max_payable
 
@@ -346,14 +350,14 @@ class ClaimProcessingMixin:
                 current_equity_after_collateral = self.equity
                 # Cap at equity / (1 + lae_ratio) for LAE headroom (Issue #468)
                 equity_cap_after = (
-                    current_equity_after_collateral / (ONE + lae_ratio)
+                    current_equity_after_collateral / (to_decimal(1) + lae_ratio)
                     if lae_ratio > ZERO
                     else current_equity_after_collateral
                 )
                 max_liability: Decimal = (
                     min(unpayable_amount, equity_cap_after)
                     if current_equity_after_collateral > ZERO
-                    else ZERO
+                    else to_decimal(0)
                 )
 
                 if max_liability > ZERO:
@@ -447,12 +451,12 @@ class ClaimProcessingMixin:
         """
         claim = to_decimal(claim_amount)
         if claim <= ZERO:
-            return ZERO
+            return to_decimal(0)
 
         if immediate_payment:
             equity_before_payment = self.equity
             max_payable: Decimal = (
-                min(claim, equity_before_payment) if equity_before_payment > ZERO else ZERO
+                min(claim, equity_before_payment) if equity_before_payment > ZERO else to_decimal(0)
             )
 
             cash_payment: Decimal = min(max_payable, self.cash)
@@ -467,7 +471,7 @@ class ClaimProcessingMixin:
                         description="Liquid asset reduction for uninsured claim payment",
                     )
                 else:
-                    actual_payment = ZERO
+                    actual_payment = to_decimal(0)
             else:
                 actual_payment = cash_payment
                 if cash_payment > ZERO:
@@ -491,14 +495,14 @@ class ClaimProcessingMixin:
                 current_equity_after_payment = self.equity
                 # Cap at equity / (1 + lae_ratio) for LAE headroom (Issue #468)
                 equity_cap_shortfall = (
-                    current_equity_after_payment / (ONE + lae_ratio_imm)
+                    current_equity_after_payment / (to_decimal(1) + lae_ratio_imm)
                     if lae_ratio_imm > ZERO
                     else current_equity_after_payment
                 )
                 max_liability: Decimal = (
                     min(shortfall, equity_cap_shortfall)
                     if current_equity_after_payment > ZERO
-                    else ZERO
+                    else to_decimal(0)
                 )
 
                 if max_liability > ZERO:
@@ -559,10 +563,10 @@ class ClaimProcessingMixin:
         # Cap at equity / (1 + lae_ratio) so total liability including LAE
         # does not exceed equity (limited liability, Issue #468)
         equity_cap_deferred = (
-            current_equity / (ONE + lae_ratio) if lae_ratio > ZERO else current_equity
+            current_equity / (to_decimal(1) + lae_ratio) if lae_ratio > ZERO else current_equity
         )
         deferred_max_liability: Decimal = (
-            min(claim, equity_cap_deferred) if current_equity > ZERO else ZERO
+            min(claim, equity_cap_deferred) if current_equity > ZERO else to_decimal(0)
         )
 
         if deferred_max_liability > ZERO:
@@ -666,11 +670,11 @@ class ClaimProcessingMixin:
         Returns:
             Decimal: Total amount paid toward claims in dollars.
         """
-        total_paid: Decimal = ZERO
+        total_paid: Decimal = to_decimal(0)
         min_cash_balance = to_decimal(100_000)
 
         # Calculate total scheduled payments and cap
-        total_scheduled: Decimal = ZERO
+        total_scheduled: Decimal = to_decimal(0)
         for claim_item in self.claim_liabilities:
             years_since = self.current_year - claim_item.year_incurred
             scheduled_payment = claim_item.get_payment(years_since)
@@ -681,10 +685,12 @@ class ClaimProcessingMixin:
         else:
             available_liquidity = self.cash + self.restricted_assets
             max_total_payable = (
-                min(total_scheduled, available_liquidity) if available_liquidity > ZERO else ZERO
+                min(total_scheduled, available_liquidity)
+                if available_liquidity > ZERO
+                else to_decimal(0)
             )
 
-        payment_ratio: Decimal = ONE
+        payment_ratio: Decimal = to_decimal(1)
         if total_scheduled > max_total_payable and total_scheduled > ZERO:
             payment_ratio = max_total_payable / total_scheduled
             logger.warning(
@@ -721,7 +727,7 @@ class ClaimProcessingMixin:
                             f"Reduced collateral and restricted assets by ${actual_payment:,.2f}"
                         )
                 else:
-                    available_for_payment = max(ZERO, self.cash - min_cash_balance)
+                    available_for_payment = max(to_decimal(0), self.cash - min_cash_balance)
                     actual_payment = min(capped_scheduled, available_for_payment)
 
                     if actual_payment > ZERO:
@@ -930,20 +936,20 @@ class ClaimProcessingMixin:
             Dict with total_booked_reserves, total_true_residual,
             total_redundancy, total_deficiency, and claim_count.
         """
-        total_booked = ZERO
-        total_true_residual = ZERO
+        total_booked = to_decimal(0)
+        total_true_residual = to_decimal(0)
         count = 0
         for claim in self.claim_liabilities:
             total_booked += claim.remaining_amount
             if claim.true_ultimate is not None:
-                true_residual = max(claim.true_ultimate - claim._total_paid, ZERO)
+                true_residual = max(claim.true_ultimate - claim._total_paid, to_decimal(0))
                 total_true_residual += true_residual
             else:
                 total_true_residual += claim.remaining_amount
             count += 1
 
-        redundancy = max(total_booked - total_true_residual, ZERO)
-        deficiency = max(total_true_residual - total_booked, ZERO)
+        redundancy = max(total_booked - total_true_residual, to_decimal(0))
+        deficiency = max(total_true_residual - total_booked, to_decimal(0))
         return {
             "total_booked_reserves": total_booked,
             "total_true_residual": total_true_residual,
