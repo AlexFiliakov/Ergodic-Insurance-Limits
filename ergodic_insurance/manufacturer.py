@@ -516,6 +516,30 @@ class WidgetManufacturer(
                 logger.debug(f"Paid accrued {accrual_type.value}: ${payable_amount:,.2f}")
 
             if unpayable_amount > ZERO:
+                # Discharge unpayable amount from AccrualManager (Issue #1063)
+                self.accrual_manager.process_payment(accrual_type, unpayable_amount, period)
+
+                # Reverse phantom liability from ledger per ASC 405-20 (Issue #1063)
+                # Dr ACCRUED_XXX (reduce liability), Cr RETAINED_EARNINGS (equity absorbs)
+                if accrual_type == AccrualType.TAXES:
+                    discharge_account = AccountName.ACCRUED_TAXES
+                elif accrual_type == AccrualType.WAGES:
+                    discharge_account = AccountName.ACCRUED_WAGES
+                elif accrual_type == AccrualType.INTEREST:
+                    discharge_account = AccountName.ACCRUED_INTEREST
+                else:
+                    discharge_account = AccountName.ACCRUED_EXPENSES
+
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=discharge_account,
+                    credit_account=AccountName.RETAINED_EARNINGS,
+                    amount=unpayable_amount,
+                    transaction_type=TransactionType.WRITE_OFF,
+                    description=f"Liability discharge: unpayable {accrual_type.value} (ASC 405-20)",
+                    month=self.current_month,
+                )
+
                 logger.warning(
                     f"LIMITED LIABILITY: Discharged ${unpayable_amount:,.2f} of unpayable {accrual_type.value} from liabilities"
                 )
