@@ -333,16 +333,18 @@ class TestExecuteChunkErrorHandling:
                 raise ValueError("bad value")
             return x
 
-        results = _execute_chunk(fail_on_two, chunk, {}, config)
+        results, failed_count = _execute_chunk(fail_on_two, chunk, {}, config)
         assert results == [1, None, 3]
+        assert failed_count == 1
 
     def test_execute_chunk_no_shared_refs(self):
         """_execute_chunk works without shared refs."""
         chunk = (0, 3, [1, 2, 3])
         config = SharedMemoryConfig()
 
-        results = _execute_chunk(_simple_square, chunk, {}, config)
+        results, failed_count = _execute_chunk(_simple_square, chunk, {}, config)
         assert results == [1, 4, 9]
+        assert failed_count == 0
 
     def test_execute_chunk_with_shared_data(self):
         """_execute_chunk works with shared data passed as kwargs."""
@@ -359,8 +361,40 @@ class TestExecuteChunkErrorHandling:
             def multiply(x, **kwargs):
                 return x * kwargs.get("multiplier", 1)
 
-            results = _execute_chunk(multiply, chunk, shared_refs, config)
+            results, failed_count = _execute_chunk(multiply, chunk, shared_refs, config)
             assert results == [50, 100]
+            assert failed_count == 0
+
+    def test_execute_chunk_logs_exception(self):
+        """_execute_chunk logs warning on item failure."""
+        chunk = (10, 13, [1, 2, 3])
+        config = SharedMemoryConfig()
+
+        def fail_on_two(x):
+            if x == 2:
+                raise ValueError("bad value")
+            return x
+
+        with patch("ergodic_insurance.parallel_executor.logger") as mock_logger:
+            _execute_chunk(fail_on_two, chunk, {}, config)
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args
+            # First positional arg after format string is item index (11 = start_idx 10 + offset 1)
+            assert call_args[0][1] == 11
+
+    def test_execute_chunk_multiple_failures(self):
+        """_execute_chunk counts multiple failures correctly."""
+        chunk = (0, 5, [1, 2, 3, 4, 5])
+        config = SharedMemoryConfig()
+
+        def fail_on_even(x):
+            if x % 2 == 0:
+                raise ValueError("even")
+            return x
+
+        results, failed_count = _execute_chunk(fail_on_even, chunk, {}, config)
+        assert results == [1, None, 3, None, 5]
+        assert failed_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -597,9 +631,10 @@ class TestExecuteChunkWorkerCleanup:
             def always_fail(x, **kwargs):
                 raise ValueError("boom")
 
-            results = _execute_chunk(always_fail, chunk, shared_refs, config)
+            results, failed_count = _execute_chunk(always_fail, chunk, shared_refs, config)
             mock_manager.cleanup.assert_called_once()
             assert results == [None, None]
+            assert failed_count == 2
 
 
 # ---------------------------------------------------------------------------

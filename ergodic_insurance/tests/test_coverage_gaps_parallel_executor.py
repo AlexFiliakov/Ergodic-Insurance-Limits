@@ -446,10 +446,11 @@ class TestExecuteChunkArrayPathMocked:
             return float(item * w.sum())
 
         chunk = (0, 3, [1, 2, 3])
-        results = _execute_chunk(work, chunk, shared_refs, config)
+        results, failed_count = _execute_chunk(work, chunk, shared_refs, config)
 
         total = 10.0 + 20.0 + 30.0  # 60.0
         assert results == [1 * total, 2 * total, 3 * total]
+        assert failed_count == 0
 
         manager.cleanup()
 
@@ -471,8 +472,9 @@ class TestExecuteChunkArrayPathMocked:
             return item * kwargs["cfg"]["factor"]
 
         chunk = (0, 2, [3, 7])
-        results = _execute_chunk(work, chunk, shared_refs, config)
+        results, failed_count = _execute_chunk(work, chunk, shared_refs, config)
         assert results == [15, 35]
+        assert failed_count == 0
 
         manager.cleanup()
 
@@ -495,8 +497,9 @@ class TestExecuteChunkArrayPathMocked:
             return item * kwargs["comp_cfg"]["multiplier"]
 
         chunk = (0, 2, [4, 8])
-        results = _execute_chunk(work, chunk, shared_refs, config)
+        results, failed_count = _execute_chunk(work, chunk, shared_refs, config)
         assert results == [12, 24]
+        assert failed_count == 0
 
         manager.cleanup()
 
@@ -528,10 +531,11 @@ class TestExecuteChunkArrayPathMocked:
             return float(item * v.sum() + c["offset"])
 
         chunk = (0, 2, [1, 2])
-        results = _execute_chunk(work, chunk, shared_refs, config)
+        results, failed_count = _execute_chunk(work, chunk, shared_refs, config)
 
         vec_sum = 1.0 + 2.0 + 3.0  # 6.0
         assert results == [1 * vec_sum + 100, 2 * vec_sum + 100]
+        assert failed_count == 0
 
         manager.cleanup()
 
@@ -553,9 +557,10 @@ class TestExecuteChunkArrayPathMocked:
             return int(row[0] + row[1])
 
         chunk = (0, 3, [0, 1, 2])
-        results = _execute_chunk(work, chunk, shared_refs, config)
+        results, failed_count = _execute_chunk(work, chunk, shared_refs, config)
 
         assert results == [3, 7, 11]  # 1+2, 3+4, 5+6
+        assert failed_count == 0
 
         manager.cleanup()
 
@@ -568,8 +573,9 @@ class TestExecuteChunkArrayPathMocked:
             return x**2
 
         chunk = (0, 4, [2, 3, 5, 7])
-        results = _execute_chunk(square, chunk, {}, config)
+        results, failed_count = _execute_chunk(square, chunk, {}, config)
         assert results == [4, 9, 25, 49]
+        assert failed_count == 0
 
 
 # ===================================================================

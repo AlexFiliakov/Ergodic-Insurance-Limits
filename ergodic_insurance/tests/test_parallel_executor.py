@@ -381,6 +381,8 @@ class TestPerformanceMetrics:
         assert metrics.cpu_utilization == 0.0
         assert metrics.items_per_second == 0.0
         assert metrics.speedup == 1.0
+        assert metrics.total_items == 0
+        assert metrics.failed_items == 0
 
     def test_metrics_summary(self):
         """Test performance metrics summary generation."""
@@ -407,6 +409,17 @@ class TestPerformanceMetrics:
         assert "CPU Utilization: 75.0%" in summary
         assert "Throughput: 9524 items/s" in summary
         assert "Speedup: 3.50x" in summary
+        assert "Failed Items" not in summary
+
+    def test_metrics_summary_with_failures(self):
+        """Test performance metrics summary includes failure info when items fail."""
+        metrics = PerformanceMetrics(
+            total_time=5.0,
+            total_items=100,
+            failed_items=10,
+        )
+        summary = metrics.summary()
+        assert "Failed Items: 10/100 (10.0%)" in summary
 
 
 @pytest.mark.requires_multiprocessing
@@ -540,6 +553,37 @@ class TestParallelExecutor:
         for i in range(10):
             if i != 5:
                 assert i in results
+
+    def test_error_handling_tracks_failures_in_metrics(self):
+        """Test that failed items are tracked in performance metrics."""
+        executor = ParallelExecutor(n_workers=2)
+
+        executor.map_reduce(
+            work_function=_test_failing_function, work_items=range(10), progress_bar=False
+        )
+
+        assert executor.performance_metrics.total_items == 10
+        assert executor.performance_metrics.failed_items == 1
+
+    def test_max_failure_rate_raises_on_threshold(self):
+        """Test that exceeding max_failure_rate raises RuntimeError."""
+        executor = ParallelExecutor(n_workers=2, max_failure_rate=0.05)
+
+        with pytest.raises(RuntimeError, match="exceeds maximum"):
+            executor.map_reduce(
+                work_function=_test_failing_function, work_items=range(10), progress_bar=False
+            )
+
+    def test_max_failure_rate_allows_below_threshold(self):
+        """Test that failures below max_failure_rate do not raise."""
+        executor = ParallelExecutor(n_workers=2, max_failure_rate=0.5)
+
+        results = executor.map_reduce(
+            work_function=_test_failing_function, work_items=range(10), progress_bar=False
+        )
+
+        # 1/10 = 10% < 50% threshold, should succeed
+        assert len(results) == 9
 
     def test_context_manager(self):
         """Test context manager functionality."""
