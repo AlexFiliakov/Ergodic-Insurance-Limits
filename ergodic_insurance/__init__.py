@@ -402,4 +402,34 @@ def __getattr__(name):
         )
 
         return locals()[name]
+    if name in (
+        "get_array_module",
+        "to_device",
+        "to_numpy",
+        "gpu_info",
+        "is_gpu_available",
+        "set_random_seed",
+        "gpu_memory_pool",
+        "gpu_device",
+        "GPUConfig",
+        "detect_colab_environment",
+        "colab_setup_helper",
+        "is_gpu_array",
+    ):
+        from .gpu_backend import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
+            GPUConfig,
+            colab_setup_helper,
+            detect_colab_environment,
+            get_array_module,
+            gpu_device,
+            gpu_info,
+            gpu_memory_pool,
+            is_gpu_array,
+            is_gpu_available,
+            set_random_seed,
+            to_device,
+            to_numpy,
+        )
+
+        return locals()[name]
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

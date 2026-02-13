@@ -23,6 +23,9 @@ black>=25.1.0
 mypy>=1.17.1
 isort>=6.0.1
 
+# GPU acceleration (optional — requires NVIDIA GPU with CUDA 12.x)
+# cupy-cuda12x>=13.0.0
+
 # Notebook support (optional)
 jupyter>=1.1.1
 notebook>=7.4.5

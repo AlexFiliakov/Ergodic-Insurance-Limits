@@ -26,6 +26,7 @@ from .presets import ModuleConfig, ProfileMetadata
 from .reporting import ExcelReportConfig, LoggingConfig, OutputConfig
 from .simulation import (
     DebtConfig,
+    GPUConfig,
     GrowthConfig,
     SimulationConfig,
     WorkingCapitalConfig,
@@ -100,6 +101,9 @@ class Config(BaseModel):
     depreciation: Optional[DepreciationConfig] = None
     industry_config: Optional[IndustryConfig] = Field(
         default=None, description="Industry-specific configuration for financial parameters"
+    )
+    gpu: Optional[GPUConfig] = Field(
+        default=None, description="GPU acceleration configuration"
     )
 
     # --- Extensibility fields ---
