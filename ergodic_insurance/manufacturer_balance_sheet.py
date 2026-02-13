@@ -720,15 +720,15 @@ class BalanceSheetMixin:
         growth_rate: Union[Decimal, float] = 0.0,
         depreciation_expense: Union[Decimal, float, int] = 0,
         period_revenue: Union[Decimal, float, int] = 0,
-        period_cash_expenses: Union[Decimal, float, int] = 0,
     ) -> None:
         """Update balance sheet with retained earnings and dividend distribution.
 
-        Issues #687/#803: When called from step() with period_revenue and
-        period_cash_expenses, uses proper closing entries that close income
-        statement accounts (SALES_REVENUE, OPERATING_EXPENSES,
-        DEPRECIATION_EXPENSE) to RETAINED_EARNINGS without touching CASH —
-        because cash was already updated by the income entries in step().
+        Issues #687/#803/#1213: When called from step() with period_revenue,
+        uses proper closing entries that close income statement accounts
+        (SALES_REVENUE, DEPRECIATION_EXPENSE) to RETAINED_EARNINGS and compute
+        the cash outflow directly from net_income, avoiding the
+        period_cash_expenses decomposition that double-counted depreciation
+        embedded in base_operating_margin.
 
         When called without period_revenue (backward compatibility, tests),
         falls back to the legacy Dr CASH / Cr RETAINED_EARNINGS approach
@@ -740,14 +740,11 @@ class BalanceSheetMixin:
             depreciation_expense: Period depreciation expense. Defaults to 0.
             period_revenue: Revenue recorded in step() via Dr CASH / Cr SALES_REVENUE.
                 Defaults to 0 (legacy mode).
-            period_cash_expenses: Cash operating expenses recorded in step() via
-                Dr OPERATING_EXPENSES / Cr CASH. Defaults to 0 (legacy mode).
         """
         # Convert inputs to Decimal
         net_income_decimal = to_decimal(net_income)
         depreciation_addback = to_decimal(depreciation_expense)
         period_revenue_decimal = to_decimal(period_revenue)
-        period_cash_expenses_decimal = to_decimal(period_cash_expenses)
 
         # Issue #803: Determine if we should use proper closing entries (new path)
         # or legacy Dr CASH / Cr RE behavior (backward compatibility).
@@ -826,7 +823,6 @@ class BalanceSheetMixin:
                     # Issue #803: Close income statement accounts to RE
                     self._record_closing_entries(
                         period_revenue_decimal,
-                        period_cash_expenses_decimal,
                         depreciation_addback,
                         net_income_decimal,
                     )
@@ -860,7 +856,6 @@ class BalanceSheetMixin:
                 # Issue #803: Close income statement accounts to RE
                 self._record_closing_entries(
                     period_revenue_decimal,
-                    period_cash_expenses_decimal,
                     depreciation_addback,
                     net_income_decimal,
                 )
@@ -929,7 +924,6 @@ class BalanceSheetMixin:
                 # Issue #803: Close income statement accounts to RE
                 self._record_closing_entries(
                     period_revenue_decimal,
-                    period_cash_expenses_decimal,
                     depreciation_addback,
                     net_income_decimal,
                 )
@@ -978,21 +972,23 @@ class BalanceSheetMixin:
     def _record_closing_entries(
         self,
         period_revenue: Decimal,
-        period_cash_expenses: Decimal,
         depreciation_expense: Decimal,
         net_income: Decimal,
     ) -> None:
         """Record period-end closing entries to transfer income statement balances to RE.
 
-        Issue #803: Proper closing entries close revenue and expense accounts to
-        RETAINED_EARNINGS. A residual entry captures the difference between
-        base operating income and net income (insurance costs, taxes, collateral
-        costs) so that RE reflects full net income and cash reflects operating
-        cash flow.
+        Issue #803/#1213: Close temporary accounts (revenue, depreciation) to
+        RETAINED_EARNINGS and compute the cash outflow directly from net_income.
+        This avoids the period_cash_expenses decomposition that double-counted
+        depreciation embedded in base_operating_margin (Issue #1213).
+
+        After these entries:
+        - RE changes by net_income (revenue - depreciation - cash_outflow)
+        - CASH changes by net_income + depreciation (indirect-method OCF)
+        - All temporary accounts are zeroed
 
         Args:
             period_revenue: Revenue recorded during the period.
-            period_cash_expenses: Cash operating expenses recorded during the period.
             depreciation_expense: Depreciation expense recorded during the period.
             net_income: Full net income for the period (after all deductions).
         """
@@ -1008,18 +1004,6 @@ class BalanceSheetMixin:
                 month=self.current_month,
             )
 
-        # Close cash operating expenses: Dr RETAINED_EARNINGS / Cr OPERATING_EXPENSES
-        if period_cash_expenses > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.RETAINED_EARNINGS,
-                credit_account=AccountName.OPERATING_EXPENSES,
-                amount=period_cash_expenses,
-                transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close operating expenses to retained earnings",
-                month=self.current_month,
-            )
-
         # Close depreciation expense: Dr RETAINED_EARNINGS / Cr DEPRECIATION_EXPENSE
         if depreciation_expense > ZERO:
             self.ledger.record_double_entry(
@@ -1032,35 +1016,36 @@ class BalanceSheetMixin:
                 month=self.current_month,
             )
 
-        # Residual closing entry: captures insurance costs, taxes, collateral
-        # costs, and other items that reduce net_income below base operating
-        # income but may not have their own income statement ledger entries.
-        # base_operating_income = period_revenue - period_cash_expenses - depreciation
-        base_operating_income = period_revenue - period_cash_expenses - depreciation_expense
-        residual = net_income - base_operating_income
+        # Issue #1213: Cash outflow entry — captures ALL cash-consuming costs
+        # (operating expenses, insurance, taxes, collateral) in a single entry
+        # derived from net_income.  Revenue was recorded as Dr CASH in step();
+        # this entry removes the cash consumed by operations so that:
+        #   CASH change = revenue - cash_outflow = net_income + depreciation
+        # which matches indirect-method operating cash flow (ASC 230-10-28).
+        cash_outflow = period_revenue - net_income - depreciation_expense
 
-        if residual < ZERO:
-            # Net income is less than base operating income (insurance, taxes, etc.)
-            # Dr RETAINED_EARNINGS / Cr CASH — reduces both RE and cash
+        if cash_outflow > ZERO:
+            # Normal case: cash consumed by operations
+            # Dr RETAINED_EARNINGS / Cr CASH
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.RETAINED_EARNINGS,
                 credit_account=AccountName.CASH,
-                amount=abs(residual),
+                amount=cash_outflow,
                 transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close residual expenses to retained earnings",
+                description=f"Year {self.current_year} close operating cash outflow to retained earnings",
                 month=self.current_month,
             )
-        elif residual > ZERO:
-            # Net income exceeds base operating income (unusual — e.g., insurance recoveries)
+        elif cash_outflow < ZERO:
+            # Unusual: net cash inflow exceeds revenue (e.g., large insurance recoveries)
             # Dr CASH / Cr RETAINED_EARNINGS
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.CASH,
                 credit_account=AccountName.RETAINED_EARNINGS,
-                amount=residual,
+                amount=abs(cash_outflow),
                 transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close residual income to retained earnings",
+                description=f"Year {self.current_year} close net cash inflow to retained earnings",
                 month=self.current_month,
             )
 
