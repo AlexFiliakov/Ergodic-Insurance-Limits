@@ -181,6 +181,121 @@ class ClaimDevelopment:
         return min(cumulative, 1.0)
 
 
+@dataclass
+class DevelopmentPattern:
+    """CDF-based development pattern for reserve projections.
+
+    Unlike ClaimDevelopment (which stores incremental payment percentages),
+    this class stores cumulative development factors (CDFs) suitable for
+    loss reserving calculations.  CDF(age) >= 1.0 and is monotonically
+    non-increasing (earlier ages are less developed).
+
+    Attributes:
+        pattern_name: Identifier for this development pattern.
+        cumulative_ldfs: CDF at each development age starting at age 1.
+            Must be >= 1.0 and monotonically non-increasing.
+        tail_cdf: CDF beyond last explicit age.  Must be >= 1.0.
+    """
+
+    pattern_name: str
+    cumulative_ldfs: List[float]  # CDF at each development age (>= 1.0, non-increasing)
+    tail_cdf: float = 1.0  # CDF beyond last explicit age
+
+    def __post_init__(self):
+        """Validate CDF pattern."""
+        if not self.cumulative_ldfs:
+            raise ValueError("cumulative_ldfs cannot be empty")
+
+        if any(cdf < 1.0 for cdf in self.cumulative_ldfs):
+            raise ValueError("All CDFs must be >= 1.0")
+
+        if self.tail_cdf < 1.0:
+            raise ValueError(f"tail_cdf must be >= 1.0, got {self.tail_cdf}")
+
+        # Check monotonically non-increasing
+        for i in range(len(self.cumulative_ldfs) - 1):
+            if self.cumulative_ldfs[i] < self.cumulative_ldfs[i + 1]:
+                raise ValueError(
+                    f"CDFs must be monotonically non-increasing, but "
+                    f"CDF[{i}]={self.cumulative_ldfs[i]} < CDF[{i + 1}]={self.cumulative_ldfs[i + 1]}"
+                )
+
+    def pct_developed(self, development_age: int) -> float:
+        """Return 1/CDF at given age, clamped to [0, 1]."""
+        if development_age <= 0:
+            return 0.0
+        cdf = self.cdf_at(development_age)
+        if cdf <= 0:
+            return 0.0
+        return min(1.0 / cdf, 1.0)
+
+    def cdf_at(self, development_age: int) -> float:
+        """Return raw CDF at given age."""
+        if development_age < 1:
+            # Not yet developed; return largest CDF
+            return self.cumulative_ldfs[0] if self.cumulative_ldfs else self.tail_cdf
+        idx = development_age - 1  # age 1 → index 0
+        if idx < len(self.cumulative_ldfs):
+            return self.cumulative_ldfs[idx]
+        return self.tail_cdf
+
+    @classmethod
+    def from_payment_pattern(cls, payment_pattern: "ClaimDevelopment") -> "DevelopmentPattern":
+        """Bridge: CDF(age) = 1 / cumulative_paid(age).
+
+        Converts a payment-percentage-based ClaimDevelopment pattern into
+        a CDF-based DevelopmentPattern.  At each development age the CDF
+        is the reciprocal of the cumulative fraction paid.
+        """
+        cdfs: List[float] = []
+        n_ages = len(payment_pattern.development_factors)
+        if payment_pattern.tail_factor > 0:
+            n_ages += 1  # include one extra age for the tail period
+
+        for age in range(1, n_ages + 1):
+            cum_paid = payment_pattern.get_cumulative_paid(age)
+            if cum_paid > 0:
+                cdfs.append(1.0 / cum_paid)
+            else:
+                # Undeveloped — use a large sentinel CDF
+                cdfs.append(float("inf"))
+
+        # Tail CDF: after all development completes
+        total = sum(payment_pattern.development_factors) + payment_pattern.tail_factor
+        tail_cdf = 1.0 / min(total, 1.0) if total > 0 else 1.0
+
+        return cls(
+            pattern_name=payment_pattern.pattern_name,
+            cumulative_ldfs=cdfs,
+            tail_cdf=tail_cdf,
+        )
+
+    @classmethod
+    def from_age_to_age_factors(
+        cls, name: str, ata_factors: List[float], tail_factor: float = 1.0
+    ) -> "DevelopmentPattern":
+        """Standard construction from link ratios (age-to-age factors).
+
+        CDF at age i = product of ata_factors[i:] * tail_factor.
+        The resulting cumulative_ldfs list has one entry per ATA factor.
+        """
+        if not ata_factors:
+            raise ValueError("ata_factors cannot be empty")
+
+        cdfs: List[float] = []
+        for i in range(len(ata_factors)):
+            cdf = tail_factor
+            for j in range(i, len(ata_factors)):
+                cdf *= ata_factors[j]
+            cdfs.append(cdf)
+
+        return cls(
+            pattern_name=name,
+            cumulative_ldfs=cdfs,
+            tail_cdf=tail_factor,
+        )
+
+
 class StochasticClaimDevelopment(ClaimDevelopment):
     """Stochastic variant of ClaimDevelopment using Dirichlet perturbation.
 
@@ -396,6 +511,8 @@ class CashFlowProjector:
         discount_rate: float = 0.03,
         a_priori_loss_ratio: Optional[float] = None,
         ibnr_factors: Optional[Dict[str, float]] = None,
+        development_pattern: Optional[DevelopmentPattern] = None,
+        reserve_tail_factor: Optional[float] = None,
     ):
         """Initialize cash flow projector.
 
@@ -407,10 +524,19 @@ class CashFlowProjector:
             ibnr_factors: Industry benchmark factors by pattern name (Tier 3
                 ELR), e.g. {"long_tail_10yr": 1.20}. Loaded from YAML via
                 load_ibnr_factors().
+            development_pattern: Explicit CDF-based development pattern.
+                When set, _get_cohort_pct_developed uses this instead of
+                the per-claim payment patterns.
+            reserve_tail_factor: Tail factor applied to CDF-to-ultimate
+                in IBNR estimation.  Accounts for development beyond the
+                last observed age in the triangle.  Defaults to 1.0 (no
+                tail adjustment).
         """
         self.discount_rate = discount_rate
         self.a_priori_loss_ratio = a_priori_loss_ratio
         self.ibnr_factors = ibnr_factors or {}
+        self.development_pattern = development_pattern
+        self.reserve_tail_factor = reserve_tail_factor
         self.cohorts: Dict[int, ClaimCohort] = {}
 
     def add_cohort(self, cohort: ClaimCohort):
@@ -548,13 +674,15 @@ class CashFlowProjector:
         self,
         ata_factors: Dict[int, float],
         current_age: int,
+        tail_factor: float = 1.0,
     ) -> Optional[float]:
         """Compute CDF-to-ultimate from selected age-to-age factors.
 
         The CDF is the cumulative product of all link ratios from
-        ``current_age`` to the last observed age::
+        ``current_age`` to the last observed age, multiplied by the
+        tail factor::
 
-            CDF(d) = prod(LDF(k) for k in range(d, max_factor_age + 1))
+            CDF(d) = prod(LDF(k) for k in range(d, max_factor_age + 1)) * tail_factor
 
         If any required link ratio is missing (i.e. the triangle does not
         extend far enough), ``None`` is returned.
@@ -564,6 +692,8 @@ class CashFlowProjector:
                 :meth:`_compute_age_to_age_factors`.
             current_age: The development age of the cohort being
                 projected.
+            tail_factor: Multiplicative tail factor applied beyond the last
+                observed development age.  Defaults to 1.0 (no tail).
 
         Returns:
             CDF-to-ultimate, or ``None`` if factors are unavailable.
@@ -573,9 +703,8 @@ class CashFlowProjector:
 
         max_factor_age = max(ata_factors.keys())
         if current_age > max_factor_age:
-            # Already past all observed development; treat as fully
-            # developed.
-            return 1.0
+            # Already past all observed development; apply tail only.
+            return tail_factor
 
         cdf = 1.0
         for d in range(current_age, max_factor_age + 1):
@@ -583,13 +712,81 @@ class CashFlowProjector:
                 # Gap in factors — cannot project reliably
                 return None
             cdf *= ata_factors[d]
-        return cdf
+        return cdf * tail_factor
+
+    def fit_tail_factor(
+        self,
+        ata_factors: Dict[int, float],
+        method: str = "bondy",
+    ) -> float:
+        """Estimate a tail factor from observed age-to-age link ratios.
+
+        Args:
+            ata_factors: Dict of ``{dev_age: link_ratio}`` from
+                :meth:`_compute_age_to_age_factors`.
+            method: Estimation method.
+                ``"bondy"``: tail = last observed LDF when it is between
+                1.0 and 2.0 (Bondy extrapolation).
+                ``"inverse_power"``: fit ``LDF(d)-1 = a * d^(-b)`` on
+                log-log scale and extrapolate one period beyond the last
+                observed age.
+
+        Returns:
+            Estimated tail factor (>= 1.0).
+        """
+        if not ata_factors:
+            return 1.0
+
+        max_age = max(ata_factors.keys())
+
+        if method == "bondy":
+            last_ldf = ata_factors[max_age]
+            if 1.0 <= last_ldf <= 2.0:
+                return last_ldf
+            return 1.0
+
+        if method == "inverse_power":
+            # Fit LDF(d)-1 = a * d^(-b) via log-log regression
+            ages = sorted(ata_factors.keys())
+            xs: List[float] = []
+            ys: List[float] = []
+            for d in ages:
+                excess = ata_factors[d] - 1.0
+                if excess > 0 and d > 0:
+                    xs.append(np.log(float(d)))
+                    ys.append(np.log(excess))
+            if len(xs) < 2:
+                # Not enough data for regression; fall back to Bondy
+                return self.fit_tail_factor(ata_factors, method="bondy")
+
+            xs_arr = np.array(xs)
+            ys_arr = np.array(ys)
+            # Simple OLS: y = a + b*x  where y=log(LDF-1), x=log(d)
+            n = len(xs_arr)
+            sum_x = xs_arr.sum()
+            sum_y = ys_arr.sum()
+            sum_xy = (xs_arr * ys_arr).sum()
+            sum_x2 = (xs_arr * xs_arr).sum()
+            denom = n * sum_x2 - sum_x * sum_x
+            if abs(denom) < 1e-12:
+                return 1.0
+            b_coef = (n * sum_xy - sum_x * sum_y) / denom
+            a_coef = (sum_y - b_coef * sum_x) / n
+
+            # Extrapolate one period beyond last age
+            next_age = max_age + 1
+            log_excess = a_coef + b_coef * np.log(float(next_age))
+            tail = 1.0 + float(np.exp(log_excess))
+            return max(tail, 1.0)
+
+        raise ValueError(f"Unknown tail method: {method!r}")
 
     def _get_cohort_pct_developed(self, cohort: ClaimCohort, development_years: int) -> float:
         """Compute weighted-average cumulative development percentage for a cohort.
 
-        Handles mixed development patterns within a cohort by weighting each
-        claim's maturity by its size (initial estimate).
+        When ``self.development_pattern`` (a :class:`DevelopmentPattern`) is
+        set, it is used directly.  Otherwise falls back to per-claim
+        payment patterns (no behavior change for existing callers).
 
         Args:
             cohort: Claim cohort to evaluate.
@@ -598,6 +795,11 @@ class CashFlowProjector:
         Returns:
             Weighted-average percentage developed, clamped to [0.0, 1.0].
         """
+        # Explicit DevelopmentPattern override
+        if self.development_pattern is not None:
+            return self.development_pattern.pct_developed(development_years)
+
+        # Fallback: per-claim payment-pattern weighting
         total_incurred = cohort.get_total_incurred()
         if total_incurred <= 0:
             return 0.0
@@ -746,7 +948,8 @@ class CashFlowProjector:
 
             # Empirical CL: use triangle-derived CDF
             if paid_to_date > 0 and ata_factors:
-                cdf = self._compute_cdf_to_ultimate(ata_factors, dev_years)
+                tail = self.reserve_tail_factor if self.reserve_tail_factor is not None else 1.0
+                cdf = self._compute_cdf_to_ultimate(ata_factors, dev_years, tail_factor=tail)
                 if cdf is not None:
                     cl_ultimate = paid_to_date * cdf
 
@@ -777,8 +980,8 @@ class CashFlowProjector:
                 # E4: no method available
                 blended_ultimate = incurred
 
-            # E7: Floor IBNR at 0 per cohort
-            cohort_ibnr = max(0.0, blended_ultimate - incurred)
+            # E7: Floor IBNR at 0 per cohort (paid-basis IBNR)
+            cohort_ibnr = max(0.0, blended_ultimate - paid_to_date)
             ibnr += cohort_ibnr
 
         return ibnr
