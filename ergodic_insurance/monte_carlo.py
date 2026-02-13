@@ -341,7 +341,7 @@ class MonteCarloConfig:
     growth_rate: float = 0.0  # Revenue growth rate per period
     time_resolution: str = "annual"  # "annual" or "monthly"
     apply_stochastic: bool = False  # Whether to apply stochastic shocks
-    enable_ledger_pruning: bool = False  # Prune old ledger entries to bound memory (Issue #315)
+    enable_ledger_pruning: bool = True  # Prune old ledger entries to bound memory (Issue #315)
     crn_base_seed: Optional[int] = None  # Common Random Numbers seed for cross-scenario comparison
     use_gpu: bool = False  # Use GPU-accelerated vectorized simulation (Issue #961)
 

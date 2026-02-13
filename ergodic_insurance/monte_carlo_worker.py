@@ -91,6 +91,7 @@ def _run_chunk_impl(
                 copy.deepcopy(manufacturer.stochastic_process) if _has_stochastic else None
             ),
             use_float=True,
+            simulation_mode=True,
         )
 
         # Create a fresh insurance program from config instead of deep-copying
