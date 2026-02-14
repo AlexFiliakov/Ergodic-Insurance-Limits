@@ -8,6 +8,14 @@ including high-resolution images, PDFs, and web-ready formats.
     See :issue:`382`.
 """
 
+__all__ = [
+    "save_figure",
+    "save_for_publication",
+    "save_for_presentation",
+    "save_for_web",
+    "batch_export",
+]
+
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
