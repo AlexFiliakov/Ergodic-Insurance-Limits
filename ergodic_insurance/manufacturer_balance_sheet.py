@@ -720,15 +720,18 @@ class BalanceSheetMixin:
         growth_rate: Union[Decimal, float] = 0.0,
         depreciation_expense: Union[Decimal, float, int] = 0,
         period_revenue: Union[Decimal, float, int] = 0,
+        cogs_expense: Union[Decimal, float, int] = 0,
+        opex_expense: Union[Decimal, float, int] = 0,
     ) -> None:
         """Update balance sheet with retained earnings and dividend distribution.
 
         Issues #687/#803/#1213: When called from step() with period_revenue,
         uses proper closing entries that close income statement accounts
-        (SALES_REVENUE, DEPRECIATION_EXPENSE) to RETAINED_EARNINGS and compute
-        the cash outflow directly from net_income, avoiding the
-        period_cash_expenses decomposition that double-counted depreciation
-        embedded in base_operating_margin.
+        (SALES_REVENUE, DEPRECIATION_EXPENSE, COST_OF_GOODS_SOLD,
+        OPERATING_EXPENSES) to RETAINED_EARNINGS and compute the cash outflow
+        directly from net_income, avoiding the period_cash_expenses
+        decomposition that double-counted depreciation embedded in
+        base_operating_margin.
 
         When called without period_revenue (backward compatibility, tests),
         falls back to the legacy Dr CASH / Cr RETAINED_EARNINGS approach
@@ -740,11 +743,17 @@ class BalanceSheetMixin:
             depreciation_expense: Period depreciation expense. Defaults to 0.
             period_revenue: Revenue recorded in step() via Dr CASH / Cr SALES_REVENUE.
                 Defaults to 0 (legacy mode).
+            cogs_expense: COGS recorded in step() via Dr COGS / Cr CASH (Issue #1326).
+                Defaults to 0 (backward compat).
+            opex_expense: OPEX recorded in step() via Dr OPEX / Cr CASH (Issue #1326).
+                Defaults to 0 (backward compat).
         """
         # Convert inputs to Decimal
         net_income_decimal = to_decimal(net_income)
         depreciation_addback = to_decimal(depreciation_expense)
         period_revenue_decimal = to_decimal(period_revenue)
+        cogs_expense_decimal = to_decimal(cogs_expense)
+        opex_expense_decimal = to_decimal(opex_expense)
 
         # Issue #803: Determine if we should use proper closing entries (new path)
         # or legacy Dr CASH / Cr RE behavior (backward compatibility).
@@ -790,6 +799,17 @@ class BalanceSheetMixin:
                     f"Cannot absorb loss of ${loss_amount:,.2f}. "
                     f"Company is already insolvent (threshold: ${tolerance:,.2f})."
                 )
+                # Issue #1326: Still need to close COGS/OPEX temporary accounts
+                if use_closing_entries and (
+                    cogs_expense_decimal > ZERO or opex_expense_decimal > ZERO
+                ):
+                    self._record_closing_entries(
+                        period_revenue_decimal,
+                        depreciation_addback,
+                        net_income_decimal,
+                        cogs_expense_decimal,
+                        opex_expense_decimal,
+                    )
                 self._last_dividends_paid = to_decimal(0)
                 return
 
@@ -832,6 +852,8 @@ class BalanceSheetMixin:
                         period_revenue_decimal,
                         depreciation_addback,
                         net_income_decimal,
+                        cogs_expense_decimal,
+                        opex_expense_decimal,
                     )
                 else:
                     # Legacy: Dr RE / Cr CASH
@@ -865,6 +887,8 @@ class BalanceSheetMixin:
                     period_revenue_decimal,
                     depreciation_addback,
                     net_income_decimal,
+                    cogs_expense_decimal,
+                    opex_expense_decimal,
                 )
             else:
                 # Legacy: Dr RE / Cr CASH
@@ -933,6 +957,8 @@ class BalanceSheetMixin:
                     period_revenue_decimal,
                     depreciation_addback,
                     net_income_decimal,
+                    cogs_expense_decimal,
+                    opex_expense_decimal,
                 )
             else:
                 # Legacy: Issue #683: Record full net income to retained earnings
@@ -981,16 +1007,17 @@ class BalanceSheetMixin:
         period_revenue: Decimal,
         depreciation_expense: Decimal,
         net_income: Decimal,
+        cogs_expense: Decimal = ZERO,
+        opex_expense: Decimal = ZERO,
     ) -> None:
         """Record period-end closing entries to transfer income statement balances to RE.
 
-        Issue #803/#1213: Close temporary accounts (revenue, depreciation) to
-        RETAINED_EARNINGS and compute the cash outflow directly from net_income.
-        This avoids the period_cash_expenses decomposition that double-counted
-        depreciation embedded in base_operating_margin (Issue #1213).
+        Issue #803/#1213/#1326: Close temporary accounts (revenue, depreciation,
+        COGS, OPEX) to RETAINED_EARNINGS and compute the residual cash outflow
+        from net_income.
 
         After these entries:
-        - RE changes by net_income (revenue - depreciation - cash_outflow)
+        - RE changes by net_income
         - CASH changes by net_income + depreciation (indirect-method OCF)
         - All temporary accounts are zeroed
 
@@ -998,6 +1025,8 @@ class BalanceSheetMixin:
             period_revenue: Revenue recorded during the period.
             depreciation_expense: Depreciation expense recorded during the period.
             net_income: Full net income for the period (after all deductions).
+            cogs_expense: COGS recorded via Dr COGS / Cr CASH (Issue #1326).
+            opex_expense: OPEX recorded via Dr OPEX / Cr CASH (Issue #1326).
         """
         # Close revenue: Dr SALES_REVENUE / Cr RETAINED_EARNINGS
         if period_revenue > ZERO:
@@ -1023,16 +1052,43 @@ class BalanceSheetMixin:
                 month=self.current_month,
             )
 
-        # Issue #1213: Cash outflow entry — captures ALL cash-consuming costs
-        # (operating expenses, insurance, taxes, collateral) in a single entry
-        # derived from net_income.  Revenue was recorded as Dr CASH in step();
-        # this entry removes the cash consumed by operations so that:
-        #   CASH change = revenue - cash_outflow = net_income + depreciation
+        # Issue #1326: Close COGS: Dr RETAINED_EARNINGS / Cr COST_OF_GOODS_SOLD
+        if cogs_expense > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.COST_OF_GOODS_SOLD,
+                amount=cogs_expense,
+                transaction_type=TransactionType.RETAINED_EARNINGS,
+                description=f"Year {self.current_year} close COGS to retained earnings",
+                month=self.current_month,
+            )
+
+        # Issue #1326: Close OPEX: Dr RETAINED_EARNINGS / Cr OPERATING_EXPENSES
+        if opex_expense > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.RETAINED_EARNINGS,
+                credit_account=AccountName.OPERATING_EXPENSES,
+                amount=opex_expense,
+                transaction_type=TransactionType.RETAINED_EARNINGS,
+                description=f"Year {self.current_year} close OPEX to retained earnings",
+                month=self.current_month,
+            )
+
+        # Issue #1213/#1326: Residual cash outflow — captures remaining
+        # cash-consuming costs (insurance, taxes, collateral) not already
+        # recorded as explicit COGS/OPEX entries.  Revenue was recorded as
+        # Dr CASH in step(); COGS and OPEX were recorded as Cr CASH; this
+        # entry removes the remaining cash consumed so that:
+        #   CASH change = revenue - cogs - opex - residual = net_income + depreciation
         # which matches indirect-method operating cash flow (ASC 230-10-28).
-        cash_outflow = period_revenue - net_income - depreciation_expense
+        cash_outflow = (
+            period_revenue - net_income - depreciation_expense - cogs_expense - opex_expense
+        )
 
         if cash_outflow > ZERO:
-            # Normal case: cash consumed by operations
+            # Normal case: remaining cash consumed by insurance/taxes/collateral
             # Dr RETAINED_EARNINGS / Cr CASH
             self.ledger.record_double_entry(
                 date=self.current_year,
@@ -1040,7 +1096,7 @@ class BalanceSheetMixin:
                 credit_account=AccountName.CASH,
                 amount=cash_outflow,
                 transaction_type=TransactionType.RETAINED_EARNINGS,
-                description=f"Year {self.current_year} close operating cash outflow to retained earnings",
+                description=f"Year {self.current_year} close residual cash outflow to retained earnings",
                 month=self.current_month,
             )
         elif cash_outflow < ZERO:

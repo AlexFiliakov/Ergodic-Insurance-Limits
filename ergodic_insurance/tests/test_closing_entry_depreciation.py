@@ -122,10 +122,12 @@ class TestClosingEntryDepreciation:
         )
 
     def test_temporary_accounts_zeroed_after_closing(self, manufacturer):
-        """SALES_REVENUE and DEPRECIATION_EXPENSE should be zero after closing."""
+        """All temporary accounts should be zero after closing (Issue #1326)."""
         net_income = to_decimal(400_000)
         depreciation = to_decimal(100_000)
         revenue = to_decimal(1_000_000)
+        cogs = to_decimal(300_000)
+        opex = to_decimal(50_000)
 
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
@@ -145,34 +147,56 @@ class TestClosingEntryDepreciation:
             description="Test depreciation",
         )
 
+        # Issue #1326: Record COGS and OPEX entries
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.COST_OF_GOODS_SOLD,
+            credit_account=AccountName.CASH,
+            amount=cogs,
+            transaction_type=TransactionType.EXPENSE,
+            description="Test COGS",
+        )
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.OPERATING_EXPENSES,
+            credit_account=AccountName.CASH,
+            amount=opex,
+            transaction_type=TransactionType.EXPENSE,
+            description="Test OPEX",
+        )
+
         manufacturer.update_balance_sheet(
             net_income,
             depreciation_expense=depreciation,
             period_revenue=revenue,
+            cogs_expense=cogs,
+            opex_expense=opex,
         )
 
-        # Temporary accounts should be zeroed
+        # All temporary accounts should be zeroed
         sales_bal = manufacturer.ledger.get_balance(AccountName.SALES_REVENUE)
         dep_bal = manufacturer.ledger.get_balance(AccountName.DEPRECIATION_EXPENSE)
+        cogs_bal = manufacturer.ledger.get_balance(AccountName.COST_OF_GOODS_SOLD)
+        opex_bal = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
         assert sales_bal == ZERO, f"SALES_REVENUE should be zero after closing, got {sales_bal}"
         assert dep_bal == ZERO, f"DEPRECIATION_EXPENSE should be zero after closing, got {dep_bal}"
+        assert cogs_bal == ZERO, f"COST_OF_GOODS_SOLD should be zero after closing, got {cogs_bal}"
+        assert opex_bal == ZERO, f"OPERATING_EXPENSES should be zero after closing, got {opex_bal}"
 
-    def test_no_operating_expenses_recorded_in_step(self, manufacturer):
-        """step() should NOT record OPERATING_EXPENSES entries (Issue #1213).
+    def test_cogs_opex_zeroed_after_closing_in_step(self, manufacturer):
+        """COGS and OPEX should be zeroed after closing entries in step() (Issue #1326).
 
-        The old code recorded Dr OPERATING_EXPENSES / Cr CASH with an
-        incorrectly computed period_cash_expenses that double-counted
-        depreciation.  The fix removes this entry entirely.
+        step() now records COGS and OPEX as explicit Dr EXPENSE / Cr CASH
+        entries, and closing entries zero them out.
         """
         # Run one step
         manufacturer.step(growth_rate=0.0, time_resolution="annual")
 
-        # OPERATING_EXPENSES should have zero balance (no entries recorded)
-        op_exp_balance = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
-        assert op_exp_balance == ZERO, (
-            f"OPERATING_EXPENSES should not be used after Issue #1213 fix, "
-            f"got balance {op_exp_balance}"
-        )
+        # All temporary expense accounts should have zero balance after closing
+        cogs_bal = manufacturer.ledger.get_balance(AccountName.COST_OF_GOODS_SOLD)
+        opex_bal = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
+        assert cogs_bal == ZERO, f"COST_OF_GOODS_SOLD should be zero after closing, got {cogs_bal}"
+        assert opex_bal == ZERO, f"OPERATING_EXPENSES should be zero after closing, got {opex_bal}"
 
     def test_step_produces_correct_re_change(self, manufacturer):
         """Full step() should produce RE change equal to retained net income."""
@@ -189,26 +213,23 @@ class TestClosingEntryDepreciation:
             re_change == expected_re_change
         ), f"RE change ({re_change}) should equal net_income ({expected_re_change})"
 
-    def test_step_closing_entries_do_not_use_operating_expenses(self, manufacturer):
-        """After step(), OPERATING_EXPENSES should have zero balance.
+    def test_temporary_accounts_zeroed_after_step(self, manufacturer):
+        """After step(), all temporary accounts should have zero balance (Issue #1326).
 
-        The old code recorded Dr OPERATING_EXPENSES / Cr CASH with an
-        incorrectly decomposed amount. After the fix, closing entries
-        bypass OPERATING_EXPENSES entirely and use net_income directly.
+        step() records revenue, COGS, OPEX, and depreciation entries,
+        then closing entries zero all temporary accounts.
         """
         manufacturer.step(growth_rate=0.0, time_resolution="annual")
-
-        # Verify no OPERATING_EXPENSES entries were created by step()
-        op_exp_balance = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
-        assert (
-            op_exp_balance == ZERO
-        ), f"OPERATING_EXPENSES should have zero balance after step(), got {op_exp_balance}"
 
         # Verify all temporary accounts are zeroed after closing
         sales_bal = manufacturer.ledger.get_balance(AccountName.SALES_REVENUE)
         dep_bal = manufacturer.ledger.get_balance(AccountName.DEPRECIATION_EXPENSE)
+        cogs_bal = manufacturer.ledger.get_balance(AccountName.COST_OF_GOODS_SOLD)
+        opex_bal = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
         assert sales_bal == ZERO, f"SALES_REVENUE not zero after closing: {sales_bal}"
         assert dep_bal == ZERO, f"DEPRECIATION_EXPENSE not zero after closing: {dep_bal}"
+        assert cogs_bal == ZERO, f"COST_OF_GOODS_SOLD not zero after closing: {cogs_bal}"
+        assert opex_bal == ZERO, f"OPERATING_EXPENSES not zero after closing: {opex_bal}"
 
     def test_loss_scenario_closing_entries(self, manufacturer):
         """Closing entries should work correctly when net_income is negative."""
