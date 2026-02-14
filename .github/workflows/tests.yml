@@ -75,7 +75,7 @@ jobs:
         id: tests
         working-directory: ergodic_insurance
         run: |
-          python -m pytest --override-ini="addopts=-v --cov=ergodic_insurance --cov-config=.coveragerc --cov-report=term-missing --cov-report=markdown:coverage.md --cov-fail-under=80 --strict-markers --tb=short" -n auto
+          python -m pytest --override-ini="addopts=-v --cov=ergodic_insurance --cov-config=.coveragerc --cov-report=term-missing --cov-report=markdown:coverage.md --cov-fail-under=80 --strict-markers --tb=short" -n auto --timeout=300
 
       - name: Build coverage summary
         if: always()

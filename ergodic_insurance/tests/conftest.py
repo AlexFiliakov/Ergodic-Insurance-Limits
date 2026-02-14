@@ -63,6 +63,23 @@ def _close_matplotlib_figures():
     plt.close("all")
 
 
+@pytest.fixture(autouse=True)
+def _reset_mp_probe_cache():
+    """Reset the multiprocessing probe cache to ensure test isolation.
+
+    The module-level ``_mp_probe_result`` in ``monte_carlo.py`` caches the
+    outcome of a one-time ProcessPoolExecutor probe.  Without resetting it
+    between tests, a failure-path test that sets the cache to ``False`` will
+    poison subsequent tests in the same xdist worker, causing hangs or
+    assertion failures depending on execution order.
+    """
+    import ergodic_insurance.monte_carlo as mc
+
+    mc._mp_probe_result = None
+    yield
+    mc._mp_probe_result = None
+
+
 @pytest.fixture
 def project_root():
     """Return the project root directory."""
