@@ -643,30 +643,67 @@ class ParetoFrontier:
         total_volume = float(xp.prod(upper_gpu - lower_gpu))
         return float((dominated_count / n_samples) * total_volume)
 
-    def get_knee_points(self, n_knees: int = 1) -> List[ParetoPoint]:
+    def get_knee_points(
+        self, n_knees: int = 1, method: str = "perpendicular_distance"
+    ) -> List[ParetoPoint]:
         """Find knee points on the Pareto frontier.
 
-        Knee points represent good trade-offs where small improvements in one
-        objective require large sacrifices in others.
+        Knee points represent points of maximum curvature on the frontier,
+        where small improvements in one objective require large sacrifices
+        in others (the diminishing-returns inflection point).
+
+        Three methods are supported:
+
+        - ``"perpendicular_distance"`` (default): Finds the point(s) with
+          maximum perpendicular distance from the line (2-D) or hyperplane
+          (n-D) connecting the extreme points of the frontier in normalized
+          objective space (Das, 1999).
+        - ``"angle"``: Finds the point(s) where adjacent frontier segments
+          form the sharpest angle, indicating maximum curvature (Branke
+          et al., 2004). Most reliable for bi-objective frontiers.
+        - ``"topsis"``: Finds the point(s) closest to the ideal (utopia)
+          point in normalized space (Hwang & Yoon, 1981). This was the
+          default in earlier versions.
 
         Args:
-            n_knees: Number of knee points to identify
+            n_knees: Number of knee points to identify.
+            method: Knee detection method. One of
+                ``"perpendicular_distance"``, ``"angle"``, or ``"topsis"``.
 
         Returns:
-            List of knee points
+            List of knee points.
+
+        Raises:
+            ValueError: If *method* is not a recognised method name.
+
+        References:
+            Das, I. (1999). On characterizing the 'knee' of the Pareto
+            curve based on Normal-Boundary Intersection. *Structural
+            Optimization*, 18(2-3), 107-115.
+
+            Branke, J., Deb, K., Dierolf, H., & Osswald, M. (2004).
+            Finding knees in multi-objective optimization. *PPSN VIII*,
+            Springer, 722-731.
+
+            Hwang, C.L., & Yoon, K. (1981). *Multiple Attribute Decision
+            Making*. Springer.
         """
+        valid_methods = ("perpendicular_distance", "angle", "topsis")
+        if method not in valid_methods:
+            raise ValueError(f"method must be one of {valid_methods}, got '{method}'")
+
         if not self.frontier_points:
             return []
 
         if len(self.frontier_points) <= n_knees:
             return self.frontier_points.copy()
 
-        # Convert frontier to matrix
+        # Convert frontier to objective matrix
         obj_matrix = np.array(
             [[p.objectives[obj.name] for obj in self.objectives] for p in self.frontier_points]
         )
 
-        # Normalize objectives
+        # Normalize objectives so that higher = better in all dimensions
         normalized = np.zeros_like(obj_matrix)
         for i, obj in enumerate(self.objectives):
             col = obj_matrix[:, i]
@@ -675,15 +712,102 @@ class ParetoFrontier:
             else:
                 normalized[:, i] = (col.max() - col) / (col.max() - col.min() + 1e-10)
 
-        # Find extreme points (ideal and nadir)
+        if method == "topsis":
+            return self._knee_topsis(normalized, n_knees)
+        elif method == "perpendicular_distance":
+            return self._knee_perpendicular_distance(normalized, n_knees)
+        else:  # method == "angle"
+            return self._knee_angle(normalized, n_knees)
+
+    # ------------------------------------------------------------------
+    # Private helpers for get_knee_points
+    # ------------------------------------------------------------------
+
+    def _knee_topsis(self, normalized: np.ndarray, n_knees: int) -> List[ParetoPoint]:
+        """Select points closest to the ideal point (TOPSIS)."""
         ideal = normalized.max(axis=0)
-
-        # Calculate distances to ideal point
         distances = np.linalg.norm(ideal - normalized, axis=1)
-
-        # Find knee points as those with smallest distances
         knee_indices = np.argsort(distances)[:n_knees]
+        return [self.frontier_points[i] for i in knee_indices]
 
+    def _knee_perpendicular_distance(
+        self, normalized: np.ndarray, n_knees: int
+    ) -> List[ParetoPoint]:
+        """Select points farthest from the extreme-to-extreme line/hyperplane.
+
+        For 2 objectives the extreme points define a line; for ≥3 objectives
+        a hyperplane is fitted through the per-objective extreme points via
+        SVD.
+        """
+        n_points, n_obj = normalized.shape
+
+        # Identify extreme points (best point for each objective)
+        extreme_indices: List[int] = []
+        for i in range(n_obj):
+            extreme_indices.append(int(np.argmax(normalized[:, i])))
+        # Deduplicate while preserving order
+        unique_extremes = list(dict.fromkeys(extreme_indices))
+        extreme_points = normalized[unique_extremes]
+
+        if len(unique_extremes) < 2:
+            # Degenerate: one point dominates on every objective
+            return self.frontier_points[:n_knees]
+
+        if len(unique_extremes) == 2 or n_obj == 2:
+            # Distance from the line through two anchor points
+            A = extreme_points[0]
+            B = extreme_points[1]
+            AB = B - A
+            AB_sq = float(np.dot(AB, AB))
+            if AB_sq < 1e-20:
+                return self.frontier_points[:n_knees]
+
+            AP = normalized - A  # (n_points, n_obj)
+            t = AP @ AB / AB_sq  # projection parameter per point
+            proj = A + np.outer(t, AB)
+            distances = np.linalg.norm(normalized - proj, axis=1)
+        else:
+            # ≥3 unique extremes in ≥3-D space: fit a hyperplane via SVD
+            centroid = extreme_points.mean(axis=0)
+            centered = extreme_points - centroid
+            _, _, Vt = np.linalg.svd(centered, full_matrices=True)
+            normal = Vt[-1]
+            normal = normal / (np.linalg.norm(normal) + 1e-20)
+            distances = np.abs((normalized - centroid) @ normal)
+
+        knee_indices = np.argsort(distances)[::-1][:n_knees]
+        return [self.frontier_points[i] for i in knee_indices]
+
+    def _knee_angle(self, normalized: np.ndarray, n_knees: int) -> List[ParetoPoint]:
+        """Select points where adjacent segments form the sharpest angle.
+
+        Points are sorted along the first objective before computing
+        inter-segment angles.  Most reliable for bi-objective frontiers.
+        """
+        n_points = normalized.shape[0]
+
+        # Sort by first objective
+        sort_idx = np.argsort(normalized[:, 0])
+        sorted_norm = normalized[sort_idx]
+
+        if n_points < 3:
+            # Not enough interior points for angle computation
+            return [self.frontier_points[sort_idx[0]]]
+
+        # Compute angle at each interior point; endpoints get inf
+        angles = np.full(n_points, np.inf)
+        for j in range(1, n_points - 1):
+            v_prev = sorted_norm[j - 1] - sorted_norm[j]
+            v_next = sorted_norm[j + 1] - sorted_norm[j]
+            denom = np.linalg.norm(v_prev) * np.linalg.norm(v_next)
+            if denom < 1e-20:
+                continue
+            cos_angle = np.clip(np.dot(v_prev, v_next) / denom, -1.0, 1.0)
+            angles[j] = float(np.arccos(cos_angle))
+
+        # Smallest angle = sharpest bend = knee
+        knee_sorted = np.argsort(angles)[:n_knees]
+        knee_indices = sort_idx[knee_sorted]
         return [self.frontier_points[i] for i in knee_indices]
 
     def to_dataframe(self) -> pd.DataFrame:
