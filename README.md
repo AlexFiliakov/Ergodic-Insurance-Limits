@@ -10,7 +10,7 @@ This research model applies Ole Peters’ ergodic economics framework to insuran
 - Extensive configuration architecture
 - CPU-optimized parallel processing
 
-[![Documentation Status](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/actions/workflows/docs.yml/badge.svg)](https://alexfiliakov.github.io/Ergodic-Insurance-Limits/)
+[![Documentation Status](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/actions/workflows/docs.yml/badge.svg)](https://alexfiliakov.github.io/Ergodic-Insurance-Limits/) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AlexFiliakov/Ergodic-Insurance-Limits)
 
 ## Introduction - Why Do Companies Buy Insurance?
 
@@ -272,6 +272,8 @@ Ergodic-Insurance-Limits/
 See the [Codebase Onboarding Guide](docs/Codebase%20Onboarding%20Guide.md) for the project preliminaries.
 
 See the list of [Open Issues](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/issues) for improvement ideas.
+
+Refer to this Wiki for code questions: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AlexFiliakov/Ergodic-Insurance-Limits)
 
 ### First-Time Setup
 
