@@ -50,7 +50,7 @@ class TestClosingEntryDepreciation:
         # Record revenue in ledger (as step() does)
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
-            debit_account=AccountName.CASH,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
             credit_account=AccountName.SALES_REVENUE,
             amount=revenue,
             transaction_type=TransactionType.REVENUE,
@@ -88,14 +88,24 @@ class TestClosingEntryDepreciation:
         depreciation = to_decimal(100_000)
         revenue = to_decimal(1_000_000)
 
-        # Record revenue
+        # Issue #1302: Revenue goes to AR (accrual basis)
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
-            debit_account=AccountName.CASH,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
             credit_account=AccountName.SALES_REVENUE,
             amount=revenue,
             transaction_type=TransactionType.REVENUE,
             description="Test revenue",
+        )
+
+        # Simulate cash collection (DSO=0 for simplicity — all collected)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+            amount=revenue,
+            transaction_type=TransactionType.COLLECTION,
+            description="Test collection",
         )
 
         # Record depreciation
@@ -131,7 +141,7 @@ class TestClosingEntryDepreciation:
 
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
-            debit_account=AccountName.CASH,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
             credit_account=AccountName.SALES_REVENUE,
             amount=revenue,
             transaction_type=TransactionType.REVENUE,
@@ -239,13 +249,24 @@ class TestClosingEntryDepreciation:
         depreciation = to_decimal(100_000)
         revenue = to_decimal(500_000)
 
+        # Issue #1302: Revenue to AR (accrual basis)
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
-            debit_account=AccountName.CASH,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
             credit_account=AccountName.SALES_REVENUE,
             amount=revenue,
             transaction_type=TransactionType.REVENUE,
             description="Test revenue",
+        )
+
+        # Simulate cash collection (all collected)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+            amount=revenue,
+            transaction_type=TransactionType.COLLECTION,
+            description="Test collection",
         )
 
         manufacturer.ledger.record_double_entry(
