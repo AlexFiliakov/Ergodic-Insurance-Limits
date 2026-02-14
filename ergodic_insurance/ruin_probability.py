@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from tqdm import tqdm
 
+from .decimal_utils import disable_float_mode, enable_float_mode
 from .manufacturer import WidgetManufacturer
 
 
@@ -493,6 +494,19 @@ class RuinProbabilityAnalyzer:
         Tracks multiple bankruptcy conditions with early stopping.
         Also tracks mid-year ruin events (Issue #279).
         """
+        enable_float_mode()
+        try:
+            return self._run_single_ruin_simulation_impl(sim_id, max_horizon, config)
+        finally:
+            disable_float_mode()
+
+    def _run_single_ruin_simulation_impl(
+        self,
+        sim_id: int,
+        max_horizon: int,
+        config: RuinProbabilityConfig,
+    ) -> Dict[str, Any]:
+        """Inner implementation of _run_single_ruin_simulation (always runs in float mode)."""
         manufacturer = WidgetManufacturer.create_fresh(
             self.manufacturer.config,
             stochastic_process=(

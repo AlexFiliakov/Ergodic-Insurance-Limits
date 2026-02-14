@@ -31,7 +31,7 @@ class InsuranceRecovery:
     amount: Decimal
     claim_id: str
     year_approved: int
-    amount_received: Decimal = field(default_factory=lambda: ZERO)
+    amount_received: Decimal = field(default_factory=lambda: to_decimal(0))
 
     def __post_init__(self) -> None:
         """Convert amounts to Decimal if needed (runtime check for backwards compatibility)."""
