@@ -1232,18 +1232,17 @@ class TestConvergenceAndBatchMethods:
         )
 
     def test_check_convergence_at_interval_with_few_iterations(self, monitoring_engine):
-        """Line 1632: When there are fewer than 500 iterations, r_hat should be inf."""
-        # Prepare some data
+        """With only 1 iteration, relative MCSE should be inf (#1353)."""
         final_assets = np.random.normal(1_000_000, 100_000, 100)
-        r_hat = monitoring_engine._check_convergence_at_interval(50, final_assets)
-        # With only 50 iterations and n_chains=min(4, 50//250)=0, should return inf
-        assert r_hat == float("inf")
+        relative_mcse = monitoring_engine._check_convergence_at_interval(1, final_assets)
+        assert relative_mcse == float("inf")
 
     def test_check_convergence_at_interval_with_enough_iterations(self, monitoring_engine):
-        """With enough iterations, r_hat should be a finite value."""
+        """With enough iterations, relative MCSE should be a finite value (#1353)."""
         final_assets = np.random.normal(1_000_000, 100_000, 2000)
-        r_hat = monitoring_engine._check_convergence_at_interval(2000, final_assets)
-        assert np.isfinite(r_hat)
+        relative_mcse = monitoring_engine._check_convergence_at_interval(2000, final_assets)
+        assert np.isfinite(relative_mcse)
+        assert relative_mcse > 0
 
     def test_run_with_progress_monitoring_default_check_intervals(
         self, loss_generator, insurance_program, manufacturer

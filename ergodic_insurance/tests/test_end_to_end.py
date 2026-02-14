@@ -363,9 +363,8 @@ class TestMonteCarloConvergence:
 
         # Check that we have convergence metrics
         for metric_name, stats in results.convergence.items():
-            assert (
-                stats.r_hat >= 0.99
-            )  # R-hat should be close to 1 (allowing small numerical errors)
+            # R-hat is NaN for IID MC — convergence uses MCSE (#1353)
+            assert np.isnan(stats.r_hat) or stats.r_hat >= 0.99
             assert stats.ess > 0  # Effective sample size should be positive
             assert stats.mcse >= 0  # Monte Carlo standard error should be non-negative
 
