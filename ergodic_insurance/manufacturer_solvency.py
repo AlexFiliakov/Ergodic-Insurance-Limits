@@ -135,7 +135,11 @@ class SolvencyMixin:
         # 1. Current Ratio = Current Assets / Current Liabilities
         reported_cash = max(self.cash, to_decimal(0))
         current_assets = (
-            reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
+            reported_cash
+            + self.accounts_receivable
+            + self.inventory
+            + self.prepaid_insurance
+            + self.insurance_receivables  # Issue #1316: ASC 210-10-45
         )
         # Current liabilities = total_liabilities - long-term claims - DTL
         claim_total = sum(
@@ -271,7 +275,11 @@ class SolvencyMixin:
         # Current assets and current liabilities for working capital
         reported_cash = max(self.cash, to_decimal(0))
         current_assets = (
-            reported_cash + self.accounts_receivable + self.inventory + self.prepaid_insurance
+            reported_cash
+            + self.accounts_receivable
+            + self.inventory
+            + self.prepaid_insurance
+            + self.insurance_receivables  # Issue #1316: ASC 210-10-45
         )
         claim_total = sum(
             (liability.remaining_amount for liability in self.claim_liabilities), to_decimal(0)

@@ -278,6 +278,55 @@ class TestGoingConcernIndicators:
         # With 90% in current assets (cash + AR + inventory), ratio should be high
         assert cr_indicator["value"] > to_decimal(1)
 
+    def test_current_ratio_includes_insurance_receivables(self, config):
+        """Insurance receivables increase current assets and thus the current ratio (Issue #1316).
+
+        Per ASC 210-10-45 and ASC 310-10-45, insurance receivables due within
+        one year are current assets and must be included in the current ratio.
+        We verify by manually computing the expected current ratio with
+        insurance_receivables included and comparing to the indicator value.
+        """
+        manufacturer = WidgetManufacturer(config)
+
+        # Run a step to generate operational current liabilities (A/P, accruals)
+        manufacturer.step()
+
+        # Process an insured claim — creates insurance_receivables
+        manufacturer.process_insurance_claim(5_000_000, 1_000_000, 10_000_000)
+        assert manufacturer.insurance_receivables > ZERO
+
+        # Manually compute current ratio WITH insurance receivables
+        reported_cash = max(manufacturer.cash, to_decimal(0))
+        current_assets_with = (
+            reported_cash
+            + manufacturer.accounts_receivable
+            + manufacturer.inventory
+            + manufacturer.prepaid_insurance
+            + manufacturer.insurance_receivables
+        )
+        # Current assets WITHOUT insurance receivables (old behavior)
+        current_assets_without = current_assets_with - manufacturer.insurance_receivables
+
+        # Both must be different
+        assert current_assets_with > current_assets_without
+
+        # Verify the indicator matches the calculation WITH insurance receivables
+        indicators = manufacturer._assess_going_concern_indicators()
+        cr_indicator = next(ind for ind in indicators if ind["name"] == "Current Ratio")
+
+        # Compute current liabilities the same way the production code does
+        claim_total = sum(
+            (cl.remaining_amount for cl in manufacturer.claim_liabilities), to_decimal(0)
+        )
+        dtl = getattr(manufacturer, "deferred_tax_liability", to_decimal(0))
+        current_liabilities = manufacturer.total_liabilities - claim_total - dtl
+
+        if current_liabilities > ZERO:
+            expected_ratio = current_assets_with / current_liabilities
+            assert cr_indicator["value"] == expected_ratio
+            # Ratio WITHOUT receivables would be lower
+            assert current_assets_without / current_liabilities < expected_ratio
+
     def test_dscr_no_debt_service(self, manufacturer):
         """With no claims, DSCR indicator is not breached (no debt service)."""
         indicators = manufacturer._assess_going_concern_indicators()
