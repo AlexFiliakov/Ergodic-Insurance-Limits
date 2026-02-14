@@ -453,19 +453,19 @@ class TestMonteCarloIntegration:
             config=config,
         )
 
-        # Mock convergence diagnostics to always return good R-hat
-        with patch.object(engine.convergence_diagnostics, "calculate_r_hat", return_value=1.05):
-            results = engine.run_with_progress_monitoring(
-                check_intervals=[1000],
-                convergence_threshold=1.1,
-                early_stopping=True,
-                show_progress=False,
-            )
+        # _check_convergence_at_interval now returns relative MCSE (#1353)
+        # which is naturally << 1.1 convergence_threshold, triggering early stop
+        results = engine.run_with_progress_monitoring(
+            check_intervals=[1000],
+            convergence_threshold=1.1,
+            early_stopping=True,
+            show_progress=False,
+        )
 
-            # Should stop early at 1000 iterations
-            assert results.metrics["actual_iterations"] == 1000
-            assert results.metrics["convergence_achieved"]
-            assert results.metrics["convergence_iteration"] == 1000
+        # Should stop early at 1000 iterations
+        assert results.metrics["actual_iterations"] == 1000
+        assert results.metrics["convergence_achieved"]
+        assert results.metrics["convergence_iteration"] == 1000
 
     def test_progress_monitoring_performance_impact(self, mock_components):
         """Test that progress monitoring has minimal performance impact."""
@@ -488,7 +488,7 @@ class TestMonteCarloIntegration:
         # Run with monitoring
         start = time.perf_counter()
         results_monitor = engine.run_with_progress_monitoring(
-            check_intervals=[1000, 2000], show_progress=False
+            check_intervals=[1000, 2000], show_progress=False, early_stopping=False
         )
         time_monitor = time.perf_counter() - start
 

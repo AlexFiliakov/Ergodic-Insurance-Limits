@@ -583,6 +583,63 @@ class TestExecuteChunkArrayPathMocked:
 # ===================================================================
 
 
+class TestSkipHmacRoundTripMocked:
+    """Exercise the ``skip_hmac=True`` path (raw pickle, no HMAC signing)."""
+
+    @patch(_SHM_PATCH_TARGET, FakeSharedMemory)
+    def test_skip_hmac_share_then_get_roundtrip(self):
+        """Lines 246-251, 297-300: skip_hmac uses raw pickle for share and get."""
+        config = SharedMemoryConfig(enable_shared_objects=True, compression=False, skip_hmac=True)
+        manager = SharedMemoryManager(config)
+
+        original = {"key": "value", "numbers": list(range(100))}
+        shm_name = manager.share_object("obj", original)
+
+        actual_size = manager.get_object_size("obj")
+        retrieved = manager.get_object(shm_name, actual_size, compressed=False)
+        assert retrieved == original
+
+        manager.cleanup()
+
+    @patch(_SHM_PATCH_TARGET, FakeSharedMemory)
+    def test_skip_hmac_with_compression_roundtrip(self):
+        """Lines 246-251, 297-300: skip_hmac + compression round-trip."""
+        config = SharedMemoryConfig(enable_shared_objects=True, compression=True, skip_hmac=True)
+        manager = SharedMemoryManager(config)
+
+        original = {"data": list(range(500)), "nested": {"a": 1, "b": [2, 3]}}
+        shm_name = manager.share_object("comp", original)
+
+        actual_size = manager.get_object_size("comp")
+        retrieved = manager.get_object(shm_name, actual_size, compressed=True)
+        assert retrieved == original
+
+        manager.cleanup()
+
+    @patch(_SHM_PATCH_TARGET, FakeSharedMemory)
+    def test_skip_hmac_stores_raw_pickle_not_hmac_signed(self):
+        """Lines 246-251: skip_hmac path stores raw pickle (no HMAC header)."""
+        import pickle
+
+        config = SharedMemoryConfig(enable_shared_objects=True, compression=False, skip_hmac=True)
+        manager = SharedMemoryManager(config)
+
+        obj = {"simple": True}
+        shm_name = manager.share_object("raw", obj)
+
+        # Raw pickle bytes should be directly deserializable
+        shm = manager.shared_objects["raw"]
+        assert shm.buf is not None
+        stored = bytes(shm.buf[: manager.get_object_size("raw")])
+        assert pickle.loads(stored) == obj  # noqa: S301
+
+        # Verify it's NOT safe_dumps format (safe_loads would fail or differ)
+        raw_pickle = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        assert stored == raw_pickle
+
+        manager.cleanup()
+
+
 class TestFullRoundTripMocked:
     """End-to-end round-trip tests combining share + get through fake SHM."""
 

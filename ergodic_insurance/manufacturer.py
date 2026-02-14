@@ -688,15 +688,24 @@ class WidgetManufacturer(
         # Calculate financial performance
         revenue = self.calculate_revenue(apply_stochastic)
 
-        # Calculate working capital components BEFORE payment coordination
+        # Calculate working capital components BEFORE payment coordination.
+        # Issue #1302: pass period_revenue so the WC module can compute
+        # cash collections (= old_AR + period_revenue − target_AR) instead
+        # of the old Dr AR / Cr CASH delta that double-counted against the
+        # revenue entry.
         if time_resolution == "annual":
-            self.calculate_working_capital_components(revenue)
+            self.calculate_working_capital_components(revenue, period_revenue=revenue)
         elif time_resolution == "monthly":
+            _period_revenue = revenue / to_decimal(12)
             if hasattr(self, "_annual_revenue_for_wc"):
-                self.calculate_working_capital_components(self._annual_revenue_for_wc)
+                self.calculate_working_capital_components(
+                    self._annual_revenue_for_wc, period_revenue=_period_revenue
+                )
             else:
                 annual_revenue = self.total_assets * to_decimal(self.asset_turnover_ratio)
-                self.calculate_working_capital_components(annual_revenue)
+                self.calculate_working_capital_components(
+                    annual_revenue, period_revenue=_period_revenue
+                )
 
         # COORDINATED LIMITED LIABILITY ENFORCEMENT
         if time_resolution == "monthly":
@@ -789,19 +798,19 @@ class WidgetManufacturer(
         else:
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
 
-        # Issue #687/#1213: Record revenue in the ledger so that closing
-        # entries (#803) can properly close income statement accounts to
-        # retained earnings.  Cash outflows are computed from net_income in
-        # _record_closing_entries so that depreciation embedded in the margin
-        # is never double-counted (see Issue #1213).
+        # Issue #1302: Record revenue as Dr AR / Cr SALES_REVENUE (accrual
+        # basis, ASC 606).  Cash collection is handled separately via the
+        # working-capital module's collection entries (Dr CASH / Cr AR).
+        # This eliminates the double-counting where revenue credited CASH
+        # fully while working capital also debited CASH for the AR buildup.
         if revenue > ZERO:
             self.ledger.record_double_entry(
                 date=self.current_year,
-                debit_account=AccountName.CASH,
+                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
                 credit_account=AccountName.SALES_REVENUE,
                 amount=revenue,
                 transaction_type=TransactionType.REVENUE,
-                description=f"Year {self.current_year} revenue recognition",
+                description=f"Year {self.current_year} revenue recognition (ASC 606)",
                 month=self.current_month,
             )
 

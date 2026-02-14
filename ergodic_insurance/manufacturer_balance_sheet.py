@@ -575,21 +575,34 @@ class BalanceSheetMixin:
     # ========================================================================
 
     def calculate_working_capital_components(
-        self, revenue: Union[Decimal, float], dso: float = 45, dio: float = 60, dpo: float = 30
+        self,
+        revenue: Union[Decimal, float],
+        dso: float = 45,
+        dio: float = 60,
+        dpo: float = 30,
+        period_revenue: Union[Decimal, float, None] = None,
     ) -> Dict[str, Decimal]:
         """Calculate individual working capital components based on revenue and ratios.
 
         Uses standard financial ratios to calculate accounts receivable, inventory,
         and accounts payable from annual revenue.
 
+        Issue #1302: Revenue is recognised as Dr AR / Cr REVENUE (accrual basis,
+        ASC 606).  This method records *cash collections* on AR
+        (Dr CASH / Cr AR) rather than the old Dr AR / Cr CASH delta, which
+        double-counted the cash impact when revenue also debited CASH.
+
         Args:
-            revenue (float): Annual revenue in dollars.
-            dso (float): Days Sales Outstanding. Defaults to 45.
-            dio (float): Days Inventory Outstanding. Defaults to 60.
-            dpo (float): Days Payable Outstanding. Defaults to 30.
+            revenue: Annual revenue in dollars (used for target computation).
+            dso: Days Sales Outstanding. Defaults to 45.
+            dio: Days Inventory Outstanding. Defaults to 60.
+            dpo: Days Payable Outstanding. Defaults to 30.
+            period_revenue: Revenue that will be recorded to AR in this period
+                (annual in annual mode, annual/12 in monthly mode).  Defaults
+                to ``revenue`` when *None* (backward compatibility / annual).
 
         Returns:
-            Dict[str, float]: Dictionary containing working capital components.
+            Dict containing working capital components.
         """
         # Convert inputs to Decimal
         revenue_decimal = to_decimal(revenue)
@@ -597,6 +610,12 @@ class BalanceSheetMixin:
         dio_decimal = to_decimal(dio)
         dpo_decimal = to_decimal(dpo)
         days_per_year = to_decimal(365)
+
+        _use_accrual_ar = period_revenue is not None
+        if _use_accrual_ar:
+            period_revenue_decimal = to_decimal(period_revenue)
+        else:
+            period_revenue_decimal = ZERO
 
         # Calculate cost of goods sold (approximate as % of revenue)
         cogs = revenue_decimal * to_decimal(1 - self.base_operating_margin)
@@ -611,29 +630,59 @@ class BalanceSheetMixin:
         inventory_change = new_inventory - self.inventory
         ap_change = new_ap - self.accounts_payable
 
-        # Record working capital changes in ledger
-        # FIX (Issue #305): Use AccountName enum instead of string literals
-        # AR increase: Debit AR, Credit Cash (collection cycle)
-        if ar_change > 0:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
-                credit_account=AccountName.CASH,
-                amount=ar_change,
-                transaction_type=TransactionType.WORKING_CAPITAL,
-                description="AR increase from revenue growth",
-                month=self.current_month,
-            )
-        elif ar_change < 0:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.CASH,
-                credit_account=AccountName.ACCOUNTS_RECEIVABLE,
-                amount=abs(ar_change),
-                transaction_type=TransactionType.COLLECTION,
-                description="AR decrease (net collections)",
-                month=self.current_month,
-            )
+        if _use_accrual_ar:
+            # Issue #1302: Record cash collections on AR instead of the old
+            # Dr AR / Cr CASH delta.  Revenue will be recorded as Dr AR, so
+            # the WC module handles the collection cycle (Dr CASH / Cr AR).
+            #   collections = old_AR + period_revenue − target_AR
+            # After both entries: AR = old_AR + period_revenue − collections
+            #                       = target_AR
+            collections = self.accounts_receivable + period_revenue_decimal - new_ar
+            if collections > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    amount=collections,
+                    transaction_type=TransactionType.COLLECTION,
+                    description="Cash collections on accounts receivable",
+                    month=self.current_month,
+                )
+            elif collections < ZERO:
+                # Target AR exceeds current AR + period revenue (rapid growth
+                # or first period with zero initial AR).
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    credit_account=AccountName.CASH,
+                    amount=abs(collections),
+                    transaction_type=TransactionType.WORKING_CAPITAL,
+                    description="AR buildup exceeds period collections",
+                    month=self.current_month,
+                )
+        else:
+            # Legacy path (backward compat): adjust AR to target via delta.
+            collections = ZERO
+            if ar_change > 0:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    credit_account=AccountName.CASH,
+                    amount=ar_change,
+                    transaction_type=TransactionType.WORKING_CAPITAL,
+                    description="AR increase from revenue growth",
+                    month=self.current_month,
+                )
+            elif ar_change < 0:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.CASH,
+                    credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                    amount=abs(ar_change),
+                    transaction_type=TransactionType.COLLECTION,
+                    description="AR decrease (net collections)",
+                    month=self.current_month,
+                )
 
         # Inventory increase: Debit Inventory, Credit Cash (purchase cycle)
         if inventory_change > 0:
@@ -697,7 +746,11 @@ class BalanceSheetMixin:
         cash_conversion_cycle_days = dso_decimal + dio_decimal - dpo_decimal
 
         # Calculate cash impact for logging
-        cash_impact = -(ar_change + inventory_change) + ap_change
+        if _use_accrual_ar:
+            # Issue #1302: collections replace -ar_change
+            cash_impact = collections - inventory_change + ap_change
+        else:
+            cash_impact = -(ar_change + inventory_change) + ap_change
 
         logger.debug(
             f"Working capital components: AR=${self.accounts_receivable:,.0f}, "
@@ -741,8 +794,8 @@ class BalanceSheetMixin:
             net_income: Net income for the period in dollars.
             growth_rate: Revenue growth rate parameter (currently unused).
             depreciation_expense: Period depreciation expense. Defaults to 0.
-            period_revenue: Revenue recorded in step() via Dr CASH / Cr SALES_REVENUE.
-                Defaults to 0 (legacy mode).
+            period_revenue: Revenue recorded in step() via Dr AR / Cr SALES_REVENUE
+                (Issue #1302).  Defaults to 0 (legacy mode).
             cogs_expense: COGS recorded in step() via Dr COGS / Cr CASH (Issue #1326).
                 Defaults to 0 (backward compat).
             opex_expense: OPEX recorded in step() via Dr OPEX / Cr CASH (Issue #1326).
@@ -1076,13 +1129,16 @@ class BalanceSheetMixin:
                 month=self.current_month,
             )
 
-        # Issue #1213/#1326: Residual cash outflow — captures remaining
+        # Issue #1213/#1326/#1302: Residual cash outflow — captures remaining
         # cash-consuming costs (insurance, taxes, collateral) not already
         # recorded as explicit COGS/OPEX entries.  Revenue was recorded as
-        # Dr CASH in step(); COGS and OPEX were recorded as Cr CASH; this
+        # Dr AR in step() (Issue #1302); cash enters via WC collections
+        # (Dr CASH / Cr AR); COGS and OPEX were recorded as Cr CASH; this
         # entry removes the remaining cash consumed so that:
-        #   CASH change = revenue - cogs - opex - residual = net_income + depreciation
-        # which matches indirect-method operating cash flow (ASC 230-10-28).
+        #   CASH change = collections - cogs - opex - residual
+        #              = (period_rev - ΔAR) - cogs - opex - residual
+        #              = net_income + depreciation - ΔAR  (indirect-method OCF)
+        # which matches ASC 230-10-28 including working-capital adjustments.
         cash_outflow = (
             period_revenue - net_income - depreciation_expense - cogs_expense - opex_expense
         )

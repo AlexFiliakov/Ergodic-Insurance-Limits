@@ -1,5 +1,6 @@
 """Tests for advanced optimization algorithms."""
 
+import logging
 from typing import List
 
 import numpy as np
@@ -280,6 +281,67 @@ class TestPenaltyMethodOptimizer:
             optimizer.penalty_params.current_penalties["constraint_0"]
             > optimizer.penalty_params.initial_penalty
         )
+
+
+class TestExactPenalty:
+    """Test exact (L1) penalty vs quadratic (L2) penalty (#1318).
+
+    Uses the canonical problem: min x^2 s.t. x >= 1.
+    Optimal solution: x* = 1.0, f* = 1.0.
+    """
+
+    @staticmethod
+    def _make_problem():
+        """Return (objective, constraints, bounds) for min x^2 s.t. x >= 1."""
+
+        def objective(x):
+            return x[0] ** 2
+
+        constraints = [{"type": "ineq", "fun": lambda x: x[0] - 1.0}]  # x >= 1
+        bounds = Bounds([0.0], [10.0])
+        return objective, constraints, bounds
+
+    def test_quadratic_penalty_bias(self):
+        """Quadratic penalty systematically underestimates the constraint boundary."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=False)
+        result = optimizer.optimize(np.array([0.5]), max_outer_iter=100)
+
+        # Quadratic penalty: solution is interior — x < 1 (or barely at 1)
+        # The bias is O(1/penalty), so with finite penalty x should be < 1.
+        # We accept x <= 1.0 + small tolerance; the key property is it's
+        # systematically biased toward the infeasible side.
+        assert result.x[0] < 1.0 + 1e-3, f"Quadratic penalty should not overshoot: x={result.x[0]}"
+
+    def test_exact_penalty_feasibility(self):
+        """Exact (L1) penalty achieves feasibility for finite penalty."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=True)
+        result = optimizer.optimize(np.array([0.5]), max_outer_iter=100)
+
+        # Exact penalty: for sufficiently large penalty, x >= 1.0 exactly
+        assert result.x[0] >= 1.0 - 1e-6, f"Exact penalty should satisfy x >= 1: x={result.x[0]}"
+
+    def test_exact_penalty_matches_optimal_value(self):
+        """Exact penalty solution should be close to true optimum f* = 1.0."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=True)
+        result = optimizer.optimize(np.array([0.5]), max_outer_iter=100)
+
+        assert abs(result.fun - 1.0) < 1e-2, f"Exact penalty should find f* ≈ 1.0: f={result.fun}"
+
+    def test_constraint_violation_warning(self, caplog):
+        """Warning is emitted when converged solution has violation > 1e-8."""
+        objective, constraints, bounds = self._make_problem()
+        optimizer = PenaltyMethodOptimizer(objective, constraints, bounds, exact_penalty=False)
+        # Use few iterations so the solution is likely still infeasible
+        optimizer.penalty_params.constraint_tolerance = 1.0  # accept easily
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.optimization"):
+            optimizer.optimize(np.array([0.5]), max_outer_iter=3)
+
+        assert any(
+            "constraint violation" in r.message.lower() for r in caplog.records
+        ), "Expected a warning about constraint violation"
 
 
 class TestAugmentedLagrangianOptimizer:

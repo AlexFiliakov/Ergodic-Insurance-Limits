@@ -258,13 +258,34 @@ class TrustRegionOptimizer:
 
 
 class PenaltyMethodOptimizer:
-    """Optimization using penalty method with adaptive penalty parameters."""
+    """Optimization using penalty method with adaptive penalty parameters.
+
+    By default, uses a **quadratic** (L2) penalty: ``penalty * violation^2``.
+    The quadratic formulation only drives the solution to exact feasibility
+    as the penalty parameter tends to infinity.  For any finite penalty the
+    converged solution is an *interior* approximation that systematically
+    violates inequality constraints by ``O(1/penalty)``
+    (see Nocedal & Wright, *Numerical Optimization*, 2nd ed., Ch. 17.1).
+
+    When ``exact_penalty=True``, uses an **exact** (L1) penalty instead:
+    ``penalty * violation``.  For a sufficiently large (but finite) penalty
+    the L1 formulation yields a solution that satisfies the constraints
+    exactly (Fletcher, *Practical Methods of Optimization*, Ch. 12.2).
+    The trade-off is that the L1 penalty is non-smooth, which may affect
+    gradient-based inner solvers.
+
+    For problems that require exact constraint satisfaction with bounded
+    penalty parameters, consider :class:`AugmentedLagrangianOptimizer`
+    (augmented Lagrangian with multiplier estimates) or
+    :class:`TrustRegionOptimizer` (wraps SciPy ``trust-constr``).
+    """
 
     def __init__(
         self,
         objective_fn: Callable,
         constraints: List[Dict[str, Any]],
         bounds: Optional[Bounds] = None,
+        exact_penalty: bool = False,
     ):
         """Initialize penalty method optimizer.
 
@@ -272,15 +293,26 @@ class PenaltyMethodOptimizer:
             objective_fn: Original objective function
             constraints: List of constraints
             bounds: Variable bounds
+            exact_penalty: If ``True``, use L1 (exact) penalty
+                ``penalty * |violation|`` instead of the default quadratic
+                penalty ``penalty * violation^2``.  The L1 penalty achieves
+                exact feasibility for a sufficiently large finite penalty,
+                whereas the quadratic penalty only achieves feasibility as
+                ``penalty -> inf``.
         """
         self.objective_fn = objective_fn
         self.constraints = constraints
         self.bounds = bounds
+        self.exact_penalty = exact_penalty
         self.penalty_params = AdaptivePenaltyParameters()
         self.convergence_monitor = ConvergenceMonitor()
 
     def _penalized_objective(self, x: np.ndarray, penalty_multipliers: Dict[str, float]) -> float:
         """Compute penalized objective function.
+
+        When ``self.exact_penalty`` is ``False`` (default), the penalty term
+        for each constraint is ``penalty * violation^2`` (quadratic / L2).
+        When ``True``, the penalty term is ``penalty * violation`` (exact / L1).
 
         Args:
             x: Current point
@@ -304,7 +336,10 @@ class PenaltyMethodOptimizer:
                 # Equality constraint h(x) = 0
                 violation = abs(constr["fun"](x))
 
-            total_penalty += penalty * violation**2
+            if self.exact_penalty:
+                total_penalty += penalty * violation  # L1 (exact) penalty
+            else:
+                total_penalty += penalty * violation**2  # L2 (quadratic) penalty
 
         return float(obj + total_penalty)
 
@@ -379,6 +414,20 @@ class PenaltyMethodOptimizer:
             # Update penalties
             if (outer_iter + 1) % self.penalty_params.penalty_update_frequency == 0:
                 self.penalty_params.update_penalties(violations)
+
+        # Warn when converged solution still has non-trivial constraint violation
+        best_violations = self._check_violations(best_x)
+        best_violation_total = sum(v.violation_amount for v in best_violations)
+        if best_violation_total > 1e-8:
+            logger.warning(
+                "Converged solution has constraint violation %.2e. "
+                "The quadratic penalty method produces systematically "
+                "infeasible solutions for finite penalty values. "
+                "Consider using exact_penalty=True, "
+                "AugmentedLagrangianOptimizer, or TrustRegionOptimizer "
+                "for exact constraint satisfaction.",
+                best_violation_total,
+            )
 
         # Create final result
         final_result = OptimizeResult(

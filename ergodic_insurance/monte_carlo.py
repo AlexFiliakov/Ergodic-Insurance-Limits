@@ -115,6 +115,13 @@ def _test_worker_function() -> bool:
         return False
 
 
+# Module-level cache for the multiprocessing probe test (Issue #1385).
+# Avoids spawning a throwaway ProcessPoolExecutor on every call to
+# _run_enhanced_parallel().  The result is tri-state: None = not yet tested,
+# True = works, False = failed.
+_mp_probe_result: Optional[bool] = None
+
+
 def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     """Enhanced simulation function for parallel execution.
 
@@ -138,11 +145,11 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     # Create manufacturer instance
     manufacturer = _create_manufacturer(shared["manufacturer_config"])
 
-    # Deep-copy the insurance program so each simulation gets fresh state (Issue #348)
-    import copy
-
+    # Create a fresh insurance program so each simulation gets clean state
+    # (Issue #348).  Uses create_fresh() instead of copy.deepcopy() to avoid
+    # expensive object-graph traversal — see Issue #1385.
     loss_generator = shared["loss_generator"]
-    insurance_program = copy.deepcopy(shared["insurance_program"])
+    insurance_program = InsuranceProgram.create_fresh(shared["insurance_program"])
 
     # Re-seed the loss generator for this simulation to ensure independence
     base_seed = shared.get("base_seed")
@@ -274,7 +281,10 @@ class MonteCarloConfig:
     Attributes:
         n_simulations: Number of simulation paths
         n_years: Number of years per simulation
-        n_chains: Number of parallel chains for convergence
+        n_chains: Number of chains (retained for backward compatibility; not used
+            for IID Monte Carlo convergence diagnostics — see issue #1353)
+        convergence_mcse_threshold: Maximum relative MCSE (MCSE / |mean|) for
+            declaring convergence. Default 0.01 (1% of mean).
         parallel: Whether to use multiprocessing
         n_workers: Number of parallel workers (None for auto)
         chunk_size: Size of chunks for parallel processing
@@ -303,6 +313,7 @@ class MonteCarloConfig:
     n_simulations: int = 100_000
     n_years: int = 10
     n_chains: int = 4
+    convergence_mcse_threshold: float = 0.01
     parallel: bool = True
     n_workers: Optional[int] = None
     chunk_size: int = 10_000
@@ -371,6 +382,12 @@ class MonteCarloConfig:
             raise ValueError(
                 f"chunk_size must be positive, got {self.chunk_size}. "
                 "Typical values are 1000-10000."
+            )
+        if not (0 < self.convergence_mcse_threshold < 1):
+            raise ValueError(
+                f"convergence_mcse_threshold must be between 0 and 1 (exclusive), "
+                f"got {self.convergence_mcse_threshold}. "
+                "Use 0.01 for 1% relative MCSE threshold."
             )
         if not (0 < self.bootstrap_confidence_level < 1):
             raise ValueError(
@@ -441,8 +458,8 @@ class MonteCarloResults:
             f"Mean Growth Rate: {np.mean(self.growth_rates):.4f}\n"
             f"VaR(99%): ${self.metrics.get('var_99', 0):,.0f}\n"
             f"TVaR(99%): ${self.metrics.get('tvar_99', 0):,.0f}\n"
-            f"Convergence R-hat: "
-            f"{self.convergence.get('growth_rate', ConvergenceStats(0,0,0,False,0,0)).r_hat:.3f}\n"
+            f"Convergence MCSE: "
+            f"{self.convergence.get('growth_rate', ConvergenceStats(float('nan'),0,0,False,0,0)).mcse:.6f}\n"
         )
 
         # Add performance metrics if available
@@ -608,6 +625,7 @@ class MonteCarloEngine:
             shared_memory_config = SharedMemoryConfig(
                 enable_shared_arrays=self.config.shared_memory,
                 enable_shared_objects=self.config.shared_memory,
+                skip_hmac=True,  # ephemeral in-process data — HMAC unnecessary (#1385)
             )
             self.parallel_executor = ParallelExecutor(
                 n_workers=self.config.n_workers,
@@ -675,6 +693,7 @@ class MonteCarloEngine:
                 shared_memory_config = SharedMemoryConfig(
                     enable_shared_arrays=self.config.shared_memory,
                     enable_shared_objects=self.config.shared_memory,
+                    skip_hmac=True,  # ephemeral in-process data — HMAC unnecessary (#1385)
                 )
                 self.parallel_executor = ParallelExecutor(
                     n_workers=self.config.n_workers,
@@ -996,23 +1015,28 @@ class MonteCarloEngine:
         # Ensure parallel executor is available
         assert self.parallel_executor is not None, "Enhanced parallel executor not initialized"
 
-        # Check if we can safely use enhanced parallel execution
-        # On Windows with scipy import issues, fall back to standard parallel
-        try:
-            # Try to execute a test function to see if multiprocessing works
-            import multiprocessing as mp
+        # Check if we can safely use enhanced parallel execution.
+        # Cache the result so we only pay process-spawn cost once (Issue #1385).
+        global _mp_probe_result  # noqa: PLW0603
+        if _mp_probe_result is None:
+            try:
+                import multiprocessing as mp
 
-            with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context()) as executor:
-                future = executor.submit(_test_worker_function)
-                result = future.result(timeout=5)
-                if not result:
-                    raise RuntimeError("Worker test failed")
-        except (ImportError, RuntimeError, TimeoutError) as e:
-            logger.warning(
-                "Enhanced parallel execution failed: %s. "
-                "Falling back to standard parallel execution.",
-                e,
-            )
+                with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context()) as executor:
+                    future = executor.submit(_test_worker_function)
+                    result = future.result(timeout=5)
+                    if not result:
+                        raise RuntimeError("Worker test failed")
+                _mp_probe_result = True
+            except (ImportError, RuntimeError, TimeoutError) as e:
+                _mp_probe_result = False
+                logger.warning(
+                    "Enhanced parallel execution failed: %s. "
+                    "Falling back to standard parallel execution.",
+                    e,
+                )
+
+        if not _mp_probe_result:
             return self._run_parallel(
                 progress_callback=progress_callback, cancel_event=cancel_event
             )
@@ -1572,7 +1596,18 @@ class MonteCarloEngine:
         return metrics
 
     def _check_convergence(self, results: MonteCarloResults) -> Dict[str, ConvergenceStats]:
-        """Check convergence of simulation results.
+        """Check convergence of IID Monte Carlo simulation results using MCSE.
+
+        For IID Monte Carlo simulations, the Gelman-Rubin R-hat statistic is not
+        an appropriate diagnostic because it requires independently initialized
+        chains (Gelman & Rubin, 1992).  Splitting a single IID sample into
+        consecutive segments produces R-hat ~ 1.0 by construction, regardless of
+        sample-size adequacy (issue #1353).
+
+        Convergence is instead assessed via Monte Carlo Standard Error (MCSE).
+        For IID samples MCSE = std / sqrt(n).  The simulation is declared
+        converged when relative MCSE (MCSE / |mean|) < threshold *and* the
+        effective sample size exceeds ``min_ess``.
 
         Args:
             results: Simulation results
@@ -1580,33 +1615,41 @@ class MonteCarloEngine:
         Returns:
             Dictionary of convergence statistics
         """
-        # Reshape data into chains
-        n_chains = min(self.config.n_chains, results.final_assets.shape[0] // 100)
-
-        if n_chains < 2:
-            # Not enough data for multi-chain convergence
+        n = len(results.growth_rates)
+        if n < 10:
             return {}
 
-        # Split data into chains
-        chain_size = len(results.final_assets) // n_chains
-        chains_growth = np.array(
-            [results.growth_rates[i * chain_size : (i + 1) * chain_size] for i in range(n_chains)]
-        )
+        metrics_data = {
+            "growth_rate": results.growth_rates,
+            "total_losses": np.sum(results.annual_losses, axis=1),
+        }
 
-        chains_losses = np.array(
-            [
-                np.sum(results.annual_losses[i * chain_size : (i + 1) * chain_size], axis=1)
-                for i in range(n_chains)
-            ]
-        )
+        convergence_stats: Dict[str, ConvergenceStats] = {}
+        for name, data in metrics_data.items():
+            ess = self.convergence_diagnostics.calculate_ess(data)
+            mcse = self.convergence_diagnostics.calculate_mcse(data, ess)
+            mean_val = float(np.mean(data))
+            if mcse == 0:
+                relative_mcse = 0.0
+            else:
+                relative_mcse = mcse / abs(mean_val) if mean_val != 0 else float("inf")
 
-        # Stack chains for multiple metrics
-        chains = np.stack([chains_growth, chains_losses], axis=2)
+            autocorr_arr = self.convergence_diagnostics._calculate_autocorrelation(data, 1)
+            lag1_autocorr = float(autocorr_arr[1]) if len(autocorr_arr) > 1 else 0.0
 
-        # Check convergence
-        convergence_stats = self.convergence_diagnostics.check_convergence(
-            chains, metric_names=["growth_rate", "total_losses"]
-        )
+            converged = (
+                ess >= self.convergence_diagnostics.min_ess
+                and relative_mcse < self.config.convergence_mcse_threshold
+            )
+
+            convergence_stats[name] = ConvergenceStats(
+                r_hat=float("nan"),  # Not computed for single-run IID MC (#1353)
+                ess=ess,
+                mcse=mcse,
+                converged=converged,
+                n_iterations=n,
+                autocorrelation=lag1_autocorr,
+            )
 
         return convergence_stats
 
@@ -1825,21 +1868,25 @@ class MonteCarloEngine:
     def _check_convergence_at_interval(
         self, completed_iterations: int, final_assets: np.ndarray
     ) -> float:
-        """Check convergence at specified interval."""
+        """Check convergence at specified interval using relative MCSE.
+
+        Returns the relative MCSE (MCSE / |mean|) for the growth-rate metric.
+        Smaller values indicate better convergence.  The previous pseudo-chain
+        R-hat approach was removed because splitting a single IID sample into
+        consecutive segments is not a valid Gelman-Rubin diagnostic (#1353).
+        """
         partial_growth = self._calculate_growth_rates(final_assets[:completed_iterations])
 
-        # Split into chains for convergence check
-        n_chains = min(4, completed_iterations // 250)
-        if n_chains >= 2:
-            chain_size = completed_iterations // n_chains
-            chains = np.array(
-                [partial_growth[j * chain_size : (j + 1) * chain_size] for j in range(n_chains)]
-            )
-            r_hat = self.convergence_diagnostics.calculate_r_hat(chains)
-        else:
-            r_hat = float("inf")
+        if len(partial_growth) < 2:
+            return float("inf")
 
-        return r_hat
+        mcse = self.convergence_diagnostics.calculate_mcse(partial_growth)
+        if mcse == 0:
+            return 0.0
+        mean_val = float(np.mean(partial_growth))
+        relative_mcse = mcse / abs(mean_val) if mean_val != 0 else float("inf")
+
+        return relative_mcse
 
     def _run_simulation_batch(
         self, batch_range: range, arrays: Dict[str, np.ndarray], batch_config: Dict[str, Any]
@@ -2031,11 +2078,16 @@ class MonteCarloEngine:
                 convergence = self._check_convergence(combined)
 
                 if convergence:
-                    max_r_hat = max(stat.r_hat for stat in convergence.values())
-                    converged = max_r_hat < target_r_hat
+                    converged = all(stat.converged for stat in convergence.values())
 
                     if self.config.progress_bar:
-                        logger.debug("Iteration %d: R-hat = %.3f", total_iterations, max_r_hat)
+                        max_mcse = max(stat.mcse for stat in convergence.values())
+                        logger.debug(
+                            "Iteration %d: max MCSE = %.6f, converged = %s",
+                            total_iterations,
+                            max_mcse,
+                            converged,
+                        )
 
                 # Advance seed for next batch
                 if batch_seed is not None:

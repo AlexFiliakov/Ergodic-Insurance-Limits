@@ -73,16 +73,21 @@ class SensitivityResult:
     units: Optional[str] = None
 
     def calculate_impact(self, metric: str) -> float:
-        """Calculate standardized impact on a specific metric.
+        """Calculate signed point elasticity of a metric w.r.t. this parameter.
 
-        The impact is calculated as the elasticity of the metric with respect
-        to the parameter, normalized by the baseline values.
+        Uses central finite differences at the baseline to estimate the
+        derivative, then normalises to a unit-free elasticity::
+
+            elasticity = (dM/dP) * (P_baseline / M_baseline)
+
+        A positive value means increasing the parameter increases the metric;
+        a negative value means increasing the parameter decreases the metric.
 
         Args:
             metric: Name of the metric to calculate impact for
 
         Returns:
-            Standardized impact coefficient (elasticity)
+            Signed point elasticity at the baseline
 
         Raises:
             KeyError: If metric not found in results
@@ -94,21 +99,33 @@ class SensitivityResult:
         baseline_metric = self.metrics[metric][baseline_idx]
 
         # Avoid division by zero
-        if baseline_metric == 0:
+        if baseline_metric == 0 or self.baseline_value == 0:
             return 0.0
 
-        # Calculate range of outcomes
-        metric_range = self.metrics[metric].max() - self.metrics[metric].min()
-        param_range = self.variations.max() - self.variations.min()
+        n = len(self.variations)
 
-        # Avoid division by zero for parameter range
-        if param_range == 0 or self.baseline_value == 0:
+        # Central finite difference when both neighbours exist
+        if baseline_idx > 0 and baseline_idx < n - 1:
+            dM = float(
+                self.metrics[metric][baseline_idx + 1] - self.metrics[metric][baseline_idx - 1]
+            )
+            dP = float(self.variations[baseline_idx + 1] - self.variations[baseline_idx - 1])
+        elif baseline_idx < n - 1:
+            # Forward difference (baseline is the first element)
+            dM = float(self.metrics[metric][baseline_idx + 1] - self.metrics[metric][baseline_idx])
+            dP = float(self.variations[baseline_idx + 1] - self.variations[baseline_idx])
+        elif baseline_idx > 0:
+            # Backward difference (baseline is the last element)
+            dM = float(self.metrics[metric][baseline_idx] - self.metrics[metric][baseline_idx - 1])
+            dP = float(self.variations[baseline_idx] - self.variations[baseline_idx - 1])
+        else:
+            # Single point — no derivative possible
             return 0.0
 
-        # Standardized sensitivity (elasticity)
-        return float(
-            (metric_range / abs(baseline_metric)) / (param_range / abs(self.baseline_value))
-        )
+        if dP == 0:
+            return 0.0
+
+        return float((dM / dP) * (self.baseline_value / baseline_metric))
 
     def get_metric_bounds(self, metric: str) -> Tuple[float, float]:
         """Get the minimum and maximum values for a metric.

@@ -246,31 +246,42 @@ def _scatter_events(
     cat_sevs: np.ndarray,
     max_events: int,
 ) -> None:
-    """Scatter per-generator severities into the padded (n_sims, max_events) array."""
-    n_sims = loss_amounts_cpu.shape[0]
-    att_ptr = 0
-    lg_ptr = 0
-    cat_ptr = 0
+    """Scatter per-generator severities into the padded (n_sims, max_events) array.
 
-    for i in range(n_sims):
-        col = 0
-        for counts, sevs_arr, ptr_name in (
-            (att_counts[i], att_sevs, "att"),
-            (lg_counts[i], lg_sevs, "lg"),
-            (cat_counts[i], cat_sevs, "cat"),
-        ):
-            if counts > 0:
-                end = min(col + counts, max_events)
-                count = end - col
-                ptr = {"att": att_ptr, "lg": lg_ptr, "cat": cat_ptr}[ptr_name]
-                loss_amounts_cpu[i, col:end] = sevs_arr[ptr : ptr + count]
-                if ptr_name == "att":
-                    att_ptr += counts
-                elif ptr_name == "lg":
-                    lg_ptr += counts
-                else:
-                    cat_ptr += counts
-                col = end
+    Uses vectorized cumsum-based offsets and fancy indexing instead of a
+    Python for-loop over ``n_sims``.  All row/column coordinates are
+    computed as arrays and assigned in a single bulk operation per
+    generator type.
+    """
+    n_sims = loss_amounts_cpu.shape[0]
+
+    # Column starts per generator per sim (replicates sequential col tracking)
+    att_col_start = np.zeros(n_sims, dtype=np.int32)
+    lg_col_start = np.minimum(att_counts, max_events).astype(np.int32)
+    cat_col_start = np.minimum(lg_col_start + lg_counts, max_events).astype(np.int32)
+
+    for counts, sevs, col_start in (
+        (att_counts, att_sevs, att_col_start),
+        (lg_counts, lg_sevs, lg_col_start),
+        (cat_counts, cat_sevs, cat_col_start),
+    ):
+        total = int(np.sum(counts))
+        if total == 0:
+            continue
+
+        # Row indices: repeat each sim index by its count
+        rows = np.repeat(np.arange(n_sims, dtype=np.int32), counts)
+
+        # Local event indices within each sim: 0, 1, ..., counts[i]-1
+        sim_starts = np.cumsum(counts) - counts  # exclusive prefix sum
+        offsets_within = np.arange(total, dtype=np.int32) - np.repeat(sim_starts, counts)
+
+        # Global column = col_start[sim] + local offset
+        cols = np.repeat(col_start, counts) + offsets_within
+
+        # Only assign events that fit within max_events columns
+        valid = cols < max_events
+        loss_amounts_cpu[rows[valid], cols[valid]] = sevs[valid]
 
 
 def generate_losses_for_year(

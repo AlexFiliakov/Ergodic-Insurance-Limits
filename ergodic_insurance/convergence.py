@@ -24,8 +24,11 @@ class ConvergenceStats:
 
     def __str__(self) -> str:
         """String representation of convergence stats."""
+        import math
+
+        r_hat_str = "nan" if math.isnan(self.r_hat) else f"{self.r_hat:.3f}"
         return (
-            f"ConvergenceStats(r_hat={self.r_hat:.3f}, "
+            f"ConvergenceStats(r_hat={r_hat_str}, "
             f"ess={self.ess:.0f}, mcse={self.mcse:.4f}, "
             f"converged={self.converged})"
         )
