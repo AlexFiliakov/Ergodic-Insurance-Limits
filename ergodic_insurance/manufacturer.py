@@ -688,24 +688,41 @@ class WidgetManufacturer(
         # Calculate financial performance
         revenue = self.calculate_revenue(apply_stochastic)
 
+        # Issue #1308: Record revenue BEFORE working capital adjustments.
+        # Revenue recognition (ASC 606) logically precedes working capital
+        # effects.  Posting Dr AR / Cr REVENUE first ensures the WC module
+        # reads the correct AR balance (including this period's revenue) and
+        # eliminates artificial negative-cash states that triggered spurious
+        # working-capital facility draws.
+        if time_resolution == "monthly":
+            _revenue_to_record = revenue / to_decimal(12)
+        else:
+            _revenue_to_record = revenue
+        if _revenue_to_record > ZERO:
+            self.ledger.record_double_entry(
+                date=self.current_year,
+                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+                credit_account=AccountName.SALES_REVENUE,
+                amount=_revenue_to_record,
+                transaction_type=TransactionType.REVENUE,
+                description=f"Year {self.current_year} revenue recognition (ASC 606)",
+                month=self.current_month,
+            )
+
         # Calculate working capital components BEFORE payment coordination.
-        # Issue #1302: pass period_revenue so the WC module can compute
-        # cash collections (= old_AR + period_revenue − target_AR) instead
-        # of the old Dr AR / Cr CASH delta that double-counted against the
-        # revenue entry.
+        # Issue #1302 / #1308: Revenue is already posted to AR above, so
+        # pass period_revenue=ZERO — the WC module reads the updated AR
+        # balance directly and computes collections = current_AR − target_AR.
         if time_resolution == "annual":
-            self.calculate_working_capital_components(revenue, period_revenue=revenue)
+            self.calculate_working_capital_components(revenue, period_revenue=ZERO)
         elif time_resolution == "monthly":
-            _period_revenue = revenue / to_decimal(12)
             if hasattr(self, "_annual_revenue_for_wc"):
                 self.calculate_working_capital_components(
-                    self._annual_revenue_for_wc, period_revenue=_period_revenue
+                    self._annual_revenue_for_wc, period_revenue=ZERO
                 )
             else:
                 annual_revenue = self.total_assets * to_decimal(self.asset_turnover_ratio)
-                self.calculate_working_capital_components(
-                    annual_revenue, period_revenue=_period_revenue
-                )
+                self.calculate_working_capital_components(annual_revenue, period_revenue=ZERO)
 
         # COORDINATED LIMITED LIABILITY ENFORCEMENT
         if time_resolution == "monthly":
@@ -797,22 +814,6 @@ class WidgetManufacturer(
             operating_income = operating_income / 12
         else:
             collateral_costs = self.calculate_collateral_costs(letter_of_credit_rate, "annual")
-
-        # Issue #1302: Record revenue as Dr AR / Cr SALES_REVENUE (accrual
-        # basis, ASC 606).  Cash collection is handled separately via the
-        # working-capital module's collection entries (Dr CASH / Cr AR).
-        # This eliminates the double-counting where revenue credited CASH
-        # fully while working capital also debited CASH for the AR buildup.
-        if revenue > ZERO:
-            self.ledger.record_double_entry(
-                date=self.current_year,
-                debit_account=AccountName.ACCOUNTS_RECEIVABLE,
-                credit_account=AccountName.SALES_REVENUE,
-                amount=revenue,
-                transaction_type=TransactionType.REVENUE,
-                description=f"Year {self.current_year} revenue recognition (ASC 606)",
-                month=self.current_month,
-            )
 
         # Issue #1326: Record COGS and OPEX as explicit ledger entries
         # so the ledger can produce: Revenue - COGS - OPEX - Depreciation = Operating Income.
