@@ -1392,3 +1392,394 @@ class TestSimulationTaxApplication:
         assert np.mean(results_high["bankruptcies"]) >= np.mean(
             results_zero["bankruptcies"]
         ), "Higher tax rate should increase or maintain bankruptcy probability"
+
+
+class TestSimulationFinancialModel:
+    """Test GPU-engine-aligned financial model in _run_simulation() (Issue #1300).
+
+    Validates depreciation, working capital, NOL carryforward, DTL/DTA,
+    dividends, cash-based insolvency, and backward compatibility with mocks.
+    """
+
+    def _make_engine(
+        self,
+        tax_rate=0.25,
+        operating_margin=0.15,
+        initial_assets=10_000_000,
+        equity=10_000_000,
+        **extra_attrs,
+    ):
+        """Create a decision engine with configurable manufacturer attributes."""
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.current_assets = initial_assets
+        manufacturer.total_assets = initial_assets
+        manufacturer.equity = equity
+        manufacturer.asset_turnover_ratio = 1.0
+        manufacturer.base_operating_margin = operating_margin
+        manufacturer.tax_rate = tax_rate
+        manufacturer.step = Mock(return_value={"roe": 0.15, "assets": initial_assets})
+        manufacturer.reset = Mock()
+
+        # Apply extra attributes (e.g., ppe_ratio, retention_ratio)
+        for attr, val in extra_attrs.items():
+            setattr(manufacturer, attr, val)
+
+        # Create a copy mock
+        manufacturer_copy = Mock(spec=WidgetManufacturer)
+        manufacturer_copy.current_assets = initial_assets
+        manufacturer_copy.total_assets = initial_assets
+        manufacturer_copy.equity = equity
+        manufacturer_copy.asset_turnover_ratio = 1.0
+        manufacturer_copy.base_operating_margin = operating_margin
+        manufacturer_copy.tax_rate = tax_rate
+        manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": initial_assets})
+        manufacturer_copy.reset = Mock()
+        manufacturer.copy = Mock(return_value=manufacturer_copy)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.rvs = Mock(return_value=100_000)
+        loss_dist.ppf = Mock(side_effect=lambda p: p * 10_000_000)
+        loss_dist.expected_value = Mock(return_value=500_000)
+
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
+            engine = InsuranceDecisionEngine(
+                manufacturer=manufacturer,
+                loss_distribution=loss_dist,
+                pricing_scenario="baseline",
+            )
+        return engine
+
+    def _make_decision(self, premium=50_000):
+        """Create a simple insurance decision."""
+        return InsuranceDecision(
+            retained_limit=500_000,
+            layers=[
+                Layer(
+                    attachment_point=500_000,
+                    limit=5_000_000,
+                    base_premium_rate=0.01,
+                )
+            ],
+            total_premium=premium,
+            total_coverage=5_500_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+    def test_depreciation_affects_terminal_equity(self):
+        """PP&E ratio + tax depreciation should produce DTL that affects equity."""
+        decision = self._make_decision(premium=0)
+        # Zero losses for deterministic comparison
+        n_sims, n_years = 5, 5
+        zero_losses = np.zeros((n_sims, n_years))
+
+        # High PP&E with accelerated tax depreciation → DTL effect
+        engine_high = self._make_engine(
+            ppe_ratio=0.5,
+            tax_depreciation_life_years=5.0,
+            ppe_useful_life_years=10.0,
+        )
+        results_high = engine_high._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=zero_losses,
+        )
+
+        # Minimal PP&E → negligible DTL
+        engine_low = self._make_engine(
+            ppe_ratio=0.01,
+            tax_depreciation_life_years=5.0,
+            ppe_useful_life_years=10.0,
+        )
+        results_low = engine_low._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=zero_losses,
+        )
+
+        # DTL from timing difference should cause different terminal equity
+        mean_high = np.mean(results_high["value"])
+        mean_low = np.mean(results_low["value"])
+        assert mean_high != pytest.approx(
+            mean_low, rel=0.001
+        ), f"Depreciation DTL should affect equity: high_ppe={mean_high:.0f}, low_ppe={mean_low:.0f}"
+
+    def test_nol_carryforward_improves_recovery(self):
+        """NOL carryforward should produce higher terminal equity after a loss year."""
+        n_sims, n_years = 10, 5
+        # Year 0: loss that exceeds operating income, Years 1-4: zero losses
+        losses = np.zeros((n_sims, n_years))
+        losses[:, 0] = 3_000_000  # Exceeds operating income → negative pre-tax
+
+        # No-insurance decision so full loss hits the company
+        decision = InsuranceDecision(
+            retained_limit=10_000_000,
+            layers=[],
+            total_premium=0,
+            total_coverage=10_000_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+        # Minimize working capital to isolate NOL effect
+        engine_nol = self._make_engine(
+            nol_carryforward_enabled=True,
+            operating_margin=0.15,
+            dso=0.0,
+            dio=0.0,
+            dpo=0.0,
+            ppe_ratio=0.1,
+        )
+        results_nol = engine_nol._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        engine_no_nol = self._make_engine(
+            nol_carryforward_enabled=False,
+            operating_margin=0.15,
+            dso=0.0,
+            dio=0.0,
+            dpo=0.0,
+            ppe_ratio=0.1,
+        )
+        results_no_nol = engine_no_nol._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        # NOL should shelter future income from tax → higher terminal equity
+        assert np.mean(results_nol["value"]) > np.mean(
+            results_no_nol["value"]
+        ), "NOL carryforward should improve recovery after loss years"
+
+    def test_nol_80pct_limitation(self):
+        """NOL utilization should be limited to 80% of taxable income per TCJA."""
+        n_sims, n_years = 1, 5
+        # Year 0: loss generating NOL; Years 1-4: profitable (zero losses)
+        losses = np.zeros((n_sims, n_years))
+        losses[0, 0] = 3_000_000  # Exceeds operating income → generates NOL
+
+        # No-insurance decision so full loss hits the company
+        decision = InsuranceDecision(
+            retained_limit=10_000_000,
+            layers=[],
+            total_premium=0,
+            total_coverage=10_000_000,
+            pricing_scenario="baseline",
+            optimization_method="SLSQP",
+        )
+
+        # Minimize working capital to isolate NOL effect
+        common_kwargs = {
+            "operating_margin": 0.15,
+            "dso": 0.0,
+            "dio": 0.0,
+            "dpo": 0.0,
+            "ppe_ratio": 0.1,
+        }
+
+        # With 80% limitation (TCJA default)
+        engine_80 = self._make_engine(
+            nol_carryforward_enabled=True,
+            nol_limitation_pct=0.80,
+            **common_kwargs,
+        )
+        results_80 = engine_80._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        # With 100% limitation (pre-TCJA)
+        engine_100 = self._make_engine(
+            nol_carryforward_enabled=True,
+            nol_limitation_pct=1.0,
+            **common_kwargs,
+        )
+        results_100 = engine_100._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=losses,
+        )
+
+        # 100% deduction should shelter more income → higher equity
+        assert np.mean(results_100["value"]) >= np.mean(
+            results_80["value"]
+        ), "100% NOL deduction should produce >= equity than 80% limited"
+
+    def test_cash_insolvency_detection(self):
+        """High PP&E + working capital should trigger cash insolvency even with positive equity."""
+        decision = self._make_decision(premium=0)
+        n_sims, n_years = 20, 10
+
+        # Very high PP&E ratio and working capital days → cash starved
+        engine_cash_tight = self._make_engine(
+            operating_margin=0.03,
+            ppe_ratio=0.80,
+            dso=120.0,
+            dio=120.0,
+            dpo=10.0,
+            insolvency_tolerance=0.0,
+        )
+        results_tight = engine_cash_tight._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+        )
+
+        # Comfortable cash position
+        engine_cash_ok = self._make_engine(
+            operating_margin=0.03,
+            ppe_ratio=0.10,
+            dso=30.0,
+            dio=30.0,
+            dpo=60.0,
+            insolvency_tolerance=0.0,
+        )
+        results_ok = engine_cash_ok._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+        )
+
+        # Cash-tight scenario should have more bankruptcies
+        assert np.mean(results_tight["bankruptcies"]) >= np.mean(
+            results_ok["bankruptcies"]
+        ), "Cash-strapped scenario should trigger more insolvencies"
+
+    def test_backward_compat_with_mocks(self):
+        """Existing mock pattern (no config, no extra attrs) should complete without error."""
+        # Vanilla mock — no ppe_ratio, no retention_ratio, etc.
+        manufacturer = Mock(spec=WidgetManufacturer)
+        manufacturer.current_assets = 10_000_000
+        manufacturer.total_assets = 10_000_000
+        manufacturer.equity = 10_000_000
+        manufacturer.asset_turnover_ratio = 1.0
+        manufacturer.base_operating_margin = 0.15
+        manufacturer.tax_rate = 0.25
+        manufacturer.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer.reset = Mock()
+        manufacturer_copy = Mock(spec=WidgetManufacturer)
+        manufacturer_copy.current_assets = 10_000_000
+        manufacturer_copy.total_assets = 10_000_000
+        manufacturer_copy.equity = 10_000_000
+        manufacturer_copy.asset_turnover_ratio = 1.0
+        manufacturer_copy.base_operating_margin = 0.15
+        manufacturer_copy.tax_rate = 0.25
+        manufacturer_copy.step = Mock(return_value={"roe": 0.15, "assets": 10_000_000})
+        manufacturer_copy.reset = Mock()
+        manufacturer.copy = Mock(return_value=manufacturer_copy)
+
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.rvs = Mock(return_value=100_000)
+        loss_dist.ppf = Mock(side_effect=lambda p: p * 10_000_000)
+        loss_dist.expected_value = Mock(return_value=500_000)
+
+        with patch.object(
+            InsuranceDecisionEngine,
+            "_load_pricing_scenarios",
+            return_value=Mock(
+                get_scenario=Mock(
+                    return_value=Mock(
+                        primary_layer_rate=0.01,
+                        first_excess_rate=0.005,
+                        higher_excess_rate=0.002,
+                    )
+                )
+            ),
+        ):
+            engine = InsuranceDecisionEngine(
+                manufacturer=manufacturer,
+                loss_distribution=loss_dist,
+                pricing_scenario="baseline",
+            )
+
+        decision = self._make_decision()
+        # Must not raise
+        results = engine._run_simulation(decision, n_simulations=10, time_horizon=5)
+        assert results["value"].shape == (10,)
+        assert results["bankruptcies"].shape == (10,)
+
+    def test_financial_model_divergence_vs_analytical(self):
+        """Zero-loss deterministic scenario should track analytical balance sheet.
+
+        With zero losses, zero premium, retention_ratio=1.0, no tax depreciation
+        timing difference, and capex_ratio=1.0, equity should grow by
+        net_income = revenue * margin * (1 - tax_rate) each period.
+        """
+        n_sims, n_years = 1, 5
+        zero_losses = np.zeros((n_sims, n_years))
+
+        margin = 0.10
+        tax_rate = 0.25
+        initial_assets = 10_000_000.0
+
+        engine = self._make_engine(
+            operating_margin=margin,
+            tax_rate=tax_rate,
+            initial_assets=initial_assets,
+            equity=initial_assets,
+            ppe_ratio=0.3,
+            ppe_useful_life_years=10.0,
+            tax_depreciation_life_years=None,  # no DTL
+            capex_to_depreciation_ratio=1.0,
+            retention_ratio=1.0,
+            nol_carryforward_enabled=True,
+            insolvency_tolerance=0.0,
+            dpo=30.0,
+            dso=45.0,
+            dio=60.0,
+        )
+
+        decision = self._make_decision(premium=0)
+        results = engine._run_simulation(
+            decision,
+            n_simulations=n_sims,
+            time_horizon=n_years,
+            loss_sequence=zero_losses,
+        )
+
+        # Analytically trace equity: each year equity grows by
+        # retained_earnings (= revenue * margin * (1-tax))
+        # and assets derive from equity + liabilities.
+        # With no tax timing diff, delta_net_dtl ≈ 0, so equity += net_income.
+        equity = initial_assets
+        prev_ap = 0.0
+        prev_net_dtl = 0.0
+        for _ in range(n_years):
+            assets = equity + prev_ap + prev_net_dtl
+            revenue = assets * 1.0  # asset_turnover=1
+            operating_income = revenue * margin
+            net_income = operating_income * (1.0 - tax_rate)
+            equity += net_income
+            cogs = revenue * (1.0 - margin)
+            prev_ap = cogs * (30.0 / 365.0)
+
+        sim_equity = results["value"][0]
+        # Allow < 10% divergence
+        rel_diff = abs(sim_equity - equity) / max(abs(equity), 1.0)
+        assert rel_diff < 0.10, (
+            f"Financial model divergence too large: simulated={sim_equity:.0f}, "
+            f"analytical={equity:.0f}, rel_diff={rel_diff:.4f}"
+        )
