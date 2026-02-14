@@ -106,6 +106,7 @@ class TestEquityConsistencyAcrossAssessments:
             + manufacturer.accounts_receivable
             + manufacturer.inventory
             + manufacturer.prepaid_insurance
+            + manufacturer.insurance_receivables  # Issue #1316: ASC 210-10-45
         )
         claim_total = sum(
             (cl.remaining_amount for cl in manufacturer.claim_liabilities), to_decimal(0)
