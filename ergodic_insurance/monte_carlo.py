@@ -1602,7 +1602,7 @@ class MonteCarloEngine:
             Dictionary of convergence statistics
         """
         n = len(results.growth_rates)
-        if n < 2:
+        if n < 10:
             return {}
 
         metrics_data = {
@@ -1615,7 +1615,10 @@ class MonteCarloEngine:
             ess = self.convergence_diagnostics.calculate_ess(data)
             mcse = self.convergence_diagnostics.calculate_mcse(data, ess)
             mean_val = float(np.mean(data))
-            relative_mcse = mcse / abs(mean_val) if mean_val != 0 else float("inf")
+            if mcse == 0:
+                relative_mcse = 0.0
+            else:
+                relative_mcse = mcse / abs(mean_val) if mean_val != 0 else float("inf")
 
             autocorr_arr = self.convergence_diagnostics._calculate_autocorrelation(data, 1)
             lag1_autocorr = float(autocorr_arr[1]) if len(autocorr_arr) > 1 else 0.0
@@ -1864,6 +1867,8 @@ class MonteCarloEngine:
             return float("inf")
 
         mcse = self.convergence_diagnostics.calculate_mcse(partial_growth)
+        if mcse == 0:
+            return 0.0
         mean_val = float(np.mean(partial_growth))
         relative_mcse = mcse / abs(mean_val) if mean_val != 0 else float("inf")
 

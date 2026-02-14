@@ -128,7 +128,7 @@ class TestMonteCarloResults:
         assert "Mean Growth Rate: 0.0367" in summary
         assert "VaR(99%): $1,000,000" in summary
         assert "TVaR(99%): $1,500,000" in summary
-        assert "Convergence R-hat: 1.020" in summary
+        assert "Convergence MCSE: 0.010000" in summary
 
 
 class TestMonteCarloEngine:

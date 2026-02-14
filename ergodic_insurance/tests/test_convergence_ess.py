@@ -488,7 +488,7 @@ class TestMonteCarloIntegration:
         # Run with monitoring
         start = time.perf_counter()
         results_monitor = engine.run_with_progress_monitoring(
-            check_intervals=[1000, 2000], show_progress=False
+            check_intervals=[1000, 2000], show_progress=False, early_stopping=False
         )
         time_monitor = time.perf_counter() - start
 
