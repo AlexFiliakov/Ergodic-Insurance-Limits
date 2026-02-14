@@ -237,8 +237,8 @@ class TestRetentionCalculation:
         expected_taxes = to_decimal(0)
         expected_net_loss = income_before_tax  # Negative value
 
-        # Loss retention (reduces equity)
-        expected_retained_loss = expected_net_loss * to_decimal(manufacturer.retention_ratio)
+        # Issue #1304: 100% of losses absorbed — no negative dividends
+        expected_retained_loss = expected_net_loss  # full loss, not partial
 
         # Run actual calculation
         actual_net_income = manufacturer.calculate_net_income(operating_income, collateral_costs)
@@ -251,7 +251,7 @@ class TestRetentionCalculation:
         manufacturer.update_balance_sheet(actual_net_income)
         equity_change = manufacturer.equity - initial_equity
 
-        # Equity should decrease by retained portion of loss
+        # Equity should decrease by full loss (ASC 505-20-45)
         assert equity_change < 0, "Equity should decrease with losses"
         assert abs(float(equity_change) - float(expected_retained_loss)) < 0.01
 

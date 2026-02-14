@@ -453,6 +453,72 @@ class TestDividendEdgeCases:
             assert manufacturer._last_dividends_paid <= initial_cash
 
 
+class TestNegativeDividendGuard:
+    """Issue #1304: dividends must be zero when net income is negative.
+
+    ASC 505-20-45 prohibits distributing negative dividends.  When
+    retention_ratio < 1 and net_income < 0, the old code computed
+    dividends = negative_number * (1 - retention_ratio), creating a
+    phantom cash inflow and under-absorbing the loss.
+    """
+
+    config: ManufacturerConfig  # Set in setup_method
+
+    def setup_method(self):
+        self.config = ManufacturerConfig(
+            initial_assets=1_000_000,
+            base_operating_margin=0.10,
+            tax_rate=0.25,
+            retention_ratio=0.7,  # 30 % payout
+            asset_turnover_ratio=0.8,
+            insolvency_tolerance=100,
+            capex_to_depreciation_ratio=0.0,
+        )
+
+    def test_loss_year_dividends_zero_with_partial_retention(self):
+        """Dividends must be zero when net income is negative, even with retention_ratio < 1."""
+        manufacturer = WidgetManufacturer(self.config)
+        initial_cash = manufacturer.cash
+        initial_equity = manufacturer.equity
+
+        manufacturer.update_balance_sheet(-100_000)
+
+        assert manufacturer._last_dividends_paid == 0
+        # Full loss should be absorbed — equity drops by the whole loss
+        assert manufacturer.equity == pytest.approx(
+            initial_equity - to_decimal(100_000), rel=to_decimal("0.01")
+        )
+
+    def test_loss_year_no_dividend_ledger_entries(self):
+        """No DIVIDEND transaction should appear in the ledger for a loss year."""
+        manufacturer = WidgetManufacturer(self.config)
+        manufacturer.update_balance_sheet(-50_000)
+
+        dividend_entries = [
+            e for e in manufacturer.ledger.entries if e.transaction_type == TransactionType.DIVIDEND
+        ]
+        assert dividend_entries == [], "No DIVIDEND entries should exist for a loss year"
+
+    def test_last_dividends_paid_never_negative(self):
+        """_last_dividends_paid must never be set to a negative value."""
+        for ratio in [0.0, 0.3, 0.5, 0.7, 1.0]:
+            config = ManufacturerConfig(
+                initial_assets=1_000_000,
+                base_operating_margin=0.10,
+                tax_rate=0.25,
+                retention_ratio=ratio,
+                asset_turnover_ratio=0.8,
+                insolvency_tolerance=100,
+                capex_to_depreciation_ratio=0.0,
+            )
+            manufacturer = WidgetManufacturer(config)
+            manufacturer.update_balance_sheet(-200_000)
+            assert manufacturer._last_dividends_paid >= 0, (
+                f"_last_dividends_paid is negative ({manufacturer._last_dividends_paid}) "
+                f"with retention_ratio={ratio}"
+            )
+
+
 class TestRetainedEarningsCashFlowClassification:
     """Regression tests for Issue #370: retained earnings misclassified as REVENUE.
 
