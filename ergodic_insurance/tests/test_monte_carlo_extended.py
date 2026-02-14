@@ -1,9 +1,9 @@
 """Extended tests for Monte Carlo simulation engine to improve coverage."""
 
+import logging
 from pathlib import Path
 import pickle
 import tempfile
-import warnings
 
 import numpy as np
 import pytest
@@ -166,21 +166,20 @@ class TestMonteCarloExtended:
             # Cache load should produce same results (timing comparison removed as it's flaky in CI)
             assert np.array_equal(results1.final_assets, results2.final_assets)
 
-    def test_cache_save_failure(self, setup_simple_engine):
+    def test_cache_save_failure(self, setup_simple_engine, caplog):
         """Test cache save failure handling."""
         engine = setup_simple_engine
         engine.cache_dir = Path("/invalid/path/that/does/not/exist")
         engine.config.cache_results = True
 
-        # Should warn but not fail
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            results = engine.run()
-            assert any("Failed to save cache" in str(warning.message) for warning in w)
+        # Should log warning but not fail
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
+        results = engine.run()
+        assert any("Failed to save cache" in record.message for record in caplog.records)
 
         assert results is not None
 
-    def test_cache_load_failure(self, setup_simple_engine):
+    def test_cache_load_failure(self, setup_simple_engine, caplog):
         """Test cache load failure handling."""
         engine = setup_simple_engine
 
@@ -193,11 +192,10 @@ class TestMonteCarloExtended:
             cache_file = engine.cache_dir / f"{cache_key}.pkl"
             cache_file.write_text("corrupt data")
 
-            # Should warn but continue with normal run
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                results = engine.run()
-                assert any("Failed to load cache" in str(warning.message) for warning in w)
+            # Should log warning but continue with normal run
+            caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
+            results = engine.run()
+            assert any("Failed to load cache" in record.message for record in caplog.records)
 
             assert results is not None
 
@@ -221,16 +219,15 @@ class TestMonteCarloExtended:
                 assert int(data["iteration"]) == 10
                 assert np.array_equal(data["arr_0"], test_array)
 
-    def test_checkpoint_save_failure(self, setup_simple_engine):
+    def test_checkpoint_save_failure(self, setup_simple_engine, caplog):
         """Test checkpoint save failure handling."""
         engine = setup_simple_engine
         engine.cache_dir = Path("/invalid/path")
 
-        # Should warn but not fail
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            engine._save_checkpoint(10, np.array([1, 2, 3]))
-            assert any("Failed to save checkpoint" in str(warning.message) for warning in w)
+        # Should log warning but not fail
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.monte_carlo")
+        engine._save_checkpoint(10, np.array([1, 2, 3]))
+        assert any("Failed to save checkpoint" in record.message for record in caplog.records)
 
     def test_convergence_with_insufficient_data(self, setup_simple_engine):
         """Test convergence check with insufficient data."""

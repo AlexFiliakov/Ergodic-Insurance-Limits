@@ -40,7 +40,6 @@ import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import uuid
-import warnings
 
 import numpy as np
 import psutil
@@ -685,7 +684,7 @@ class ParallelExecutor:
                     if progress_callback is not None and total_items > 0:
                         progress_callback(completed_items, total_items, time.time() - exec_start)
                 except (ValueError, TypeError, RuntimeError) as e:
-                    warnings.warn(f"Chunk execution failed: {e}", UserWarning)
+                    logger.warning("Chunk execution failed: %s", e)
                     # Return empty list for failed chunks instead of None
                     chunk_info = futures[future]
                     results.append((chunk_info[0], []))

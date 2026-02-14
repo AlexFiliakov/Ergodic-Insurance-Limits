@@ -47,3 +47,14 @@ class ExportWarning(ErgodicInsuranceWarning):
     Raised when a requested export format is unavailable (e.g., missing
     *kaleido* for static Plotly images) and a fallback is used instead.
     """
+
+
+class ErgodicInsuranceDeprecationWarning(DeprecationWarning):
+    """Deprecation warning for ergodic-insurance APIs.
+
+    Raised when deprecated classes, functions, or parameters are used.
+    Inherits from :class:`DeprecationWarning` so that standard
+    ``warnings.filterwarnings("ignore", category=DeprecationWarning)``
+    suppresses these, while also being filterable independently via
+    ``warnings.filterwarnings("ignore", category=ErgodicInsuranceDeprecationWarning)``.
+    """

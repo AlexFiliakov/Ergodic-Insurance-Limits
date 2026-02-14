@@ -21,8 +21,13 @@ Since:
 """
 
 from dataclasses import dataclass
+import logging
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 import warnings
+
+from ._warnings import ErgodicInsuranceDeprecationWarning
+
+logger = logging.getLogger(__name__)
 
 import yaml
 
@@ -231,7 +236,7 @@ class InsurancePolicy:
         warnings.warn(
             "InsurancePolicy is deprecated. Use InsuranceProgram instead. "
             "For simple policies, use InsuranceProgram.simple(deductible, limit, rate).",
-            DeprecationWarning,
+            ErgodicInsuranceDeprecationWarning,
             stacklevel=2,
         )
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
@@ -452,10 +457,9 @@ class InsurancePolicy:
                 name="Converted Insurance Policy",
             )
         except ImportError:
-            warnings.warn(
+            logger.warning(
                 "Enhanced insurance_program module not available. "
                 "Install with advanced features for reinstatement support.",
-                UserWarning,
             )
             return None
 

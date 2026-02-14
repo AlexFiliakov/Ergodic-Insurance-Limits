@@ -720,12 +720,11 @@ class TestCalculateReinstatements:
 class TestPerOccurrenceWarning:
     """Test per-occurrence layer with reinstatements emits warning."""
 
-    def test_reinstatements_warning_for_per_occurrence(self):
+    def test_reinstatements_warning_for_per_occurrence(self, caplog):
         """Lines 116-122: per-occurrence with reinstatements warns."""
-        import warnings
+        import logging
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with caplog.at_level(logging.WARNING, logger="ergodic_insurance.insurance_program"):
             layer = EnhancedInsuranceLayer(
                 attachment_point=0,
                 limit=1_000_000,
@@ -733,8 +732,7 @@ class TestPerOccurrenceWarning:
                 reinstatements=2,
                 limit_type="per-occurrence",
             )
-            assert len(w) >= 1
-            assert "Reinstatements parameter" in str(w[0].message)
+            assert any("Reinstatements parameter" in r.message for r in caplog.records)
 
 
 # ===========================================================================

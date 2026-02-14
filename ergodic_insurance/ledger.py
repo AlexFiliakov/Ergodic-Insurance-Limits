@@ -34,8 +34,10 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 import itertools
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
-import warnings
+
+logger = logging.getLogger(__name__)
 
 from .decimal_utils import ZERO, is_float_mode, to_decimal
 
@@ -644,11 +646,11 @@ class Ledger:
 
         # Warn when querying dates in the pruned range (Issue #362)
         if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
-            warnings.warn(
-                f"as_of_date {as_of_date} is before prune cutoff "
-                f"{self._prune_cutoff}; returned balance reflects the "
-                f"prune-point snapshot, not the true historical balance",
-                stacklevel=2,
+            logger.warning(
+                "as_of_date %s is before prune cutoff %s; returned balance "
+                "reflects the prune-point snapshot, not the true historical balance",
+                as_of_date,
+                self._prune_cutoff,
             )
 
         # Historical query: iterate through entries (less frequent use case)
@@ -984,11 +986,11 @@ class Ledger:
 
         # Warn when querying dates in the pruned range (Issue #362)
         if self._prune_cutoff is not None and as_of_date < self._prune_cutoff:
-            warnings.warn(
-                f"as_of_date {as_of_date} is before prune cutoff "
-                f"{self._prune_cutoff}; returned balances reflect the "
-                f"prune-point snapshot, not true historical balances",
-                stacklevel=2,
+            logger.warning(
+                "as_of_date %s is before prune cutoff %s; returned balances "
+                "reflect the prune-point snapshot, not true historical balances",
+                as_of_date,
+                self._prune_cutoff,
             )
 
         # O(N) single-pass: accumulate per-account balances in one iteration

@@ -37,12 +37,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+import warnings
 
 import numpy as np
 
+from ._warnings import ErgodicInsuranceDeprecationWarning
 from .claim_development import ClaimDevelopment
 from .loss_distributions import LossDistribution
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
@@ -110,8 +115,6 @@ class PricingParameters:
     development_pattern: Optional[ClaimDevelopment] = None
 
     def __post_init__(self) -> None:
-        import warnings
-
         # Validate that expense ratio + profit margin leave room for losses
         if self.expense_ratio + self.profit_margin >= 1.0:
             raise ValueError(
@@ -125,24 +128,23 @@ class PricingParameters:
         # The actuarial identity implies loss_ratio = 1 - V - Q.
         indicated_lr = 1 - self.expense_ratio - self.profit_margin
         if abs(self.loss_ratio - indicated_lr) > 0.01:
-            warnings.warn(
-                f"loss_ratio ({self.loss_ratio:.2f}) is inconsistent with "
-                f"1 - expense_ratio - profit_margin = {indicated_lr:.2f}. "
-                f"The actuarial pricing identity Premium = Pure_Premium / "
-                f"(1 - V - Q) expects these to match. Adjust loss_ratio or "
-                f"expense_ratio/profit_margin for consistency.",
-                UserWarning,
-                stacklevel=2,
+            logger.warning(
+                "loss_ratio (%.2f) is inconsistent with "
+                "1 - expense_ratio - profit_margin = %.2f. "
+                "The actuarial pricing identity Premium = Pure_Premium / "
+                "(1 - V - Q) expects these to match. Adjust loss_ratio or "
+                "expense_ratio/profit_margin for consistency.",
+                self.loss_ratio,
+                indicated_lr,
             )
 
         if self.alae_ratio + self.ulae_ratio > self.expense_ratio:
-            warnings.warn(
-                f"LAE ratio ({self.alae_ratio + self.ulae_ratio:.2f}) exceeds "
-                f"expense ratio ({self.expense_ratio:.2f}). This is unusual — "
-                f"verify that expense_ratio accounts for all operating expenses "
-                f"or adjust alae_ratio/ulae_ratio.",
-                UserWarning,
-                stacklevel=2,
+            logger.warning(
+                "LAE ratio (%.2f) exceeds expense ratio (%.2f). This is "
+                "unusual — verify that expense_ratio accounts for all "
+                "operating expenses or adjust alae_ratio/ulae_ratio.",
+                self.alae_ratio + self.ulae_ratio,
+                self.expense_ratio,
             )
 
     @property
@@ -658,14 +660,16 @@ class InsurancePricer:
         # meaning the insurer would operate at an underwriting loss.
         combined_ratio = cycle_lr + V + Q
         if combined_ratio > 1.0 + 1e-9:
-            warnings.warn(
-                f"Combined ratio ({combined_ratio:.1%}) exceeds 100%: "
-                f"market cycle loss ratio ({cycle_lr:.0%}) + "
-                f"expense ratio ({V:.0%}) + profit margin ({Q:.0%}). "
-                f"The insurer would operate at an underwriting loss "
-                f"under current market conditions.",
-                UserWarning,
-                stacklevel=2,
+            logger.warning(
+                "Combined ratio (%.1f%%) exceeds 100%%: "
+                "market cycle loss ratio (%.0f%%) + "
+                "expense ratio (%.0f%%) + profit margin (%.0f%%). "
+                "The insurer would operate at an underwriting loss "
+                "under current market conditions.",
+                combined_ratio * 100,
+                cycle_lr * 100,
+                V * 100,
+                Q * 100,
             )
 
         return market_premium
@@ -802,12 +806,10 @@ class InsurancePricer:
         Returns:
             Policy with updated pricing (original or copy based on update_policy)
         """
-        import warnings
-
         warnings.warn(
             "price_insurance_policy() is deprecated. "
             "Use price_insurance_program() with an InsuranceProgram instead.",
-            DeprecationWarning,
+            ErgodicInsuranceDeprecationWarning,
             stacklevel=2,
         )
         from .insurance import InsurancePolicy

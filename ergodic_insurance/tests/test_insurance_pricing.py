@@ -7,6 +7,7 @@ integration with insurance programs.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict
 
 import numpy as np
@@ -100,17 +101,18 @@ class TestPricingParameters:
         with pytest.raises(ValueError, match="no premium can cover losses"):
             PricingParameters(expense_ratio=0.60, profit_margin=0.40)
 
-    def test_inconsistent_loss_ratio_warning(self):
+    def test_inconsistent_loss_ratio_warning(self, caplog):
         """Test warning when loss_ratio != 1 - expense_ratio - profit_margin."""
-        with pytest.warns(
-            UserWarning,
-            match="loss_ratio.*inconsistent",
-        ):
-            PricingParameters(
-                loss_ratio=0.65,
-                expense_ratio=0.30,
-                profit_margin=0.10,
-            )
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance_pricing")
+        PricingParameters(
+            loss_ratio=0.65,
+            expense_ratio=0.30,
+            profit_margin=0.10,
+        )
+        assert any(
+            "loss_ratio" in record.message and "inconsistent" in record.message
+            for record in caplog.records
+        )
 
 
 class TestLayerPricing:
@@ -363,8 +365,6 @@ class TestInsurancePricer:
         The real effect is visible when loss_ratio is kept at the market
         benchmark while V is increased (deliberate mismatch, warned).
         """
-        import warnings
-
         loss_gen = ManufacturingLossGenerator(seed=42)
         technical = 100_000
 
@@ -381,9 +381,7 @@ class TestInsurancePricer:
         # while raising V to 0.30 → indicated_lr = 0.65 < loss_ratio = 0.70.
         # base = tech / 0.65,  factor = 0.70 / 0.70 = 1.0
         # market = tech / 0.65 > tech / 0.70
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            params = PricingParameters(loss_ratio=0.70, expense_ratio=0.30, profit_margin=0.05)
+        params = PricingParameters(loss_ratio=0.70, expense_ratio=0.30, profit_margin=0.05)
         high_exp_pricer = InsurancePricer(
             loss_generator=loss_gen,
             market_cycle=MarketCycle.NORMAL,
@@ -399,13 +397,9 @@ class TestInsurancePricer:
 
     def test_profit_margin_affects_market_premium(self):
         """Test that higher profit_margin increases market premium (#1139)."""
-        import warnings
-
         technical = 100_000
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            params = PricingParameters(loss_ratio=0.70, expense_ratio=0.25, profit_margin=0.15)
+        params = PricingParameters(loss_ratio=0.70, expense_ratio=0.25, profit_margin=0.15)
         pricer = InsurancePricer(market_cycle=MarketCycle.NORMAL, parameters=params)
 
         market = pricer.calculate_market_premium(technical, market_cycle=MarketCycle.NORMAL)
@@ -413,8 +407,9 @@ class TestInsurancePricer:
         assert market == pytest.approx(100_000 / 0.60)
         assert market > 100_000 / 0.70
 
-    def test_combined_ratio_warning(self):
+    def test_combined_ratio_warning(self, caplog):
         """Test warning when cycle loss ratio + V + Q > 100%."""
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance_pricing")
         loss_gen = ManufacturingLossGenerator(seed=42)
         pricer = InsurancePricer(
             loss_generator=loss_gen,
@@ -422,23 +417,24 @@ class TestInsurancePricer:
         )
 
         # SOFT market (0.80) + V (0.25) + Q (0.05) = 1.10 > 1.0
-        with pytest.warns(UserWarning, match="Combined ratio.*exceeds 100%"):
-            pricer.calculate_market_premium(100_000, market_cycle=MarketCycle.SOFT)
+        pricer.calculate_market_premium(100_000, market_cycle=MarketCycle.SOFT)
+        assert any(
+            "Combined ratio" in record.message and "exceeds 100%" in record.message
+            for record in caplog.records
+        )
 
-    def test_no_combined_ratio_warning_normal(self):
+    def test_no_combined_ratio_warning_normal(self, caplog):
         """Test no combined-ratio warning for NORMAL market with defaults."""
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance_pricing")
         loss_gen = ManufacturingLossGenerator(seed=42)
         pricer = InsurancePricer(
             loss_generator=loss_gen,
             market_cycle=MarketCycle.NORMAL,
         )
 
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            # NORMAL (0.70) + 0.25 + 0.05 = 1.00 — no warning
-            pricer.calculate_market_premium(100_000, market_cycle=MarketCycle.NORMAL)
+        # NORMAL (0.70) + 0.25 + 0.05 = 1.00 — no warning
+        pricer.calculate_market_premium(100_000, market_cycle=MarketCycle.NORMAL)
+        assert len([r for r in caplog.records if r.levelno >= logging.WARNING]) == 0
 
     def test_price_layer(self, pricer):
         """Test pricing a single layer."""
@@ -1111,23 +1107,27 @@ class TestLAELoadingCalculation:
         params2 = PricingParameters(alae_ratio=0.0, ulae_ratio=0.0)
         assert params2.lae_ratio == 0.0
 
-    def test_warning_when_lae_exceeds_expense_ratio(self):
+    def test_warning_when_lae_exceeds_expense_ratio(self, caplog):
         """A warning should be emitted when lae_ratio > expense_ratio."""
-        with pytest.warns(UserWarning, match="LAE ratio.*exceeds.*expense ratio"):
-            PricingParameters(
-                expense_ratio=0.10,
-                alae_ratio=0.08,
-                ulae_ratio=0.05,  # total LAE = 0.13 > expense_ratio 0.10
-            )
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance_pricing")
+        PricingParameters(
+            expense_ratio=0.10,
+            alae_ratio=0.08,
+            ulae_ratio=0.05,  # total LAE = 0.13 > expense_ratio 0.10
+        )
+        assert any(
+            "LAE ratio" in record.message
+            and "exceeds" in record.message
+            and "expense ratio" in record.message
+            for record in caplog.records
+        )
 
-    def test_no_warning_when_lae_within_expense_ratio(self):
+    def test_no_warning_when_lae_within_expense_ratio(self, caplog):
         """No warning when lae_ratio <= expense_ratio (the normal case)."""
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            # Default: lae_ratio=0.15 <= expense_ratio=0.25 — no warning
-            PricingParameters()
+        caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance_pricing")
+        # Default: lae_ratio=0.15 <= expense_ratio=0.25 — no warning
+        PricingParameters()
+        assert len([r for r in caplog.records if r.levelno >= logging.WARNING]) == 0
 
     def test_create_from_config_with_lae_ratios(self, loss_generator):
         """create_from_config should support alae_ratio and ulae_ratio."""

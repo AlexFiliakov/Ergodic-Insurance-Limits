@@ -3,6 +3,7 @@
 Missing lines: 124, 126, 326, 404-428, 449, 453
 """
 
+import logging
 from unittest.mock import patch
 import warnings
 
@@ -91,7 +92,7 @@ class TestInsurancePolicyToEnhancedProgram:
             assert len(program.layers) == 2
             assert program.deductible == 1_000_000
 
-    def test_conversion_import_failure(self):
+    def test_conversion_import_failure(self, caplog):
         """Lines 422-428: ImportError returns None with warning."""
         with pytest.warns(DeprecationWarning, match="InsurancePolicy is deprecated"):
             policy = InsurancePolicy(
@@ -99,12 +100,11 @@ class TestInsurancePolicyToEnhancedProgram:
             )
         # Mock the import to fail — method should return None
         with patch.dict("sys.modules", {"ergodic_insurance.insurance_program": None}):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
-                result = policy.to_enhanced_program()
-                assert result is None
-                # Should have emitted a UserWarning about unavailable module
-                assert any("not available" in str(warning.message) for warning in w)
+            caplog.set_level(logging.WARNING, logger="ergodic_insurance.insurance")
+            result = policy.to_enhanced_program()
+            assert result is None
+            # Should have logged a warning about unavailable module
+            assert any("not available" in record.message for record in caplog.records)
 
 
 class TestInsurancePolicyApplyPricing:

@@ -392,6 +392,7 @@ def __getattr__(name):
         return locals()[name]
     if name in (
         "ErgodicInsuranceWarning",
+        "ErgodicInsuranceDeprecationWarning",
         "ConfigurationWarning",
         "DataQualityWarning",
         "ExportWarning",
@@ -399,6 +400,7 @@ def __getattr__(name):
         from ._warnings import (  # pylint: disable=import-outside-toplevel,possibly-unused-variable
             ConfigurationWarning,
             DataQualityWarning,
+            ErgodicInsuranceDeprecationWarning,
             ErgodicInsuranceWarning,
             ExportWarning,
         )
