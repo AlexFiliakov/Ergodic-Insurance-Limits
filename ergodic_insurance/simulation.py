@@ -737,6 +737,70 @@ class Simulation:
 
         self.insolvency_year: Optional[int] = None
 
+    @classmethod
+    def from_config(
+        cls,
+        config: Config,
+        seed: Optional[int] = None,
+        **kwargs,
+    ) -> "Simulation":
+        """Create a fully configured simulation from a :class:`Config` object.
+
+        Builds the manufacturer, loss generator, and insurance program
+        automatically from the unified configuration, closing the gap
+        between YAML/profile configuration and runtime simulation.
+
+        Args:
+            config: Complete simulation configuration, typically loaded via
+                ``Config.from_yaml()`` or ``Config.from_company()``.
+            seed: Random seed for reproducibility. Passed to the loss
+                generator and the simulation.
+            **kwargs: Additional keyword arguments forwarded to the
+                ``Simulation`` constructor.
+
+        Returns:
+            Ready-to-run Simulation instance.
+
+        Examples:
+            End-to-end from YAML::
+
+                config = Config.from_yaml(Path("my_config.yaml"))
+                sim = Simulation.from_config(config, seed=42)
+                results = sim.run()
+
+            From company info::
+
+                config = Config.from_company(initial_assets=50_000_000)
+                sim = Simulation.from_config(config)
+        """
+        # Build manufacturer
+        manufacturer = WidgetManufacturer(config.manufacturer)
+
+        # Build loss generator from config.losses if present
+        loss_generator: Optional[ManufacturingLossGenerator] = None
+        if config.losses is not None:
+            loss_generator = ManufacturingLossGenerator.create_simple(
+                frequency=config.losses.frequency_annual,
+                severity_mean=config.losses.severity_mean,
+                severity_std=config.losses.severity_std,
+                seed=seed,
+            )
+
+        # Build insurance program from config.insurance if present
+        insurance_policy: Optional[InsuranceProgram] = None
+        if config.insurance is not None and config.insurance.enabled:
+            insurance_policy = InsuranceProgram.from_config(config.insurance)
+
+        return cls(
+            manufacturer=manufacturer,
+            loss_generator=loss_generator,
+            insurance_policy=insurance_policy,
+            time_horizon=config.simulation.time_horizon_years,
+            seed=seed,
+            growth_rate=config.growth.annual_growth_rate,
+            **kwargs,
+        )
+
     def step_annual(self, year: int, losses: List[LossEvent]) -> Dict[str, Any]:
         """Execute single annual time step.
 
