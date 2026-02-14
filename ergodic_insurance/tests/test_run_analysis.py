@@ -104,7 +104,7 @@ class TestRunAnalysis:
             loss_severity_mean=500_000,
             loss_severity_std=200_000,
             deductible=100_000,
-            coverage_limit=5_000_000,
+            limit=5_000_000,
             premium_rate=0.03,
             n_simulations=3,
             time_horizon=5,
@@ -167,7 +167,7 @@ class TestRunAnalysis:
     def test_insurance_policy_preserved(self):
         results = run_analysis(
             deductible=250_000,
-            coverage_limit=8_000_000,
+            limit=8_000_000,
             premium_rate=0.02,
             n_simulations=2,
             time_horizon=3,
@@ -401,7 +401,7 @@ class TestEdgeCases:
     def test_zero_deductible(self):
         results = run_analysis(
             deductible=0,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             n_simulations=2,
             time_horizon=3,
             seed=0,
@@ -422,7 +422,7 @@ class TestEdgeCases:
             loss_frequency=2.5,
             loss_severity_mean=1_000_000,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
             n_simulations=5,
             time_horizon=5,
@@ -579,7 +579,7 @@ class TestRunAnalysisWithInsuranceProgram:
         results = run_analysis(
             insurance_program=program,
             deductible=999,
-            coverage_limit=999,
+            limit=999,
             premium_rate=0.99,
             n_simulations=2,
             time_horizon=3,
@@ -618,7 +618,7 @@ class TestBackwardCompatibility:
             initial_assets=10_000_000,
             operating_margin=0.08,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
             growth_rate=0.05,
             tax_rate=0.25,
@@ -629,3 +629,55 @@ class TestBackwardCompatibility:
         )
         for a, b in zip(r1.insured_results, r2.insured_results):
             np.testing.assert_array_equal(a.equity, b.equity)
+
+
+class TestDeprecatedCoverageLimit:
+    """Tests for the deprecated coverage_limit parameter (#1296)."""
+
+    def test_coverage_limit_emits_deprecation_warning(self):
+        """Using coverage_limit= should emit a DeprecationWarning."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            run_analysis(
+                coverage_limit=10_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        deprecations = [
+            w
+            for w in caught
+            if issubclass(w.category, DeprecationWarning)
+            and "coverage_limit" in str(w.message)
+            and "deprecated" in str(w.message).lower()
+        ]
+        assert len(deprecations) == 1, (
+            f"Expected exactly 1 DeprecationWarning mentioning 'coverage_limit', "
+            f"got {len(deprecations)}: {[str(w.message) for w in caught]}"
+        )
+
+    def test_coverage_limit_still_works(self):
+        """coverage_limit= is deprecated but still functional."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            results = run_analysis(
+                coverage_limit=10_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )
+        assert results.insurance_program.layers[0].limit == 10_000_000
+
+    def test_both_limit_and_coverage_limit_raises(self):
+        """Passing both limit= and coverage_limit= raises TypeError."""
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            run_analysis(
+                limit=5_000_000,
+                coverage_limit=10_000_000,
+                n_simulations=2,
+                time_horizon=3,
+                seed=0,
+                compare_uninsured=False,
+            )

@@ -48,8 +48,8 @@ class TestRealWorldScenarios:
         # Startup constraints: limited budget, need basic coverage
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=50_000,  # Limited budget
-            min_coverage_limit=500_000,  # Minimum viable coverage
-            max_coverage_limit=2_000_000,  # Don't over-insure
+            min_total_coverage=500_000,  # Minimum viable coverage
+            max_total_coverage=2_000_000,  # Don't over-insure
             max_bankruptcy_probability=0.05,  # Higher risk tolerance
             min_retained_limit=50_000,  # Low retention capability
             max_retained_limit=200_000,
@@ -67,7 +67,7 @@ class TestRealWorldScenarios:
 
         # Verify appropriate for startup
         assert decision.total_premium <= constraints.max_premium_budget
-        assert decision.total_coverage >= constraints.min_coverage_limit
+        assert decision.total_coverage >= constraints.min_total_coverage
         assert len(decision.layers) <= 2  # Simple structure
         assert metrics.bankruptcy_probability <= 0.05
         assert metrics.capital_efficiency > 0  # Should add value
@@ -98,8 +98,8 @@ class TestRealWorldScenarios:
         # Corporation constraints: comprehensive coverage, low risk
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=5_000_000,  # Substantial budget
-            min_coverage_limit=50_000_000,  # High coverage needs
-            max_coverage_limit=200_000_000,
+            min_total_coverage=50_000_000,  # High coverage needs
+            max_total_coverage=200_000_000,
             max_bankruptcy_probability=0.001,  # Very low risk tolerance
             min_retained_limit=1_000_000,  # Can retain more
             max_retained_limit=10_000_000,
@@ -146,8 +146,8 @@ class TestRealWorldScenarios:
         # High-risk constraints: need extensive coverage
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=2_000_000,  # Higher budget needed
-            min_coverage_limit=20_000_000,  # Regulatory requirements
-            max_coverage_limit=100_000_000,
+            min_total_coverage=20_000_000,  # Regulatory requirements
+            max_total_coverage=100_000_000,
             max_bankruptcy_probability=0.005,  # Slightly higher tolerance
             min_retained_limit=500_000,
             max_retained_limit=5_000_000,
@@ -197,8 +197,8 @@ class TestRealWorldScenarios:
         # Downturn constraints: limited budget, essential coverage only
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=200_000,  # Tight budget
-            min_coverage_limit=5_000_000,  # Minimum essential coverage
-            max_coverage_limit=20_000_000,
+            min_total_coverage=5_000_000,  # Minimum essential coverage
+            max_total_coverage=20_000_000,
             max_bankruptcy_probability=0.02,  # Accept higher risk
             min_retained_limit=200_000,
             max_retained_limit=2_000_000,
@@ -263,8 +263,8 @@ class TestMultiYearOptimizationScenarios:
             # Adjust constraints as company grows
             constraints = DecisionOptimizationConstraints(
                 max_premium_budget=100_000 * (year + 1),  # Increasing budget
-                min_coverage_limit=2_000_000 * (year + 1),  # Increasing coverage needs
-                max_coverage_limit=10_000_000 * (year + 1),
+                min_total_coverage=2_000_000 * (year + 1),  # Increasing coverage needs
+                max_total_coverage=10_000_000 * (year + 1),
                 max_bankruptcy_probability=0.01,
                 min_retained_limit=100_000 * (year + 1),
                 max_retained_limit=1_000_000 * (year + 1),
@@ -300,8 +300,8 @@ class TestMultiYearOptimizationScenarios:
         # Same constraints for comparison
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=10_000_000,
-            max_coverage_limit=30_000_000,
+            min_total_coverage=10_000_000,
+            max_total_coverage=30_000_000,
             max_bankruptcy_probability=0.01,
         )
 
@@ -357,8 +357,8 @@ class TestRegulatoryComplianceScenarios:
         # Regulatory requirements
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
-            min_coverage_limit=15_000_000,  # Total minimum
-            max_coverage_limit=50_000_000,
+            min_total_coverage=15_000_000,  # Total minimum
+            max_total_coverage=50_000_000,
             max_bankruptcy_probability=0.01,
             min_coverage_requirement=10_000_000,  # Minimum from insurance (not retention)
             max_retention_limit=2_000_000,  # Regulatory cap on retention
@@ -372,7 +372,7 @@ class TestRegulatoryComplianceScenarios:
         assert decision.retained_limit <= constraints.max_retention_limit
         coverage_from_insurance = sum(layer.limit for layer in decision.layers)
         assert coverage_from_insurance >= constraints.min_coverage_requirement
-        assert decision.total_coverage >= constraints.min_coverage_limit
+        assert decision.total_coverage >= constraints.min_total_coverage
 
     @pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
     def test_debt_covenant_compliance(self):
@@ -398,8 +398,8 @@ class TestRegulatoryComplianceScenarios:
         # Debt covenant requirements
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=600_000,
-            min_coverage_limit=20_000_000,
-            max_coverage_limit=60_000_000,
+            min_total_coverage=20_000_000,
+            max_total_coverage=60_000_000,
             max_bankruptcy_probability=0.005,  # Lender requirement
             max_debt_to_equity=1.2,  # Debt covenant
             max_insurance_cost_ratio=0.025,  # Cost limitation
@@ -454,8 +454,8 @@ class TestCatastrophicEventScenarios:
         # Focus on catastrophic protection
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=1_000_000,
-            min_coverage_limit=30_000_000,  # High limit for catastrophes
-            max_coverage_limit=100_000_000,
+            min_total_coverage=30_000_000,  # High limit for catastrophes
+            max_total_coverage=100_000_000,
             max_bankruptcy_probability=0.002,  # Very low tolerance
             min_retained_limit=1_000_000,  # Retain frequency losses
             max_retained_limit=5_000_000,
@@ -501,8 +501,8 @@ class TestCatastrophicEventScenarios:
         # Business interruption considerations
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=800_000,
-            min_coverage_limit=25_000_000,  # Include BI coverage
-            max_coverage_limit=75_000_000,
+            min_total_coverage=25_000_000,  # Include BI coverage
+            max_total_coverage=75_000_000,
             max_bankruptcy_probability=0.005,
             min_retained_limit=500_000,
             max_retained_limit=3_000_000,
@@ -558,8 +558,8 @@ class TestPortfolioOptimizationScenarios:
         # Portfolio optimization constraints
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=1_500_000,
-            min_coverage_limit=40_000_000,
-            max_coverage_limit=150_000_000,
+            min_total_coverage=40_000_000,
+            max_total_coverage=150_000_000,
             max_bankruptcy_probability=0.003,
             min_retained_limit=2_000_000,  # Benefit from diversification
             max_retained_limit=10_000_000,
@@ -602,8 +602,8 @@ class TestSensitivityAnalysisScenarios:
         # Base decision
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=10_000_000,
-            max_coverage_limit=30_000_000,
+            min_total_coverage=10_000_000,
+            max_total_coverage=30_000_000,
         )
 
         base_decision = engine.optimize_insurance_decision(constraints)

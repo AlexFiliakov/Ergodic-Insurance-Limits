@@ -36,7 +36,7 @@ Examples:
             loss_frequency=2.5,
             loss_severity_mean=1_000_000,
             deductible=500_000,
-            coverage_limit=10_000_000,
+            limit=10_000_000,
             premium_rate=0.025,
         )
         print(results.summary())
