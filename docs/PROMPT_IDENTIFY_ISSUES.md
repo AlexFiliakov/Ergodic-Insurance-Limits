@@ -262,7 +262,7 @@ Each file should contain:
 
 ### Minimum Issue Targets
 
-Each domain reviewer should identify **at least 10 actionable "priority-high" issues**. If fewer than 10 "priority-high" issues are found in any domain, the reviewer must include a section in their Markdown tracker explaining:
+Each domain reviewer should identify **at least 10 actionable `priority-high` issues**. If fewer than 10 `priority-high` issues are found in any domain, the reviewer must include a section in their Markdown tracker explaining:
 - Which specific areas were reviewed
 - Why the codebase is already well-optimized in those areas with regard to high priority issues as defined above
 - Any borderline findings that were considered but not filed, and why
