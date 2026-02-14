@@ -248,6 +248,54 @@ class TestSummary:
         assert "Ergodic Advantage" not in s
 
 
+class TestRepr:
+    """Tests for AnalysisResults __repr__, __str__, and convenience properties (#1307)."""
+
+    def test_repr_with_comparison(self, sample_results):
+        r = repr(sample_results)
+        assert "AnalysisResults(" in r
+        assert "n_simulations=10" in r
+        assert "survival_rate=" in r
+        assert "ergodic_advantage=" in r
+
+    def test_repr_without_comparison(self):
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        r = repr(results)
+        assert "AnalysisResults(" in r
+        assert "ergodic_advantage=" not in r
+
+    def test_str_delegates_to_summary(self, sample_results):
+        assert str(sample_results) == sample_results.summary()
+
+    def test_survival_rate_property(self, sample_results):
+        sr = sample_results.survival_rate
+        assert 0.0 <= sr <= 1.0
+
+    def test_ergodic_advantage_gain_property(self, sample_results):
+        gain = sample_results.ergodic_advantage_gain
+        assert isinstance(gain, float)
+
+    def test_ergodic_advantage_gain_none_without_comparison(self):
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        assert results.ergodic_advantage_gain is None
+
+    def test_repr_html(self, sample_results):
+        html = sample_results._repr_html_()
+        assert "<div" in html
+        assert "AnalysisResults" in html
+        assert "Survival Rate" in html
+
+
 class TestToDataFrame:
     """Tests for AnalysisResults.to_dataframe()."""
 
