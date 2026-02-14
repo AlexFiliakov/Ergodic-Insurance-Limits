@@ -901,3 +901,92 @@ class TestSummaryStatisticsWeighted:
         result = ss._calculate_basic_stats(data, weights)
         # Mean is 0 so cv should be inf
         assert result["cv"] == np.inf
+
+
+# ---------------------------------------------------------------------------
+# Issue #1355 – stderr should use ESS for autocorrelated data
+# ---------------------------------------------------------------------------
+class TestStderrESS:
+    """Tests for assume_iid parameter and ESS-based stderr."""
+
+    def test_default_assume_iid_true(self):
+        """Default assume_iid=True preserves backward-compatible stderr."""
+        ss = SummaryStatistics(seed=42)
+        assert ss.assume_iid is True
+        data = np.random.default_rng(0).standard_normal(500)
+        result = ss._calculate_basic_stats(data)
+        expected = float(np.std(data) / np.sqrt(len(data)))
+        assert result["stderr"] == pytest.approx(expected, rel=1e-12)
+
+    def test_assume_iid_false_iid_data_matches_sem(self):
+        """For IID normal data with assume_iid=False, stderr ~ scipy.stats.sem."""
+        rng = np.random.default_rng(12345)
+        data = rng.standard_normal(5000)
+        ss = SummaryStatistics(seed=42, assume_iid=False)
+        result = ss._calculate_basic_stats(data)
+        expected_sem = float(stats.sem(data))  # uses ddof=1
+        # Batch means ESS for truly IID data should be close to n,
+        # so the result should be close to scipy.stats.sem.
+        assert result["stderr"] == pytest.approx(expected_sem, rel=0.15)
+
+    def test_assume_iid_false_ar1_inflates_stderr(self):
+        """For AR(1) with rho=0.9, ESS-corrected stderr >> IID stderr.
+
+        The theoretical inflation factor is sqrt((1+rho)/(1-rho)).
+        For rho=0.9 that is sqrt(19) ~ 4.36.
+        """
+        rho = 0.9
+        n = 10_000
+        rng = np.random.default_rng(999)
+        # Generate AR(1) process
+        data = np.empty(n)
+        data[0] = rng.standard_normal()
+        for i in range(1, n):
+            data[i] = rho * data[i - 1] + np.sqrt(1 - rho**2) * rng.standard_normal()
+
+        ss_iid = SummaryStatistics(seed=42, assume_iid=True)
+        ss_ess = SummaryStatistics(seed=42, assume_iid=False)
+
+        stderr_iid = ss_iid._calculate_basic_stats(data)["stderr"]
+        stderr_ess = ss_ess._calculate_basic_stats(data)["stderr"]
+
+        # ESS-corrected stderr must be materially larger
+        ratio = stderr_ess / stderr_iid
+        theoretical = np.sqrt((1 + rho) / (1 - rho))  # ~4.36
+        # Allow wide tolerance – batch means is noisy, but it should
+        # capture the right order of magnitude (ratio > 2).
+        assert ratio > 2.0, f"ratio={ratio:.2f}, expected > 2"
+        # And should be in the same ballpark as theory (within 3x)
+        assert ratio == pytest.approx(theoretical, rel=1.0)
+
+    def test_estimate_ess_batch_means_iid(self):
+        """Batch means ESS for IID data should be close to n."""
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal(5000)
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert ess == pytest.approx(5000, rel=0.25)
+
+    def test_estimate_ess_batch_means_short_array(self):
+        """Short arrays (n <= 10) return n directly."""
+        data = np.array([1.0, 2.0, 3.0])
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert ess == 3.0
+
+    def test_estimate_ess_batch_means_constant_data(self):
+        """Constant data (zero variance) returns n."""
+        data = np.ones(100)
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert ess == 100.0
+
+    def test_estimate_ess_clamped_to_n(self):
+        """ESS is clamped to [1, n]."""
+        rng = np.random.default_rng(7)
+        data = rng.standard_normal(500)
+        ess = SummaryStatistics._estimate_ess_batch_means(data)
+        assert 1.0 <= ess <= 500.0
+
+    def test_empty_data_unaffected(self):
+        """Empty data returns stderr=0.0 regardless of assume_iid."""
+        ss = SummaryStatistics(seed=42, assume_iid=False)
+        result = ss._calculate_basic_stats(np.array([]))
+        assert result["stderr"] == 0.0
