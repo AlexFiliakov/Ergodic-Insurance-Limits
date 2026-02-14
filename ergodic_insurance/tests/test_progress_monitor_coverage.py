@@ -3,8 +3,7 @@
 Targets specific uncovered lines: 232, 287-289, 304, 313, 321-322, 370-393.
 """
 
-import io
-import sys
+import logging
 import time
 from unittest.mock import patch
 
@@ -161,8 +160,8 @@ class TestEstimateConvergenceRateException:
 class TestFinalize:
     """Test the finalize method for full output."""
 
-    def test_finalize_with_convergence(self):
-        """Lines 370-393: finalize prints complete summary with convergence."""
+    def test_finalize_with_convergence(self, caplog):
+        """finalize logs complete summary with convergence."""
         monitor = ProgressMonitor(
             total_iterations=20000,
             check_intervals=[10000, 15000],
@@ -176,19 +175,17 @@ class TestFinalize:
         monitor.current_iteration = 15000
         monitor.convergence_checks = [(10000, 1.05), (15000, 1.02)]
         monitor.monitor_overhead = 0.01
+        monitor.start_time = time.time() - 10.0
 
-        with patch("builtins.print") as mock_print:
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance.progress_monitor"):
             monitor.finalize()
 
-        # Verify key output elements
-        print_calls = [str(c) for c in mock_print.call_args_list]
-        output = " ".join(print_calls)
-
+        output = " ".join(r.message for r in caplog.records)
         assert "Simulation Complete" in output
         assert "Converged" in output
 
-    def test_finalize_without_convergence(self):
-        """Lines 370-393: finalize prints summary without convergence."""
+    def test_finalize_without_convergence(self, caplog):
+        """finalize logs summary without convergence."""
         monitor = ProgressMonitor(
             total_iterations=10000,
             show_console=True,
@@ -198,17 +195,15 @@ class TestFinalize:
         # Set start_time to the past to avoid ZeroDivisionError on fast machines
         monitor.start_time = time.time() - 10.0
 
-        with patch("builtins.print") as mock_print:
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance.progress_monitor"):
             monitor.finalize()
 
-        print_calls = [str(c) for c in mock_print.call_args_list]
-        output = " ".join(print_calls)
-
+        output = " ".join(r.message for r in caplog.records)
         assert "Simulation Complete" in output
         assert "Did not achieve convergence" in output
 
-    def test_finalize_with_checks_not_converged(self):
-        """Lines 385-389: finalize shows convergence checks even without convergence."""
+    def test_finalize_with_checks_not_converged(self, caplog):
+        """finalize shows convergence checks even without convergence."""
         monitor = ProgressMonitor(
             total_iterations=20000,
             check_intervals=[10000],
@@ -221,24 +216,22 @@ class TestFinalize:
         # Set start_time to the past to avoid ZeroDivisionError on fast machines
         monitor.start_time = time.time() - 10.0
 
-        with patch("builtins.print") as mock_print:
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance.progress_monitor"):
             monitor.finalize()
 
-        print_calls = [str(c) for c in mock_print.call_args_list]
-        output = " ".join(print_calls)
-
+        output = " ".join(r.message for r in caplog.records)
         assert "Convergence checks performed" in output
         assert "R-hat" in output
 
-    def test_finalize_silent_when_console_disabled(self):
-        """Lines 369-370: finalize does nothing when show_console is False."""
+    def test_finalize_silent_when_console_disabled(self, caplog):
+        """finalize does nothing when show_console is False."""
         monitor = ProgressMonitor(total_iterations=1000, show_console=False)
         monitor.current_iteration = 1000
 
-        with patch("builtins.print") as mock_print:
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance.progress_monitor"):
             monitor.finalize()
 
-        mock_print.assert_not_called()
+        assert len(caplog.records) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -313,16 +306,16 @@ class TestContextManagerFinish:
 class TestPrintConvergenceMessage:
     """Test _print_convergence_message output."""
 
-    def test_convergence_message_format(self):
+    def test_convergence_message_format(self, caplog):
         """Verify convergence message includes iteration and R-hat value."""
         monitor = ProgressMonitor(total_iterations=1000, show_console=True)
 
-        with patch("builtins.print") as mock_print:
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance.progress_monitor"):
             monitor._print_convergence_message(5000, 1.05)
 
-        call_str = str(mock_print.call_args)
-        assert "5,000" in call_str
-        assert "1.050" in call_str
+        output = " ".join(r.message for r in caplog.records)
+        assert "5,000" in output
+        assert "1.050" in output
 
 
 # ---------------------------------------------------------------------------

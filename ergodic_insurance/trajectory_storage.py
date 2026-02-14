@@ -35,6 +35,7 @@ Example:
 from dataclasses import dataclass
 import gc
 import json
+import logging
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional
@@ -43,6 +44,8 @@ import warnings
 import h5py
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -517,7 +520,7 @@ class TrajectoryStorage:
         if all_summaries:
             df = pd.DataFrame([s.to_dict() for s in all_summaries])
             df.to_csv(output_path, index=False)
-            print(f"Exported {len(all_summaries)} summaries to {output_path}")
+            logger.info("Exported %d summaries to %s", len(all_summaries), output_path)
 
     def export_summaries_json(self, output_path: str) -> None:
         """Export all summary statistics to JSON.
@@ -544,7 +547,7 @@ class TrajectoryStorage:
         # Write to JSON
         with open(output_path, "w") as f:
             json.dump(all_summaries, f, indent=2)
-        print(f"Exported {len(all_summaries)} summaries to {output_path}")
+        logger.info("Exported %d summaries to %s", len(all_summaries), output_path)
 
     def _persist_summaries(self) -> None:
         """Persist in-memory summaries to disk."""

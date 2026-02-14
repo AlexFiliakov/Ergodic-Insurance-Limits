@@ -3,6 +3,7 @@
 Missing lines: 57-66, 234-238, 286, 317-322, 354, 361, 364, 544, 555
 """
 
+import logging
 from unittest.mock import patch
 
 import numpy as np
@@ -76,17 +77,17 @@ class TestParallelBootstrapFallback:
             result = analyzer.confidence_interval(data, np.mean, method="percentile", parallel=True)
         assert result.confidence_interval[0] < result.confidence_interval[1]
 
-    def test_parallel_fallback_with_progress(self):
-        """Lines 236-237: Fallback prints message when show_progress is True."""
+    def test_parallel_fallback_with_progress(self, caplog):
+        """Fallback logs warning when parallel bootstrap fails."""
         analyzer = BootstrapAnalyzer(n_bootstrap=200, seed=42, n_workers=2, show_progress=True)
         data = np.random.normal(100, 15, 50)
 
         with patch.object(analyzer, "_parallel_bootstrap", side_effect=ValueError("test error")):
-            with patch("builtins.print") as mock_print:
+            with caplog.at_level(logging.WARNING, logger="ergodic_insurance.bootstrap_analysis"):
                 result = analyzer.confidence_interval(
                     data, np.mean, method="percentile", parallel=True
                 )
-                mock_print.assert_called()
+        assert any("Parallel bootstrap failed" in r.message for r in caplog.records)
 
 
 class TestSequentialBootstrapProgress:

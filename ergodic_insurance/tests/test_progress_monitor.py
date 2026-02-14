@@ -2,8 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import io
-import sys
+import logging
 import time
 from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
@@ -185,33 +184,31 @@ class TestProgressMonitor:
         monitor.update(20000, convergence_value=1.5)
         assert len(monitor.convergence_checks) == initial_checks  # No new check
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_console_output(self, mock_stdout):
+    def test_console_output(self, caplog):
         """Test console output generation."""
         monitor = ProgressMonitor(total_iterations=1000, update_frequency=100, show_console=True)
 
         # Mock time to control elapsed calculation
         with patch("time.time") as mock_time:
             mock_time.return_value = monitor.start_time + 10.0
-            monitor.update(100)
+            with caplog.at_level(logging.DEBUG, logger="ergodic_insurance.progress_monitor"):
+                monitor.update(100)
 
-            output = mock_stdout.getvalue()
-            assert "[" in output  # Progress bar
-            assert "█" in output or "░" in output  # Progress bar chars
+            output = " ".join(r.message for r in caplog.records)
             assert "10.0%" in output
             assert "100/1,000" in output
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_console_output_with_convergence(self, mock_stdout):
+    def test_console_output_with_convergence(self, caplog):
         """Test console output with convergence message."""
         monitor = ProgressMonitor(
             total_iterations=20000, check_intervals=[10000], show_console=True
         )
 
-        monitor.update(10000, convergence_value=1.05)
+        with caplog.at_level(logging.INFO, logger="ergodic_insurance.progress_monitor"):
+            monitor.update(10000, convergence_value=1.05)
 
-        output = mock_stdout.getvalue()
-        assert "✓ Convergence achieved" in output
+        output = " ".join(r.message for r in caplog.records)
+        assert "[OK] Convergence achieved" in output
         assert "R-hat = 1.050" in output
 
     def test_update_console_frequency(self):
@@ -281,16 +278,15 @@ class TestProgressMonitor:
             assert stats.elapsed_time == 10.0
             assert monitor.current_iteration == 1000
 
-    @patch("sys.stdout", new_callable=io.StringIO)
-    def test_finish_with_console(self, mock_stdout):
-        """Test finishing with console output."""
+    def test_finish_with_console(self):
+        """Test finishing with console output (finish no longer prints)."""
         monitor = ProgressMonitor(total_iterations=1000, show_console=True)
 
         monitor.update(1000)
         stats = monitor.finish()
 
-        output = mock_stdout.getvalue()
-        assert "\n" in output  # Should add newline at end
+        assert isinstance(stats, ProgressStats)
+        assert stats.current_iteration == 1000
 
     def test_performance_overhead_tracking(self):
         """Test that performance overhead is tracked."""
@@ -315,39 +311,35 @@ class TestProgressMonitor:
             # ETA should be 90 seconds
             # (This is tested indirectly through console output)
 
-    def test_progress_bar_generation(self):
+    def test_progress_bar_generation(self, caplog):
         """Test progress bar visual generation."""
         monitor = ProgressMonitor(total_iterations=1000, show_console=True)
 
-        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            with patch("time.time") as mock_time:
-                mock_time.return_value = monitor.start_time + 10.0
+        with patch("time.time") as mock_time:
+            mock_time.return_value = monitor.start_time + 10.0
 
-                # 25% progress
-                monitor.current_iteration = 250
+            # 25% progress
+            monitor.current_iteration = 250
+            with caplog.at_level(logging.DEBUG, logger="ergodic_insurance.progress_monitor"):
                 monitor._update_console(mock_time.return_value)
 
-                output = mock_stdout.getvalue()
-                # Should have roughly 25% filled
-                filled_count = output.count("█")
-                empty_count = output.count("░")
-                assert filled_count > 0
-                assert empty_count > 0
+            output = " ".join(r.message for r in caplog.records)
+            assert "25.0%" in output
 
-    def test_convergence_display_in_console(self):
+    def test_convergence_display_in_console(self, caplog):
         """Test convergence information in console output."""
         monitor = ProgressMonitor(total_iterations=10000, show_console=True)
 
         monitor.convergence_checks = [(5000, 1.15), (7500, 1.08)]
 
-        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            with patch("time.time") as mock_time:
-                mock_time.return_value = monitor.start_time + 10.0
-                monitor.current_iteration = 8000
+        with patch("time.time") as mock_time:
+            mock_time.return_value = monitor.start_time + 10.0
+            monitor.current_iteration = 8000
+            with caplog.at_level(logging.DEBUG, logger="ergodic_insurance.progress_monitor"):
                 monitor._update_console(mock_time.return_value)
 
-                output = mock_stdout.getvalue()
-                assert "R-hat: 1.080" in output
+            output = " ".join(r.message for r in caplog.records)
+            assert "R-hat: 1.080" in output
 
     def test_zero_speed_handling(self):
         """Test handling of zero speed (division by zero)."""

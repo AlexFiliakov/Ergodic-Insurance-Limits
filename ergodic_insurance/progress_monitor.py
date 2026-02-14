@@ -6,10 +6,13 @@ including ETA estimation, convergence summaries, and console output.
 
 from dataclasses import dataclass, field
 from datetime import timedelta
+import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -184,12 +187,14 @@ class ProgressMonitor:
             last_check = self.convergence_checks[-1]
             status += f" | R-hat: {last_check[1]:.3f}"
 
-        print(status, end="", flush=True)
+        logger.debug(status.lstrip("\r"))
 
     def _print_convergence_message(self, iteration: int, convergence_value: float) -> None:
-        """Print convergence achievement message."""
-        print(
-            f"\n✓ Convergence achieved at iteration {iteration:,} (R-hat = {convergence_value:.3f})"
+        """Log convergence achievement message."""
+        logger.info(
+            "[OK] Convergence achieved at iteration %s (R-hat = %.3f)",
+            f"{iteration:,}",
+            convergence_value,
         )
 
     def get_stats(self) -> ProgressStats:
@@ -327,9 +332,6 @@ class ProgressMonitor:
         Returns:
             Final progress statistics
         """
-        if self.show_console:
-            print()  # New line after progress bar
-
         return self.get_stats()
 
     def get_overhead_percentage(self) -> float:
@@ -365,29 +367,33 @@ class ProgressMonitor:
         self.finish()
 
     def finalize(self) -> None:
-        """Finalize progress monitoring and print summary."""
+        """Finalize progress monitoring and log summary."""
         if self.show_console:
-            print()  # New line after progress bar
-
             stats = self.get_stats()
-            print(f"\n{'='*60}")
-            print("Simulation Complete")
-            print(f"{'='*60}")
-            print(f"Total iterations: {stats.current_iteration:,}")
-            print(f"Total time: {timedelta(seconds=int(stats.elapsed_time))}")
-            print(f"Average speed: {stats.iterations_per_second:.0f} iterations/second")
+            summary_lines = [
+                f"{'='*60}",
+                "Simulation Complete",
+                f"{'='*60}",
+                f"Total iterations: {stats.current_iteration:,}",
+                f"Total time: {timedelta(seconds=int(stats.elapsed_time))}",
+                f"Average speed: {stats.iterations_per_second:.0f} iterations/second",
+            ]
 
             if self.converged:
-                print(f"✓ Converged at iteration {self.converged_at:,}")
+                summary_lines.append(f"[OK] Converged at iteration {self.converged_at:,}")
             else:
-                print("✗ Did not achieve convergence")
+                summary_lines.append("[FAIL] Did not achieve convergence")
 
             if self.convergence_checks:
-                print(f"\nConvergence checks performed: {len(self.convergence_checks)}")
+                summary_lines.append(
+                    f"Convergence checks performed: {len(self.convergence_checks)}"
+                )
                 for iter_num, value in self.convergence_checks:
-                    status = "✓" if value < self.convergence_threshold else "✗"
-                    print(f"  {status} Iteration {iter_num:,}: R-hat = {value:.3f}")
+                    status = "[OK]" if value < self.convergence_threshold else "[FAIL]"
+                    summary_lines.append(f"  {status} Iteration {iter_num:,}: R-hat = {value:.3f}")
 
             # Performance overhead
             overhead_pct = (self.monitor_overhead / (time.time() - self.start_time)) * 100
-            print(f"\nMonitoring overhead: {overhead_pct:.2f}%")
+            summary_lines.append(f"Monitoring overhead: {overhead_pct:.2f}%")
+
+            logger.info("\n".join(summary_lines))
