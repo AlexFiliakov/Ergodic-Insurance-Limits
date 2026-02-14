@@ -4,6 +4,8 @@ This module provides a factory class for creating various types of plots
 with automatic styling, spacing, and formatting applied consistently.
 """
 
+__all__ = ["FigureFactory"]
+
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from matplotlib.axes import Axes
@@ -836,3 +838,206 @@ class FigureFactory:
                     va="center",
                     fontsize=self.style_manager.get_fonts().size_base - 2,
                 )
+
+    # -------------------------------------------------------------------
+    # Domain-specific convenience methods
+    # -------------------------------------------------------------------
+    # These delegate to the specialized plot functions in the visualization
+    # submodules, automatically injecting the factory's theme setting.
+
+    def loss_distribution(self, losses, **kwargs) -> Figure:
+        """Create a loss distribution plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.executive_plots.plot_loss_distribution`.
+
+        Args:
+            losses: Loss amounts (array or DataFrame).
+            **kwargs: Forwarded to ``plot_loss_distribution``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .executive_plots import plot_loss_distribution
+
+        kwargs.setdefault("use_factory", True)
+        kwargs.setdefault("theme", self.style_manager)
+        return plot_loss_distribution(losses, **kwargs)
+
+    def return_period_curve(self, losses, **kwargs) -> Figure:
+        """Create a return period curve with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.executive_plots.plot_return_period_curve`.
+
+        Args:
+            losses: Loss amounts (array or DataFrame).
+            **kwargs: Forwarded to ``plot_return_period_curve``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .executive_plots import plot_return_period_curve
+
+        return plot_return_period_curve(losses, **kwargs)
+
+    def insurance_layers(self, layers, **kwargs) -> Figure:
+        """Create an insurance layer structure plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.executive_plots.plot_insurance_layers`.
+
+        Args:
+            layers: List of layer dicts or DataFrame with 'attachment', 'limit'.
+            **kwargs: Forwarded to ``plot_insurance_layers``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .executive_plots import plot_insurance_layers
+
+        return plot_insurance_layers(layers, **kwargs)
+
+    def roe_ruin_frontier(self, results, **kwargs) -> Figure:
+        """Create an ROE-Ruin efficient frontier plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.executive_plots.plot_roe_ruin_frontier`.
+
+        Args:
+            results: Dict of company_size -> DataFrame, or single DataFrame.
+            **kwargs: Forwarded to ``plot_roe_ruin_frontier``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .executive_plots import plot_roe_ruin_frontier
+
+        return plot_roe_ruin_frontier(results, **kwargs)
+
+    def ruin_cliff(self, **kwargs) -> Figure:
+        """Create a ruin cliff visualization with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.executive_plots.plot_ruin_cliff`.
+
+        Args:
+            **kwargs: Forwarded to ``plot_ruin_cliff``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .executive_plots import plot_ruin_cliff
+
+        return plot_ruin_cliff(**kwargs)
+
+    def convergence_diagnostics(self, convergence_stats, **kwargs) -> Figure:
+        """Create convergence diagnostics plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.technical_plots.plot_convergence_diagnostics`.
+
+        Args:
+            convergence_stats: Dictionary with convergence statistics.
+            **kwargs: Forwarded to ``plot_convergence_diagnostics``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .technical_plots import plot_convergence_diagnostics
+
+        return plot_convergence_diagnostics(convergence_stats, **kwargs)
+
+    def ergodic_divergence(
+        self, time_horizons, time_averages, ensemble_averages, **kwargs
+    ) -> Figure:
+        """Create ergodic vs ensemble divergence plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.technical_plots.plot_ergodic_divergence`.
+
+        Args:
+            time_horizons: Array of time horizon values.
+            time_averages: Array of time-average growth rates.
+            ensemble_averages: Array of ensemble-average growth rates.
+            **kwargs: Forwarded to ``plot_ergodic_divergence``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .technical_plots import plot_ergodic_divergence
+
+        return plot_ergodic_divergence(time_horizons, time_averages, ensemble_averages, **kwargs)
+
+    def path_dependent_wealth(self, trajectories, **kwargs) -> Figure:
+        """Create path-dependent wealth evolution plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.technical_plots.plot_path_dependent_wealth`.
+
+        Args:
+            trajectories: 2-D array of wealth trajectories (paths x time).
+            **kwargs: Forwarded to ``plot_path_dependent_wealth``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .technical_plots import plot_path_dependent_wealth
+
+        return plot_path_dependent_wealth(trajectories, **kwargs)
+
+    def correlation_structure(self, data, **kwargs) -> Figure:
+        """Create correlation structure plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.technical_plots.plot_correlation_structure`.
+
+        Args:
+            data: Data for correlation analysis.
+            **kwargs: Forwarded to ``plot_correlation_structure``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .technical_plots import plot_correlation_structure
+
+        return plot_correlation_structure(data, **kwargs)
+
+    def premium_decomposition(self, data, **kwargs) -> Figure:
+        """Create premium decomposition plot with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.technical_plots.plot_premium_decomposition`.
+
+        Args:
+            data: Premium component data.
+            **kwargs: Forwarded to ``plot_premium_decomposition``.
+
+        Returns:
+            Matplotlib Figure.
+        """
+        from .technical_plots import plot_premium_decomposition
+
+        return plot_premium_decomposition(data, **kwargs)
+
+    def interactive_dashboard(self, results, **kwargs):
+        """Create an interactive Plotly dashboard with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.interactive_plots.create_interactive_dashboard`.
+
+        Args:
+            results: Dictionary with simulation results or DataFrame.
+            **kwargs: Forwarded to ``create_interactive_dashboard``.
+
+        Returns:
+            Plotly Figure.
+        """
+        from .interactive_plots import create_interactive_dashboard
+
+        return create_interactive_dashboard(results, **kwargs)
+
+    def risk_dashboard(self, results, **kwargs):
+        """Create an interactive risk dashboard with the factory's theme.
+
+        Delegates to :func:`~ergodic_insurance.visualization.interactive_plots.create_risk_dashboard`.
+
+        Args:
+            results: Dictionary with risk analysis results.
+            **kwargs: Forwarded to ``create_risk_dashboard``.
+
+        Returns:
+            Plotly Figure.
+        """
+        from .interactive_plots import create_risk_dashboard
+
+        return create_risk_dashboard(results, **kwargs)

@@ -4,6 +4,14 @@ This module provides visualization functions for batch simulation results,
 scenario comparisons, and sensitivity analyses.
 """
 
+__all__ = [
+    "plot_scenario_comparison",
+    "plot_sensitivity_heatmap",
+    "plot_parameter_sweep_3d",
+    "plot_scenario_convergence",
+    "plot_parallel_scenarios",
+]
+
 from typing import Any, List, Optional, Tuple
 
 from matplotlib.figure import Figure

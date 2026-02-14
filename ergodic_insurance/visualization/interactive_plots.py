@@ -4,6 +4,13 @@ This module provides functions for creating interactive dashboards
 and visualizations for Monte Carlo simulations and analysis results.
 """
 
+__all__ = [
+    "create_interactive_dashboard",
+    "create_time_series_dashboard",
+    "create_correlation_heatmap",
+    "create_risk_dashboard",
+]
+
 from typing import Any, Dict, Union
 
 import numpy as np
