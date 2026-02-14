@@ -262,7 +262,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[50_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -285,7 +285,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -308,7 +308,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[2_000_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -334,7 +334,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[1_000_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -357,7 +357,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[100_000.0, 200_000.0, 999_999.0]], dtype=dtype)
         n_events = xp.array([2], dtype=xp.int32)
 
-        total, recoveries, retained = apply_insurance_vectorized(
+        total, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
@@ -380,7 +380,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0, 500_000.0, 500_000.0]], dtype=dtype)
         n_events = xp.array([3], dtype=xp.int32)
 
-        _, recoveries, _ = apply_insurance_vectorized(loss_amounts, n_events, params, xp, dtype)
+        _, recoveries, _, _ = apply_insurance_vectorized(loss_amounts, n_events, params, xp, dtype)
 
         assert abs(float(recoveries[0]) - 800_000.0) < 1.0
 
@@ -399,7 +399,7 @@ class TestApplyInsurance:
         loss_amounts = xp.array([[500_000.0]], dtype=dtype)
         n_events = xp.array([1], dtype=xp.int32)
 
-        _, recoveries, retained = apply_insurance_vectorized(
+        _, recoveries, retained, _ = apply_insurance_vectorized(
             loss_amounts, n_events, params, xp, dtype
         )
 
