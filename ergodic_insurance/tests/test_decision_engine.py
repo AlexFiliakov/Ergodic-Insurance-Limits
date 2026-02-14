@@ -16,7 +16,7 @@ from ergodic_insurance.decision_engine import (
     SensitivityReport,
 )
 from ergodic_insurance.insurance_program import EnhancedInsuranceLayer as Layer
-from ergodic_insurance.loss_distributions import LossDistribution
+from ergodic_insurance.loss_distributions import LognormalLoss, LossDistribution
 from ergodic_insurance.manufacturer import WidgetManufacturer
 
 
@@ -1783,3 +1783,205 @@ class TestSimulationFinancialModel:
             f"Financial model divergence too large: simulated={sim_equity:.0f}, "
             f"analytical={equity:.0f}, rel_diff={rel_diff:.4f}"
         )
+
+
+class TestFromCompany:
+    """Test InsuranceDecisionEngine.from_company() factory method."""
+
+    def test_default_parameters(self):
+        """Factory with all defaults returns a usable engine."""
+        engine = InsuranceDecisionEngine.from_company()
+
+        assert isinstance(engine, InsuranceDecisionEngine)
+        assert engine.manufacturer.config.initial_assets == 10_000_000
+        assert isinstance(engine.loss_distribution, LognormalLoss)
+        assert engine.loss_distribution.mean == 1_000_000
+        assert engine.loss_distribution.cv == 1.5
+        assert engine.pricing_scenario == "baseline"
+
+    def test_custom_assets_and_losses(self):
+        """Factory accepts custom asset and loss parameters."""
+        engine = InsuranceDecisionEngine.from_company(
+            initial_assets=50_000_000,
+            loss_mean=2_000_000,
+            loss_cv=2.0,
+        )
+
+        assert engine.manufacturer.config.initial_assets == 50_000_000
+        assert isinstance(engine.loss_distribution, LognormalLoss)
+        assert engine.loss_distribution.mean == 2_000_000
+        assert engine.loss_distribution.cv == 2.0
+
+    def test_custom_company_parameters(self):
+        """Factory passes company parameters to ManufacturerConfig."""
+        engine = InsuranceDecisionEngine.from_company(
+            initial_assets=25_000_000,
+            operating_margin=0.12,
+            tax_rate=0.21,
+        )
+
+        assert engine.manufacturer.config.initial_assets == 25_000_000
+        assert engine.manufacturer.config.base_operating_margin == 0.12
+        assert engine.manufacturer.config.tax_rate == 0.21
+
+    def test_pricing_scenario(self):
+        """Factory accepts pricing scenario."""
+        engine = InsuranceDecisionEngine.from_company(
+            pricing_scenario="inexpensive",
+        )
+
+        assert engine.pricing_scenario == "inexpensive"
+
+    def test_seed_reproducibility(self):
+        """Seed parameter produces reproducible loss distributions."""
+        engine1 = InsuranceDecisionEngine.from_company(seed=42)
+        engine2 = InsuranceDecisionEngine.from_company(seed=42)
+
+        samples1 = engine1.loss_distribution.generate_severity(100)
+        samples2 = engine2.loss_distribution.generate_severity(100)
+        np.testing.assert_array_equal(samples1, samples2)
+
+    def test_returns_engine_type(self):
+        """Factory returns InsuranceDecisionEngine instance."""
+        engine = InsuranceDecisionEngine.from_company()
+        assert isinstance(engine, InsuranceDecisionEngine)
+        assert engine.config_manager is not None
+        assert engine.engine_config is not None
+
+    def test_existing_init_unchanged(self):
+        """Original __init__ API still works for advanced users."""
+        config = ManufacturerConfig(initial_assets=5_000_000)
+        manufacturer = WidgetManufacturer(config)
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.expected_value.return_value = 500_000
+
+        engine = InsuranceDecisionEngine(manufacturer, loss_dist)
+
+        assert engine.manufacturer is manufacturer
+        assert engine.loss_distribution is loss_dist
+
+
+class TestOptimizeConvenience:
+    """Test InsuranceDecisionEngine.optimize() convenience method."""
+
+    def _make_engine(self):
+        """Create engine with mocked loss distribution for fast tests."""
+        config = ManufacturerConfig(initial_assets=10_000_000)
+        manufacturer = WidgetManufacturer(config)
+        loss_dist = Mock(spec=LossDistribution)
+        loss_dist.expected_value.return_value = 500_000
+        loss_dist.generate_severity.return_value = np.full(1000, 500_000.0)
+        return InsuranceDecisionEngine(manufacturer, loss_dist)
+
+    def test_optimize_with_max_premium(self):
+        """optimize() with explicit max_premium builds correct constraints."""
+        engine = self._make_engine()
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize(max_premium=500_000)
+
+            call_args = mock_opt.call_args
+            constraints = call_args[0][0]
+            assert constraints.max_premium_budget == 500_000
+            assert constraints.max_bankruptcy_probability == 0.01
+
+    def test_optimize_default_premium(self):
+        """optimize() without max_premium defaults to 10% of revenue."""
+        engine = self._make_engine()
+        # revenue = initial_assets * asset_turnover_ratio = 10M * 0.8 = 8M
+        # default max_premium = 8M * 0.10 = 800_000
+        expected_premium = (
+            engine.manufacturer.config.initial_assets
+            * engine.manufacturer.config.asset_turnover_ratio
+            * 0.10
+        )
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize()
+
+            constraints = mock_opt.call_args[0][0]
+            assert constraints.max_premium_budget == expected_premium
+
+    def test_optimize_passes_method(self):
+        """optimize() forwards method parameter."""
+        engine = self._make_engine()
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="DE",
+            )
+
+            engine.optimize(
+                max_premium=500_000,
+                method=OptimizationMethod.DIFFERENTIAL_EVOLUTION,
+            )
+
+            call_kwargs = mock_opt.call_args[1]
+            assert call_kwargs["method"] == OptimizationMethod.DIFFERENTIAL_EVOLUTION
+
+    def test_optimize_passes_weights(self):
+        """optimize() forwards weights parameter."""
+        engine = self._make_engine()
+        custom_weights = {"growth": 0.5, "risk": 0.3, "cost": 0.2}
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize(max_premium=500_000, weights=custom_weights)
+
+            call_kwargs = mock_opt.call_args[1]
+            assert call_kwargs["weights"] == custom_weights
+
+    def test_optimize_constraint_overrides(self):
+        """optimize() passes extra kwargs to DecisionOptimizationConstraints."""
+        engine = self._make_engine()
+
+        with patch.object(engine, "optimize_insurance_decision") as mock_opt:
+            mock_opt.return_value = InsuranceDecision(
+                retained_limit=1_000_000,
+                layers=[],
+                total_premium=0,
+                total_coverage=0,
+                pricing_scenario="baseline",
+                optimization_method="SLSQP",
+            )
+
+            engine.optimize(
+                max_premium=500_000,
+                min_coverage_limit=10_000_000,
+                max_layers=3,
+            )
+
+            constraints = mock_opt.call_args[0][0]
+            assert constraints.min_coverage_limit == 10_000_000
+            assert constraints.max_layers == 3

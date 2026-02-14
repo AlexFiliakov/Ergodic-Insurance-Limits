@@ -15,11 +15,16 @@ import warnings
 import numpy as np
 from scipy.optimize import Bounds, OptimizeResult, differential_evolution, minimize
 
-from .config import DEFAULT_RISK_FREE_RATE, DecisionEngineConfig, PricingScenarioConfig
+from .config import (
+    DEFAULT_RISK_FREE_RATE,
+    DecisionEngineConfig,
+    ManufacturerConfig,
+    PricingScenarioConfig,
+)
 from .config_manager import ConfigManager
 from .ergodic_analyzer import ErgodicAnalyzer
 from .insurance_program import EnhancedInsuranceLayer as Layer
-from .loss_distributions import LossDistribution
+from .loss_distributions import LognormalLoss, LossDistribution
 from .manufacturer import WidgetManufacturer
 from .optimization import (
     AugmentedLagrangianOptimizer,
@@ -507,6 +512,136 @@ class InsuranceDecisionEngine:
         self._decision_cache: Dict[str, InsuranceDecision] = {}
         self._metrics_cache: Dict[str, DecisionMetrics] = {}
         self._baseline_cache: Dict[str, Dict[str, np.ndarray]] = {}
+
+    @classmethod
+    def from_company(
+        cls,
+        initial_assets: float = 10_000_000,
+        loss_mean: float = 1_000_000,
+        loss_cv: float = 1.5,
+        operating_margin: float = 0.08,
+        industry: str = "manufacturing",
+        tax_rate: float = 0.25,
+        growth_rate: float = 0.05,
+        pricing_scenario: str = "baseline",
+        seed: Optional[int] = None,
+    ) -> "InsuranceDecisionEngine":
+        """Create a decision engine from basic company parameters.
+
+        Factory method that mirrors ``Config.from_company()`` so actuaries
+        and risk managers can start optimizing without constructing
+        ``ManufacturerConfig``, ``WidgetManufacturer``, or
+        ``LossDistribution`` objects manually.
+
+        Args:
+            initial_assets: Starting asset value in dollars.
+            loss_mean: Mean annual loss severity in dollars.
+            loss_cv: Loss severity coefficient of variation (std / mean).
+            operating_margin: Base operating margin (e.g. 0.08 for 8%).
+            industry: Industry type for deriving config defaults.
+                Supported values: ``"manufacturing"``, ``"service"``,
+                ``"retail"``.
+            tax_rate: Corporate tax rate.
+            growth_rate: Annual revenue growth rate.
+            pricing_scenario: Insurance market pricing scenario.
+            seed: Random seed for the loss distribution.
+
+        Returns:
+            Ready-to-use ``InsuranceDecisionEngine`` instance.
+
+        Examples:
+            Minimal — uses all defaults::
+
+                engine = InsuranceDecisionEngine.from_company(
+                    initial_assets=10_000_000,
+                )
+
+            Specify loss distribution::
+
+                engine = InsuranceDecisionEngine.from_company(
+                    initial_assets=50_000_000,
+                    loss_mean=2_000_000,
+                    loss_cv=2.0,
+                    industry="service",
+                )
+
+            Full optimization workflow::
+
+                engine = InsuranceDecisionEngine.from_company(
+                    initial_assets=10_000_000,
+                    loss_mean=1_000_000,
+                    loss_cv=1.5,
+                )
+                decision = engine.optimize(max_premium=500_000)
+        """
+        manufacturer_config = ManufacturerConfig(
+            initial_assets=initial_assets,
+            base_operating_margin=operating_margin,
+            tax_rate=tax_rate,
+        )
+        manufacturer = WidgetManufacturer(manufacturer_config)
+        loss_distribution = LognormalLoss(mean=loss_mean, cv=loss_cv, seed=seed)
+
+        return cls(
+            manufacturer=manufacturer,
+            loss_distribution=loss_distribution,
+            pricing_scenario=pricing_scenario,
+        )
+
+    def optimize(
+        self,
+        max_premium: Optional[float] = None,
+        max_bankruptcy_probability: float = 0.01,
+        method: OptimizationMethod = OptimizationMethod.SLSQP,
+        weights: Optional[Dict[str, float]] = None,
+        **constraint_overrides,
+    ) -> "InsuranceDecision":
+        """Optimize insurance purchasing with sensible defaults.
+
+        Convenience wrapper around ``optimize_insurance_decision()`` that
+        builds ``DecisionOptimizationConstraints`` from keyword arguments,
+        filling in reasonable defaults where omitted.
+
+        Args:
+            max_premium: Maximum annual premium budget.  Defaults to 10%
+                of expected annual revenue.
+            max_bankruptcy_probability: Maximum acceptable probability of
+                ruin (default 1%).
+            method: Optimization algorithm to use.
+            weights: Objective function weights (growth, risk, cost).
+            **constraint_overrides: Additional overrides passed directly
+                to ``DecisionOptimizationConstraints`` fields.
+
+        Returns:
+            Optimal ``InsuranceDecision``.
+
+        Examples:
+            Quick optimization::
+
+                decision = engine.optimize(max_premium=500_000)
+
+            With custom constraints::
+
+                decision = engine.optimize(
+                    max_premium=1_000_000,
+                    max_bankruptcy_probability=0.005,
+                    min_coverage_limit=10_000_000,
+                )
+        """
+        if max_premium is None:
+            revenue = (
+                self.manufacturer.config.initial_assets
+                * self.manufacturer.config.asset_turnover_ratio
+            )
+            max_premium = revenue * 0.10
+
+        constraints = DecisionOptimizationConstraints(
+            max_premium_budget=max_premium,
+            max_bankruptcy_probability=max_bankruptcy_probability,
+            **constraint_overrides,
+        )
+
+        return self.optimize_insurance_decision(constraints, method=method, weights=weights)
 
     def _load_pricing_scenarios(
         self, scenario_file: str = "insurance_pricing_scenarios"
