@@ -350,8 +350,8 @@ class TestExcelReportConfigEngine:
             assert cfg.engine == engine
 
 
-class TestConfigApplyModuleNonDict:
-    """Test Config.apply_module with non-dict and non-BaseModel values (config.py lines 1714, 1736-1738)."""
+class TestConfigWithModuleNonDict:
+    """Test Config.with_module with non-dict and non-BaseModel values."""
 
     @pytest.fixture
     def base_config_v2(self):
@@ -375,29 +375,33 @@ class TestConfigApplyModuleNonDict:
             logging=LoggingConfig(),
         )
 
-    def test_apply_module_non_dict_value(self, base_config_v2):
-        """apply_module should handle scalar values by using setattr directly."""
+    def test_with_module_non_dict_value(self, base_config_v2):
+        """with_module should handle scalar values, returning new Config."""
         module_data = {
             "applied_presets": ["preset_from_module"],
         }
         yaml_content = yaml.dump(module_data)
         with patch("builtins.open", mock_open(read_data=yaml_content)):
-            base_config_v2.apply_module(Path("module.yaml"))
-            assert base_config_v2.applied_presets == ["preset_from_module"]
+            new_config = base_config_v2.with_module(Path("module.yaml"))
+            assert new_config.applied_presets == ["preset_from_module"]
+            # Original unchanged
+            assert base_config_v2.applied_presets == []
 
-    def test_apply_module_dict_value_for_non_basemodel(self, base_config_v2):
-        """apply_module with dict value on a non-BaseModel attr -> setattr(dict)."""
+    def test_with_module_dict_value_for_non_basemodel(self, base_config_v2):
+        """with_module with dict value on a non-BaseModel attr returns new Config."""
         module_data = {
             "overrides": {"key1": "val1"},
         }
         yaml_content = yaml.dump(module_data)
         with patch("builtins.open", mock_open(read_data=yaml_content)):
-            base_config_v2.apply_module(Path("module.yaml"))
-            assert base_config_v2.overrides == {"key1": "val1"}
+            new_config = base_config_v2.with_module(Path("module.yaml"))
+            assert new_config.overrides == {"key1": "val1"}
+            # Original unchanged
+            assert base_config_v2.overrides == {}
 
 
-class TestConfigApplyPresetBranches:
-    """Test Config.apply_preset non-dict and non-BaseModel branches (config.py lines 1736-1738)."""
+class TestConfigWithPresetBranches:
+    """Test Config.with_preset non-dict and non-BaseModel branches."""
 
     @pytest.fixture
     def base_config_v2(self):
@@ -420,27 +424,32 @@ class TestConfigApplyPresetBranches:
             logging=LoggingConfig(),
         )
 
-    def test_apply_preset_dict_on_non_basemodel_attr(self, base_config_v2):
-        """apply_preset with dict value for a plain-dict attribute uses setattr."""
+    def test_with_preset_dict_on_non_basemodel_attr(self, base_config_v2):
+        """with_preset with dict value for a plain-dict attribute returns new Config."""
         preset_data = {
             "overrides": {"custom_key": 99},
         }
-        base_config_v2.apply_preset("custom_preset", preset_data)
-        assert base_config_v2.overrides == {"custom_key": 99}
-        assert "custom_preset" in base_config_v2.applied_presets
+        new_config = base_config_v2.with_preset("custom_preset", preset_data)
+        assert new_config.overrides == {"custom_key": 99}
+        assert "custom_preset" in new_config.applied_presets
+        # Original unchanged
+        assert base_config_v2.overrides == {}
+        assert "custom_preset" not in base_config_v2.applied_presets
 
-    def test_apply_preset_scalar_value(self, base_config_v2):
-        """apply_preset with a scalar (non-dict) value uses setattr.
+    def test_with_preset_scalar_value(self, base_config_v2):
+        """with_preset with a scalar (non-dict) value returns new Config.
 
-        Note: apply_preset first appends the preset name, then the loop
-        overwrites 'applied_presets' via setattr with the provided list.
+        Note: with_preset first appends the preset name, then deep_merge
+        overwrites 'applied_presets' with the provided list.
         """
         preset_data = {
             "applied_presets": ["a", "b"],
         }
-        base_config_v2.apply_preset("scalar_preset", preset_data)
-        # The setattr in the loop overwrites the list that was appended to
-        assert base_config_v2.applied_presets == ["a", "b"]
+        new_config = base_config_v2.with_preset("scalar_preset", preset_data)
+        # deep_merge overwrites the list that was appended to
+        assert new_config.applied_presets == ["a", "b"]
+        # Original unchanged
+        assert base_config_v2.applied_presets == []
 
 
 class TestConfigWithOverridesNewSection:

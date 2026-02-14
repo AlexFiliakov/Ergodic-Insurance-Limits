@@ -11,6 +11,7 @@ Since:
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import warnings
 
 from pydantic import BaseModel, Field
 import yaml
@@ -474,14 +475,21 @@ class Config(BaseModel):
     #  Module / preset composition
     # ------------------------------------------------------------------ #
 
-    def apply_module(self, module_path: Path) -> None:
-        """Apply a configuration module.
+    def with_module(self, module_path: Path) -> "Config":
+        """Return a new Config with a configuration module applied.
 
         Merges module data via dict-dump-merge-reconstruct so that every
-        field change goes through Pydantic validation.
+        field change goes through Pydantic validation.  The original
+        Config instance is **not** mutated.
 
         Args:
             module_path: Path to the module YAML file.
+
+        Returns:
+            New Config instance with the module applied.
+
+        Since:
+            Version 0.13.0 (Issue #1295) — replaces ``apply_module()``
         """
         with open(module_path, "r") as f:
             module_data = yaml.safe_load(f)
@@ -489,32 +497,65 @@ class Config(BaseModel):
         # Dump -> merge -> reconstruct to enforce Pydantic validation
         current_data = self.model_dump()
         merged = deep_merge(current_data, module_data)
-        updated = self.model_validate(merged)
+        return self.model_validate(merged)
 
-        # Copy all validated fields back
-        for field_name in type(self).model_fields:
-            object.__setattr__(self, field_name, getattr(updated, field_name))
-
-    def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> None:
-        """Apply a preset to the configuration.
+    def with_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> "Config":
+        """Return a new Config with a preset applied.
 
         Merges preset data via dict-dump-merge-reconstruct so that every
-        field change goes through Pydantic validation.
+        field change goes through Pydantic validation.  The original
+        Config instance is **not** mutated.
 
         Args:
             preset_name: Name of the preset.
             preset_data: Preset parameters to apply.
+
+        Returns:
+            New Config instance with the preset applied.
+
+        Since:
+            Version 0.13.0 (Issue #1295) — replaces ``apply_preset()``
         """
         # Dump -> merge -> reconstruct to enforce Pydantic validation
         current_data = self.model_dump()
         current_data.setdefault("applied_presets", [])
         current_data["applied_presets"].append(preset_name)
         merged = deep_merge(current_data, preset_data)
-        updated = self.model_validate(merged)
+        return self.model_validate(merged)
 
-        # Copy all validated fields back
-        for field_name in type(self).model_fields:
-            object.__setattr__(self, field_name, getattr(updated, field_name))
+    # -- Deprecated aliases ------------------------------------------------
+
+    def apply_module(self, module_path: Path) -> "Config":
+        """Apply a configuration module.
+
+        .. deprecated:: 0.13.0
+            Use :meth:`with_module` instead.  ``apply_module`` will be
+            removed in a future release.
+        """
+        warnings.warn(
+            "Config.apply_module() is deprecated and will be removed in a "
+            "future release. Use Config.with_module() instead, which returns "
+            "a new Config instance without mutating the original.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.with_module(module_path)
+
+    def apply_preset(self, preset_name: str, preset_data: Dict[str, Any]) -> "Config":
+        """Apply a preset to the configuration.
+
+        .. deprecated:: 0.13.0
+            Use :meth:`with_preset` instead.  ``apply_preset`` will be
+            removed in a future release.
+        """
+        warnings.warn(
+            "Config.apply_preset() is deprecated and will be removed in a "
+            "future release. Use Config.with_preset() instead, which returns "
+            "a new Config instance without mutating the original.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.with_preset(preset_name, preset_data)
 
     # ------------------------------------------------------------------ #
     #  Validation

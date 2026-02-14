@@ -614,8 +614,8 @@ class TestConfig:
         assert result["section2"]["nested"]["new"] == "added"  # Deep new key
         assert result["simple"] == "override_value"  # Simple override
 
-    def test_apply_module(self):
-        """Test applying a module to configuration."""
+    def test_with_module(self):
+        """Test applying a module returns new Config without mutating original."""
         config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
@@ -645,15 +645,19 @@ class TestConfig:
         yaml_content = yaml.dump(module_data)
 
         with patch("builtins.open", mock_open(read_data=yaml_content)):
-            config.apply_module(Path("module.yaml"))
-            assert config.manufacturer.base_operating_margin == 0.10
-            assert "risk" in config.custom_modules
-            risk_module = config.custom_modules["risk"]
+            new_config = config.with_module(Path("module.yaml"))
+            # New config has updated values
+            assert new_config.manufacturer.base_operating_margin == 0.10
+            assert "risk" in new_config.custom_modules
+            risk_module = new_config.custom_modules["risk"]
             assert risk_module.module_name == "risk"
             assert risk_module.module_version == "1.0.0"
+            # Original is unchanged
+            assert config.manufacturer.base_operating_margin == 0.08
+            assert "risk" not in config.custom_modules
 
-    def test_apply_preset(self):
-        """Test applying a preset to configuration."""
+    def test_with_preset(self):
+        """Test applying a preset returns new Config without mutating original."""
         config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
@@ -680,11 +684,82 @@ class TestConfig:
             "growth": {"annual_growth_rate": 0.08},
         }
 
-        config.apply_preset("aggressive", preset_data)
+        new_config = config.with_preset("aggressive", preset_data)
 
-        assert config.manufacturer.base_operating_margin == 0.12
-        assert config.growth.annual_growth_rate == 0.08
-        assert "aggressive" in config.applied_presets
+        # New config has updated values
+        assert new_config.manufacturer.base_operating_margin == 0.12
+        assert new_config.growth.annual_growth_rate == 0.08
+        assert "aggressive" in new_config.applied_presets
+        # Original is unchanged
+        assert config.manufacturer.base_operating_margin == 0.08
+        assert config.growth.annual_growth_rate == 0.05
+        assert "aggressive" not in config.applied_presets
+
+    def test_apply_module_deprecated(self):
+        """Test that apply_module emits DeprecationWarning and returns new Config."""
+        import warnings
+
+        config = Config()
+        module_data = {"manufacturer": {"base_operating_margin": 0.10}}
+        yaml_content = yaml.dump(module_data)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with patch("builtins.open", mock_open(read_data=yaml_content)):
+                new_config = config.apply_module(Path("module.yaml"))
+            dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(dep_warnings) == 1
+            assert "with_module" in str(dep_warnings[0].message)
+        # Returns new Config, does not mutate
+        assert new_config.manufacturer.base_operating_margin == 0.10
+        assert config.manufacturer.base_operating_margin == 0.08
+
+    def test_apply_preset_deprecated(self):
+        """Test that apply_preset emits DeprecationWarning and returns new Config."""
+        import warnings
+
+        config = Config()
+        preset_data = {"manufacturer": {"base_operating_margin": 0.12}}
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            new_config = config.apply_preset("test_preset", preset_data)
+            dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+            assert len(dep_warnings) == 1
+            assert "with_preset" in str(dep_warnings[0].message)
+        # Returns new Config, does not mutate
+        assert new_config.manufacturer.base_operating_margin == 0.12
+        assert config.manufacturer.base_operating_margin == 0.08
+        assert "test_preset" in new_config.applied_presets
+        assert "test_preset" not in config.applied_presets
+
+    def test_with_module_immutability(self):
+        """Test that with_module returns a different object and original is unchanged."""
+        config = Config()
+        original_assets = config.manufacturer.initial_assets
+        module_data = {"manufacturer": {"initial_assets": 99_999_999}}
+        yaml_content = yaml.dump(module_data)
+
+        with patch("builtins.open", mock_open(read_data=yaml_content)):
+            new_config = config.with_module(Path("m.yaml"))
+
+        assert id(config) != id(new_config)
+        assert config.manufacturer.initial_assets == original_assets
+        assert new_config.manufacturer.initial_assets == 99_999_999
+
+    def test_with_preset_immutability(self):
+        """Test that with_preset returns a different object and original is unchanged."""
+        config = Config()
+        original_margin = config.manufacturer.base_operating_margin
+        preset_data = {"manufacturer": {"base_operating_margin": 0.20}}
+
+        new_config = config.with_preset("big_margin", preset_data)
+
+        assert id(config) != id(new_config)
+        assert config.manufacturer.base_operating_margin == original_margin
+        assert new_config.manufacturer.base_operating_margin == 0.20
+        assert config.applied_presets == []
+        assert "big_margin" in new_config.applied_presets
 
     def test_with_overrides(self):
         """Test creating config with runtime overrides."""

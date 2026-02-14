@@ -214,18 +214,19 @@ class TestModuleApplication:
     """Test _apply_module edge cases."""
 
     def test_apply_nonexistent_module_warns(self, temp_config_dir):
-        """Applying a non-existent module emits a warning (lines 295-296)."""
+        """Applying a non-existent module emits a warning and returns original config."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            manager._apply_module(config, "does_not_exist")
+            result = manager._apply_module(config, "does_not_exist")
             mod_warnings = [x for x in w if "Module" in str(x.message)]
             assert len(mod_warnings) > 0
+            assert result is config  # Returns original when module not found
 
     def test_apply_module_with_pydantic_model_update(self, temp_config_dir):
-        """Module data that updates an existing Pydantic sub-model (lines 319-323)."""
+        """Module data that updates an existing Pydantic sub-model."""
         # Create a module that updates manufacturer (which is a Pydantic model)
         module_data = {"manufacturer": {"base_operating_margin": 0.12}}
         with open(temp_config_dir / "modules" / "margin_boost.yaml", "w") as f:
@@ -233,11 +234,13 @@ class TestModuleApplication:
 
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
-        manager._apply_module(config, "margin_boost")
-        assert config.manufacturer.base_operating_margin == 0.12
+        new_config = manager._apply_module(config, "margin_boost")
+        assert new_config.manufacturer.base_operating_margin == 0.12
+        # Original unchanged
+        assert config.manufacturer.base_operating_margin != 0.12
 
     def test_apply_module_with_non_dict_value(self, temp_config_dir):
-        """Module data with a non-dict value for an existing attribute (lines 326-327)."""
+        """Module data with a non-dict value for an existing attribute."""
         # Create a module that sets a scalar attribute
         module_data = {"applied_presets": ["market:stable"]}
         with open(temp_config_dir / "modules" / "scalar_module.yaml", "w") as f:
@@ -245,8 +248,10 @@ class TestModuleApplication:
 
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
-        manager._apply_module(config, "scalar_module")
-        assert config.applied_presets == ["market:stable"]
+        new_config = manager._apply_module(config, "scalar_module")
+        assert new_config.applied_presets == ["market:stable"]
+        # Original unchanged
+        assert config.applied_presets != ["market:stable"]
 
 
 # ---------------------------------------------------------------------------
@@ -258,46 +263,48 @@ class TestPresetApplication:
     """Test _apply_preset edge cases."""
 
     def test_preset_library_not_found_warns(self, temp_config_dir):
-        """Non-existent preset library emits a warning (lines 346-347)."""
+        """Non-existent preset library emits a warning and returns original config."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            manager._apply_preset(config, "nonexistent_lib", "any_name")
+            result = manager._apply_preset(config, "nonexistent_lib", "any_name")
             lib_warnings = [x for x in w if "Preset library" in str(x.message)]
             assert len(lib_warnings) > 0
+            assert result is config  # Returns original when library not found
 
     def test_preset_name_not_found_warns(self, temp_config_dir):
-        """Non-existent preset name in an existing library emits warning (lines 357-362)."""
+        """Non-existent preset name in an existing library emits warning."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            manager._apply_preset(config, "market", "nonexistent_preset")
+            result = manager._apply_preset(config, "market", "nonexistent_preset")
             name_warnings = [
                 x for x in w if "Preset 'nonexistent_preset' not found" in str(x.message)
             ]
             assert len(name_warnings) > 0
+            assert result is config  # Returns original when preset not found
 
     def test_preset_library_caching(self, temp_config_dir):
-        """Second call to same library type uses cache (line 353)."""
+        """Second call to same library type uses cache."""
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
 
         # First call loads from disk
-        manager._apply_preset(config, "market", "stable")
+        new_config = manager._apply_preset(config, "market", "stable")
         assert "market" in manager._preset_libraries
 
         # Second call uses cache
         config2 = manager.load_profile("test", use_cache=False)
-        manager._apply_preset(config2, "market", "volatile")
+        new_config2 = manager._apply_preset(config2, "market", "volatile")
         # Should still be the same cached library object
         assert "market" in manager._preset_libraries
 
     def test_preset_hyphen_to_underscore(self, temp_config_dir):
-        """Preset file lookup with hyphen-to-underscore conversion (line 343)."""
+        """Preset file lookup with hyphen-to-underscore conversion."""
         # Create a preset file with underscores
         preset_data = {"low_freq": {"manufacturer": {"base_operating_margin": 0.06}}}
         with open(temp_config_dir / "presets" / "loss_types.yaml", "w") as f:
@@ -306,7 +313,7 @@ class TestPresetApplication:
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
         # Use hyphenated name -- should fall through to underscore version
-        manager._apply_preset(config, "loss-types", "low_freq")
+        new_config = manager._apply_preset(config, "loss-types", "low_freq")
         assert "loss-types" in manager._preset_libraries or "loss_types" in str(
             manager._preset_libraries
         )
@@ -464,6 +471,8 @@ class TestModuleApplyNonPydanticDict:
 
         manager = ConfigManager(config_dir=temp_config_dir)
         config = manager.load_profile("test", use_cache=False)
-        manager._apply_module(config, "dict_module")
-        # The overrides dict should have been set
-        assert config.overrides == {"custom_key": "custom_value"}
+        new_config = manager._apply_module(config, "dict_module")
+        # The overrides dict should have been set on the new config
+        assert new_config.overrides == {"custom_key": "custom_value"}
+        # Original unchanged
+        assert config.overrides == {}
