@@ -211,11 +211,11 @@ class TestConfigSetupLogging:
         # (we just verify no exception is raised)
 
 
-class TestConfigValidatePaths:
-    """Test Config.validate_paths (config.py line 775)."""
+class TestConfigEnsureOutputDirs:
+    """Test Config.ensure_output_dirs (renamed from validate_paths, Issue #1299)."""
 
-    def test_validate_paths_creates_output_dir(self, tmp_path):
-        """validate_paths should create the output directory if missing."""
+    def test_ensure_output_dirs_creates_output_dir(self, tmp_path):
+        """ensure_output_dirs should create the output directory if missing."""
         output_dir = tmp_path / "new_output"
         config = Config(
             manufacturer=ManufacturerConfig(
@@ -240,7 +240,17 @@ class TestConfigValidatePaths:
             logging=LoggingConfig(enabled=False),
         )
         assert not output_dir.exists()
-        config.validate_paths()
+        config.ensure_output_dirs()
+        assert output_dir.exists()
+
+    def test_validate_paths_deprecated_alias(self, tmp_path):
+        """validate_paths should still work but emit a deprecation warning."""
+        output_dir = tmp_path / "deprecated_output"
+        config = Config(
+            output=OutputConfig(output_directory=str(output_dir), file_format="csv"),
+        )
+        with pytest.warns(DeprecationWarning, match="validate_paths.*deprecated"):
+            config.validate_paths()
         assert output_dir.exists()
 
 
@@ -488,8 +498,8 @@ class TestConfigWithOverridesNewSection:
         assert new_config.manufacturer.initial_assets == 20_000_000
 
 
-class TestConfigValidateCompleteness:
-    """Test validate_completeness (config.py line 1788)."""
+class TestConfigValidate:
+    """Test Config.validate_config() (Issue #1299)."""
 
     @pytest.fixture
     def base_config_v2(self):
@@ -512,8 +522,10 @@ class TestConfigValidateCompleteness:
             logging=LoggingConfig(),
         )
 
-    def test_validate_completeness_insurance_without_losses(self, base_config_v2):
-        """Flag when insurance is enabled but no loss distribution configured."""
+    def test_validate_raises_insurance_without_losses(self, base_config_v2):
+        """Raise ConfigurationError when insurance enabled but no losses configured."""
+        from ergodic_insurance.config.exceptions import ConfigurationError
+
         base_config_v2.insurance = InsuranceConfig(
             layers=[
                 InsuranceLayerConfig(
@@ -525,13 +537,12 @@ class TestConfigValidateCompleteness:
             ]
         )
         base_config_v2.losses = None
-        issues = base_config_v2.validate_completeness()
-        assert any("Insurance enabled but no loss distribution" in i for i in issues)
+        with pytest.raises(ConfigurationError, match="Insurance enabled but no loss distribution"):
+            base_config_v2.validate_config()
 
-    def test_validate_completeness_no_issues(self, base_config_v2):
-        """Fully configured config should have no completeness issues."""
-        issues = base_config_v2.validate_completeness()
-        assert issues == []
+    def test_validate_no_issues(self, base_config_v2):
+        """Fully configured config should pass validate_config() without raising."""
+        base_config_v2.validate_config()  # should not raise
 
 
 # ---------------------------------------------------------------------------

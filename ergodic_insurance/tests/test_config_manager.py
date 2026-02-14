@@ -670,6 +670,11 @@ class TestConfigManager:
                 "console_output": True,
                 "format": "%(asctime)s - %(levelname)s - %(message)s",
             },
+            "losses": {
+                "frequency_annual": 0.5,
+                "severity_mean": 500000,
+                "severity_std": 200000,
+            },
         }
 
         with open(temp_config_dir / "profiles" / "with_module.yaml", "w") as f:

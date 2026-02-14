@@ -76,6 +76,7 @@ import warnings
 
 from .constants import DEFAULT_RISK_FREE_RATE
 from .core import Config
+from .exceptions import ConfigurationError
 from .insurance import InsuranceConfig, InsuranceLayerConfig, LossDistributionConfig
 from .manufacturer import (
     DepreciationConfig,
@@ -127,6 +128,7 @@ __all__ = [
     "DEFAULT_RISK_FREE_RATE",
     # Core
     "Config",
+    "ConfigurationError",
     "ConfigV2",  # deprecated alias — points to Config
     # Insurance
     "InsuranceConfig",
