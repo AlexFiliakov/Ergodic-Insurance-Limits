@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Tests for multi-layer insurance program with reinstatements.
 
 Comprehensive test suite for advanced insurance program features including
@@ -12,6 +13,13 @@ import numpy as np
 import pytest
 import yaml
 
+from ergodic_insurance.config.core import Config
+from ergodic_insurance.config.insurance import (
+    InsuranceConfig,
+    InsuranceLayerConfig,
+    LossDistributionConfig,
+)
+from ergodic_insurance.config.simulation import GrowthConfig, SimulationConfig
 from ergodic_insurance.ergodic_types import ClaimResult, LayerPayment
 from ergodic_insurance.insurance_program import (
     EnhancedInsuranceLayer,
@@ -22,6 +30,7 @@ from ergodic_insurance.insurance_program import (
     ProgramState,
     ReinstatementType,
 )
+from ergodic_insurance.simulation import Simulation
 
 
 class TestEnhancedInsuranceLayer:
@@ -1743,3 +1752,311 @@ class TestClaimResultDataclass:
 
         with pytest.warns(DeprecationWarning, match="Dict-style access"):
             assert layer["payment"] == 1_750_000
+
+
+class TestInsuranceProgramFromConfig:
+    """Tests for InsuranceProgram.from_config() factory method."""
+
+    def test_single_layer(self):
+        """from_config with one layer maps all fields correctly."""
+        ic = InsuranceConfig(
+            deductible=500_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=500_000,
+                    limit=5_000_000,
+                    base_premium_rate=0.015,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        assert program.deductible == 500_000
+        assert len(program.layers) == 1
+        layer = program.layers[0]
+        assert layer.attachment_point == 500_000
+        assert layer.limit == 5_000_000
+        assert layer.base_premium_rate == 0.015
+        assert layer.reinstatements == 0
+        assert layer.limit_type == "per-occurrence"
+
+    def test_multi_layer(self):
+        """from_config with multiple layers sorts by attachment."""
+        ic = InsuranceConfig(
+            deductible=250_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Excess",
+                    attachment=5_000_000,
+                    limit=20_000_000,
+                    base_premium_rate=0.008,
+                    reinstatements=1,
+                ),
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=250_000,
+                    limit=4_750_000,
+                    base_premium_rate=0.015,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        assert len(program.layers) == 2
+        # InsuranceProgram sorts layers by attachment
+        assert program.layers[0].attachment_point == 250_000
+        assert program.layers[1].attachment_point == 5_000_000
+
+    def test_aggregate_limit_type(self):
+        """from_config preserves aggregate limit type and value."""
+        ic = InsuranceConfig(
+            deductible=100_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Aggregate",
+                    attachment=100_000,
+                    limit=2_000_000,
+                    base_premium_rate=0.02,
+                    limit_type="aggregate",
+                    aggregate_limit=5_000_000,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        layer = program.layers[0]
+        assert layer.limit_type == "aggregate"
+        assert layer.aggregate_limit == 5_000_000
+
+    def test_hybrid_limit_type(self):
+        """from_config preserves hybrid limit type fields."""
+        ic = InsuranceConfig(
+            deductible=100_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Hybrid",
+                    attachment=100_000,
+                    limit=2_000_000,
+                    base_premium_rate=0.02,
+                    limit_type="hybrid",
+                    per_occurrence_limit=1_000_000,
+                    aggregate_limit=5_000_000,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        layer = program.layers[0]
+        assert layer.limit_type == "hybrid"
+        assert layer.per_occurrence_limit == 1_000_000
+        assert layer.aggregate_limit == 5_000_000
+
+    def test_empty_layers(self):
+        """from_config with no layers creates program with no layers."""
+        ic = InsuranceConfig(deductible=100_000, layers=[])
+        program = InsuranceProgram.from_config(ic)
+
+        assert len(program.layers) == 0
+        assert program.deductible == 100_000
+
+    def test_custom_name(self):
+        """from_config accepts a custom program name."""
+        ic = InsuranceConfig(deductible=0, layers=[])
+        program = InsuranceProgram.from_config(ic, name="My Program")
+
+        assert program.name == "My Program"
+
+    def test_kwargs_forwarded(self):
+        """from_config forwards extra kwargs to constructor."""
+        ic = InsuranceConfig(deductible=0, layers=[])
+        program = InsuranceProgram.from_config(ic, max_history_years=100)
+
+        assert program.max_history_years == 100
+
+    def test_rejects_non_insurance_config(self):
+        """from_config raises TypeError for wrong input type."""
+        with pytest.raises(TypeError, match="Expected InsuranceConfig"):
+            InsuranceProgram.from_config({"deductible": 100})
+
+    def test_claim_processing_after_from_config(self):
+        """Program built via from_config processes claims correctly."""
+        ic = InsuranceConfig(
+            deductible=500_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=500_000,
+                    limit=5_000_000,
+                    base_premium_rate=0.015,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+        result = program.process_claim(2_000_000)
+
+        assert result.deductible_paid == 500_000
+        assert result.insurance_recovery == 1_500_000
+
+    def test_premium_calculation_after_from_config(self):
+        """Premium calculation works on from_config-built program."""
+        ic = InsuranceConfig(
+            deductible=250_000,
+            layers=[
+                InsuranceLayerConfig(
+                    name="Primary",
+                    attachment=250_000,
+                    limit=10_000_000,
+                    base_premium_rate=0.02,
+                ),
+            ],
+        )
+        program = InsuranceProgram.from_config(ic)
+
+        assert program.calculate_premium() == 10_000_000 * 0.02
+
+    def test_round_trip_yaml_config_program(self, tmp_path):
+        """End-to-end: YAML -> Config -> InsuranceProgram -> claims."""
+        yaml_data = {
+            "insurance": {
+                "enabled": True,
+                "deductible": 500_000,
+                "layers": [
+                    {
+                        "name": "Primary",
+                        "attachment": 500_000,
+                        "limit": 4_500_000,
+                        "base_premium_rate": 0.015,
+                    },
+                    {
+                        "name": "Excess",
+                        "attachment": 5_000_000,
+                        "limit": 20_000_000,
+                        "base_premium_rate": 0.008,
+                    },
+                ],
+            },
+        }
+        yaml_path = tmp_path / "test_config.yaml"
+        with open(yaml_path, "w") as f:
+            yaml.dump(yaml_data, f)
+
+        config = Config.from_yaml(yaml_path)
+        assert config.insurance is not None
+
+        program = InsuranceProgram.from_config(config.insurance)
+
+        assert program.deductible == 500_000
+        assert len(program.layers) == 2
+        assert program.layers[0].attachment_point == 500_000
+        assert program.layers[1].attachment_point == 5_000_000
+
+        # Process a large claim that hits both layers
+        result = program.process_claim(10_000_000)
+        assert result.insurance_recovery > 0
+        assert result.deductible_paid == 500_000
+
+
+class TestSimulationFromConfig:
+    """Tests for Simulation.from_config() factory method."""
+
+    def test_basic_from_config(self):
+        """Simulation.from_config builds a runnable simulation."""
+        config = Config(
+            insurance=InsuranceConfig(
+                deductible=500_000,
+                layers=[
+                    InsuranceLayerConfig(
+                        name="Primary",
+                        attachment=500_000,
+                        limit=5_000_000,
+                        base_premium_rate=0.015,
+                    ),
+                ],
+            ),
+            losses=LossDistributionConfig(
+                frequency_annual=0.1,
+                severity_mean=500_000,
+                severity_std=200_000,
+            ),
+        )
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.manufacturer is not None
+        assert sim.insurance_policy is not None
+        assert sim.insurance_policy.deductible == 500_000
+        assert len(sim.loss_generator) == 1
+        assert sim.time_horizon == config.simulation.time_horizon_years
+
+    def test_from_config_no_insurance(self):
+        """Simulation.from_config without insurance config sets policy to None."""
+        config = Config()
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.insurance_policy is None
+
+    def test_from_config_disabled_insurance(self):
+        """Simulation.from_config with disabled insurance sets policy to None."""
+        config = Config(
+            insurance=InsuranceConfig(
+                enabled=False,
+                deductible=500_000,
+                layers=[
+                    InsuranceLayerConfig(
+                        name="Primary",
+                        attachment=500_000,
+                        limit=5_000_000,
+                        base_premium_rate=0.015,
+                    ),
+                ],
+            ),
+        )
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.insurance_policy is None
+
+    def test_from_config_no_losses(self):
+        """Simulation.from_config without losses uses default generator."""
+        import warnings
+
+        config = Config()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            sim = Simulation.from_config(config, seed=42)
+
+        # Should still have a loss generator (default)
+        assert sim.loss_generator is not None
+
+    def test_from_config_growth_rate(self):
+        """Simulation.from_config passes growth rate from config."""
+        config = Config(growth=GrowthConfig(annual_growth_rate=0.07))
+        sim = Simulation.from_config(config, seed=42)
+
+        assert sim.growth_rate == 0.07
+
+    def test_from_config_runs_to_completion(self):
+        """Simulation built from config can run a short simulation."""
+        config = Config(
+            simulation=SimulationConfig(time_horizon_years=5),
+            insurance=InsuranceConfig(
+                deductible=100_000,
+                layers=[
+                    InsuranceLayerConfig(
+                        name="Primary",
+                        attachment=100_000,
+                        limit=1_000_000,
+                        base_premium_rate=0.02,
+                    ),
+                ],
+            ),
+            losses=LossDistributionConfig(
+                frequency_annual=0.5,
+                severity_mean=200_000,
+                severity_std=100_000,
+            ),
+        )
+        sim = Simulation.from_config(config, seed=123)
+        results = sim.run()
+
+        assert results is not None
+        assert len(results.years) == 5

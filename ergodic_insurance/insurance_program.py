@@ -22,6 +22,7 @@ from .ergodic_types import ClaimResult, LayerPayment
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from .config.insurance import InsuranceConfig
     from .exposure_base import ExposureBase
     from .insurance_pricing import InsurancePricer, MarketCycle
     from .loss_distributions import LossEvent, ManufacturingLossGenerator
@@ -563,6 +564,81 @@ class InsuranceProgram:
             pricing_enabled=source.pricing_enabled,
             pricer=source.pricer,
             max_history_years=source.max_history_years,
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        insurance_config: "InsuranceConfig",
+        name: str = "Insurance Program",
+        **kwargs,
+    ) -> "InsuranceProgram":
+        """Create an insurance program from an :class:`InsuranceConfig` object.
+
+        Bridges the config system (Pydantic models loaded from YAML/profiles)
+        to the runtime simulation by converting each
+        :class:`InsuranceLayerConfig` into an :class:`EnhancedInsuranceLayer`.
+
+        Args:
+            insurance_config: Validated insurance configuration, typically
+                obtained via ``Config.from_yaml(...).insurance``.
+            name: Program identifier.
+            **kwargs: Additional keyword arguments forwarded to the
+                ``InsuranceProgram`` constructor (e.g. ``pricing_enabled``).
+
+        Returns:
+            Configured InsuranceProgram ready for simulation.
+
+        Raises:
+            TypeError: If *insurance_config* is not an ``InsuranceConfig``.
+
+        Examples:
+            From a YAML file::
+
+                config = Config.from_yaml(Path("my_config.yaml"))
+                program = InsuranceProgram.from_config(config.insurance)
+
+            Inline config::
+
+                from ergodic_insurance.config.insurance import (
+                    InsuranceConfig, InsuranceLayerConfig,
+                )
+                ic = InsuranceConfig(
+                    deductible=500_000,
+                    layers=[
+                        InsuranceLayerConfig(
+                            name="Primary",
+                            attachment=500_000,
+                            limit=5_000_000,
+                            base_premium_rate=0.015,
+                        ),
+                    ],
+                )
+                program = InsuranceProgram.from_config(ic)
+        """
+        from .config.insurance import InsuranceConfig
+
+        if not isinstance(insurance_config, InsuranceConfig):
+            raise TypeError(f"Expected InsuranceConfig, got {type(insurance_config).__name__}")
+
+        layers: List[EnhancedInsuranceLayer] = []
+        for lc in insurance_config.layers:
+            layer = EnhancedInsuranceLayer(
+                attachment_point=lc.attachment,
+                limit=lc.limit,
+                base_premium_rate=lc.base_premium_rate,
+                reinstatements=lc.reinstatements,
+                aggregate_limit=lc.aggregate_limit,
+                limit_type=lc.limit_type,
+                per_occurrence_limit=lc.per_occurrence_limit,
+            )
+            layers.append(layer)
+
+        return cls(
+            layers=layers,
+            deductible=insurance_config.deductible,
+            name=name,
+            **kwargs,
         )
 
     @classmethod
