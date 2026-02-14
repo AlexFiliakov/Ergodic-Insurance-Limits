@@ -95,7 +95,7 @@ class TestSensitivityResult:
         assert "metric2" in result.metrics
 
     def test_calculate_impact(self):
-        """Test impact calculation."""
+        """Test point elasticity calculation."""
         result = SensitivityResult(
             parameter="test_param",
             baseline_value=10.0,
@@ -115,9 +115,30 @@ class TestSensitivityResult:
         constant_impact = result.calculate_impact("constant")
         assert constant_impact == 0.0
 
-        # Quadratic should have higher impact
+        # Quadratic: central diff at baseline → dM/dP = (1.32 - 0.72)/(11.5 - 8.5) = 0.2
+        # elasticity = 0.2 * (10.0 / 1.0) = 2.0
         quadratic_impact = result.calculate_impact("quadratic")
         assert quadratic_impact > linear_impact
+
+    def test_calculate_impact_sign(self):
+        """Test that point elasticity preserves sign (issue #1334)."""
+        # M = 2*P - 5 at P=5 → M=5, dM/dP=2, elasticity = 2*(5/5) = 2.0
+        result_pos = SensitivityResult(
+            parameter="param",
+            baseline_value=5.0,
+            variations=np.array([4.0, 5.0, 6.0]),
+            metrics={"m": np.array([3.0, 5.0, 7.0])},
+        )
+        assert result_pos.calculate_impact("m") == pytest.approx(2.0, abs=1e-9)
+
+        # M = -3*P + 25 at P=5 → M=10, dM/dP=-3, elasticity = -3*(5/10) = -1.5
+        result_neg = SensitivityResult(
+            parameter="param",
+            baseline_value=5.0,
+            variations=np.array([4.0, 5.0, 6.0]),
+            metrics={"m": np.array([13.0, 10.0, 7.0])},
+        )
+        assert result_neg.calculate_impact("m") == pytest.approx(-1.5, abs=1e-9)
 
     def test_calculate_impact_edge_cases(self):
         """Test impact calculation edge cases."""
