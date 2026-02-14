@@ -53,11 +53,18 @@ class OptimizationMethod(Enum):
 
 @dataclass
 class DecisionOptimizationConstraints:
-    """Constraints for insurance optimization."""
+    """Constraints for insurance optimization.
+
+    Attributes:
+        min_total_coverage: Minimum total program coverage (sum of all
+            layer limits).  This is *not* a per-occurrence layer limit;
+            it bounds the overall insurance program size.
+        max_total_coverage: Maximum total program coverage.
+    """
 
     max_premium_budget: float = field(default=1_000_000)
-    min_coverage_limit: float = field(default=5_000_000)
-    max_coverage_limit: float = field(default=100_000_000)
+    min_total_coverage: float = field(default=5_000_000)
+    max_total_coverage: float = field(default=100_000_000)
     max_bankruptcy_probability: float = field(default=0.01)
     min_retained_limit: float = field(default=100_000)
     max_retained_limit: float = field(default=10_000_000)
@@ -68,6 +75,30 @@ class DecisionOptimizationConstraints:
     max_insurance_cost_ratio: float = field(default=0.03)  # Max insurance cost as % of revenue
     min_coverage_requirement: float = field(default=0.0)  # Minimum required coverage
     max_retention_limit: float = field(default=float("inf"))  # Maximum retention allowed
+    # Deprecated aliases (use min_total_coverage / max_total_coverage instead)
+    min_coverage_limit: Optional[float] = field(default=None, repr=False)
+    max_coverage_limit: Optional[float] = field(default=None, repr=False)
+
+    def __post_init__(self):
+        """Resolve deprecated ``min_coverage_limit`` / ``max_coverage_limit`` aliases."""
+        if self.min_coverage_limit is not None:
+            warnings.warn(
+                "DecisionOptimizationConstraints.min_coverage_limit is deprecated. "
+                "Use min_total_coverage instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.min_total_coverage = self.min_coverage_limit
+            self.min_coverage_limit = None
+        if self.max_coverage_limit is not None:
+            warnings.warn(
+                "DecisionOptimizationConstraints.max_coverage_limit is deprecated. "
+                "Use max_total_coverage instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.max_total_coverage = self.max_coverage_limit
+            self.max_coverage_limit = None
 
 
 @dataclass
@@ -625,7 +656,7 @@ class InsuranceDecisionEngine:
                 decision = engine.optimize(
                     max_premium=1_000_000,
                     max_bankruptcy_probability=0.005,
-                    min_coverage_limit=10_000_000,
+                    min_total_coverage=10_000_000,
                 )
         """
         if max_premium is None:
@@ -801,7 +832,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit  # Start with minimum retention
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):  # Start with 2-3 layers
                 x0[i] = layer_size
@@ -809,7 +840,7 @@ class InsuranceDecisionEngine:
         # Bounds for decision variables
         bounds = [(constraints.min_retained_limit, constraints.max_retained_limit)]
         for _ in range(constraints.max_layers):
-            bounds.append((0, constraints.max_coverage_limit / constraints.max_layers))
+            bounds.append((0, constraints.max_total_coverage / constraints.max_layers))
 
         # Define objective function
         def objective(x):
@@ -852,7 +883,7 @@ class InsuranceDecisionEngine:
                 Constraint value (positive when satisfied)
             """
             total_coverage = sum(x)
-            return total_coverage - constraints.min_coverage_limit
+            return total_coverage - constraints.min_total_coverage
 
         def coverage_max_constraint(x):
             """Constraint function for maximum coverage.
@@ -864,7 +895,7 @@ class InsuranceDecisionEngine:
                 Constraint value (positive when satisfied)
             """
             total_coverage = sum(x)
-            return constraints.max_coverage_limit - total_coverage
+            return constraints.max_total_coverage - total_coverage
 
         constraint_list.extend(
             [
@@ -910,7 +941,7 @@ class InsuranceDecisionEngine:
         # Bounds for decision variables
         bounds = [(constraints.min_retained_limit, constraints.max_retained_limit)]
         for _ in range(constraints.max_layers):
-            bounds.append((0, constraints.max_coverage_limit / constraints.max_layers))
+            bounds.append((0, constraints.max_total_coverage / constraints.max_layers))
 
         # Define objective with penalty for constraint violations
         def objective_with_penalty(x):
@@ -934,10 +965,10 @@ class InsuranceDecisionEngine:
 
             # Coverage constraints
             total_coverage = sum(x)
-            if total_coverage < constraints.min_coverage_limit:
-                penalty += 1000 * (constraints.min_coverage_limit - total_coverage)
-            if total_coverage > constraints.max_coverage_limit:
-                penalty += 1000 * (total_coverage - constraints.max_coverage_limit)
+            if total_coverage < constraints.min_total_coverage:
+                penalty += 1000 * (constraints.min_total_coverage - total_coverage)
+            if total_coverage > constraints.max_total_coverage:
+                penalty += 1000 * (total_coverage - constraints.max_total_coverage)
 
             # Bankruptcy constraint
             bankruptcy_prob = self._estimate_bankruptcy_probability(x)
@@ -1001,7 +1032,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -1010,7 +1041,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -1039,7 +1070,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -1048,7 +1079,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -1077,7 +1108,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -1086,7 +1117,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -1113,7 +1144,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -1122,7 +1153,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -1149,7 +1180,7 @@ class InsuranceDecisionEngine:
         x0[0] = constraints.min_retained_limit
         if constraints.max_layers > 0:
             layer_size = (
-                constraints.max_coverage_limit - constraints.min_retained_limit
+                constraints.max_total_coverage - constraints.min_retained_limit
             ) / constraints.max_layers
             for i in range(1, min(3, n_vars)):
                 x0[i] = layer_size
@@ -1158,7 +1189,7 @@ class InsuranceDecisionEngine:
         bounds = Bounds(
             lb=[constraints.min_retained_limit] + [0] * constraints.max_layers,
             ub=[constraints.max_retained_limit]
-            + [constraints.max_coverage_limit / constraints.max_layers] * constraints.max_layers,
+            + [constraints.max_total_coverage / constraints.max_layers] * constraints.max_layers,
         )
 
         # Create constraints list
@@ -1193,11 +1224,11 @@ class InsuranceDecisionEngine:
         # Coverage limit constraints
         def coverage_min_constraint(x):
             total_coverage = sum(x)
-            return total_coverage - constraints.min_coverage_limit
+            return total_coverage - constraints.min_total_coverage
 
         def coverage_max_constraint(x):
             total_coverage = sum(x)
-            return constraints.max_coverage_limit - total_coverage
+            return constraints.max_total_coverage - total_coverage
 
         constraint_list.extend(
             [
@@ -1557,10 +1588,10 @@ class InsuranceDecisionEngine:
             return False
 
         # Check coverage limits
-        if decision.total_coverage < constraints.min_coverage_limit:
+        if decision.total_coverage < constraints.min_total_coverage:
             logger.warning(f"Coverage ${decision.total_coverage:,.0f} below minimum")
             return False
-        if decision.total_coverage > constraints.max_coverage_limit:
+        if decision.total_coverage > constraints.max_total_coverage:
             logger.warning(f"Coverage ${decision.total_coverage:,.0f} above maximum")
             return False
 

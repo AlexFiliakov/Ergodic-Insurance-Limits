@@ -143,8 +143,8 @@ class TestWeightedSumOptimization:
         """Test explicit WEIGHTED_SUM optimization method."""
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=400_000,
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=15_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=15_000_000,
             max_layers=3,
         )
 
@@ -159,9 +159,9 @@ class TestWeightedSumOptimization:
         ]  # Uses SLSQP or weighted_sum
         assert decision.total_premium <= constraints.max_premium_budget
         assert (
-            constraints.min_coverage_limit
+            constraints.min_total_coverage
             <= decision.total_coverage
-            <= constraints.max_coverage_limit
+            <= constraints.max_total_coverage
         )
 
 
@@ -391,8 +391,8 @@ class TestDecisionValidationFailures:
     def test_validation_failure_coverage_below_minimum(self, engine):
         """Test validation when coverage is below minimum."""
         constraints = DecisionOptimizationConstraints(
-            min_coverage_limit=10_000_000,
-            max_coverage_limit=20_000_000,
+            min_total_coverage=10_000_000,
+            max_total_coverage=20_000_000,
         )
 
         decision = InsuranceDecision(
@@ -409,8 +409,8 @@ class TestDecisionValidationFailures:
     def test_validation_failure_coverage_above_maximum(self, engine):
         """Test validation when coverage exceeds maximum."""
         constraints = DecisionOptimizationConstraints(
-            min_coverage_limit=5_000_000,
-            max_coverage_limit=10_000_000,
+            min_total_coverage=5_000_000,
+            max_total_coverage=10_000_000,
         )
 
         decision = InsuranceDecision(
@@ -974,8 +974,8 @@ class TestDifferentialEvolutionPenalties:
     def test_differential_evolution_coverage_max_penalty(self, engine):
         """Test penalty when coverage exceeds maximum in differential evolution."""
         constraints = DecisionOptimizationConstraints(
-            max_coverage_limit=10_000_000,
-            min_coverage_limit=5_000_000,
+            max_total_coverage=10_000_000,
+            min_total_coverage=5_000_000,
             max_premium_budget=500_000,
         )
 
@@ -986,8 +986,8 @@ class TestDifferentialEvolutionPenalties:
         def track_objective(x, weights):
             calls_made.append(x.copy())
             # Force high coverage to trigger penalty
-            if len(x) > 0 and sum(x) > constraints.max_coverage_limit:
-                return 1000 * (sum(x) - constraints.max_coverage_limit)
+            if len(x) > 0 and sum(x) > constraints.max_total_coverage:
+                return 1000 * (sum(x) - constraints.max_total_coverage)
             return original_objective(x, weights)
 
         with patch.object(engine, "_calculate_objective", side_effect=track_objective):

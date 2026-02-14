@@ -449,7 +449,7 @@ class TestOptimizationWorkflow:
         # Create optimization constraints
         constraints = DecisionOptimizationConstraints(
             max_premium_budget=500_000,
-            min_coverage_limit=2_000_000,
+            min_total_coverage=2_000_000,
             max_bankruptcy_probability=0.02,  # 2% ruin probability
         )
 
