@@ -282,16 +282,34 @@ class TestAccrualIntegration:
         ), f"AccrualManager should have zero remaining after discharge, got {remaining}"
 
     def test_tax_accrual_creates_ledger_entry(self, manufacturer):
-        """Test that tax accrual creates Dr TAX_EXPENSE / Cr ACCRUED_TAXES (Issue #1081)."""
+        """Test that tax accrual creates Dr TAX_EXPENSE / Cr ACCRUED_TAXES (Issue #1081).
+
+        Issue #1297: After GAAP closing entries, TAX_EXPENSE is properly
+        zeroed.  We verify the tax entries exist in the ledger (non-zero
+        before closing) and that the closing process correctly zeroed
+        the temporary account.
+        """
         # Run a step to generate income and accrue taxes
         metrics = manufacturer.step(time_resolution="annual")
 
         if metrics["net_income"] > 0:
-            # TAX_EXPENSE should now be in the ledger
+            # Issue #1297: TAX_EXPENSE is a temporary account and is now
+            # properly closed to RE at period end.  Verify that tax entries
+            # were recorded by checking that the ledger contains TAX_EXPENSE
+            # entries (the account was used, even though its balance is zero
+            # after closing).
+            tax_entries = [
+                e for e in manufacturer.ledger.entries if e.account == AccountName.TAX_EXPENSE.value
+            ]
+            assert (
+                len(tax_entries) > 0
+            ), "TAX_EXPENSE entries should exist in the ledger after profitable year"
+
+            # TAX_EXPENSE balance should be zero after GAAP closing (Issue #1297)
             tax_expense_balance = manufacturer.ledger.get_balance(AccountName.TAX_EXPENSE)
             assert (
-                tax_expense_balance > ZERO
-            ), "TAX_EXPENSE ledger balance should be positive after profitable year"
+                tax_expense_balance == ZERO
+            ), f"TAX_EXPENSE should be zero after closing, got {tax_expense_balance}"
 
             # ACCRUED_TAXES in ledger should match AccrualManager
             accrued_taxes_ledger = manufacturer.ledger.get_balance(AccountName.ACCRUED_TAXES)

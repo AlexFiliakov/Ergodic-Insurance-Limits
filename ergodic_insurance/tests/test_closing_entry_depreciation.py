@@ -132,12 +132,16 @@ class TestClosingEntryDepreciation:
         )
 
     def test_temporary_accounts_zeroed_after_closing(self, manufacturer):
-        """All temporary accounts should be zero after closing (Issue #1326)."""
+        """All temporary accounts should be zero after closing (Issue #1297)."""
+        from ergodic_insurance.ledger import CHART_OF_ACCOUNTS, AccountType
+
         net_income = to_decimal(400_000)
         depreciation = to_decimal(100_000)
         revenue = to_decimal(1_000_000)
         cogs = to_decimal(300_000)
         opex = to_decimal(50_000)
+        insurance_exp = to_decimal(30_000)
+        tax_exp = to_decimal(20_000)
 
         manufacturer.ledger.record_double_entry(
             date=manufacturer.current_year,
@@ -175,6 +179,24 @@ class TestClosingEntryDepreciation:
             description="Test OPEX",
         )
 
+        # Issue #1297: Record additional expense accounts that were previously unclosed
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.INSURANCE_EXPENSE,
+            credit_account=AccountName.PREPAID_INSURANCE,
+            amount=insurance_exp,
+            transaction_type=TransactionType.EXPENSE,
+            description="Test insurance amortization",
+        )
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.TAX_EXPENSE,
+            credit_account=AccountName.ACCRUED_TAXES,
+            amount=tax_exp,
+            transaction_type=TransactionType.EXPENSE,
+            description="Test tax accrual",
+        )
+
         manufacturer.update_balance_sheet(
             net_income,
             depreciation_expense=depreciation,
@@ -183,15 +205,13 @@ class TestClosingEntryDepreciation:
             opex_expense=opex,
         )
 
-        # All temporary accounts should be zeroed
-        sales_bal = manufacturer.ledger.get_balance(AccountName.SALES_REVENUE)
-        dep_bal = manufacturer.ledger.get_balance(AccountName.DEPRECIATION_EXPENSE)
-        cogs_bal = manufacturer.ledger.get_balance(AccountName.COST_OF_GOODS_SOLD)
-        opex_bal = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
-        assert sales_bal == ZERO, f"SALES_REVENUE should be zero after closing, got {sales_bal}"
-        assert dep_bal == ZERO, f"DEPRECIATION_EXPENSE should be zero after closing, got {dep_bal}"
-        assert cogs_bal == ZERO, f"COST_OF_GOODS_SOLD should be zero after closing, got {cogs_bal}"
-        assert opex_bal == ZERO, f"OPERATING_EXPENSES should be zero after closing, got {opex_bal}"
+        # Issue #1297: ALL temporary accounts should be zeroed
+        for account, acct_type in CHART_OF_ACCOUNTS.items():
+            if acct_type in (AccountType.REVENUE, AccountType.EXPENSE):
+                balance = manufacturer.ledger.get_balance(account)
+                assert (
+                    balance == ZERO
+                ), f"{account.value} should be zero after closing, got {balance}"
 
     def test_cogs_opex_zeroed_after_closing_in_step(self, manufacturer):
         """COGS and OPEX should be zeroed after closing entries in step() (Issue #1326).
@@ -224,22 +244,22 @@ class TestClosingEntryDepreciation:
         ), f"RE change ({re_change}) should equal net_income ({expected_re_change})"
 
     def test_temporary_accounts_zeroed_after_step(self, manufacturer):
-        """After step(), all temporary accounts should have zero balance (Issue #1326).
+        """After step(), ALL temporary accounts should have zero balance (Issue #1297).
 
-        step() records revenue, COGS, OPEX, and depreciation entries,
-        then closing entries zero all temporary accounts.
+        step() records revenue, COGS, OPEX, depreciation, and potentially
+        insurance/tax entries, then closing entries zero all temporary accounts.
         """
+        from ergodic_insurance.ledger import CHART_OF_ACCOUNTS, AccountType
+
         manufacturer.step(growth_rate=0.0, time_resolution="annual")
 
-        # Verify all temporary accounts are zeroed after closing
-        sales_bal = manufacturer.ledger.get_balance(AccountName.SALES_REVENUE)
-        dep_bal = manufacturer.ledger.get_balance(AccountName.DEPRECIATION_EXPENSE)
-        cogs_bal = manufacturer.ledger.get_balance(AccountName.COST_OF_GOODS_SOLD)
-        opex_bal = manufacturer.ledger.get_balance(AccountName.OPERATING_EXPENSES)
-        assert sales_bal == ZERO, f"SALES_REVENUE not zero after closing: {sales_bal}"
-        assert dep_bal == ZERO, f"DEPRECIATION_EXPENSE not zero after closing: {dep_bal}"
-        assert cogs_bal == ZERO, f"COST_OF_GOODS_SOLD not zero after closing: {cogs_bal}"
-        assert opex_bal == ZERO, f"OPERATING_EXPENSES not zero after closing: {opex_bal}"
+        # Issue #1297: Verify EVERY temporary account is zeroed after closing
+        for account, acct_type in CHART_OF_ACCOUNTS.items():
+            if acct_type in (AccountType.REVENUE, AccountType.EXPENSE):
+                balance = manufacturer.ledger.get_balance(account)
+                assert (
+                    balance == ZERO
+                ), f"{account.value} ({acct_type.value}) not zero after closing: {balance}"
 
     def test_loss_scenario_closing_entries(self, manufacturer):
         """Closing entries should work correctly when net_income is negative."""
@@ -296,3 +316,331 @@ class TestClosingEntryDepreciation:
         assert (
             manufacturer.cash == expected_cash
         ), f"Cash should be {expected_cash} in loss scenario, got {manufacturer.cash}"
+
+
+class TestGAAPClosingAllTemporaryAccounts:
+    """Verify all temporary accounts are closed per GAAP (Issue #1297).
+
+    The core bug: _record_closing_entries only closed SALES_REVENUE,
+    DEPRECIATION_EXPENSE, COGS, and OPEX to retained earnings.  All other
+    income statement accounts (INSURANCE_EXPENSE, INSURANCE_LOSS, TAX_EXPENSE,
+    INTEREST_EXPENSE, LAE_EXPENSE, RESERVE_DEVELOPMENT, INTEREST_INCOME,
+    INSURANCE_RECOVERY, etc.) were never closed, causing their balances to
+    persist across periods.
+    """
+
+    @pytest.fixture
+    def manufacturer(self):
+        """Create a manufacturer with standard config for GAAP closing tests."""
+        config = ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=0.8,
+            base_operating_margin=0.08,
+            tax_rate=0.25,
+            retention_ratio=1.0,
+            capex_to_depreciation_ratio=0.0,
+        )
+        return WidgetManufacturer(config)
+
+    def test_all_temporary_accounts_zeroed_with_multiple_expense_types(self, manufacturer):
+        """Every revenue and expense account must be zero after closing.
+
+        Records entries to multiple previously-unclosed accounts and verifies
+        closing entries zero them all.
+        """
+        from ergodic_insurance.ledger import CHART_OF_ACCOUNTS, AccountType
+
+        revenue = to_decimal(1_000_000)
+        depreciation = to_decimal(100_000)
+        cogs = to_decimal(300_000)
+        opex = to_decimal(50_000)
+        insurance_exp = to_decimal(80_000)
+        insurance_loss = to_decimal(40_000)
+        tax_exp = to_decimal(75_000)
+        lae_exp = to_decimal(10_000)
+        interest_income = to_decimal(5_000)
+
+        # Revenue
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+            credit_account=AccountName.SALES_REVENUE,
+            amount=revenue,
+            transaction_type=TransactionType.REVENUE,
+            description="Sales",
+        )
+
+        # Depreciation (non-cash)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.DEPRECIATION_EXPENSE,
+            credit_account=AccountName.ACCUMULATED_DEPRECIATION,
+            amount=depreciation,
+            transaction_type=TransactionType.DEPRECIATION,
+            description="Depreciation",
+        )
+
+        # COGS and OPEX (cash)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.COST_OF_GOODS_SOLD,
+            credit_account=AccountName.CASH,
+            amount=cogs,
+            transaction_type=TransactionType.EXPENSE,
+            description="COGS",
+        )
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.OPERATING_EXPENSES,
+            credit_account=AccountName.CASH,
+            amount=opex,
+            transaction_type=TransactionType.EXPENSE,
+            description="OPEX",
+        )
+
+        # Insurance expense (amortization of prepaid)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.INSURANCE_EXPENSE,
+            credit_account=AccountName.PREPAID_INSURANCE,
+            amount=insurance_exp,
+            transaction_type=TransactionType.EXPENSE,
+            description="Insurance amortization",
+        )
+
+        # Insurance loss (claim liability)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.INSURANCE_LOSS,
+            credit_account=AccountName.CLAIM_LIABILITIES,
+            amount=insurance_loss,
+            transaction_type=TransactionType.INSURANCE_CLAIM,
+            description="Claim loss",
+        )
+
+        # Tax expense (accrual)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.TAX_EXPENSE,
+            credit_account=AccountName.ACCRUED_TAXES,
+            amount=tax_exp,
+            transaction_type=TransactionType.EXPENSE,
+            description="Tax accrual",
+        )
+
+        # LAE expense
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.LAE_EXPENSE,
+            credit_account=AccountName.CLAIM_LIABILITIES,
+            amount=lae_exp,
+            transaction_type=TransactionType.INSURANCE_CLAIM,
+            description="LAE",
+        )
+
+        # Interest income (revenue)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.INTEREST_INCOME,
+            amount=interest_income,
+            transaction_type=TransactionType.REVENUE,
+            description="Interest earned",
+        )
+
+        # net_income = revenue + interest_income - all expenses
+        net_income = (
+            revenue
+            + interest_income
+            - depreciation
+            - cogs
+            - opex
+            - insurance_exp
+            - tax_exp
+            - insurance_loss
+            - lae_exp
+        )
+
+        manufacturer.update_balance_sheet(
+            net_income,
+            depreciation_expense=depreciation,
+            period_revenue=revenue,
+            cogs_expense=cogs,
+            opex_expense=opex,
+        )
+
+        # Every temporary account must be zero
+        for account, acct_type in CHART_OF_ACCOUNTS.items():
+            if acct_type in (AccountType.REVENUE, AccountType.EXPENSE):
+                balance = manufacturer.ledger.get_balance(account)
+                assert balance == ZERO, (
+                    f"{account.value} ({acct_type.value}) should be zero "
+                    f"after closing, got {balance}"
+                )
+
+    def test_re_equals_net_income_with_all_accounts(self, manufacturer):
+        """RE should change by exactly net_income even with many temp accounts."""
+        initial_re = manufacturer.ledger.get_balance(AccountName.RETAINED_EARNINGS)
+
+        revenue = to_decimal(1_000_000)
+        depreciation = to_decimal(100_000)
+        insurance_exp = to_decimal(80_000)
+        tax_exp = to_decimal(75_000)
+        interest_income = to_decimal(5_000)
+
+        # Revenue
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+            credit_account=AccountName.SALES_REVENUE,
+            amount=revenue,
+            transaction_type=TransactionType.REVENUE,
+            description="Sales",
+        )
+        # Collect cash
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.ACCOUNTS_RECEIVABLE,
+            amount=revenue,
+            transaction_type=TransactionType.COLLECTION,
+            description="Collection",
+        )
+        # Depreciation
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.DEPRECIATION_EXPENSE,
+            credit_account=AccountName.ACCUMULATED_DEPRECIATION,
+            amount=depreciation,
+            transaction_type=TransactionType.DEPRECIATION,
+            description="Depreciation",
+        )
+        # Insurance expense
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.INSURANCE_EXPENSE,
+            credit_account=AccountName.PREPAID_INSURANCE,
+            amount=insurance_exp,
+            transaction_type=TransactionType.EXPENSE,
+            description="Insurance",
+        )
+        # Tax expense
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.TAX_EXPENSE,
+            credit_account=AccountName.ACCRUED_TAXES,
+            amount=tax_exp,
+            transaction_type=TransactionType.EXPENSE,
+            description="Tax",
+        )
+        # Interest income
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.CASH,
+            credit_account=AccountName.INTEREST_INCOME,
+            amount=interest_income,
+            transaction_type=TransactionType.REVENUE,
+            description="Interest",
+        )
+
+        net_income = revenue + interest_income - depreciation - insurance_exp - tax_exp
+
+        manufacturer.update_balance_sheet(
+            net_income,
+            depreciation_expense=depreciation,
+            period_revenue=revenue,
+        )
+
+        final_re = manufacturer.ledger.get_balance(AccountName.RETAINED_EARNINGS)
+        re_change = final_re - initial_re
+        assert (
+            re_change == net_income
+        ), f"RE change ({re_change}) should equal net_income ({net_income})"
+
+    def test_favorable_reserve_development_closes_correctly(self, manufacturer):
+        """Favorable reserve development (credit balance on expense account)
+        should be properly closed to RE.
+        """
+        initial_re = manufacturer.ledger.get_balance(AccountName.RETAINED_EARNINGS)
+
+        revenue = to_decimal(1_000_000)
+        depreciation = to_decimal(100_000)
+        favorable_dev = to_decimal(20_000)
+
+        # Revenue
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.ACCOUNTS_RECEIVABLE,
+            credit_account=AccountName.SALES_REVENUE,
+            amount=revenue,
+            transaction_type=TransactionType.REVENUE,
+            description="Sales",
+        )
+        # Depreciation
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.DEPRECIATION_EXPENSE,
+            credit_account=AccountName.ACCUMULATED_DEPRECIATION,
+            amount=depreciation,
+            transaction_type=TransactionType.DEPRECIATION,
+            description="Depreciation",
+        )
+        # Favorable reserve development: Dr CLAIM_LIABILITIES / Cr RESERVE_DEVELOPMENT
+        # This gives RESERVE_DEVELOPMENT a CREDIT balance (negative for expense account)
+        manufacturer.ledger.record_double_entry(
+            date=manufacturer.current_year,
+            debit_account=AccountName.CLAIM_LIABILITIES,
+            credit_account=AccountName.RESERVE_DEVELOPMENT,
+            amount=favorable_dev,
+            transaction_type=TransactionType.RESERVE_DEVELOPMENT,
+            description="Favorable reserve development",
+        )
+
+        # net_income includes favorable development as a gain
+        net_income = revenue - depreciation + favorable_dev
+
+        manufacturer.update_balance_sheet(
+            net_income,
+            depreciation_expense=depreciation,
+            period_revenue=revenue,
+        )
+
+        # RESERVE_DEVELOPMENT should be zero (credit balance was closed)
+        rd_bal = manufacturer.ledger.get_balance(AccountName.RESERVE_DEVELOPMENT)
+        assert rd_bal == ZERO, f"RESERVE_DEVELOPMENT should be zero after closing, got {rd_bal}"
+
+        # RE should change by net_income
+        final_re = manufacturer.ledger.get_balance(AccountName.RETAINED_EARNINGS)
+        re_change = final_re - initial_re
+        assert (
+            re_change == net_income
+        ), f"RE change ({re_change}) should equal net_income ({net_income})"
+
+    def test_multi_period_accounts_reset_each_period(self, manufacturer):
+        """Temporary accounts should not accumulate across periods (Issue #1297).
+
+        This was the core bug: get_balance() returned cumulative multi-period
+        balances instead of single-period amounts.
+        """
+        # Run period 1
+        manufacturer.step(growth_rate=0.0, time_resolution="annual")
+
+        # After period 1: all temp accounts should be zero
+        ins_bal_1 = manufacturer.ledger.get_balance(AccountName.INSURANCE_EXPENSE)
+        tax_bal_1 = manufacturer.ledger.get_balance(AccountName.TAX_EXPENSE)
+        assert ins_bal_1 == ZERO, f"Period 1: INSURANCE_EXPENSE not zero: {ins_bal_1}"
+        assert tax_bal_1 == ZERO, f"Period 1: TAX_EXPENSE not zero: {tax_bal_1}"
+
+        # Run period 2
+        manufacturer.step(growth_rate=0.0, time_resolution="annual")
+
+        # After period 2: still zero — should NOT accumulate
+        ins_bal_2 = manufacturer.ledger.get_balance(AccountName.INSURANCE_EXPENSE)
+        tax_bal_2 = manufacturer.ledger.get_balance(AccountName.TAX_EXPENSE)
+        assert ins_bal_2 == ZERO, (
+            f"Period 2: INSURANCE_EXPENSE accumulated ({ins_bal_2}), "
+            f"should be zero after closing"
+        )
+        assert tax_bal_2 == ZERO, (
+            f"Period 2: TAX_EXPENSE accumulated ({tax_bal_2}), " f"should be zero after closing"
+        )
