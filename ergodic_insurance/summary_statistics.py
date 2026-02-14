@@ -279,12 +279,16 @@ class SummaryStatistics:
     def _weighted_percentile(
         self, data: np.ndarray, weights: np.ndarray, percentile: float
     ) -> float:
-        """Calculate weighted percentile.
+        """Calculate weighted percentile with linear interpolation.
+
+        Uses the midpoint (weight-center) convention for cumulative weights,
+        consistent with TDigest.quantile(). Interpolates linearly between
+        adjacent order statistics for a continuous quantile function.
 
         Args:
             data: Data values
-            weights: Weights
-            percentile: Percentile to calculate
+            weights: Weights (must be non-negative)
+            percentile: Percentile to calculate (0-100)
 
         Returns:
             Weighted percentile value
@@ -296,7 +300,11 @@ class SummaryStatistics:
         cumsum = np.cumsum(sorted_weights)
         cutoff = percentile / 100.0 * cumsum[-1]
 
-        return float(sorted_data[np.searchsorted(cumsum, cutoff)])
+        # Use weight centers (midpoint convention) for interpolation,
+        # matching TDigest.quantile() convention.
+        centers = cumsum - sorted_weights / 2.0
+
+        return float(np.interp(cutoff, centers, sorted_data))
 
     def _fit_distributions(self, data: np.ndarray) -> Dict[str, Dict[str, float]]:
         """Fit various distributions to data.
