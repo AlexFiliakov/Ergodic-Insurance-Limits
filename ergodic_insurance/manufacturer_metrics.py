@@ -116,15 +116,26 @@ class MetricsCalculationMixin:
         if cached is not None:
             net_income = cached
         else:
+            # Fallback: compute net income directly but protect NOL state from
+            # mutation (Issue #1331).  Save and restore the tax handler's mutable
+            # fields so that this read-only metrics path cannot corrupt the
+            # authoritative NOL carryforward or consecutive-loss-year counter.
             logger.warning(
                 "calculate_metrics() called without prior step() — "
-                "computing net income directly (tax state will be mutated)"
+                "computing net income directly (NOL state preserved)"
             )
+            tax_handler = getattr(self, "tax_handler", None)
+            if tax_handler is not None:
+                saved_nol = tax_handler.nol_carryforward
+                saved_loss_years = tax_handler.consecutive_loss_years
             net_income = self.calculate_net_income(
                 operating_income,
                 collateral_costs,
                 use_accrual=False,
             )
+            if tax_handler is not None:
+                tax_handler.nol_carryforward = saved_nol
+                tax_handler.consecutive_loss_years = saved_loss_years
 
         metrics["revenue"] = revenue
         metrics["operating_income"] = operating_income

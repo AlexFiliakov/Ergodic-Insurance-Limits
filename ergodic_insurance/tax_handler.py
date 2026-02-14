@@ -201,14 +201,16 @@ class TaxHandler:
         """
         return self.deferred_tax_asset - self.valuation_allowance
 
-    def calculate_tax_liability(
+    def estimate_tax_liability(
         self, income_before_tax: Union[Decimal, float]
     ) -> tuple[Decimal, Decimal]:
-        """Calculate tax liability with NOL carryforward per IRC §172.
+        """Estimate tax liability without mutating NOL state (pure query).
 
-        For negative income: accumulates the loss into nol_carryforward (no tax due).
-        For positive income: applies available NOL carryforward subject to the
-        80% limitation per IRC §172(a)(2) before computing tax.
+        This is the read-only counterpart to :meth:`calculate_tax_liability`.
+        It computes the same tax liability and NOL utilization values but does
+        NOT modify ``nol_carryforward`` or ``consecutive_loss_years``, making
+        it safe to call from metrics, decision-engine estimation, or any other
+        context where tax state must not change (Issue #1331).
 
         Args:
             income_before_tax: Pre-tax income (may be negative).
@@ -221,22 +223,14 @@ class TaxHandler:
         income = to_decimal(income_before_tax)
 
         if income <= ZERO:
-            # Loss year: accumulate NOL per IRC §172(b)(1)(A)(ii)
-            self.nol_carryforward += abs(income)
-            # Track consecutive loss years for valuation allowance (Issue #464)
-            self.consecutive_loss_years += 1
+            # Loss year — no tax due, no NOL utilization
             return to_decimal(0), to_decimal(0)
-
-        # Profit year: reset consecutive loss counter (Issue #464)
-        self.consecutive_loss_years = 0
 
         if self.nol_carryforward <= ZERO:
             # No NOL available — standard tax
             return max(to_decimal(0), income * to_decimal(self.tax_rate)), to_decimal(0)
 
-        # Apply NOL deduction limitation per IRC §172(a)(2):
-        # Post-TCJA (apply_tcja_limitation=True): limited to nol_limitation_pct (80%)
-        # Pre-TCJA (apply_tcja_limitation=False): 100% of taxable income (no limit)
+        # Apply NOL deduction limitation per IRC §172(a)(2)
         if self.apply_tcja_limitation:
             max_nol_deduction = income * to_decimal(self.nol_limitation_pct)
         else:
@@ -244,9 +238,48 @@ class TaxHandler:
         nol_utilized = min(self.nol_carryforward, max_nol_deduction)
 
         taxable_income = income - nol_utilized
-        self.nol_carryforward -= nol_utilized
-
         tax = max(to_decimal(0), taxable_income * to_decimal(self.tax_rate))
+        return tax, nol_utilized
+
+    def calculate_tax_liability(
+        self, income_before_tax: Union[Decimal, float]
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate tax liability with NOL carryforward per IRC §172.
+
+        For negative income: accumulates the loss into nol_carryforward (no tax due).
+        For positive income: applies available NOL carryforward subject to the
+        80% limitation per IRC §172(a)(2) before computing tax.
+
+        Unlike :meth:`estimate_tax_liability`, this method **mutates** the
+        ``nol_carryforward`` and ``consecutive_loss_years`` state.  Use this
+        only in the authoritative tax-commit path (i.e., inside
+        :meth:`calculate_and_accrue_tax` during ``step()``).
+
+        Args:
+            income_before_tax: Pre-tax income (may be negative).
+
+        Returns:
+            Tuple of (tax_liability, nol_utilized):
+            - tax_liability: Tax due after NOL offset (>= 0).
+            - nol_utilized: Amount of NOL consumed this period.
+        """
+        income = to_decimal(income_before_tax)
+
+        # Compute pure result first
+        tax, nol_utilized = self.estimate_tax_liability(income_before_tax)
+
+        # Apply state mutations
+        if income <= ZERO:
+            # Loss year: accumulate NOL per IRC §172(b)(1)(A)(ii)
+            self.nol_carryforward += abs(income)
+            # Track consecutive loss years for valuation allowance (Issue #464)
+            self.consecutive_loss_years += 1
+        else:
+            # Profit year: reset consecutive loss counter (Issue #464)
+            self.consecutive_loss_years = 0
+            # Consume the NOL utilized
+            self.nol_carryforward -= nol_utilized
+
         return tax, nol_utilized
 
     def apply_limited_liability_cap(
