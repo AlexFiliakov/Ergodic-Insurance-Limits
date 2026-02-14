@@ -46,6 +46,7 @@ Examples:
 """
 
 import copy as copy_module
+from dataclasses import dataclass, field
 from decimal import Decimal
 import logging
 import random
@@ -110,6 +111,19 @@ from ergodic_insurance.manufacturer_solvency import SolvencyMixin
 from ergodic_insurance.tax_handler import TaxHandler  # noqa: F401  pylint: disable=unused-import
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _PPECohort:
+    """A vintage-year cohort of PP&E assets for depreciation tracking (Issue #1321).
+
+    Tracks gross cost and cumulative tax depreciation per acquisition cohort
+    so that per-cohort remaining-basis caps are applied correctly in the DTL
+    calculation (ASC 740-10-25-20).
+    """
+
+    amount: Decimal
+    tax_accumulated_depreciation: Decimal = field(default_factory=lambda: ZERO)
 
 
 class WidgetManufacturer(
@@ -283,6 +297,11 @@ class WidgetManufacturer(
             restricted_assets=initial_restricted_assets,
         )
 
+        # PP&E vintage cohort tracking for accurate DTL calculation (Issue #1321)
+        self._ppe_cohorts: List[_PPECohort] = []
+        if initial_gross_ppe > ZERO:
+            self._ppe_cohorts.append(_PPECohort(amount=initial_gross_ppe))
+
         # Pre-compute frequently used config conversions (Issue #1142)
         self._cache_config_values()
 
@@ -290,6 +309,7 @@ class WidgetManufacturer(
         """Pre-compute to_decimal() conversions for config values (Issue #1142)."""
         self._cached_capex_ratio = to_decimal(self.config.capex_to_depreciation_ratio)
         self._cached_base_margin_complement = to_decimal(1 - self.base_operating_margin)
+        self._cached_book_life = to_decimal(self.config.ppe_useful_life_years)
 
     def _record_initial_balances(
         self,
@@ -737,11 +757,12 @@ class WidgetManufacturer(
         if time_resolution == "annual" or self.current_month == 0:
             self.re_estimate_reserves()
 
-        # Calculate depreciation expense for the period
+        # Calculate depreciation expense for the period (Issue #1321: parameterized)
+        book_life = self._cached_book_life
         if time_resolution == "annual":
-            depreciation_expense = self.record_depreciation(useful_life_years=10)
+            depreciation_expense = self.record_depreciation(useful_life_years=book_life)
         elif time_resolution == "monthly":
-            depreciation_expense = self.record_depreciation(useful_life_years=10 * 12)
+            depreciation_expense = self.record_depreciation(useful_life_years=book_life * 12)
         else:
             depreciation_expense = to_decimal(0)
 
@@ -844,6 +865,10 @@ class WidgetManufacturer(
         timing differences are perpetually created, making the DTL persistent
         rather than transient (Issue #367).
 
+        Uses per-cohort vintage-year tax depreciation so that fully-depreciated
+        cohorts contribute zero and per-cohort remaining-basis caps are applied
+        correctly (Issue #1321, ASC 740-10-25-20).
+
         Args:
             time_resolution: "annual" or "monthly".
         """
@@ -851,7 +876,6 @@ class WidgetManufacturer(
         if tax_life_cfg is None:
             return  # No accelerated depreciation configured
 
-        book_life = 10.0  # Matches hardcoded book useful life in step()
         if time_resolution == "monthly":
             tax_life = tax_life_cfg * 12
         else:
@@ -861,17 +885,23 @@ class WidgetManufacturer(
         if self.gross_ppe <= ZERO or tax_life_decimal <= ZERO:
             return
 
-        # Calculate period tax depreciation (same pool approach as book)
-        tax_depr = self.gross_ppe / tax_life_decimal
+        # Compute tax depreciation per vintage cohort (Issue #1321)
+        # Each cohort is capped at its own remaining tax basis, so
+        # fully-depreciated cohorts contribute zero.
+        total_tax_depr = ZERO
+        for cohort in self._ppe_cohorts:
+            cohort_tax_depr = cohort.amount / tax_life_decimal
+            remaining_basis = cohort.amount - cohort.tax_accumulated_depreciation
+            if remaining_basis <= ZERO:
+                continue
+            cohort_tax_depr = min(cohort_tax_depr, remaining_basis)
+            cohort.tax_accumulated_depreciation += cohort_tax_depr
+            total_tax_depr += cohort_tax_depr
 
-        # Cap at remaining tax basis (cannot depreciate below zero)
-        tax_net = self.gross_ppe - self.tax_handler.tax_accumulated_depreciation
-        if tax_net <= ZERO:
-            tax_depr = to_decimal(0)
-        else:
-            tax_depr = min(tax_depr, tax_net)
-
-        self.tax_handler.tax_accumulated_depreciation += tax_depr
+        # Keep TaxHandler aggregate in sync for external consumers
+        self.tax_handler.tax_accumulated_depreciation = sum(
+            (c.tax_accumulated_depreciation for c in self._ppe_cohorts), ZERO
+        )
 
         # Compute desired DTL = (tax_accum - book_accum) * tax_rate
         # Positive when tax depreciation is ahead of book depreciation
@@ -999,6 +1029,11 @@ class WidgetManufacturer(
             collateral=initial_collateral,
             restricted_assets=initial_restricted_assets,
         )
+
+        # Reset PP&E vintage cohort tracking (Issue #1321)
+        self._ppe_cohorts = []
+        if initial_gross_ppe > ZERO:
+            self._ppe_cohorts.append(_PPECohort(amount=initial_gross_ppe))
 
         # Reset stochastic process if present
         if self.stochastic_process is not None:

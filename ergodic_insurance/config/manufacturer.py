@@ -358,6 +358,15 @@ class ManufacturerConfig(BaseModel):
         "Noise shrinks proportionally to claim maturity.",
     )
 
+    # PP&E useful life for book depreciation (Issue #1321)
+    ppe_useful_life_years: float = Field(
+        default=10,
+        gt=0,
+        le=50,
+        description="Average useful life of PP&E in years for book depreciation "
+        "(straight-line). Used in both record_depreciation() and DTL calculation.",
+    )
+
     # Accelerated tax depreciation configuration (Issue #367, ASC 740)
     tax_depreciation_life_years: Optional[float] = Field(
         default=None,
