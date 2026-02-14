@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from ergodic_insurance.ergodic_analyzer import ErgodicAnalyzer
+from ergodic_insurance.monte_carlo import MonteCarloConfig, MonteCarloResults
 from ergodic_insurance.simulation import SimulationResults
 
 
@@ -319,6 +320,121 @@ class TestErgodicAnalyzer:
         assert (
             analysis["survival_analysis"]["survival_rate"] == 1.0
         )  # All survive with positive growth
+
+    def test_compare_scenarios_with_monte_carlo_results(self, analyzer):
+        """Test scenario comparison with MonteCarloResults objects."""
+        rng = np.random.default_rng(42)
+        n_paths = 200
+        config = MonteCarloConfig(n_simulations=n_paths, n_years=10)
+
+        # Insured: mostly positive growth, no ruin
+        insured_growth = rng.normal(0.04, 0.01, n_paths)
+        insured_final = 1_000_000 * np.exp(insured_growth * 10)
+        insured_mc = MonteCarloResults(
+            final_assets=insured_final,
+            annual_losses=np.zeros(n_paths),
+            insurance_recoveries=np.zeros(n_paths),
+            retained_losses=np.zeros(n_paths),
+            growth_rates=insured_growth,
+            ruin_probability={"10": 0.0},
+            metrics={},
+            convergence={},
+            execution_time=1.0,
+            config=config,
+        )
+
+        # Uninsured: higher volatility, some ruined paths
+        uninsured_growth = rng.normal(0.03, 0.05, n_paths)
+        uninsured_final = 1_000_000 * np.exp(uninsured_growth * 10)
+        # Simulate 10% ruin
+        ruin_idx = rng.choice(n_paths, size=n_paths // 10, replace=False)
+        uninsured_final[ruin_idx] = 0.0
+        uninsured_growth[ruin_idx] = 0.0  # MC engine convention
+        uninsured_mc = MonteCarloResults(
+            final_assets=uninsured_final,
+            annual_losses=np.zeros(n_paths),
+            insurance_recoveries=np.zeros(n_paths),
+            retained_losses=np.zeros(n_paths),
+            growth_rates=uninsured_growth,
+            ruin_probability={"10": 0.1},
+            metrics={},
+            convergence={},
+            execution_time=1.0,
+            config=config,
+        )
+
+        result = analyzer.compare_scenarios(insured_mc, uninsured_mc)
+
+        # Structural checks
+        assert "insured" in result
+        assert "uninsured" in result
+        assert "ergodic_advantage" in result
+        assert "time_average_mean" in result["insured"]
+        assert "ensemble_average" in result["insured"]
+        assert "survival_rate" in result["insured"]
+
+        # Insured should have 100% survival (no ruin)
+        assert result["insured"]["survival_rate"] == pytest.approx(1.0)
+        # Uninsured survival ~90%
+        assert result["uninsured"]["survival_rate"] == pytest.approx(0.9, abs=0.05)
+
+        # Insured time-average mean should be close to 0.04
+        assert result["insured"]["time_average_mean"] == pytest.approx(0.04, abs=0.01)
+
+        # Ergodic advantage should be positive (insured > uninsured)
+        assert result["ergodic_advantage"]["time_average_gain"] > 0
+        assert result["ergodic_advantage"]["survival_gain"] > 0
+
+    def test_compare_scenarios_with_mixed_types(self, analyzer):
+        """Test scenario comparison with MonteCarloResults for one side and SimulationResults for the other."""
+        rng = np.random.default_rng(123)
+        n_mc_paths = 100
+        n_sim_paths = 20
+        config = MonteCarloConfig(n_simulations=n_mc_paths, n_years=10)
+
+        # Insured side: MonteCarloResults
+        insured_growth = rng.normal(0.04, 0.01, n_mc_paths)
+        insured_final = 1_000_000 * np.exp(insured_growth * 10)
+        insured_mc = MonteCarloResults(
+            final_assets=insured_final,
+            annual_losses=np.zeros(n_mc_paths),
+            insurance_recoveries=np.zeros(n_mc_paths),
+            retained_losses=np.zeros(n_mc_paths),
+            growth_rates=insured_growth,
+            ruin_probability={"10": 0.0},
+            metrics={},
+            convergence={},
+            execution_time=1.0,
+            config=config,
+        )
+
+        # Uninsured side: List[SimulationResults]
+        uninsured_results = []
+        for _ in range(n_sim_paths):
+            equity = 1_000_000 * np.exp(0.03 * np.arange(100) + np.cumsum(rng.normal(0, 0.05, 100)))
+            uninsured_results.append(
+                SimulationResults(
+                    years=np.arange(100),
+                    assets=equity * 1.2,
+                    equity=equity,
+                    roe=rng.uniform(0.08, 0.12, 100),
+                    revenue=rng.uniform(400_000, 600_000, 100),
+                    net_income=rng.uniform(40_000, 60_000, 100),
+                    claim_counts=rng.poisson(3, 100),
+                    claim_amounts=rng.lognormal(10, 2, 100),
+                    insolvency_year=None,
+                )
+            )
+
+        result = analyzer.compare_scenarios(insured_mc, uninsured_results)
+
+        # Should still produce a valid comparison
+        assert "insured" in result
+        assert "uninsured" in result
+        assert "ergodic_advantage" in result
+        assert np.isfinite(result["insured"]["time_average_mean"])
+        assert np.isfinite(result["uninsured"]["time_average_mean"])
+        assert np.isfinite(result["ergodic_advantage"]["time_average_gain"])
 
     def test_edge_cases(self, analyzer):
         """Test various edge cases."""
