@@ -626,12 +626,15 @@ class AugmentedLagrangianOptimizer:
                 logger.info(f"Converged after {outer_iter + 1} outer iterations")
                 break
 
-            # Update penalty parameter
+            # Update penalty parameter.
+            # Increase rho when constraint violation has not decreased
+            # sufficiently (by factor 0.25) since the previous iteration
+            # (Bertsekas & Tsitsiklis, 1997, p. 319).
             should_increase_penalty = True
             if len(self.convergence_monitor.constraint_violation_history) > 1:
                 should_increase_penalty = (
                     constraint_violation
-                    > 0.5 * self.convergence_monitor.constraint_violation_history[-2]
+                    > 0.25 * self.convergence_monitor.constraint_violation_history[-2]
                 )
             if should_increase_penalty:
                 rho = min(rho * 2, rho_max)
