@@ -1650,6 +1650,23 @@ class InsuranceDecisionEngine:
 
         return metrics
 
+    def _get_sim_param(self, name: str, default):
+        """Safely extract a config parameter from the manufacturer.
+
+        Checks ``manufacturer.config``, then direct manufacturer attributes,
+        falling back to *default*.  This keeps backward compatibility with
+        mock-based tests that don't attach a full ``ManufacturerConfig``.
+        """
+        cfg = getattr(self.manufacturer, "config", None)
+        if cfg is not None:
+            val = getattr(cfg, name, None)
+            if val is not None:
+                return val
+        val = getattr(self.manufacturer, name, None)
+        if val is not None:
+            return val
+        return default
+
     def _run_simulation(
         self,
         decision: InsuranceDecision,
@@ -1660,6 +1677,10 @@ class InsuranceDecisionEngine:
     ) -> Dict[str, np.ndarray]:
         """Run Monte Carlo simulation for given decision.
 
+        The financial model replicates the GPU engine (``gpu_mc_engine.py``)
+        including balance sheet tracking, depreciation, DTL, working capital,
+        NOL carryforward, dividends, and cash-based insolvency.
+
         Args:
             decision: Insurance decision to simulate.
             n_simulations: Number of Monte Carlo paths.
@@ -1669,11 +1690,25 @@ class InsuranceDecisionEngine:
                 ``(n_simulations, time_horizon)`` for Common Random Numbers.
                 When provided, *seed* is ignored for loss generation.
         """
-        equity_ratio = (
-            float(self.manufacturer.equity) / float(self.manufacturer.total_assets)
-            if float(self.manufacturer.total_assets) > 0
-            else 0.3
-        )
+        initial_assets = float(self.manufacturer.total_assets)
+        initial_equity = float(self.manufacturer.equity)
+
+        # ---- Extract financial model parameters (GPU-engine-aligned) ----
+        tax_rate = getattr(self.manufacturer, "tax_rate", 0.25)
+        ppe_ratio = self._get_sim_param("ppe_ratio", 0.3)
+        book_life = self._get_sim_param("ppe_useful_life_years", 10.0)
+        tax_depr_life = self._get_sim_param("tax_depreciation_life_years", None)
+        capex_ratio = self._get_sim_param("capex_to_depreciation_ratio", 1.0)
+        # retention_ratio=1.0 preserves existing mock behavior (no dividends)
+        retention_ratio = self._get_sim_param("retention_ratio", 1.0)
+        nol_enabled = self._get_sim_param("nol_carryforward_enabled", True)
+        nol_limit_pct = self._get_sim_param("nol_limitation_pct", 0.80)
+        dpo = self._get_sim_param("dpo", 30.0)
+        dso = self._get_sim_param("dso", 45.0)
+        dio = self._get_sim_param("dio", 60.0)
+        # insolvency_tolerance=0.0 preserves existing ``equity <= 0`` for mocks
+        insolvency_tolerance = self._get_sim_param("insolvency_tolerance", 0.0)
+
         rng = np.random.default_rng(seed)
         results = {
             "growth_rates": np.zeros(n_simulations),
@@ -1690,9 +1725,14 @@ class InsuranceDecisionEngine:
         all_equity_series = []
 
         for i in range(n_simulations):
-            # Initialize company state from manufacturer financials
-            assets = float(self.manufacturer.total_assets)
-            equity = float(self.manufacturer.equity)
+            # ---- Initialize balance sheet (matches GPU engine) ----
+            equity = initial_equity
+            gross_ppe = initial_assets * ppe_ratio
+            accum_book_depr = 0.0
+            accum_tax_depr = 0.0
+            nol_carryforward = 0.0
+            prev_ap = 0.0
+            prev_net_dtl = 0.0
 
             bankrupt = False
             annual_returns = []
@@ -1700,15 +1740,18 @@ class InsuranceDecisionEngine:
             sim_equity_series = []
 
             for t in range(time_horizon):
-                # Generate revenue
+                # ---- Derive total_assets from balance sheet state ----
+                total_liabilities = prev_ap + prev_net_dtl
+                assets = equity + total_liabilities
+
+                # ---- Revenue ----
                 revenue = assets * self.manufacturer.asset_turnover_ratio
 
-                # Generate losses using loss distribution parameters
+                # ---- Generate losses ----
                 if loss_sequence is not None:
                     annual_losses = float(loss_sequence[i, t])
                 elif hasattr(self.loss_distribution, "expected_value"):
                     expected = max(self.loss_distribution.expected_value(), 1.0)
-                    # Use distribution's CV if available, otherwise default 0.5
                     if hasattr(self.loss_distribution, "cv"):
                         cv = self.loss_distribution.cv()
                     else:
@@ -1719,7 +1762,7 @@ class InsuranceDecisionEngine:
                 else:
                     annual_losses = 0.0
 
-                # Apply insurance
+                # ---- Apply insurance ----
                 retained_losses = min(annual_losses, decision.retained_limit)
                 insured_losses = 0.0
 
@@ -1732,15 +1775,34 @@ class InsuranceDecisionEngine:
                         if remaining_loss <= 0:
                             break
 
-                # Calculate net income with tax per ASC 740 (Issue #500)
+                # ---- Income statement (matches GPU engine) ----
                 operating_income = revenue * self.manufacturer.base_operating_margin
                 net_losses = retained_losses + max(annual_losses - decision.total_coverage, 0)
-                income_before_tax = operating_income - net_losses - decision.total_premium
-                tax_rate = getattr(self.manufacturer, "tax_rate", 0.25)
-                tax_expense = max(0.0, income_before_tax * tax_rate)
-                net_income = income_before_tax - tax_expense
+                pre_tax_income = operating_income - net_losses - decision.total_premium
 
-                # Calculate ROE before updating equity
+                # ---- Tax with NOL carryforward (IRC §172, Issue #1300) ----
+                if nol_enabled:
+                    if pre_tax_income > 0:
+                        nol_deduction = min(nol_carryforward, pre_tax_income * nol_limit_pct)
+                        taxable_income = max(pre_tax_income - nol_deduction, 0.0)
+                        tax_expense = taxable_income * tax_rate
+                        nol_carryforward -= nol_deduction
+                    else:
+                        tax_expense = 0.0
+                        nol_carryforward += abs(pre_tax_income)
+                else:
+                    tax_expense = max(0.0, pre_tax_income * tax_rate)
+
+                net_income = pre_tax_income - tax_expense
+
+                # ---- Dividends (only on positive income) ----
+                if net_income > 0:
+                    dividends = net_income * (1.0 - retention_ratio)
+                else:
+                    dividends = 0.0
+                retained_earnings = net_income - dividends
+
+                # ---- Calculate ROE before updating equity ----
                 if equity > 0:
                     roe = net_income / equity
                     annual_returns.append(roe)
@@ -1749,16 +1811,53 @@ class InsuranceDecisionEngine:
                 else:
                     annual_returns.append(net_income / max(equity, 1))
 
-                # Update equity
-                equity += net_income
+                # ---- Depreciation (book) ----
+                net_ppe = max(gross_ppe - accum_book_depr, 0.0)
+                book_depr = min(gross_ppe / book_life, net_ppe)
+                accum_book_depr += book_depr
 
-                # Check bankruptcy
-                if equity <= 0:
+                # ---- Depreciation (tax, for DTL) ----
+                if tax_depr_life is not None:
+                    remaining_tax_basis = max(gross_ppe - accum_tax_depr, 0.0)
+                    tax_depr = min(gross_ppe / tax_depr_life, remaining_tax_basis)
+                    accum_tax_depr += tax_depr
+
+                # ---- Capex reinvestment ----
+                capex = book_depr * capex_ratio
+                gross_ppe += capex
+
+                # ---- Working capital update ----
+                cogs = revenue * (1.0 - self.manufacturer.base_operating_margin)
+                new_ap = cogs * (dpo / 365.0)
+
+                # ---- DTL / DTA (ASC 740-10-45-6) ----
+                dta = nol_carryforward * tax_rate
+                timing_diff = max(accum_tax_depr - accum_book_depr, 0.0)
+                dtl = timing_diff * tax_rate
+                new_net_dtl = max(dtl - dta, 0.0)
+                delta_net_dtl = new_net_dtl - prev_net_dtl
+
+                # ---- Equity update (GPU engine line 864) ----
+                equity += retained_earnings - delta_net_dtl
+
+                # ---- Update liabilities for next period ----
+                prev_ap = new_ap
+                prev_net_dtl = new_net_dtl
+
+                # ---- Derive total assets for ruin check ----
+                new_total_liabilities = new_ap + new_net_dtl
+                new_total_assets = equity + new_total_liabilities
+
+                # ---- Cash estimation for cash-based insolvency ----
+                net_ppe_now = max(gross_ppe - accum_book_depr, 0.0)
+                ar = revenue * (dso / 365.0)
+                inventory = cogs * (dio / 365.0)
+                cash = new_total_assets - net_ppe_now - ar - inventory
+
+                # ---- Ruin detection: equity-based OR cash-based ----
+                if equity <= insolvency_tolerance or cash < 0:
                     bankrupt = True
                     break
-
-                # Update assets for next period
-                assets = equity / equity_ratio
 
             # Store results
             results["growth_rates"][i] = np.mean(annual_returns) if annual_returns else 0  # type: ignore
