@@ -58,10 +58,9 @@ class MetricsCalculationMixin:
         metrics["collateral"] = self.collateral
         metrics["restricted_assets"] = self.restricted_assets
         metrics["available_assets"] = self.available_assets
-        # Report operational equity — excludes valuation allowance since it's
-        # a non-cash accounting adjustment that doesn't affect going concern (Issue #464)
-        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
-        metrics["equity"] = self.equity + va
+        # Report solvency equity — consistent with check_solvency() and
+        # compute_z_prime_score() per ASC 205-40-50-7 (Issue #464, #1311)
+        metrics["equity"] = self.solvency_equity
         metrics["net_assets"] = self.net_assets
         metrics["claim_liabilities"] = self.total_claim_liabilities
 
