@@ -398,16 +398,24 @@ class AdvancedConvergenceDiagnostics:
             # Required precision
             phi = stats.norm.ppf((s + 1) / 2)
 
-            # Burn-in requirement
-            m_burn = np.log((alpha + beta) * r / max(alpha, beta)) / np.log(abs(1 - alpha - beta))
-            m_burn = max(1, int(np.ceil(m_burn)))
-
-            # Total iterations required
+            # Total iterations required (independent of burn-in path)
             n_min = (q * (1 - q) * phi**2) / r**2
 
-            # Thinning requirement
-            k_thin = 1 + 2 * (alpha + beta) / (alpha * beta)
-            k_thin = max(1, int(np.ceil(k_thin)))
+            if alpha + beta >= 1.0 - 1e-10:
+                # Chain mixes in one step (alpha+beta=1, independent draws)
+                # or is anti-persistent / deterministically alternating
+                # (alpha+beta>1). No burn-in or thinning needed.
+                m_burn = 1
+                k_thin = 1
+            else:
+                # Burn-in requirement (Raftery & Lewis 1992)
+                # rho = 1 - alpha - beta is guaranteed in (0, 1) here
+                rho = 1.0 - alpha - beta
+                m_burn = np.log((alpha + beta) * r / max(alpha, beta)) / np.log(rho)
+                m_burn = max(1, int(np.ceil(m_burn)))
+
+                # Thinning requirement
+                k_thin = max(1, int(np.ceil(1 + 2 * (alpha + beta) / (alpha * beta))))
 
             # Total iterations with thinning
             n_total = m_burn + n_min * k_thin
