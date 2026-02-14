@@ -300,11 +300,22 @@ class IncomeCalculationMixin:
         logger.info(f"NET INCOME:              ${net_income:,.2f}")
         logger.info("============================")
 
-        # Validation assertion
+        # Warn if net income exceeds operating income (Issue #1314)
+        # This legitimately occurs when DTA recognition, DTL reversal, or
+        # valuation allowance reversal creates a tax benefit that exceeds
+        # collateral costs.  A hard assertion is inappropriate because the
+        # net-income / operating-income relationship depends on ASC 740
+        # deferred-tax adjustments that can go in either direction.
         epsilon = to_decimal("0.000000001")
-        if collateral_costs_decimal > epsilon:
-            assert (
-                net_income <= operating_income_decimal + epsilon
-            ), f"Net income ({net_income}) should be less than or equal to operating income ({operating_income_decimal}) when costs exist"
+        if collateral_costs_decimal > epsilon and net_income > operating_income_decimal + epsilon:
+            logger.warning(
+                "Net income ($%s) exceeds operating income ($%s) despite "
+                "collateral costs ($%s). This may be caused by deferred tax "
+                "adjustments (DTA recognition, DTL reversal, or valuation "
+                "allowance reversal).",
+                f"{net_income:,.2f}",
+                f"{operating_income_decimal:,.2f}",
+                f"{collateral_costs_decimal:,.2f}",
+            )
 
         return net_income
