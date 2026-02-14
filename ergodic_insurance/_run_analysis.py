@@ -200,18 +200,12 @@ class AnalysisResults:
 
         # --- Ergodic advantage ---
         if self.comparison is not None:
-            adv = self.comparison.get("ergodic_advantage", {})
+            adv = self.comparison.ergodic_advantage
             lines.append("")
             lines.append("--- Ergodic Advantage (Insured - Uninsured) ---")
-            ta_gain = adv.get("time_average_gain")
-            if ta_gain is not None:
-                lines.append(f"Time-Average Growth Gain: {ta_gain:+.2%}")
-            surv_gain = adv.get("survival_gain")
-            if surv_gain is not None:
-                lines.append(f"Survival Rate Gain: {surv_gain:+.1%}")
-            sig = adv.get("significant")
-            if sig is not None:
-                lines.append(f"Statistically Significant: {'Yes' if sig else 'No'}")
+            lines.append(f"Time-Average Growth Gain: {adv.time_average_gain:+.2%}")
+            lines.append(f"Survival Rate Gain: {adv.survival_gain:+.1%}")
+            lines.append(f"Statistically Significant: {'Yes' if adv.significant else 'No'}")
 
         lines.append("=" * 60)
         text = "\n".join(lines)
