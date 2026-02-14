@@ -522,8 +522,9 @@ class Simulation:
             manufacturer: WidgetManufacturer instance to simulate.
             loss_generator: ManufacturingLossGenerator or list of generators for
                 creating loss events. If a list is provided, losses from all
-                generators are combined. If None, a default generator with
-                standard parameters is created.
+                generators are combined. If None, a default generator is
+                created with severity scaled to 5% of the manufacturer's
+                initial assets (deprecated — pass explicitly instead).
             insurance_policy: Insurance program (or deprecated InsurancePolicy)
                 for claim processing. Accepts :class:`InsuranceProgram`
                 (preferred) or :class:`InsurancePolicy` (deprecated, auto-
@@ -579,12 +580,42 @@ class Simulation:
 
         # Handle single generator or list of generators
         if loss_generator is None:
-            # Create default loss generator with reasonable parameters
+            import warnings
+
+            # Scale default severity to manufacturer size (5% mean, 2% std)
+            initial_assets = float(manufacturer.config.initial_assets)
+            default_frequency = 0.1
+            default_severity_mean = initial_assets * 0.05
+            default_severity_std = initial_assets * 0.02
+
+            warnings.warn(
+                f"No loss_generator provided — using default scaled to "
+                f"initial_assets=${initial_assets:,.0f} "
+                f"(frequency={default_frequency}, "
+                f"severity_mean=${default_severity_mean:,.0f}, "
+                f"severity_std=${default_severity_std:,.0f}). "
+                f"Explicit construction is recommended:\n"
+                f"  ManufacturingLossGenerator.create_simple(\n"
+                f"      frequency={default_frequency}, "
+                f"severity_mean={default_severity_mean:,.0f}, "
+                f"severity_std={default_severity_std:,.0f}, seed=...)",
+                ErgodicInsuranceDeprecationWarning,
+                stacklevel=2,
+            )
+            logger.info(
+                "Default loss generator: frequency=%.2f, "
+                "severity_mean=$%,.0f, severity_std=$%,.0f "
+                "(scaled to initial_assets=$%,.0f)",
+                default_frequency,
+                default_severity_mean,
+                default_severity_std,
+                initial_assets,
+            )
             self.loss_generator = [
                 ManufacturingLossGenerator.create_simple(
-                    frequency=0.1,  # 10% chance per year
-                    severity_mean=5_000_000,  # $5M mean claim
-                    severity_std=2_000_000,  # $2M standard deviation
+                    frequency=default_frequency,
+                    severity_mean=default_severity_mean,
+                    severity_std=default_severity_std,
                     seed=seed,
                 )
             ]
