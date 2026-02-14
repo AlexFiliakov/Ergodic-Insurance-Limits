@@ -274,6 +274,149 @@ class TestSimulationResults:
         assert results.calculate_time_weighted_roe() == pytest.approx(0.10, rel=0.01)
 
 
+class TestSimulationResultsRepr:
+    """Test SimulationResults __repr__, __str__, and convenience properties (#1307)."""
+
+    @pytest.fixture
+    def survived_results(self):
+        return SimulationResults(
+            years=np.array([0, 1, 2, 3, 4]),
+            assets=np.array([10_000_000, 11_000_000, 12_100_000, 13_300_000, 14_600_000]),
+            equity=np.array([3_000_000, 3_500_000, 4_000_000, 4_500_000, 5_000_000]),
+            roe=np.array([0.08, 0.10, 0.09, 0.07, 0.11]),
+            revenue=np.array([8_000_000, 8_800_000, 9_700_000, 10_600_000, 11_700_000]),
+            net_income=np.array([240_000, 350_000, 360_000, 315_000, 550_000]),
+            claim_counts=np.array([0, 1, 0, 2, 0]),
+            claim_amounts=np.array([0, 500_000, 0, 1_200_000, 0]),
+        )
+
+    @pytest.fixture
+    def insolvent_results(self):
+        return SimulationResults(
+            years=np.array([0, 1, 2]),
+            assets=np.array([10_000_000, 5_000_000, 0]),
+            equity=np.array([3_000_000, -2_000_000, -5_000_000]),
+            roe=np.array([0.08, -1.5, np.nan]),
+            revenue=np.array([8_000_000, 4_000_000, 0]),
+            net_income=np.array([240_000, -5_000_000, 0]),
+            claim_counts=np.array([0, 3, 0]),
+            claim_amounts=np.array([0, 8_000_000, 0]),
+            insolvency_year=2,
+        )
+
+    # --- convenience properties ---
+
+    def test_survived_true(self, survived_results):
+        assert survived_results.survived is True
+
+    def test_survived_false(self, insolvent_results):
+        assert insolvent_results.survived is False
+
+    def test_n_years(self, survived_results):
+        assert survived_results.n_years == 5
+
+    def test_mean_roe(self, survived_results):
+        expected = float(np.mean([0.08, 0.10, 0.09, 0.07, 0.11]))
+        assert survived_results.mean_roe == pytest.approx(expected)
+
+    def test_mean_roe_with_nan(self, insolvent_results):
+        expected = float(np.mean([0.08, -1.5]))
+        assert insolvent_results.mean_roe == pytest.approx(expected)
+
+    def test_final_equity(self, survived_results):
+        assert survived_results.final_equity == 5_000_000
+
+    def test_final_assets(self, survived_results):
+        assert survived_results.final_assets == 14_600_000
+
+    def test_total_claims(self, survived_results):
+        assert survived_results.total_claims == 1_700_000
+
+    # --- __repr__ ---
+
+    def test_repr_survived(self, survived_results):
+        r = repr(survived_results)
+        assert "SimulationResults(" in r
+        assert "n_years=5" in r
+        assert "survived" in r
+        assert "mean_roe=" in r
+        assert "final_equity=$" in r
+
+    def test_repr_insolvent(self, insolvent_results):
+        r = repr(insolvent_results)
+        assert "insolvent@yr2" in r
+
+    # --- __str__ ---
+
+    def test_str_survived(self, survived_results):
+        s = str(survived_results)
+        assert "5 years" in s
+        assert "Survived: True" in s
+        assert "Mean ROE:" in s
+        assert "Final Equity:" in s
+        assert "Final Assets:" in s
+        assert "Total Claims:" in s
+
+    def test_str_insolvent(self, insolvent_results):
+        s = str(insolvent_results)
+        assert "Survived: False" in s
+        assert "insolvent year 2" in s
+
+    # --- _repr_html_ ---
+
+    def test_repr_html_returns_html(self, survived_results):
+        html = survived_results._repr_html_()
+        assert "<div" in html
+        assert "SimulationResults" in html
+
+    # --- edge case: all-NaN ROE ---
+
+    def test_mean_roe_all_nan(self):
+        results = SimulationResults(
+            years=np.array([0, 1]),
+            assets=np.array([100, 100]),
+            equity=np.array([50, 50]),
+            roe=np.array([np.nan, np.nan]),
+            revenue=np.array([100, 100]),
+            net_income=np.array([0, 0]),
+            claim_counts=np.array([0, 0]),
+            claim_amounts=np.array([0, 0]),
+        )
+        assert results.mean_roe == 0.0
+        r = repr(results)
+        assert "mean_roe=0.00%" in r
+
+
+class TestStrategyComparisonResultRepr:
+    """Test StrategyComparisonResult __repr__ and __str__ (#1307)."""
+
+    def test_repr(self):
+        from ergodic_insurance.simulation import StrategyComparisonResult
+
+        scr = StrategyComparisonResult(
+            baseline=None,
+            strategy_results={"Low": None, "High": None},
+            summary_df=pd.DataFrame({"a": [1, 2], "b": [3, 4]}),
+        )
+        r = repr(scr)
+        assert "2 strategies" in r
+        assert "High" in r
+        assert "Low" in r
+        assert "2x2" in r
+
+    def test_str(self):
+        from ergodic_insurance.simulation import StrategyComparisonResult
+
+        scr = StrategyComparisonResult(
+            baseline=None,
+            strategy_results={"Low": None},
+            summary_df=pd.DataFrame({"metric": ["survival"], "value": [0.95]}),
+        )
+        s = str(scr)
+        assert "1 strategies" in s
+        assert "survival" in s
+
+
 class TestSimulation:
     """Test Simulation class."""
 

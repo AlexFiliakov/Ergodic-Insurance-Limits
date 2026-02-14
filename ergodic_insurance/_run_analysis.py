@@ -116,6 +116,56 @@ class AnalysisResults:
     _summary_cache: Optional[str] = field(default=None, repr=False)
 
     @property
+    def survival_rate(self) -> float:
+        """Fraction of insured simulations that survived."""
+        if not self.insured_results:
+            return 0.0
+        survived = sum(1 for r in self.insured_results if r.insolvency_year is None)
+        return survived / len(self.insured_results)
+
+    @property
+    def ergodic_advantage_gain(self) -> Optional[float]:
+        """Time-average growth gain from insurance, or None if not compared."""
+        if self.comparison is None:
+            return None
+        return self.comparison.ergodic_advantage.time_average_gain
+
+    def __repr__(self) -> str:
+        n = len(self.insured_results)
+        sr = self.survival_rate
+        adv = self.ergodic_advantage_gain
+        adv_str = f", ergodic_advantage={adv:+.2%}" if adv is not None else ""
+        return f"AnalysisResults(n_simulations={n}, " f"survival_rate={sr:.1%}{adv_str})"
+
+    def __str__(self) -> str:
+        return self.summary()
+
+    def _repr_html_(self) -> str:
+        """Rich HTML display for Jupyter notebooks."""
+        n = len(self.insured_results)
+        sr = self.survival_rate
+        adv = self.ergodic_advantage_gain
+
+        rows = [
+            f"<tr><td><b>Simulations</b></td><td>{n}</td></tr>",
+            f"<tr><td><b>Survival Rate</b></td><td>{sr:.1%}</td></tr>",
+        ]
+        if adv is not None:
+            color = "#27ae60" if adv > 0 else "#e74c3c"
+            rows.append(
+                f"<tr><td><b>Ergodic Advantage</b></td>"
+                f"<td style='color:{color}'>{adv:+.2%}</td></tr>"
+            )
+        table_rows = "".join(rows)
+        return (
+            "<div style='font-family: monospace; padding: 8px; "
+            "border: 1px solid #ddd; border-radius: 4px; display: inline-block;'>"
+            "<b>AnalysisResults</b>"
+            f"<table style='margin-top:4px'>{table_rows}</table>"
+            "</div>"
+        )
+
+    @property
     def insurance_policy(self):
         """Deprecated: use ``insurance_program`` instead."""
         import warnings

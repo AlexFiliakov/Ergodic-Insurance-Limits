@@ -125,6 +125,74 @@ class SimulationResults:
     claim_amounts: np.ndarray
     insolvency_year: Optional[int] = None
 
+    @property
+    def survived(self) -> bool:
+        """Whether the entity survived the full simulation without insolvency."""
+        return self.insolvency_year is None
+
+    @property
+    def n_years(self) -> int:
+        """Number of simulation years."""
+        return len(self.years)
+
+    @property
+    def mean_roe(self) -> float:
+        """Arithmetic mean of non-NaN ROE values."""
+        valid = self.roe[~np.isnan(self.roe)]
+        return float(np.mean(valid)) if len(valid) > 0 else 0.0
+
+    @property
+    def final_equity(self) -> float:
+        """Equity at the end of the simulation."""
+        return float(self.equity[-1])
+
+    @property
+    def final_assets(self) -> float:
+        """Total assets at the end of the simulation."""
+        return float(self.assets[-1])
+
+    @property
+    def total_claims(self) -> float:
+        """Cumulative claim amounts over the simulation."""
+        return float(np.sum(self.claim_amounts))
+
+    def __repr__(self) -> str:
+        status = "survived" if self.survived else f"insolvent@yr{self.insolvency_year}"
+        return (
+            f"SimulationResults(n_years={self.n_years}, {status}, "
+            f"mean_roe={self.mean_roe:.2%}, "
+            f"final_equity=${self.final_equity:,.0f})"
+        )
+
+    def __str__(self) -> str:
+        lines = [
+            f"SimulationResults — {self.n_years} years",
+            f"  Survived: {self.survived}"
+            + (f"  (insolvent year {self.insolvency_year})" if not self.survived else ""),
+            f"  Mean ROE: {self.mean_roe:.2%}",
+            f"  Final Equity: ${self.final_equity:,.0f}",
+            f"  Final Assets: ${self.final_assets:,.0f}",
+            f"  Total Claims: ${self.total_claims:,.0f}",
+        ]
+        return "\n".join(lines)
+
+    def _repr_html_(self) -> str:
+        """Rich HTML display for Jupyter notebooks."""
+        status_color = "#27ae60" if self.survived else "#e74c3c"
+        status_text = "Survived" if self.survived else f"Insolvent (year {self.insolvency_year})"
+        return (
+            "<div style='font-family: monospace; padding: 8px; "
+            "border: 1px solid #ddd; border-radius: 4px; display: inline-block;'>"
+            "<b>SimulationResults</b><br>"
+            f"Years: {self.n_years} &nbsp;|&nbsp; "
+            f"Status: <span style='color:{status_color}'>{status_text}</span><br>"
+            f"Mean ROE: {self.mean_roe:.2%} &nbsp;|&nbsp; "
+            f"Final Equity: ${self.final_equity:,.0f}<br>"
+            f"Final Assets: ${self.final_assets:,.0f} &nbsp;|&nbsp; "
+            f"Total Claims: ${self.total_claims:,.0f}"
+            "</div>"
+        )
+
     def to_dataframe(self) -> pd.DataFrame:
         """Convert simulation results to pandas DataFrame.
 
@@ -431,6 +499,23 @@ class StrategyComparisonResult:
     strategy_results: Dict[str, Any]
     summary_df: pd.DataFrame
     crn_seed: Optional[int] = None
+
+    def __repr__(self) -> str:
+        n_strategies = len(self.strategy_results)
+        names = ", ".join(sorted(self.strategy_results.keys()))
+        return (
+            f"StrategyComparisonResult("
+            f"{n_strategies} strategies: [{names}], "
+            f"summary_df={self.summary_df.shape[0]}x{self.summary_df.shape[1]})"
+        )
+
+    def __str__(self) -> str:
+        lines = [
+            f"StrategyComparisonResult — {len(self.strategy_results)} strategies",
+            "",
+            self.summary_df.to_string(),
+        ]
+        return "\n".join(lines)
 
 
 class Simulation:
