@@ -1,6 +1,7 @@
 """Tests for the run_analysis quick-start factory function."""
 
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -212,6 +213,39 @@ class TestSummary:
         s1 = sample_results.summary()
         s2 = sample_results.summary()
         assert s1 is s2  # same object, not just equal
+
+    def test_summary_no_deprecation_warnings(self):
+        """summary() must not emit DeprecationWarnings from library code (#1305)."""
+        results = run_analysis(
+            n_simulations=5,
+            time_horizon=5,
+            seed=42,
+            compare_uninsured=True,
+        )
+        # Clear any cached summary so the code path actually runs
+        results._summary_cache = None
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results.summary()
+        deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert (
+            deprecations == []
+        ), f"summary() emitted {len(deprecations)} DeprecationWarning(s): " + "; ".join(
+            str(w.message) for w in deprecations
+        )
+
+    def test_summary_without_comparison(self):
+        """summary() works when compare_uninsured=False (comparison is None)."""
+        results = run_analysis(
+            n_simulations=3,
+            time_horizon=3,
+            seed=0,
+            compare_uninsured=False,
+        )
+        s = results.summary()
+        assert isinstance(s, str)
+        assert "Insured Scenario" in s
+        assert "Ergodic Advantage" not in s
 
 
 class TestToDataFrame:
