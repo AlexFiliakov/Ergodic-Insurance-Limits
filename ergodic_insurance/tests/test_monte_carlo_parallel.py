@@ -177,14 +177,18 @@ class TestParallelProcessing:
                 growth_rates=np.random.normal(0.05, 0.001, 100),
                 ruin_probability={"50": 0.01},
                 metrics={},
-                convergence={"growth_rate": Mock(r_hat=1.01)},
+                convergence={"growth_rate": Mock(r_hat=float("nan"), mcse=0.0001, converged=True)},
                 execution_time=1.0,
                 config=engine.config,
             )
 
             with patch.object(engine, "run", return_value=mock_results):
                 with patch.object(
-                    engine, "_check_convergence", return_value={"growth_rate": Mock(r_hat=1.01)}
+                    engine,
+                    "_check_convergence",
+                    return_value={
+                        "growth_rate": Mock(r_hat=float("nan"), mcse=0.0001, converged=True)
+                    },
                 ):
                     results = engine.run_with_convergence_monitoring(
                         target_r_hat=1.05,
@@ -195,7 +199,7 @@ class TestParallelProcessing:
                     # Check that progress was logged
                     mock_logger.debug.assert_called()
                     call_args = str(mock_logger.debug.call_args_list)
-                    assert "R-hat" in call_args
+                    assert "MCSE" in call_args
 
 
 class TestParallelRuinProbability:

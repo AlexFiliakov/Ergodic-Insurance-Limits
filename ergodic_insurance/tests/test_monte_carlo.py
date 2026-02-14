@@ -289,17 +289,18 @@ class TestMonteCarloEngine:
         assert metrics["tvar_99"] > metrics["var_99"]
 
     def test_convergence_check(self, setup_engine):
-        """Test convergence checking."""
+        """Test MCSE-based convergence checking (#1353)."""
         engine, _, _, _ = setup_engine
 
         # Create results with enough data for convergence check
         n_sims = 1000
+        rng = np.random.default_rng(42)
         results = MonteCarloResults(
-            final_assets=np.random.normal(10_000_000, 2_000_000, n_sims),
-            annual_losses=np.random.exponential(100_000, (n_sims, 5)),
-            insurance_recoveries=np.random.exponential(50_000, (n_sims, 5)),
-            retained_losses=np.random.exponential(50_000, (n_sims, 5)),
-            growth_rates=np.random.normal(0.05, 0.02, n_sims),
+            final_assets=rng.normal(10_000_000, 2_000_000, n_sims),
+            annual_losses=rng.exponential(100_000, (n_sims, 5)),
+            insurance_recoveries=rng.exponential(50_000, (n_sims, 5)),
+            retained_losses=rng.exponential(50_000, (n_sims, 5)),
+            growth_rates=rng.normal(0.05, 0.02, n_sims),
             ruin_probability={"5": 0.05},
             metrics={},
             convergence={},
@@ -307,13 +308,71 @@ class TestMonteCarloEngine:
             config=engine.config,
         )
 
-        # Check convergence
         convergence = engine._check_convergence(results)
 
-        if convergence:  # May be empty if not enough chains
-            assert "growth_rate" in convergence
-            assert isinstance(convergence["growth_rate"], ConvergenceStats)
-            assert convergence["growth_rate"].r_hat >= 0
+        assert "growth_rate" in convergence
+        assert "total_losses" in convergence
+        assert isinstance(convergence["growth_rate"], ConvergenceStats)
+        # R-hat must be NaN — not computed for IID MC (#1353)
+        assert np.isnan(convergence["growth_rate"].r_hat)
+        # MCSE and ESS must be finite positive
+        assert convergence["growth_rate"].mcse > 0
+        assert convergence["growth_rate"].ess > 0
+
+    def test_convergence_large_iid_sample_converges(self, setup_engine):
+        """100,000 IID samples must report convergence (#1353 acceptance)."""
+        engine, _, _, _ = setup_engine
+
+        n_sims = 100_000
+        rng = np.random.default_rng(123)
+        results = MonteCarloResults(
+            final_assets=rng.normal(10_000_000, 2_000_000, n_sims),
+            annual_losses=rng.exponential(100_000, (n_sims, 5)),
+            insurance_recoveries=rng.exponential(50_000, (n_sims, 5)),
+            retained_losses=rng.exponential(50_000, (n_sims, 5)),
+            growth_rates=rng.normal(0.05, 0.02, n_sims),
+            ruin_probability={"5": 0.05},
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=engine.config,
+        )
+
+        convergence = engine._check_convergence(results)
+
+        for name, stats in convergence.items():
+            assert stats.converged, (
+                f"{name}: expected converged with {n_sims} IID samples "
+                f"(MCSE={stats.mcse:.6f}, ESS={stats.ess:.0f})"
+            )
+
+    def test_convergence_small_iid_sample_does_not_converge(self, setup_engine):
+        """100 IID samples must NOT report convergence (#1353 acceptance)."""
+        engine, _, _, _ = setup_engine
+
+        n_sims = 100
+        rng = np.random.default_rng(456)
+        results = MonteCarloResults(
+            final_assets=rng.normal(10_000_000, 2_000_000, n_sims),
+            annual_losses=rng.exponential(100_000, (n_sims, 5)),
+            insurance_recoveries=rng.exponential(50_000, (n_sims, 5)),
+            retained_losses=rng.exponential(50_000, (n_sims, 5)),
+            growth_rates=rng.normal(0.05, 0.02, n_sims),
+            ruin_probability={"5": 0.05},
+            metrics={},
+            convergence={},
+            execution_time=0,
+            config=engine.config,
+        )
+
+        convergence = engine._check_convergence(results)
+
+        # With only 100 samples, ESS < min_ess (1000) so not converged
+        for name, stats in convergence.items():
+            assert not stats.converged, (
+                f"{name}: must NOT converge with only {n_sims} samples "
+                f"(MCSE={stats.mcse:.6f}, ESS={stats.ess:.0f})"
+            )
 
     def test_caching(self, setup_engine):
         """Test result caching."""
