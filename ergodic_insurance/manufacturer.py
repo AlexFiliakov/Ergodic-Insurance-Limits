@@ -805,6 +805,50 @@ class WidgetManufacturer(
                 month=self.current_month,
             )
 
+        # Issue #1326: Record COGS and OPEX as explicit ledger entries
+        # so the ledger can produce: Revenue - COGS - OPEX - Depreciation = Operating Income.
+        # Only the cash-consuming portions are recorded here; depreciation is
+        # already recorded via Dr DEPRECIATION_EXPENSE / Cr ACCUMULATED_DEPRECIATION.
+        cogs_expense = to_decimal(0)
+        opex_expense = to_decimal(0)
+        if revenue > ZERO:
+            expense_ratios = getattr(self.config, "expense_ratios", None)
+            if expense_ratios is not None:
+                cogs_ratio = to_decimal(expense_ratios.cogs_ratio)
+                sga_ratio = to_decimal(expense_ratios.sga_expense_ratio)
+                mfg_dep_alloc = to_decimal(expense_ratios.manufacturing_depreciation_allocation)
+                admin_dep_alloc = to_decimal(expense_ratios.admin_depreciation_allocation)
+            else:
+                cogs_ratio = to_decimal(0.85)
+                sga_ratio = to_decimal(0.07)
+                mfg_dep_alloc = to_decimal(0.7)
+                admin_dep_alloc = to_decimal(0.3)
+
+            # Cash-consuming portions (depreciation already recorded separately)
+            cogs_expense = max(ZERO, revenue * cogs_ratio - depreciation_expense * mfg_dep_alloc)
+            opex_expense = max(ZERO, revenue * sga_ratio - depreciation_expense * admin_dep_alloc)
+
+            if cogs_expense > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.COST_OF_GOODS_SOLD,
+                    credit_account=AccountName.CASH,
+                    amount=cogs_expense,
+                    transaction_type=TransactionType.EXPENSE,
+                    description=f"Year {self.current_year} cost of goods sold",
+                    month=self.current_month,
+                )
+            if opex_expense > ZERO:
+                self.ledger.record_double_entry(
+                    date=self.current_year,
+                    debit_account=AccountName.OPERATING_EXPENSES,
+                    credit_account=AccountName.CASH,
+                    amount=opex_expense,
+                    transaction_type=TransactionType.EXPENSE,
+                    description=f"Year {self.current_year} operating expenses (SGA)",
+                    month=self.current_month,
+                )
+
         # Calculate net income
         net_income = self.calculate_net_income(
             operating_income,
@@ -825,6 +869,8 @@ class WidgetManufacturer(
             growth_rate,
             depreciation_expense,
             period_revenue=revenue,
+            cogs_expense=cogs_expense,
+            opex_expense=opex_expense,
         )
 
         # Amortize prepaid insurance if applicable
