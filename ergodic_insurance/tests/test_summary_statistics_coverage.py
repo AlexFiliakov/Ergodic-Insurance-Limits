@@ -1139,3 +1139,103 @@ class TestStderrESS:
         ss = SummaryStatistics(seed=42, assume_iid=False)
         result = ss._calculate_basic_stats(np.array([]))
         assert result["stderr"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Issue #1309: _weighted_percentile interpolation
+# ---------------------------------------------------------------------------
+class TestWeightedPercentileInterpolation:
+    """Verify _weighted_percentile uses linear interpolation (Issue #1309)."""
+
+    @pytest.fixture
+    def ss(self):
+        return SummaryStatistics(seed=42)
+
+    def test_equal_weight_median_interpolates(self, ss):
+        """Weighted median of [1, 2] with equal weights returns 1.5, not 1."""
+        data = np.array([1.0, 2.0])
+        weights = np.array([1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 50)
+        assert result == pytest.approx(1.5)
+
+    def test_matches_numpy_percentile_uniform_weights(self, ss):
+        """With uniform weights, result matches np.percentile (Type 7)."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(100, 15, size=50)
+        weights = np.ones(len(data))
+        for p in [10, 25, 50, 75, 90]:
+            weighted = ss._weighted_percentile(data, weights, p)
+            expected = np.percentile(data, p)
+            assert weighted == pytest.approx(
+                expected, rel=0.05
+            ), f"p={p}: weighted={weighted}, expected={expected}"
+
+    def test_monotonicity(self, ss):
+        """_weighted_percentile(data, w, p1) <= _weighted_percentile(data, w, p2) for p1 <= p2."""
+        rng = np.random.default_rng(123)
+        data = rng.exponential(scale=5.0, size=30)
+        weights = rng.uniform(0.5, 2.0, size=30)
+        percentiles = list(range(0, 101, 5))
+        values = [ss._weighted_percentile(data, weights, p) for p in percentiles]
+        for i in range(len(values) - 1):
+            assert values[i] <= values[i + 1], (
+                f"Non-monotonic: p={percentiles[i]} -> {values[i]} > "
+                f"p={percentiles[i+1]} -> {values[i+1]}"
+            )
+
+    def test_boundary_p0_returns_min(self, ss):
+        """Percentile 0 returns the minimum value."""
+        data = np.array([3.0, 1.0, 2.0])
+        weights = np.array([1.0, 1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 0)
+        assert result == pytest.approx(1.0)
+
+    def test_boundary_p100_returns_max(self, ss):
+        """Percentile 100 returns the maximum value."""
+        data = np.array([3.0, 1.0, 2.0])
+        weights = np.array([1.0, 1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 100)
+        assert result == pytest.approx(3.0)
+
+    def test_single_element(self, ss):
+        """Single element returns that element for any percentile."""
+        data = np.array([42.0])
+        weights = np.array([1.0])
+        for p in [0, 25, 50, 75, 100]:
+            assert ss._weighted_percentile(data, weights, p) == pytest.approx(42.0)
+
+    def test_non_uniform_weights_known_result(self, ss):
+        """Known textbook weighted percentile with non-uniform weights."""
+        # Three values with weights [1, 2, 1]. Total weight = 4.
+        # Weight centers: cumsum=[1,3,4], centers=[0.5, 2.0, 3.5]
+        # Median (cutoff=2.0) falls exactly at center of value 20 -> 20.0
+        data = np.array([10.0, 20.0, 30.0])
+        weights = np.array([1.0, 2.0, 1.0])
+        median = ss._weighted_percentile(data, weights, 50)
+        assert median == pytest.approx(20.0)
+
+    def test_heavily_skewed_weights(self, ss):
+        """Result is pulled toward heavily weighted values."""
+        data = np.array([10.0, 20.0, 30.0])
+        # Almost all weight on 30
+        weights = np.array([0.01, 0.01, 100.0])
+        median = ss._weighted_percentile(data, weights, 50)
+        assert median == pytest.approx(30.0, abs=1.0)
+
+    def test_unsorted_data_handled(self, ss):
+        """Data need not be pre-sorted."""
+        data = np.array([30.0, 10.0, 20.0])
+        weights = np.array([1.0, 1.0, 1.0])
+        result = ss._weighted_percentile(data, weights, 50)
+        assert result == pytest.approx(20.0)
+
+    def test_iqr_with_weighted_percentile(self, ss):
+        """IQR computed via _weighted_percentile converges to np.percentile for large n."""
+        rng = np.random.default_rng(99)
+        data = rng.normal(50, 10, size=200)
+        weights = np.ones(len(data))
+        q25 = ss._weighted_percentile(data, weights, 25)
+        q75 = ss._weighted_percentile(data, weights, 75)
+        iqr = q75 - q25
+        expected_iqr = np.percentile(data, 75) - np.percentile(data, 25)
+        assert iqr == pytest.approx(expected_iqr, rel=0.05)
