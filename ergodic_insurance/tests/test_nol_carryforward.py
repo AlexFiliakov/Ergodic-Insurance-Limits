@@ -584,3 +584,123 @@ class TestTCJALimitation:
 
         # Pre-TCJA always produces less or equal tax
         assert pre_tcja_tax <= tcja_tax
+
+
+class TestNetIncomeAssertionRemoval:
+    """Verify that net_income > operating_income no longer crashes (Issue #1314).
+
+    The old assertion ``net_income <= operating_income`` was conceptually
+    flawed because deferred-tax adjustments (DTA recognition, DTL reversal,
+    valuation allowance reversal) can legitimately cause net income to exceed
+    operating income per ASC 740.  The assertion has been replaced with a
+    ``logger.warning()`` call.
+    """
+
+    @pytest.fixture
+    def config(self):
+        return ManufacturerConfig(
+            initial_assets=10_000_000,
+            asset_turnover_ratio=1.0,
+            base_operating_margin=0.15,
+            tax_rate=0.25,
+            retention_ratio=1.0,
+            nol_carryforward_enabled=True,
+            nol_limitation_pct=0.80,
+        )
+
+    @pytest.fixture
+    def manufacturer(self, config):
+        return WidgetManufacturer(config)
+
+    def test_no_assertion_error_with_dta_and_collateral_costs(self, manufacturer):
+        """DTA recognition with collateral costs must not raise AssertionError.
+
+        Regression test for Issue #1314: a loss year that creates DTA followed
+        by a profit year with small collateral costs should complete without
+        crashing, even though DTA journal entries modify the TAX_EXPENSE
+        ledger balance.
+        """
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        # Year 1 — force a loss via excessive collateral costs (creates NOL/DTA)
+        excessive_costs = operating_income + to_decimal(500_000)
+        manufacturer.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
+        assert manufacturer.tax_handler.nol_carryforward > ZERO
+        assert manufacturer.deferred_tax_asset > ZERO
+
+        # Year 2 — profit year WITH small collateral costs
+        # This previously risked an AssertionError when DTA adjustments
+        # reduced effective tax expense.
+        small_collateral = to_decimal(1_000)
+        net_income = manufacturer.calculate_net_income(
+            operating_income, small_collateral, use_accrual=False
+        )
+
+        # Should complete without error; net_income is valid
+        assert isinstance(net_income, Decimal)
+
+    def test_no_assertion_error_with_dtl_reversal_and_collateral(self, manufacturer):
+        """DTL reversal with collateral costs must not raise AssertionError.
+
+        A loss year followed by recovery year creates DTA changes. Combined
+        with collateral costs, this exercises the path described in #1314.
+        """
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        # Force multiple loss years to create substantial DTA
+        for _ in range(2):
+            excessive_costs = operating_income + to_decimal(200_000)
+            manufacturer.calculate_net_income(operating_income, excessive_costs, use_accrual=False)
+
+        # Recovery year with moderate collateral costs
+        collateral = to_decimal(50_000)
+        net_income = manufacturer.calculate_net_income(
+            operating_income, collateral, use_accrual=False
+        )
+        assert isinstance(net_income, Decimal)
+
+    def test_warning_logged_when_net_income_exceeds_operating_income(self, config):
+        """A warning should be logged when net_income > operating_income.
+
+        We patch calculate_and_accrue_tax to simulate the scenario where
+        a deferred-tax benefit causes actual_tax_expense to be negative,
+        resulting in net_income > operating_income despite collateral costs.
+        This is the exact failure mode described in Issue #1314.
+        """
+        import logging
+        from unittest.mock import patch
+
+        manufacturer = WidgetManufacturer(config)
+        revenue = manufacturer.calculate_revenue()
+        operating_income = manufacturer.calculate_operating_income(revenue)
+
+        # To get net_income > operating_income we need actual_tax < 0.
+        # Since the current TaxHandler cannot return negative tax, we patch
+        # to return -$1000 to simulate a future ASC 740 tax-benefit path.
+        # operating_income ≈ $1.5M, collateral = $100
+        # income_before_tax ≈ $1,499,900
+        # patched tax = -$1000 → net_income = $1,499,900 - (-$1000) = $1,500,900
+        # net_income ($1,500,900) > operating_income ($1,500,000) → warning
+        logger = logging.getLogger("ergodic_insurance.manufacturer_income")
+        with (
+            patch.object(
+                manufacturer.tax_handler,
+                "calculate_and_accrue_tax",
+                return_value=(to_decimal("-1000"), False, ZERO),
+            ),
+            patch.object(logger, "warning") as mock_warning,
+        ):
+            # This should NOT raise AssertionError (old behavior would crash)
+            net_income = manufacturer.calculate_net_income(
+                operating_income, to_decimal("100"), use_accrual=False
+            )
+
+        # Net income should exceed operating income due to tax benefit
+        assert net_income > operating_income
+
+        # Warning should have been emitted
+        mock_warning.assert_called_once()
+        warning_msg = mock_warning.call_args[0][0]
+        assert "exceeds operating income" in warning_msg
