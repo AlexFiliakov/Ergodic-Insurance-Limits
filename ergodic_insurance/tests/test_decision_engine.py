@@ -321,6 +321,163 @@ class TestDecisionMetrics:
         assert score_partial == score_full
 
 
+class TestDecisionMetricsGrouping:
+    """Test sub-group access and new methods on DecisionMetrics."""
+
+    @staticmethod
+    def _make_metrics(**overrides):
+        defaults = {
+            "ergodic_growth_rate": 0.12,
+            "bankruptcy_probability": 0.005,
+            "expected_roe": 0.15,
+            "roe_improvement": 0.03,
+            "premium_to_limit_ratio": 0.02,
+            "coverage_adequacy": 0.85,
+            "capital_efficiency": 2.5,
+            "value_at_risk_95": 5_000_000,
+            "conditional_value_at_risk": 7_000_000,
+        }
+        defaults.update(overrides)
+        return DecisionMetrics(**defaults)
+
+    def test_grouped_access_growth(self):
+        m = self._make_metrics()
+        assert m.growth.ergodic_growth_rate == 0.12
+
+    def test_grouped_access_risk(self):
+        m = self._make_metrics()
+        assert m.risk.bankruptcy_probability == 0.005
+        assert m.risk.value_at_risk_95 == 5_000_000
+        assert m.risk.conditional_value_at_risk == 7_000_000
+
+    def test_grouped_access_roe(self):
+        m = self._make_metrics(
+            time_weighted_roe=0.14,
+            roe_volatility=0.05,
+            operating_roe=0.20,
+            insurance_impact_roe=-0.04,
+            tax_effect_roe=-0.01,
+        )
+        assert m.roe.expected_roe == 0.15
+        assert m.roe.roe_improvement == 0.03
+        assert m.roe.time_weighted_roe == 0.14
+        assert m.roe.roe_volatility == 0.05
+        assert m.roe.components.operating_roe == 0.20
+        assert m.roe.components.insurance_impact_roe == -0.04
+        assert m.roe.components.tax_effect_roe == -0.01
+
+    def test_grouped_access_efficiency(self):
+        m = self._make_metrics()
+        assert m.efficiency.premium_to_limit_ratio == 0.02
+        assert m.efficiency.coverage_adequacy == 0.85
+        assert m.efficiency.capital_efficiency == 2.5
+
+    def test_flat_access_still_works(self):
+        """Every flat field name resolves via __getattr__."""
+        m = self._make_metrics(
+            time_weighted_roe=0.14,
+            operating_roe=0.20,
+        )
+        assert m.ergodic_growth_rate == 0.12
+        assert m.bankruptcy_probability == 0.005
+        assert m.expected_roe == 0.15
+        assert m.roe_improvement == 0.03
+        assert m.premium_to_limit_ratio == 0.02
+        assert m.coverage_adequacy == 0.85
+        assert m.capital_efficiency == 2.5
+        assert m.value_at_risk_95 == 5_000_000
+        assert m.conditional_value_at_risk == 7_000_000
+        assert m.time_weighted_roe == 0.14
+        assert m.operating_roe == 0.20
+
+    def test_decision_score_top_level(self):
+        m = self._make_metrics(decision_score=0.75)
+        assert m.decision_score == 0.75
+
+    def test_calculate_score_uses_getattr(self):
+        m = self._make_metrics()
+        score = m.calculate_score()
+        assert 0 <= score <= 1
+        assert m.decision_score == score
+
+    def test_repr(self):
+        m = self._make_metrics(decision_score=0.8)
+        r = repr(m)
+        assert "DecisionMetrics(" in r
+        assert "score=0.800" in r
+        assert "growth=" in r
+        assert "risk=" in r
+        assert "roe=" in r
+        assert "efficiency=" in r
+
+    def test_eq(self):
+        m1 = self._make_metrics()
+        m2 = self._make_metrics()
+        assert m1 == m2
+        m3 = self._make_metrics(ergodic_growth_rate=0.99)
+        assert m1 != m3
+
+    def test_to_dict_all(self):
+        m = self._make_metrics(decision_score=0.7, operating_roe=0.20)
+        d = m.to_dict()
+        assert d["ergodic_growth_rate"] == 0.12
+        assert d["bankruptcy_probability"] == 0.005
+        assert d["operating_roe"] == 0.20
+        assert d["decision_score"] == 0.7
+        # Should be flat, no nested dicts
+        assert all(not isinstance(v, dict) for v in d.values())
+        # Should contain all 20 fields
+        assert len(d) == 20
+
+    def test_to_dict_group_growth(self):
+        m = self._make_metrics()
+        gd = m.to_dict(group="growth")
+        assert gd == {"ergodic_growth_rate": 0.12}
+
+    def test_to_dict_group_risk(self):
+        m = self._make_metrics()
+        rd = m.to_dict(group="risk")
+        assert set(rd.keys()) == {
+            "bankruptcy_probability",
+            "value_at_risk_95",
+            "conditional_value_at_risk",
+        }
+
+    def test_to_dict_roe_inlines_components(self):
+        m = self._make_metrics(operating_roe=0.20)
+        rd = m.to_dict(group="roe")
+        assert "operating_roe" in rd
+        assert rd["operating_roe"] == 0.20
+        assert "components" not in rd  # inlined, not nested
+
+    def test_to_dict_invalid_group(self):
+        m = self._make_metrics()
+        with pytest.raises(ValueError, match="Unknown group"):
+            m.to_dict(group="nonexistent")
+
+    def test_unknown_attribute_raises(self):
+        m = self._make_metrics()
+        with pytest.raises(AttributeError):
+            _ = m.totally_fake_attribute
+
+    def test_setattr_delegated_field(self):
+        """Setting a delegated field propagates to the sub-group."""
+        m = self._make_metrics()
+        m.ergodic_growth_rate = 0.99
+        assert m.ergodic_growth_rate == 0.99
+        assert m.growth.ergodic_growth_rate == 0.99
+
+    def test_deepcopy(self):
+        """DecisionMetrics must support deepcopy (used in sensitivity analysis)."""
+        import copy
+
+        m = self._make_metrics(decision_score=0.8, operating_roe=0.20)
+        m2 = copy.deepcopy(m)
+        assert m == m2
+        m2.ergodic_growth_rate = 0.99
+        assert m.ergodic_growth_rate == 0.12  # original unchanged
+
+
 class TestInsuranceDecisionEngine:
     """Test InsuranceDecisionEngine class."""
 

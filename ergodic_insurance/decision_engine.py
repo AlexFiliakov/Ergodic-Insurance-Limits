@@ -87,21 +87,64 @@ class InsuranceDecision:
 
 
 @dataclass
-class DecisionMetrics:
-    """Comprehensive metrics for evaluating an insurance decision."""
+class GrowthMetrics:
+    """Ergodic growth metrics for insurance decision evaluation.
+
+    The ergodic growth rate measures the time-average (geometric) growth of
+    firm value under a given insurance program.  Unlike the ensemble-average
+    used in traditional expected-value analysis, the time-average captures
+    the compounding effect of sequential outcomes and correctly penalizes
+    variance — making it the appropriate objective for a single firm
+    operating through time.
+    """
 
     ergodic_growth_rate: float  # Time-average growth with insurance
+
+
+@dataclass
+class DecisionRiskMetrics:
+    """Tail-risk metrics for an insurance decision.
+
+    ``bankruptcy_probability`` is the simulated ruin frequency,
+    ``value_at_risk_95`` is the 95th-percentile loss, and
+    ``conditional_value_at_risk`` (Tail Value-at-Risk / Expected Shortfall)
+    is the expected loss in the worst 5% of scenarios — the standard
+    regulatory solvency metric under Solvency II and NAIC RBC frameworks.
+    """
+
     bankruptcy_probability: float  # Probability of ruin
+    value_at_risk_95: float  # 95th percentile loss
+    conditional_value_at_risk: float  # Expected loss beyond VaR (TVaR)
+
+
+@dataclass
+class ROEComponentMetrics:
+    """Decomposition of Return on Equity into operational drivers.
+
+    This DuPont-style breakdown isolates the ROE impact of underwriting
+    operations, the insurance program cost, and the tax shield.  Actuaries
+    and CFOs use this decomposition to attribute value creation to the
+    insurance purchasing decision versus organic business performance.
+    """
+
+    operating_roe: float = 0.0  # ROE from operations
+    insurance_impact_roe: float = 0.0  # ROE impact from insurance
+    tax_effect_roe: float = 0.0  # Tax impact on ROE
+
+
+@dataclass
+class ROEMetrics:
+    """Return-on-equity metrics for insurance decision evaluation.
+
+    Captures expected ROE, its improvement versus the uninsured baseline,
+    risk-adjusted performance (Sharpe ratio, downside deviation), and
+    rolling averages.  The ``components`` sub-group isolates the operational,
+    insurance, and tax contributions to ROE — useful for board-level
+    attribution reporting.
+    """
+
     expected_roe: float  # Expected return on equity
     roe_improvement: float  # Change in ROE vs no insurance
-    premium_to_limit_ratio: float  # Premium efficiency
-    coverage_adequacy: float  # Coverage vs expected losses
-    capital_efficiency: float  # Benefit per dollar of premium
-    value_at_risk_95: float  # 95th percentile loss
-    conditional_value_at_risk: float  # Expected loss beyond VaR
-    decision_score: float = 0.0  # Overall decision quality score
-
-    # Enhanced ROE metrics
     time_weighted_roe: float = 0.0  # Time-weighted average ROE
     roe_volatility: float = 0.0  # ROE standard deviation
     roe_sharpe_ratio: float = 0.0  # ROE risk-adjusted performance
@@ -109,11 +152,225 @@ class DecisionMetrics:
     roe_1yr_rolling: float = 0.0  # 1-year rolling average ROE
     roe_3yr_rolling: float = 0.0  # 3-year rolling average ROE
     roe_5yr_rolling: float = 0.0  # 5-year rolling average ROE
+    components: ROEComponentMetrics = field(default_factory=ROEComponentMetrics)
 
-    # ROE component breakdown
-    operating_roe: float = 0.0  # ROE from operations
-    insurance_impact_roe: float = 0.0  # ROE impact from insurance
-    tax_effect_roe: float = 0.0  # Tax impact on ROE
+
+@dataclass
+class EfficiencyMetrics:
+    """Premium efficiency and coverage adequacy metrics.
+
+    ``premium_to_limit_ratio`` (rate-on-line) measures how many cents of
+    premium are paid per dollar of limit — a standard broker metric for
+    layer pricing comparisons.  ``coverage_adequacy`` measures how well the
+    program covers expected aggregate losses.  ``capital_efficiency`` is the
+    incremental firm value per dollar of premium, analogous to the ROIC
+    of the insurance spend.
+    """
+
+    premium_to_limit_ratio: float  # Premium efficiency (rate-on-line)
+    coverage_adequacy: float  # Coverage vs expected losses
+    capital_efficiency: float  # Benefit per dollar of premium
+
+
+# Maps flat field names to (group_attr, ..., field_name) paths for
+# backward-compatible attribute delegation in DecisionMetrics.
+_FIELD_TO_GROUP: Dict[str, Tuple[str, ...]] = {
+    # GrowthMetrics
+    "ergodic_growth_rate": ("growth", "ergodic_growth_rate"),
+    # DecisionRiskMetrics
+    "bankruptcy_probability": ("risk", "bankruptcy_probability"),
+    "value_at_risk_95": ("risk", "value_at_risk_95"),
+    "conditional_value_at_risk": ("risk", "conditional_value_at_risk"),
+    # ROEMetrics (direct)
+    "expected_roe": ("roe", "expected_roe"),
+    "roe_improvement": ("roe", "roe_improvement"),
+    "time_weighted_roe": ("roe", "time_weighted_roe"),
+    "roe_volatility": ("roe", "roe_volatility"),
+    "roe_sharpe_ratio": ("roe", "roe_sharpe_ratio"),
+    "roe_downside_deviation": ("roe", "roe_downside_deviation"),
+    "roe_1yr_rolling": ("roe", "roe_1yr_rolling"),
+    "roe_3yr_rolling": ("roe", "roe_3yr_rolling"),
+    "roe_5yr_rolling": ("roe", "roe_5yr_rolling"),
+    # ROEComponentMetrics (nested under roe.components)
+    "operating_roe": ("roe", "components", "operating_roe"),
+    "insurance_impact_roe": ("roe", "components", "insurance_impact_roe"),
+    "tax_effect_roe": ("roe", "components", "tax_effect_roe"),
+    # EfficiencyMetrics
+    "premium_to_limit_ratio": ("efficiency", "premium_to_limit_ratio"),
+    "coverage_adequacy": ("efficiency", "coverage_adequacy"),
+    "capital_efficiency": ("efficiency", "capital_efficiency"),
+}
+
+# Top-level instance attributes stored directly on DecisionMetrics.
+_DECISION_METRICS_DIRECT_ATTRS = frozenset(
+    {"growth", "risk", "roe", "efficiency", "decision_score"}
+)
+
+
+class DecisionMetrics:
+    """Comprehensive metrics for evaluating an insurance decision.
+
+    Metrics are organized into four logical groups accessible as sub-objects:
+
+    * ``growth`` (:class:`GrowthMetrics`) — Ergodic (time-average) growth
+    * ``risk`` (:class:`DecisionRiskMetrics`) — Ruin probability and tail risk
+    * ``roe`` (:class:`ROEMetrics`) — Return-on-equity with components
+    * ``efficiency`` (:class:`EfficiencyMetrics`) — Premium efficiency and coverage
+
+    For backward compatibility, all fields remain accessible as flat
+    attributes (e.g. ``metrics.bankruptcy_probability``) in addition to
+    the grouped path (``metrics.risk.bankruptcy_probability``).
+    """
+
+    def __init__(
+        self,
+        *,
+        ergodic_growth_rate: float,
+        bankruptcy_probability: float,
+        expected_roe: float,
+        roe_improvement: float,
+        premium_to_limit_ratio: float,
+        coverage_adequacy: float,
+        capital_efficiency: float,
+        value_at_risk_95: float,
+        conditional_value_at_risk: float,
+        decision_score: float = 0.0,
+        time_weighted_roe: float = 0.0,
+        roe_volatility: float = 0.0,
+        roe_sharpe_ratio: float = 0.0,
+        roe_downside_deviation: float = 0.0,
+        roe_1yr_rolling: float = 0.0,
+        roe_3yr_rolling: float = 0.0,
+        roe_5yr_rolling: float = 0.0,
+        operating_roe: float = 0.0,
+        insurance_impact_roe: float = 0.0,
+        tax_effect_roe: float = 0.0,
+    ):
+        self.growth = GrowthMetrics(
+            ergodic_growth_rate=ergodic_growth_rate,
+        )
+        self.risk = DecisionRiskMetrics(
+            bankruptcy_probability=bankruptcy_probability,
+            value_at_risk_95=value_at_risk_95,
+            conditional_value_at_risk=conditional_value_at_risk,
+        )
+        self.roe = ROEMetrics(
+            expected_roe=expected_roe,
+            roe_improvement=roe_improvement,
+            time_weighted_roe=time_weighted_roe,
+            roe_volatility=roe_volatility,
+            roe_sharpe_ratio=roe_sharpe_ratio,
+            roe_downside_deviation=roe_downside_deviation,
+            roe_1yr_rolling=roe_1yr_rolling,
+            roe_3yr_rolling=roe_3yr_rolling,
+            roe_5yr_rolling=roe_5yr_rolling,
+            components=ROEComponentMetrics(
+                operating_roe=operating_roe,
+                insurance_impact_roe=insurance_impact_roe,
+                tax_effect_roe=tax_effect_roe,
+            ),
+        )
+        self.efficiency = EfficiencyMetrics(
+            premium_to_limit_ratio=premium_to_limit_ratio,
+            coverage_adequacy=coverage_adequacy,
+            capital_efficiency=capital_efficiency,
+        )
+        self.decision_score = decision_score
+
+    # -- Backward-compatible flat attribute access -------------------------
+
+    def __getattr__(self, name: str) -> Any:
+        path = _FIELD_TO_GROUP.get(name)
+        if path is not None:
+            obj: Any = self
+            for segment in path:
+                obj = object.__getattribute__(obj, segment)
+            return obj
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in _DECISION_METRICS_DIRECT_ATTRS:
+            super().__setattr__(name, value)
+            return
+        path = _FIELD_TO_GROUP.get(name)
+        if path is not None:
+            obj: Any = self
+            for segment in path[:-1]:
+                obj = object.__getattribute__(obj, segment)
+            object.__setattr__(obj, path[-1], value)
+            return
+        super().__setattr__(name, value)
+
+    # -- Display and comparison --------------------------------------------
+
+    def __repr__(self) -> str:
+        return (
+            f"DecisionMetrics("
+            f"score={self.decision_score:.3f}, "
+            f"growth={self.growth.ergodic_growth_rate:.4f}, "
+            f"risk={self.risk.bankruptcy_probability:.4f}, "
+            f"roe={self.roe.expected_roe:.4f}, "
+            f"efficiency={self.efficiency.capital_efficiency:.4f})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DecisionMetrics):
+            return NotImplemented
+        return (
+            self.growth == other.growth
+            and self.risk == other.risk
+            and self.roe == other.roe
+            and self.efficiency == other.efficiency
+            and self.decision_score == other.decision_score
+        )
+
+    # -- Serialization -----------------------------------------------------
+
+    def to_dict(self, group: Optional[str] = None) -> Dict[str, Any]:
+        """Serialize metrics to a flat dictionary.
+
+        Args:
+            group: If ``None``, returns all metrics as a flat dict.  If a
+                group name (``"growth"``, ``"risk"``, ``"roe"``,
+                ``"efficiency"``), returns only that group's fields.  For
+                ``"roe"``, component metrics are inlined into the same dict.
+
+        Returns:
+            Dictionary of metric name to value.
+
+        Raises:
+            ValueError: If *group* is not a recognized group name.
+        """
+        from dataclasses import asdict as _asdict
+
+        def _flat(obj: Any) -> Dict[str, Any]:
+            d: Dict[str, Any] = _asdict(obj)
+            if "components" in d:
+                d.update(d.pop("components"))
+            return d
+
+        groups: Dict[str, Any] = {
+            "growth": self.growth,
+            "risk": self.risk,
+            "roe": self.roe,
+            "efficiency": self.efficiency,
+        }
+
+        if group is not None:
+            if group not in groups:
+                raise ValueError(
+                    f"Unknown group '{group}'. " f"Valid groups: {sorted(groups.keys())}"
+                )
+            return _flat(groups[group])
+
+        # No group specified — return all fields flat
+        result: Dict[str, Any] = {}
+        for sub in groups.values():
+            result.update(_flat(sub))
+        result["decision_score"] = self.decision_score
+        return result
+
+    # -- Scoring -----------------------------------------------------------
 
     def calculate_score(
         self,
