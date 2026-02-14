@@ -337,7 +337,9 @@ class SummaryStatistics:
                 "scale": float(scale),
                 "ks_statistic": float(ks_stat),
                 "ks_pvalue": float(ks_pvalue),
-                "aic": float(self._calculate_aic(data, stats.lognorm, shape, loc, scale)),
+                "aic": float(
+                    self._calculate_aic(data, stats.lognorm, shape, loc, scale, n_free_params=2)
+                ),
             }
         except (ValueError, TypeError, RuntimeError):
             pass
@@ -355,7 +357,9 @@ class SummaryStatistics:
                 "scale": float(scale),
                 "ks_statistic": float(ks_stat),
                 "ks_pvalue": float(ks_pvalue),
-                "aic": float(self._calculate_aic(data, stats.gamma, alpha, loc, scale)),
+                "aic": float(
+                    self._calculate_aic(data, stats.gamma, alpha, loc, scale, n_free_params=2)
+                ),
             }
         except (ValueError, TypeError, RuntimeError):
             pass
@@ -369,27 +373,46 @@ class SummaryStatistics:
                 "scale": float(scale),
                 "ks_statistic": float(ks_stat),
                 "ks_pvalue": float(ks_pvalue),
-                "aic": float(self._calculate_aic(data, stats.expon, loc, scale)),
+                "aic": float(self._calculate_aic(data, stats.expon, loc, scale, n_free_params=1)),
             }
         except (ValueError, TypeError, RuntimeError):
             pass
 
         return results
 
-    def _calculate_aic(self, data: np.ndarray, distribution: stats.rv_continuous, *params) -> float:
-        """Calculate Akaike Information Criterion for distribution fit.
+    def _calculate_aic(
+        self,
+        data: np.ndarray,
+        distribution: stats.rv_continuous,
+        *params,
+        n_free_params: Optional[int] = None,
+    ) -> float:
+        """Calculate corrected Akaike Information Criterion (AICc) for distribution fit.
+
+        Uses AICc (Burnham & Anderson, 2002) which adds a finite-sample correction
+        to the standard AIC. AICc converges to AIC as n -> infinity, so there is no
+        downside to using it unconditionally.
 
         Args:
             data: Data points
             distribution: Scipy distribution object
-            params: Distribution parameters
+            params: Distribution parameters (including any fixed parameters
+                needed for evaluation)
+            n_free_params: Number of free (estimated) parameters. If None,
+                defaults to len(params). Pass explicitly when some parameters
+                are fixed during fitting (e.g., floc=0).
 
         Returns:
-            AIC value
+            AICc value
         """
         log_likelihood = np.sum(distribution.logpdf(data, *params))
-        n_params = len(params)
-        return float(2 * n_params - 2 * log_likelihood)
+        k = n_free_params if n_free_params is not None else len(params)
+        n = len(data)
+        aic = 2 * k - 2 * log_likelihood
+        # AICc correction (Burnham & Anderson, 2002; Hurvich & Tsai, 1989)
+        if n - k - 1 > 0:
+            aic += 2 * k * (k + 1) / (n - k - 1)
+        return float(aic)
 
     def _calculate_confidence_intervals(self, data: np.ndarray) -> Dict[str, Tuple[float, float]]:
         """Calculate bootstrap confidence intervals.
@@ -998,8 +1021,13 @@ class DistributionFitter:
                     data, lambda x, dist=dist, params=params: dist.cdf(x, *params)
                 )
                 log_likelihood = np.sum(dist.logpdf(data, *params))
-                aic = 2 * len(params) - 2 * log_likelihood
-                bic = len(params) * np.log(len(data)) - 2 * log_likelihood
+                k = len(params)
+                n = len(data)
+                aic = 2 * k - 2 * log_likelihood
+                # AICc correction (Burnham & Anderson, 2002)
+                if n - k - 1 > 0:
+                    aic += 2 * k * (k + 1) / (n - k - 1)
+                bic = k * np.log(n) - 2 * log_likelihood
 
                 results.append(
                     {
