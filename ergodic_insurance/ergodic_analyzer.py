@@ -47,6 +47,7 @@ from .simulation import SimulationResults
 if TYPE_CHECKING:
     from .insurance_program import InsuranceProgram
     from .loss_distributions import LossData
+    from .monte_carlo import MonteCarloResults
 
 logger = logging.getLogger(__name__)
 
@@ -329,8 +330,8 @@ class ErgodicAnalyzer:
 
     def compare_scenarios(
         self,
-        insured_results: Union[List[SimulationResults], np.ndarray],
-        uninsured_results: Union[List[SimulationResults], np.ndarray],
+        insured_results: Union[List[SimulationResults], np.ndarray, "MonteCarloResults"],
+        uninsured_results: Union[List[SimulationResults], np.ndarray, "MonteCarloResults"],
         metric: str = "equity",
     ) -> ScenarioComparison:
         """Compare insured vs uninsured scenarios using ergodic analysis.
@@ -339,14 +340,31 @@ class ErgodicAnalyzer:
         `Advanced Scenarios tutorial <https://docs.mostlyoptimal.com/tutorials/06_advanced_scenarios.html>`_.
 
         Args:
-            insured_results: Simulation results from insured scenarios.
-            uninsured_results: Simulation results from uninsured scenarios.
+            insured_results: Simulation results from insured scenarios —
+                list of :class:`SimulationResults`, 2-D array, or
+                :class:`~ergodic_insurance.monte_carlo.MonteCarloResults`.
+            uninsured_results: Simulation results from uninsured scenarios
+                (same format as *insured_results*; types may differ).
             metric: Financial metric to analyze (default ``"equity"``).
+                Ignored when a :class:`MonteCarloResults` is passed.
 
         Returns:
             :class:`ScenarioComparison` with ``insured``, ``uninsured``,
             and ``ergodic_advantage`` fields.  Supports dict-style access
             for backward compatibility (with deprecation warnings).
+
+        Example:
+            Using :class:`MonteCarloResults` directly::
+
+                from ergodic_insurance import ErgodicAnalyzer
+                from ergodic_insurance.monte_carlo import MonteCarloEngine
+
+                engine = MonteCarloEngine(manufacturer, config)
+                insured_mc = engine.run(insurance_program=program)
+                uninsured_mc = engine.run(insurance_program=None)
+
+                analyzer = ErgodicAnalyzer()
+                comparison = analyzer.compare_scenarios(insured_mc, uninsured_mc)
         """
         from . import scenario_analysis
 
