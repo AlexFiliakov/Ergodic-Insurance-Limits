@@ -294,10 +294,8 @@ class ConfigManager:
         if overrides:
             config = config.with_overrides(overrides)
 
-        # Validate completeness
-        issues = config.validate_completeness()
-        if issues:
-            warnings.warn(f"Configuration issues: {', '.join(issues)}")
+        # Validate configuration
+        config.validate_config()
 
         # Cache the result
         if use_cache:
@@ -454,26 +452,36 @@ class ConfigManager:
     def validate(self, config: Config) -> List[str]:
         """Validate a configuration for completeness and consistency.
 
+        Calls :meth:`Config.validate_config` for critical issues (which raises
+        :class:`~ergodic_insurance.config.exceptions.ConfigurationError`),
+        then returns a list of additional advisory warnings.
+
         Args:
             config: Configuration to validate.
 
         Returns:
-            List of validation issues, empty if valid.
-        """
-        issues: List[str] = config.validate_completeness()
+            List of advisory warnings (empty if none).
 
-        # Additional validation logic
+        Raises:
+            ConfigurationError: If critical configuration issues are found.
+        """
+        # Critical issues — let the exception propagate
+        config.validate_config()
+
+        # Advisory warnings (non-critical)
+        warnings_list: List[str] = []
+
         if config.simulation.time_horizon_years > 1000:
-            issues.append(
+            warnings_list.append(
                 f"Time horizon {config.simulation.time_horizon_years} years may be too long"
             )
 
         if config.manufacturer.base_operating_margin > 0.5:
-            issues.append(
+            warnings_list.append(
                 f"Base operating margin {config.manufacturer.base_operating_margin} seems unrealistic"
             )
 
-        return issues
+        return warnings_list
 
     def list_profiles(self) -> List[str]:
         """List all available configuration profiles.

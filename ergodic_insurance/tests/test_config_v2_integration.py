@@ -96,9 +96,8 @@ class TestIntegration:
             },
         )
 
-        # Validate completeness
-        issues = config.validate_completeness()
-        assert len(issues) == 0
+        # Validate completeness (should not raise)
+        config.validate_config()
 
         # Apply preset (returns new instance)
         preset_data = {

@@ -16,6 +16,7 @@ import warnings
 from pydantic import BaseModel, Field
 import yaml
 
+from .exceptions import ConfigurationError
 from .insurance import InsuranceConfig, LossDistributionConfig
 from .manufacturer import (
     DepreciationConfig,
@@ -561,11 +562,69 @@ class Config(BaseModel):
     #  Validation
     # ------------------------------------------------------------------ #
 
+    def validate_config(self) -> None:
+        """Validate configuration, raising on critical issues.
+
+        Checks for missing required sections and logical inconsistencies.
+        Raises :class:`~ergodic_insurance.config.exceptions.ConfigurationError`
+        if any critical issues are found.
+
+        The method is named ``validate_config`` rather than ``validate`` to
+        avoid conflicting with Pydantic's deprecated ``BaseModel.validate``
+        classmethod.
+
+        Raises:
+            ConfigurationError: If the configuration has critical issues.
+                The exception's ``issues`` attribute contains the full list
+                of problems found.
+
+        Examples:
+            Basic validation::
+
+                config = Config()
+                config.validate_config()  # OK — defaults are valid
+
+            Catching issues::
+
+                try:
+                    config.validate_config()
+                except ConfigurationError as e:
+                    for issue in e.issues:
+                        print(f"  - {issue}")
+
+        Since:
+            Version 0.14.0 (Issue #1299)
+        """
+        issues = self._collect_issues()
+        if issues:
+            raise ConfigurationError(issues)
+
     def validate_completeness(self) -> List[str]:
-        """Validate configuration completeness.
+        """Validate configuration completeness (soft check).
+
+        .. deprecated:: 0.14.0
+            Use :meth:`validate_config` instead, which raises
+            :class:`~ergodic_insurance.config.exceptions.ConfigurationError`
+            for critical issues.  ``validate_completeness`` will be removed
+            in a future release.
 
         Returns:
             List of missing or invalid configuration items.
+        """
+        warnings.warn(
+            "Config.validate_completeness() is deprecated and will be removed "
+            "in a future release. Use Config.validate_config() instead, which raises "
+            "ConfigurationError for critical issues.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._collect_issues()
+
+    def _collect_issues(self) -> List[str]:
+        """Collect all configuration issues.
+
+        Returns:
+            List of issue description strings (empty if valid).
         """
         issues = []
 
@@ -633,13 +692,34 @@ class Config(BaseModel):
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
 
-    def validate_paths(self) -> None:
+    def ensure_output_dirs(self) -> None:
         """Create output directories if they don't exist.
 
         Ensures that the configured output directory exists,
         creating it if necessary.
+
+        Since:
+            Version 0.14.0 (Issue #1299) — renamed from ``validate_paths``
         """
         Path(self.output.output_directory).mkdir(parents=True, exist_ok=True)
+
+    def validate_paths(self) -> None:
+        """Create output directories if they don't exist.
+
+        .. deprecated:: 0.14.0
+            Use :meth:`ensure_output_dirs` instead. The old name suggested
+            read-only validation but the method actually creates directories.
+            ``validate_paths`` will be removed in a future release.
+        """
+        warnings.warn(
+            "Config.validate_paths() is deprecated and will be removed in a "
+            "future release. Use Config.ensure_output_dirs() instead — the "
+            "old name suggested read-only validation but the method creates "
+            "directories.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.ensure_output_dirs()
 
     # ------------------------------------------------------------------ #
     #  Internal helpers

@@ -840,9 +840,8 @@ class TestConfig:
         assert new_config.custom_modules["test"].module_name == "test"
         assert new_config.applied_presets == ["preset1"]
 
-    def test_validate_completeness(self):
-        """Test configuration completeness validation."""
-        # Valid complete config
+    def test_validate_passes_for_complete_config(self):
+        """Test validate() does not raise for a complete configuration."""
         config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
@@ -879,11 +878,13 @@ class TestConfig:
             ),
         )
 
-        issues = config.validate_completeness()
-        assert len(issues) == 0
+        # Should not raise
+        config.validate_config()
 
-    def test_validate_completeness_missing_losses(self):
-        """Test validation detects insurance without losses."""
+    def test_validate_raises_for_missing_losses(self):
+        """Test validate_config() raises ConfigurationError when insurance lacks losses."""
+        from ergodic_insurance.config.exceptions import ConfigurationError
+
         config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
@@ -914,12 +915,16 @@ class TestConfig:
             # losses=None  # Missing losses
         )
 
-        issues = config.validate_completeness()
-        assert len(issues) == 1
-        assert "Insurance enabled but no loss distribution configured" in issues[0]
+        with pytest.raises(ConfigurationError, match="Insurance enabled but no loss distribution"):
+            config.validate_config()
+        # Also verify the issues attribute
+        try:
+            config.validate_config()
+        except ConfigurationError as e:
+            assert len(e.issues) == 1
 
-    def test_validate_completeness_insurance_disabled(self):
-        """Test no validation issue when insurance is disabled."""
+    def test_validate_no_issue_when_insurance_disabled(self):
+        """Test validate_config() does not raise when insurance is disabled."""
         config = Config(
             profile=ProfileMetadata(name="test", description="Test"),
             manufacturer=ManufacturerConfig(
@@ -943,8 +948,15 @@ class TestConfig:
             # losses=None  # OK when insurance is disabled
         )
 
-        issues = config.validate_completeness()
-        assert len(issues) == 0
+        # Should not raise
+        config.validate_config()
+
+    def test_validate_completeness_deprecated(self):
+        """Test validate_completeness() still works but emits deprecation warning."""
+        config = Config()
+        with pytest.warns(DeprecationWarning, match="validate_completeness.*deprecated"):
+            issues = config.validate_completeness()
+        assert isinstance(issues, list)
 
 
 class TestPresetLibrary:
