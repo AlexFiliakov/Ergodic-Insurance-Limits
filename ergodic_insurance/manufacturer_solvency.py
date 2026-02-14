@@ -57,6 +57,27 @@ class SolvencyMixin:
     # Declare ruin_month type to match WidgetManufacturer.__init__ (Optional[int])
     ruin_month: Optional[int]
 
+    @property
+    def solvency_equity(self) -> Decimal:
+        """Operational equity used for all solvency and going-concern assessments.
+
+        Returns book equity with the DTA valuation allowance added back.
+        The valuation allowance (ASC 740-10-30-5) is a non-cash accounting
+        adjustment that reduces the deferred tax asset when realization is
+        uncertain. It does not impair the company's ability to continue
+        operations, so it is excluded from solvency determinations.
+
+        Per ASC 205-40-50-7, going concern assessment must use a single,
+        consistent equity definition throughout. This property is the single
+        source of truth for equity in check_solvency(), compute_z_prime_score(),
+        _assess_going_concern_indicators(), and calculate_metrics() (Issue #1311).
+
+        Returns:
+            Decimal: Operational equity (book equity + valuation allowance).
+        """
+        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
+        return self.equity + va
+
     def handle_insolvency(self) -> None:
         """Handle insolvency by enforcing zero equity floor and freezing operations.
 
@@ -175,11 +196,9 @@ class SolvencyMixin:
                 }
             )
 
-        # 3. Equity Ratio = Operational Equity / Total Assets
-        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
-        operational_equity = self.equity + va
+        # 3. Equity Ratio = Solvency Equity / Total Assets (Issue #1311)
         if self.total_assets > ZERO:
-            equity_ratio = operational_equity / self.total_assets
+            equity_ratio = self.solvency_equity / self.total_assets
             threshold = to_decimal(self.config.going_concern_min_equity_ratio)
             indicators.append(
                 {
@@ -234,9 +253,9 @@ class SolvencyMixin:
 
         Where:
             X1 = Working Capital / Total Assets
-            X2 = Retained Earnings / Total Assets (equity used as proxy)
+            X2 = Solvency Equity / Total Assets (retained earnings proxy, Issue #1311)
             X3 = EBIT / Total Assets
-            X4 = Book Equity / Total Liabilities
+            X4 = Solvency Equity / Total Liabilities (Issue #1311)
             X5 = Sales / Total Assets
 
         Returns:
@@ -264,9 +283,11 @@ class SolvencyMixin:
         ebit = revenue * to_decimal(self.base_operating_margin)
 
         x1 = working_capital / total_assets
-        x2 = self.equity / total_assets  # Retained earnings proxy
+        x2 = self.solvency_equity / total_assets  # Retained earnings proxy (Issue #1311)
         x3 = ebit / total_assets
-        x4 = self.equity / total_liabilities if total_liabilities > ZERO else to_decimal(10)
+        x4 = (
+            self.solvency_equity / total_liabilities if total_liabilities > ZERO else to_decimal(10)
+        )  # Issue #1311
         x5 = revenue / total_assets
 
         z_prime = (
@@ -307,12 +328,9 @@ class SolvencyMixin:
 
         # --- Tier 1: Hard stops (non-configurable) ---
 
-        # Use operational equity for solvency — add back valuation allowance
-        # since it's a non-cash accounting adjustment that doesn't affect the
-        # company's ability to continue operations (Issue #464)
-        va = getattr(self, "dta_valuation_allowance", to_decimal(0))
-        operational_equity = self.equity + va
-        if operational_equity <= ZERO:
+        # Use solvency_equity (operational equity) — see property docstring
+        # for GAAP justification (ASC 205-40-50-7, Issue #464, #1311)
+        if self.solvency_equity <= ZERO:
             self.handle_insolvency()
             return False
 
