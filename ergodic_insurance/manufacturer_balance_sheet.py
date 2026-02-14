@@ -1069,13 +1069,13 @@ class BalanceSheetMixin:
         Args:
             net_income: Full net income for the period (after all deductions).
         """
-        total_revenue_closed = ZERO
-        total_expense_closed = ZERO
+        total_revenue_closed = to_decimal(0)
+        total_expense_closed = to_decimal(0)
 
         for account, acct_type in CHART_OF_ACCOUNTS.items():
             if acct_type == AccountType.REVENUE:
                 balance = self.ledger.get_balance(account)
-                if balance > ZERO:
+                if balance > to_decimal(0):
                     # Normal revenue (credit balance): Dr REVENUE / Cr RE
                     self.ledger.record_double_entry(
                         date=self.current_year,
@@ -1090,7 +1090,7 @@ class BalanceSheetMixin:
                         month=self.current_month,
                     )
                     total_revenue_closed += balance
-                elif balance < ZERO:
+                elif balance < to_decimal(0):
                     # Unusual debit balance on revenue account: Dr RE / Cr REVENUE
                     self.ledger.record_double_entry(
                         date=self.current_year,
@@ -1108,7 +1108,46 @@ class BalanceSheetMixin:
 
             elif acct_type == AccountType.EXPENSE:
                 balance = self.ledger.get_balance(account)
-                if balance > ZERO:
+
+                # Bug 2+3 fix: Close TAX_EXPENSE to ACCRUED_TAXES instead of RE.
+                # Tax expense is already reflected in net_income; closing it to RE
+                # would include it in ledger_net, making the residual cash adjustment
+                # exclude tax from cash outflow (breaking OCF reconciliation).
+                # Closing to ACCRUED_TAXES zeros the temporary account without
+                # affecting ledger_net or the residual.
+                if account == AccountName.TAX_EXPENSE:
+                    if balance > to_decimal(0):
+                        # Dr ACCRUED_TAXES / Cr TAX_EXPENSE
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=AccountName.ACCRUED_TAXES,
+                            credit_account=account,
+                            amount=balance,
+                            transaction_type=TransactionType.RETAINED_EARNINGS,
+                            description=(
+                                f"Year {self.current_year} close "
+                                f"{account.value} to accrued taxes"
+                            ),
+                            month=self.current_month,
+                        )
+                    elif balance < to_decimal(0):
+                        # Dr TAX_EXPENSE / Cr ACCRUED_TAXES
+                        self.ledger.record_double_entry(
+                            date=self.current_year,
+                            debit_account=account,
+                            credit_account=AccountName.ACCRUED_TAXES,
+                            amount=abs(balance),
+                            transaction_type=TransactionType.RETAINED_EARNINGS,
+                            description=(
+                                f"Year {self.current_year} close "
+                                f"{account.value} (credit balance) to accrued taxes"
+                            ),
+                            month=self.current_month,
+                        )
+                    # Do NOT add to total_expense_closed — excluded from ledger_net
+                    continue
+
+                if balance > to_decimal(0):
                     # Normal expense (debit balance): Dr RE / Cr EXPENSE
                     self.ledger.record_double_entry(
                         date=self.current_year,
@@ -1123,7 +1162,7 @@ class BalanceSheetMixin:
                         month=self.current_month,
                     )
                     total_expense_closed += balance
-                elif balance < ZERO:
+                elif balance < to_decimal(0):
                     # Unusual credit balance on expense (e.g., favorable
                     # reserve development): Dr EXPENSE / Cr RE
                     self.ledger.record_double_entry(
@@ -1153,7 +1192,7 @@ class BalanceSheetMixin:
         # and CASH adjusts accordingly (indirect-method OCF, ASC 230-10-28).
         cash_outflow = ledger_net - net_income
 
-        if cash_outflow > ZERO:
+        if cash_outflow > to_decimal(0):
             # Ledger tracked more income than computed — remove excess cash
             # Dr RETAINED_EARNINGS / Cr CASH
             self.ledger.record_double_entry(
@@ -1167,7 +1206,7 @@ class BalanceSheetMixin:
                 ),
                 month=self.current_month,
             )
-        elif cash_outflow < ZERO:
+        elif cash_outflow < to_decimal(0):
             # Ledger tracked less income than computed — add cash
             # Dr CASH / Cr RETAINED_EARNINGS
             self.ledger.record_double_entry(

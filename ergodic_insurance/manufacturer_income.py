@@ -103,10 +103,14 @@ class IncomeCalculationMixin:
         # LAE tracked separately per ASC 944-40 (Issue #468)
         period_lae: Decimal = getattr(self, "period_insurance_lae", to_decimal(0))
 
+        # Insurance recoveries offset losses in NI (Issue #1297)
+        period_recoveries: Decimal = getattr(self, "period_insurance_recoveries", to_decimal(0))
+
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
+            + period_recoveries
             - period_lae
             - net_reserve_development
         )
