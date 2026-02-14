@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 import json
+import logging
 from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional, Set, Union
@@ -16,6 +17,8 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 from .excel_reporter import ExcelReportConfig, ExcelReporter
 from .insurance_program import InsuranceProgram
@@ -208,10 +211,10 @@ class BatchProcessor:
         pending_scenarios = [s for s in scenarios if s.scenario_id not in self.completed_scenarios]
 
         if not pending_scenarios:
-            print("All scenarios already completed.")
+            logger.info("All scenarios already completed.")
             return self._aggregate_results()
 
-        print(f"Processing {len(pending_scenarios)} scenarios...")
+        logger.info("Processing %d scenarios...", len(pending_scenarios))
 
         # Process scenarios
         if self.use_parallel and len(pending_scenarios) > 1:
@@ -263,7 +266,7 @@ class BatchProcessor:
         for i, scenario in enumerate(iterator):
             # Check failure limit
             if max_failures and failures >= max_failures:
-                print(f"Stopping batch: reached {max_failures} failures")
+                logger.warning("Stopping batch: reached %d failures", max_failures)
                 break
 
             # Process scenario
@@ -365,7 +368,7 @@ class BatchProcessor:
                     for f in pending:
                         f.cancel()
                     pending.clear()
-                    print(f"Stopping batch: reached {max_failures} failures")
+                    logger.warning("Stopping batch: reached %d failures", max_failures)
                     break
 
                 # Submit more scenarios to fill the pool
@@ -686,7 +689,7 @@ class BatchProcessor:
             return False
 
         latest_checkpoint = checkpoints[-1]
-        print(f"Loading checkpoint from {latest_checkpoint}")
+        logger.info("Loading checkpoint from %s", latest_checkpoint)
 
         with open(latest_checkpoint, "rb") as f:
             checkpoint: CheckpointData = safe_load(f)
@@ -695,9 +698,10 @@ class BatchProcessor:
         self.failed_scenarios = checkpoint.failed_scenarios
         self.batch_results = checkpoint.batch_results
 
-        print(
-            f"Resumed from checkpoint: {len(self.completed_scenarios)} completed, "
-            f"{len(self.failed_scenarios)} failed"
+        logger.info(
+            "Resumed from checkpoint: %d completed, %d failed",
+            len(self.completed_scenarios),
+            len(self.failed_scenarios),
         )
 
         return True
@@ -796,6 +800,6 @@ class BatchProcessor:
                         output_file,
                         title=f"Financial Report - {result.scenario_name}",
                     )
-                    print(f"Generated financial report: {path / output_file}")
+                    logger.info("Generated financial report: %s", path / output_file)
                 except (OSError, ValueError, KeyError, AttributeError) as e:
-                    print(f"Error generating report for {result.scenario_name}: {e}")
+                    logger.error("Error generating report for %s: %s", result.scenario_name, e)
