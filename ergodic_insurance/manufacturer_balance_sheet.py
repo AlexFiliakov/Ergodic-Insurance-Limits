@@ -1129,6 +1129,12 @@ class BalanceSheetMixin:
             month=self.current_month,
         )
 
+        # Track vintage cohort for accurate DTL calculation (Issue #1321)
+        if hasattr(self, "_ppe_cohorts"):
+            from ergodic_insurance.manufacturer import _PPECohort
+
+            self._ppe_cohorts.append(_PPECohort(amount=actual_capex))
+
         logger.debug(
             f"Recorded capex: ${actual_capex:,.2f}, "
             f"Gross PP&E: ${self.gross_ppe:,.2f}, "
