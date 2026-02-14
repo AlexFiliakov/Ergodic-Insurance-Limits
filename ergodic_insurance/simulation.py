@@ -597,19 +597,19 @@ class Simulation:
                 f"Explicit construction is recommended:\n"
                 f"  ManufacturingLossGenerator.create_simple(\n"
                 f"      frequency={default_frequency}, "
-                f"severity_mean={default_severity_mean:,.0f}, "
-                f"severity_std={default_severity_std:,.0f}, seed=...)",
+                f"severity_mean={default_severity_mean:.0f}, "
+                f"severity_std={default_severity_std:.0f}, seed=...)",
                 ErgodicInsuranceDeprecationWarning,
                 stacklevel=2,
             )
             logger.info(
                 "Default loss generator: frequency=%.2f, "
-                "severity_mean=$%,.0f, severity_std=$%,.0f "
-                "(scaled to initial_assets=$%,.0f)",
+                "severity_mean=$%s, severity_std=$%s "
+                "(scaled to initial_assets=$%s)",
                 default_frequency,
-                default_severity_mean,
-                default_severity_std,
-                initial_assets,
+                f"{default_severity_mean:,.0f}",
+                f"{default_severity_std:,.0f}",
+                f"{initial_assets:,.0f}",
             )
             self.loss_generator = [
                 ManufacturingLossGenerator.create_simple(
