@@ -443,3 +443,109 @@ class TestSimulation:
         np.testing.assert_array_equal(results1.assets, results2.assets)
         np.testing.assert_array_equal(results1.equity, results2.equity)
         np.testing.assert_array_equal(results1.claim_counts, results2.claim_counts)
+
+
+class TestDefaultLossGenerator:
+    """Tests for default loss generator scaling (Issue #1320)."""
+
+    def test_default_generator_emits_deprecation_warning(self, manufacturer):
+        """Omitting loss_generator should emit a deprecation warning."""
+        import warnings
+
+        from ergodic_insurance._warnings import ErgodicInsuranceDeprecationWarning
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Simulation(manufacturer=manufacturer, time_horizon=5, seed=42)
+
+        dep_warnings = [x for x in w if issubclass(x.category, ErgodicInsuranceDeprecationWarning)]
+        assert len(dep_warnings) == 1
+        msg = str(dep_warnings[0].message)
+        assert "No loss_generator provided" in msg
+        assert "ManufacturingLossGenerator.create_simple" in msg
+
+    def test_default_generator_scales_to_initial_assets(self, manufacturer_config):
+        """Default severity should be 5% of initial_assets."""
+        import warnings
+
+        config_small = manufacturer_config.model_copy(update={"initial_assets": 500_000})
+        mfg_small = WidgetManufacturer(config_small)
+
+        config_large = manufacturer_config.model_copy(update={"initial_assets": 50_000_000_000})
+        mfg_large = WidgetManufacturer(config_large)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            sim_small = Simulation(manufacturer=mfg_small, time_horizon=5, seed=42)
+            sim_large = Simulation(manufacturer=mfg_large, time_horizon=5, seed=42)
+
+        # Extract the single default generator from each
+        gen_small = sim_small.loss_generator[0]
+        gen_large = sim_large.loss_generator[0]
+
+        # The generators should differ — large company gets larger losses
+        # Run them both and verify the large company produces bigger losses on average
+        # generate_losses returns (List[LossEvent], dict); use revenue proportional to assets
+        losses_small = [
+            gen_small.generate_losses(duration=1, revenue=500_000, time=float(y))
+            for y in range(200)
+        ]
+        losses_large = [
+            gen_large.generate_losses(duration=1, revenue=50_000_000_000, time=float(y))
+            for y in range(200)
+        ]
+
+        total_small = sum(l.amount for events, _ in losses_small for l in events)
+        total_large = sum(l.amount for events, _ in losses_large for l in events)
+
+        # Large company (100,000x assets) should have much larger aggregate losses
+        assert total_large > total_small * 100
+
+    def test_default_generator_warning_includes_asset_amount(self, manufacturer_config):
+        """Warning message should include the actual initial_assets value."""
+        import warnings
+
+        from ergodic_insurance._warnings import ErgodicInsuranceDeprecationWarning
+
+        config = manufacturer_config.model_copy(update={"initial_assets": 2_000_000})
+        mfg = WidgetManufacturer(config)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Simulation(manufacturer=mfg, time_horizon=5, seed=42)
+
+        dep_warnings = [x for x in w if issubclass(x.category, ErgodicInsuranceDeprecationWarning)]
+        msg = str(dep_warnings[0].message)
+        assert "2,000,000" in msg
+        # severity_mean = 5% of 2M = 100K
+        assert "100,000" in msg
+
+    def test_explicit_loss_generator_no_warning(self, manufacturer, loss_generator):
+        """Providing an explicit loss_generator should NOT emit a warning."""
+        import warnings
+
+        from ergodic_insurance._warnings import ErgodicInsuranceDeprecationWarning
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Simulation(
+                manufacturer=manufacturer,
+                loss_generator=loss_generator,
+                time_horizon=5,
+                seed=42,
+            )
+
+        dep_warnings = [x for x in w if issubclass(x.category, ErgodicInsuranceDeprecationWarning)]
+        assert len(dep_warnings) == 0
+
+    def test_default_generator_simulation_runs(self, manufacturer):
+        """Simulation with default generator should run without error."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            sim = Simulation(manufacturer=manufacturer, time_horizon=10, seed=42)
+
+        results = sim.run()
+        assert len(results.years) == 10
+        assert results.assets[0] > 0
