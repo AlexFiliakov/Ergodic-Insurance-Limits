@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 import numpy as np
 from tqdm import tqdm
 
+from ._warnings import ErgodicInsuranceDeprecationWarning
 from .convergence import ConvergenceDiagnostics, ConvergenceStats
 from .insurance_program import InsuranceProgram
 from .loss_distributions import ManufacturingLossGenerator
@@ -888,11 +889,10 @@ class MonteCarloEngine:
             # Test if we can import scipy successfully (needed for loss distributions)
             from scipy import stats  # noqa: F401  # pylint: disable=unused-import
         except (ImportError, TypeError) as e:
-            warnings.warn(
-                f"Scipy import failed in parallel mode: {e}. "
+            logger.warning(
+                "Scipy import failed in parallel mode: %s. "
                 "Falling back to sequential execution for reliability.",
-                RuntimeWarning,
-                stacklevel=2,
+                e,
             )
             return self._run_sequential(
                 progress_callback=progress_callback, cancel_event=cancel_event
@@ -970,10 +970,9 @@ class MonteCarloEngine:
                     pbar.close()
 
         except (OSError, RuntimeError, ValueError, ImportError) as e:
-            warnings.warn(
-                f"Parallel execution failed: {e}. Falling back to sequential execution.",
-                RuntimeWarning,
-                stacklevel=2,
+            logger.warning(
+                "Parallel execution failed: %s. Falling back to sequential execution.",
+                e,
             )
             return self._run_sequential(
                 progress_callback=progress_callback, cancel_event=cancel_event
@@ -1009,11 +1008,10 @@ class MonteCarloEngine:
                 if not result:
                     raise RuntimeError("Worker test failed")
         except (ImportError, RuntimeError, TimeoutError) as e:
-            warnings.warn(
-                f"Enhanced parallel execution failed: {e}. "
+            logger.warning(
+                "Enhanced parallel execution failed: %s. "
                 "Falling back to standard parallel execution.",
-                RuntimeWarning,
-                stacklevel=2,
+                e,
             )
             return self._run_parallel(
                 progress_callback=progress_callback, cancel_event=cancel_event
@@ -1086,12 +1084,7 @@ class MonteCarloEngine:
 
                     valid_idx += 1
                 else:
-                    # Log warning for unexpected result format
-                    # NOTE: Do NOT use ``import warnings`` here – it creates
-                    # a local binding that shadows the module-level import and
-                    # causes UnboundLocalError later in the function.  The
-                    # module-level ``import warnings`` (line 11) is sufficient.
-                    warnings.warn(f"Unexpected result format: {type(result)}")
+                    logger.warning("Unexpected result format: %s", type(result))
 
             # Trim arrays to only valid results
             if valid_idx < n_results:
@@ -1110,11 +1103,9 @@ class MonteCarloEngine:
 
             # Guard against division by zero when no valid results
             if total_simulations == 0:
-                warnings.warn(
+                logger.warning(
                     "No valid simulation results from parallel execution. "
                     "Falling back to sequential execution.",
-                    RuntimeWarning,
-                    stacklevel=2,
                 )
                 return self._run_sequential()
 
@@ -1181,11 +1172,8 @@ class MonteCarloEngine:
         from .gpu_mc_engine import extract_params, run_gpu_simulation
 
         if not is_gpu_available():
-            logger.info("GPU not available, falling back to parallel CPU execution")
-            warnings.warn(
+            logger.warning(
                 "use_gpu=True but CuPy is not available. Falling back to CPU parallel.",
-                RuntimeWarning,
-                stacklevel=2,
             )
             return self._run_parallel(
                 progress_callback=progress_callback, cancel_event=cancel_event
@@ -1787,7 +1775,7 @@ class MonteCarloEngine:
             with open(cache_file, "wb") as f:
                 safe_dump(results, f)
         except (IOError, OSError, pickle.PickleError) as e:
-            warnings.warn(f"Failed to save cache: {e}")
+            logger.warning("Failed to save cache: %s", e)
 
     def _load_cache(self, cache_key: str) -> Optional[MonteCarloResults]:
         """Load results from cache.
@@ -1805,7 +1793,7 @@ class MonteCarloEngine:
                     loaded_data = safe_load(f)
                     return loaded_data  # type: ignore
             except (IOError, OSError, pickle.PickleError, EOFError, ValueError) as e:
-                warnings.warn(f"Failed to load cache: {e}")
+                logger.warning("Failed to load cache: %s", e)
         return None
 
     def _save_checkpoint(self, iteration: int, *arrays) -> None:
@@ -1819,7 +1807,7 @@ class MonteCarloEngine:
         try:
             np.savez_compressed(checkpoint_file, iteration=iteration, *arrays)
         except (IOError, OSError, ValueError) as e:
-            warnings.warn(f"Failed to save checkpoint: {e}")
+            logger.warning("Failed to save checkpoint: %s", e)
 
     def _initialize_simulation_arrays(self) -> Dict[str, np.ndarray]:
         """Initialize arrays for simulation results."""
@@ -2125,7 +2113,7 @@ def __getattr__(name):
         warnings.warn(
             "SimulationConfig has been renamed to MonteCarloConfig. "
             "Please update your imports. The old name will be removed in a future version.",
-            DeprecationWarning,
+            ErgodicInsuranceDeprecationWarning,
             stacklevel=2,
         )
         return MonteCarloConfig

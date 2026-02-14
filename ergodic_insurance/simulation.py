@@ -58,6 +58,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 import numpy as np
 import pandas as pd
 
+from ._warnings import ErgodicInsuranceDeprecationWarning
 from .config import DEFAULT_RISK_FREE_RATE, Config
 from .decimal_utils import ZERO, to_decimal
 from .insurance import InsurancePolicy
@@ -599,7 +600,7 @@ class Simulation:
             warnings.warn(
                 "Passing InsurancePolicy to Simulation is deprecated. "
                 "Use InsuranceProgram instead (e.g., InsuranceProgram.simple(...)).",
-                DeprecationWarning,
+                ErgodicInsuranceDeprecationWarning,
                 stacklevel=2,
             )
             insurance_policy = insurance_policy.to_enhanced_program()
@@ -1036,7 +1037,7 @@ class Simulation:
             _warnings.warn(
                 "Passing InsurancePolicy to run_monte_carlo is deprecated. "
                 "Use InsuranceProgram instead.",
-                DeprecationWarning,
+                ErgodicInsuranceDeprecationWarning,
                 stacklevel=2,
             )
             insurance_policy = insurance_policy.to_enhanced_program()
@@ -1224,7 +1225,7 @@ class Simulation:
                 _warnings.warn(
                     "Passing InsurancePolicy to compare_insurance_strategies "
                     "is deprecated. Use InsuranceProgram instead.",
-                    DeprecationWarning,
+                    ErgodicInsuranceDeprecationWarning,
                     stacklevel=2,
                 )
                 converted = policy.to_enhanced_program()

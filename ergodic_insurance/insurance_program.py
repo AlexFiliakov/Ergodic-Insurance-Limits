@@ -9,12 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import yaml
 
+from ._warnings import ErgodicInsuranceDeprecationWarning
 from .ergodic_types import ClaimResult, LayerPayment
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .exposure_base import ExposureBase
@@ -113,11 +117,9 @@ class EnhancedInsuranceLayer:
             # For per-occurrence, the limit field is the per-occurrence limit
             # No aggregate limit should be set (will be ignored if set)
             if self.reinstatements > 0:
-                import warnings
-
-                warnings.warn(
-                    f"Reinstatements parameter ({self.reinstatements}) is not used for per-occurrence limits.",
-                    UserWarning,
+                logger.warning(
+                    "Reinstatements parameter (%s) is not used for per-occurrence limits.",
+                    self.reinstatements,
                 )
         elif self.limit_type == "aggregate":
             # For aggregate, the limit field is the aggregate limit
@@ -625,7 +627,7 @@ class InsuranceProgram:
 
         warnings.warn(
             "calculate_annual_premium() is deprecated, use calculate_premium() instead",
-            DeprecationWarning,
+            ErgodicInsuranceDeprecationWarning,
             stacklevel=2,
         )
         return self.calculate_premium(time)

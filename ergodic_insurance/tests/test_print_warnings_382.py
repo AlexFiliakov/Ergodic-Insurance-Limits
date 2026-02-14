@@ -15,6 +15,7 @@ import pytest
 from ergodic_insurance._warnings import (
     ConfigurationWarning,
     DataQualityWarning,
+    ErgodicInsuranceDeprecationWarning,
     ErgodicInsuranceWarning,
     ExportWarning,
 )
@@ -41,6 +42,10 @@ class TestWarningClassHierarchy:
     def test_export_warning(self):
         assert issubclass(ExportWarning, ErgodicInsuranceWarning)
         assert issubclass(ExportWarning, UserWarning)
+
+    def test_deprecation_warning(self):
+        assert issubclass(ErgodicInsuranceDeprecationWarning, DeprecationWarning)
+        assert not issubclass(ErgodicInsuranceDeprecationWarning, ErgodicInsuranceWarning)
 
     def test_can_be_raised_and_caught(self):
         with pytest.warns(ConfigurationWarning):
@@ -77,6 +82,9 @@ class TestPackageLevelImports:
             cls = getattr(ergodic_insurance, name)
             assert issubclass(cls, UserWarning)
 
+        cls = getattr(ergodic_insurance, "ErgodicInsuranceDeprecationWarning")
+        assert issubclass(cls, DeprecationWarning)
+
     def test_importable_but_not_in_all(self):
         """Warning classes are importable via __getattr__ but not in __all__.
 
@@ -96,6 +104,11 @@ class TestPackageLevelImports:
             assert issubclass(cls, UserWarning)
             # But not in the trimmed __all__
             assert name not in ergodic_insurance.__all__
+
+        # ErgodicInsuranceDeprecationWarning is a DeprecationWarning, not UserWarning
+        cls = getattr(ergodic_insurance, "ErgodicInsuranceDeprecationWarning")
+        assert issubclass(cls, DeprecationWarning)
+        assert "ErgodicInsuranceDeprecationWarning" not in ergodic_insurance.__all__
 
 
 # ---------------------------------------------------------------------------
