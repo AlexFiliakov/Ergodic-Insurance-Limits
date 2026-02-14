@@ -7,6 +7,7 @@ loss allocation for manufacturing risk transfer optimization.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
@@ -511,6 +512,7 @@ class InsuranceProgram:
         name: str = "Manufacturing Insurance Program",
         pricing_enabled: bool = False,
         pricer: Optional["InsurancePricer"] = None,
+        max_history_years: int = 50,
     ):
         """Initialize insurance program.
 
@@ -520,6 +522,9 @@ class InsuranceProgram:
             name: Program identifier.
             pricing_enabled: Whether to use dynamic pricing.
             pricer: Optional InsurancePricer for dynamic pricing.
+            max_history_years: Maximum years of detailed history to retain in
+                :class:`ProgramState` deques. Older entries are automatically
+                discarded. Passed through by :meth:`create_fresh`.
         """
         self.layers = sorted(layers, key=lambda x: x.attachment_point)
         self.deductible = deductible
@@ -530,6 +535,7 @@ class InsuranceProgram:
         self.pricing_enabled = pricing_enabled
         self.pricer = pricer
         self.pricing_results: List[Any] = []
+        self.max_history_years = max_history_years
 
     @classmethod
     def create_fresh(cls, source: "InsuranceProgram") -> "InsuranceProgram":
@@ -556,6 +562,7 @@ class InsuranceProgram:
             name=source.name,
             pricing_enabled=source.pricing_enabled,
             pricer=source.pricer,
+            max_history_years=source.max_history_years,
         )
 
     @classmethod
@@ -1457,14 +1464,33 @@ class ProgramState:
 
     Maintains historical data and statistics across multiple
     policy periods for long-term analysis.
+
+    History lists use bounded :class:`collections.deque` instances to
+    prevent unbounded memory growth during long simulations.  Running
+    totals maintain accurate lifetime statistics regardless of the
+    history window size.
     """
 
     program: InsuranceProgram
+    max_history_years: Optional[int] = None
     years_simulated: int = 0
-    total_claims: List[float] = field(default_factory=list)
-    total_recoveries: List[float] = field(default_factory=list)
-    total_premiums: List[float] = field(default_factory=list)
-    annual_results: List[Dict] = field(default_factory=list)
+    total_claims: deque = field(default_factory=deque)
+    total_recoveries: deque = field(default_factory=deque)
+    total_premiums: deque = field(default_factory=deque)
+    annual_results: deque = field(default_factory=deque)
+    _cumulative_claims: float = field(default=0.0, init=False, repr=False)
+    _cumulative_recoveries: float = field(default=0.0, init=False, repr=False)
+    _cumulative_premiums: float = field(default=0.0, init=False, repr=False)
+
+    def __post_init__(self):
+        """Re-initialise history deques with the configured *maxlen*."""
+        maxlen = self.max_history_years
+        if maxlen is None:
+            maxlen = getattr(self.program, "max_history_years", 50)
+        self.total_claims = deque(self.total_claims, maxlen=maxlen)
+        self.total_recoveries = deque(self.total_recoveries, maxlen=maxlen)
+        self.total_premiums = deque(self.total_premiums, maxlen=maxlen)
+        self.annual_results = deque(self.annual_results, maxlen=maxlen)
 
     def simulate_year(
         self, annual_claims: List[float], claim_times: Optional[List[float]] = None
@@ -1486,15 +1512,27 @@ class ProgramState:
 
         # Track statistics
         self.years_simulated += 1
-        self.total_claims.append(sum(annual_claims))
-        self.total_recoveries.append(results["total_recovery"])
-        self.total_premiums.append(results["total_premium_paid"])
+        annual_claim_total = sum(annual_claims)
+        annual_recovery = results["total_recovery"]
+        annual_premium = results["total_premium_paid"]
+
+        self.total_claims.append(annual_claim_total)
+        self.total_recoveries.append(annual_recovery)
+        self.total_premiums.append(annual_premium)
         self.annual_results.append(results)
+
+        # Maintain running totals for accurate lifetime statistics
+        self._cumulative_claims += annual_claim_total
+        self._cumulative_recoveries += annual_recovery
+        self._cumulative_premiums += annual_premium
 
         return results
 
     def get_summary_statistics(self) -> Dict[str, Any]:
         """Calculate summary statistics across all simulated years.
+
+        Uses running totals so that results remain accurate even after
+        older entries have been evicted from the bounded history deques.
 
         Returns:
             Dictionary with multi-year statistics.
@@ -1504,21 +1542,21 @@ class ProgramState:
 
         return {
             "years_simulated": self.years_simulated,
-            "average_annual_claims": float(np.mean(self.total_claims)),
-            "average_annual_recovery": float(np.mean(self.total_recoveries)),
-            "average_annual_premium": float(np.mean(self.total_premiums)),
-            "total_claims": sum(self.total_claims),
-            "total_recoveries": sum(self.total_recoveries),
-            "total_premiums": sum(self.total_premiums),
-            "net_benefit": sum(self.total_recoveries) - sum(self.total_premiums),
+            "average_annual_claims": self._cumulative_claims / self.years_simulated,
+            "average_annual_recovery": self._cumulative_recoveries / self.years_simulated,
+            "average_annual_premium": self._cumulative_premiums / self.years_simulated,
+            "total_claims": self._cumulative_claims,
+            "total_recoveries": self._cumulative_recoveries,
+            "total_premiums": self._cumulative_premiums,
+            "net_benefit": self._cumulative_recoveries - self._cumulative_premiums,
             "recovery_ratio": (
-                sum(self.total_recoveries) / sum(self.total_claims)
-                if sum(self.total_claims) > 0
+                self._cumulative_recoveries / self._cumulative_claims
+                if self._cumulative_claims > 0
                 else 0
             ),
             "loss_ratio": (
-                sum(self.total_recoveries) / sum(self.total_premiums)
-                if sum(self.total_premiums) > 0
+                self._cumulative_recoveries / self._cumulative_premiums
+                if self._cumulative_premiums > 0
                 else 0
             ),
         }

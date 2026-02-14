@@ -671,6 +671,132 @@ class TestProgramState:
         assert stats["loss_ratio"] == 9_000_000 / 150_000  # 60
 
 
+class TestProgramStateBoundedHistory:
+    """Test bounded history deques in ProgramState (#1354)."""
+
+    def test_history_uses_deque(self):
+        """History lists are deques, not plain lists."""
+        from collections import deque
+
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers)
+        state = ProgramState(program)
+
+        assert isinstance(state.total_claims, deque)
+        assert isinstance(state.total_recoveries, deque)
+        assert isinstance(state.total_premiums, deque)
+        assert isinstance(state.annual_results, deque)
+
+    def test_deque_maxlen_from_program(self):
+        """Deque maxlen is set from InsuranceProgram.max_history_years."""
+        from collections import deque
+
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=10)
+        state = ProgramState(program)
+
+        assert state.total_claims.maxlen == 10
+        assert state.total_recoveries.maxlen == 10
+        assert state.total_premiums.maxlen == 10
+        assert state.annual_results.maxlen == 10
+
+    def test_deque_maxlen_override(self):
+        """ProgramState.max_history_years overrides program setting."""
+        from collections import deque
+
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=50)
+        state = ProgramState(program, max_history_years=5)
+
+        assert state.total_claims.maxlen == 5
+
+    def test_old_entries_evicted(self):
+        """Old history entries are evicted when maxlen is reached."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=3)
+        state = ProgramState(program)
+
+        # Simulate 5 years
+        for year in range(5):
+            state.simulate_year([(year + 1) * 1_000_000])
+
+        # Only last 3 years retained in deque
+        assert len(state.total_claims) == 3
+        assert state.total_claims[0] == 3_000_000  # Year 3
+        assert state.total_claims[1] == 4_000_000  # Year 4
+        assert state.total_claims[2] == 5_000_000  # Year 5
+
+    def test_cumulative_totals_accurate_after_eviction(self):
+        """Running totals remain accurate even after deque eviction."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=2)
+        state = ProgramState(program)
+
+        # Simulate 5 years with 1M claims each
+        for _ in range(5):
+            state.simulate_year([1_000_000])
+
+        stats = state.get_summary_statistics()
+
+        # Cumulative totals reflect all 5 years, not just the 2 in the deque
+        assert stats["years_simulated"] == 5
+        assert stats["total_claims"] == 5_000_000
+        assert stats["total_recoveries"] == 5_000_000
+        assert stats["average_annual_claims"] == 1_000_000
+
+        # Deque only has 2 entries
+        assert len(state.total_claims) == 2
+
+    def test_create_fresh_preserves_max_history_years(self):
+        """create_fresh() propagates max_history_years."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=25)
+        fresh = InsuranceProgram.create_fresh(program)
+
+        assert fresh.max_history_years == 25
+
+    def test_default_max_history_years(self):
+        """Default max_history_years is 50."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers)
+        assert program.max_history_years == 50
+
+    def test_o1_memory_long_simulation(self):
+        """Memory stays bounded for simulations exceeding max_history_years."""
+        layers = [
+            EnhancedInsuranceLayer(attachment_point=0, limit=5_000_000, base_premium_rate=0.01)
+        ]
+        program = InsuranceProgram(layers, max_history_years=5)
+        state = ProgramState(program)
+
+        # Simulate 100 years
+        for _ in range(100):
+            state.simulate_year([500_000])
+
+        # Deque stays bounded at maxlen
+        assert len(state.total_claims) == 5
+        assert len(state.annual_results) == 5
+
+        # But totals are accurate
+        stats = state.get_summary_statistics()
+        assert stats["years_simulated"] == 100
+        assert stats["total_claims"] == 50_000_000  # 100 * 500K
+
+
 class TestComplexScenarios:
     """Test complex insurance scenarios."""
 
