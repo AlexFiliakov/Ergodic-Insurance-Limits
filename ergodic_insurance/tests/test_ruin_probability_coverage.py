@@ -24,6 +24,7 @@ def make_mock_manufacturer():
     manufacturer.ruin_month = None
     manufacturer.equity = 5_000_000
     manufacturer.debt = 0
+    manufacturer.stochastic_process = None
     manufacturer.copy.return_value = manufacturer
     manufacturer.calculate_revenue.return_value = 12_000_000
     manufacturer.step.return_value = {
@@ -227,9 +228,13 @@ class TestRunSingleRuinSimulationMidYear:
 
         manufacturer.step.side_effect = side_effect_step
 
-        analyzer = RuinProbabilityAnalyzer(manufacturer, loss_gen, insurance, sim_config)
-        ruin_config = RuinProbabilityConfig(time_horizons=[5], early_stopping=True)
-        result = analyzer._run_single_ruin_simulation(0, 5, ruin_config)
+        # Patch create_fresh to return the same manufacturer so the
+        # side_effect_step closure can mutate it during the simulation.
+        with patch("ergodic_insurance.ruin_probability.WidgetManufacturer") as MockWM:
+            MockWM.create_fresh.return_value = manufacturer
+            analyzer = RuinProbabilityAnalyzer(manufacturer, loss_gen, insurance, sim_config)
+            ruin_config = RuinProbabilityConfig(time_horizons=[5], early_stopping=True)
+            result = analyzer._run_single_ruin_simulation(0, 5, ruin_config)
 
         assert result["is_mid_year_ruin"] is True
         assert result["ruin_month"] == 7

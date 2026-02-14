@@ -5,12 +5,15 @@ and ruin probabilities in insurance scenarios.
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import copy as copy_module
 from dataclasses import dataclass, field
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
+
+from .manufacturer import WidgetManufacturer
 
 
 @dataclass
@@ -490,7 +493,16 @@ class RuinProbabilityAnalyzer:
         Tracks multiple bankruptcy conditions with early stopping.
         Also tracks mid-year ruin events (Issue #279).
         """
-        manufacturer = self.manufacturer.copy()
+        manufacturer = WidgetManufacturer.create_fresh(
+            self.manufacturer.config,
+            stochastic_process=(
+                copy_module.deepcopy(self.manufacturer.stochastic_process)
+                if self.manufacturer.stochastic_process
+                else None
+            ),
+            use_float=True,
+            simulation_mode=True,
+        )
         causes = {
             "asset_threshold": np.zeros(max_horizon, dtype=bool),
             "equity_threshold": np.zeros(max_horizon, dtype=bool),
