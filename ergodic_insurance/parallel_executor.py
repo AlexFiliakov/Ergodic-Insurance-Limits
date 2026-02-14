@@ -158,6 +158,14 @@ class SharedMemoryConfig:
     enable_shared_objects: bool = True
     compression: bool = False
     cleanup_on_exit: bool = True
+    skip_hmac: bool = False
+    """Bypass HMAC signing/verification for shared memory transfers.
+
+    HMAC integrity checks are valuable for persistent caches (file-based) but
+    add unnecessary overhead for ephemeral shared memory that is created and
+    consumed within the same process group.  Set to ``True`` when shared data
+    is purely in-process to avoid per-chunk SHA-256 signing/verification.
+    """
 
 
 class SharedMemoryManager:
@@ -234,8 +242,13 @@ class SharedMemoryManager:
         if not self.config.enable_shared_objects:
             return ""
 
-        # Serialize object with HMAC integrity verification
-        serialized = safe_dumps(obj)
+        # Serialize object — skip HMAC for ephemeral in-process shared memory
+        if self.config.skip_hmac:
+            import pickle
+
+            serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            serialized = safe_dumps(obj)
 
         # Compress if enabled
         if self.config.compression:
@@ -279,6 +292,12 @@ class SharedMemoryManager:
             import zlib
 
             data = zlib.decompress(data)
+
+        # Skip HMAC verification for ephemeral in-process shared memory
+        if self.config.skip_hmac:
+            import pickle
+
+            return pickle.loads(data)  # noqa: S301  — trusted in-process data
 
         return safe_loads(data)
 

@@ -115,6 +115,13 @@ def _test_worker_function() -> bool:
         return False
 
 
+# Module-level cache for the multiprocessing probe test (Issue #1385).
+# Avoids spawning a throwaway ProcessPoolExecutor on every call to
+# _run_enhanced_parallel().  The result is tri-state: None = not yet tested,
+# True = works, False = failed.
+_mp_probe_result: Optional[bool] = None
+
+
 def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     """Enhanced simulation function for parallel execution.
 
@@ -138,11 +145,11 @@ def _simulate_path_enhanced(sim_id: int, **shared) -> Dict[str, Any]:
     # Create manufacturer instance
     manufacturer = _create_manufacturer(shared["manufacturer_config"])
 
-    # Deep-copy the insurance program so each simulation gets fresh state (Issue #348)
-    import copy
-
+    # Create a fresh insurance program so each simulation gets clean state
+    # (Issue #348).  Uses create_fresh() instead of copy.deepcopy() to avoid
+    # expensive object-graph traversal — see Issue #1385.
     loss_generator = shared["loss_generator"]
-    insurance_program = copy.deepcopy(shared["insurance_program"])
+    insurance_program = InsuranceProgram.create_fresh(shared["insurance_program"])
 
     # Re-seed the loss generator for this simulation to ensure independence
     base_seed = shared.get("base_seed")
@@ -618,6 +625,7 @@ class MonteCarloEngine:
             shared_memory_config = SharedMemoryConfig(
                 enable_shared_arrays=self.config.shared_memory,
                 enable_shared_objects=self.config.shared_memory,
+                skip_hmac=True,  # ephemeral in-process data — HMAC unnecessary (#1385)
             )
             self.parallel_executor = ParallelExecutor(
                 n_workers=self.config.n_workers,
@@ -685,6 +693,7 @@ class MonteCarloEngine:
                 shared_memory_config = SharedMemoryConfig(
                     enable_shared_arrays=self.config.shared_memory,
                     enable_shared_objects=self.config.shared_memory,
+                    skip_hmac=True,  # ephemeral in-process data — HMAC unnecessary (#1385)
                 )
                 self.parallel_executor = ParallelExecutor(
                     n_workers=self.config.n_workers,
@@ -1006,23 +1015,28 @@ class MonteCarloEngine:
         # Ensure parallel executor is available
         assert self.parallel_executor is not None, "Enhanced parallel executor not initialized"
 
-        # Check if we can safely use enhanced parallel execution
-        # On Windows with scipy import issues, fall back to standard parallel
-        try:
-            # Try to execute a test function to see if multiprocessing works
-            import multiprocessing as mp
+        # Check if we can safely use enhanced parallel execution.
+        # Cache the result so we only pay process-spawn cost once (Issue #1385).
+        global _mp_probe_result  # noqa: PLW0603
+        if _mp_probe_result is None:
+            try:
+                import multiprocessing as mp
 
-            with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context()) as executor:
-                future = executor.submit(_test_worker_function)
-                result = future.result(timeout=5)
-                if not result:
-                    raise RuntimeError("Worker test failed")
-        except (ImportError, RuntimeError, TimeoutError) as e:
-            logger.warning(
-                "Enhanced parallel execution failed: %s. "
-                "Falling back to standard parallel execution.",
-                e,
-            )
+                with ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context()) as executor:
+                    future = executor.submit(_test_worker_function)
+                    result = future.result(timeout=5)
+                    if not result:
+                        raise RuntimeError("Worker test failed")
+                _mp_probe_result = True
+            except (ImportError, RuntimeError, TimeoutError) as e:
+                _mp_probe_result = False
+                logger.warning(
+                    "Enhanced parallel execution failed: %s. "
+                    "Falling back to standard parallel execution.",
+                    e,
+                )
+
+        if not _mp_probe_result:
             return self._run_parallel(
                 progress_callback=progress_callback, cancel_event=cancel_event
             )
