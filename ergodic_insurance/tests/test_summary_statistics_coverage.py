@@ -785,6 +785,155 @@ class TestDistributionFitterCoverage:
 
 
 # ---------------------------------------------------------------------------
+# AICc correction (issue #1339)
+# ---------------------------------------------------------------------------
+class TestAICcCorrection:
+    """Verify AICc correction in _calculate_aic and DistributionFitter."""
+
+    @pytest.fixture
+    def calculator(self):
+        return SummaryStatistics()
+
+    def test_aicc_large_sample_converges_to_aic(self, calculator):
+        """For n=1000, k=2: AICc and AIC should differ by less than 0.02."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(5, 2, size=1000)
+        mu, sigma = stats.norm.fit(data)
+
+        # Standard AIC (no correction)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        k = 2
+        aic_standard = 2 * k - 2 * log_likelihood
+
+        # AICc from our method
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+
+        # Correction term: 2*k*(k+1)/(n-k-1) = 2*2*3/(1000-2-1) = 12/997 ≈ 0.012
+        assert abs(aicc - aic_standard) < 0.02
+
+    def test_aicc_small_sample_materially_larger(self, calculator):
+        """For n=20, k=3: AICc should be materially larger than standard AIC."""
+        rng = np.random.default_rng(42)
+        data = rng.lognormal(1, 0.5, size=20)
+        shape, loc, scale = stats.lognorm.fit(data, floc=0)
+
+        # Standard AIC with k=3 (old, incorrect)
+        log_likelihood = np.sum(stats.lognorm.logpdf(data, shape, loc, scale))
+        aic_old = 2 * 3 - 2 * log_likelihood  # k=3, counting loc
+
+        # AICc with k=2 (correct: loc is fixed)
+        aicc = calculator._calculate_aic(data, stats.lognorm, shape, loc, scale, n_free_params=2)
+
+        # The old AIC overcounts parameters AND lacks correction.
+        # AICc with correct k=2 still has the correction term:
+        # 2*2*3/(20-2-1) = 12/17 ≈ 0.71
+        # But old AIC had k=3 so base was 6 - 2*LL, new is 4 - 2*LL + 0.71
+        # The correction is material for small samples
+        k_correct = 2
+        aic_correct_base = 2 * k_correct - 2 * log_likelihood
+        correction = 2 * k_correct * (k_correct + 1) / (20 - k_correct - 1)
+        expected = aic_correct_base + correction
+        assert abs(aicc - expected) < 1e-10
+
+    def test_n_free_params_overrides_len_params(self, calculator):
+        """When n_free_params is passed, it should be used instead of len(params)."""
+        rng = np.random.default_rng(42)
+        data = rng.exponential(2, size=50)
+        loc, scale = stats.expon.fit(data, floc=0)
+
+        # With n_free_params=1 (correct: loc is fixed)
+        aicc_correct = calculator._calculate_aic(data, stats.expon, loc, scale, n_free_params=1)
+        # Without n_free_params (defaults to len(params)=2, overcounts)
+        aicc_overcounted = calculator._calculate_aic(data, stats.expon, loc, scale)
+
+        # The overcounted version should be larger because k=2 > k=1
+        # increases both the base AIC and the correction term
+        assert aicc_overcounted > aicc_correct
+
+    def test_n_free_params_default_uses_len_params(self, calculator):
+        """Without n_free_params, defaults to len(params)."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(5, 2, size=100)
+        mu, sigma = stats.norm.fit(data)
+
+        # For normal, all params are free, so default is correct
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        k = 2
+        n = 100
+        expected = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+        assert abs(aicc - expected) < 1e-10
+
+    def test_edge_case_n_equals_k_plus_2(self, calculator):
+        """When n = k + 2, correction should not cause division by zero."""
+        # n=4, k=2 => n-k-1=1, correction = 2*2*3/1 = 12
+        data = np.array([1.0, 2.0, 3.0, 4.0])
+        mu, sigma = stats.norm.fit(data)
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        expected = 2 * 2 - 2 * log_likelihood + 12.0
+        assert abs(aicc - expected) < 1e-10
+
+    def test_edge_case_n_equals_k_plus_1(self, calculator):
+        """When n = k + 1, correction is skipped (would be division by zero)."""
+        # n=3, k=2 => n-k-1=0, correction should be skipped
+        data = np.array([1.0, 2.0, 3.0])
+        mu, sigma = stats.norm.fit(data)
+        aicc = calculator._calculate_aic(data, stats.norm, mu, sigma)
+        log_likelihood = np.sum(stats.norm.logpdf(data, mu, sigma))
+        # Should just be standard AIC (no correction applied)
+        expected = 2 * 2 - 2 * log_likelihood
+        assert abs(aicc - expected) < 1e-10
+
+    def test_fit_distributions_uses_aicc(self, calculator):
+        """_fit_distributions should return AICc values, not plain AIC."""
+        rng = np.random.default_rng(42)
+        data = rng.lognormal(1, 0.5, size=50)
+        results = calculator._fit_distributions(data)
+
+        # Verify lognormal uses n_free_params=2 (not 3)
+        if "lognormal" in results:
+            shape = results["lognormal"]["shape"]
+            loc = results["lognormal"]["location"]
+            scale = results["lognormal"]["scale"]
+            log_likelihood = np.sum(stats.lognorm.logpdf(data, shape, loc, scale))
+            k = 2  # shape + scale; loc is fixed
+            n = len(data)
+            expected_aicc = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+            assert abs(results["lognormal"]["aic"] - expected_aicc) < 1e-10
+
+    def test_fit_distributions_exponential_free_params(self, calculator):
+        """Exponential fitted with floc=0 should count only 1 free param."""
+        rng = np.random.default_rng(42)
+        data = rng.exponential(2, size=50)
+        results = calculator._fit_distributions(data)
+
+        if "exponential" in results:
+            loc = results["exponential"]["location"]
+            scale = results["exponential"]["scale"]
+            log_likelihood = np.sum(stats.expon.logpdf(data, loc, scale))
+            k = 1  # only scale is free
+            n = len(data)
+            expected_aicc = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+            assert abs(results["exponential"]["aic"] - expected_aicc) < 1e-10
+
+    def test_distribution_fitter_uses_aicc(self):
+        """DistributionFitter.fit_all should use AICc correction."""
+        rng = np.random.default_rng(42)
+        data = rng.normal(5, 2, size=50)
+        fitter = DistributionFitter()
+        df = fitter.fit_all(data, distributions=["normal"])
+
+        row = df[df["distribution"] == "normal"].iloc[0]
+        params = fitter.fitted_params["normal"]
+        log_likelihood = np.sum(stats.norm.logpdf(data, *params))
+        k = len(params)
+        n = len(data)
+        expected_aicc = 2 * k - 2 * log_likelihood + 2 * k * (k + 1) / (n - k - 1)
+        assert abs(row["aic"] - expected_aicc) < 1e-10
+
+
+# ---------------------------------------------------------------------------
 # SummaryReportGenerator coverage (lines 1053, 1158-1161, 1196-1199)
 # ---------------------------------------------------------------------------
 class TestSummaryReportGeneratorCoverage:
