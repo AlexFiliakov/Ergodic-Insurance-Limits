@@ -753,10 +753,17 @@ class BalanceSheetMixin:
         # Validation: retention ratio should be applied to net income
         assert 0 <= self.retention_ratio <= 1, f"Invalid retention ratio: {self.retention_ratio}"
 
-        # Calculate retained earnings
+        # Calculate retained earnings and dividends
+        # Issue #1304: ASC 505-20-45 — dividends can only be declared from
+        # positive earnings.  When net income is negative, 100 % of the loss
+        # must be absorbed by retained earnings; no negative-dividend offset.
         retention_decimal = to_decimal(self.retention_ratio)
-        retained_earnings = net_income_decimal * retention_decimal
-        dividends = net_income_decimal * (to_decimal(1) - retention_decimal)
+        if net_income_decimal > ZERO:
+            retained_earnings = net_income_decimal * retention_decimal
+            dividends = net_income_decimal * (to_decimal(1) - retention_decimal)
+        else:
+            retained_earnings = net_income_decimal  # full loss absorbed
+            dividends = ZERO
 
         # Log retention calculation details
         logger.info("===== RETENTION CALCULATION =====")
