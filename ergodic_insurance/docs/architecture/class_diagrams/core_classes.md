@@ -19,9 +19,13 @@ classDiagram
         +run() SimulationResults
         +step_annual(year, losses) dict
         +run_with_loss_data() SimulationResults
-        +run_monte_carlo() dict
         +get_trajectory() DataFrame
-        +compare_insurance_strategies() dict
+    }
+
+    class _compare_strategies {
+        <<module>>
+        +run_monte_carlo(config, policy, n_scenarios) dict
+        +compare_strategies(config, policies, n_scenarios) StrategyComparisonResult
     }
 
     class MonteCarloEngine {
@@ -87,6 +91,8 @@ classDiagram
     MonteCarloEngine --> ManufacturingLossGenerator : uses
     MonteCarloEngine --> InsuranceProgram : uses
     MonteCarloEngine --> MonteCarloResults : produces
+
+    _compare_strategies --> MonteCarloEngine : orchestrates MC runs
 
     InsurancePolicy --> InsuranceProgram : converts to (deprecated)
 
@@ -398,9 +404,13 @@ classDiagram
         +run(progress_interval) SimulationResults
         +step_annual(year, losses) dict
         +run_with_loss_data(loss_data) SimulationResults
-        +run_monte_carlo(config, policy, n_scenarios)$ dict
         +get_trajectory() DataFrame
-        +compare_insurance_strategies(strategies) dict
+    }
+
+    class _compare_strategies {
+        <<module>>
+        +run_monte_carlo(config, policy, n_scenarios) dict
+        +compare_strategies(config, policies, n_scenarios) StrategyComparisonResult
     }
 
     class SimulationResults {
@@ -473,6 +483,7 @@ classDiagram
     Simulation --> SimulationResults : produces
     MonteCarloEngine --> MonteCarloResults : produces
     MonteCarloEngine --> MonteCarloConfig : configured by
+    _compare_strategies --> MonteCarloEngine : orchestrates MC runs
 ```
 
 ## Class Interactions

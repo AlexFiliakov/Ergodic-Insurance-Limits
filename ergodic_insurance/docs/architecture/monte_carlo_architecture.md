@@ -11,6 +11,7 @@ both budget hardware (4-8 cores) and high-end workstations.
 |------|---------|
 | `ergodic_insurance/monte_carlo.py` | Main orchestrator (`MonteCarloEngine`, `MonteCarloConfig`, `MonteCarloResults`) |
 | `ergodic_insurance/monte_carlo_worker.py` | Standalone worker function (`run_chunk_standalone`) |
+| `ergodic_insurance/_compare_strategies.py` | Standalone MC orchestration (`run_monte_carlo`, `compare_strategies`, `StrategyComparisonResult`) |
 | `ergodic_insurance/simulation.py` | Single-path simulation (`Simulation`, `SimulationResults`) |
 | `ergodic_insurance/parallel_executor.py` | Enhanced parallel executor (`ParallelExecutor`, `SharedMemoryManager`) |
 | `ergodic_insurance/batch_processor.py` | Batch scenario orchestration (`BatchProcessor`) |
@@ -279,8 +280,12 @@ classDiagram
         +int time_horizon
         +run() SimulationResults
         +step_annual() Dict
-        +run_monte_carlo()$ Dict
-        +compare_insurance_strategies()$ DataFrame
+    }
+
+    class _compare_strategies {
+        <<module>>
+        +run_monte_carlo(config, policy, n_scenarios) Dict
+        +compare_strategies(config, policies, n_scenarios) StrategyComparisonResult
     }
 
     class ProgressMonitor {
@@ -306,7 +311,7 @@ classDiagram
     MonteCarloEngine --> ProgressMonitor : progress tracking
     ParallelExecutor --> SharedMemoryManager : manages memory
     BatchProcessor --> MonteCarloEngine : creates per scenario
-    Simulation --> MonteCarloEngine : delegates MC runs
+    _compare_strategies --> MonteCarloEngine : delegates MC runs
 ```
 
 **Design rationale:**
@@ -316,8 +321,9 @@ classDiagram
   manages shared memory through `SharedMemoryManager` and provides adaptive chunking.
 - `BatchProcessor` sits above `MonteCarloEngine` and manages multiple scenario
   executions with checkpoint/resume support.
-- `Simulation` provides a single-path simulation interface and can delegate to
-  `MonteCarloEngine` for multi-path runs via the `run_monte_carlo` class method.
+- `Simulation` provides a single-path simulation interface. Multi-path Monte Carlo
+  orchestration is handled by the standalone `run_monte_carlo()` and `compare_strategies()`
+  functions in `_compare_strategies.py`, which delegate to `MonteCarloEngine` directly.
 
 ---
 
