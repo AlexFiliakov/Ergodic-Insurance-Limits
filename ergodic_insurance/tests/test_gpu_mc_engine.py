@@ -824,8 +824,10 @@ class TestMonteCarloEngineGPUIntegration:
         config = MonteCarloConfig(use_gpu=True)
         assert config.use_gpu is True
 
-    def test_gpu_path_fallback_warns(self):
+    def test_gpu_path_fallback_warns(self, caplog):
         """With use_gpu=True and no GPU, a warning is issued and CPU is used."""
+        import logging
+
         from ergodic_insurance.config import ManufacturerConfig
         import ergodic_insurance.gpu_backend as gpu_mod
         from ergodic_insurance.insurance_program import InsuranceProgram
@@ -855,12 +857,13 @@ class TestMonteCarloEngineGPUIntegration:
         )
 
         with patch.object(gpu_mod, "_CUPY_AVAILABLE", False):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter("always")
+            with caplog.at_level(logging.WARNING, logger="ergodic_insurance.monte_carlo"):
                 results = engine.run()
 
                 gpu_warnings = [
-                    x for x in w if "use_gpu" in str(x.message).lower() or "GPU" in str(x.message)
+                    r
+                    for r in caplog.records
+                    if "use_gpu" in r.message.lower() or "GPU" in r.message
                 ]
                 assert len(gpu_warnings) > 0, "Expected a GPU fallback warning"
 
