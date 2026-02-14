@@ -149,6 +149,7 @@ class TestRuinProbabilityAnalyzer:
         manufacturer.total_assets = 10_000_000
         manufacturer.debt = 0  # Set default debt value
         manufacturer.is_ruined = False
+        manufacturer.stochastic_process = None
         manufacturer.calculate_revenue.return_value = 5_000_000
         manufacturer.step.return_value = {"equity": 1_000_000, "operating_income": 500_000}
 
@@ -167,6 +168,24 @@ class TestRuinProbabilityAnalyzer:
         manufacturer.copy = copy_manufacturer
         manufacturer.process_insurance_claim = MagicMock()
         return manufacturer
+
+    @pytest.fixture(autouse=True)
+    def _patch_create_fresh(self, mock_manufacturer):
+        """Patch WidgetManufacturer.create_fresh to return a mock."""
+
+        def _make_fresh(*args, **kwargs):
+            copy_mfg = MagicMock()
+            copy_mfg.total_assets = mock_manufacturer.total_assets
+            copy_mfg.debt = 0
+            copy_mfg.is_ruined = False
+            copy_mfg.calculate_revenue = mock_manufacturer.calculate_revenue
+            copy_mfg.step = mock_manufacturer.step
+            copy_mfg.process_insurance_claim = MagicMock()
+            return copy_mfg
+
+        with patch("ergodic_insurance.ruin_probability.WidgetManufacturer") as MockWM:
+            MockWM.create_fresh.side_effect = _make_fresh
+            yield
 
     @pytest.fixture
     def mock_loss_generator(self):
