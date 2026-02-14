@@ -95,10 +95,14 @@ class ConvergenceDiagnostics:
         return float(r_hat)
 
     def calculate_ess(self, chain: np.ndarray, max_lag: Optional[int] = None) -> float:
-        """Calculate effective sample size using autocorrelation.
+        """Calculate effective sample size using Geyer's initial positive sequence.
 
-        Uses the formula: ESS = N / (1 + 2 * sum(autocorrelations))
-        where the sum is truncated at the first negative autocorrelation.
+        Uses Geyer's (1992, Theorem 3.1) initial positive sequence estimator:
+        ESS = N / tau, where tau = 1 + 2 * sum of consecutive ACF pair sums
+        (rho[2k-1] + rho[2k]) truncated at the first non-positive pair.
+
+        Individual autocorrelation values may be negative while pair sums
+        remain positive — this is common for oscillating MCMC chains.
 
         Args:
             chain: 1D array of samples
@@ -118,27 +122,17 @@ class ConvergenceDiagnostics:
         # Calculate autocorrelations
         autocorr = self._calculate_autocorrelation(chain, max_lag)
 
-        # Find first negative autocorrelation (Geyer's initial monotone sequence)
-        first_negative = np.where(autocorr < 0)[0]
-        if len(first_negative) > 0:
-            cutoff = first_negative[0]
-        else:
-            cutoff = len(autocorr)
-
-        # Apply Geyer's initial positive sequence estimator
-        # Sum pairs of autocorrelations and stop when sum becomes negative
-        sum_autocorr = 1.0  # Start with lag 0 (always 1)
-        for i in range(1, cutoff, 2):
-            if i + 1 < cutoff:
-                pair_sum = autocorr[i] + autocorr[i + 1]
-                if pair_sum > 0:
-                    sum_autocorr += 2 * pair_sum
-                else:
-                    break
+        # Geyer's initial positive sequence estimator (Geyer, 1992, Theorem 3.1)
+        # Iterate over consecutive pairs rho(2k-1) + rho(2k) and stop at the
+        # first pair whose sum is non-positive.  No pre-truncation at individual
+        # negative autocorrelations — only pair sums matter.
+        sum_autocorr = 1.0  # lag-0 contribution
+        for i in range(1, len(autocorr) - 1, 2):
+            pair_sum = autocorr[i] + autocorr[i + 1]
+            if pair_sum > 0:
+                sum_autocorr += 2 * pair_sum
             else:
-                # Handle odd final term
-                if autocorr[i] > 0:
-                    sum_autocorr += 2 * autocorr[i]
+                break
 
         # Calculate ESS
         ess = n / max(sum_autocorr, 1)
