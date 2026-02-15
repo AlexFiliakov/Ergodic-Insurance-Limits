@@ -243,6 +243,11 @@ changelog_file = "CHANGELOG.md"
 template_dir = "templates"
 mode = "update"
 insertion_flag = "<!-- next-version -->"
+exclude_commit_patterns = [
+    '''Merge pull request .*''',
+    '''Merge branch .*''',
+    '''chore\(release\).*''',
+]
 
 [tool.semantic_release.remote]
 type = "github"
