@@ -54,10 +54,14 @@ from pathlib import Path
 import threading
 import time
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+import warnings
 
 import numpy as np
 import pandas as pd
 
+from ._compare_strategies import StrategyComparisonResult  # re-export for backward compat
+from ._compare_strategies import compare_strategies as _compare_strategies_func
+from ._compare_strategies import run_monte_carlo as _run_monte_carlo_func
 from ._warnings import ErgodicInsuranceDeprecationWarning
 from .config import DEFAULT_RISK_FREE_RATE, Config
 from .decimal_utils import ZERO, to_decimal
@@ -476,46 +480,6 @@ class SimulationResults:
         base_stats.update(volatility_metrics)
 
         return base_stats
-
-
-@dataclass
-class StrategyComparisonResult:
-    """Result of comparing multiple insurance strategies.
-
-    Returned by :meth:`Simulation.compare_insurance_strategies`. Contains the
-    shared uninsured baseline, per-strategy Monte Carlo results, and a summary
-    DataFrame for quick comparison.
-
-    Attributes:
-        baseline: MonteCarloResults from the shared uninsured baseline run.
-        strategy_results: Dict mapping strategy name to its MonteCarloResults.
-        summary_df: DataFrame comparing strategies (same columns as the
-            previous ``pd.DataFrame`` return type for backward compatibility).
-        crn_seed: The Common Random Numbers base seed used for paired
-            comparison across all runs.
-    """
-
-    baseline: Any  # MonteCarloResults (avoid top-level import cycle)
-    strategy_results: Dict[str, Any]
-    summary_df: pd.DataFrame
-    crn_seed: Optional[int] = None
-
-    def __repr__(self) -> str:
-        n_strategies = len(self.strategy_results)
-        names = ", ".join(sorted(self.strategy_results.keys()))
-        return (
-            f"StrategyComparisonResult("
-            f"{n_strategies} strategies: [{names}], "
-            f"summary_df={self.summary_df.shape[0]}x{self.summary_df.shape[1]})"
-        )
-
-    def __str__(self) -> str:
-        lines = [
-            f"StrategyComparisonResult — {len(self.strategy_results)} strategies",
-            "",
-            self.summary_df.to_string(),
-        ]
-        return "\n".join(lines)
 
 
 class Simulation:
@@ -1172,7 +1136,7 @@ class Simulation:
         return results.to_dataframe()
 
     @classmethod
-    def run_monte_carlo(  # pylint: disable=too-many-locals
+    def run_monte_carlo(
         cls,
         config: Config,
         insurance_policy: Optional[Union[InsuranceProgram, InsurancePolicy]] = None,
@@ -1186,154 +1150,27 @@ class Simulation:
     ) -> Dict[str, Any]:
         """Run Monte Carlo simulation using the MonteCarloEngine.
 
-        This is a convenience class method for running large-scale Monte Carlo
-        simulations with the optimized engine.
-
-        Args:
-            config: Configuration object.
-            insurance_policy: Insurance program (or deprecated InsurancePolicy)
-                to simulate. Accepts :class:`InsuranceProgram` (preferred) or
-                :class:`InsurancePolicy` (deprecated, auto-converted).
-            n_scenarios: Number of scenarios to run.
-            batch_size: Scenarios per batch.
-            n_jobs: Number of parallel jobs.
-            checkpoint_dir: Directory for checkpoints.
-            checkpoint_frequency: Save checkpoint every N scenarios.
-            seed: Random seed.
-            resume: Whether to resume from checkpoint.
-
-        Returns:
-            Dictionary of Monte Carlo results and statistics.
+        .. deprecated::
+            Use :func:`ergodic_insurance.run_monte_carlo` instead.
         """
-        # Create loss generator
-        from .loss_distributions import ManufacturingLossGenerator
-
-        loss_generator = ManufacturingLossGenerator(seed=seed)
-
-        # Normalize to InsuranceProgram
-        if insurance_policy is not None and isinstance(insurance_policy, InsurancePolicy):
-            import warnings as _warnings
-
-            _warnings.warn(
-                "Passing InsurancePolicy to run_monte_carlo is deprecated. "
-                "Use InsuranceProgram instead.",
-                ErgodicInsuranceDeprecationWarning,
-                stacklevel=2,
-            )
-            insurance_policy = insurance_policy.to_enhanced_program()
-
-        # Create insurance program (Issue #348)
-        if insurance_policy is not None:
-            insurance_program = insurance_policy
-        else:
-            insurance_program = InsuranceProgram(layers=[])
-
-        # Create manufacturer
-        manufacturer = WidgetManufacturer(config=config.manufacturer)
-
-        # Create simulation config
-        from .monte_carlo import MonteCarloConfig
-
-        sim_config = MonteCarloConfig(
-            n_simulations=n_scenarios,
-            n_years=config.simulation.time_horizon_years,
-            parallel=n_jobs > 1 if n_jobs else True,
-            n_workers=n_jobs,
-            chunk_size=batch_size,
-            checkpoint_interval=checkpoint_frequency,
+        warnings.warn(
+            "Simulation.run_monte_carlo() is deprecated. "
+            "Use the standalone run_monte_carlo() function instead:\n"
+            "  from ergodic_insurance import run_monte_carlo",
+            ErgodicInsuranceDeprecationWarning,
+            stacklevel=2,
+        )
+        return _run_monte_carlo_func(
+            config=config,
+            insurance_policy=insurance_policy,
+            n_scenarios=n_scenarios,
+            batch_size=batch_size,
+            n_jobs=n_jobs,
+            checkpoint_dir=checkpoint_dir,
+            checkpoint_frequency=checkpoint_frequency,
             seed=seed,
+            resume=resume,
         )
-
-        # Run simulation WITH insurance
-        engine_with_insurance = MonteCarloEngine(
-            loss_generator=loss_generator,
-            insurance_program=insurance_program,
-            manufacturer=manufacturer,
-            config=sim_config,
-        )
-
-        logger.info("Running Monte Carlo simulation WITH insurance...")
-        results_with_insurance = engine_with_insurance.run()
-
-        # Run simulation WITHOUT insurance using the same seed for fair comparison
-        logger.info("Running Monte Carlo simulation WITHOUT insurance (same seed)...")
-
-        # Create new loss generator with same seed for reproducibility
-        loss_generator_no_insurance = ManufacturingLossGenerator(seed=seed)
-
-        # Create new manufacturer instance (must be fresh for second run)
-        manufacturer_no_insurance = WidgetManufacturer(config=config.manufacturer)
-
-        # Create empty insurance program (no coverage)
-        insurance_program_no_insurance = InsuranceProgram(layers=[])
-
-        engine_without_insurance = MonteCarloEngine(
-            loss_generator=loss_generator_no_insurance,
-            insurance_program=insurance_program_no_insurance,
-            manufacturer=manufacturer_no_insurance,
-            config=sim_config,
-        )
-
-        results_without_insurance = engine_without_insurance.run()
-
-        # Calculate empirical ergodic analysis by comparing the two runs
-        ergodic_analysis = {}
-
-        if hasattr(results_with_insurance, "statistics") and hasattr(
-            results_without_insurance, "statistics"
-        ):
-            stats_with = results_with_insurance.statistics
-            stats_without = results_without_insurance.statistics
-
-            # Extract metrics from both runs
-            if "geometric_return" in stats_with and "geometric_return" in stats_without:
-                geo_with = stats_with["geometric_return"]
-                geo_without = stats_without["geometric_return"]
-
-                premium_cost = (
-                    insurance_policy.calculate_premium() if insurance_policy is not None else 0.0
-                )
-                initial_assets = config.manufacturer.initial_assets
-                premium_rate = premium_cost / initial_assets
-
-                # Calculate empirical insurance impact
-                ergodic_analysis = {
-                    "premium_rate": premium_rate,
-                    # With insurance metrics
-                    "geometric_mean_return_with_insurance": geo_with.get("geometric_mean", 0.0),
-                    "survival_rate_with_insurance": geo_with.get("survival_rate", 0.0),
-                    "volatility_with_insurance": geo_with.get("std", 0.0),
-                    # Without insurance metrics
-                    "geometric_mean_return_without_insurance": geo_without.get(
-                        "geometric_mean", 0.0
-                    ),
-                    "survival_rate_without_insurance": geo_without.get("survival_rate", 0.0),
-                    "volatility_without_insurance": geo_without.get("std", 0.0),
-                    # Empirical deltas (insurance impact)
-                    "growth_impact": geo_with.get("geometric_mean", 0.0)
-                    - geo_without.get("geometric_mean", 0.0),
-                    "survival_benefit": geo_with.get("survival_rate", 0.0)
-                    - geo_without.get("survival_rate", 0.0),
-                    "volatility_reduction": geo_without.get("std", 0.0) - geo_with.get("std", 0.0),
-                }
-
-                logger.info(
-                    f"Empirical insurance impact: growth={ergodic_analysis['growth_impact']:.2%}, "
-                    f"survival={ergodic_analysis['survival_benefit']:.2%}, "
-                    f"volatility_reduction={ergodic_analysis['volatility_reduction']:.2%}"
-                )
-
-                return {
-                    "results_with_insurance": results_with_insurance,
-                    "results_without_insurance": results_without_insurance,
-                    "ergodic_analysis": ergodic_analysis,
-                }
-
-        # Fallback if statistics not available
-        return {
-            "results_with_insurance": results_with_insurance,
-            "results_without_insurance": results_without_insurance,
-        }
 
     @classmethod
     def compare_insurance_strategies(
@@ -1346,129 +1183,20 @@ class Simulation:
     ) -> StrategyComparisonResult:
         """Compare multiple insurance strategies via Monte Carlo.
 
-        Runs a single uninsured baseline and one insured simulation per
-        strategy, using Common Random Numbers (CRN) for proper paired
-        comparison.  This requires N+1 total Monte Carlo runs for N
-        strategies instead of the previous 2N.
-
-        Args:
-            config: Configuration object.
-            insurance_policies: Dictionary of strategy name to
-                :class:`InsuranceProgram` (or deprecated :class:`InsurancePolicy`).
-            n_scenarios: Scenarios per policy.
-            n_jobs: Number of parallel jobs.
-            seed: Random seed.
-
-        Returns:
-            :class:`StrategyComparisonResult` containing per-strategy results,
-            the shared uninsured baseline, and a summary DataFrame.
+        .. deprecated::
+            Use :func:`ergodic_insurance.compare_strategies` instead.
         """
-        from .monte_carlo import MonteCarloConfig
-
-        # Derive CRN base seed for paired comparison
-        if seed is not None:
-            crn_seed = seed
-        else:
-            crn_seed = int(np.random.SeedSequence().generate_state(1)[0])
-
-        # Build shared simulation config with CRN enabled
-        sim_config = MonteCarloConfig(
-            n_simulations=n_scenarios,
-            n_years=config.simulation.time_horizon_years,
-            parallel=n_jobs > 1 if n_jobs else True,
-            n_workers=n_jobs,
-            checkpoint_interval=n_scenarios + 1,  # Don't checkpoint for comparisons
-            seed=seed,
-            crn_base_seed=crn_seed,
+        warnings.warn(
+            "Simulation.compare_insurance_strategies() is deprecated. "
+            "Use the standalone compare_strategies() function instead:\n"
+            "  from ergodic_insurance import compare_strategies",
+            ErgodicInsuranceDeprecationWarning,
+            stacklevel=2,
         )
-
-        # --- Run uninsured baseline ONCE ---
-        logger.info("Running shared uninsured baseline simulation...")
-        baseline_results = MonteCarloEngine(
-            loss_generator=ManufacturingLossGenerator(seed=seed),
-            insurance_program=InsuranceProgram(layers=[]),
-            manufacturer=WidgetManufacturer(config=config.manufacturer),
-            config=sim_config,
-        ).run()
-
-        # --- Run each strategy (insured only) ---
-        strategy_mc_results: Dict[str, Any] = {}
-        results_rows: List[Dict[str, Any]] = []
-
-        for policy_name, policy in insurance_policies.items():
-            logger.info(f"Running Monte Carlo for strategy: {policy_name}")
-
-            # Normalize InsurancePolicy -> InsuranceProgram
-            if isinstance(policy, InsurancePolicy):
-                import warnings as _warnings
-
-                _warnings.warn(
-                    "Passing InsurancePolicy to compare_insurance_strategies "
-                    "is deprecated. Use InsuranceProgram instead.",
-                    ErgodicInsuranceDeprecationWarning,
-                    stacklevel=2,
-                )
-                converted = policy.to_enhanced_program()
-                insurance_program: InsuranceProgram = (
-                    converted if converted is not None else InsuranceProgram(layers=[])
-                )
-            else:
-                insurance_program = policy
-
-            sim_results = MonteCarloEngine(
-                loss_generator=ManufacturingLossGenerator(seed=seed),
-                insurance_program=insurance_program,
-                manufacturer=WidgetManufacturer(config=config.manufacturer),
-                config=sim_config,
-            ).run()
-
-            strategy_mc_results[policy_name] = sim_results
-
-            # Extract key metrics
-            final_assets = sim_results.final_assets
-            growth_rates = sim_results.growth_rates
-
-            survival_rate = float(np.mean(final_assets > 0)) if len(final_assets) > 0 else 0.0
-            mean_final = float(np.mean(final_assets)) if len(final_assets) > 0 else 0.0
-            std_final = float(np.std(final_assets, ddof=1)) if len(final_assets) > 1 else 0.0
-            if len(growth_rates) > 0:
-                growth_factors = np.maximum(1 + growth_rates, 1e-10)
-                geo_mean = float(np.exp(np.mean(np.log(growth_factors))) - 1)
-            else:
-                geo_mean = 0.0
-            arith_mean = float(np.mean(growth_rates)) if len(growth_rates) > 0 else 0.0
-            p95 = float(np.percentile(final_assets, 95)) if len(final_assets) > 0 else 0.0
-            p99 = float(np.percentile(final_assets, 99)) if len(final_assets) > 0 else 0.0
-
-            results_rows.append(
-                {
-                    "policy": policy_name,
-                    "annual_premium": policy.calculate_premium(),
-                    "total_coverage": policy.get_total_coverage(),
-                    "survival_rate": survival_rate,
-                    "mean_final_equity": mean_final,
-                    "std_final_equity": std_final,
-                    "geometric_return": geo_mean,
-                    "arithmetic_return": arith_mean,
-                    "p95_final_equity": p95,
-                    "p99_final_equity": p99,
-                }
-            )
-
-        comparison_df = pd.DataFrame(results_rows)
-
-        # Add relative metrics
-        if len(comparison_df) > 0:
-            comparison_df["premium_to_coverage"] = (
-                comparison_df["annual_premium"] / comparison_df["total_coverage"]
-            )
-            comparison_df["sharpe_ratio"] = (
-                comparison_df["arithmetic_return"] / comparison_df["std_final_equity"]
-            )
-
-        return StrategyComparisonResult(
-            baseline=baseline_results,
-            strategy_results=strategy_mc_results,
-            summary_df=comparison_df,
-            crn_seed=crn_seed,
+        return _compare_strategies_func(
+            config=config,
+            insurance_policies=insurance_policies,
+            n_scenarios=n_scenarios,
+            n_jobs=n_jobs,
+            seed=seed,
         )
