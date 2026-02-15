@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.0] - 2026-02-15
+
+### Fixed
+- skip unknown commits in changelog templates to prevent ParseError crash ([`a51e577`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/a51e5773104ace643711c980d8a812ac8202b8d9))
+- disable attestations in PyPI publish to resolve 400 error ([`b9085eb`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/b9085ebc5bded4007c04b00e62269065091c31cf))
+- compute pure premium as mean annual aggregate instead of freq*sev ([`4f2ded6`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/4f2ded61d8afadf79665c805b7c24a61a69042b4))
+
+[0.13.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.12.0...v0.13.0
+
 ## [0.12.0] - 2026-02-15
 
 ### Changed
