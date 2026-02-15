@@ -9,7 +9,8 @@
 #}{%- macro render_sections(release)
 %}{%  set ns = namespace(added=[], changed=[], fixed=[])
 %}{%  for type, commits in release["elements"].items()
-%}{%    if type == "features"
+%}{%    if type == "unknown"
+%}{%    elif type == "features"
 %}{%      set ns.added = ns.added + commits
 %}{%    elif type == "bug fixes"
 %}{%      set ns.fixed = ns.fixed + commits
