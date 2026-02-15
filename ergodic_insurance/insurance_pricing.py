@@ -434,16 +434,16 @@ class InsurancePricer:
         expected_revenue: float,
         simulation_years: Optional[int] = None,
     ) -> Tuple[float, Dict[str, Any]]:
-        """Calculate pure premium for a layer using frequency/severity.
+        """Calculate pure premium for a layer via mean annual aggregate.
 
-        Pure premium represents the expected loss cost without expenses,
-        profit, or risk loading.  When a ``development_pattern`` is
-        configured on the pricing parameters, each simulation year's
-        aggregate losses are developed to ultimate using age-to-ultimate
-        factors (ASOP 25 / CAS Ratemaking Chapter 4).  Older simulation
-        years are treated as more mature while the most recent year is
-        treated as the least mature, mirroring standard experience-rating
-        practice.
+        Pure premium is the mean of the simulated annual aggregate losses
+        in the layer (CAS Exam 5 / Werner & Modlin Chapter 4).  When a
+        ``development_pattern`` is configured on the pricing parameters,
+        each simulation year's aggregate losses are developed to ultimate
+        using age-to-ultimate factors (ASOP 25 / CAS Ratemaking Chapter 4).
+        Older simulation years are treated as more mature while the most
+        recent year is treated as the least mature, mirroring standard
+        experience-rating practice.
 
         Args:
             attachment_point: Where layer coverage starts
@@ -499,7 +499,7 @@ class InsurancePricer:
         if layer_losses:
             expected_frequency = float(np.mean(frequencies))
             expected_severity = float(np.mean(severities) if severities else 0)
-            undeveloped_pure_premium = expected_frequency * expected_severity
+            undeveloped_pure_premium = float(np.mean(annual_aggregates))
 
             # ---------------------------------------------------------
             # Develop losses to ultimate (Issue #714, ASOP 25)
