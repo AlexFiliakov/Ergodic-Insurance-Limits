@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.11.0] - 2026-02-15
+
+### Added
+- GAAP accounting overhaul, GPU acceleration, API ergonomics, and 100+ bug fixes (#1416) ([`c2e89a0`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/c2e89a0968e81cb45f15408e99edf0052b1c66e4))
+
+[0.11.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.10.0...v0.11.0
+
 ## [0.10.0] - 2026-02-13
 
 ### Added
