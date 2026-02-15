@@ -454,14 +454,19 @@ class TestIntegrationWithStep:
             period_dep = mfr.accumulated_depreciation - pre_step_accumulated_dep
             cumulative_depreciation += period_dep
 
-        # Cash should be approximately initial + cumulative_net_income + cumulative_depreciation.
-        # Allow generous tolerance because tax payments, accruals, and other
-        # cash-affecting entries (e.g., tax accrual -> payment timing) cause the
-        # exact cash figure to differ from the simple formula.
+        # Issue #1297: With GAAP-compliant closing entries, the simple formula
+        # cash_change ≈ net_income + depreciation holds only when all expenses
+        # are cash-based.  With accrual-based expenses (taxes, insurance),
+        # cash flow diverges because:
+        #   - Accrued expenses (Dr EXPENSE / Cr LIABILITY) don't consume cash
+        #     at recognition; cash is consumed when the liability is paid
+        #   - The old residual double-counted these amounts; proper closing
+        #     eliminates that double-counting
+        # Allow 15% tolerance for working-capital timing differences.
         cash_change = mfr.cash - initial_cash
         expected_change = cumulative_net_income + cumulative_depreciation
 
-        assert float(cash_change) == pytest.approx(float(expected_change), rel=0.10), (
+        assert float(cash_change) == pytest.approx(float(expected_change), rel=0.15), (
             f"Cash change {cash_change} should approximately equal "
             f"net_income {cumulative_net_income} + depreciation {cumulative_depreciation} "
             f"= {expected_change}"

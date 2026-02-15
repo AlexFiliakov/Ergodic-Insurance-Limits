@@ -103,10 +103,14 @@ class IncomeCalculationMixin:
         # LAE tracked separately per ASC 944-40 (Issue #468)
         period_lae: Decimal = getattr(self, "period_insurance_lae", to_decimal(0))
 
+        # Insurance recoveries offset losses in NI (Issue #1297)
+        period_recoveries: Decimal = getattr(self, "period_insurance_recoveries", to_decimal(0))
+
         actual_operating_income = (
             base_operating_income
             - self.period_insurance_premiums
             - self.period_insurance_losses
+            + period_recoveries
             - period_lae
             - net_reserve_development
         )
@@ -173,6 +177,12 @@ class IncomeCalculationMixin:
         collateral_costs_decimal = to_decimal(collateral_costs)
 
         income_before_tax = operating_income_decimal - collateral_costs_decimal
+
+        # Cache for closing entries residual (Issue #1297).  The residual
+        # formula uses income_before_tax (not net_income) so that accrued
+        # taxes are excluded from the cash adjustment — taxes are non-cash
+        # until paid via accrual payments.
+        self._period_income_before_tax = income_before_tax
 
         # Capture DTA before tax calculation for journal entry delta (Issue #365)
         old_dta = (

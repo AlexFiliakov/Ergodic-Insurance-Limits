@@ -196,12 +196,15 @@ class TestWorkingCapitalTiming:
         delta_ar = manufacturer.accounts_receivable - initial_ar
         delta_inv = manufacturer.inventory - initial_inv
         delta_ap = manufacturer.accounts_payable - initial_ap
+        delta_accrued_taxes = to_decimal(metrics.get("accrued_taxes", 0))
 
-        expected_ocf = ni + dep - delta_ar - delta_inv + delta_ap
+        # Include ΔACCRUED_TAXES per ASC 230-10-45 (Issue #1297): taxes are
+        # accrued (non-cash), so the liability increase adds back to OCF.
+        expected_ocf = ni + dep + delta_accrued_taxes - delta_ar - delta_inv + delta_ap
         actual_cash_change = manufacturer.cash - initial_cash
 
         assert float(actual_cash_change) == pytest.approx(float(expected_ocf), rel=0.01), (
             f"Cash change ({actual_cash_change}) should match indirect-method OCF "
-            f"({expected_ocf}) = NI ({ni}) + dep ({dep}) - ΔAR ({delta_ar}) "
-            f"- ΔInv ({delta_inv}) + ΔAP ({delta_ap})"
+            f"({expected_ocf}) = NI ({ni}) + dep ({dep}) + ΔAccTax ({delta_accrued_taxes}) "
+            f"- ΔAR ({delta_ar}) - ΔInv ({delta_inv}) + ΔAP ({delta_ap})"
         )

@@ -119,6 +119,7 @@ class ClaimProcessingMixin:
         self.period_insurance_lae = to_decimal(0)
         self.period_adverse_development = to_decimal(0)
         self.period_favorable_development = to_decimal(0)
+        self.period_insurance_recoveries = to_decimal(0)
 
     @property
     def total_claim_liabilities(self) -> Decimal:
@@ -414,17 +415,23 @@ class ClaimProcessingMixin:
             self.insurance_accounting.record_claim_recovery(
                 recovery_amount=insurance_payment, claim_id=claim_id, year=self.current_year
             )
-            # Record receivable in ledger: Dr INSURANCE_RECEIVABLES / Cr INSURANCE_LOSS
+            # Record receivable in ledger: Dr INSURANCE_RECEIVABLES / Cr INSURANCE_RECOVERY
             # per ASC 410-30 — recognize receivable at claim inception (Issue #625)
+            # Use INSURANCE_RECOVERY (revenue) instead of INSURANCE_LOSS (expense)
+            # so that closing entries don't negate the recovery (Issue #1297).
             self.ledger.record_double_entry(
                 date=self.current_year,
                 debit_account=AccountName.INSURANCE_RECEIVABLES,
-                credit_account=AccountName.INSURANCE_LOSS,
+                credit_account=AccountName.INSURANCE_RECOVERY,
                 amount=insurance_payment,
                 transaction_type=TransactionType.INSURANCE_CLAIM,
                 description="Insurance receivable for claim recovery",
                 month=self.current_month,
             )
+            # Track recovery for NI reconciliation (Issue #1297)
+            if not hasattr(self, "period_insurance_recoveries"):
+                self.period_insurance_recoveries = to_decimal(0)
+            self.period_insurance_recoveries += insurance_payment
             logger.info(f"Insurance covering ${insurance_payment:,.2f} - recorded as receivable")
 
         # Optionally record the loss in the income statement
@@ -589,6 +596,9 @@ class ClaimProcessingMixin:
                 transaction_type=TransactionType.INSURANCE_CLAIM,
                 description="Recognize uninsured deferred claim liability",
             )
+            # Include deferred claim loss in NI so closing entries' residual
+            # does not over-compensate with cash (Issue #1297).
+            self.record_insurance_loss(deferred_max_liability)
 
             # Record LAE portion separately (Issue #468)
             if lae_on_deferred > ZERO:

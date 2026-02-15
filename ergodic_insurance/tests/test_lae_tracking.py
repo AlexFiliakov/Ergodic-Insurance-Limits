@@ -260,11 +260,13 @@ class TestLAEOperatingIncome:
 
         operating_income = manufacturer.calculate_operating_income(revenue)
 
-        # Operating income should be reduced by premiums + losses + LAE
+        # Operating income should be reduced by premiums + losses + LAE,
+        # offset by insurance recoveries (Issue #1297)
         total_insurance = (
             manufacturer.period_insurance_premiums
             + manufacturer.period_insurance_losses
             + manufacturer.period_insurance_lae
+            - manufacturer.period_insurance_recoveries
         )
         expected = base_income - total_insurance
         assert operating_income == expected
@@ -280,9 +282,13 @@ class TestLAEOperatingIncome:
 
         income_after = manufacturer_zero_lae.calculate_operating_income(revenue)
 
-        # The difference should only be from insurance losses, not LAE
+        # The difference should only be from insurance losses (net of
+        # recoveries), not LAE (Issue #1297)
         assert manufacturer_zero_lae.period_insurance_lae == ZERO
-        expected_diff = manufacturer_zero_lae.period_insurance_losses
+        expected_diff = (
+            manufacturer_zero_lae.period_insurance_losses
+            - manufacturer_zero_lae.period_insurance_recoveries
+        )
         assert income_before - income_after == expected_diff
 
 
