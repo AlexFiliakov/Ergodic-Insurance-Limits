@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.12.0] - 2026-02-15
+
+### Changed
+- add PyPI trusted publishing to release workflow (#1514) ([`ec8b08a`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/ec8b08a46b3abd5e53b62f576b1c16d67f0097c0))
+
+[0.12.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.11.0...v0.12.0
+
 ## [0.11.0] - 2026-02-15
 
 ### Added
