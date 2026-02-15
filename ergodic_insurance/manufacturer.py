@@ -746,8 +746,13 @@ class WidgetManufacturer(
                 total_claim_due += scheduled_payment
 
         # Cap TOTAL payments at available liquid resources
+        # Issue #1337: Include working capital facility in available liquidity
+        # so payments can draw on the credit facility up to its limit.
         total_payments_due = total_accrual_due + total_claim_due
+        facility_limit = getattr(self.config, "working_capital_facility_limit", None)
         available_liquidity = self.cash + self.restricted_assets
+        if facility_limit is not None:
+            available_liquidity += to_decimal(facility_limit)
         max_total_payable: Decimal = (
             min(total_payments_due, available_liquidity)
             if available_liquidity > ZERO
@@ -767,7 +772,8 @@ class WidgetManufacturer(
             logger.warning(
                 f"LIQUIDITY CONSTRAINT: Total payments due ${total_payments_due:,.2f} "
                 f"exceeds available liquidity ${available_liquidity:,.2f} "
-                f"(cash: ${self.cash:,.2f}, restricted: ${self.restricted_assets:,.2f}). "
+                f"(cash: ${self.cash:,.2f}, restricted: ${self.restricted_assets:,.2f}"
+                f"{f', facility: ${to_decimal(facility_limit):,.2f}' if facility_limit is not None else ''}). "
                 f"Capping at ${max_total_payable:,.2f} "
                 f"(Accruals: ${max_accrual_payable:,.2f}, Claims: ${max_claim_payable:,.2f})"
             )
@@ -778,6 +784,21 @@ class WidgetManufacturer(
         # Pay scheduled claim liabilities with coordinated cap
         if time_resolution == "annual" or self.current_month == 0:
             self.pay_claim_liabilities(max_payable=max_claim_payable)
+
+        # Post-payment liquidity check (Issue #1337, ASC 205-40-50-12)
+        # After claim/accrual payments, verify the working capital facility
+        # has not been breached.  This catches genuine liquidity crises from
+        # large mandatory payments before the period continues.
+        if facility_limit is not None:
+            facility_limit_d = to_decimal(facility_limit)
+            if self.cash < -facility_limit_d:
+                logger.warning(
+                    f"LIQUIDITY CRISIS: After claim/accrual payments, cash "
+                    f"${self.cash:,.2f} breaches facility limit "
+                    f"${facility_limit_d:,.2f} (Issue #1337)."
+                )
+                self.is_ruined = True
+                return self._handle_insolvent_step(time_resolution)
 
         # Re-estimate reserves per ASC 944-40-25 (Issue #470)
         if time_resolution == "annual" or self.current_month == 0:
