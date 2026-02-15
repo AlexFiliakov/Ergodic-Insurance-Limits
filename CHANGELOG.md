@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.10.0] - 2026-02-13
+
+### Added
+- GPU acceleration, HJB solver fixes, GAAP accounting corrections, and config unification (#1132) ([`d3437aa`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/d3437aa28968daa8af0e496e8145254986d97f9a))
+
+[0.10.0]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.9.0...v0.10.0
+
 ## [0.9.0] - 2026-02-11
 
 ### Added
