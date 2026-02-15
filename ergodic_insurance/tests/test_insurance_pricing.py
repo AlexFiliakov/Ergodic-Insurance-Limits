@@ -212,6 +212,28 @@ class TestInsurancePricer:
         assert stats["years_simulated"] == 5
         assert len(stats["confidence_interval"]) == 2
 
+    def test_pure_premium_is_mean_annual_aggregate(self, pricer):
+        """Pure premium must equal mean of annual aggregate losses (Issue #1426).
+
+        The correct actuarial pure premium is E[annual aggregate loss in layer],
+        not freq * sev.  The freq*sev shortcut diverges when frequency varies
+        across years because pooling individual severities across years with
+        different claim counts biases the severity estimate.
+        """
+        _, stats = pricer.calculate_pure_premium(
+            attachment_point=100_000,
+            limit=5_000_000,
+            expected_revenue=15_000_000,
+            simulation_years=20,
+        )
+
+        annual_aggs = stats["annual_aggregates"]
+        expected_pp = float(np.mean(annual_aggs))
+        assert stats["undeveloped_pure_premium"] == pytest.approx(expected_pp)
+        # freq and sev remain as informational statistics
+        assert "expected_frequency" in stats
+        assert "expected_severity" in stats
+
     def test_calculate_pure_premium_no_generator(self):
         """Test pure premium calculation without loss generator."""
         pricer = InsurancePricer(market_cycle=MarketCycle.NORMAL)
