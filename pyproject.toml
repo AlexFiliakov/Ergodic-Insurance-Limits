@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ergodic-insurance"
-version = "0.13.0"
+version = "0.13.2"
 description = "Financial modeling for widget manufacturers with ergodic insurance limits"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- next-version -->
 
+## [0.13.2] - 2026-02-15
+
+### Fixed
+- update README.md ([`7f3ff6b`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/7f3ff6bb1201f753b83979e5edc87ddd2f57af30))
+- updated all `pip install` references to PyPI ([`3426227`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/3426227f0170ab1b253e957cb3d8a629241bdc56))
+
+[0.13.2]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.1...v0.13.2
+
+## [0.13.1] - 2026-02-15
+
+### Changed
+- updated notebooks to run in Colab and fixed README images for PyPI ([`379d9f7`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/379d9f71fff21194acfc61e243bc66540e96035b))
+
+### Fixed
+- all notebooks to run on Google Colab ([`c36f282`](https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/commit/c36f2827efbd16d46ab4bd779a96ec932024b426))
+
+[0.13.1]: https://github.com/AlexFiliakov/Ergodic-Insurance-Limits/compare/v0.13.0...v0.13.1
+
 ## [0.13.0] - 2026-02-15
 
 ### Fixed
