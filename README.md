@@ -140,28 +140,20 @@ Traditional insurance analysis says companies should self-insure whenever premiu
 
 ### Setup
 
-1. Clone the repository:
+1. Install the package from PyPI:
 ```bash
-git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
-cd Ergodic-Insurance-Limits
-```
-
-2. Install dependencies using uv (recommended) or pip:
-```bash
-# Using uv
-uv sync
-
-# Or using pip
-pip install -e .
+pip install ergodic-insurance
 ```
 
 ### Developer Setup
 
-If you plan to contribute, run the one-time setup script to install dev
-dependencies and pre-commit hooks (black, isort, mypy, pylint, conventional
-commit enforcement):
+If you plan to contribute, clone the repository and run the one-time setup script
+to install dev dependencies and pre-commit hooks (black, isort, mypy, pylint,
+conventional commit enforcement):
 
 ```bash
+git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
+cd Ergodic-Insurance-Limits
 python ergodic_insurance/scripts/setup_dev.py
 ```
 

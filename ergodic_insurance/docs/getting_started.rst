@@ -4,22 +4,24 @@ Getting Started
 Installation
 ------------
 
-1. **Clone the Repository**::
+1. **Install from PyPI**::
+
+    pip install ergodic-insurance
+
+   Or for development, clone the repository::
 
     git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
-    cd Ergodic-Insurance-Limits/ergodic_insurance
+    cd Ergodic-Insurance-Limits
 
-2. **Install Dependencies**
-
-   Using uv (recommended)::
+   Using uv (recommended for development)::
 
     uv sync
 
-   Or using pip::
+   Or using pip in editable mode::
 
     pip install -e .
 
-3. **Install Development Dependencies** (optional)::
+2. **Install Development Dependencies** (optional)::
 
     uv sync --extra dev --extra notebooks --extra docs
 

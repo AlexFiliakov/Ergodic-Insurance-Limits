@@ -25,8 +25,11 @@ ERROR: Could not find a version that satisfies the requirement ergodic_insurance
 
 **Solution:**
 ```bash
-# Install from the local directory
-cd ergodic_insurance
+# Install from PyPI
+pip install ergodic-insurance
+
+# Or install from the local directory for development
+cd Ergodic-Insurance-Limits
 pip install -e .
 
 # Or with uv
@@ -48,7 +51,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install with updated pip
 pip install --upgrade pip
-pip install -e .
+pip install ergodic-insurance
 ```
 
 ### Issue: NumPy/SciPy installation fails
@@ -89,7 +92,7 @@ import sys
 sys.path.append('/path/to/ergodic_insurance')
 
 # Or reinstall
-pip install -e /path/to/ergodic_insurance
+pip install ergodic-insurance
 ```
 
 ### Issue: ImportError for specific modules

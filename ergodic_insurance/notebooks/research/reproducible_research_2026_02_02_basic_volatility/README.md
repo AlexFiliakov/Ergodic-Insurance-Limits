@@ -44,10 +44,10 @@ The simulation runs 250,000 Monte Carlo paths over 50 years for each parameter c
 
 The simulation is set up to run on **Google Colab** (but can run in any environment with multiple CPU cores, you just have to point to the right directories). The full grid (~36 parameter combinations) costs roughly **$25 in Colab compute** and takes a couple of days. A reduced test grid can run in minutes.
 
-The `ergodic_insurance` package is installed directly from GitHub at the start of notebook `0.a.`:
+The `ergodic_insurance` package is installed from PyPI at the start of notebook `0.a.`:
 
 ```
-pip install git+https://github.com/AlexFiliakov/Ergodic-Insurance-Limits
+pip install ergodic-insurance
 ```
 
 ## Files and Workflow

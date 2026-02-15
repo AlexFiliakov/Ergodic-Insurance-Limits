@@ -115,7 +115,7 @@ set PYTHONPATH=..\src;%PYTHONPATH%       # Windows
 
 **Missing dependencies**: Install all required packages:
 ```bash
-pip install -e ..  # Install the main package
+pip install ergodic-insurance  # Install the main package (or pip install -e .. for development)
 pip install sphinx sphinx-rtd-theme  # Install docs dependencies
 ```
 

@@ -42,13 +42,15 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-3. Install the package in development mode with all dependencies:
+3. Install the package:
 ```bash
-pip install -e ".[dev,notebooks]"
-```
+# From PyPI
+pip install ergodic-insurance
 
-Or if using uv (recommended):
-```bash
+# Or in development mode with all dependencies
+pip install -e ".[dev,notebooks]"
+
+# Or using uv (recommended for development)
 uv sync
 ```
 
@@ -163,7 +165,7 @@ jupyter lab
 
 1. Install the package:
 ```bash
-pip install -e ".[dev,notebooks]"
+pip install ergodic-insurance
 ```
 
 2. Run tests to verify installation:
