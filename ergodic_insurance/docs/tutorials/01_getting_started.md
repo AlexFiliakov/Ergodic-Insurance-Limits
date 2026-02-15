@@ -42,10 +42,13 @@ source .venv/bin/activate
 3. Install the package:
 
 ```bash
-# Using pip
+# From PyPI
+pip install ergodic-insurance
+
+# Or in development mode
 pip install -e ".[dev,notebooks]"
 
-# Or using uv (recommended)
+# Or using uv (recommended for development)
 uv sync
 ```
 

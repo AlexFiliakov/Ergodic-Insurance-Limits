@@ -13,42 +13,33 @@ Prerequisites
 Installation Methods
 --------------------
 
-Using uv (Recommended)
-~~~~~~~~~~~~~~~~~~~~~~
+From PyPI (Recommended)
+~~~~~~~~~~~~~~~~~~~~~~~
 
-The project uses ``uv`` for fast, reliable dependency management:
+Install the package directly from PyPI:
 
 .. code-block:: bash
 
-   # Clone the repository
+   pip install ergodic-insurance
+
+From Source (Development)
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For development or contributing, clone the repository:
+
+.. code-block:: bash
+
    git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
    cd Ergodic-Insurance-Limits
 
-   # Install uv if you haven't already
+   # Using uv (recommended for development)
    pip install uv
-
-   # Install dependencies
    uv sync
-
-   # Activate the virtual environment
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-Using pip
-~~~~~~~~~
-
-Traditional installation with pip:
-
-.. code-block:: bash
-
-   # Clone the repository
-   git clone https://github.com/AlexFiliakov/Ergodic-Insurance-Limits.git
-   cd Ergodic-Insurance-Limits
-
-   # Create virtual environment
+   # Or using pip in editable mode
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-   # Install in editable mode
    pip install -e .
 
 Development Installation
